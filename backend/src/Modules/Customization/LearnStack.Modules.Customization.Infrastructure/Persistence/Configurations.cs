@@ -1,5 +1,7 @@
+using LearnStack.Infrastructure.DataProtection;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Customization.Domain;
+using LearnStack.SharedKernel.DataProtection;
 using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Localization;
@@ -64,6 +66,11 @@ internal static class CustomizationMapping
             .IsRequired();
         builder.Property(x => x.Status).HasEnumAsText().IsRequired();
         builder.Property(x => x.DisplayName).HasLocalizedText().IsRequired();
+        builder.DeclarePersonalData(PersonalDataCategory.None,
+            "Institution-authored definition key, version, lifecycle and localized concept label.",
+            nameof(CustomizationDefinition<TId>.TenantId), nameof(CustomizationDefinition<TId>.Key),
+            nameof(CustomizationDefinition<TId>.SchemaVersion), nameof(CustomizationDefinition<TId>.SchemaRevision),
+            nameof(CustomizationDefinition<TId>.Status), nameof(CustomizationDefinition<TId>.DisplayName));
 
         // An alternate key rather than a unique index, and the distinction is not
         // cosmetic: `HasPrincipalKey` on the taxonomy's item collection needs a key
@@ -151,6 +158,9 @@ internal sealed class TenantContentTypeConfiguration : IEntityTypeConfiguration<
             .IsRequired();
 
         builder.MapAuditColumns<TenantContentType, TenantContentTypeId>();
+        builder.DeclarePersonalData(PersonalDataCategory.None,
+            "Institution content-shape identity, structural validation schema and renderer selection; no instance values.",
+            nameof(TenantContentType.Id), nameof(TenantContentType.JsonSchema), nameof(TenantContentType.RendererKey));
     }
 }
 
@@ -167,6 +177,9 @@ internal sealed class TenantLevelTaxonomyConfiguration : IEntityTypeConfiguratio
 
         builder.MapDefinition<TenantLevelTaxonomy, TenantLevelTaxonomyId>("tenant_level_taxonomies");
         builder.MapAuditColumns<TenantLevelTaxonomy, TenantLevelTaxonomyId>();
+        builder.DeclarePersonalData(PersonalDataCategory.None,
+            "Identity of an institution-authored vocabulary revision, not a learner's achieved level.",
+            nameof(TenantLevelTaxonomy.Id));
 
         // The containment the aggregate boundary decides, expressed for EF — and
         // NOT as an owned type. An owned mapping reads like the natural way to say
@@ -219,6 +232,12 @@ internal sealed class TenantLevelTaxonomyItemConfiguration
         builder.Property(x => x.Sort).IsRequired();
         builder.Property(x => x.DisplayName).HasLocalizedText().IsRequired();
         builder.Property(x => x.Metadata).HasColumnType("jsonb");
+        builder.DeclarePersonalData(PersonalDataCategory.None,
+            "Institution vocabulary labels, ordering and presentation metadata; no learner assignments or progress.",
+            nameof(TenantLevelTaxonomyItem.TenantId), nameof(TenantLevelTaxonomyItem.TaxonomyKey),
+            nameof(TenantLevelTaxonomyItem.SchemaVersion), nameof(TenantLevelTaxonomyItem.Key),
+            nameof(TenantLevelTaxonomyItem.Sort), nameof(TenantLevelTaxonomyItem.DisplayName),
+            nameof(TenantLevelTaxonomyItem.Metadata));
 
         // The aggregate refuses a duplicate sort with a message a tenant admin can
         // read; this is what holds it across two concurrent transactions, where an
@@ -245,5 +264,8 @@ internal sealed class CustomizationGenerationConfiguration
             .ValueGeneratedNever();
 
         builder.Property(x => x.Generation).HasDefaultValue(1L).IsRequired();
+        builder.DeclarePersonalData(PersonalDataCategory.None,
+            "Institution customization cache-invalidation generation, without user activity or subject linkage.",
+            nameof(CustomizationGeneration.TenantId), nameof(CustomizationGeneration.Generation));
     }
 }

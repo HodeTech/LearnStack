@@ -225,8 +225,8 @@ Delivered as **tenant customization data** loaded at provisioning, **not** as co
 - `TenantLessonItemType` for `speaking-practice` (with live-session reference).
 - `TenantScoringRule` for placement-test → CEFR-level recommendation.
 - `TenantCompletionRule` for English-specific lesson-package completion semantics.
-- `TenantCustomFieldDef` for `User.preferredAccent`, `InstructorProfile.dialectsTaught`,
-  etc.
+- `TenantCustomFieldDef` for `Membership.preferredAccent`,
+  `InstructorProfile.dialectsTaught`, etc.
 - `TenantTemplateLibrary` populated with English-locale email templates.
 
 The **second tenant already exists** — the yoga studio seeded in

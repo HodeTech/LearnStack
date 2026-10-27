@@ -53,7 +53,7 @@ public sealed class BackgroundJobApplicationSourceTests(SchemaFixture schema)
             owner.RequireOwnedMainUnit(unit);
             var store = new PostgresAuditStore(new AuditStateCapture(), new Lazy<NpgsqlDataSource>(() => source),
                 NullLogger<PostgresAuditStore>.Instance, metrics.GetRequiredService<IMeterFactory>(), new AuditHealth(),
-                new AuditCatalog([]), new StaticTenantContextAccessor(Context));
+                new AuditCatalog([]), new StaticTenantContextAccessor(Context), new LearnStack.Infrastructure.Persistence.GlobalIdentityEnrollment());
             var invalid = Draft() with { Metadata = "not-json" };
             var failed = () => store.WriteStandaloneAsync(invalid);
             await failed.Should().ThrowAsync<AuditWriteFailedException>();

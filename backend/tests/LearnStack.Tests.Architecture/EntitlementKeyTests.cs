@@ -246,7 +246,7 @@ public sealed partial class EntitlementKeyTests
 
     /// <summary>The entity types every module model maps to one physical table.</summary>
     private static List<string> MappedTo(string table) =>
-        [.. Modules.Scoped.SelectMany(module =>
+        [.. Modules.Mapped.SelectMany(module =>
         {
             using var context = module.Context();
             return context.Model.GetEntityTypes()

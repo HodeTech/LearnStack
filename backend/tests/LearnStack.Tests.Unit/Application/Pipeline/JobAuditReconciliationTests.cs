@@ -36,7 +36,7 @@ public sealed class JobAuditReconciliationTests
         {
             sourceAttempts++;
             throw new InvalidOperationException("Reconciliation must not reach another application source.");
-        }), auditLogger, meters, health, catalog, new StaticTenantContextAccessor(context));
+        }), auditLogger, meters, health, catalog, new StaticTenantContextAccessor(context), new LearnStack.Infrastructure.Persistence.GlobalIdentityEnrollment());
         var failures = new List<(long Count, KeyValuePair<string, object?>[] Tags)>();
         using var listener = new MeterListener();
         listener.InstrumentPublished = (instrument, active) =>
@@ -48,7 +48,7 @@ public sealed class JobAuditReconciliationTests
         listener.SetMeasurementEventCallback<long>((_, count, tags, _) => failures.Add((count, tags.ToArray())));
         listener.Start();
         var coordinator = new AuditExecutionCoordinator(catalog, new FakeClassifier(), capture, store, context,
-            new HarnessClock(DateTimeOffset.UnixEpoch), new HarnessGuidFactory(), reconcileLogger);
+            new HarnessClock(DateTimeOffset.UnixEpoch), new HarnessGuidFactory(), reconcileLogger, NSubstitute.Substitute.For<LearnStack.SharedKernel.Persistence.IUnitOfWork>());
         var refusal = Result.Fail<string>(new Error(LocalizedMessage.Of("lockey_forbidden")));
         var actual = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         JobApplicationAuxiliaryResources? retained = null;

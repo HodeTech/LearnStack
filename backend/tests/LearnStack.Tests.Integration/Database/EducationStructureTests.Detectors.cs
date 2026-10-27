@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Text.RegularExpressions;
 using LearnStack.Modules.Education.Domain;
 using LearnStack.Modules.Education.Infrastructure.Persistence;
+using LearnStack.Modules.Identity.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.EntityFrameworkCore;
@@ -18,12 +19,20 @@ public sealed partial class EducationStructureTests
     // database FK is therefore a failure, as is introducing an unclassified relation.
     private sealed record ParentRelation(string Child, string Parent, string ParentId, string DeleteAction);
 
-    private static readonly ParentRelation[] ParentRelations =
+    private static readonly ParentRelation[] EducationParentRelations =
     [
         new("lessons", "courses", "course_id", "r"),
         new("course_translations", "courses", "course_id", "c"),
         new("lesson_translations", "lessons", "lesson_id", "c"),
     ];
+
+    private static readonly ParentRelation[] IdentityParentRelations =
+    [
+        new("membership_profiles", "memberships", "membership_id", "r"),
+        new("membership_role_assignments", "memberships", "membership_id", "r"),
+    ];
+
+    private static readonly ParentRelation[] ParentRelations = [.. EducationParentRelations, .. IdentityParentRelations];
 
     private sealed record PatternRoot(Type Root, Type Satellite, string Table, string SatelliteTable, string ParentId, string[] Columns);
 
@@ -44,16 +53,14 @@ public sealed partial class EducationStructureTests
         StaticTenantContextAccessor.Unresolved);
 
     private static async Task<List<string>> ParentGuardOffendersAsync(
-        DbConnection connection, DbTransaction? transaction = null, ParentRelation[]? declarations = null)
+        DbConnection connection, DbTransaction? transaction = null, ParentRelation[]? declarations = null,
+        List<IForeignKey>? modelRelations = null)
     {
         declarations ??= ParentRelations;
         var offenders = new List<string>();
         using var context = ModelOnly();
-        var modelRelations = context.Model.GetEntityTypes()
-            .Where(entity => typeof(IOrganizationScoped).IsAssignableFrom(entity.ClrType))
-            .SelectMany(entity => entity.GetForeignKeys())
-            .Where(key => typeof(IOrganizationScoped).IsAssignableFrom(key.PrincipalEntityType.ClrType))
-            .ToList();
+        using var identity = IdentityModelOnly();
+        modelRelations ??= ParentModelRelations(context.Model, identity.Model);
 
         if (declarations.Length == 0 || modelRelations.Count == 0)
         {
@@ -70,7 +77,8 @@ public sealed partial class EducationStructureTests
                 offenders.Add($"{child}: undeclared model relation");
             }
             else if (!Columns(key.Properties).SequenceEqual(["tenant_id", declaration.ParentId])
-                || !Columns(key.PrincipalKey.Properties).SequenceEqual(["tenant_id", "id"]))
+                || !Columns(key.PrincipalKey.Properties).SequenceEqual(["tenant_id", "id"])
+                || (IdentityParentRelations.Contains(declaration) && key.DeleteBehavior != DeleteBehavior.Restrict))
             {
                 offenders.Add($"{child}: model tenant-composite FK");
             }
@@ -91,7 +99,7 @@ public sealed partial class EducationStructureTests
                     AND t.tgenabled IN ('O', 'A')
                     AND t.tgqual IS NULL AND t.tgnargs = 0
                     AND cardinality(t.tgattr::smallint[]) = 0)::text,
-                   f.proname, t.tgtype::text, t.tgdeferrable::text, t.tginitdeferred::text
+                   f.proname, t.tgtype::text, t.tgdeferrable::text, t.tginitdeferred::text, f.provolatile::text
             FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid
             JOIN pg_proc f ON f.oid = t.tgfoid
             JOIN pg_namespace n ON n.oid = f.pronamespace
@@ -112,14 +120,20 @@ public sealed partial class EducationStructureTests
             {
                 offenders.Add($"{relation.Child}: missing parent FK");
             }
-            else if (!ValidForeignKey(keys[0], relation))
+            else if (!ValidForeignKey(keys[0], relation)
+                || (IdentityParentRelations.Contains(relation) && keys[0].DeleteAction != relation.DeleteAction))
             {
                 offenders.Add($"{relation.Child}: tenant-composite FK");
             }
 
+            var identityRelation = IdentityParentRelations.Contains(relation);
             if (!triggers.Any(trigger => trigger[0] == relation.Child && trigger[1] == "public"
-                && trigger[3] == "true" && trigger[5] == "23" && trigger[6] == "false" && trigger[7] == "false"
-                && IsParentGuardBody(trigger[2], relation)))
+                && trigger[3] == "true" && trigger[5] == (identityRelation ? "31" : "23")
+                && trigger[6] == "false" && trigger[7] == "false"
+                && (identityRelation
+                    ? trigger[4] == "fn_identity_contextual_mutation_guard" && trigger[8] == "v"
+                        && IsIdentityParentGuardBody(trigger[2])
+                    : IsParentGuardBody(trigger[2], relation))))
             {
                 offenders.Add($"{relation.Child}: parent guard");
             }
@@ -128,6 +142,18 @@ public sealed partial class EducationStructureTests
         offenders.AddRange(await JobParentGuardOffendersAsync(applied, triggers));
         return offenders.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();
     }
+
+    private static IdentityDbContext IdentityModelOnly() => new(
+        new DbContextOptionsBuilder<IdentityDbContext>()
+            .UseNpgsql("Host=model-only;Database=model-only;Username=model-only").Options,
+        StaticTenantContextAccessor.Unresolved, EmptyIdentityScope.Instance);
+
+    private static List<IForeignKey> ParentModelRelations(params IModel[] models) => models
+        .SelectMany(model => model.GetEntityTypes())
+        .Where(entity => typeof(IOrganizationScoped).IsAssignableFrom(entity.ClrType))
+        .SelectMany(entity => entity.GetForeignKeys())
+        .Where(key => typeof(IOrganizationScoped).IsAssignableFrom(key.PrincipalEntityType.ClrType))
+        .ToList();
 
     /// <summary>
     /// A deliberately bounded grammar for Standards 05's canonical function, not
@@ -270,7 +296,7 @@ public sealed partial class EducationStructureTests
             }
         }
 
-        foreach (var relation in ParentRelations)
+        foreach (var relation in EducationParentRelations)
         {
             if (!foreignKeys.Any(key => key.Child == relation.Child && key.Parent == relation.Parent
                 && ValidForeignKey(key, relation) && key.DeleteAction == relation.DeleteAction))

@@ -138,7 +138,7 @@ erDiagram
     Tenant ||--o{ TenantScoringRule : "defines"
     Tenant ||--o{ CustomDomain : "has 0..N"
     Tenant ||--|| TenantPlan : "subscribed to (via Hub)"
-    Organization ||--o{ User : "has members"
+    Organization ||--o{ Membership : "scopes organization memberships"
     Organization ||--o{ Course : "owns 0..N (or tenant-wide)"
     Course ||--|{ CourseVersion : "versioned"
     CourseVersion ||--|{ Module : "contains"
@@ -147,7 +147,7 @@ erDiagram
     Tenant ||--o{ Course : "owns 0..N (tenant-wide)"
     Tenant ||--o{ Page : "owns 0..N"
     User ||--o{ Membership : "has (per tenant+org)"
-    Membership }o--|| Role : "has"
+    Membership }o--o{ Role : "holds scoped grants"
 
     Tenant {
         uuid id PK
@@ -167,17 +167,23 @@ erDiagram
     }
     User {
         uuid id PK
-        string keycloak_user_id
-        string email
     }
     Membership {
         uuid id PK
         uuid user_id FK
-        uuid tenant_id FK
-        uuid organization_id FK
-        uuid role_id FK
+        uuid tenant_id
+        uuid organization_id
     }
 ```
+
+Text fallback: a global user has memberships in tenant/optional-organization
+contexts and may hold multiple scoped role grants. Organization remains Tenancy's
+aggregate; Membership holds its ID by value, with no cross-module FK or join.
+This is a conceptual relationship diagram. The implemented binding, nullable
+keys, profile and Role shapes follow the [Identity contract](../modules/identity/README.md);
+[Database Standards](../standards/05-database.md#identity-storage-contract) owns
+actual columns and policies. The [Phase 03 Status block](../roadmap/phase-03-identity-admin.md)
+owns current qualification state.
 
 ## 4. What customers can do — what LearnStack core does for them
 

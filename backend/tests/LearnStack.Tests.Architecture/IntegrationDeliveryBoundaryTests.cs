@@ -95,55 +95,58 @@ public sealed partial class OutboxDispatchConventionTests
             "abstract bases and unrelated HandleAsync methods are not concrete subscribers");
     }
 
-    [Fact]
-    public void Integration_invocation_census_rejects_all_layer_direct_interface_helper_async_and_delegate_bypasses()
+    public sealed class IntegrationInvocationMutationTests
     {
-        using var census = ProductionCensus.Read();
-        var types = census.Types;
-        var handler = types[(typeof(InitializeContentTypeDefaultHandler).Assembly.GetName().Name!, typeof(InitializeContentTypeDefaultHandler).FullName!)];
-        var handle = handler.Methods.Single(method => method.Name == "HandleAsync");
-        var constructor = handler.Methods.Single(method => method.IsConstructor && !method.IsStatic);
-        var contract = typeof(IIntegrationEventHandler<TenantCreatedIntegrationEventV1>).GetMethod("HandleAsync")!;
-        var subscription = types[(InfrastructureAssembly, IntegrationSubscription)];
-        var capability = subscription.Properties.Single(property => property.Name == "Handle").GetMethod;
-        var invoke = types[(InfrastructureAssembly, DeliveryExecutorType)].Methods.Single(method => method.Name == "InvokeAsync");
-
-        foreach (var module in census.Modules)
+        [Fact]
+        public void Integration_invocation_census_rejects_all_layer_direct_interface_helper_async_and_delegate_bypasses()
         {
-            AssertMutation(census, "direct handler invocation in " + module.Name, () =>
-                AddCallProbe(module, "DirectIntegrationInvocation", handle, OpCodes.Call), IntegrationInvocationOffenders);
-            AssertMutation(census, "interface handler invocation in " + module.Name, () =>
-                AddCallProbe(module, "InterfaceIntegrationInvocation", module.ImportReference(contract), OpCodes.Callvirt), IntegrationInvocationOffenders);
-            AssertMutation(census, "handler construction in " + module.Name, () =>
-                AddCallProbe(module, "DirectIntegrationConstruction", constructor, OpCodes.Newobj), IntegrationInvocationOffenders);
+            using var census = ProductionCensus.Read();
+            var types = census.Types;
+            var handler = types[(typeof(InitializeContentTypeDefaultHandler).Assembly.GetName().Name!, typeof(InitializeContentTypeDefaultHandler).FullName!)];
+            var handle = handler.Methods.Single(method => method.Name == "HandleAsync");
+            var constructor = handler.Methods.Single(method => method.IsConstructor && !method.IsStatic);
+            var contract = typeof(IIntegrationEventHandler<TenantCreatedIntegrationEventV1>).GetMethod("HandleAsync")!;
+            var subscription = types[(InfrastructureAssembly, IntegrationSubscription)];
+            var capability = subscription.Properties.Single(property => property.Name == "Handle").GetMethod;
+            var invoke = types[(InfrastructureAssembly, DeliveryExecutorType)].Methods.Single(method => method.Name == "InvokeAsync");
+
+            foreach (var module in census.Modules)
+            {
+                AssertMutation(census, "direct handler invocation in " + module.Name, () =>
+                    AddCallProbe(module, "DirectIntegrationInvocation", handle, OpCodes.Call), IntegrationInvocationOffenders);
+                AssertMutation(census, "interface handler invocation in " + module.Name, () =>
+                    AddCallProbe(module, "InterfaceIntegrationInvocation", module.ImportReference(contract), OpCodes.Callvirt), IntegrationInvocationOffenders);
+                AssertMutation(census, "handler construction in " + module.Name, () =>
+                    AddCallProbe(module, "DirectIntegrationConstruction", constructor, OpCodes.Newobj), IntegrationInvocationOffenders);
+            }
+
+            var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
+            foreach (var target in new[] { handle, capability, invoke })
+            {
+                foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
+                    AssertMutation(census, "an extra invocation capability through " + opcode.Name, () =>
+                        AddCallProbe(application, "IntegrationInvocationHelper", target, opcode), IntegrationInvocationOffenders);
+                AssertMutation(census, "an asynchronous invocation helper", () =>
+                    AddAsyncCallProbe(application, "AsyncIntegrationInvocationHelper", target), IntegrationInvocationOffenders);
+            }
+
+            var executor = types[(InfrastructureAssembly, DeliveryExecutorType)];
+            AssertMutation(census, "another helper inside the real executor", () =>
+            {
+                var method = AddCall(executor, "UnexpectedInvocationHelper", invoke, OpCodes.Call);
+                return () => executor.Methods.Remove(method);
+            }, IntegrationInvocationOffenders);
+            var invokeBody = OwnedBodies(census).Single(item => item.Owner == invoke && item.Body.Name == "MoveNext").Body;
+            var readHandle = invokeBody.Body.Instructions.Single(instruction => instruction.Operand is MethodReference method
+                && method.Name == "get_Handle" && SameType(method.DeclaringType, subscription));
+            AssertMutation(census, "a missing actual reflective invocation capability", () =>
+                ReplaceInstruction(readHandle, OpCodes.Ldstr, "removed invocation capability"), IntegrationInvocationOffenders);
+
+            var clean = AddProbe(application, "CleanIntegrationMetadataObserver");
+            AddCall(clean, "Observe", subscription.Properties.Single(property => property.Name == "EventType").GetMethod, OpCodes.Callvirt);
+            try { IntegrationInvocationOffenders(census).Should().BeEmpty("reading event identity does not invoke a subscriber"); }
+            finally { application.Types.Remove(clean); }
         }
-
-        var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
-        foreach (var target in new[] { handle, capability, invoke })
-        {
-            foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
-                AssertMutation(census, "an extra invocation capability through " + opcode.Name, () =>
-                    AddCallProbe(application, "IntegrationInvocationHelper", target, opcode), IntegrationInvocationOffenders);
-            AssertMutation(census, "an asynchronous invocation helper", () =>
-                AddAsyncCallProbe(application, "AsyncIntegrationInvocationHelper", target), IntegrationInvocationOffenders);
-        }
-
-        var executor = types[(InfrastructureAssembly, DeliveryExecutorType)];
-        AssertMutation(census, "another helper inside the real executor", () =>
-        {
-            var method = AddCall(executor, "UnexpectedInvocationHelper", invoke, OpCodes.Call);
-            return () => executor.Methods.Remove(method);
-        }, IntegrationInvocationOffenders);
-        var invokeBody = OwnedBodies(census).Single(item => item.Owner == invoke && item.Body.Name == "MoveNext").Body;
-        var readHandle = invokeBody.Body.Instructions.Single(instruction => instruction.Operand is MethodReference method
-            && method.Name == "get_Handle" && SameType(method.DeclaringType, subscription));
-        AssertMutation(census, "a missing actual reflective invocation capability", () =>
-            ReplaceInstruction(readHandle, OpCodes.Ldstr, "removed invocation capability"), IntegrationInvocationOffenders);
-
-        var clean = AddProbe(application, "CleanIntegrationMetadataObserver");
-        AddCall(clean, "Observe", subscription.Properties.Single(property => property.Name == "EventType").GetMethod, OpCodes.Callvirt);
-        try { IntegrationInvocationOffenders(census).Should().BeEmpty("reading event identity does not invoke a subscriber"); }
-        finally { application.Types.Remove(clean); }
     }
 
     [Fact]

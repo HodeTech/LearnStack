@@ -9,8 +9,8 @@ export function publicApiEnvironment(values, configuration, base = process.env) 
   if (!values.ConnectionStrings__Default) throw new Error('Application credential is missing');
   if (!values.ConnectionStrings__OutboxDispatcher)
     throw new Error('Outbox dispatcher credential is missing');
-  if (values.Authentication__Tenant__Issuer)
-    environment.Authentication__Tenant__Issuer = values.Authentication__Tenant__Issuer;
+  for (const key of ['Authentication__Tenant__Issuer', 'Identity__AuthorityId'])
+    if (values[key]) environment[key] = values[key];
   environment.ConnectionStrings__Default = values.ConnectionStrings__Default;
   environment.ConnectionStrings__OutboxDispatcher = values.ConnectionStrings__OutboxDispatcher;
   if (values.ConnectionStrings__PlatformAdmin)

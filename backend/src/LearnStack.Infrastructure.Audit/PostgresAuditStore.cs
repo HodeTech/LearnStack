@@ -4,6 +4,7 @@ using System.Text.Json;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Jobs;
+using LearnStack.SharedKernel.Identity;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
 using System.Diagnostics.Metrics;
@@ -38,7 +39,7 @@ namespace LearnStack.Infrastructure.Audit;
 /// 3 § 2</see>).
 /// </para>
 /// </remarks>
-public sealed class PostgresAuditStore : IAuditStore
+public sealed partial class PostgresAuditStore : IAuditStore
 {
     /// <summary>The meter every audit-write counter hangs off.</summary>
     public const string MeterName = "LearnStack.Audit";
@@ -78,6 +79,7 @@ public sealed class PostgresAuditStore : IAuditStore
     private readonly IAuditHealth _health;
     private readonly IAuditCatalog _catalog;
     private readonly ITenantContextAccessor _tenantAccessor;
+    private readonly IGlobalIdentityEnrollment _globalEnrollment;
     private readonly Counter<long> _durableDuplicates;
     private readonly Counter<long> _standaloneWriteFailures;
 
@@ -88,7 +90,8 @@ public sealed class PostgresAuditStore : IAuditStore
         IMeterFactory meterFactory,
         IAuditHealth health,
         IAuditCatalog catalog,
-        ITenantContextAccessor tenantAccessor)
+        ITenantContextAccessor tenantAccessor,
+        IGlobalIdentityEnrollment globalEnrollment)
     {
         ArgumentNullException.ThrowIfNull(meterFactory);
 
@@ -100,6 +103,7 @@ public sealed class PostgresAuditStore : IAuditStore
         // Context controls diagnostics only. Row authority still comes exclusively
         // from the caller's classified draft/intent, including unresolved provisioning.
         _tenantAccessor = tenantAccessor ?? throw new ArgumentNullException(nameof(tenantAccessor));
+        _globalEnrollment = globalEnrollment ?? throw new ArgumentNullException(nameof(globalEnrollment));
 
         var meter = meterFactory.Create(MeterName);
         _durableDuplicates = meter.CreateCounter<long>(DurableDuplicateCounterName);
@@ -138,6 +142,11 @@ public sealed class PostgresAuditStore : IAuditStore
     {
         JobApplicationSourceOwner.RefuseExternalEntry();
         ArgumentNullException.ThrowIfNull(unitOfWork);
+
+        if (_globalEnrollment.IsActive || unitOfWork is IGlobalIdentityUnitOfWork { IsGlobalIdentityTransaction: true }
+            || _capture.Intents.Any(intent => intent.GlobalIdentity is not null
+                || intent.TenantId == TenantId.PlatformSentinel))
+            throw new ArgumentException("Ordinary pending audit cannot carry global identity or sentinel attribution.", nameof(unitOfWork));
 
         var pending = _capture.Intents
             .Where(intent => intent.OperationClass == OperationClass.Must)
@@ -209,6 +218,7 @@ public sealed class PostgresAuditStore : IAuditStore
     {
         JobApplicationSourceOwner.RefuseExternalEntry();
         ArgumentNullException.ThrowIfNull(entry);
+        RefuseGlobalCapture();
         EnsureNotPlatformScope(entry);
 
         try
@@ -326,6 +336,7 @@ public sealed class PostgresAuditStore : IAuditStore
     {
         JobApplicationSourceOwner.RefuseExternalEntry();
         ArgumentNullException.ThrowIfNull(entry);
+        RefuseGlobalCapture();
         EnsureNotPlatformScope(entry);
 
         try
@@ -367,8 +378,12 @@ public sealed class PostgresAuditStore : IAuditStore
     {
         JobApplicationSourceOwner.RefuseExternalEntry();
         ArgumentNullException.ThrowIfNull(entry);
+        RefuseGlobalCapture();
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(transaction);
+
+        if (entry.ModuleName == "identity" || entry.Operation == GlobalIdentityCreationReference.Operation)
+            throw new ArgumentException("Global identity creation cannot use the platform audit seam.", nameof(entry));
 
         // The caller's connection and the caller's transaction, because the row runs as
         // learnstack_platform under the sentinel tenant and the request's transaction is
@@ -403,6 +418,7 @@ public sealed class PostgresAuditStore : IAuditStore
         CancellationToken cancellationToken = default)
     {
         JobApplicationSourceOwner.RefuseExternalEntry();
+        RefuseGlobalCapture();
         ArgumentNullException.ThrowIfNull(transition);
         transition.EnsureMatches(entry, connection, transaction);
 
@@ -446,6 +462,7 @@ public sealed class PostgresAuditStore : IAuditStore
         CancellationToken cancellationToken = default)
     {
         JobApplicationSourceOwner.RefuseExternalEntry();
+        RefuseGlobalCapture();
         ArgumentNullException.ThrowIfNull(transition);
         transition.EnsureMatches(entry, connection, transaction);
         const string operation = "platform.job.dead_letter";
@@ -601,6 +618,12 @@ public sealed class PostgresAuditStore : IAuditStore
 
     private static void Add(DbParameterCollection parameters, string name, object? value) =>
         parameters.Add(new NpgsqlParameter(name, value ?? DBNull.Value));
+
+    private void RefuseGlobalCapture()
+    {
+        if (_globalEnrollment.IsActive || _capture.Intents.Any(intent => intent.GlobalIdentity is not null))
+            throw new ArgumentException("A global identity capture cannot use an ordinary or platform audit seam.");
+    }
 
     /// <summary>
     /// Binds a <c>jsonb</c> parameter, typed explicitly.

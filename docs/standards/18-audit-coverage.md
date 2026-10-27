@@ -21,6 +21,9 @@ Job additions derive from
 [ADR-0047](../decisions/0047-transactional-background-job-runtime.md)
 (accepted 2026-10-15; P02b-4 runtime and enforcement implemented; the
 [phase status](../roadmap/phase-02b-events-auth.md) owns hosted qualification).
+Global identity creation and contextual foundation authority derive from Accepted
+[ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) and
+[ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md).
 
 This standard defines **which operations must be audited**, **what an audit entry
 contains**, **how long entries are retained**, and how each module signs up for its
@@ -35,7 +38,9 @@ document is the rule that prevents the audit story from drifting.
   resource, when, from where, with what outcome**" for every meaningful state change.
 - If omitting an audit entry would embarrass a compliance officer, it **MUST** be
   audited.
-- Audit entries are append-only, immutable and tenant-scoped. `audit_log` is org-scoped,
+- Audit entries are append-only and immutable. Ordinary entries are tenant-scoped;
+  the [global identity creation class](#global-identity-creation) is the separately
+  admitted sentinel population beside platform-scope rows. `audit_log` is org-scoped,
   and the row's organization is the one the ambient context announced: `AuditIntent`
   carries `TenantId` and `OrganizationId?`, both resolved by `AuditLogBehavior` at step 3
   ([ADR-0044 Amendment 3 § 2](../decisions/0044-audit-write-path.md)) — which is before
@@ -348,11 +353,12 @@ Rules:
   new table either way, and partitioning on day one would force every partition-key
   column into the primary key before the schema that shape has to serve exists. The
   policy shape is the same in both.
-- **Table class and chain.** `audit_log` is **tenant-owned, org-scoped** and takes the
-  canonical policy template from
+- **Table class and chain.** `audit_log` is **tenant-owned, org-scoped**. Its ordinary
+  tenant/org policy semantics come from
   [Database Standards § Tenant-Owned and Organization-Scoped Tables](05-database.md)
-  unmodified — one `AND`-ed policy, `ENABLE` **and** `FORCE`, explicit `WITH CHECK`, both
-  `AS RESTRICTIVE` write guards. `audit_config` is **tenant-owned, tenant-wide**: it has
+  with the accepted [global identity branch](05-database.md#global-central-audit-branch),
+  implemented in Step 3. The reusable template stays unchanged; the applied audit
+  policy includes only the qualified global extension. `audit_config` is **tenant-owned, tenant-wide**: it has
   no `organization_id`, so it takes the same shape with the organization half omitted and
   no restrictive guards — there is no organization to guard
   ([ADR-0044 Amendment 1](../decisions/0044-audit-write-path.md)). No document
@@ -557,7 +563,7 @@ table above is the policy those deliverables implement, not a description of tod
   the [canonical job obligations](21-architecture-tests-catalogue.md#p02b-4-background-job-obligations)
   name their owners and proofs. Ordinary business mutations and privileged
   maintenance remain audited under their existing contracts.
-- Accepted ADR-0047's sixth `WriteJobTerminalAsync` method accepts only the actual
+- Accepted ADR-0047's sixth currently shipped `WriteJobTerminalAsync` method accepts only the actual
   fenced job-transition witness and matching caller connection/transaction. It
   validates stored tenant/organization/job/definition/attempt/acquisition values,
   MUST/SecurityEvent classification and the exact `platform.job.dead_letter` draft.
@@ -593,14 +599,16 @@ table above is the policy those deliverables implement, not a description of tod
   the request payload: `ITenantContext.TenantId` under a resolved context,
   `IProvisionsTenant.ProvisioningTenantId` for provisioning under an unresolved one, and
   `TenantId.PlatformSentinel` — the reserved `00000000-0000-7000-8000-000000000002`, not
-  the nil UUID — for a platform-scope operation with no resolvable tenant. An unresolved,
-  non-provisioning context writes **no row**: there is no tenant whose admin could read it,
+  the nil UUID — for a platform-scope operation with no resolvable tenant. An ordinary
+  unresolved, non-provisioning context writes **no row**: there is no tenant whose admin could read it,
   and [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md) forbids inventing
   one ([ADR-0044 § 1, § 2](../decisions/0044-audit-write-path.md)). `AuditLogBehavior`
   decides it at step 3 and puts it on the `AuditIntent`, which is the only point at which
   all four cases are decidable; the store composes the row from the intent and resolves no
   tenant of its own
   ([ADR-0044 Amendment 3 § 2](../decisions/0044-audit-write-path.md)).
+  Accepted ADR-0072 adds only the exact global creation class below; an unresolved
+  marker, generic metadata or SystemActor does not enroll it.
 - **The sentinel has an enforcer, not only a constraint.** Packet 9 puts the guard where
   the value enters: `SetProvisioningTenantContextAsync` refuses
   `TenantId.PlatformSentinel` as it already refuses `Guid.Empty`, and `Tenant.Create`
@@ -609,6 +617,36 @@ table above is the policy those deliverables implement, not a description of tod
   ([ADR-0044 Amendment 3 § 5](../decisions/0044-audit-write-path.md)).
 - The outbox dispatcher attaches the actor and the correlation id to every event it
   dispatches.
+
+## Global identity creation
+
+**Implemented under ADR-0072 in P03-1 Step 3.** The
+[Phase 03 Status block](../roadmap/phase-03-identity-admin.md) owns current
+qualification and review state.
+`identity.user.create` is MUST/SecurityEvent under the central baseline catalogue,
+independent of tenant AuditConfig and ADR-0065's host-tenant assertion allowance.
+Ordinary existing-binding reads declare no mutation intent. The exact
+[Database contract](05-database.md#global-central-audit-branch) owns global
+discrimination, policy/guard/evidence predicates and prepared owner sequencing.
+
+The common audit/transaction coordinators retain ownership. Extend `AuditIntent`,
+captured attribution and shared composition with a closed typed global-creation
+value; central composition derives its bounded metadata and creation reference.
+No handler submits arbitrary metadata or an AuditEntryDraft. Before an actor
+exists, the authenticated audit principal is NULL and the proposed target actor
+is separate; seed adoption attributes its fixed SystemActor. Raw issuer/subject,
+credentials and token values enter neither metadata nor snapshots. Retained
+subject-key metadata remains linkable personal data under existing retention.
+
+`WriteGlobalIdentityPending` and `ReconcileGlobalIdentity` extend the earlier six
+central write seams to **eight implemented seams**, without another SQL INSERT owner.
+Success shares the first User's physical transaction; non-success reconciliation
+uses captured evidence and preserves failure/unknown-COMMIT semantics. Ordinary
+pending explicitly refuses sentinel/global intents and global enrollment. A
+scoped read-only enrollment reader preserves the lazy application-source boundary. Platform, event and job seams keep their distinct scopes.
+No global audit read endpoint or P03-1 HTTP creation route follows. Registered
+Identity audit controls now exercise actual app-role, clean/dirty and physical
+COMMIT-boundary paths. Later contextual writers and HTTP activation remain separate.
 
 ## Architecture and Integration Tests
 

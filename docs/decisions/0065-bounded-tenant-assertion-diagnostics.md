@@ -366,3 +366,15 @@ The [decision index](README.md), [glossary](../glossary.md), Standards
 [Tenancy audit matrix](../modules/tenancy/audit.md) now state delivered status and
 distinguish separate admitted rows from suppressed occurrences. This changes no
 allowance, audit classification, signal vocabulary or HTTP disposition.
+
+### Amendment 4 — Global creation remains outside mismatch allowances (2026-10-25)
+
+**Status: Accepted.** This is navigation to jointly accepted
+[ADR-0072](0072-application-owned-identity-bootstrap.md) and its central global
+MUST identity creation contract. That population receives no host-tenant mismatch
+allowance or suppression. The independently defended-host admission key, budget,
+failed-attempt accounting and refusal behavior in this ADR remain unchanged.
+
+P03-1 Step 3 owns the new global audit proofs and Step 5 its admission integration;
+joint authority acceptance supplies neither runtime evidence nor an expanded
+mismatch budget.

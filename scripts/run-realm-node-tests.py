@@ -13,13 +13,13 @@ ROOT = Path(__file__).resolve().parents[1]
 # replaced by a passing named suite or by extra tests in another file.
 EXPECTED = {
     'development-realm-events.test.mjs': 51,
-    'development-realm-core.test.mjs': 63,
+    'development-realm-core.test.mjs': 66,
     'development-realm-http.test.mjs': 42,
-    'development-realm-owner.test.mjs': 56,
+    'development-realm-owner.test.mjs': 63,
     'development-realm-plan.test.mjs': 106,
     'development-realm-preparation.test.mjs': 28,
     'development-realm-stock-console.test.mjs': 25,
-    'reconcile-development-realm.test.mjs': 24,
+    'reconcile-development-realm.test.mjs': 28,
 }
 
 

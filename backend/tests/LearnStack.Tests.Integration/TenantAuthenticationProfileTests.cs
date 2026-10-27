@@ -51,6 +51,7 @@ public sealed partial class TenantAuthenticationProfileTests
             ("organization without tenant", issuer.Without("tenant_id")),
             ("subject exceeds the opaque subject bound", issuer.Payload(("sub", new string('s', 256)))),
             ("subject contains only whitespace", issuer.Payload(("sub", " \t\r\n\u2003"))),
+            ("subject cannot store NUL", issuer.Payload(("sub", "private\0subject"))),
             ("duplicate audience value", issuer.Payload(("aud", (string[])["learnstack-api", "learnstack-api"]))),
             ("empty audience array", issuer.Payload(("aud", Array.Empty<string>()))),
             ("nonstring audience entry", issuer.PayloadWithRaw("aud", "[\"learnstack-api\",1]")),
@@ -58,7 +59,7 @@ public sealed partial class TenantAuthenticationProfileTests
             ("empty audience entry", issuer.Payload(("aud", (string[])["learnstack-api", ""]))),
         };
 
-        foreach (var name in new[] { "iss", "sub", "aud", "iat", "exp", "azp", "typ", "user_id" })
+        foreach (var name in new[] { "iss", "sub", "aud", "iat", "exp", "azp", "typ" })
         {
             failures.Add(($"missing {name}", issuer.Without(name)));
         }
@@ -112,6 +113,10 @@ public sealed partial class TenantAuthenticationProfileTests
             tenant: TenantAuthenticationIssuer.Tenant, organization: null);
         await AssertAccepted(client, issuer.Token(issuer.Without("tenant_id", "organization_id")), issuer,
             tenant: null, organization: null);
+        using var actorless = await Send(client, "Bearer " + issuer.Token(issuer.Without("user_id")));
+        actorless.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await actorless.Content.ReadFromJsonAsync<AuthenticationObservation>())!.Actor.Should().BeNull(
+            "stock verification admits an absent compatibility actor without inventing application identity");
         issuer.CanaryRequests.Should().Be(0);
     }
 
@@ -306,7 +311,7 @@ public sealed partial class TenantAuthenticationProfileTests
         {
             var result = await context.AuthenticateAsync(TenantAuthenticationRegistration.Scheme);
             var feature = context.Features.Get<TenantCredentialFeature>();
-            var identity = feature?.Identity;
+            var identity = feature?.VerifiedSubject;
             context.Response.StatusCode = result.Succeeded ? StatusCodes.Status200OK
                 : result.None ? StatusCodes.Status204NoContent : StatusCodes.Status401Unauthorized;
             if (context.Response.StatusCode != StatusCodes.Status204NoContent)
@@ -314,7 +319,7 @@ public sealed partial class TenantAuthenticationProfileTests
                 await context.Response.WriteAsJsonAsync(new AuthenticationObservation(
                     result.Succeeded, context.Request.Headers.ContainsKey("Authorization"),
                     context.User.Identity?.IsAuthenticated == true,
-                    identity?.Issuer, identity?.Subject, identity?.ActorUserId.Value,
+                    identity?.Issuer, identity?.Subject, identity?.ClaimedActor?.Value,
                     identity?.TenantId?.Value, identity?.OrganizationId?.Value));
             }
         });

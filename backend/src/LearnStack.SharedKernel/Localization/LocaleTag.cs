@@ -23,12 +23,15 @@ public static partial class LocaleTag
     /// </remarks>
     public const int MaxLength = 35;
 
+    /// <summary>Checks shape without allocating an exception containing the supplied locale.</summary>
+    public static bool IsWellFormed(string? value) => value is not null && Pattern().IsMatch(value);
+
     public static void EnsureWellFormed(string value, string parameterName)
     {
         // Shape first, then the framework. CultureInfo alone is not a check:
         // .NET treats an unknown but well-formed tag as a valid custom culture,
         // and on some platforms accepts tags this pattern rejects.
-        if (!Pattern().IsMatch(value))
+        if (!IsWellFormed(value))
         {
             throw new ArgumentException(
                 $"'{value}' is not a well-formed BCP-47 language tag — expected forms are "

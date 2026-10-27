@@ -1,4 +1,4 @@
-import type { ChildProcess } from 'node:child_process';
+import type { ChildProcess } from "node:child_process";
 export function installDemoCancellation(cancel: () => void): () => void;
 export class DemoCommandError extends Error {
   constructor(
@@ -6,12 +6,26 @@ export class DemoCommandError extends Error {
     cause?: unknown,
     status?: { code: number | null; signal: string | null },
     outcome?: {
-      reason?: 'exit' | 'deadline' | 'cancelled' | 'spawn' | 'output' | 'cleanup' | 'unknown';
-      origin?: 'command' | 'daemon';
+      reason?:
+        | "exit"
+        | "deadline"
+        | "cancelled"
+        | "spawn"
+        | "output"
+        | "cleanup"
+        | "unknown";
+      origin?: "command" | "daemon";
     },
   );
-  readonly reason: 'exit' | 'deadline' | 'cancelled' | 'spawn' | 'output' | 'cleanup' | 'unknown';
-  readonly origin: 'command' | 'daemon';
+  readonly reason:
+    | "exit"
+    | "deadline"
+    | "cancelled"
+    | "spawn"
+    | "output"
+    | "cleanup"
+    | "unknown";
+  readonly origin: "command" | "daemon";
   readonly exitCode: number | null;
   readonly signalCode: string | null;
 }
@@ -21,7 +35,7 @@ interface Options {
   label?: string;
   capture?: boolean;
   timeout?: number;
-  observe?: (chunk: Buffer, stream: 'stdout' | 'stderr') => void;
+  observe?: (chunk: Buffer, stream: "stdout" | "stderr") => void;
 }
 interface Running {
   child: ChildProcess;
@@ -29,8 +43,12 @@ interface Running {
   exit: Promise<{ code: number | null; signal: string | null }>;
   /** Every daemon leader exit is unexpected, independently of stream closure. */
   nativeExit: Promise<{ code: number | null; signal: string | null }>;
-  refusal: Promise<{ cause: unknown; reason: 'spawn' | 'output' }>;
-  result(): { output: string; failed?: Error; failureReason?: 'spawn' | 'output' };
+  refusal: Promise<{ cause: unknown; reason: "spawn" | "output" }>;
+  result(): {
+    output: string;
+    failed?: Error;
+    failureReason?: "spawn" | "output";
+  };
 }
 export class DemoProcesses {
   constructor(signal: AbortSignal);
@@ -39,5 +57,12 @@ export class DemoProcesses {
   start(command: string, args: string[], options?: Options): Running;
   daemon(command: string, args: string[], options: Options): Running;
   run(command: string, args: string[], options?: Options): Promise<string>;
+  /** Bounded private stdin; the owned child is joined before this call completes. */
+  runPrivateInput(
+    command: string,
+    args: string[],
+    privateInput: string,
+    options?: Options,
+  ): Promise<string>;
   dispose(): Promise<void>;
 }

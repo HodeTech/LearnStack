@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace LearnStack.Infrastructure.Audit.Capture;
@@ -49,7 +50,8 @@ namespace LearnStack.Infrastructure.Audit.Capture;
 /// changed — which is the fact a reviewer is usually asking about.
 /// </para>
 /// </remarks>
-public sealed class AuditChangeTrackerInterceptor(IAuditStateCapture capture)
+public sealed class AuditChangeTrackerInterceptor(IAuditStateCapture capture,
+    LearnStack.SharedKernel.Persistence.IUnitOfWork unitOfWork)
     : SaveChangesInterceptor
 {
     /// <summary>
@@ -239,6 +241,27 @@ public sealed class AuditChangeTrackerInterceptor(IAuditStateCapture capture)
         {
             return;
         }
+
+        var identity = capture.Intents.SingleOrDefault(intent => intent.GlobalIdentity is not null)?.GlobalIdentity;
+        if (unitOfWork is LearnStack.SharedKernel.Persistence.IGlobalIdentityUnitOfWork { IsGlobalIdentityTransaction: true } global)
+        {
+            if (identity is null || !global.IsGlobalIdentityContextEnrolled(context, unitOfWork.Transaction)
+                || context.GetType() != identity.Descriptor.ContextType)
+                throw new InvalidOperationException("Global identity capture requires its enrolled context and central creation intent.");
+            if (!ReferenceEquals(context.Database.CurrentTransaction?.GetDbTransaction(), unitOfWork.Transaction)
+                || !ReferenceEquals(context.Database.GetDbConnection(), unitOfWork.Connection))
+                throw new InvalidOperationException("Global identity capture requires its original physical transaction and connection.");
+            identity.RequireLive(unitOfWork);
+            var changed = context.ChangeTracker.Entries()
+                .Where(entry => entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted).ToArray();
+            if (changed.Length != 1 || changed[0].State != EntityState.Added
+                || changed[0].Metadata.ClrType != identity.Descriptor.EntityType
+                || changed[0].Entity is not IAggregateRoot<LearnStack.SharedKernel.Identifiers.UserId> target
+                || target.Id != identity.TargetUserId)
+                throw new InvalidOperationException("Global identity capture admits only its one new User.");
+        }
+        else if (identity is not null)
+            throw new InvalidOperationException("Global identity capture lost its physical owner.");
 
         // BEFORE the save, which is the only moment both states exist: after it, EF has
         // accepted the changes and OriginalValues equals CurrentValues. Every tracked entry

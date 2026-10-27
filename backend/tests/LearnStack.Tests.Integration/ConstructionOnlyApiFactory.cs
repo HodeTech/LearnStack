@@ -1,5 +1,6 @@
 using LearnStack.Api.Messaging;
 using LearnStack.Api.Jobs;
+using LearnStack.Api.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -9,8 +10,9 @@ using Microsoft.Extensions.Hosting;
 namespace LearnStack.Tests.Integration;
 
 /// <summary>
-/// Request/composition proofs own no background dispatcher. Production startup
-/// proofs use an ordinary factory and must supply its confined credential.
+/// Request/composition proofs own no background dispatcher or identity authority.
+/// Real identity derivatives explicitly retain qualification; production worker
+/// proofs use an ordinary factory and supply their confined credentials.
 /// </summary>
 /// <remarks>
 /// The retained private outbox health check intentionally remains Unhealthy when
@@ -22,7 +24,23 @@ public class ConstructionOnlyApiFactory : WebApplicationFactory<Program>
     {
         ArgumentNullException.ThrowIfNull(builder);
         ConfigureTestHost(builder);
-        builder.ConfigureTestServices(RemoveDispatcher);
+        builder.ConfigureTestServices(services =>
+        {
+            RemoveDispatcher(services);
+            if (!RetainIdentityQualification)
+                RemoveIdentityQualification(services);
+        });
+    }
+
+    /// <summary>Real provider/database derivatives retain the production startup qualification.</summary>
+    protected virtual bool RetainIdentityQualification => false;
+
+    internal static void RemoveIdentityQualification(IServiceCollection services)
+    {
+        foreach (var descriptor in services.Where(descriptor => descriptor.ServiceType == typeof(IHostedService)
+                     && (descriptor.ImplementationType ?? descriptor.ImplementationFactory?.Method.ReturnType)
+                     == typeof(TenantIdentityAuthorityStartupService)).ToArray())
+            services.Remove(descriptor);
     }
 
     protected virtual void ConfigureTestHost(IWebHostBuilder builder)

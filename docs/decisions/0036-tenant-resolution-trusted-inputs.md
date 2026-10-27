@@ -1263,3 +1263,24 @@ owns subsequent implementation and proof status; acceptance does not deliver it.
 - [architecture/13 Identity and Auth](../architecture/13-identity-and-auth.md)
 - [architecture/14 Frontend Architecture](../architecture/14-frontend-architecture.md)
 - [architecture/30 API Gateway](../architecture/30-api-gateway.md)
+
+### Amendment 15 — Existing-binding admission before tenant resolution (2026-10-25)
+
+**Status: Accepted.** [ADR-0072](0072-application-owned-identity-bootstrap.md)
+inserts quota-before-binding and route-independent existing-binding normalization
+before ordinary tenant reconciliation. Verified provider-subject admission does
+not itself supply a tenant context or permission. No new HTTP endpoint, context
+writer or unresolved-context marker is admitted by this change.
+
+[ADR-0073](0073-scoped-membership-and-identity-data-foundation.md) separately names
+`PreContextIdentityAuthorizationReader`: a short physically READ ONLY app-role
+candidate read with no `ITenantContext`. Its exact candidate tenant/organization,
+HostScope restrictions and claim-only mismatch evidence follow the canonical
+[Security Standards](../standards/11-security.md) contract. Live decision-table
+rows and this reader's execution remain P03-2 work; registration does not make
+them delivered.
+
+Joint approval accepts these bounded contracts while preserving route invariance,
+host authority and the existing resolution matrix. P03-1 Step 5 owns actual
+existing-binding admission proofs. New-user HTTP/BFF entry remains subject to
+P03-3 acceptance and activation.

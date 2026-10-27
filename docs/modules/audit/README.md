@@ -3,7 +3,7 @@
 **Status:** Design stable, write path implemented. Shipped today: the two tables and
 their isolation, the three append-only layers, the SharedKernel ports and value types,
 `AuditDbContext`, and — in `LearnStack.Infrastructure.Audit` — `AuditStateCapture`,
-`AuditChangeTrackerInterceptor`, `PostgresAuditStore` with all five write methods, the
+`AuditChangeTrackerInterceptor`, `PostgresAuditStore` with eight write methods, the
 merged `AuditCatalog` and `AuditConfigService`, registered at both composition roots and
 attached to every module's `DbContext`. The pipeline is lit: `AuditLogBehavior`
 classifies and parks intents at step 3 and reconciles in its `finally`,
@@ -14,6 +14,10 @@ fail-closed rule ships with it — the `audit` health check, the two counters, a
 `Critical` line ([ADR-0033 Amendment 3](../../decisions/0033-audit-durability-model.md)).
 `AuditingTenantAssertionRecorder` ships with them, so both
 `tenancy.tenant_assertion.*` slugs are written rather than declared.
+Accepted [ADR-0072](../../decisions/0072-application-owned-identity-bootstrap.md)
+adds two confined global-identity seams, implemented in P03-1 Step 3 with the
+common prepared owner, exact evidence and real app-role/COMMIT fault controls.
+No HTTP creation or global audit-read endpoint is activated.
 The entitlement socket of
 [ADR-0045](../../decisions/0045-entitlement-and-feature-flag-socket.md) shipped in the same
 packet. Rows marked
@@ -99,8 +103,7 @@ know before touching it.
   and an audit row is not a log line: it is a record a regulator reads and a tenant
   admin can be shown.
 
-**One property is worth stating before anything else.** `audit_log` is the only table
-in the schema whose rows cannot be corrected. `learnstack_app` holds no `UPDATE` and no
+**Audit rows cannot be corrected.** `learnstack_app` holds no `UPDATE` and no
 `DELETE`; `learnstack_platform`'s `UPDATE` names six columns and no more; and the table
 owner — which no grant bounds — is stopped by
 `audit_log_append_only_guard`. So a wrong `tenant_id`, a wrong `operation` or a wrong

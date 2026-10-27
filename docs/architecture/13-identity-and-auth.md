@@ -100,31 +100,42 @@ The cost is one more service to operate. That is acceptable: self-hosted infrast
 | BFF access/refresh/ID-token custody | no | native web session owner ([ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md)) |
 | Federation with social/SAML/OIDC providers | yes | no |
 | Email verification, password reset emails | yes (or LearnStack via SMTP delegation) | no |
-| Global `User` record (canonical identity, email) | mirrored | source for application data |
+| Global `User` binding | provider subject/credentials | stable authority/subject-key → typed UserId under ADR-0072; ordinary API uses existing-binding normalization, no email mirror |
 | `Membership` (per-tenant role, permissions) | no | yes |
 | Roles, permissions inside a tenant | no | yes |
 | Invitations | no | yes |
 | Audit log of identity events | yes (own) | yes (mirrored for cross-events) |
-| Profile (display name, photo, bio, preferences) | minimal | yes |
+| Contextual profile | provider-owned account fields | MembershipProfile/storage/seed implemented under ADR-0073; live administration remains P03-2/3, dynamic values P03-5 |
 
 The split keeps Keycloak focused on authentication (knowing who you are) and LearnStack focused on authorisation and domain context (what you can do in which tenant).
 
 ## Multi-Tenant Identity Model
 
-A user is **global**. A user has a `Membership` in zero or more tenants. The same email can be a learner in tenant A and an instructor in tenant B without two accounts.
+A User binding is **global**. One provider subject can have Memberships in
+multiple tenants and organizations; email never identifies or merges bindings.
+The following foundation model is implemented; live authorization remains P03-2:
 
 ```mermaid
 flowchart LR
-    U[User in Keycloak realm 'learnstack'] --> MA[Membership tenant=A role=learner]
-    U --> MB[Membership tenant=B role=instructor]
-    U --> MC[Membership tenant=C role=admin]
+    P[Verified provider subject in learnstack realm] --> U[Global User binding: typed UserId]
+    U --> MA[Membership tenant=A: contained Profile and assignments]
+    U --> MB[Membership tenant=B: contained Profile and assignments]
+    MA --> RA[Tenant A Role templates: scoped grants]
+    MB --> RB[Tenant B Role templates: scoped grants]
 ```
+
+Text fallback: the verified provider subject maps permanently to one global
+User; contextual Memberships contain Profiles and assignments to tenant-owned
+Role templates. Roles confer capability only through eligible assignments.
 
 Two realm strategies were considered:
 
 - **Single tenant realm, scalar active scope** (chosen). The `learnstack` realm
-  is the required issuer for the ADR-0064 profile: opaque `sub`, stable UUID `user_id`, optional
-  scalar UUID `tenant_id` and optional scalar UUID `organization_id`. It carries
+  is the required issuer. The shipped P02b-5/P02b-6 profile requires opaque `sub`
+  and UUID `user_id`, with optional scalar UUID `tenant_id` / `organization_id`.
+  Accepted ADR-0072 makes API `user_id` optional at the verified-provider stage,
+  resolving the stored actor before normal identity admission. The complete native
+  BFF profile still requires actor/tenant and its AccountSite witness. It carries
   no authoritative membership array or application-role grant. P02b-6 supplies
   admin-controlled attributes/mappers and real issuance proof; the committed realm
   export issues that profile. Phase 03 owns live memberships.
@@ -134,6 +145,36 @@ The single tenant realm matches the global-user, tenant-scoped membership model.
 The separate `learnstack-hub` realm remains the operator boundary. Realm-per-tenant
 is not part of the accepted API profile; a different issuer strategy needs a new
 decision before its first consumer.
+
+### Application identity preparation
+
+Jointly Accepted [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) /
+[ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md)
+settle the P03-1 binding/storage contract. Internal binding/adoption and contextual
+storage/seed and the ordinary API sequence below are implemented. The
+[Phase 03 Status block](../roadmap/phase-03-identity-admin.md) owns qualification.
+`VerifiedProviderSubject` carries verified issuer/sub and optional actor/scope
+evidence. Subject quota precedes binding SQL; an uncached committed binding
+lookup resolves the nonnullable actor in `ValidatedTenantIdentity`. Missing,
+conflicting, Closing/Closed or unavailable bindings refuse ordinary admission
+with the existing uniform 401; no lookup allocates, adopts or repairs a User.
+Anonymous reads perform no identity lookup. This adds a binding-store dependency
+to authenticated admission, separately from provider-key caching.
+
+P03-1 admits fixed witnessed seed creation/adoption and existing-session binding
+only. It adds no POST, SDK operation or native no-session completion. P03-3 owns
+new-user HTTP/BFF entry and independently validated orgless/branch reissue. The
+shipped complete native profile and AccountSite host ceiling remain; optional API
+actor evidence does not publish a tenantless native session. G2 execution remains
+P03-2. G4 scope transitions remain P03-3; current provider user-global attributes
+do not prove independent simultaneous session scopes. Ordinary refresh remains
+scope-preserving until that bounded transition contract ships.
+
+No missing profile is repaired by email merging, a new per-login actor, a client
+tenant selector or a permissive membership default. Existing seed/provider IDs
+and credentials remain preserved. The first runtime provider adapter is separate
+from development realm tooling; an actual SDK introduction triggers its catalogue
+backfill, while direct HTTP alone does not.
 
 ## Token Flow
 
@@ -226,44 +267,63 @@ Roles live in LearnStack, not in Keycloak. Keycloak does not know what an "instr
 Mechanism:
 
 - `Membership` carries one or more `Role` references.
-- `Role` carries `Permission`s (atomic capabilities like `course.publish`, `enrollment.create`).
-- Resource-scoped checks (`course.edit` is allowed only when `course.owner_id == current_user.id`) live in policy classes, evaluated in the application layer.
+- `Role` carries code-defined permissions from the
+  [closed key/action catalogue](../standards/19-permissions.md), such as
+  `education.course.write` and `education.course_publication.write`.
+- Resource-scoped checks limit `education.course.write` to the actor's own course
+  where applicable; they live in application policy classes.
 
-The API uses opaque `sub` for external identity/subject accounting and UUID
-`user_id` for actor attribution, with scalar active-scope claims. Email and
+The API uses opaque `sub` for verified-provider subject accounting and the
+resolved typed UserId for actor attribution, checking any supplied UUID `user_id`
+against that binding under ADR-0072. Scalar scope claims remain assertions. Email and
 realm/client roles grant no application authority. Phase 03 owns permission
 resolution; P02b-5 exposes only its closed nonsensitive read while application
 authorization is still pass-through.
 
 ## Invitations
 
-Invitations are owned by LearnStack:
+Invitations are owned by LearnStack. The target flow below needs
+[Phase 03 G1/G8](../roadmap/phase-03-identity-admin.md#the-decision-register)
+before its writers: actor bootstrap, verified current email, aggregate boundaries,
+single-use acceptance, grant freshness and bounded delivery are not yet delivered.
 
 ```mermaid
 sequenceDiagram
     participant Admin
+    participant Web as Native BFF
     participant API
-    participant Email
+    participant Delivery as Bounded invitation delivery
     participant Invitee
+    participant KC as Keycloak
 
-    Admin->>API: POST /v1/invitations (email, role)
-    API->>API: create Invitation row, generate token
-    API->>Email: send templated email with link
-    Invitee->>API: GET /invite/accept?token=...
-    alt user does not exist in Keycloak
-        API->>API: redirect to Keycloak signup with prefilled email
-    else user exists
-        API->>API: redirect to Keycloak login
-    end
-    Invitee->>API: callback with KC tokens
-    API->>API: create Membership, mark Invitation accepted
+    Admin->>Web: Submit authorized invitation
+    Web->>API: Admitted invitation command
+    API->>API: Persist offer and durable delivery intent
+    API-->>Delivery: Execute the G8 delivery contract
+    Delivery-->>Invitee: Offer and permitted continuation
+    Invitee->>Web: GET inspects offer; no grant
+    Web->>KC: Approved sign-in/signup continuation
+    KC-->>Web: Bound callback under G1 bootstrap
+    Invitee->>Web: Confirm acceptance through admitted mutating act
+    Web->>API: Verify subject/email, offer and current delegation
+    API->>API: Reconcile membership grant and offer consumption under G8
 ```
+
+Text fallback: an authorized admin creates a durable offer and delivery intent;
+the invitee inspects it without a write, completes the approved identity flow and
+confirms acceptance. The API verifies current identity/delegation and produces
+the single authoritative grant/offer outcome. Exact routes and atomicity belong
+to G8; this diagram admits no direct token callback to the API or multi-root write.
 
 Edge cases:
 
 - **Invitee uses a different email at Keycloak signup.** The invitation token is bound to the email; mismatched signup is rejected.
 - **Invitation expires.** Default TTL 14 days, configurable per tenant.
 - **Invitation revoked.** Tenant admin can revoke; accepting a revoked invitation is rejected.
+- **Races and delivery failure.** G8 specifies accept/revoke/expiry/resend and
+  existing-member outcomes, one-way token storage, provider idempotency/
+  reconciliation and truthful delivery state. Full notification orchestration
+  remains Phase 08a; the usable Phase 03 handoff cannot depend on it silently.
 
 ## SSO and Federation
 
@@ -271,9 +331,18 @@ Tenant-specific SSO is enabled per tenant. Implementation:
 
 - A tenant can configure a SAML or OIDC identity provider in Keycloak (admin API).
 - The tenant's public site shows "Sign in with {tenant}" on the login page.
-- Users authenticating via tenant SSO land in the LearnStack realm; their Keycloak account is federated, and LearnStack creates or matches a `Membership` based on the email.
+- Users authenticating through a broker land in the LearnStack realm. Broker
+  authentication or email equality alone grants no LearnStack membership, role or
+  global account link. Phase 03 G1/G8/G12 supply the trusted linking/admission
+  contract before any such writer.
 
 This does not require LearnStack code changes per tenant; it is a configuration in Keycloak that LearnStack exposes via a tenant-admin UI.
+
+The UI needs a confined runtime adapter: tenant ownership of broker resources,
+write-only secrets, bounded metadata/discovery egress, trusted verification/MFA,
+test/activate/rollback and last-login recovery. G12 owns those decisions and their
+real two-tenant provider proof; a realm-level Admin API credential is not tenant
+authority.
 
 ## MFA
 
@@ -305,7 +374,11 @@ Two audit streams:
 - **Keycloak audit** — login success/failure, password change, MFA enroll, account lock. Retained inside Keycloak.
 - **LearnStack `AuditLog`** — role change, permission change, invitation, tenant setting change, platform admin bypass. Owned by LearnStack.
 
-Mirrored events (e.g. `user.created`) are propagated via Keycloak webhooks into LearnStack so cross-system queries are possible.
+The mirror is a Phase 03 G10 target. That gate selects authenticated durable
+provider listener/webhook or pull ingress, stable provider-event deduplication,
+global/unknown/multi-membership attribution and retention. Approved facts enter
+the tenant outbox and transport-owned Audit subscription; raw provider payloads
+and a direct business `IEventBus.PublishAsync` are not the mirror contract.
 
 ## Local Development
 

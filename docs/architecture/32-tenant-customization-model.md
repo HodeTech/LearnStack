@@ -45,7 +45,7 @@ erDiagram
 | `tenant_level_taxonomies` | Level/grade/tier flat lists (CEFR, difficulty, kyu/dan, …) | List of items with metadata |
 | `tenant_scoring_rules` | Assessment scoring expressions | Sandboxed expression DSL |
 | `tenant_completion_rules` | Lesson / module / course completion logic | Boolean expression DSL |
-| `tenant_custom_field_defs` | Extra fields on built-in entities (User, Course, Enrollment) | JSON Schema |
+| `tenant_custom_field_defs` | Extra fields on tenant-owned entities (Membership, Course, Enrollment) | Versioned field definitions and JSON Schema |
 | `tenant_template_library` | Notification templates (email, SMS, WhatsApp, in-app) | Liquid / Handlebars |
 
 All eight tables are tenant-owned with RLS isolation (ADR-0003); some are also
@@ -382,51 +382,34 @@ sets the rule for page blocks; this document extends it to all customization sur
 ## 5. Custom fields on built-in entities
 
 Tenant-defined custom fields attach to **tenant-owned** entities: `Membership`,
-`Course`, `Enrollment`, `LiveSession`, `Lesson`. `target_entity = "User"` resolves to
-`membership_profiles` — never to `users`, which is global, carries no `tenant_id`, and
-therefore has no query filter and no Row Level Security policy. A tenant-authored
-column on a global table is a cross-tenant read by construction
-([Phase 03 § Tenant Data Ownership](../roadmap/phase-03-identity-admin.md)).
+`Course`, `Enrollment`, `LiveSession`, `Lesson`. Phase 03 admits `Membership`
+first, storing values in `membership_profiles.custom_fields`, never global
+`users`. A tenant-authored column on a global table has no tenant isolation
+([Phase 03 § Tenant Data Ownership](../roadmap/phase-03-identity-admin.md#tenant-data-ownership-dsar-boundary-and-pii-classification)).
+`User` is not a new-write target; any legacy label/migration input requires an
+explicit bounded decision before admission.
 
-```sql
-CREATE TABLE tenant_custom_field_defs (
-    id              uuid PRIMARY KEY,
-    tenant_id       uuid NOT NULL,
-    target_entity   text NOT NULL,    -- "Membership", "Course", "Enrollment", …; never "User"
-    pii_category    text NOT NULL,    -- PII-Identity | PII-Behaviour | PII-Sensitive | None; no default, see Phase 03
-    key             text NOT NULL,    -- e.g. "preferred_practice_time"
-    display_name    text NOT NULL,
-    json_schema     jsonb NOT NULL,   -- field definition
-    is_required     boolean NOT NULL DEFAULT false,
-    sort            int NOT NULL DEFAULT 0,
-    created_at      timestamptz NOT NULL DEFAULT now(),
-    UNIQUE (tenant_id, target_entity, key)
-);
-```
+Customization owns the definition aggregate; the target module owns its values
+and consumes definitions through an application contract. The definition holds
+target/key, required PII category, schema, localized label and required/sort
+metadata. Its revision and value-pin shape follows the immutable-version boundary
+in § 4 and closes in
+[Phase 03 G9](../roadmap/phase-03-identity-admin.md#the-decision-register) before
+the first migration. An unversioned tenant/target/key uniqueness constraint cannot
+stand in for definition history or the single-active-definition constraint.
 
-Values stored on the entity as a JSONB column:
+G9 decides required-field introduction, unknown/null/default values, retirement,
+key reuse, classification changes, nested values and sensitive-consent evidence.
+Retiring a definition cannot leave stored PII invisible to export/redaction. Field
+schema admission also reconciles scalar types with the existing nonempty
+root-properties profile; it never bypasses `IJsonSchemaValidator`.
 
-```sql
--- Values live on the tenant-owned row, never on a global one.
-ALTER TABLE membership_profiles ADD COLUMN custom_fields jsonb NOT NULL DEFAULT '{}';
-ALTER TABLE courses             ADD COLUMN custom_fields jsonb NOT NULL DEFAULT '{}';
--- Every table above is [TenantOwned] and carries the canonical RLS policy from
--- Database Standards; `users` is not in this list and never will be.
--- etc.
-```
-
-Query helpers:
-
-```csharp
-public static class CustomFieldExtensions
-{
-    public static T? GetCustomField<T>(this User user, string key)
-        => user.CustomFields.TryGetProperty(key, out var v) ? v.Deserialize<T>() : default;
-
-    public static void SetCustomField<T>(this User user, string key, T value)
-        => user.CustomFields = JsonExtensions.Set(user.CustomFields, key, value);
-}
-```
+Readers and writes use the target module's authorized membership/entity contract.
+A generic `SetCustomField(User, ...)` helper is not a write path: it would restore
+global storage and skip schema, scope, concurrency and audit admission. Canonical
+DDL lands with its owning module migration under
+[Database Standards](../standards/05-database.md); no illustrative DDL here grants
+permission to omit version pins, audit columns or isolation.
 
 Custom fields are rendered in the same primitive-composing way: the field's `json_schema`
 maps to a primitive, the entity's Admin Studio detail page composes a form, the entity's

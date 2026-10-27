@@ -6,12 +6,13 @@ The abbreviated locators below do not replace, weaken or omit the canonical bull
 subordinate conditions. Each row refers to its entire canonical bullet.
 
 This is an ownership index. The
-[P02b-8 correction closeout](phase-02b-delivery-log.md#p02b-8-pr-correction-qualification-and-closeout-2026-10-25)
-records completed exact-source A/B, artifact/skip/cleanup evidence and the dated
-live required-check read-back. The review PR's live checks own qualification of
-its actual current head. The frozen-source receipt does not imply a passing
-result for a later documentation-only commit; maintainer review and merge remain
-separate gates.
+[P02b-8 merge and phase closeout](phase-02b-delivery-log.md#p02b-8-merge-and-phase-closeout-2026-10-25)
+links completed exact-source A/B and final PR-head artifact/skip/cleanup evidence,
+the dated required-check read-back and the actual merge. The merge and qualified
+final head have identical file contents. Each receipt remains bound to its source;
+neither the frozen A/B receipt nor the final-head receipt qualifies this later
+documentation-only closeout as a new test execution. Phase state lives in
+[Phase 02b's Status block](phase-02b-events-auth.md).
 
 Evidence lanes: **B** = backend base/unit/architecture and non-Docker HTTP tests;
 **I** = real Docker/PostgreSQL/Keycloak/native-HTTPS integration; **F** = frontend

@@ -1,5 +1,7 @@
+using LearnStack.Infrastructure.DataProtection;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Domain;
+using LearnStack.SharedKernel.DataProtection;
 using LearnStack.SharedKernel.Identifiers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -31,6 +33,10 @@ internal sealed class TenantConfiguration : IEntityTypeConfiguration<Tenant>
         builder.HasIndex(x => x.Slug).IsUnique().HasDatabaseName("ux_tenants_slug");
 
         builder.MapAuditColumns<Tenant, TenantId>();
+        builder.DeclarePersonalData(PersonalDataCategory.None,
+            "Institution registration, public naming, lifecycle and default branch routing.",
+            nameof(Tenant.Id), nameof(Tenant.Slug), nameof(Tenant.DisplayName),
+            nameof(Tenant.Status), nameof(Tenant.DefaultOrganizationId));
 
         // The containment the aggregate boundary decides, expressed for EF — and NOT as
         // owned types. An owned mapping looks like the natural way to say "part of the
@@ -113,6 +119,11 @@ internal sealed class OrganizationConfiguration : IEntityTypeConfiguration<Organ
             .HasDatabaseName("ix_organizations_tenant_id_reporting_parent_id");
 
         builder.MapAuditColumns<Organization, OrganizationId>();
+        builder.DeclarePersonalData(PersonalDataCategory.None,
+            "Institution branch identity, public naming, lifecycle and reporting structure.",
+            nameof(Organization.Id), nameof(Organization.TenantId), nameof(Organization.Slug),
+            nameof(Organization.DisplayName), nameof(Organization.CustomSubdomain),
+            nameof(Organization.Status), nameof(Organization.ReportingParentId));
     }
 }
 
@@ -156,6 +167,14 @@ internal sealed class TenantDomainConfiguration : IEntityTypeConfiguration<Tenan
         builder.HasIndex(x => x.TenantId).HasDatabaseName("ix_tenant_domains_tenant_id");
 
         builder.MapAuditColumns<TenantDomain, TenantDomainId>();
+        builder.DeclarePersonalData(PersonalDataCategory.None,
+            "Institution domain ownership and verification state, rather than a person's address.",
+            nameof(TenantDomain.Id), nameof(TenantDomain.TenantId), nameof(TenantDomain.Host),
+            nameof(TenantDomain.Kind), nameof(TenantDomain.Status), nameof(TenantDomain.VerifiedAt),
+            nameof(TenantDomain.VerificationAttempts));
+        builder.DeclarePersonalData(PersonalDataCategory.Identity,
+            "Retained free-text verification diagnostics may contain operator or contact identifiers.",
+            nameof(TenantDomain.LastVerificationError));
     }
 }
 
@@ -192,6 +211,10 @@ internal sealed class TenantLocaleConfiguration : IEntityTypeConfiguration<Tenan
             .IsUnique()
             .HasFilter("is_default")
             .HasDatabaseName("ux_tenant_locales_tenant_id_is_default");
+        builder.DeclarePersonalData(PersonalDataCategory.None,
+            "Institution publication languages, enabled state and language-switcher ordering.",
+            nameof(TenantLocale.TenantId), nameof(TenantLocale.Locale), nameof(TenantLocale.IsDefault),
+            nameof(TenantLocale.IsEnabled), nameof(TenantLocale.Sort));
     }
 }
 
@@ -232,6 +255,13 @@ internal sealed class TenantSettingConfiguration : IEntityTypeConfiguration<Tena
             .HasDatabaseName("ix_tenant_settings_tenant_id_organization_id");
 
         builder.MapAuditColumns<TenantSetting, TenantSettingId>();
+        builder.DeclarePersonalData(PersonalDataCategory.None,
+            "Institution and branch configuration addressing; the payload is classified separately.",
+            nameof(TenantSetting.Id), nameof(TenantSetting.TenantId),
+            nameof(TenantSetting.OrganizationId), nameof(TenantSetting.Key));
+        builder.DeclarePersonalData(PersonalDataCategory.Identity,
+            "Generic configuration JSON may contain contact or other person-identifying values.",
+            nameof(TenantSetting.Value));
     }
 }
 
@@ -256,6 +286,16 @@ internal sealed class TenantFeatureFlagConfiguration : IEntityTypeConfiguration<
         builder.Property(x => x.UpdatedBy)
             .HasConversion<UserId.EfCoreValueConverter, UserId.EfCoreValueComparer>()
             .IsRequired();
+        builder.DeclarePersonalData(PersonalDataCategory.None,
+            "Institution capability overrides: declared feature key and rollout value.",
+            nameof(TenantFeatureFlag.TenantId), nameof(TenantFeatureFlag.Key),
+            nameof(TenantFeatureFlag.Value));
+        builder.DeclarePersonalData(PersonalDataCategory.Identity,
+            "Actor attribution for the latest institution feature-flag change.",
+            nameof(TenantFeatureFlag.UpdatedBy));
+        builder.DeclarePersonalData(PersonalDataCategory.Audit,
+            "Timestamp of the attributed institution feature-flag change.",
+            nameof(TenantFeatureFlag.UpdatedAt));
     }
 }
 
@@ -288,6 +328,13 @@ internal sealed class PlatformEntitlementConfiguration : IEntityTypeConfiguratio
 
         // Closed set, so text + CHECK rather than a length cap.
         builder.Property(x => x.Source).HasColumnType("text").IsRequired();
+        builder.DeclarePersonalData(PersonalDataCategory.None,
+            "Institution plan capabilities, numeric limits, compliance settings and projection freshness.",
+            nameof(PlatformEntitlement.TenantId), nameof(PlatformEntitlement.PlanCode),
+            nameof(PlatformEntitlement.Features), nameof(PlatformEntitlement.Limits),
+            nameof(PlatformEntitlement.Compliance), nameof(PlatformEntitlement.ValidUntil),
+            nameof(PlatformEntitlement.GraceUntil), nameof(PlatformEntitlement.Generation),
+            nameof(PlatformEntitlement.RefreshedAt), nameof(PlatformEntitlement.Source));
     }
 }
 
@@ -311,6 +358,15 @@ internal sealed class PlatformKillswitchConfiguration : IEntityTypeConfiguration
 
         // No conversion and no foreign key: see PlatformKillswitch.ToggledBy.
         builder.Property(x => x.ToggledBy);
+        builder.DeclarePersonalData(PersonalDataCategory.None,
+            "Deployment-wide capability key and enabled state, with no subject or tenant value.",
+            nameof(PlatformKillswitch.Key), nameof(PlatformKillswitch.IsEnabled));
+        builder.DeclarePersonalData(PersonalDataCategory.Identity,
+            "Operator attribution and free-text explanation of a deployment-wide capability change.",
+            nameof(PlatformKillswitch.ToggledBy), nameof(PlatformKillswitch.Reason));
+        builder.DeclarePersonalData(PersonalDataCategory.Audit,
+            "Timestamp of the attributed deployment-wide capability change.",
+            nameof(PlatformKillswitch.ToggledAt));
     }
 }
 
@@ -345,5 +401,10 @@ internal sealed class PlatformHostMappingConfiguration : IEntityTypeConfiguratio
         // RESTRICT scan, it just narrows it to the tenant.
         builder.HasIndex(x => new { x.TenantId, x.OrganizationId })
             .HasDatabaseName("ix_platform_host_to_tenant_tenant_id_organization_id");
+        builder.DeclarePersonalData(PersonalDataCategory.None,
+            "Institution host-to-branch routing and public serving eligibility.",
+            nameof(PlatformHostMapping.Host), nameof(PlatformHostMapping.TenantId),
+            nameof(PlatformHostMapping.OrganizationId), nameof(PlatformHostMapping.IsActive),
+            nameof(PlatformHostMapping.IsPubliclyLive));
     }
 }

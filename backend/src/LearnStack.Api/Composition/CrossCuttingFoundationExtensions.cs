@@ -242,6 +242,7 @@ public static class CrossCuttingFoundationExtensions
                 t.AddEntityFrameworkCoreInstrumentation();
                 t.AddSource("learnstack.*");
                 t.AddProcessor<TenantContextSpanProcessor>();
+                t.AddProcessor(new IdentityStorageSpanProcessor());
                 if (exportOverNetwork)
                 {
                     t.AddOtlpExporter(o => o.Endpoint = new Uri(otlpEndpoint!));

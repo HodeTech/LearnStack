@@ -453,6 +453,32 @@ an initial 30-second allocation for the new offline controls is a proposed budge
 not a measured increment. Remove no existing check and claim no fit until actual
 final-source meta passes with the new controls.
 
+## Amendments
+
+### Amendment 1 — Ordinary Docker whole-job window (2026-10-27)
+
+Accepted [ADR-0075](0075-ordinary-ci-job-window.md) supplies an
+ordinary-only exception to the Decision's “Each execution keeps its twenty-minute whole-job ceiling” and the rule,
+“Keep each twenty-minute ceiling and a finite cleanup/upload reserve.”
+Verified ordinary Docker producers instead have a twenty-five-minute
+whole-job ceiling. This also qualifies the inherited ordinary requirement
+in the Exact relationship to ADR-0062 section;
+[ADR-0062](0062-native-crash-proof-ci-provisioning.md) receives its own dated
+amendment. Native, base and Architecture retain twenty minutes.
+The plan's prohibition on unapproved ceiling increases keeps only this
+explicitly approved ordinary exception.
+
+All other decisions remain in force: producer count ranges and the
+twenty-VM cap, selector ownership and two-layout qualification,
+algorithm/salt/weights/filters, resource ownership/accounting, the
+unchanged cleanup/export/upload reserve, other job ceilings and the
+seven required names. Expected verified producer identity controls the
+longer enclosing interval; a receipt cannot choose it. Actual operation
+deadlines remain unchanged. Acceptance authorizes dependent work, not
+actual hosted fit; the
+[Phase 03 delivery log](../roadmap/phase-03-delivery-log.md#adr-0075-acceptance-and-step-1-2026-10-27)
+owns its implementation and qualification receipts. Historical text and metadata remain intact.
+
 ## References
 
 - [ADR-0062](0062-native-crash-proof-ci-provisioning.md).

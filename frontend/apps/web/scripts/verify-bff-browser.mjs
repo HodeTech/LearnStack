@@ -226,6 +226,8 @@ try {
         '--disable-component-update',
         '--disable-sync',
         '--disable-breakpad',
+        '--password-store=basic',
+        '--use-mock-keychain',
         '--no-proxy-server',
         '--host-resolver-rules=' +
           input.sites.map((site) => 'MAP ' + site.host.split(':')[0] + ' 127.0.0.1').join(','),

@@ -149,15 +149,17 @@ public sealed class TenancySchemaTests
 
         var counts = await SchemaQueries.CountEveryTableAsync(connection, transaction: null);
 
-        // ONE declared exception, and the sweep still enumerates the catalogue. It is not
+        // Declared platform reads, and the sweep still enumerates the catalogue. It is not
         // taught with a hand-written inclusion list of names: such a list fails open, which
         // is how a second permissive policy on outbox_messages once passed the whole suite.
         // What changes is the EXPECTATION, not the reach.
-        counts.Where(entry => entry.Key != KillswitchTable && !SchemaTableClasses.AppSelectDenied(entry.Key))
+        counts.Where(entry => entry.Key != KillswitchTable && !SchemaTableClasses.IdentityPlatform.Contains(entry.Key)
+                && !SchemaTableClasses.AppSelectDenied(entry.Key))
             .Should().OnlyContain(entry => entry.Value == 0,
                 "with no app.tenant_id every policy predicate is NULL, which is false");
 
         counts.Keys.Should().BeEquivalentTo(SchemaFixture.KnownTables);
+        counts["identity_authority"].Should().Be(1, "the immutable deployment anchor is an explicit platform read without person fields");
         counts.Where(entry => SchemaTableClasses.AppSelectDenied(entry.Key)).Should()
             .OnlyContain(entry => entry.Value == SchemaTableClasses.SelectDenied,
                 "vendor/control reads are real 42501 refusals, not silently omitted or counted as zero");
@@ -721,8 +723,24 @@ public sealed class TenancySchemaTests
         }
 
         guarded.Should().NotBeEmpty("the sweep must be reading the applied schema, not an empty result set");
+        foreach (var proof in GlobalIdentitySchemaTests.WithCheckProofs.Values)
+        {
+            var method = typeof(GlobalIdentitySchemaTests).GetMethod(proof);
+            method.Should().NotBeNull();
+            method!.GetCustomAttributes(typeof(FactAttribute), inherit: true).Should().NotBeEmpty(
+                    "each non-tenant write predicate has an actual executable class-specific proof");
+        }
+        foreach (var proof in IdentityMembershipTests.WithCheckProofs.Values)
+        {
+            var method = typeof(IdentityMembershipTests).GetMethod(proof);
+            method.Should().NotBeNull();
+            method!.GetCustomAttributes(typeof(FactAttribute), inherit: true).Should().NotBeEmpty(
+                "contextual policies have class-specific clean/dirty controls independent of the lock guards");
+        }
         guarded.Should().BeEquivalentTo(
-            ForeignTenantWrites.Keys.Concat(OwnerForeignTenantWrites.Keys),
+            ForeignTenantWrites.Keys.Concat(OwnerForeignTenantWrites.Keys)
+                .Concat(GlobalIdentitySchemaTests.WithCheckProofs.Keys)
+                .Concat(IdentityMembershipTests.WithCheckProofs.Keys),
             "every table whose policy constrains a write has a write that proves it, "
             + "and every case here names a table that still has one");
     }
@@ -1279,7 +1297,13 @@ public sealed class TenancySchemaTests
             """);
 
         grants.Should().BeEquivalentTo(
-        ExistingTableGrants.Concat(BackgroundJobGrantExpectations.TableGrants),
+        ExistingTableGrants.Concat(BackgroundJobGrantExpectations.TableGrants)
+            .Concat(["learnstack_app identity_authority SELECT", "learnstack_app users SELECT",
+                "learnstack_app memberships INSERT,SELECT,UPDATE",
+                "learnstack_app membership_profiles INSERT,SELECT,UPDATE",
+                "learnstack_app roles INSERT,SELECT,UPDATE",
+                "learnstack_app membership_role_assignments DELETE,INSERT,SELECT",
+                "learnstack_app role_permission_grants DELETE,INSERT,SELECT"]),
         "every line is one line of the migration chains' grant matrices, and "
         + "learnstack_outbox_admin holds only declared outbox/delivery scheduling columns "
         + "and terminal audit INSERT");

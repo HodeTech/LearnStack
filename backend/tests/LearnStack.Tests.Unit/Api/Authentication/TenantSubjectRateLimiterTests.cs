@@ -26,7 +26,7 @@ public sealed partial class TenantSubjectRateLimiterTests
             // and selected tenant/organization change between requests.
             var acquired = owner.AttemptAcquire(identity with
             {
-                ActorUserId = UserId.From(Guid.NewGuid()),
+                ClaimedActor = UserId.From(Guid.NewGuid()),
                 TenantId = TenantId.From(Guid.NewGuid()),
                 OrganizationId = index % 2 == 0 ? null : OrganizationId.From(Guid.NewGuid()),
             });
@@ -324,18 +324,18 @@ public sealed partial class TenantSubjectRateLimiterTests
         lease.IsAcquired.Should().BeTrue();
     }
 
-    private static ValidatedTenantIdentity Identity(string subject = "subject") =>
+    private static VerifiedProviderSubject Identity(string subject = "subject") =>
         new("https://issuer.example/realm", subject,
             UserId.From(Guid.Parse("bdcd67b9-2822-4479-84ce-e5fa05421544")), null, null);
 
     private static DefaultHttpContext Request(bool classified = true) => Request(Identity(), classified);
 
-    private static DefaultHttpContext Request(ValidatedTenantIdentity? identity, bool classified = true)
+    private static DefaultHttpContext Request(VerifiedProviderSubject? identity, bool classified = true)
     {
         var context = new DefaultHttpContext();
         context.Response.Body = new MemoryStream();
         if (classified) context.Features.Set(HostClassification.Platform("platform.example"));
-        context.Features.Set(new TenantCredentialFeature { Identity = identity });
+        context.Features.Set(new TenantCredentialFeature { VerifiedSubject = identity });
         return context;
     }
 

@@ -19,13 +19,15 @@ namespace LearnStack.Tests.Integration.Database;
 /// <summary>Signed credentials through the production route, real host mappings and application-role reads.</summary>
 [Collection(PublicReadTestGroup.Name)]
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
-public sealed partial class AccountSiteHttpTests(PublicReadFixture fixture)
+public sealed partial class AccountSiteHttpTests(PublicReadFixture parent)
 {
     [Fact]
     public async Task Actual_account_HTTP_reads_English_and_Yoga_row_9_under_ReadOnly_without_query_audits()
     {
         await using var issuer = await TenantAuthenticationIssuer.StartAsync();
-        using var client = Client(issuer, SeedData.English.Host);
+        await using var fixture = await IdentityPublicReadFixture.CreateAsync(parent, issuer.Issuer,
+            new Dictionary<UserId, string> { [UserId.From(TenantAuthenticationIssuer.Actor)] = "opaque-keycloak-subject" });
+        using var client = Client(fixture, issuer, SeedData.English.Host);
         var englishAudits = await fixture.AuditCountAsync(SeedData.English);
         var yogaAudits = await fixture.AuditCountAsync(SeedData.Yoga);
         var reads = fixture.Observation.Reads;
@@ -50,8 +52,10 @@ public sealed partial class AccountSiteHttpTests(PublicReadFixture fixture)
     public async Task Anonymous_public_site_survives_an_unavailable_issuer_and_failed_credentials_never_fall_back()
     {
         await using var issuer = await TenantAuthenticationIssuer.StartAsync();
+        await using var fixture = await IdentityPublicReadFixture.CreateAsync(parent, issuer.Issuer,
+            new Dictionary<UserId, string> { [UserId.From(TenantAuthenticationIssuer.Actor)] = "opaque-keycloak-subject" });
         issuer.DiscoveryStatusCode = 503;
-        using var client = Client(issuer, SeedData.English.Host);
+        using var client = Client(fixture, issuer, SeedData.English.Host);
         using var anonymous = await TenantAuthenticationHttpRequest.Send(client, SeedData.English.Host,
             TenantAuthenticationHttpRequest.PublicPath);
         anonymous.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -78,8 +82,10 @@ public sealed partial class AccountSiteHttpTests(PublicReadFixture fixture)
     public async Task Claimless_signed_profiles_keep_the_public_ceiling_and_emit_one_fixed_Debug_event_per_admitted_request()
     {
         await using var issuer = await TenantAuthenticationIssuer.StartAsync();
+        await using var fixture = await IdentityPublicReadFixture.CreateAsync(parent, issuer.Issuer,
+            new Dictionary<UserId, string> { [UserId.From(TenantAuthenticationIssuer.Actor)] = "opaque-keycloak-subject" });
         var logs = new AccountHttpLogObservation();
-        using var client = Client(issuer, SeedData.Yoga.Host, services => services.AddSingleton<ILogEventSink>(logs));
+        using var client = Client(fixture, issuer, SeedData.Yoga.Host, services => services.AddSingleton<ILogEventSink>(logs));
         var token = issuer.Token(issuer.Without("tenant_id", "organization_id"));
         var audits = await fixture.AuditCountAsync(SeedData.Yoga);
         using var publicResponse = await TenantAuthenticationHttpRequest.Send(client, SeedData.Yoga.Host,
@@ -100,7 +106,9 @@ public sealed partial class AccountSiteHttpTests(PublicReadFixture fixture)
     public async Task Actual_account_HTTP_rechecks_a_suspended_mapped_organization_after_host_cache_warmup()
     {
         await using var issuer = await TenantAuthenticationIssuer.StartAsync();
-        using var client = Client(issuer, SeedData.Yoga.Host);
+        await using var fixture = await IdentityPublicReadFixture.CreateAsync(parent, issuer.Issuer,
+            new Dictionary<UserId, string> { [UserId.From(TenantAuthenticationIssuer.Actor)] = "opaque-keycloak-subject" });
+        using var client = Client(fixture, issuer, SeedData.Yoga.Host);
         var token = Token(issuer, SeedData.Yoga, organization: true);
         using var warm = await Send(client, SeedData.Yoga, token);
         await Account(warm, SeedData.Yoga, organization: true);
@@ -127,8 +135,10 @@ public sealed partial class AccountSiteHttpTests(PublicReadFixture fixture)
     public async Task Future_platform_membership_success_still_masks_AccountSite_before_configuration_access()
     {
         await using var issuer = await TenantAuthenticationIssuer.StartAsync();
+        await using var fixture = await IdentityPublicReadFixture.CreateAsync(parent, issuer.Issuer,
+            new Dictionary<UserId, string> { [UserId.From(TenantAuthenticationIssuer.Actor)] = "opaque-keycloak-subject" });
         var membership = new ConfirmedAccountMembership();
-        using var client = Client(issuer, "localhost", services => services.AddSingleton<ITenantMembershipReader>(membership));
+        using var client = Client(fixture, issuer, "localhost", services => services.AddSingleton<ITenantMembershipReader>(membership));
         var reads = fixture.Observation.Reads;
         var audits = await fixture.AuditCountAsync(SeedData.Yoga);
         using var response = await TenantAuthenticationHttpRequest.Send(client, "localhost",
@@ -151,7 +161,9 @@ public sealed partial class AccountSiteHttpTests(PublicReadFixture fixture)
     public async Task Actual_account_HTTP_admits_only_the_enumerated_GET(string method)
     {
         await using var issuer = await TenantAuthenticationIssuer.StartAsync();
-        using var client = Client(issuer, SeedData.English.Host);
+        await using var fixture = await IdentityPublicReadFixture.CreateAsync(parent, issuer.Issuer,
+            new Dictionary<UserId, string> { [UserId.From(TenantAuthenticationIssuer.Actor)] = "opaque-keycloak-subject" });
+        using var client = Client(fixture, issuer, SeedData.English.Host);
         var reads = fixture.Observation.Reads;
         using var response = await TenantAuthenticationHttpRequest.Send(client, SeedData.English.Host,
             token: Token(issuer, SeedData.English), method: method);
@@ -179,7 +191,9 @@ public sealed partial class AccountSiteHttpTests(PublicReadFixture fixture)
     public async Task Application_body_limit_refusals_keep_no_store_before_credential_admission(string path)
     {
         await using var issuer = await TenantAuthenticationIssuer.StartAsync();
-        using var client = Client(issuer, SeedData.English.Host);
+        await using var fixture = await IdentityPublicReadFixture.CreateAsync(parent, issuer.Issuer,
+            new Dictionary<UserId, string> { [UserId.From(TenantAuthenticationIssuer.Actor)] = "opaque-keycloak-subject" });
+        using var client = Client(fixture, issuer, SeedData.English.Host);
         var reads = fixture.Observation.Reads;
         using var request = new HttpRequestMessage(HttpMethod.Get, path);
         request.Headers.TryAddWithoutValidation("Authorization", "Bearer invalid");
@@ -195,7 +209,9 @@ public sealed partial class AccountSiteHttpTests(PublicReadFixture fixture)
     public async Task Account_query_parameters_are_rejected_before_configuration_and_stay_no_store()
     {
         await using var issuer = await TenantAuthenticationIssuer.StartAsync();
-        using var client = Client(issuer, SeedData.English.Host);
+        await using var fixture = await IdentityPublicReadFixture.CreateAsync(parent, issuer.Issuer,
+            new Dictionary<UserId, string> { [UserId.From(TenantAuthenticationIssuer.Actor)] = "opaque-keycloak-subject" });
+        using var client = Client(fixture, issuer, SeedData.English.Host);
         var reads = fixture.Observation.Reads;
         using var response = await TenantAuthenticationHttpRequest.Send(client, SeedData.English.Host,
             TenantAuthenticationHttpRequest.AccountPath + "?tenantId=" + SeedData.Yoga.TenantId.Value.ToString("D"),
@@ -206,7 +222,7 @@ public sealed partial class AccountSiteHttpTests(PublicReadFixture fixture)
         fixture.Observation.Reads.Should().Be(reads);
     }
 
-    private HttpClient Client(TenantAuthenticationIssuer issuer, string host, Action<IServiceCollection>? configure = null) =>
+    private static HttpClient Client(PublicReadFixture fixture, TenantAuthenticationIssuer issuer, string host, Action<IServiceCollection>? configure = null) =>
         fixture.ClientFor(host, configure, builder =>
         {
             builder.UseSetting(TenantAuthenticationOptions.IssuerConfigurationKey, issuer.Issuer);

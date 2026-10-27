@@ -30,7 +30,12 @@ internal static class SchemaTableClasses
         "platform_killswitches", "courses", "lessons", "course_translations", "lesson_translations",
     ];
 
-    public static readonly string[] Data = [.. Existing, .. JobTenant, .. Control, .. Vendor];
+    public static readonly string[] GlobalIdentity = ["users"];
+    public static readonly string[] IdentityPlatform = ["identity_authority"];
+    public static readonly string[] IdentityContextual = ["memberships", "membership_profiles",
+        "membership_role_assignments", "roles", "role_permission_grants"];
+    public static readonly string[] Data = [.. Existing, .. JobTenant, .. Control, .. Vendor,
+        .. GlobalIdentity, .. IdentityPlatform, .. IdentityContextual];
     public static bool AppSelectDenied(string table) => Control.Contains(table) || Vendor.Contains(table);
 
     internal static Task<List<string>> ReadAsync(DbConnection connection, DbTransaction? transaction = null) =>
@@ -43,7 +48,7 @@ internal static class SchemaTableClasses
     {
         var discovered = await ReadAsync(connection, transaction);
         discovered.Should().BeEquivalentTo(Data.Concat(MigrationChains.HistoryTables),
-            "every public table must have an exact reviewed class, including the five history tables; "
+            "every public table must have an exact reviewed class, including the six history tables; "
             + "Fix: classify a new table under Standards 05 rather than excluding it from discovery");
     }
 }

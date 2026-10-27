@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Planted controls against the real workflow/API/archive/aggregate owner."""
 import copy
+import datetime
 from contextlib import contextmanager
 import hashlib
 import io
@@ -348,63 +349,114 @@ class AggregateControls(unittest.TestCase):
         self.assertEqual(database_images, provider_databases)
         self.assertEqual(tuple(provider_images + database_images), RESULTS.FIXTURE_IMAGES)
 
-    def test_fixture_image_preparation_uses_fixed_images_and_preserves_cleanup_reserve(self):
-        environment = {'GITHUB_ACTIONS': 'true', 'RUNNER_ENVIRONMENT': 'github-hosted',
-                       'GITHUB_JOB': 'backend-integration-tests', 'LEARNSTACK_CI_STARTED_AT': '1000'}
+    def fixture_environment(self):
+        env = {'GITHUB_ACTIONS': 'true', 'RUNNER_ENVIRONMENT': 'github-hosted',
+               'LEARNSTACK_CI_STARTED_AT': '1000', 'RUNNER_OS': 'Linux', 'RUNNER_ARCH': 'X64',
+               'LEARNSTACK_NATIVE_RUNNER_CONTEXT': 'github-hosted',
+               'LEARNSTACK_NATIVE_RUNNER_OS': 'Linux', 'LEARNSTACK_NATIVE_RUNNER_ARCH': 'X64',
+               'LEARNSTACK_NATIVE_RUNNER_LABEL': 'ubuntu-24.04',
+               'LEARNSTACK_NATIVE_JOB_CONTAINER': 'null', 'LEARNSTACK_NATIVE_JOB_SERVICES': '{}',
+               'GITHUB_EVENT_NAME': 'push', 'LEARNSTACK_CI_HEAD_SHA': 'a' * 40}
+        for name, value in {'RUN_ID': '123', 'RUN_ATTEMPT': '1', 'JOB': 'backend-integration-tests',
+                'SHA': 'a' * 40, 'REPOSITORY': 'HodeTech/LearnStack',
+                'WORKFLOW_REF': 'HodeTech/LearnStack/.github/workflows/ci.yml@refs/heads/development',
+                'WORKFLOW_SHA': 'a' * 40, 'WORKSPACE': str(ROOT)}.items():
+            env['GITHUB_' + name] = value
+            env['LEARNSTACK_NATIVE_' + ('ATTEMPT' if name == 'RUN_ATTEMPT' else name)] = value
+        return env
+
+    @contextmanager
+    def fixture_preparation(self, *, elapsed=700, environment=None, pull=None):
+        def command(argv, *args, **kwargs):
+            if argv[0] == RESULTS.OWNER.GIT:
+                return ('a' * 40 + '\n').encode()
+            return pull(argv, *args, **kwargs) if pull else b'PRIVATE-CANARY'
         output = io.StringIO()
-        with mock.patch.dict(os.environ, environment, clear=True), \
-                mock.patch.object(RESULTS.time, 'time', return_value=1700), \
+        with mock.patch.dict(os.environ, environment or self.fixture_environment(), clear=True), \
+                mock.patch.object(RESULTS.time, 'time', return_value=1000 + elapsed), \
                 mock.patch.object(RESULTS.time, 'monotonic', return_value=500), \
                 mock.patch.object(RESULTS.sys, 'platform', 'linux'), \
-                mock.patch.object(RESULTS.OWNER, 'command', return_value=b'PRIVATE-CANARY') as command, \
+                mock.patch.object(RESULTS.OWNER, 'command', side_effect=command) as calls, \
                 mock.patch('sys.stdout', output):
-            self.assertEqual(0, RESULTS.prepare_fixture_images())
+            yield calls, output
+
+    def test_fixture_image_preparation_uses_fixed_images_and_preserves_cleanup_reserve(self):
+        with self.fixture_preparation() as (command, output):
+            self.assertEqual(0, RESULTS.prepare_fixture_images('ordinary-0'))
         self.assertEqual(('quay.io/keycloak/keycloak:26.6.2', 'postgres:18.4-alpine'), RESULTS.FIXTURE_IMAGES)
+        pulls = [call for call in command.call_args_list if call.args[0][0] == RESULTS.OWNER.DOCKER]
         self.assertEqual([mock.call(['/usr/bin/docker', 'pull', image], 610,
                                     'fixture_image_pull_failed_' + component, cap=55, diagnose=True)
-                          for component, image in zip(('keycloak', 'postgres'), RESULTS.FIXTURE_IMAGES)],
-                         command.call_args_list)
+                          for component, image in zip(('keycloak', 'postgres'), RESULTS.FIXTURE_IMAGES)], pulls)
+        self.assertEqual(RESULTS.OWNER.GIT, command.call_args_list[0].args[0][0])
         self.assertEqual(list(RESULTS.FIXTURE_IMAGES), [row['image'] for row in json.loads(output.getvalue())['images']])
         self.assertNotIn('PRIVATE-CANARY', output.getvalue())
         for index, component in enumerate(('keycloak', 'postgres')):
-            output = io.StringIO()
             reason = 'fixture_image_pull_failed_' + component + '_rate_limit'
-            with mock.patch.dict(os.environ, environment, clear=True), \
-                    mock.patch.object(RESULTS.time, 'time', return_value=1700), \
-                    mock.patch.object(RESULTS.time, 'monotonic', return_value=500), \
-                    mock.patch.object(RESULTS.sys, 'platform', 'linux'), \
-                    mock.patch.object(RESULTS.OWNER, 'command',
-                        side_effect=[b'PRIVATE-CANARY'] * index + [RESULTS.OWNER.Refusal(reason)]) as command, \
-                    mock.patch('sys.stdout', output):
-                self.refuses(reason, RESULTS.prepare_fixture_images)
-            self.assertEqual(index + 1, command.call_count, 'No failed pull is retried or followed by another image')
+            responses = iter([b'PRIVATE-CANARY'] * index + [RESULTS.OWNER.Refusal(reason)])
+            def pull(*args, **kwargs):
+                response = next(responses)
+                if isinstance(response, Exception):
+                    raise response
+                return response
+            with self.fixture_preparation(pull=pull) as (command, output):
+                self.refuses(reason, RESULTS.prepare_fixture_images, 'ordinary-0')
+            self.assertEqual(index + 1, sum(call.args[0][0] == RESULTS.OWNER.DOCKER
+                                          for call in command.call_args_list))
             self.assertEqual('', output.getvalue())
-        with mock.patch.dict(os.environ, environment, clear=True), \
-                mock.patch.object(RESULTS.time, 'time', return_value=1960), \
-                mock.patch.object(RESULTS.time, 'monotonic', return_value=500), \
-                mock.patch.object(RESULTS.sys, 'platform', 'linux'), \
-                mock.patch.object(RESULTS.OWNER, 'command', return_value=b'') as command, \
-                mock.patch('sys.stdout', io.StringIO()):
-            self.assertEqual(0, RESULTS.prepare_fixture_images())
-            self.assertEqual(2, command.call_count)
-            self.assertTrue(all(call.args[1] == 500 + RESULTS.OWNER.JOB_SECONDS
-                - RESULTS.OWNER.RESERVE_SECONDS - 960 for call in command.call_args_list))
-            self.assertTrue(all(call.kwargs == {'cap': 55, 'diagnose': True} for call in command.call_args_list))
+        # This instant exhausted the old ordinary window. Pulls now share the
+        # longer job window, while their 110/55-second caps remain unchanged.
+        for elapsed in (1000, 1260):
+            with self.fixture_preparation(elapsed=elapsed) as (command, _):
+                self.assertEqual(0, RESULTS.prepare_fixture_images('ordinary-0'))
+                pulls = [call for call in command.call_args_list if call.args[0][0] == RESULTS.OWNER.DOCKER]
+                self.assertEqual(2, len(pulls))
+                self.assertTrue(all(call.args[1] == 500 + min(110,
+                    RESULTS.OWNER.ORDINARY_JOB_SECONDS - RESULTS.OWNER.RESERVE_SECONDS - elapsed) for call in pulls))
+                self.assertTrue(all(call.kwargs == {'cap': 55, 'diagnose': True} for call in pulls))
         for images in ((), ('one',), ('one', 'two', 'three')):
-            with mock.patch.dict(os.environ, environment, clear=True), \
-                    mock.patch.object(RESULTS.time, 'time', return_value=1700), \
-                    mock.patch.object(RESULTS.time, 'monotonic', return_value=500), \
-                    mock.patch.object(RESULTS.sys, 'platform', 'linux'), \
-                    mock.patch.object(RESULTS, 'FIXTURE_IMAGES', images), \
-                    mock.patch.object(RESULTS.OWNER, 'command') as command:
-                self.refuses('fixture_setup_images_invalid', RESULTS.prepare_fixture_images)
+            with self.fixture_preparation() as (command, _), mock.patch.object(RESULTS, 'FIXTURE_IMAGES', images):
+                self.refuses('fixture_setup_images_invalid', RESULTS.prepare_fixture_images, 'ordinary-0')
+                self.assertFalse(any(call.args[0][0] == RESULTS.OWNER.DOCKER for call in command.call_args_list))
+        with self.fixture_preparation(elapsed=1297) as (command, _):
+            self.refuses('fixture_setup_deadline_exhausted', RESULTS.prepare_fixture_images, 'ordinary-0')
+            self.assertFalse(any(call.args[0][0] == RESULTS.OWNER.DOCKER for call in command.call_args_list))
+
+    def test_fixture_preparation_verifies_closed_mode_source_and_runner_before_any_pull(self):
+        for mode in ('base', 'native-shard', 'ordinary', 'ordinary-00', 'ordinary--1',
+                     'ordinary-12', 'ordinary-0extra', 'architecture-0', 'aggregate'):
+            with self.subTest(mode=mode), self.fixture_preparation() as (command, _):
+                self.refuses('fixture_setup_context_invalid', RESULTS.prepare_fixture_images, mode)
                 command.assert_not_called()
-        with mock.patch.dict(os.environ, environment, clear=True), \
-                mock.patch.object(RESULTS.time, 'time', return_value=2000), \
-                mock.patch.object(RESULTS.sys, 'platform', 'linux'), \
-                mock.patch.object(RESULTS.OWNER, 'command') as command:
-            self.refuses('fixture_setup_deadline_exhausted', RESULTS.prepare_fixture_images)
-            command.assert_not_called()
+        mutations = [('GITHUB_JOB', 'backend-native', 'fixture_setup_context_invalid'),
+            ('RUNNER_ENVIRONMENT', 'self-hosted', 'fixture_setup_context_invalid'),
+            ('LEARNSTACK_NATIVE_JOB', 'backend-native', 'context_identity_mismatch'),
+            ('LEARNSTACK_NATIVE_SHA', 'b' * 40, 'context_identity_mismatch'),
+            ('LEARNSTACK_NATIVE_WORKFLOW_SHA', 'b' * 40, 'context_identity_mismatch'),
+            ('LEARNSTACK_NATIVE_WORKFLOW_REF', 'foreign', 'context_identity_mismatch'),
+            ('GITHUB_WORKFLOW_SHA', 'b' * 40, 'source_identity_mismatch'),
+            ('GITHUB_WORKFLOW_REF', 'foreign', 'workflow_identity_mismatch'),
+            ('LEARNSTACK_NATIVE_RUNNER_LABEL', 'ubuntu-latest', 'unsupported_context'),
+            ('LEARNSTACK_NATIVE_JOB_SERVICES', '{"db":{}}', 'unsupported_job_topology'),
+            ('LEARNSTACK_NATIVE_JOB_CONTAINER', '"ubuntu"', 'unsupported_job_topology')]
+        for name, value, reason in mutations:
+            env = self.fixture_environment(); env[name] = value
+            if name in ('GITHUB_WORKFLOW_SHA', 'GITHUB_WORKFLOW_REF'):
+                env['LEARNSTACK_NATIVE_' + name.removeprefix('GITHUB_')] = value
+            with self.subTest(name=name), self.fixture_preparation(environment=env) as (command, _):
+                self.refuses(reason, RESULTS.prepare_fixture_images, 'ordinary-0')
+                self.assertFalse(any(call.args[0][0] == RESULTS.OWNER.DOCKER for call in command.call_args_list))
+        for name in ('LEARNSTACK_NATIVE_JOB', 'LEARNSTACK_NATIVE_WORKSPACE',
+                     'LEARNSTACK_NATIVE_RUN_ID', 'LEARNSTACK_NATIVE_ATTEMPT'):
+            env = self.fixture_environment(); del env[name]
+            with self.subTest(missing=name), self.fixture_preparation(environment=env) as (command, _):
+                self.refuses('context_identity_mismatch', RESULTS.prepare_fixture_images, 'ordinary-0')
+                self.assertFalse(any(call.args[0][0] == RESULTS.OWNER.DOCKER for call in command.call_args_list))
+        reduced = copy.deepcopy(self.plan); reduced['counts']['ordinary'] -= 1
+        with self.fixture_preparation() as (command, _), mock.patch.object(RESULTS.PLAN, 'load_plan', return_value=reduced):
+            self.refuses('shard_index_invalid', RESULTS.prepare_fixture_images,
+                         'ordinary-' + str(reduced['counts']['ordinary']))
+            self.assertFalse(any(call.args[0][0] == RESULTS.OWNER.DOCKER for call in command.call_args_list))
 
     def test_auxiliary_artifacts_keep_attempt_identity_and_compose_failure_removes_env(self):
         jobs = self.documents['.github/workflows/ci.yml']['jobs']
@@ -450,7 +502,7 @@ class AggregateControls(unittest.TestCase):
             ('artifact_upload_invalid', lambda jobs: next(step for step in jobs['backend-base']['steps']
                 if step.get('name') == RESULTS.UPLOAD_STEP).update(uses='actions/upload-artifact@' + 'f' * 40)),
             ('fixture_image_gate_invalid', lambda jobs: next(step for step in jobs['backend-integration-tests']['steps']
-                if step.get('run') == 'python3 scripts/ci-test-shards.py prepare-fixtures').update({'if': 'success()'})),
+                if step.get('run') == 'python3 scripts/ci-test-shards.py prepare-fixtures ordinary-${{ matrix.index }}').update({'if': 'success()'})),
             ('fixture_compile_gate_invalid', lambda jobs: next(step for step in jobs['backend-integration-tests']['steps']
                 if step.get('name') == 'Compile native web and authenticated SDK fixture entries').update({'if': 'false'})),
             ('fixture_compile_gate_invalid', lambda jobs: next(step for step in jobs['backend-integration-tests']['steps']
@@ -479,6 +531,48 @@ class AggregateControls(unittest.TestCase):
                 documents['.github/workflows/ci.yml']['permissions'] = permissions
                 self.refuses('workflow_permissions_invalid', RESULTS.workflow_topology, documents, self.plan)
 
+    def test_workflow_windows_and_fixture_mode_and_metadata_cannot_drift(self):
+        jobs = self.documents['.github/workflows/ci.yml']['jobs']
+        for job_id in RESULTS.JOB_IDS.values():
+            expected = 25 if job_id == 'backend-integration-tests' else 20
+            self.assertEqual(expected, jobs[job_id]['timeout-minutes'])
+            for minutes in (19, 20, 24, 25, 26):
+                if minutes == expected:
+                    continue
+                with self.subTest(job=job_id, minutes=minutes):
+                    documents = copy.deepcopy(self.documents)
+                    documents['.github/workflows/ci.yml']['jobs'][job_id]['timeout-minutes'] = minutes
+                    self.refuses('execution_topology_invalid', RESULTS.workflow_topology, documents, self.plan)
+        for job_id in ('backend', 'backend-integration', 'meta'):
+            self.assertEqual(5, jobs[job_id]['timeout-minutes'])
+        name = 'Prepare pinned provider fixture images within the whole-job budget'
+        prepare = next(step for step in jobs['backend-integration-tests']['steps'] if step.get('name') == name)
+        execute = next(step for step in jobs['backend-integration-tests']['steps'] if step.get('name') == RESULTS.EXECUTE_STEP)
+        self.assertEqual(15, len(prepare['env']))
+        self.assertEqual(execute['env'], prepare['env'])
+        for mode in ('', 'ordinary', 'ordinary-0', 'ordinary-${{ matrix.index }} extra', 'native-shard'):
+            documents = copy.deepcopy(self.documents)
+            steps = documents['.github/workflows/ci.yml']['jobs']['backend-integration-tests']['steps']
+            next(step for step in steps if step.get('name') == name)['run'] = (
+                'python3 scripts/ci-test-shards.py prepare-fixtures' + (' ' + mode if mode else ''))
+            self.refuses('fixture_image_gate_invalid', RESULTS.workflow_topology, documents, self.plan)
+        for minutes in (1, 3, 25):
+            documents = copy.deepcopy(self.documents)
+            steps = documents['.github/workflows/ci.yml']['jobs']['backend-integration-tests']['steps']
+            next(step for step in steps if step.get('name') == name)['timeout-minutes'] = minutes
+            self.refuses('fixture_image_gate_invalid', RESULTS.workflow_topology, documents, self.plan)
+        for key in prepare['env']:
+            for mutation in ('missing', 'forged'):
+                with self.subTest(metadata=key, mutation=mutation):
+                    documents = copy.deepcopy(self.documents)
+                    steps = documents['.github/workflows/ci.yml']['jobs']['backend-integration-tests']['steps']
+                    env = next(step for step in steps if step.get('name') == name)['env']
+                    if mutation == 'missing':
+                        del env[key]
+                    else:
+                        env[key] = 'PRIVATE-CANARY'
+                    self.refuses('fixture_image_gate_invalid', RESULTS.workflow_topology, documents, self.plan)
+
     def test_attempt_api_refuses_stale_missing_skipped_failed_duplicate_or_oversized_jobs(self):
         context = self.context('2'); clean = self.jobs('backend', context)
         self.assertTrue(RESULTS.verify_jobs(clean, context, self.plan, 'backend'))
@@ -493,6 +587,54 @@ class AggregateControls(unittest.TestCase):
         self.refuses('producer_gate_not_successful', RESULTS.verify_jobs, dirty, context, self.plan, 'backend')
         dirty = copy.deepcopy(clean); other = copy.deepcopy(dirty[0]); other['id'] = 100; dirty.append(other)
         self.refuses('job_api_duplicate_producer', RESULTS.verify_jobs, dirty, context, self.plan, 'backend')
+
+    def test_expected_producer_policy_is_shared_and_rejects_aliases_and_out_of_plan_indices(self):
+        for mode, job in RESULTS.OWNER.SHARD_JOBS.items():
+            owner = 'native' if mode == 'native-shard' else mode
+            with self.subTest(owner=owner), mock.patch.object(RESULTS.OWNER, 'job_seconds',
+                    wraps=RESULTS.OWNER.job_seconds) as policy:
+                self.assertEqual(1500 if owner.startswith('ordinary-') else 1200,
+                                 RESULTS.producer_seconds(owner, self.plan))
+                policy.assert_called_once_with(mode, job, self.plan['counts'])
+        for owner in ('native-shard', 'ordinary', 'ordinary-00', 'ordinary--1',
+                      'ordinary-12', 'ordinary-0extra', 'architecture-6', 'aggregate', '', None, []):
+            with self.subTest(owner=owner):
+                self.refuses('producer_identity_invalid', RESULTS.producer_seconds, owner, self.plan)
+        reduced = copy.deepcopy(self.plan); reduced['counts']['ordinary'] -= 1
+        self.refuses('shard_index_invalid', RESULTS.producer_seconds,
+                     'ordinary-' + str(reduced['counts']['ordinary']), reduced)
+        with mock.patch.dict(RESULTS.JOB_IDS, {'ordinary': 'backend-native'}):
+            self.refuses('job_identity_mismatch', RESULTS.producer_seconds, 'ordinary-0', self.plan)
+
+    def test_api_running_wall_uses_each_expected_owner_in_both_aggregate_scopes(self):
+        for scope in ('backend', 'integration'):
+            clean = self.jobs(scope)
+            for index, job in enumerate(clean):
+                ordinary = job['name'].startswith('backend ordinary-')
+                ceiling = 1500 if ordinary else 1200
+                for seconds in (1200, 1201, 1499, 1500, 1501):
+                    with self.subTest(scope=scope, owner=job['name'], seconds=seconds):
+                        rows = copy.deepcopy(clean)
+                        start = datetime.datetime.fromisoformat(rows[index]['started_at'].removesuffix('Z'))
+                        rows[index]['completed_at'] = (start + datetime.timedelta(seconds=seconds)).isoformat() + 'Z'
+                        if seconds <= ceiling:
+                            self.assertTrue(RESULTS.verify_jobs(rows, self.context(), self.plan, scope))
+                        else:
+                            self.refuses('producer_ceiling_exceeded', RESULTS.verify_jobs,
+                                         rows, self.context(), self.plan, scope)
+
+    def test_seconds_observations_require_an_explicit_finite_owner_ceiling(self):
+        with self.assertRaises(TypeError):
+            RESULTS.finite_seconds(1)
+        for ceiling in (1200, 1500):
+            for value in (0, 0.5, 1200, ceiling):
+                self.assertTrue(RESULTS.finite_seconds(value, ceiling))
+            for value in (ceiling + 0.001, -1, True, False, float('nan'), float('inf'),
+                          -float('inf'), None, '1200'):
+                with self.subTest(ceiling=ceiling, value=value):
+                    self.assertFalse(RESULTS.finite_seconds(value, ceiling))
+        self.assertFalse(RESULTS.finite_seconds(1250, 1200))
+        self.assertTrue(RESULTS.finite_seconds(1250, 1500))
 
     def test_producer_refusal_retains_only_closed_owner_and_state_diagnostics(self):
         context = self.context()
@@ -703,6 +845,98 @@ class AggregateControls(unittest.TestCase):
             clean = RESULTS.read_json(base / 'assignment.json'); dirty = copy.deepcopy(clean); dirty['selected'] = []
             self.write(base, 'assignment.json', dirty); self.rehash(base)
             self.refuses('selected_population_mismatch', RESULTS.validate_outputs, outputs, context, self.plan, 'backend')
+
+    def test_receipt_intervals_use_expected_identity_and_a_strict_whole_job_sum(self):
+        keys = ('preOwnerSeconds', 'setupSeconds', 'executionSeconds', 'cleanupSeconds')
+        for scope in ('backend', 'integration'):
+            with tempfile.TemporaryDirectory() as temporary:
+                paths = self.outputs(temporary, scope)
+                assignment = PLAN.assign(self.fixture.manifest(), self.plan, '1')
+                owners = ('base', 'architecture-0') if scope == 'backend' else ('base', 'native', 'ordinary-0')
+                for owner in owners:
+                    path = paths[owner]; clean = RESULTS.read_json(path / 'result.json')
+                    ceiling = 1500 if owner.startswith('ordinary-') else 1200
+                    for key in keys:
+                        for value in (1200, 1250, 1499, 1500, 1501, -1, True, False,
+                                      float('nan'), float('inf'), -float('inf')):
+                            with self.subTest(scope=scope, owner=owner, key=key, value=value):
+                                result = {**clean, **dict.fromkeys(keys, 0), key: value}
+                                self.write(path, 'result.json', result)
+                                if type(value) is int and 0 <= value < ceiling:
+                                    self.assertTrue(RESULTS.verify_receipt(path, self.context(), owner, self.plan, assignment))
+                                else:
+                                    self.refuses('execution_intervals_invalid', RESULTS.verify_receipt,
+                                                 path, self.context(), owner, self.plan, assignment)
+                    # Individually valid intervals cannot add up to the ceiling.
+                    for total in (ceiling - 1, ceiling, ceiling + 1):
+                        self.write(path, 'result.json', {**clean, 'preOwnerSeconds': total - 10,
+                            'setupSeconds': 3, 'executionSeconds': 5, 'cleanupSeconds': 2})
+                        if total < ceiling:
+                            self.assertTrue(RESULTS.verify_receipt(path, self.context(), owner, self.plan, assignment))
+                        else:
+                            self.refuses('execution_intervals_invalid', RESULTS.verify_receipt,
+                                         path, self.context(), owner, self.plan, assignment)
+                    for key, value in (('partition', 'ordinary-0' if owner != 'ordinary-0' else 'ordinary-1'),
+                                       ('job', 'backend-integration-tests' if owner != 'ordinary-0' else 'backend-native'),
+                                       ('identity', self.context('2'))):
+                        with self.subTest(owner=owner, forgery=key):
+                            self.write(path, 'result.json', {**clean, key: value, 'executionSeconds': 1250})
+                            self.refuses('execution_receipt_incomplete', RESULTS.verify_receipt,
+                                         path, self.context(), owner, self.plan, assignment)
+                    self.write(path, 'result.json', clean)
+
+    def test_long_ordinary_measurements_fit_the_longer_receipt_with_short_prework(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            paths = self.outputs(temporary, 'integration'); path = paths['ordinary-0']
+            clean = RESULTS.read_json(path / 'measurements.json')
+            receipt = RESULTS.read_json(path / 'result.json')
+            self.write(path, 'result.json', {**receipt, 'preOwnerSeconds': 2, 'setupSeconds': 3,
+                'executionSeconds': 1253, 'cleanupSeconds': 2})
+            for key in ('workloadSeconds', 'firstResultSeconds', 'testProcessSeconds'):
+                with self.subTest(observation=key):
+                    measured = copy.deepcopy(clean); measured['workloadSeconds'] = 1252
+                    for phase in ('toolchainObservationSeconds', 'nonTestGateSeconds',
+                                  'discoveryAndSelectionSeconds', 'resultExportAndValidationSeconds'):
+                        measured[phase] = 0.1
+                    for project in measured['projects']:
+                        project['firstResultSeconds'] = 0.05
+                        project['testProcessSeconds'] = 0.1
+                    if key in ('firstResultSeconds', 'testProcessSeconds'):
+                        measured['projects'][0]['testProcessSeconds'] = 1251
+                        measured['projects'][0][key] = 1250
+                    else:
+                        measured[key] = 1250
+                        if key == 'workloadSeconds':
+                            measured['projects'][0]['testProcessSeconds'] = 1249
+                    self.write(path, 'measurements.json', measured); self.rehash(path)
+                    self.assertTrue(RESULTS.validate_outputs(paths, self.context(), self.plan, 'integration')['success'])
+
+    def test_all_measurement_fields_retain_expected_owner_bounds_and_reject_nonfinite_values(self):
+        phase_keys = ('toolchainObservationSeconds', 'nonTestGateSeconds', 'discoveryAndSelectionSeconds',
+                      'resultExportAndValidationSeconds', 'workloadSeconds')
+        for scope in ('backend', 'integration'):
+            with tempfile.TemporaryDirectory() as temporary:
+                paths = self.outputs(temporary, scope)
+                assignment = PLAN.assign(self.fixture.manifest(), self.plan, '1')
+                owners = ('base', 'architecture-0') if scope == 'backend' else ('base', 'native', 'ordinary-0')
+                for owner in owners:
+                    path = paths[owner]; clean = RESULTS.read_json(path / 'measurements.json')
+                    ceiling = 1500 if owner.startswith('ordinary-') else 1200
+                    for key in (*phase_keys, 'firstResultSeconds', 'testProcessSeconds'):
+                        values = (ceiling + 0.001, -1, True, False, float('nan'), float('inf'), -float('inf'))
+                        if ceiling == 1200:
+                            values += (1250,)
+                        for value in values:
+                            with self.subTest(scope=scope, owner=owner, key=key, value=value):
+                                measured = copy.deepcopy(clean)
+                                if key in phase_keys:
+                                    measured[key] = value; reason = 'measurement_intervals_invalid'
+                                else:
+                                    measured['projects'][0][key] = value; reason = 'project_measurement_invalid'
+                                self.write(path, 'measurements.json', measured); self.rehash(path)
+                                self.refuses(reason, RESULTS.verify_receipt,
+                                             path, self.context(), owner, self.plan, assignment)
+                    self.write(path, 'measurements.json', clean); self.rehash(path)
 
     def test_common_base_witness_refuses_cross_scope_classification_or_toolchain_drift(self):
         with tempfile.TemporaryDirectory() as temporary:

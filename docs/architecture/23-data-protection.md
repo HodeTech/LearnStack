@@ -16,9 +16,103 @@ Every aggregate that may hold personal data must declare its PII category at des
 | **Payment** | Billing addresses, last-four card digits, invoice records | Retained 7 years for tax compliance (cannot be deleted on request); separate retention from other PII. |
 | **Audit** | Audit log entries referencing the user | Retained per [18-audit-coverage.md](../standards/18-audit-coverage.md); bounded redaction preserves the action record and immutable identifiers. See [erasure prerequisites](#erasure-authority-and-first-writer-prerequisites). |
 
-Every aggregate's domain spec must record its PII categories. Phase 03 owns the
+Every aggregate's domain spec must record its PII categories.
+[Phase 03 G19](../roadmap/phase-03-identity-admin.md#the-decision-register) owns the
 classification census and planted missing-annotation control before its first
-DSAR writer; no current CI check discovers every email/phone/address column.
+identity PII writer; G9 extends it for custom-field revision history. The
+implemented mapped-property census requires explicit semantics; it does not infer personal data from an email/phone/address name or arbitrary stored text.
+
+<a id="proposed-identity-foundation-and-classification-ownership"></a>
+
+### Identity foundation and classification ownership
+
+**Classification implemented in P03-1 Step 2; global Identity storage/common
+audit implemented in Step 3; contextual storage and diagnostic controls
+implemented and independently reviewed in Step 4;
+fulfillment remains with its named owners.** Jointly Accepted
+[ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) and
+[ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md)
+require these controls before the first identity writer. Step 3 adds 17 reviewed
+global scalars; Step 4 adds 36 contextual scalars. The complete census covers six
+contexts, 26 entities and 254 scalar properties. Neither classification nor
+storage fulfills an erasure request.
+
+P03-1 Step 2 implements reviewed declarations in each module's EF mappings and
+`PersonalDataModelCensus` in common Infrastructure. Each module owns declarations
+for every property in its mapped models, including inherited references. The Infrastructure data-protection coordinator
+and `DataProtectionConventionTests` compare those declarations with the complete,
+nonempty EF property population before identity writes.
+`Mapped_Properties_Have_Explicit_Personal_Data_Classification` is Implemented
+in the [architecture catalogue](../standards/21-architecture-tests-catalogue.md),
+with real production-model omission and positive controls. An
+undeclared property fails; `None` requires an explicit nonpersonal purpose and is
+never a default. Module audit specs own exact reference/payload paths and snapshot
+redaction markers. The explicit common audit-column declarations live in
+[AuditColumnMapping](../../backend/src/LearnStack.Infrastructure/Persistence/AuditColumnMapping.cs):
+actor references are Identity, change timestamps Audit, and the technical
+row-version counter explicitly None. Classification never reads row values or
+replaces snapshot markers, disclosure authority or erasure/retention rules. SQL-only, control and vendor stores stay in their existing
+inventories; this check creates no duplicate durable-store inventory.
+
+The Accepted User contract retains a stable authority identifier, subject key, actor and
+admission lifecycle. Raw subject is required while Active, explicitly marked
+`[PiiSensitive]` for snapshot capture, and nullable for removal at Closed by the
+authorized P03-10 closure writer. No raw issuer is copied onto each User. The
+platform-scoped, application-read-only `identity_authority` singleton owns the
+stable authority UUID and current exact issuer URI. The deployment installer
+creates it once with migration credentials before bootstrap; application code
+cannot insert, update or automatically replace it. Configuration issuer drift
+refuses identity admission. P03-9/G13 owns an approved issuer rebind before the
+first change, proving provider continuity and freezing bootstrap and old grants
+while preserving authority, keys, actors and closed tombstones. Until that owner
+is implemented, issuer renaming is unsupported; aliases and email matching supply
+no continuity proof.
+
+The subject key is SHA-256 over domain-separated, length-delimited stable
+authority UUID and exact opaque subject, using the
+[canonical Standard 05 encoding](../standards/05-database.md#proposed-p03-1-identity-storage-annex).
+It supports
+stable equality and audit linkage, not secrecy: low-entropy subjects remain
+vulnerable to dictionary guessing, and no provider entropy guarantee is assumed.
+HMAC is not selected; selecting it for secrecy would also require durable key
+custody, rotation and restore decisions. Hash and actor linkage are PII-Identity,
+retained under their declared purposes, not anonymous data. An Active key match
+with a different raw subject refuses; a Closed key match always refuses admission
+and never merges identities. The permanent key/actor tombstone prevents
+recreation indefinitely; closure removes the raw subject rather than claiming
+that the retained tombstone is erased.
+
+P03-1 adds no email/verification columns or claim processing. A first earlier
+consumer or P03-6/G10 owns the minimum mirror fields and freshness contract before
+their writer. Snapshot markers, diagnostic controls and semantic classification
+remain separate requirements; none implies general exception-message scrubbing.
+
+`IdentityDiagnosticSinkTests` exercises real tracked profile writes and global
+binding creation with provider-generated, value-bearing failures. Neutral,
+nested and sensitive canaries reach PostgreSQL before exclusion is checked in
+serialized Serilog, the local error archive, the real Sentry SDK envelope,
+exported OpenTelemetry spans and L1 response bytes. Nonempty positive controls
+qualify each output. Immediate and deferred profile failures, the global binding
+boundary, real validator attempted values and sibling-module event confinement
+are separate controls. `TenantExistingBindingAdmissionTests` additionally reaches
+a value-bearing binding SELECT failure through actual HTTP: serialized Serilog,
+exported traces and response bytes exclude the neutral/nested/sensitive values
+while retaining fixed failure signals and a 401. This ordinary refusal does not
+execute the L1 exception, local archive or Sentry path; those sinks retain their
+separate writer-failure controls above.
+Identity replaces only its EF save/query-failure events with fixed diagnostics;
+unexpected contextual provider failures retain no original exception payload.
+Its per-context interceptor records the exact caller before command creation
+and marks only the validated EF spans created for that command. Multiple tracing
+compositions can produce several such spans; the preexisting caller is excluded,
+even when it is another real EF command. A named processor fixes only marked
+Error descriptions before export, preserving error status, span metadata and
+trace ancestry. Independent started/stopped activity IDs and two actual tracing
+compositions qualify complete exporter coverage; a nested Tenancy command keeps
+its original provider error. Ordinary command diagnostics, other
+modules' EF failure events and unmarked span descriptions remain active.
+These cases qualify the named Identity boundaries, not arbitrary exception text
+throughout the application.
 
 ## Rights We Support
 
@@ -35,12 +129,28 @@ Both KVKK Madde 11 ("kişisel verileri elde etme") and GDPR Article 15 require g
 - Exports include: identity, memberships, profiles, enrollments, progress, attempts, bookings, attendance, recordings (metadata + signed download links), audit entries where the user is the actor.
 - Exports exclude: another user's data, tenant-internal admin notes about the user, internal system identifiers that have no meaning outside LearnStack.
 
+Tenant/org RLS is one boundary, not the subject predicate. Every participating
+module additionally identifies the requested person and permitted recipient/
+purpose, including third-party references inside shared JSON/audit records.
+[Phase 03 G15/G16](../roadmap/phase-03-identity-admin.md#the-decision-register)
+settle self/admin/delegate and org scope, eligibility/holds, artifact retrieval
+authorization/revocation, expiry, cleanup and durable progress before their first
+writers. PII category alone does not decide disclosure. The private artifact needs
+an explicit Phase 03 prerequisite slice or an approved replacement contract; the
+full Phase 04 media and Phase 08a notification engines are not implicit blockers.
+
 ### Right to Rectification
 
 Profile edit is the everyday path. The platform must accept name / email / phone updates via the user's own profile screen or via the tenant admin's user management screen.
 
 - Email change re-runs Keycloak's email verification.
 - Audit entries record the change.
+
+This does not grant tenant admins a global identity editor. Provider canonical
+email stays mirror-owned; contextual contact data stays membership-owned under
+[Phase 03's ownership table](../roadmap/phase-03-identity-admin.md#tenant-data-ownership-dsar-boundary-and-pii-classification).
+G1/G3 decide trusted mirror updates and self/admin field permissions before those
+writers. A matching email never merges global identities or grants membership.
 
 ### Right to Erasure (Right to be Forgotten)
 
@@ -71,11 +181,23 @@ that tenant.
 2. The `Membership` and its `MembershipProfile` are removed.
 3. That tenant's behaviour rows are anonymised; its audit entries keep the action
    record, with redaction subject to the [first-writer prerequisites](#erasure-authority-and-first-writer-prerequisites).
-4. The `users` row survives for as long as any membership remains anywhere. Nothing in
-   this flow touches Keycloak.
+4. This flow preserves the [permanent global binding/tombstone](#identity-foundation-and-classification-ownership).
+   Nothing in this flow touches Keycloak.
+
+G15 defines the authorized subject/org scope: an org admin cannot erase a person's
+other branch, and the subject needs a request/status path without admin rights.
+G16 retains sufficient workflow authority and a scoped status receipt after the
+membership is removed; it settles the last-membership case without silently
+turning tenant erasure into provider-account closure.
 
 **Global account closure.** A **platform-scoped** operation. There is no tenant-admin
 endpoint for it.
+
+The person authorizes the account request through its separate surface; this
+does not assign the person a Platform permission. Phase 03 G13/G16 distinguish
+requesting person, any required approver, service actor and privileged executor.
+The participant inventory/write fence must reconcile new memberships, pending
+invites and delayed mirrors so completed closure cannot recreate account data.
 
 1. The platform admin enters scope through the audited `EnterPlatformAdminScope(reason)`
    — the only path that reads across tenants.
@@ -125,7 +247,7 @@ Exclusion from this asynchronous inventory is not an erasure exemption.
 <!-- async-store-exclusions:end -->
 
 Other module tables remain explicit scope exclusions, so a new table cannot
-silently escape the five-chain migration census. Their own module specifications
+silently escape the complete migration census. Their own module specifications
 govern personal data; exclusion here grants no erasure exemption.
 
 <!-- async-store-module-exclusions:start -->
@@ -149,6 +271,13 @@ govern personal data; exclusion here grants no erasure exemption.
 | `course_translations` | Education localized content |
 | `lesson_translations` | Education localized content |
 | `audit_config` | Audit coverage configuration |
+| `users` | Synchronous global identity binding/tombstone; retained raw subject, digest and creation-audit linkage follow the Identity contract and P03-10 closure owner |
+| `identity_authority` | Deployment-owned stable authority registration, not a per-person profile; installation and rebind remain separately confined |
+| `memberships` | Synchronous contextual identity relation; its lifecycle and personal linkage remain with Identity and P03-10 closure |
+| `membership_profiles` | Synchronous tenant/organization personal profile; classification and fulfillment remain with Identity, without an asynchronous delivery copy |
+| `membership_role_assignments` | Synchronous authorization links; exclusion from the asynchronous inventory grants no personal-data retention or erasure exemption |
+| `roles` | Synchronous tenant-owned authority templates, not queued payloads |
+| `role_permission_grants` | Synchronous explicit authority definitions, not delivery or diagnostic copies |
 <!-- async-store-module-exclusions:end -->
 
 LearnStack job-table no-delete triggers also bind the owner; BYPASSRLS is not
@@ -191,6 +320,15 @@ The inventory also covers these distinct copies and custody boundaries:
 | Native BFF session custody | `InMemoryBffSessionStore` is volatile process-local custody under ADR-0070, not a durable ledger. Local invalidation does not erase provider events or diagnostic archives |
 <!-- async-store-custody:end -->
 
+ADR-0072/0073 add identity linkage to the existing `audit_log` boundary above,
+not another physical store or custody owner. The implemented global branch uses
+these linkages:
+`metadata.identity_subject_key` carries the stable binding key, including failed
+attempts without a User; proposed target and action references remain personal
+data. Existing SecurityEvent retention applies, and metadata stays outside the
+six-column UPDATE grant. P03-10 locates and reports retained linkage under the
+same inventory boundary.
+
 ### Erasure authority and first-writer prerequisites
 
 - [Phase 03](../roadmap/phase-03-identity-admin.md#tenant-data-ownership-dsar-boundary-and-pii-classification)
@@ -222,9 +360,28 @@ The inventory also covers these distinct copies and custody boundaries:
   causal metadata before its redaction/erasure handler lands; this inventory
   does not claim that complete anonymisation already works.
 
+**Accepted identity fulfillment ownership — implementation remains P03-10.**
+P03-10's Identity closure coordinator owns the authorized lifecycle transition
+and raw-subject removal. The Audit redaction participant uses
+`IUserReferenceLocator` to locate exact global failed-attempt paths by subject key
+even when no User was committed, together with successful actor references. Its
+request/result contract reports retained immutable linkage and the applicable
+retention truthfully; it does not call the tombstone or subject key anonymous.
+The key/actor tombstone serves indefinite anti-recreation, while audit copies
+follow the SecurityEvent period in [Audit Coverage](../standards/18-audit-coverage.md#retention).
+This foundation contract does not widen metadata UPDATE grants. P03-10 settles exact
+principal, minimum grants and participant completion before its first writer;
+Phase 11 owns later purge, backup and retained-copy reconciliation operations.
+
 ### Right to Restriction of Processing
 
-A learner can request that processing be paused while a dispute is resolved. Implementation: a tenant-scoped flag on the user that gates analytics ingestion and notifications. Reads continue (the user can still log in and see their own data) but no new events are processed.
+A learner can request that processing be paused while a dispute is resolved.
+The restriction belongs to the tenant/membership context, never a tenant-authored
+column on global `User`. [Phase 03 G3/G15/G16](../roadmap/phase-03-identity-admin.md#the-decision-register)
+settle its storage, authority and fulfillment before the writer. The intended
+restriction gates analytics ingestion and notifications while preserving the
+person's authorized access to their data; this paragraph claims no implemented
+restriction mechanism.
 
 ### Right to Object
 

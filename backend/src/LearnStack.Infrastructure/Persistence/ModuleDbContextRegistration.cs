@@ -28,12 +28,16 @@ namespace LearnStack.Infrastructure.Persistence;
 /// which is what the rule asserts against.
 /// </para>
 /// <para>
-/// <b>EF issues its own savepoints, and that is left on.</b> A context enlisted in
+/// <b>EF automatic savepoints remain the default.</b> A context enlisted in
 /// an externally supplied transaction wraps every <c>SaveChangesAsync</c> in a
 /// real <c>SAVEPOINT</c> / <c>RELEASE SAVEPOINT</c>, so a failed save rolls back
 /// to its own savepoint and leaves the ambient transaction usable. ADR-0040's
 /// "frames, not savepoints" describes the unit of work's in-process depth counter,
 /// not the connection — the two mechanisms are independent and both are wanted.
+/// The closed Identity contextual graph adapter suspends this flag only during
+/// its atomic save, restores it in finally and poisons the whole unit on any
+/// save failure; it admits no partial repair. The canonical Identity contract
+/// in Database Standards owns that bounded adapter behavior.
 /// </para>
 /// </remarks>
 public static class ModuleDbContextRegistration
@@ -109,6 +113,11 @@ public static class ModuleDbContextRegistration
         services.TryAddScoped(provider =>
         {
             var unitOfWork = provider.GetRequiredService<IUnitOfWork>();
+            var global = unitOfWork as IGlobalIdentityUnitOfWork;
+            var globalAnnouncement = global?.GetGlobalIdentityAnnouncement(unitOfWork.Transaction);
+            if (global is { IsGlobalIdentityTransaction: true }
+                && (globalAnnouncement is null || globalAnnouncement.Descriptor.ContextType != typeof(TContext)))
+                throw new InvalidOperationException("Only the declared context can enroll in a global identity owner.");
 
             if (unitOfWork.Transaction is null)
             {
@@ -132,7 +141,10 @@ public static class ModuleDbContextRegistration
                 // is false by this overload's contract, so disposing the context
                 // does not return the connection to the pool underneath its
                 // siblings — IUnitOfWork is the sole owner.
-                .UseNpgsql(unitOfWork.Connection)
+                .UseNpgsql(unitOfWork.Connection, options =>
+                {
+                    if (globalAnnouncement is not null) options.CommandTimeout(10);
+                })
                 // Without this EF has no ILoggerFactory to resolve, and every
                 // Microsoft.EntityFrameworkCore log category is silent for every
                 // context this helper registers — on a seam whose whole premise is
@@ -177,6 +189,8 @@ public static class ModuleDbContextRegistration
             // options, so it would fail to construct any context with a second
             // parameter, which is now every tenant-scoped one.
             var context = ActivatorUtilities.CreateInstance<TContext>(provider, options);
+            if (globalAnnouncement is not null)
+                global!.EnrollGlobalIdentityContext(context, globalAnnouncement.Descriptor);
             foreach (var interceptor in saveInterceptors.OfType<DomainEventSaveChangesInterceptor>())
             {
                 interceptor.Attach(context);

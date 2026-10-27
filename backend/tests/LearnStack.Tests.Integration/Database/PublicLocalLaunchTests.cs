@@ -14,7 +14,7 @@ namespace LearnStack.Tests.Integration.Database;
 /// <summary>Exercises the actual local API launcher with explicit application and dispatcher credentials.</summary>
 [Collection(PublicReadTestGroup.Name)]
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
-public sealed class PublicLocalLaunchTests(PublicReadFixture fixture)
+public sealed class PublicLocalLaunchTests(PublicReadFixture parent)
 {
     private const string Secret = "test-only-public-local-launch-secret-at-least-32";
 
@@ -30,6 +30,7 @@ public sealed class PublicLocalLaunchTests(PublicReadFixture fixture)
 
     private async Task AssertLauncherAsync(bool useDemoRuntime, bool isolateProfile = true)
     {
+        await using var fixture = await IdentityPublicReadFixture.CreateAsync(parent, "http://localhost:8080/realms/learnstack");
         var repository = RepositoryRoot();
         var temporary = Path.Combine(Path.GetTempPath(), "learnstack-public-local-" + Guid.NewGuid().ToString("N"));
         var app = Path.Combine(temporary, "frontend/apps/web");
@@ -106,6 +107,8 @@ public sealed class PublicLocalLaunchTests(PublicReadFixture fixture)
                 process.StartInfo.ArgumentList.Add(Path.Combine(temporary, "scripts/public-local.mjs"));
                 process.StartInfo.ArgumentList.Add("api");
             }
+            process.StartInfo.Environment["Identity__AuthorityId"] = fixture.Registration.AuthorityId.Value.ToString("D");
+            process.StartInfo.Environment["Authentication__Tenant__Issuer"] = fixture.Registration.Issuer;
             process.StartInfo.Environment["ConnectionStrings__Default"] = fixture.AppConnectionString;
             process.StartInfo.Environment["ConnectionStrings__OutboxDispatcher"] = fixture.OutboxConnectionString;
             process.StartInfo.Environment["LEARNSTACK_PUBLIC_API_ORIGIN"] = "http://127.0.0.1:0";

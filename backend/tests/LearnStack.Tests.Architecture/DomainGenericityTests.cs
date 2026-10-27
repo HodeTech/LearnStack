@@ -173,7 +173,7 @@ public sealed partial class DomainGenericityTests
     {
         yield return ("a backend name", [.. ProductionAssemblies.All().SelectMany(NamesIn)]);
         yield return ("a backend file", [.. BackendFileNames()]);
-        yield return ("a mapped table or column", [.. Modules.Scoped.SelectMany(module =>
+        yield return ("a mapped table or column", [.. Modules.Mapped.SelectMany(module =>
         {
             using var context = module.Context();
             return ModelNames(context);

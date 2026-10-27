@@ -1,6 +1,8 @@
+using LearnStack.Infrastructure.DataProtection;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.Modules.Audit.Domain;
+using LearnStack.SharedKernel.DataProtection;
 using LearnStack.SharedKernel.Identifiers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -136,6 +138,26 @@ internal sealed class AuditEntryConfiguration : IEntityTypeConfiguration<AuditEn
 
         builder.Property(x => x.UserAgent).HasMaxLength(512);
 
+        builder.DeclarePersonalData(PersonalDataCategory.Identity,
+            "Actor identity and originating address retained as audit evidence.",
+            nameof(AuditEntry.ActorUserId), nameof(AuditEntry.ActorEmail), nameof(AuditEntry.IpAddress));
+        builder.DeclarePersonalData(PersonalDataCategory.Audit,
+            "Audit record identity, institution scope and subject linkage.",
+            nameof(AuditEntry.Id), nameof(AuditEntry.TenantId), nameof(AuditEntry.OrganizationId),
+            nameof(AuditEntry.EntityId), nameof(AuditEntry.Timestamp));
+        builder.DeclarePersonalData(PersonalDataCategory.Audit,
+            "Captured operation evidence may contain personal references and redacted personal payloads.",
+            nameof(AuditEntry.Reason), nameof(AuditEntry.BeforeState), nameof(AuditEntry.AfterState),
+            nameof(AuditEntry.Changes), nameof(AuditEntry.Metadata));
+        builder.DeclarePersonalData(PersonalDataCategory.Audit,
+            "Request correlation and client evidence can link an audited act to a person.",
+            nameof(AuditEntry.CorrelationId), nameof(AuditEntry.UserAgent));
+        builder.DeclarePersonalData(PersonalDataCategory.None,
+            "Closed operation, resource-type and outcome descriptors without person values.",
+            nameof(AuditEntry.ModuleName), nameof(AuditEntry.Operation), nameof(AuditEntry.OperationType),
+            nameof(AuditEntry.OperationClass), nameof(AuditEntry.EntityType), nameof(AuditEntry.Outcome),
+            nameof(AuditEntry.ErrorKey));
+
         // The tenant's own view, newest first — the shape every read in the admin API
         // takes, and the one the retention purge scans.
         builder.HasIndex(x => new { x.TenantId, x.Timestamp })
@@ -190,6 +212,13 @@ internal sealed class AuditConfigConfiguration : IEntityTypeConfiguration<AuditC
         builder.Property(x => x.IsEnabled).IsRequired();
 
         builder.MapAuditColumns<AuditConfig, AuditConfigId>();
+
+        builder.DeclarePersonalData(PersonalDataCategory.None,
+            "Institution-scoped audit configuration identity, not a person identifier.",
+            nameof(AuditConfig.Id), nameof(AuditConfig.TenantId));
+        builder.DeclarePersonalData(PersonalDataCategory.None,
+            "Operation catalogue selector and coverage toggle; no person values.",
+            nameof(AuditConfig.ModuleName), nameof(AuditConfig.Operation), nameof(AuditConfig.IsEnabled));
 
         // One LIVE override per tenant per operation. Without it a second row for the same
         // slug makes the cached projection's answer depend on which one it read. Partial on

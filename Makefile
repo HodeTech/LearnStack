@@ -120,106 +120,15 @@ build-frontend: ## `pnpm -r build` the frontend monorepo.
 
 .PHONY: migrate
 migrate: ## Apply every EF migration chain (platform + each module) as `learnstack_migration` (the ONLY sanctioned carrier of that credential).
-	@# Every dotnet command in this recipe runs from `backend/`, because that is where
-	@# the SDK pin lives (`backend/global.json`). Run from the repository root there is
-	@# no global.json above them, so whichever SDK is newest on the machine answers —
-	@# and the pin exists precisely so this target and CI apply the same EF version.
-	@#
-	@# Standards 05 § Database roles: ConnectionStrings:Migration must never appear
-	@# in API or worker runtime configuration. The role OWNS every table it creates,
-	@# and a runtime that is the owner is precisely the arrangement FORCE ROW LEVEL
-	@# SECURITY exists to defeat — every isolation test would then pass against
-	@# policies that constrain nothing. This target is where the credential lives.
-	@#
-	@# Every design-time factory reads only ConnectionStrings__Migration, never
-	@# the startup application's Default connection. Export to that confined
-	@# factory; do not duplicate the credential on the process command line.
-	@# Four things this recipe does that a naive version does not, each because the
-	@# naive version was measured doing the wrong thing:
-	@#
-	@# 1. `.env` is read one key at a time, NOT shell-sourced. A connection string
-	@#    contains semicolons, and `. ./.env` on an unquoted row parses them as
-	@#    statement separators: `ConnectionStrings__Migration` arrived as
-	@#    `Host=localhost`, and `Port`, `Database`, `Username`, `Password` leaked
-	@#    into the environment as bare variables. `tr -d '\r'` as well, because a
-	@#    CRLF row otherwise leaves the closing quote and the carriage return
-	@#    inside the credential.
-	@# 2. The role is compared EXACTLY. An unanchored `*Username=learnstack_migration*`
-	@#    accepted `learnstack_migration_readonly` and would have run migrations as
-	@#    it. Splitting on `;` and comparing the whole token has no neighbourhood.
-	@# 3. The error path prints a REDACTED string. An earlier version echoed the
-	@#    whole value, password included — in the one target whose entire purpose
-	@#    is keeping that credential in one place.
-	@# 4. The loop carries its own status. `-e` does not abort on a failure inside
-	@#    a for-loop body that is part of a compound list: both iterations ran
-	@#    after `false` and the recipe still exited 0, so a migration target
-	@#    reported success after every migration failed.
-	@# 5. The loop covers `LearnStack.Infrastructure` as well as the modules. The
-	@#    platform chain (outbox_messages, idempotency_keys) lives outside
-	@#    `src/Modules`, and a glob that only walked the modules left the two
-	@#    tables no module owns unmigrated on every documented path.
-	@# 6. Tenancy is named BEFORE the glob. From Phase 02a Packet 9 the chains are
-	@#    no longer independent: `audit_config` carries the schema's only
-	@#    cross-chain foreign key, to `tenants`, which the Tenancy chain creates.
-	@#    The glob expands alphabetically and `Modules/Audit` sorts first, so the
-	@#    naive order fails on a fresh database. `applied` is what keeps the named
-	@#    project from being visited twice when the glob reaches it — a second
-	@#    `database update` is a no-op, but a recipe that prints the same chain
-	@#    twice reads like a bug in the recipe.
-	@# 7. Build the startup graph once in Release, with restore for standalone use.
-	@#    Every EF invocation uses that fresh output; the demo launches the same API.
-	@#    Explicit failures also stop old Make versions without shell errexit.
-	@# 8. Save and unexport the migration credential before restore/build; only
-	@#    the no-build EF child receives it, through its process environment.
-	@migration_cs="$${ConnectionStrings__Migration:-}"; \
-	unset ConnectionStrings__Migration; \
-	migration_env="$${LEARNSTACK_COMPOSE_ENV_FILE:-.env}"; \
-	if [ -z "$$migration_cs" ] && [ -f "$$migration_env" ]; then \
-		migration_cs=$$(sed -n "s/^ConnectionStrings__Migration=//p" "$$migration_env" \
-			| tail -1 | tr -d "\r" | sed "s/^['\"]//; s/['\"]$$//"); \
-	fi; \
-	role=$$(printf '%s' "$$migration_cs" | awk -f scripts/connection-string.awk -v field=user); \
-	redacted=$$(printf '%s' "$$migration_cs" | awk -f scripts/connection-string.awk -v field=redacted); \
-	if [ -z "$$migration_cs" ]; then \
-		echo "ConnectionStrings__Migration is not set."; \
-		echo "It arrives with the four-role model in Phase 02a Packet 6: copy the"; \
-		echo "'four database roles' and 'four connection strings' blocks out of"; \
-		echo ".env.example into your .env and re-run. A .env written before that"; \
-		echo "packet has neither."; \
-		exit 1; \
-	fi; \
-	if [ "$$role" != "learnstack_migration" ]; then \
-		echo "ConnectionStrings__Migration names Username='$$role', not learnstack_migration:"; \
-		echo "  $$redacted"; \
-		echo "Migrations must run as the role that OWNS every table. Running them as"; \
-		echo "the runtime role is the arrangement FORCE ROW LEVEL SECURITY defeats."; \
-		echo "If the value looks truncated at the first ';', quote it in .env. A"; \
-		echo "URI-style DSN (postgres://...) is not a form Npgsql parses at all; the"; \
-		echo "expected shape is the key/value list in .env.example."; \
-		exit 1; \
-	fi; \
-	(cd backend && dotnet tool restore >/dev/null) || exit $$?; \
-	(cd backend && dotnet build src/LearnStack.Api --configuration Release --nologo) || exit $$?; \
-	found=0; \
-	failed=0; \
-	applied=" "; \
-	for proj in backend/src/Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure \
-	            backend/src/LearnStack.Infrastructure \
-	            backend/src/Modules/*/LearnStack.Modules.*.Infrastructure; do \
-		test -d "$$proj/Persistence/Migrations" || continue; \
-		case "$$applied" in *" $$proj "*) continue;; esac; \
-		applied="$$applied$$proj "; \
-		found=1; \
-		echo "==> $$(basename $$proj)"; \
-		(cd backend && ConnectionStrings__Migration="$$migration_cs" dotnet ef database update \
-			--project "../$$proj" \
-			--startup-project src/LearnStack.Api \
-			--configuration Release --no-build) || failed=1; \
-	done; \
-	if [ "$$found" = "0" ]; then \
-		echo "No project carries Persistence/Migrations yet — the first lands with the Tenancy schema in Phase 02a Packet 6."; \
-	fi; \
-	exit "$$failed"
+	@# The Node owner selects one deployment source, validates the migration role,
+	@# and confines credentials to EF/authority children after fresh Release builds.
+	@# Keep dependency order explicit and cover future module chains with the glob.
+	@node scripts/migrate.mjs \
+		backend/src/Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure \
+		backend/src/LearnStack.Infrastructure \
+		backend/src/Modules/Audit/LearnStack.Modules.Audit.Infrastructure \
+		backend/src/Modules/Identity/LearnStack.Modules.Identity.Infrastructure \
+		backend/src/Modules/*/LearnStack.Modules.*.Infrastructure
 
 .PHONY: sdk
 sdk: ## Regenerate @learnstack/sdk types from the committed v1 snapshot.

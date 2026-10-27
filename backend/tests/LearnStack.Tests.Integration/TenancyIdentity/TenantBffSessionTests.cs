@@ -25,7 +25,7 @@ namespace LearnStack.Tests.Integration.TenancyIdentity;
 /// <summary>Real warm provider → native BFF → real application-role API; browser proof is separate.</summary>
 [Collection(PublicReadTestGroup.Name)]
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
-public sealed class TenantBffSessionTests(PublicReadFixture database, ITestOutputHelper output)
+public sealed class TenantBffSessionTests(PublicReadFixture publicDatabase, ITestOutputHelper output)
 {
     [Fact]
     public async Task Parent_EOF_during_held_build_joins_acquisition_and_removes_its_private_tree()
@@ -247,13 +247,14 @@ public sealed class TenantBffSessionTests(PublicReadFixture database, ITestOutpu
             var events = await admin.GetAsync("events/config");
             events.GetProperty("eventsEnabled").GetBoolean().Should().BeTrue();
             events.GetProperty("eventsExpiration").GetInt64().Should().Be(604800);
-            var auditBefore = await AuditCountsAsync();
+            await using var database = await KeycloakIdentityDatabase.CreateAsync(publicDatabase, provider);
+            var auditBefore = await AuditCountsAsync(database);
             foreach (var tenant in SeedData.All)
             {
                 var identity = SeedData.IdentityUsers.First(user => user.Tenant == tenant);
                 var password = passwords.GetValueOrDefault(identity.Username) ?? KeycloakFixture.DemoPassword;
                 var secret = Convert.ToHexString(RandomNumberGenerator.GetBytes(24)).ToLowerInvariant();
-                await using var api = StartApi(secret, provider);
+                await using var api = StartApi(database, secret, provider);
                 var readsBefore = database.Observation.Reads;
                 var started = Stopwatch.StartNew();
                 await using var native = await BffNativeDriver.StartAsync(root, new
@@ -359,7 +360,7 @@ public sealed class TenantBffSessionTests(PublicReadFixture database, ITestOutpu
                 var opposite = SeedData.IdentityUsers.First(user => user.Tenant == other);
                 using var oppositeBrowser = provider.Browser();
                 var oppositeCookies = new BffWireCookies();
-                var beforeOpposite = await AuditCountsAsync();
+                var beforeOpposite = await AuditCountsAsync(database);
                 var beforeOppositeReads = api.Observed.Reads.Count(row => row.Actor is not null);
                 var oppositeCsrf = await native.RequestAsync(Host(tenant), "/api/auth/csrf", oppositeCookies.Header);
                 oppositeCsrf.Status.Should().Be(200);
@@ -382,7 +383,7 @@ public sealed class TenantBffSessionTests(PublicReadFixture database, ITestOutpu
                 await AnonymousAsync(native, tenant, oppositeCookies.Header);
                 api.Observed.Reads.Count(row => row.Actor is not null).Should().Be(beforeOppositeReads,
                     "a real opposite-tenant persona is refused before the authenticated AccountSite reader and publication");
-                (await AuditCountsAsync()).Should().Equal(SeedData.All.Select((site, index) => beforeOpposite[index] + (site == tenant ? 1 : 0)),
+                (await AuditCountsAsync(database)).Should().Equal(SeedData.All.Select((site, index) => beforeOpposite[index] + (site == tenant ? 1 : 0)),
                     "the authenticated JWT mismatch writes exactly one security audit under the defended host tenant");
                 var oppositeUser = await admin.UserAsync(opposite.Username);
                 (await admin.PostAsync("users/" + oppositeUser.GetProperty("id").GetString() + "/logout", new { }))
@@ -405,7 +406,7 @@ public sealed class TenantBffSessionTests(PublicReadFixture database, ITestOutpu
                 stored.EnumerateArray().Count(row => row.GetProperty("type").GetString() == type).Should().BeGreaterThan(0,
                     "the actual BFF journey persists provider event type {0}", type);
             }
-            (await AuditCountsAsync()).Should().Equal(auditBefore.Select(count => count + 1),
+            (await AuditCountsAsync(database)).Should().Equal(auditBefore.Select(count => count + 1),
                 "only the one deliberately mismatched persona per host adds a security audit; query Off and provider-event ownership add none");
             output.WriteLine("Real warm BFF proof: hosts=2; real refresh/maximum/logout/error/events=true; zero-write rerun=true; fixture={0:F3}s; journey={1:F3}s.",
                 provider.StartupElapsed.TotalSeconds, journey.Elapsed.TotalSeconds);
@@ -478,7 +479,7 @@ public sealed class TenantBffSessionTests(PublicReadFixture database, ITestOutpu
         }
     }
 
-    private ApiHost StartApi(string secret, KeycloakFixture provider)
+    private static ApiHost StartApi(IdentityPublicReadFixture database, string secret, KeycloakFixture provider)
     {
         var observation = new TenantRealmApiObservation();
         var factory = database.WithWebHostBuilder(builder =>
@@ -501,7 +502,7 @@ public sealed class TenantBffSessionTests(PublicReadFixture database, ITestOutpu
         return new(factory, client, address, observation);
     }
 
-    private async Task<long[]> AuditCountsAsync() => [await database.AuditCountAsync(SeedData.English), await database.AuditCountAsync(SeedData.Yoga)];
+    private static async Task<long[]> AuditCountsAsync(PublicReadFixture database) => [await database.AuditCountAsync(SeedData.English), await database.AuditCountAsync(SeedData.Yoga)];
     private static object NoNetworkConfiguration(UnavailableTenantIssuer unavailable, KeycloakTls authority) => new
     {
         protocol = 1,

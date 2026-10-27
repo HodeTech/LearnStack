@@ -251,3 +251,18 @@ keeps the two existing operation slugs and extends their captured evidence:
   fields, never metric labels; no audit slug or row is added.
 - Existing anonymous burst limits and failure behavior remain: a failed audit preserves
   the refusal while the audit store reports Critical, failure count and unhealthy state.
+
+## Mapped-property personal-data declarations
+
+P03-1 Step 2 declares every current Tenancy scalar in its
+[EF mappings](../../../backend/src/Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/Persistence/Configurations.cs).
+Institution routing, entitlement and definition fields are explicit None with
+purpose; inherited person references and stamps use the
+[common declaration contract](../../architecture/23-data-protection.md#identity-foundation-and-classification-ownership).
+Setting JSON, free-text verification errors/operator explanations and actor
+references are classified Identity. This conservative declaration reads no row
+values and grants no public projection, log exposure or new retention policy.
+TenantSetting.Value retains its independent whole-value snapshot redaction.
+The model finalizer and complete census reject undeclared/new neutral fields;
+provider/domain-verification and privileged toggle writers retain their named
+phase authority and fixed-diagnostic requirements before activation.

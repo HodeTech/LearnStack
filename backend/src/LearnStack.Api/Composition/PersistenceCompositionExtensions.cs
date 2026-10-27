@@ -17,6 +17,8 @@ using LearnStack.Modules.Customization.Infrastructure.Persistence;
 using LearnStack.Modules.Education.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Infrastructure;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
+using LearnStack.Modules.Identity.Infrastructure.Bindings;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Entitlements;
 using LearnStack.SharedKernel.Persistence;
@@ -160,6 +162,9 @@ public static class PersistenceCompositionExtensions
 
         // Scoped: one connection per request, owned by this, shared by every
         // context resolved in the scope (ADR-0040).
+        services.TryAddScoped<GlobalIdentityEnrollment>();
+        services.TryAddScoped<LearnStack.SharedKernel.Identity.IGlobalIdentityEnrollment>(provider =>
+            provider.GetRequiredService<GlobalIdentityEnrollment>());
         services.TryAddScoped<IUnitOfWork>(CreateUnitOfWork);
 
         // Every module context goes through the helper. A registration that built
@@ -167,6 +172,8 @@ public static class PersistenceCompositionExtensions
         // which never sees SET LOCAL and reads zero rows from every tenant-owned
         // table — silently.
         services.AddModuleDbContext<TenancyDbContext>();
+        services.TryAddScoped<LearnStack.Modules.Tenancy.Application.Contracts.IdentityLifecycle.IIdentityScopeLifecycleReader,
+            IdentityScopeLifecycleReader>();
         services.AddTenantSettingsReads();
         services.AddTenantSiteReads();
         services.AddModuleDbContext<CustomizationDbContext>();
@@ -180,6 +187,18 @@ public static class PersistenceCompositionExtensions
         // through the same helper is what keeps it on the ambient connection — a context
         // that opened its own would never see the SET LOCAL the audit insert depends on.
         services.AddModuleDbContext<AuditDbContext>();
+        IdentityAuthorityRegistration? identityAuthority = null;
+        if (configuration["Identity:AuthorityId"] is { } authority)
+        {
+            if (!Guid.TryParseExact(authority, "D", out var authorityId) || authorityId == Guid.Empty)
+                throw new InvalidOperationException("Identity:AuthorityId requires an explicit nonempty authority UUID.");
+            identityAuthority = new IdentityAuthorityRegistration(IdentityAuthorityId.From(authorityId),
+                configuration["Authentication:Tenant:Issuer"] ?? "");
+        }
+        // The API-owned startup service qualifies this immutable pair before
+        // ordinary existing-binding admission. Internal consumers qualify explicitly.
+        services.AddIdentityGlobalFoundation(identityAuthority);
+        services.AddIdentityContextualFoundation();
 
         // ── The audit write path ─────────────────────────────────────────────
         //
@@ -326,7 +345,8 @@ public static class PersistenceCompositionExtensions
 
     private static IUnitOfWork CreateUnitOfWork(IServiceProvider services) => new NpgsqlUnitOfWork(
         services.GetRequiredService<Lazy<NpgsqlDataSource>>().Value,
-        services.GetRequiredService<ILogger<NpgsqlUnitOfWork>>());
+        services.GetRequiredService<ILogger<NpgsqlUnitOfWork>>(),
+        services.GetRequiredService<GlobalIdentityEnrollment>());
 
     /// <summary>
     /// Validates <c>ConnectionStrings:Default</c> and builds the application data

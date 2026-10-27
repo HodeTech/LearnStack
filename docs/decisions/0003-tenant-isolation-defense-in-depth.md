@@ -503,3 +503,24 @@ inventory reader. Canonical SQL/grants remain in Database Standards at implement
 this disclosure copies none. Tenant/org RLS, FORCE, exact grant confinement and
 platform-admin entry/pre-entry audit retain their contracts. P02b-4 implementation
 and role/storage proofs remain pending.
+
+## Amendment 9 — Global self-identity isolation (2026-10-25)
+
+**Status: Accepted.** Joint acceptance of
+[ADR-0072](0072-application-owned-identity-bootstrap.md) and
+[ADR-0073](0073-scoped-membership-and-identity-data-foundation.md) adds global
+self-identity as a seventh table class and its platform-scoped authority anchor.
+[Database Standards](../standards/05-database.md) owns the canonical FORCE-RLS
+policy arms, immutable binding guards, same-module tenant-to-global User reference
+and exactly five confined owner functions.
+
+The global class and central audit extension use one permissive isolation policy
+per relation with role-qualified USING arms and explicit WITH CHECK. Those arms
+are not SELECT-only policies; command grants and the named mutation/DELETE/
+TRUNCATE guards supply their separate bounds. The functions add explicit runtime
+owner execution under FORCE RLS without a runtime migration credential. The
+ordinary tenant/org template and four login roles remain unchanged.
+
+This is a bounded extension of this ADR's table/role model, not a correction of
+its historical body. Authority is accepted; P03-1 Steps 3/4 still own applied
+schema, owner-function and real app-role isolation proofs.

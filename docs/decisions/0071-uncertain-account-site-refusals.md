@@ -246,3 +246,15 @@ The current public/protected API discovery-failure control is
 `Discovery_failure_on_actual_public_and_account_routes_is_401_and_never_anonymous`
 in the [HTTP tests](../../backend/tests/LearnStack.Tests.Integration/TenantAuthenticationHttpTests.cs).
 The original decision, metadata and source observations remain historical.
+
+### Amendment 2 — Binding uncertainty preserves ordinary read refusals (2026-10-25)
+
+**Status: Accepted.** This is navigation to jointly accepted
+[ADR-0072](0072-application-owned-identity-bootstrap.md). Its additional
+binding-store uncertainty source preserves this ADR's ordinary-read refusal
+table: an ordinary 401 remains identity-indeterminate and supplies no
+identity-refusal witness.
+
+No automatic retry, refresh, bearer substitution or changed AccountSite outcome
+mapping follows. P03-1 Step 5 must prove the new binding failure reaches the
+existing refusal contract; acceptance does not claim that integration delivered.

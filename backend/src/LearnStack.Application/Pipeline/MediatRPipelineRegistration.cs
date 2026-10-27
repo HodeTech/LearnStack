@@ -54,9 +54,15 @@ public static class MediatRPipelineRegistration
         // One scoped lifecycle for every entry and both API/Seeder compositions.
         // Behaviors adapt requests; direct owners reuse these same coordinators.
         services.TryAddScoped<AuditExecutionCoordinator>();
+        // A pre-context binding reader must not construct creation-only owners
+        // and pin their transient tenant context before ordinary resolution.
+        services.TryAddScoped<Func<AuditExecutionCoordinator>>(provider =>
+            () => provider.GetRequiredService<AuditExecutionCoordinator>());
         services.TryAddScoped<ProducerExecution>();
         services.TryAddScoped<DomainEventCollector>();
         services.TryAddScoped<TransactionExecutionCoordinator>();
+        services.TryAddScoped<Func<TransactionExecutionCoordinator>>(provider =>
+            () => provider.GetRequiredService<TransactionExecutionCoordinator>());
         services.TryAddSingleton<ExplicitReadOnlyRequestCatalog>();
 
         // MediatR 12.x throws if no assemblies are registered for handler

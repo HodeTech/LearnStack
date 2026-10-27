@@ -42,7 +42,7 @@ eight, and where a gap in any of them stops being theoretical.
 |---|---|---|
 | `TenantContentType` | [Phase 02a Packet 8](phase-02a-kernel-tenancy.md) | `vocabulary-card` (word + part of speech + definition + examples + audio reference), `grammar-topic` (title + summary + examples + level reference), `speaking-prompt` (prompt + difficulty + sample answers), `lesson-package` (composite referencing courses + supplementary content) |
 | `TenantLevelTaxonomy` | [Phase 02a Packet 8](phase-02a-kernel-tenancy.md) | CEFR levels A1 … C2. The taxonomy declares the vocabulary; the `Level` table holds items keyed by `(tenant_id, taxonomy_key, key)` |
-| `TenantCustomFieldDef` | [Phase 03](phase-03-identity-admin.md) | `User.preferredAccent` (BrE / AmE / AusE / other), `InstructorProfile.dialectsTaught`, `Enrollment.preferredPace` |
+| `TenantCustomFieldDef` | [Phase 03](phase-03-identity-admin.md) | `Membership.preferredAccent` (BrE / AmE / AusE / other), `InstructorProfile.dialectsTaught`, `Enrollment.preferredPace` |
 | `TenantPageBlock` | [Phase 04](phase-04-cms-media-pages.md) | `vocabulary-list`, `level-card`, `placement-test-entry`, `instructor-grid` — each pointing at a built-in `content-list` / `card-grid` / `default-card` composite renderer |
 | `TenantLessonItemType` | [Phase 05](phase-05-education-learning-content.md) | `SpeakingPracticeItem` (prompts + live-session reference), `VocabularyDrillItem` (deck reference + drill mode), `GrammarExerciseItem` (exercise reference + scoring config) |
 | `TenantScoringRule` | [Phase 05](phase-05-education-learning-content.md) | Placement test → CEFR level recommendation. Takes an attempt's answer map, returns a level key from the tenant's own taxonomy |

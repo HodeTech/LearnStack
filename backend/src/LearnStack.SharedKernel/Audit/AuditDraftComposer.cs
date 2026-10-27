@@ -124,6 +124,8 @@ public static class AuditDraftComposer
     {
         ArgumentNullException.ThrowIfNull(changes);
 
+        intent.GlobalIdentity?.RequireIntent(intent);
+
         var subject = Subject.Of(intent, changes);
 
         return new AuditEntryDraft
@@ -162,6 +164,13 @@ public static class AuditDraftComposer
 
     private static string? ComposeMetadata(AuditIntent intent)
     {
+        if (intent.GlobalIdentity is { } identity)
+        {
+            return "{\"identity_authority_id\":" + AuditJson.Quote(identity.AuthorityId.Value.ToString("D"))
+                + ",\"identity_subject_key\":" + AuditJson.Quote(identity.SubjectKey.Hex)
+                + ",\"identity_source\":" + AuditJson.Quote(identity.Source) + "}";
+        }
+
         if (intent.CausationId is null && intent.CausalActorUserId is null
             && intent.JobId is null && intent.ParentJobId is null) return null;
         if (intent.CausationId == Guid.Empty

@@ -1,3 +1,5 @@
+using LearnStack.Infrastructure.DataProtection;
+using LearnStack.SharedKernel.DataProtection;
 using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Identifiers;
 using Microsoft.EntityFrameworkCore;
@@ -54,22 +56,29 @@ public static class AuditColumnMapping
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        builder.Property(x => x.CreatedAt).IsRequired();
+        builder.Property(x => x.CreatedAt).IsRequired()
+            .HasPersonalData(PersonalDataCategory.Audit, "Record when the aggregate was created.");
         builder.Property(x => x.CreatedBy)
             .HasConversion<UserId.EfCoreValueConverter, UserId.EfCoreValueComparer>()
-            .IsRequired();
-        builder.Property(x => x.UpdatedAt);
+            .IsRequired()
+            .HasPersonalData(PersonalDataCategory.Identity, "Attribute aggregate creation to its actor.");
+        builder.Property(x => x.UpdatedAt)
+            .HasPersonalData(PersonalDataCategory.Audit, "Record when the aggregate was last updated.");
         builder.Property(x => x.UpdatedBy)
-            .HasConversion<UserId.EfCoreValueConverter, UserId.EfCoreValueComparer>();
-        builder.Property(x => x.DeletedAt);
+            .HasConversion<UserId.EfCoreValueConverter, UserId.EfCoreValueComparer>()
+            .HasPersonalData(PersonalDataCategory.Identity, "Attribute the latest aggregate update to its actor.");
+        builder.Property(x => x.DeletedAt)
+            .HasPersonalData(PersonalDataCategory.Audit, "Record when the aggregate was soft-deleted.");
         builder.Property(x => x.DeletedBy)
-            .HasConversion<UserId.EfCoreValueConverter, UserId.EfCoreValueComparer>();
+            .HasConversion<UserId.EfCoreValueConverter, UserId.EfCoreValueComparer>()
+            .HasPersonalData(PersonalDataCategory.Identity, "Attribute aggregate soft deletion to its actor.");
 
         builder.Property(x => x.Version)
             .HasColumnName("row_version")
             .HasDefaultValue(0L)
             .IsConcurrencyToken()
-            .ValueGeneratedNever();
+            .ValueGeneratedNever()
+            .HasPersonalData(PersonalDataCategory.None, "Detect concurrent writes to this aggregate revision.");
     }
 
     /// <summary>

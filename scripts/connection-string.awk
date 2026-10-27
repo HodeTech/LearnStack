@@ -122,13 +122,17 @@ END {
     count = split_fields(input, fields)
 
     if (field == "user") {
+        matches = 0
         for (i = 1; i <= count; i++) {
             if (normalize_key(fields[i]) in user) {
-                print unquote(fields[i]) "\n"
-                exit
+                matches++
+                value = unquote(fields[i])
             }
         }
-
+        # Npgsql may resolve a later alias differently from a first-match check.
+        # Refuse the ambiguity without printing any part of the credential.
+        if (matches > 1) exit 2
+        if (matches == 1) print value "\n"
         exit
     }
 

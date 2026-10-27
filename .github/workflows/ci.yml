@@ -242,7 +242,7 @@ jobs:
   backend-integration-tests:
     name: backend ordinary-${{ matrix.index }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -295,7 +295,23 @@ jobs:
 
       - name: Prepare pinned provider fixture images within the whole-job budget
         timeout-minutes: 2
-        run: python3 scripts/ci-test-shards.py prepare-fixtures
+        env:
+          LEARNSTACK_NATIVE_RUNNER_CONTEXT: ${{ runner.environment }}
+          LEARNSTACK_NATIVE_RUNNER_OS: ${{ runner.os }}
+          LEARNSTACK_NATIVE_RUNNER_ARCH: ${{ runner.arch }}
+          LEARNSTACK_NATIVE_RUNNER_LABEL: ubuntu-24.04
+          LEARNSTACK_NATIVE_JOB_CONTAINER: ${{ toJSON(job.container) }}
+          LEARNSTACK_NATIVE_JOB_SERVICES: ${{ toJSON(job.services) }}
+          LEARNSTACK_CI_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          LEARNSTACK_NATIVE_RUN_ID: ${{ github.run_id }}
+          LEARNSTACK_NATIVE_ATTEMPT: ${{ github.run_attempt }}
+          LEARNSTACK_NATIVE_JOB: ${{ github.job }}
+          LEARNSTACK_NATIVE_SHA: ${{ github.sha }}
+          LEARNSTACK_NATIVE_REPOSITORY: ${{ github.repository }}
+          LEARNSTACK_NATIVE_WORKFLOW_REF: ${{ github.workflow_ref }}
+          LEARNSTACK_NATIVE_WORKFLOW_SHA: ${{ github.workflow_sha }}
+          LEARNSTACK_NATIVE_WORKSPACE: ${{ github.workspace }}
+        run: python3 scripts/ci-test-shards.py prepare-fixtures ordinary-${{ matrix.index }}
 
       - name: Verify stock browser for admission navigation proof
         run: |

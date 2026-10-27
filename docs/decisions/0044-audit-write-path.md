@@ -1232,3 +1232,33 @@ Existing five write contracts and MUST same-transaction durability remain. The
 conditional routing/status exemption is held by ADR-0047, not a general background
 or privileged exemption. P02b-4 implements/proves the seam, exclusions and catalogue
 registration; acceptance claims none delivered.
+
+## Amendment 14 — Global identity attribution and central write seams (2026-10-25)
+
+**Status: Accepted.** [ADR-0072](0072-application-owned-identity-bootstrap.md)
+narrowly extends §§ 1/2/3/5/9/10 with a second sentinel attribution population:
+`identity.user.create`, MUST/SecurityEvent, carrying typed captured global
+identity attribution. `TenantId.PlatformSentinel` remains storage attribution,
+never tenant authority. [Database Standards](../standards/05-database.md) owns
+its complete discriminator, prepared owner and shared composer contract.
+
+`WriteGlobalIdentityPending` and `ReconcileGlobalIdentity` extend the existing
+six central audit write seams to eight. Ordinary pending, standalone,
+best-effort and tenant entry refuse this population; platform entry rejects its
+identity discriminator. The pending path gains an explicit refusal before SQL;
+this is a required implementation change, not a claim that its current guard
+already exists. No handler supplies arbitrary audit metadata or a private writer.
+
+Global success requires reciprocal User/audit creation evidence and constraint
+validation before commit admission. Known precommit refusal differs from unknown
+physical COMMIT. For this population, `23505` alone proves no outcome: evidence
+must match the exact composite key, source, subject, target, discriminator and
+outcome. A fresh non-success row proves only its own durability, without a User
+witness or a claim of User absence/success. This rule does not generalize the
+ordinary standalone path's existing duplicate shortcut to global identity.
+
+Fixed central witness SQL receives only
+[ADR-0010 Amendment 5](0010-cross-module-communication.md#amendment-5--confined-identity-creation-witness-sql-2026-10-25)'s
+installer/evidence exception. Existing append-only, redaction and retention
+authority remains unchanged. Joint ADR-0072/0073 approval accepts these bounds;
+P03-1 Step 3 still owns the actual writer, mode-refusal, guard and evidence proofs.

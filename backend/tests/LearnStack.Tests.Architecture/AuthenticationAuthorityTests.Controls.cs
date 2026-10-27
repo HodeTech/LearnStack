@@ -37,6 +37,7 @@ public sealed partial class AuthenticationAuthorityTests
             blinded.Should().Throw<Xunit.Sdk.XunitException>("a weakened raw-reader predicate must fail its dirty control: " + name);
         }
         foreach (var name in new[] { nameof(AuthorityProbe.Forge), nameof(AuthorityProbe.ForgeFeature),
+                     nameof(AuthorityProbe.ForgeVerified), nameof(AuthorityProbe.CloneVerified), nameof(AuthorityProbe.VerifiedText),
                      nameof(AuthorityProbe.Clone), nameof(AuthorityProbe.SubjectPermission), nameof(AuthorityProbe.SubjectDeconstruct),
                      nameof(AuthorityProbe.SubjectText), nameof(AuthorityProbe.SubjectInterpolation), nameof(AuthorityProbe.FeatureFormatting) })
             Offenders(modules, [methods.Single(method => method.Name == name)]).Should().NotBeEmpty(name);
@@ -66,7 +67,7 @@ public sealed partial class AuthenticationAuthorityTests
         var profile = api.GetType(Profile);
         var factory = profile.Methods.Single(method => method.Name == "TryReadValidated");
         var construction = factory.Body.Instructions.Single(instruction => instruction.OpCode == OpCodes.Newobj
-            && instruction.Operand is MethodReference target && Is(target.DeclaringType, Identity));
+            && instruction.Operand is MethodReference target && Is(target.DeclaringType, Verified));
         var original = construction.Operand;
         construction.Operand = api.ImportReference(typeof(object).GetConstructor(Type.EmptyTypes)!);
         Offenders(modules).Should().NotBeEmpty("the actual factory call is a required nonempty subject");
@@ -75,6 +76,14 @@ public sealed partial class AuthenticationAuthorityTests
         identity.IsSealed = false;
         Offenders(modules).Should().NotBeEmpty("the projection cannot gain a mutable/subclass authority channel");
         identity.IsSealed = true;
+        var verified = api.GetType(Verified);
+        verified.IsSealed = false;
+        Offenders(modules).Should().NotBeEmpty("the verified subject cannot gain a subclass authority channel");
+        verified.IsSealed = true;
+        var verifiedField = verified.Fields.First();
+        verifiedField.IsInitOnly = false;
+        Offenders(modules).Should().NotBeEmpty("verified evidence must remain immutable for cached quota provenance");
+        verifiedField.IsInitOnly = true;
         var actor = identity.Properties.Single(property => property.Name == "ActorUserId").SetMethod;
         var init = actor.ReturnType;
         actor.ReturnType = api.TypeSystem.Void;
@@ -89,7 +98,7 @@ public sealed partial class AuthenticationAuthorityTests
 
         var validated = events.Methods.Single(method => method.Name == "TokenValidated");
         var setter = validated.Body.Instructions.Single(instruction => instruction.Operand is MethodReference target
-            && Is(target.DeclaringType, Feature) && target.Name == "set_Identity");
+            && Is(target.DeclaringType, Feature) && target.Name == "set_VerifiedSubject");
         var duplicate = Instruction.Create(OpCodes.Callvirt, (MethodReference)setter.Operand);
         validated.Body.Instructions.Add(duplicate);
         Offenders(modules).Should().NotBeEmpty("an extra write inside the approved owner is still a changed capability multiset");
@@ -157,6 +166,10 @@ public sealed partial class AuthenticationAuthorityTests
 
     /// <summary>ADR-0064: approved owners do not authorize extra members, overloads or opaque exports.</summary>
     [Theory]
+    [InlineData("verified-method")]
+    [InlineData("verified-property")]
+    [InlineData("verified-field")]
+    [InlineData("verified-constructor")]
     [InlineData("identity-method")]
     [InlineData("identity-property")]
     [InlineData("identity-field")]
@@ -173,7 +186,8 @@ public sealed partial class AuthenticationAuthorityTests
     {
         Offenders(modules).Should().BeEmpty();
         var api = modules.Single(module => module.Assembly.Name.Name == "LearnStack.Api");
-        var owner = api.GetType(mutation.StartsWith("feature-", StringComparison.Ordinal) ? Feature : Identity);
+        var owner = api.GetType(mutation.StartsWith("feature-", StringComparison.Ordinal) ? Feature
+            : mutation.StartsWith("verified-", StringComparison.Ordinal) ? Verified : Identity);
         var factory = api.GetType(Profile).Methods.Single(method => method.Name == "TryReadValidated");
         if (mutation.EndsWith("-property", StringComparison.Ordinal))
             owner.Properties.Add(new PropertyDefinition("Extra", PropertyAttributes.None, api.TypeSystem.String));
@@ -185,7 +199,7 @@ public sealed partial class AuthenticationAuthorityTests
         {
             var constructor = new MethodDefinition(".ctor", MethodAttributes.Public | MethodAttributes.SpecialName | MethodAttributes.RTSpecialName, api.TypeSystem.Void);
             // Same arity, different signature, and actually called by the approved factory.
-            foreach (var _ in Enumerable.Range(0, owner.FullName == Identity ? 5 : 0))
+            foreach (var _ in Enumerable.Range(0, owner.FullName is Identity or Verified ? 5 : 0))
                 constructor.Parameters.Add(new ParameterDefinition(api.TypeSystem.Object));
             owner.Methods.Add(constructor);
             factory.Body.Instructions.Add(Instruction.Create(OpCodes.Newobj, constructor));
@@ -257,8 +271,8 @@ public sealed partial class AuthenticationAuthorityTests
 
             var validated = api.GetType(Events).Methods.Single(method => method.Name == "TokenValidated");
             var setter = validated.Body.Instructions.Single(instruction => instruction.Operand is MethodReference target
-                && Is(target.DeclaringType, Feature) && target.Name == "set_Identity");
-            var identity = validated.Body.Variables.Single(variable => Is(variable.VariableType, Identity));
+                && Is(target.DeclaringType, Feature) && target.Name == "set_VerifiedSubject");
+            var identity = validated.Body.Variables.Single(variable => Is(variable.VariableType, Verified));
             var forwarding = new List<Instruction>();
             if (array)
                 forwarding.AddRange([Instruction.Create(OpCodes.Ldc_I4_1), Instruction.Create(OpCodes.Newarr, api.TypeSystem.Object),
@@ -323,8 +337,8 @@ public sealed partial class AuthenticationAuthorityTests
 
             var validated = api.GetType(Events).Methods.Single(method => method.Name == "TokenValidated");
             var setter = validated.Body.Instructions.Single(instruction => instruction.Operand is MethodReference target
-                && Is(target.DeclaringType, Feature) && target.Name == "set_Identity");
-            var identity = validated.Body.Variables.Single(variable => Is(variable.VariableType, Identity));
+                && Is(target.DeclaringType, Feature) && target.Name == "set_VerifiedSubject");
+            var identity = validated.Body.Variables.Single(variable => Is(variable.VariableType, Verified));
             var forwarding = new List<Instruction>();
             if (storage == "instance") forwarding.AddRange([Instruction.Create(OpCodes.Newobj, constructor), Instruction.Create(OpCodes.Dup)]);
             if (storage == "array") forwarding.AddRange([Instruction.Create(OpCodes.Ldsfld, field), Instruction.Create(OpCodes.Ldc_I4_0)]);
@@ -377,6 +391,9 @@ public sealed partial class AuthenticationAuthorityTests
         internal static bool RawHeaderReparse(HttpContext context) => new Microsoft.IdentityModel.JsonWebTokens.JsonWebToken(
             context.Request.Headers.Authorization.ToString()["Bearer ".Length..]).GetPayloadValue<string>("permission") == "write";
         internal static ValidatedTenantIdentity Forge() => new("issuer", "subject", UserId.From(Guid.Parse("a2999254-8355-43da-86ea-5cbebf105d29")), null, null);
+        internal static VerifiedProviderSubject ForgeVerified() => new("issuer", "subject", null, null, null);
+        internal static VerifiedProviderSubject CloneVerified(VerifiedProviderSubject subject) => subject with { Subject = "substitution" };
+        internal static string VerifiedText(VerifiedProviderSubject subject) => subject.ToString();
         internal static TenantCredentialFeature ForgeFeature(ValidatedTenantIdentity identity) => new() { Identity = identity };
         internal static ValidatedTenantIdentity Clone(ValidatedTenantIdentity identity) => identity with { Subject = "tenant-admin" };
         internal static bool SubjectPermission(ValidatedTenantIdentity identity) => identity.Subject == "tenant-admin";

@@ -25,7 +25,7 @@ public sealed partial class OutboxDispatchConventionTests
         CheckJobFrameworkMetadata();
     }
 
-    public sealed partial class JobAuthorityMutationTests
+    public sealed class JobAuthorityCensusMutationTests
     {
 
         /// <summary>ADR-0047: prove the same production predicate detects removal and additional activation.</summary>
@@ -180,7 +180,9 @@ public sealed partial class OutboxDispatchConventionTests
              RequireBoundaryMethod(offenders, types[(InfrastructureAssembly, JobBridgeStore)], "UpdateAsync", BoundaryBooleanTask,
                  MethodAttributes.Private, "LearnStack.Infrastructure.Jobs.BackgroundJobBridgeClaim", "System.String",
                  "System.Nullable`1<LearnStack.Infrastructure.Jobs.BackgroundJobBridgeDeferral>", BoundaryCancellation),
-             Owner(DeliveryApplication, DeliveryCoordinator, "PrepareDeliveryOwnerAsync"), Owner(DeliveryApplication, DeliveryCoordinator, "ExecutePreparedDeliveryAsync")]);
+             Owner(DeliveryApplication, DeliveryCoordinator, "PrepareDeliveryOwnerAsync"), Owner(DeliveryApplication, DeliveryCoordinator, "ExecutePreparedDeliveryAsync"),
+             Owner(DeliveryApplication, DeliveryCoordinator, "PrepareGlobalIdentityOwnerAsync"),
+             Owner(DeliveryApplication, DeliveryCoordinator, "ExecutePreparedGlobalIdentityAsync")]);
         return offenders;
 
         string Identity(MethodDefinition method)

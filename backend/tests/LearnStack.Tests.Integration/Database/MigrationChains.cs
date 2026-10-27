@@ -2,6 +2,7 @@ using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Audit.Infrastructure.Persistence;
 using LearnStack.Modules.Customization.Infrastructure.Persistence;
 using LearnStack.Modules.Education.Infrastructure.Persistence;
+using LearnStack.Modules.Identity.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.EntityFrameworkCore;
@@ -41,14 +42,6 @@ internal static class MigrationChains
             await platform.Database.MigrateAsync();
         }
 
-        await using (var customization = new CustomizationDbContext(
-            Options<CustomizationDbContext>(
-                migrationConnectionString, CustomizationDbContextFactory.HistoryTable),
-            StaticTenantContextAccessor.Unresolved))
-        {
-            await customization.Database.MigrateAsync();
-        }
-
         // Tenancy is first, and that order is not cosmetic: audit_config
         // carries the schema's only foreign key crossing two chains, to `tenants`. A
         // fixture that hand-orders what `make migrate` globs is how a suite goes green
@@ -60,6 +53,20 @@ internal static class MigrationChains
             StaticTenantContextAccessor.Unresolved);
 
         await audit.Database.MigrateAsync();
+
+        // The central creation witnesses require the existing Audit schema.
+        await using var identity = new IdentityDbContext(
+            Options<IdentityDbContext>(migrationConnectionString, IdentityDbContextFactory.HistoryTable),
+            StaticTenantContextAccessor.Unresolved, EmptyIdentityScope.Instance);
+        await identity.Database.MigrateAsync();
+
+        await using (var customization = new CustomizationDbContext(
+            Options<CustomizationDbContext>(
+                migrationConnectionString, CustomizationDbContextFactory.HistoryTable),
+            StaticTenantContextAccessor.Unresolved))
+        {
+            await customization.Database.MigrateAsync();
+        }
 
         // Education's organization guards call the shared function owned by Tenancy.
         // Its parent references remain inside Education (ADR-0003 Amendment 6).
@@ -86,6 +93,7 @@ internal static class MigrationChains
         CustomizationDbContextFactory.HistoryTable,
         AuditDbContextFactory.HistoryTable,
         EducationDbContextFactory.HistoryTable,
+        IdentityDbContextFactory.HistoryTable,
     ];
 
     private static DbContextOptions<TContext> Options<TContext>(

@@ -508,71 +508,74 @@ public sealed partial class OutboxDispatchConventionTests
         _ => null,
     };
 
-    [Fact]
-    public void Background_job_orchestration_has_closed_finite_owners_and_rejects_extra_callers_and_lost_retention()
+    public sealed class JobOrchestrationDeclarationMutationTests
     {
-        using var census = ProductionCensus.Read();
-        var baseline = EvaluateDetector(census, JobOrchestrationOffenders);
-        baseline.Should().BeEmpty("the exact orchestration manifest must match; offenders: {0}",
-            string.Join(Environment.NewLine, baseline));
-        var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
-        var guarded = new Dictionary<string, string[]>
+        [Fact]
+        public void Background_job_orchestration_has_closed_finite_owners_and_rejects_extra_callers_and_lost_retention()
         {
-            [OrchestrationControl] = [".ctor", "TryBegin", "Release", "Start", "RequestStop", "FinishAdmissionAsync", "FinishBusinessAsync", "RunRenewalAsync", "RunControlAsync", "RunTerminalAsync", "ObserveExternalRetry", "ObserveRequestRetry", "ObserveRequestHistory", "IsRetryTransition"],
-            [OrchestrationExecution] = [".ctor", "HoldAdmission", "HoldBusiness", "HoldCapacityCheckpoint", "JoinAsync", "JoinBusinessObserversAsync", "JoinBusinessObserversCoreAsync", "ReleaseAfterPrivateCleanup", "ObservePublicationAsync", "ObserveDeadlineAsync", "RecordRenewal", "RefuseRenewal", "CloseExecution", "LeaseElapsed"],
-            [OrchestrationRenewal] = [".ctor", "Start", "Schedule", "ObserveWaitAsync"],
-            [OrchestrationIdentity] = [".ctor", "FromReceipt"],
-            [OrchestrationCheckpoint] = [".ctor", "Start", "Schedule", "RequestStop", "RelayStopAsync", "ObserveActualAsync", "ObserveWaitAsync"],
-        };
-        foreach (var (typeName, methods) in guarded)
-        {
-            var type = census.Types[(InfrastructureAssembly, typeName)];
-            foreach (var method in type.Methods.Where(method => methods.Contains(method.Name, StringComparer.Ordinal)).ToArray())
+            using var census = ProductionCensus.Read();
+            var baseline = EvaluateDetector(census, JobOrchestrationOffenders);
+            baseline.Should().BeEmpty("the exact orchestration manifest must match; offenders: {0}",
+                string.Join(Environment.NewLine, baseline));
+            var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
+            var guarded = new Dictionary<string, string[]>
             {
-                foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
-                    AssertMutation(census, "an additional finite orchestration capability through " + opcode,
-                        () => AddCallProbe(application, "OrchestrationEscape", method, opcode), JobOrchestrationOffenders);
-                AssertMutation(census, "an async orchestration capability escape",
-                    () => AddAsyncCallProbe(application, "AsyncOrchestrationEscape", method), JobOrchestrationOffenders);
+                [OrchestrationControl] = [".ctor", "TryBegin", "Release", "Start", "RequestStop", "FinishAdmissionAsync", "FinishBusinessAsync", "RunRenewalAsync", "RunControlAsync", "RunTerminalAsync", "ObserveExternalRetry", "ObserveRequestRetry", "ObserveRequestHistory", "IsRetryTransition"],
+                [OrchestrationExecution] = [".ctor", "HoldAdmission", "HoldBusiness", "HoldCapacityCheckpoint", "JoinAsync", "JoinBusinessObserversAsync", "JoinBusinessObserversCoreAsync", "ReleaseAfterPrivateCleanup", "ObservePublicationAsync", "ObserveDeadlineAsync", "RecordRenewal", "RefuseRenewal", "CloseExecution", "LeaseElapsed"],
+                [OrchestrationRenewal] = [".ctor", "Start", "Schedule", "ObserveWaitAsync"],
+                [OrchestrationIdentity] = [".ctor", "FromReceipt"],
+                [OrchestrationCheckpoint] = [".ctor", "Start", "Schedule", "RequestStop", "RelayStopAsync", "ObserveActualAsync", "ObserveWaitAsync"],
+            };
+            foreach (var (typeName, methods) in guarded)
+            {
+                var type = census.Types[(InfrastructureAssembly, typeName)];
+                foreach (var method in type.Methods.Where(method => methods.Contains(method.Name, StringComparer.Ordinal)).ToArray())
+                {
+                    foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
+                        AssertMutation(census, "an additional finite orchestration capability through " + opcode,
+                            () => AddCallProbe(application, "OrchestrationEscape", method, opcode), JobOrchestrationOffenders);
+                    AssertMutation(census, "an async orchestration capability escape",
+                        () => AddAsyncCallProbe(application, "AsyncOrchestrationEscape", method), JobOrchestrationOffenders);
+                }
+                AssertMutation(census, "a missing concrete orchestration subject", () =>
+                {
+                    var module = type.Module;
+                    module.Types.Remove(type);
+                    return () => module.Types.Add(type);
+                }, JobOrchestrationOffenders);
             }
-            AssertMutation(census, "a missing concrete orchestration subject", () =>
+            foreach (var (typeName, field) in new[] { (OrchestrationControl, "_renewalFlight"), (OrchestrationControl, "_controlOperation"),
+                         (OrchestrationControl, "_terminalOperation"), (OrchestrationExecution, "_admission"),
+                         (OrchestrationExecution, "_business"), (OrchestrationExecution, "_leaseTimer"), (OrchestrationExecution, "_capacityCheckpoint"),
+                         (OrchestrationExecution, "_observersPublished"), (OrchestrationRenewal, "_actual"), (OrchestrationCheckpoint, "_actual"),
+                         (OrchestrationCheckpoint, "_private"), (OrchestrationCheckpoint, "_cancellation"),
+                         (OrchestrationInvocation, "_cleanupPublished"), (OrchestrationInvocation, "_cancellationObservation"),
+                         (OrchestrationInvocation, "_admission"), (OrchestrationInvocation, "_business") })
+                AssertMutation(census, "an approved owner forwarding a retained orchestration resource",
+                    () => AddBoundaryFieldGetter(census.Types[(InfrastructureAssembly, typeName)], "ForwardOrchestrationResource", field), JobOrchestrationOffenders);
+            var control = census.Types[(InfrastructureAssembly, OrchestrationControl)];
+            foreach (var (methodName, bound) in new[] { ("TryBegin", 64), ("TryBeginRecovery", 64), ("Enqueue", 128) })
             {
-                var module = type.Module;
-                module.Types.Remove(type);
-                return () => module.Types.Add(type);
+                var instruction = control.Methods.Single(method => method.Name == methodName).Body.Instructions
+                    .Single(instruction => OrchestrationConstant(instruction) == bound);
+                AssertMutation(census, "an enlarged finite orchestration bound",
+                    () => ReplaceInstruction(instruction, OpCodes.Ldc_I4, bound + 1), JobOrchestrationOffenders);
+            }
+            var renewal = census.Types[(InfrastructureAssembly, OrchestrationRenewal)];
+            var start = renewal.Methods.Single(method => method.Name == "Start");
+            AssertMutation(census, "an added renewal-start overload", () =>
+            {
+                var overload = new MethodDefinition("Start", MethodAttributes.Assembly, renewal.Module.TypeSystem.Void);
+                overload.Parameters.Add(new ParameterDefinition(renewal.Module.TypeSystem.String));
+                overload.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+                renewal.Methods.Add(overload);
+                return () => renewal.Methods.Remove(overload);
+            }, JobOrchestrationOffenders);
+            AssertMutation(census, "a missing actual renewal-start seam", () =>
+            {
+                renewal.Methods.Remove(start);
+                return () => renewal.Methods.Add(start);
             }, JobOrchestrationOffenders);
         }
-        foreach (var (typeName, field) in new[] { (OrchestrationControl, "_renewalFlight"), (OrchestrationControl, "_controlOperation"),
-                     (OrchestrationControl, "_terminalOperation"), (OrchestrationExecution, "_admission"),
-                     (OrchestrationExecution, "_business"), (OrchestrationExecution, "_leaseTimer"), (OrchestrationExecution, "_capacityCheckpoint"),
-                     (OrchestrationExecution, "_observersPublished"), (OrchestrationRenewal, "_actual"), (OrchestrationCheckpoint, "_actual"),
-                     (OrchestrationCheckpoint, "_private"), (OrchestrationCheckpoint, "_cancellation"),
-                     (OrchestrationInvocation, "_cleanupPublished"), (OrchestrationInvocation, "_cancellationObservation"),
-                     (OrchestrationInvocation, "_admission"), (OrchestrationInvocation, "_business") })
-            AssertMutation(census, "an approved owner forwarding a retained orchestration resource",
-                () => AddBoundaryFieldGetter(census.Types[(InfrastructureAssembly, typeName)], "ForwardOrchestrationResource", field), JobOrchestrationOffenders);
-        var control = census.Types[(InfrastructureAssembly, OrchestrationControl)];
-        foreach (var (methodName, bound) in new[] { ("TryBegin", 64), ("TryBeginRecovery", 64), ("Enqueue", 128) })
-        {
-            var instruction = control.Methods.Single(method => method.Name == methodName).Body.Instructions
-                .Single(instruction => OrchestrationConstant(instruction) == bound);
-            AssertMutation(census, "an enlarged finite orchestration bound",
-                () => ReplaceInstruction(instruction, OpCodes.Ldc_I4, bound + 1), JobOrchestrationOffenders);
-        }
-        var renewal = census.Types[(InfrastructureAssembly, OrchestrationRenewal)];
-        var start = renewal.Methods.Single(method => method.Name == "Start");
-        AssertMutation(census, "an added renewal-start overload", () =>
-        {
-            var overload = new MethodDefinition("Start", MethodAttributes.Assembly, renewal.Module.TypeSystem.Void);
-            overload.Parameters.Add(new ParameterDefinition(renewal.Module.TypeSystem.String));
-            overload.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
-            renewal.Methods.Add(overload);
-            return () => renewal.Methods.Remove(overload);
-        }, JobOrchestrationOffenders);
-        AssertMutation(census, "a missing actual renewal-start seam", () =>
-        {
-            renewal.Methods.Remove(start);
-            return () => renewal.Methods.Add(start);
-        }, JobOrchestrationOffenders);
     }
 }

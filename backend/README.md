@@ -2,7 +2,7 @@
 
 .NET 10 modular monolith — see [docs/standards/01-architecture-standards.md](../docs/standards/01-architecture-standards.md)
 for the module-layout rules and [docs/architecture/03-module-boundaries.md](../docs/architecture/03-module-boundaries.md)
-for the dependency direction this scaffold enforces.
+for the dependency direction the source enforces.
 
 ## Layout
 
@@ -21,10 +21,12 @@ backend/
     LearnStack.Infrastructure/             # EF + cross-cutting infra
     LearnStack.Infrastructure.Audit/       # ADR-0033 audit pipeline plumbing
     LearnStack.Api/                        # ASP.NET host
+    LearnStack.Tools.IdentityAuthorityInstaller/ # deployment-only identity anchor
+    LearnStack.Tools.Seeder/               # finite development data/adoption
 
     Modules/
       Tenancy/                             # 4-package layout per module
-      Identity/
+      Identity/                            # global binding + scoped foundation
       Customization/                       # ADR-0018 tenant customization aggregates
       Audit/                               # AuditEntry aggregate (ADR-0033)
       Content/
@@ -37,7 +39,7 @@ backend/
 
   tests/
     LearnStack.Tests.Unit/
-    LearnStack.Tests.Integration/          # Testcontainers (Postgres/Valkey)
+    LearnStack.Tests.Integration/          # offline HTTP + real Postgres/Keycloak
     LearnStack.Tests.Architecture/         # NetArchTest + filesystem invariants
     LearnStack.Tests.Contract/
 ```
@@ -56,6 +58,9 @@ backend/
   the .NET 10 SDK from <https://dotnet.microsoft.com/download/dotnet/10.0>
   before `dotnet build`.
 - A local infrastructure stack — see [../infra/compose/dev.yml](../infra/compose/dev.yml).
+- Install the matching identity authority before API startup, following
+  [Identity deployment](../docs/modules/identity/README.md#global-implementation-and-deployment).
+  Runtime uses application credentials; the migration credential stays deploy-only.
 
 ## Common Commands
 
@@ -63,7 +68,8 @@ backend/
 # Restore + build
 dotnet build LearnStack.slnx
 
-# Run the API (defaults to http://localhost:5080)
+# Run the API with its runtime configuration already supplied
+# (defaults to http://localhost:5080)
 dotnet run --project src/LearnStack.Api
 
 # Tests by suite
@@ -73,4 +79,8 @@ dotnet test tests/LearnStack.Tests.Integration       # needs docker for Testcont
 dotnet test tests/LearnStack.Tests.Contract
 ```
 
-The `make` orchestrator and CI workflow land in a later Phase 01 package.
+The direct API command reads process/.NET configuration, not the root `.env`.
+For the owned local API and native HTTPS web lifecycle, run `make demo` from
+the repository root; it projects the selected private environment. The
+[root quick start](../README.md#quickstart) owns setup, and
+[test guidance](../.claude/skills/run-tests-locally/SKILL.md) owns suite selection.

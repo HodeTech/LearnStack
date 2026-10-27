@@ -321,16 +321,26 @@ export function loadLocalEnvironment(
   ]) {
     if (environment[key] !== undefined) result[key] = environment[key];
   }
-  const issuerKey = 'Authentication__Tenant__Issuer';
   // Web startup does not consume API authentication configuration. Only the API
-  // launcher opts into resolving this private value and its conflict checks.
-  delete result[issuerKey];
+  // launcher resolves the exact issuer/authority pair and its conflict checks.
+  const identityKeys = ['Authentication__Tenant__Issuer', 'Identity__AuthorityId'];
+  for (const key of identityKeys) delete result[key];
   if (options.apiAuthentication) {
-    const issuers = [source[issuerKey], projection[issuerKey], environment[issuerKey]].filter(
-      (value): value is string => value !== undefined,
-    );
-    if (new Set(issuers).size > 1) throw new Error('Conflicting API authentication configuration');
-    if (issuers[0] !== undefined) result[issuerKey] = issuers[0];
+    for (const input of [source, projection, environment]) {
+      const present = identityKeys.filter((key) => input[key] !== undefined);
+      if (
+        present.length !== 0 &&
+        (present.length !== identityKeys.length || present.some((key) => !input[key]))
+      )
+        throw new Error('Incomplete API authentication configuration');
+    }
+    for (const key of identityKeys) {
+      const values = [source[key], projection[key], environment[key]].filter(
+        (value): value is string => value !== undefined,
+      );
+      if (new Set(values).size > 1) throw new Error('Conflicting API authentication configuration');
+      if (values[0] !== undefined) result[key] = values[0];
+    }
   }
   return result;
 }

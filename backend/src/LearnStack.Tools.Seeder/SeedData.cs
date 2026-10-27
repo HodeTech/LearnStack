@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using LearnStack.Modules.Customization.Application.Contracts.Customization;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Permissions;
 
 namespace LearnStack.Tools.Seeder;
 
@@ -27,7 +28,7 @@ public static class SeedData
         YogaCurriculum());
     public static readonly IReadOnlyList<SeedTenant> All = [English, Yoga];
 
-    // Authentication personas are development data, not application memberships.
+    // Authentication personas retain provider claims independently of Membership scope.
     // The legacy usernames retain their Keycloak subjects/passwords on warm upgrades.
     public static readonly ImmutableArray<SeedIdentity> IdentityUsers =
     [
@@ -40,6 +41,39 @@ public static class SeedData
         new(UserId.From(Id("01930000-0000-7000-8000-00000000b002")), Yoga,
             "demo-learner@tenant-b.test", "Demo", "Learner", "tenant-learner", new("account", "manage-account")),
     ];
+
+    public static readonly ImmutableArray<SeedFoundationRole> IdentityRoles =
+    [
+        new(English, Id("01916d82-4b10-7000-8000-00000000a101"), BuiltInRoleKey.TenantAdmin, PermissionScope.Tenant),
+        new(English, Id("01916d82-4b10-7000-8000-00000000a102"), BuiltInRoleKey.Instructor, PermissionScope.Tenant),
+        new(English, Id("01916d82-4b10-7000-8000-00000000a103"), BuiltInRoleKey.Learner, PermissionScope.Tenant),
+        new(English, Id("01916d82-4b10-7000-8000-00000000a104"), BuiltInRoleKey.Guardian, PermissionScope.Tenant),
+        new(English, Id("01916d82-4b10-7000-8000-00000000a105"), BuiltInRoleKey.Editor, PermissionScope.Tenant),
+        new(English, Id("01916d82-4b10-7000-8000-00000000a106"), BuiltInRoleKey.OrgAdmin, PermissionScope.Organization),
+        new(English, Id("01916d82-4b10-7000-8000-00000000a107"), BuiltInRoleKey.OrgInstructor, PermissionScope.Organization),
+        new(English, Id("01916d82-4b10-7000-8000-00000000a108"), BuiltInRoleKey.Learner, PermissionScope.Organization),
+        new(Yoga, Id("01916d82-4b10-7000-8000-00000000b101"), BuiltInRoleKey.TenantAdmin, PermissionScope.Tenant),
+        new(Yoga, Id("01916d82-4b10-7000-8000-00000000b102"), BuiltInRoleKey.Instructor, PermissionScope.Tenant),
+        new(Yoga, Id("01916d82-4b10-7000-8000-00000000b103"), BuiltInRoleKey.Learner, PermissionScope.Tenant),
+        new(Yoga, Id("01916d82-4b10-7000-8000-00000000b104"), BuiltInRoleKey.Guardian, PermissionScope.Tenant),
+        new(Yoga, Id("01916d82-4b10-7000-8000-00000000b105"), BuiltInRoleKey.Editor, PermissionScope.Tenant),
+        new(Yoga, Id("01916d82-4b10-7000-8000-00000000b106"), BuiltInRoleKey.OrgAdmin, PermissionScope.Organization),
+        new(Yoga, Id("01916d82-4b10-7000-8000-00000000b107"), BuiltInRoleKey.OrgInstructor, PermissionScope.Organization),
+        new(Yoga, Id("01916d82-4b10-7000-8000-00000000b108"), BuiltInRoleKey.Learner, PermissionScope.Organization),
+    ];
+
+    public static readonly ImmutableArray<SeedFoundationMembership> IdentityMemberships =
+    [
+        new(IdentityUsers[0], Id("01916d82-4b10-7000-8000-00000000a201"), null, IdentityRoles[0], "Demo Admin", "en", true),
+        new(IdentityUsers[1], Id("01916d82-4b10-7000-8000-00000000a202"), null, IdentityRoles[2], "Demo Learner", "en", false),
+        new(IdentityUsers[2], Id("01916d82-4b10-7000-8000-00000000b201"), null, IdentityRoles[8], "Demo Admin", "tr-TR", true),
+        new(IdentityUsers[3], Id("01916d82-4b10-7000-8000-00000000b202"), Yoga.DefaultOrganization.OrganizationId,
+            IdentityRoles[15], "Demo Learner", "tr-TR", false),
+    ];
+
+    // Four global creations, sixteen Role roots, four Membership roots and four profile acts.
+    public static long ExpectedIdentityAuditWrites => IdentityUsers.Length + IdentityRoles.Length + IdentityMemberships.Length * 2L;
+    public static long ExpectedCombinedAuditWrites => ExpectedAuditWrites + ExpectedIdentityAuditWrites;
 
     // Provisioning audits both sanctioned roots; follow-on organization and host each add one.
     // Each tenant initializes two built-ins once; authored definitions audit registration and publication.
@@ -186,6 +220,12 @@ public sealed record SeedIdentity(UserId UserId, SeedTenant Tenant, string Usern
     string FirstName, string LastName, string RealmRole, SeedAccountCapability AccountCapability,
     string? LegacyTenantAttribute = null);
 public sealed record SeedAccountCapability(string ClientId, string Role);
+public sealed record SeedFoundationRole(SeedTenant Tenant, Guid RoleId, BuiltInRoleKey BuiltInKey, PermissionScope Scope);
+public sealed record SeedFoundationMembership(SeedIdentity Identity, Guid MembershipId, OrganizationId? OrganizationId,
+    SeedFoundationRole Role, string DisplayName, string PreferredLocale, bool IsFirstAdmin)
+{
+    public PermissionScope Scope => OrganizationId is null ? PermissionScope.Tenant : PermissionScope.Organization;
+}
 public sealed record SeedCurriculum(ImmutableArray<SeedLocale> Locales, SeedContentType ContentType,
     SeedTaxonomy Taxonomy, SeedTheme Theme, ImmutableArray<SeedCourse> Courses);
 public sealed record SeedLocale(string Locale, bool IsEnabled, bool IsDefault, short Sort);

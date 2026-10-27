@@ -57,7 +57,7 @@ public sealed class TenantAssertionAuditTests
             NullLogger<PostgresAuditStore>.Instance,
             MeterFactory,
             new AuditHealth(),
-            new AuditCatalog([]), StaticTenantContextAccessor.Unresolved);
+            new AuditCatalog([]), StaticTenantContextAccessor.Unresolved, new LearnStack.Infrastructure.Persistence.GlobalIdentityEnrollment());
 
         var recorder = Recorder(store, threshold: 10);
 
@@ -123,7 +123,7 @@ public sealed class TenantAssertionAuditTests
             NullLogger<PostgresAuditStore>.Instance,
             MeterFactory,
             new AuditHealth(),
-            new AuditCatalog([]), StaticTenantContextAccessor.Unresolved);
+            new AuditCatalog([]), StaticTenantContextAccessor.Unresolved, new LearnStack.Infrastructure.Persistence.GlobalIdentityEnrollment());
 
         var recorder = Recorder(store, threshold: 3);
 

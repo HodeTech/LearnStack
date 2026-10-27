@@ -11,6 +11,8 @@ The seeded browser/audit proof derives from
 [ADR-0056](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md).
 Native admission, stock-browser fallback and HMR proof controls derive from
 [ADR-0055](../decisions/0055-public-renderer-bootstrap-failures.md).
+The ordinary CI window derives from
+[ADR-0075](../decisions/0075-ordinary-ci-job-window.md).
 UI localization controls derive from [ADR-0027](../decisions/0027-frontend-i18n.md)
 and the [Accepted P02d-6 package](../roadmap/phase-02d-delivery-log.md#p02d-6-decision-package-2026-10-09).
 
@@ -214,9 +216,17 @@ Matching worker digests alone cannot replace API or result evidence.
 Base/Architecture use only the approved non-root child and owned systemd/cgroup
 boundary on exclusive Ubuntu 24.04 VMs: no Docker census/disposal, collector
 access or crash inventory. Ordinary retains Docker ownership; native alone
-retains collector provisioning and independent crash assertions. Every execution
-keeps twenty minutes, both aggregates five minutes, and meta five minutes. The
-new offline plan/result controls share one thirty-second allocation in meta.
+retains collector provisioning and independent crash assertions.
+[ADR-0075](../decisions/0075-ordinary-ci-job-window.md) gives only verified ordinary
+producers a twenty-five-minute whole-job ceiling. Base/Architecture/native keep
+twenty minutes, both aggregates five minutes, and meta five minutes. The
+203-second cleanup/export/upload reserve and test-specific deadlines stay fixed.
+Expected verified producer identity selects API, receipt and enclosing
+measurement bounds; a receipt partition or global observation-limit increase
+cannot grant ordinary authority. The four disjoint receipt intervals sum below
+that producer's ceiling; nested workload/project observations are not additional
+disjoint time. The offline plan/result controls share one thirty-second
+allocation in meta.
 Actual SDK/console/loaded-adapter hashes, disjoint phase intervals, first-result
 gaps and scoped resource observations accompany every successful execution.
 Uninstrumented fixture/container measurements remain unknown.
@@ -435,9 +445,10 @@ Use the shipped examples:
 
 Fixtures apply every chain through
 [MigrationChains](../../backend/tests/LearnStack.Tests.Integration/Database/MigrationChains.cs),
-which owns current chain/history discovery. The current schema has five chains,
-21 data tables and five history tables; tests must not copy a fixed partial chain
-list. Follow [add-integration-test](../../.claude/skills/add-integration-test/SKILL.md)
+which owns current chain/history discovery.
+[`SchemaTableClasses`](../../backend/tests/LearnStack.Tests.Integration/Database/SchemaTableClasses.cs)
+independently checks the complete applied-table census; tests must not copy a
+fixed partial chain list. Follow [add-integration-test](../../.claude/skills/add-integration-test/SKILL.md)
 for fixture selection and transaction-scoped context.
 
 Rules:

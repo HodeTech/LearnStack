@@ -714,6 +714,7 @@ public sealed class PlatformAdminScopeTests
             .AddSingleton<IAuditHealth, AuditHealth>()
             .AddSingleton<IAuditCatalog>(new AuditCatalog([new TenancyAuditCatalogSource()]))
             .AddSingleton<ITenantContextAccessor>(StaticTenantContextAccessor.Unresolved)
+            .AddScoped<LearnStack.SharedKernel.Identity.IGlobalIdentityEnrollment, LearnStack.Infrastructure.Persistence.GlobalIdentityEnrollment>()
             .AddSingleton(new Lazy<NpgsqlDataSource>(
                 () => throw new InvalidOperationException(
                     "The platform-scope row is written on the scope's own connection, so "
@@ -731,6 +732,14 @@ public sealed class PlatformAdminScopeTests
 
     private sealed class RefusingAuditStore : IAuditStore
     {
+        public Task WriteGlobalIdentityPendingAsync(LearnStack.SharedKernel.Persistence.IUnitOfWork unit,
+            GlobalIdentityCreationReference creation, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("Global identity has its own cases.");
+
+        public Task ReconcileGlobalIdentityAsync(AuditIntent intent, IReadOnlyList<CapturedEntityChange> changes,
+            AuditIntentState state, DateTimeOffset timestamp, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("Global identity has its own cases.");
+
         public Task WritePendingAsync(
             LearnStack.SharedKernel.Persistence.IUnitOfWork unitOfWork,
             CancellationToken cancellationToken = default) =>

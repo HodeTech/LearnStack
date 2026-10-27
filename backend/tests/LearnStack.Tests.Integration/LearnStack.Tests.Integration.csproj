@@ -18,6 +18,7 @@
     <!-- The two seed tenants are a Packet 7 deliverable, and what the seeder writes has
          to be asserted against the real schema rather than taken on trust. -->
     <ProjectReference Include="..\..\src\LearnStack.Tools.Seeder\LearnStack.Tools.Seeder.csproj" />
+    <ProjectReference Include="..\..\src\LearnStack.Tools.IdentityAuthorityInstaller\LearnStack.Tools.IdentityAuthorityInstaller.csproj" />
     <ProjectReference Include="../LearnStack.Tests.JobLifecycleProbe/LearnStack.Tests.JobLifecycleProbe.csproj"
                       ReferenceOutputAssembly="false" />
     <!-- The tenancy schema tests apply the module's own migration and assert its

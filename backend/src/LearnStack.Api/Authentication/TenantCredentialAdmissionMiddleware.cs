@@ -9,9 +9,10 @@ internal sealed class TenantCredentialAdmissionMiddleware(RequestDelegate next)
     public Task InvokeAsync(HttpContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
+        if (context.Features.Get<TenantCredentialFeature>() is { } feature) feature.Identity = null;
         if (context.Features.Get<HostClassification>() is not null
             && context.Request.Headers.ContainsKey("Authorization")
-            && context.Features.Get<TenantCredentialFeature>()?.Identity is null)
+            && context.Features.Get<TenantCredentialFeature>()?.VerifiedSubject is null)
         {
             PublicResponsePolicy.Apply(context.Response);
             context.Response.Headers.WWWAuthenticate = "Bearer";

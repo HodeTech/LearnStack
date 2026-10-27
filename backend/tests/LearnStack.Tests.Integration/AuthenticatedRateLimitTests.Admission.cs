@@ -102,7 +102,7 @@ public sealed partial class AuthenticatedRateLimitTests
             replay.Features.Set(HostClassification.Platform("admission-replay-canary.example"));
             replay.Features.Set(new TenantCredentialFeature
             {
-                Identity = new ValidatedTenantIdentity(
+                VerifiedSubject = new VerifiedProviderSubject(
                 issuer.Issuer, "replay-subject-canary", UserId.From(TenantAuthenticationIssuer.Actor), null, null)
             });
             var middleware = new TenantSubjectAdmissionMiddleware(
@@ -208,6 +208,7 @@ public sealed partial class AuthenticatedRateLimitTests
         SubjectQuotaObservation observed, AdmissionMembershipObservation memberships, string? endpoint = null) =>
         fixture.ClientFor(SeedData.English.Host, services =>
         {
+            AddQuotaBindings(services, issuer);
             services.RemoveAll<TenantSubjectRateLimiter>();
             services.AddSingleton(_ => scenario.Owner);
             services.AddScoped<AuditingTenantAssertionRecorder>();

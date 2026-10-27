@@ -46,7 +46,7 @@ internal static class AsyncStoreInventoryDocument
                 .Concat(modules.Values.SelectMany(AsyncStoreInventoryCensus.Tables)).ToArray();
             if (discovered.Distinct(StringComparer.Ordinal).Count() != discovered.Length)
                 failures.Add("A table is declared by more than one migration chain.");
-            Compare(discovered, allInventoryNames, "complete five-chain migration census");
+            Compare(discovered, allInventoryNames, "complete migration census");
             return failures.ToArray();
 
             void Count(IReadOnlyCollection<string[]> rows, int expected, string label)

@@ -31,7 +31,7 @@ public sealed partial class OutboxDispatchConventionTests
             "Fix: retain one exact receipt/unit/root participant and the existing owner-only Complete boundary");
     }
 
-    public sealed partial class JobExecutionMutationTests
+    public sealed class JobOwnerMutationTests
     {
 
         [Fact]

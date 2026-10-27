@@ -12,10 +12,14 @@ public sealed partial class AuthenticationAuthorityTests
 {
     private const string Authentication = "LearnStack.Api.Authentication.";
     private const string Identity = Authentication + nameof(ValidatedTenantIdentity);
+    private const string Verified = Authentication + nameof(VerifiedProviderSubject);
     private const string Feature = Authentication + nameof(TenantCredentialFeature);
     private const string Events = Authentication + nameof(TenantAuthenticationEvents);
     private const string Profile = Authentication + nameof(TenantTokenProfile);
     private const string Limiter = Authentication + nameof(TenantSubjectRateLimiter);
+    private const string BindingAdmission = Authentication + nameof(TenantIdentityBindingAdmissionMiddleware);
+    private const string BindingResolver = Authentication + nameof(TenantIdentityBindingResolver);
+    private const string Provenance = Authentication + nameof(TenantSubjectAdmissionProvenance);
     private const string Resolver = "LearnStack.Api.Tenancy.TenantResolverMiddleware";
     private static readonly string[] IdentityProperties = ["ActorUserId", "Issuer", "OrganizationId", "Subject", "TenantId"];
     private static readonly Dictionary<string, Type> IdentityTypes = new(StringComparer.Ordinal)
@@ -68,9 +72,9 @@ public sealed partial class AuthenticationAuthorityTests
         // record without an identity-declared call. Close acquisition, holders
         // and forwarding too, rather than treating getters as the only readers.
         foreach (var method in methods.Where(projectionUse ?? TouchesProjection))
-            if (method.Owner.FullName != Identity && method.Owner.FullName != Feature && !ApprovedSites.Values.Contains(method.Site, StringComparer.Ordinal))
+            if (method.Owner.FullName != Identity && method.Owner.FullName != Verified && method.Owner.FullName != Feature && !ApprovedSites.Values.Contains(method.Site, StringComparer.Ordinal))
                 errors.Add("Unapproved typed identity/feature consumer: " + method.Site);
-        foreach (var method in methods.Where(method => method.Owner.FullName != Identity && method.Owner.FullName != Feature
+        foreach (var method in methods.Where(method => method.Owner.FullName != Identity && method.Owner.FullName != Verified && method.Owner.FullName != Feature
                      && TouchesProjection(method) && ExportsProjection(method)))
             errors.Add("Opaque typed identity/feature export: " + method.Site);
         foreach (var type in types)
@@ -87,22 +91,33 @@ public sealed partial class AuthenticationAuthorityTests
                     errors.Add("Realm-role authorization metadata: " + type.FullName);
         }
 
-        Require(method => method.FullName == IdentityConstructor, Profile + ".TryReadValidated");
+        Require(method => method.FullName == IdentityConstructor, BindingAdmission + ".InvokeAsync");
         Require(method => method.FullName == IdentityCopyConstructor, Identity + ".<Clone>$");
+        Require(method => method.FullName == VerifiedConstructor, Profile + ".TryReadValidated");
+        Require(method => method.FullName == VerifiedCopyConstructor, Verified + ".<Clone>$");
         Require(Target(Feature, ".ctor"), Events + ".MessageReceived");
-        Require(Target(Feature, "set_Identity"), Events + ".AuthenticationFailed", Events + ".TokenValidated");
+        Require(Target(Feature, "set_Identity"), Events + ".AuthenticationFailed",
+            Authentication + "TenantCredentialAdmissionMiddleware.InvokeAsync",
+            Authentication + "TenantSubjectAdmissionMiddleware.InvokeAsync", BindingAdmission + ".InvokeAsync",
+            BindingAdmission + ".InvokeAsync", BindingAdmission + ".Refuse");
+        Require(Target(Feature, "set_VerifiedSubject"), Events + ".AuthenticationFailed", Events + ".TokenValidated");
         Require(Target(Profile, "TryReadValidated"), Events + ".TokenValidated");
         Require(method => method.Name == "Set" && method is GenericInstanceMethod generic
                 && generic.GenericArguments.Any(argument => Is(argument, Feature)), Events + ".MessageReceived");
-        foreach (var call in calls.Where(call => Is(call.Target.DeclaringType, Identity)
+        foreach (var call in calls.Where(call => (Is(call.Target.DeclaringType, Identity) || Is(call.Target.DeclaringType, Verified))
                      && (call.Target.Name.StartsWith("set_", StringComparison.Ordinal) || call.Target.Name is "<Clone>$" or "Deconstruct")
                  || Is(call.Target.DeclaringType, Events) && call.Target.Name == "TokenValidated"))
             errors.Add("Cannot forge, clone, mutate, deconstruct or directly invoke validated identity: " + call.Source.Site);
 
         // Issuer/sub may select a private accounting partition, never permission.
         // Scope/actor consumption remains explicit even inside the API assembly.
-        Consumers("Issuer", Limiter + ".AttemptAcquire");
-        Consumers("Subject", Limiter + ".AttemptAcquire");
+        Consumers("Issuer");
+        Consumers("Subject");
+        VerifiedConsumers("Issuer", Limiter + ".AttemptAcquire", BindingResolver + ".ResolveExistingAsync", BindingAdmission + ".InvokeAsync");
+        VerifiedConsumers("Subject", Limiter + ".AttemptAcquire", BindingResolver + ".ResolveExistingAsync", BindingAdmission + ".InvokeAsync");
+        VerifiedConsumers("ClaimedActor", BindingResolver + ".ResolveExistingAsync");
+        VerifiedConsumers("TenantId", BindingAdmission + ".InvokeAsync");
+        VerifiedConsumers("OrganizationId", BindingAdmission + ".InvokeAsync");
         Consumers("ActorUserId", Resolver + ".BuildAttemptAsync", Resolver + ".RecordRefusalAsync",
             "LearnStack.Api.Tenancy.TenantAssertionMiddleware.InvokeAsync",
             Authentication + "TenantSurfaceAdmissionMiddleware.HasHostAuthority");
@@ -113,8 +128,8 @@ public sealed partial class AuthenticationAuthorityTests
         foreach (var method in methods)
             foreach (var instruction in method.Definition.Body.Instructions)
                 if (instruction.OpCode == OpCodes.Stfld && instruction.Operand is FieldReference field
-                    && Is(field.DeclaringType, Feature) && Is(field.FieldType, Identity)
-                    && method.Site != ExpectedSite(Feature + ".set_Identity"))
+                    && Is(field.DeclaringType, Feature) && (Is(field.FieldType, Identity) || Is(field.FieldType, Verified))
+                    && method.Site != ExpectedSite(Feature + (Is(field.FieldType, Identity) ? ".set_Identity" : ".set_VerifiedSubject")))
                     errors.Add("Direct identity backing-field write: " + method.Site);
 
         var identities = types.Where(type => Is(type, Identity)).ToArray();
@@ -147,6 +162,12 @@ public sealed partial class AuthenticationAuthorityTests
             errors.Add("Validated identity has an unexpected member or constructor signature.");
         if (features.Length == 1 && !HasClosedFeatureShape(features[0]))
             errors.Add("Credential feature has an unexpected member or constructor signature.");
+        var verified = types.Where(type => Is(type, Verified)).ToArray();
+        if (verified.Length != 1 || !HasClosedVerifiedShape(verified[0]))
+            errors.Add("Verified provider subject must retain its closed immutable typed shape.");
+        var provenance = types.Where(type => Is(type, Provenance)).ToArray();
+        if (provenance.Length != 1 || !HasClosedProvenanceShape(provenance[0]))
+            errors.Add("Subject admission provenance must retain its closed immutable request-local shape.");
         return errors;
 
         void Require(Func<MethodReference, bool> target, params string[] owners)
@@ -157,9 +178,15 @@ public sealed partial class AuthenticationAuthorityTests
         }
 
         void Consumers(string property, params string[] owners)
+            => ProjectionConsumers(Identity, property, owners);
+
+        void VerifiedConsumers(string property, params string[] owners)
+            => ProjectionConsumers(Verified, property, owners);
+
+        void ProjectionConsumers(string projection, string property, params string[] owners)
         {
-            var actual = calls.Where(call => Is(call.Target.DeclaringType, Identity) && call.Target.Name == "get_" + property
-                    && call.Source.Owner.FullName != Identity)
+            var actual = calls.Where(call => Is(call.Target.DeclaringType, projection) && call.Target.Name == "get_" + property
+                    && call.Source.Owner.FullName != projection)
                 .Select(call => call.Source.Site).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal);
             if (!actual.SequenceEqual(owners.Select(ExpectedSite).Order(StringComparer.Ordinal), StringComparer.Ordinal))
                 errors.Add("Changed/missing validated " + property + " consumers: " + string.Join(", ", actual));
@@ -200,7 +227,7 @@ public sealed partial class AuthenticationAuthorityTests
         : actual.FullName == expected.FullName && (expected == typeof(string)
             || actual.Scope.Name.Replace(".dll", "", StringComparison.Ordinal) == expected.Assembly.GetName().Name);
 
-    private static bool CarriesProjection(TypeReference type) => Is(type, Identity) || Is(type, Feature)
+    private static bool CarriesProjection(TypeReference type) => Is(type, Identity) || Is(type, Verified) || Is(type, Feature)
         || type is GenericInstanceType generic && generic.GenericArguments.Any(CarriesProjection)
         || type is TypeSpecification specification && CarriesProjection(specification.ElementType);
 

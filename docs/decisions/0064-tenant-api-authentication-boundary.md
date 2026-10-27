@@ -598,3 +598,23 @@ This clarification preserves the original Status, Decision, date, deciders and
 rationale. The [decision index](README.md) links this clarification; the
 [systematic correction record](../roadmap/phase-02b-delivery-log.md#p02b-5-systematic-proof-and-document-corrections-2026-10-20)
 owns the associated mutable-carrier reconciliation. No decision changes.
+
+### Amendment 4 — Verified subjects and existing application bindings (2026-10-25)
+
+**Status: Accepted.** [ADR-0072](0072-application-owned-identity-bootstrap.md)
+replaces required API wire `user_id` with stock-verified provider-subject admission
+followed by existing-binding normalization. An optional wire actor is consistency
+evidence; a conflicting, malformed or reserved actor refuses. Credential
+enforcement recognizes the verified stage, and the unchanged issuer/sub quota
+precedes binding SQL.
+
+Unknown, conflicting, Closing/Closed or unavailable bindings uniformly return
+401 without allocation. Remaining token checks, route invariance, the closed
+GET/HEAD surface, public anonymity and AccountSite's absent-token 404/valid-token
+wrong-method 405 remain. No optional API actor claim weakens the native complete
+identity or AccountSite publication witness.
+
+Joint ADR-0072/0073 approval accepts this bounded authentication change. P03-1
+Step 5 owns provider/app-role admission, lookup load, pool, cancellation and
+store-failure proofs. P03-3 needs separate acceptance before new-user HTTP/BFF
+activation; no new endpoint is authorized here.

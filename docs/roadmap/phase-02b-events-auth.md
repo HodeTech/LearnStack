@@ -1,22 +1,21 @@
 # Phase 02b: Events, Background Jobs, Identity, and Session
 
-> **Status (2026-10-25).** Phase 02b is **in progress**. P02b-0 through P02b-7 are
-> complete. P02b-1–5 are merged through PRs #29–#33; P02b-6 through PR #34 and
+> **Status (2026-10-25).** Phase 02b is **complete and merged**. P02b-0 through
+> P02b-8 are complete. P02b-1–5 are merged through PRs #29–#33; P02b-6 through PR #34 and
 > correction PR #35; P02b-7 through
 > [PR #36](https://github.com/HodeTech/LearnStack/pull/36).
 > [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md) and
 > [ADR-0071](../decisions/0071-uncertain-account-site-refusals.md) are Accepted and
-> implemented. The P02b-7 merge closeout below links the source-bound A/B and
-> final PR-head qualification. P02b-8's G16/G18 decisions are Accepted; all four
-> implementation steps and both review rounds per step are complete. Its
-> [correction qualification closeout](phase-02b-delivery-log.md#p02b-8-pr-correction-qualification-and-closeout-2026-10-25)
-> records complete A/B proof on the corrected source.
-> [PR #37](https://github.com/HodeTech/LearnStack/pull/37) has completed both
-> correction review rounds; earlier qualification stays bound to its own source.
-> Current-head checks, conversation resolution, maintainer review and merge
-> remain release gates; this phase is not yet marked merged.
+> implemented. P02b-8's G16/G18 decisions are Accepted; all four implementation
+> steps, both review rounds per step and subsequent corrections are complete.
+> [PR #37](https://github.com/HodeTech/LearnStack/pull/37) merged on 2026-10-25.
+> Its [merge and phase closeout](phase-02b-delivery-log.md#p02b-8-merge-and-phase-closeout-2026-10-25)
+> links corrected-source A/B and final PR-head qualification, verifies identical
+> merged contents, and closes the review and merge gates. Earlier evidence stays
+> bound to its recorded source.
 > The [individual exit index](phase-02b-exit-evidence.md) names each criterion's
-> owner.
+> owner. The [Phase 03 Status block](phase-03-identity-admin.md) owns current
+> identity, membership and authorization packet state.
 >
 > This document is the plan. Every dated decision package, step record, review
 > round, correction and merge closeout lives in the [delivery log](phase-02b-delivery-log.md), split out
@@ -35,7 +34,7 @@
 > | P02b-5 | API authentication | ✅ complete and merged — PR #33, 2026-10-20; [merge closeout](phase-02b-delivery-log.md#p02b-5-merge-and-closeout-2026-10-20) |
 > | P02b-6 | Realm and seed | ✅ complete and merged — PR #34 and correction PR #35, 2026-10-23; [correction closeout](phase-02b-delivery-log.md#p02b-6-correction-merge-and-closeout-2026-10-23) |
 > | P02b-7 | BFF session | ✅ complete and merged — PR #36, 2026-10-25; [merge closeout](phase-02b-delivery-log.md#p02b-7-merge-and-closeout-2026-10-25) |
-> | P02b-8 | Exit enforcement | Implemented, reviewed and source-qualified — [acceptance](phase-02b-delivery-log.md#p02b-8-acceptance-2026-10-25); [Step 1](phase-02b-delivery-log.md#p02b-8-step-1-review-round-2-and-closeout-2026-10-25), [Step 2](phase-02b-delivery-log.md#p02b-8-step-2-closeout-2026-10-25), [Step 3](phase-02b-delivery-log.md#p02b-8-step-3-review-round-2-and-closeout-2026-10-25), [Step 4](phase-02b-delivery-log.md#p02b-8-step-4--completed-source-qualification-and-review-closeout-2026-10-25) and [corrected-source A/B](phase-02b-delivery-log.md#p02b-8-pr-correction-qualification-and-closeout-2026-10-25) complete with both review rounds; current-head checks, maintainer review and merge govern release |
+> | P02b-8 | Exit enforcement | ✅ complete and merged — PR #37, 2026-10-25; [merge and phase closeout](phase-02b-delivery-log.md#p02b-8-merge-and-phase-closeout-2026-10-25) |
 
 ## Goal
 
@@ -141,7 +140,10 @@ Each item below is named somewhere as adjacent to this phase's work. Each has an
   `platform-admin` role check owes;
   [Phase 11](phase-11-production-hardening.md#security) carries the APISIX half.
 - **Job definitions.** This phase ships the runner, its tenant contract and its enqueue
-  guard, and registers no job of its own. The first tenant-scoped jobs arrive in
+  guard, and registers no job of its own.
+  [Phase 03 G8/G16](phase-03-identity-admin.md#the-decision-register) must define any
+  earlier invitation/DSAR jobs and their exact execution profiles before their
+  first writers; later consumers remain
   [Phase 04](phase-04-cms-media-pages.md) and
   [Phase 08a](phase-08a-assessment-notifications.md). The first **tenantless** ones are
   [ADR-0028](../decisions/0028-audit-log-partition-management.md)'s two audit jobs,

@@ -20,6 +20,9 @@ public sealed partial class OutboxDispatchConventionTests
     private const string LifecycleScope = "LearnStack.SharedKernel.Persistence.IUnitOfWorkScope";
     private const string LifecycleAdapter = "LearnStack.Infrastructure.Persistence.NpgsqlUnitOfWork";
     private const string LifecycleFrame = LifecycleAdapter + "/Frame";
+    private const string LifecycleGlobalPrepared = DeliveryCoordinator + "/PreparedGlobalIdentityOwner";
+    private const string LifecycleIdentityAssembly = "LearnStack.Modules.Identity.Infrastructure";
+    private const string LifecycleIdentityBindings = "LearnStack.Modules.Identity.Infrastructure.Bindings.";
     private const string LifecycleAcceptance = "LearnStack.Infrastructure.Messaging.PostgresDeliveryAcceptance";
     private const string LifecyclePlatform = "LearnStack.Infrastructure.MultiTenancy.PlatformAdminScope";
     private const string LifecycleTask = "System.Threading.Tasks.Task";
@@ -41,143 +44,154 @@ public sealed partial class OutboxDispatchConventionTests
             "Fix: let the common owner fence and complete business delivery; retain only the named acceptance, persistence and standalone transaction owners");
     }
 
-    [Fact]
-    public void Integration_delivery_lifecycle_census_rejects_typed_helper_async_delegate_and_missing_paths()
+    public sealed class DeliveryLifecycleMutationTests
     {
-        using var census = ProductionCensus.Read();
-        var types = census.Types;
-        var unit = types[(KernelAssembly, LifecycleUnit)];
-        var scope = types[(KernelAssembly, LifecycleScope)];
-        var adapter = types[(InfrastructureAssembly, LifecycleAdapter)];
-        var frame = types[(InfrastructureAssembly, LifecycleFrame)];
-        var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
-        var capabilities = new[] { unit, adapter }.SelectMany(type => type.Methods.Where(method =>
-                method.Name is "BeginTransactionAsync" or "CommitAsync" or "RollbackAsync" or "SetTenantContextAsync"))
-            .Concat(new[] { scope, frame }.SelectMany(type => type.Methods.Where(method => method.Name is "CompleteAsync" or "FailAsync")))
-            .Concat(frame.Methods.Where(method => method.Name == "FailOwnedAsync"))
-            .Cast<MethodReference>().Concat(new[] { typeof(DbTransaction), typeof(IDbTransaction), typeof(NpgsqlTransaction),
-                    typeof(IDbContextTransaction), typeof(RelationalTransaction), typeof(DatabaseFacade) }
-                .SelectMany(type => type.GetMethods().Where(method => LifecycleTerminalMethods.Contains(method.Name, StringComparer.Ordinal)
-                    || LifecycleFacadeTerminalMethods.Contains(method.Name, StringComparer.Ordinal))
-                    .Where(method =>
-                        method.GetParameters().Length == 0 || method.GetParameters() is [{ ParameterType: var parameter }] && parameter == typeof(CancellationToken)))
-                .Select(method => application.ImportReference(method))).ToArray();
-        foreach (var capability in capabilities)
+        [Fact]
+        public void Integration_delivery_lifecycle_census_rejects_typed_helper_async_delegate_and_missing_paths()
         {
-            foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
-                AssertMutation(census, "extra typed lifecycle authority through " + opcode.Name, () =>
-                    AddCallProbe(application, "IntegrationLifecycleEscape", capability, opcode), IntegrationLifecycleOffenders);
-            AssertMutation(census, "an asynchronous lifecycle helper", () =>
-                AddAsyncCallProbe(application, "AsyncIntegrationLifecycleEscape", capability), IntegrationLifecycleOffenders);
-        }
-        foreach (var module in census.Modules)
-            AssertMutation(census, "a lifecycle bypass in " + module.Name, () =>
-                AddCallProbe(module, "IntegrationLifecycleLayerEscape", unit.Methods.Single(method => method.Name == "CommitAsync"), OpCodes.Callvirt), IntegrationLifecycleOffenders);
-
-        foreach (var subject in new[] { adapter, frame })
-        {
-            var module = subject.Module;
-            var declaring = subject.DeclaringType;
-            AssertMutation(census, "a missing real lifecycle implementation", () =>
+            using var census = ProductionCensus.Read();
+            var types = census.Types;
+            var unit = types[(KernelAssembly, LifecycleUnit)];
+            var scope = types[(KernelAssembly, LifecycleScope)];
+            var adapter = types[(InfrastructureAssembly, LifecycleAdapter)];
+            var frame = types[(InfrastructureAssembly, LifecycleFrame)];
+            var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
+            var capabilities = new[] { unit, adapter }.SelectMany(type => type.Methods.Where(method =>
+                    method.Name is "BeginTransactionAsync" or "CommitAsync" or "RollbackAsync" or "SetTenantContextAsync"))
+                .Concat(new[] { scope, frame }.SelectMany(type => type.Methods.Where(method => method.Name is "CompleteAsync" or "FailAsync")))
+                .Concat(frame.Methods.Where(method => method.Name == "FailOwnedAsync"))
+                .Cast<MethodReference>().Concat(new[] { typeof(DbTransaction), typeof(IDbTransaction), typeof(NpgsqlTransaction),
+                        typeof(IDbContextTransaction), typeof(RelationalTransaction), typeof(DatabaseFacade) }
+                    .SelectMany(type => type.GetMethods().Where(method => LifecycleTerminalMethods.Contains(method.Name, StringComparer.Ordinal)
+                        || LifecycleFacadeTerminalMethods.Contains(method.Name, StringComparer.Ordinal))
+                        .Where(method =>
+                            method.GetParameters().Length == 0 || method.GetParameters() is [{ ParameterType: var parameter }] && parameter == typeof(CancellationToken)))
+                    .Select(method => application.ImportReference(method))).ToArray();
+            foreach (var capability in capabilities)
             {
-                if (declaring is null) module.Types.Remove(subject);
-                else declaring.NestedTypes.Remove(subject);
-                return () =>
-                {
-                    if (declaring is null) module.Types.Add(subject);
-                    else declaring.NestedTypes.Add(subject);
-                };
-            }, IntegrationLifecycleOffenders);
-        }
-        AssertMutation(census, "an extra unit implementation", () =>
-        {
-            var probe = AddProbe(application, "AdditionalIntegrationUnit");
-            probe.Interfaces.Add(new InterfaceImplementation(application.ImportReference(unit)));
-            return () => application.Types.Remove(probe);
-        }, IntegrationLifecycleOffenders);
-        var complete = OwnedBodies(census).Where(item => item.Owner.DeclaringType.FullName == DeliveryCoordinator
-                && item.Owner.Name == "ExecuteFrameAsync").SelectMany(item => item.Body.Body.Instructions)
-            .Single(instruction => instruction.Operand is MethodReference target && target.Name == "CompleteAsync"
-                && SameType(target.DeclaringType, scope));
-        AssertMutation(census, "a missing real owner completion site", () =>
-            ReplaceInstruction(complete, OpCodes.Ldstr, "missing owner completion"), IntegrationLifecycleOffenders);
-        var physicalCommit = OwnedBodies(census).Where(item => item.Owner.DeclaringType.FullName == LifecycleAdapter
-                && item.Owner.Name == "CommitFrameAsync").SelectMany(item => item.Body.Body.Instructions)
-            .Single(instruction => instruction.Operand is MethodReference target
-                && IntegrationLifecycleCapability(target, types) == "database.CommitAsync");
-        AssertMutation(census, "a missing real physical completion site", () =>
-            ReplaceInstruction(physicalCommit, OpCodes.Ldstr, "missing physical completion"), IntegrationLifecycleOffenders);
-        var ownedFailure = frame.Methods.Single(method => method.Name == "FailOwnedAsync");
-        AssertMutation(census, "an exposed private frame cleanup capability", () =>
-            ChangeAttributes(() => ownedFailure.Attributes, value => ownedFailure.Attributes = value,
-                (ownedFailure.Attributes & ~MethodAttributes.MemberAccessMask) | MethodAttributes.Public), IntegrationLifecycleOffenders);
-        var cleanupCalls = OwnedBodies(census).Where(item => item.Owner.DeclaringType == frame)
-            .SelectMany(item => item.Body.Body.Instructions).Where(instruction => instruction.Operand is MethodReference target
-                && IntegrationLifecycleCapability(target, types) == "owned-frame.fail").ToArray();
-        cleanupCalls.Should().HaveCount(2, "only explicit frame failure and disposal share the private rollback cleanup");
-        foreach (var call in cleanupCalls)
-            AssertMutation(census, "a missing real private frame cleanup path", () =>
-                ReplaceInstruction(call, OpCodes.Nop, null!), IntegrationLifecycleOffenders);
-        foreach (var (assembly, type, name, parameters, terminalCapability) in new[]
-                 {
-                     (AuditAssembly, AuditStore, "WriteOwnTransactionCoreAsync",
-                         new[] { "LearnStack.SharedKernel.Audit.AuditEntryDraft", "LearnStack.SharedKernel.Jobs.JobApplicationAuxiliaryResources", BoundaryCancellation }, "database.CommitAsync"),
-                     (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "CommitAsync",
-                         new[] { "LearnStack.Infrastructure.Jobs.BackgroundJobControlResources", BoundaryCancellation }, "database.CommitAsync"),
-                     (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobTerminalStore", "CommitAsync",
-                         new[] { "LearnStack.Infrastructure.Jobs.BackgroundJobControlResources", BoundaryCancellation }, "database.CommitAsync"),
-                     (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ProbeCommitAsync",
-                         new[] { "LearnStack.Infrastructure.Jobs.BackgroundJobCommitProbe", BoundaryCancellation }, "database.RollbackAsync"),
-                     (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ProbeExternalRecoveryAsync",
-                         new[] { "LearnStack.Infrastructure.Jobs.OwnedBackgroundJobExternalRecovery", "LearnStack.Infrastructure.Jobs.BackgroundJobCommitProbe", BoundaryCancellation }, "database.RollbackAsync"),
-                     (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ProbeExternalCheckpointAsync",
-                         new[] { "LearnStack.Infrastructure.Jobs.BackgroundJobCheckpointHistoryOrigin", BoundaryCancellation }, "database.RollbackAsync"),
-                     (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ProbeExternalTerminalNoStartAcquisitionAsync",
-                         new[] { "LearnStack.Infrastructure.Jobs.OwnedBackgroundJobExternalRecovery", "LearnStack.Infrastructure.Jobs.BackgroundJobCommitProbe", BoundaryCancellation }, "database.RollbackAsync"),
-                     (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ReadDurableObservationAsync",
-                         new[] { "LearnStack.Infrastructure.Jobs.BackgroundJobObservationManifest", "System.Collections.Generic.IReadOnlyCollection`1<System.Guid>", BoundaryCancellation }, "database.RollbackAsync"),
-                 })
-        {
-            var owner = types[(assembly, type)].Methods.Single(method => method.Name == name && ParametersMatch(method, parameters));
-            var terminals = OwnedBodies(census).Where(item => item.Owner == owner)
-                .SelectMany(item => item.Body.Body.Instructions).Where(instruction => instruction.Operand is MethodReference target
-                    && IntegrationLifecycleCapability(target, types) == terminalCapability).ToArray();
-            terminals.Should().ContainSingle("the exact job helper owner must execute its real physical terminal operation");
-            AssertMutation(census, "a missing actual job helper terminal operation in " + MethodId(owner), () =>
-                ReplaceInstruction(terminals[0], OpCodes.Ldstr, "missing job helper terminal operation"), IntegrationLifecycleOffenders);
-        }
-        var announcements = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
-            .Where(instruction => instruction.Operand is MethodReference target
-                && IntegrationLifecycleCapability(target, types) == "unit.announce").ToArray();
-        announcements.Should().HaveCount(3, "Fix: retain the ordinary owner and both durable transport announcement sites");
-        foreach (var announcement in announcements)
-            AssertMutation(census, "a missing real tenant announcement site", () =>
-                ReplaceInstruction(announcement, OpCodes.Ldstr, "missing tenant announcement"), IntegrationLifecycleOffenders);
-        var clean = AddProbe(application, "CleanIntegrationLifecycleObserver");
-        foreach (var method in unit.Methods.Where(method => method.IsGetter || method.Name == "MarkRollbackOnly")
-                     .Concat(scope.Methods.Where(method => method.IsGetter)))
-            AddCall(clean, "Observe" + method.Name, method, OpCodes.Callvirt);
-        try { IntegrationLifecycleOffenders(census).Should().BeEmpty("ambient reads and poisoning cannot grant commit ownership"); }
-        finally { application.Types.Remove(clean); }
+                foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
+                    AssertMutation(census, "extra typed lifecycle authority through " + opcode.Name, () =>
+                        AddCallProbe(application, "IntegrationLifecycleEscape", capability, opcode), IntegrationLifecycleOffenders);
+                AssertMutation(census, "an asynchronous lifecycle helper", () =>
+                    AddAsyncCallProbe(application, "AsyncIntegrationLifecycleEscape", capability), IntegrationLifecycleOffenders);
+            }
+            foreach (var module in census.Modules)
+                AssertMutation(census, "a lifecycle bypass in " + module.Name, () =>
+                    AddCallProbe(module, "IntegrationLifecycleLayerEscape", unit.Methods.Single(method => method.Name == "CommitAsync"), OpCodes.Callvirt), IntegrationLifecycleOffenders);
 
-        using var probes = ModuleDefinition.ReadModule(typeof(OutboxDispatchConventionTests).Assembly.Location);
-        census.Modules.Add(probes);
-        try
-        {
-            var sites = CallSites(census).Where(site => !site.Owner.StartsWith(probes.Assembly.Name.Name + ":", StringComparison.Ordinal)
-                || site.Owner.Contains("/IntegrationLifecycleProbe", StringComparison.Ordinal));
-            var offenders = IntegrationLifecycleCallsiteOffenders(census.Types, sites);
-            foreach (var name in new[] { "Commit", "Rollback", "Begin", "Complete", "Fail", "Concrete", "RawCommit", "RawRollback",
-                         "ConcreteRaw", "InheritedUnit", "InheritedRaw", "Async", "Capture", "Run",
-                         "Announce", "ConcreteAnnounce", "InheritedAnnounce", "AsyncAnnounce", "CaptureAnnouncement",
-                         "EfCommit", "EfRollback", "EfCommitAsync", "EfRollbackAsync", "EfConcreteCommitAsync", "EfCurrentCommitAsync",
-                         "EfFacadeCommit", "EfFacadeRollback", "EfFacadeCommitAsync", "EfFacadeRollbackAsync", "EfAsync", "EfCapture" })
-                offenders.Should().Contain(offender => offender.Contains("::" + name + "(", StringComparison.Ordinal),
-                    "Fix: the real lifecycle predicate must reject compiled " + name);
-            offenders.Should().NotContain(offender => offender.Contains("/IntegrationLifecycleProbeClean::", StringComparison.Ordinal),
-                "ordinary unit observations and rollback-only marking remain available");
+            foreach (var subject in new[] { adapter, frame })
+            {
+                var module = subject.Module;
+                var declaring = subject.DeclaringType;
+                AssertMutation(census, "a missing real lifecycle implementation", () =>
+                {
+                    if (declaring is null) module.Types.Remove(subject);
+                    else declaring.NestedTypes.Remove(subject);
+                    return () =>
+                    {
+                        if (declaring is null) module.Types.Add(subject);
+                        else declaring.NestedTypes.Add(subject);
+                    };
+                }, IntegrationLifecycleOffenders);
+            }
+            AssertMutation(census, "an extra unit implementation", () =>
+            {
+                var probe = AddProbe(application, "AdditionalIntegrationUnit");
+                probe.Interfaces.Add(new InterfaceImplementation(application.ImportReference(unit)));
+                return () => application.Types.Remove(probe);
+            }, IntegrationLifecycleOffenders);
+            var complete = OwnedBodies(census).Where(item => item.Owner.DeclaringType.FullName == DeliveryCoordinator
+                    && item.Owner.Name == "ExecuteFrameAsync").SelectMany(item => item.Body.Body.Instructions)
+                .Single(instruction => instruction.Operand is MethodReference target && target.Name == "CompleteAsync"
+                    && SameType(target.DeclaringType, scope));
+            AssertMutation(census, "a missing real owner completion site", () =>
+                ReplaceInstruction(complete, OpCodes.Ldstr, "missing owner completion"), IntegrationLifecycleOffenders);
+            var physicalCommit = OwnedBodies(census).Where(item => item.Owner.DeclaringType.FullName == LifecycleAdapter
+                    && item.Owner.Name == "CommitFrameAsync").SelectMany(item => item.Body.Body.Instructions)
+                .Single(instruction => instruction.Operand is MethodReference target
+                    && IntegrationLifecycleCapability(target, types) == "database.CommitAsync");
+            AssertMutation(census, "a missing real physical completion site", () =>
+                ReplaceInstruction(physicalCommit, OpCodes.Ldstr, "missing physical completion"), IntegrationLifecycleOffenders);
+            var ownedFailure = frame.Methods.Single(method => method.Name == "FailOwnedAsync");
+            AssertMutation(census, "an exposed private frame cleanup capability", () =>
+                ChangeAttributes(() => ownedFailure.Attributes, value => ownedFailure.Attributes = value,
+                    (ownedFailure.Attributes & ~MethodAttributes.MemberAccessMask) | MethodAttributes.Public), IntegrationLifecycleOffenders);
+            var cleanupCalls = OwnedBodies(census).Where(item => item.Owner.DeclaringType == frame)
+                .SelectMany(item => item.Body.Body.Instructions).Where(instruction => instruction.Operand is MethodReference target
+                    && IntegrationLifecycleCapability(target, types) == "owned-frame.fail").ToArray();
+            cleanupCalls.Should().HaveCount(2, "only explicit frame failure and disposal share the private rollback cleanup");
+            foreach (var call in cleanupCalls)
+                AssertMutation(census, "a missing real private frame cleanup path", () =>
+                    ReplaceInstruction(call, OpCodes.Nop, null!), IntegrationLifecycleOffenders);
+            foreach (var (assembly, type, name, parameters, terminalCapability) in new[]
+                     {
+                         (AuditAssembly, AuditStore, "WriteOwnTransactionCoreAsync",
+                             new[] { "LearnStack.SharedKernel.Audit.AuditEntryDraft", "LearnStack.SharedKernel.Jobs.JobApplicationAuxiliaryResources", BoundaryCancellation }, "database.CommitAsync"),
+                         (AuditAssembly, AuditStore, "WriteGlobalIdentityTransactionAsync",
+                             new[] { "LearnStack.SharedKernel.Audit.GlobalIdentityCreationReference", "LearnStack.SharedKernel.Audit.AuditEntryDraft", BoundaryCancellation }, "database.CommitAsync"),
+                         (AuditAssembly, AuditStore, "HasGlobalIdentityEvidenceAsync",
+                             new[] { "LearnStack.SharedKernel.Audit.GlobalIdentityCreationReference", "LearnStack.SharedKernel.Audit.AuditEntryDraft", BoundaryCancellation }, "database.CommitAsync"),
+                         (LifecycleIdentityAssembly, LifecycleIdentityBindings + "IdentityAuthorityDeploymentInstaller", "InstallAsync",
+                             new[] { "Npgsql.NpgsqlConnection", LifecycleIdentityBindings + "IdentityAuthorityRegistration", BoundaryCancellation }, "database.CommitAsync"),
+                         (LifecycleIdentityAssembly, LifecycleIdentityBindings + "IdentityAuthorityQualification", "QualifyCoreAsync",
+                             new[] { BoundaryCancellation }, "database.CommitAsync"),
+                         (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "CommitAsync",
+                             new[] { "LearnStack.Infrastructure.Jobs.BackgroundJobControlResources", BoundaryCancellation }, "database.CommitAsync"),
+                         (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobTerminalStore", "CommitAsync",
+                             new[] { "LearnStack.Infrastructure.Jobs.BackgroundJobControlResources", BoundaryCancellation }, "database.CommitAsync"),
+                         (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ProbeCommitAsync",
+                             new[] { "LearnStack.Infrastructure.Jobs.BackgroundJobCommitProbe", BoundaryCancellation }, "database.RollbackAsync"),
+                         (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ProbeExternalRecoveryAsync",
+                             new[] { "LearnStack.Infrastructure.Jobs.OwnedBackgroundJobExternalRecovery", "LearnStack.Infrastructure.Jobs.BackgroundJobCommitProbe", BoundaryCancellation }, "database.RollbackAsync"),
+                         (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ProbeExternalCheckpointAsync",
+                             new[] { "LearnStack.Infrastructure.Jobs.BackgroundJobCheckpointHistoryOrigin", BoundaryCancellation }, "database.RollbackAsync"),
+                         (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ProbeExternalTerminalNoStartAcquisitionAsync",
+                             new[] { "LearnStack.Infrastructure.Jobs.OwnedBackgroundJobExternalRecovery", "LearnStack.Infrastructure.Jobs.BackgroundJobCommitProbe", BoundaryCancellation }, "database.RollbackAsync"),
+                         (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "ReadDurableObservationAsync",
+                             new[] { "LearnStack.Infrastructure.Jobs.BackgroundJobObservationManifest", "System.Collections.Generic.IReadOnlyCollection`1<System.Guid>", BoundaryCancellation }, "database.RollbackAsync"),
+                     })
+            {
+                var owner = types[(assembly, type)].Methods.Single(method => method.Name == name && ParametersMatch(method, parameters));
+                var terminals = OwnedBodies(census).Where(item => item.Owner == owner)
+                    .SelectMany(item => item.Body.Body.Instructions).Where(instruction => instruction.Operand is MethodReference target
+                        && IntegrationLifecycleCapability(target, types) == terminalCapability).ToArray();
+                terminals.Should().ContainSingle("the exact helper owner must execute its real physical terminal operation");
+                AssertMutation(census, "a missing actual helper terminal operation in " + MethodId(owner), () =>
+                    ReplaceInstruction(terminals[0], OpCodes.Ldstr, "missing helper terminal operation"), IntegrationLifecycleOffenders);
+            }
+            var announcements = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
+                .Where(instruction => instruction.Operand is MethodReference target
+                    && IntegrationLifecycleCapability(target, types) == "unit.announce").ToArray();
+            announcements.Should().HaveCount(3, "Fix: retain the ordinary owner and both durable transport announcement sites");
+            foreach (var announcement in announcements)
+                AssertMutation(census, "a missing real tenant announcement site", () =>
+                    ReplaceInstruction(announcement, OpCodes.Ldstr, "missing tenant announcement"), IntegrationLifecycleOffenders);
+            var clean = AddProbe(application, "CleanIntegrationLifecycleObserver");
+            foreach (var method in unit.Methods.Where(method => method.IsGetter || method.Name == "MarkRollbackOnly")
+                         .Concat(scope.Methods.Where(method => method.IsGetter)))
+                AddCall(clean, "Observe" + method.Name, method, OpCodes.Callvirt);
+            try { IntegrationLifecycleOffenders(census).Should().BeEmpty("ambient reads and poisoning cannot grant commit ownership"); }
+            finally { application.Types.Remove(clean); }
+
+            using var probes = ModuleDefinition.ReadModule(typeof(OutboxDispatchConventionTests).Assembly.Location);
+            census.Modules.Add(probes);
+            try
+            {
+                var sites = CallSites(census).Where(site => !site.Owner.StartsWith(probes.Assembly.Name.Name + ":", StringComparison.Ordinal)
+                    || site.Owner.Contains("/IntegrationLifecycleProbe", StringComparison.Ordinal));
+                var offenders = IntegrationLifecycleCallsiteOffenders(census.Types, sites);
+                foreach (var name in new[] { "Commit", "Rollback", "Begin", "Complete", "Fail", "Concrete", "RawCommit", "RawRollback",
+                             "ConcreteRaw", "InheritedUnit", "InheritedRaw", "Async", "Capture", "Run",
+                             "Announce", "ConcreteAnnounce", "InheritedAnnounce", "AsyncAnnounce", "CaptureAnnouncement",
+                             "EfCommit", "EfRollback", "EfCommitAsync", "EfRollbackAsync", "EfConcreteCommitAsync", "EfCurrentCommitAsync",
+                             "EfFacadeCommit", "EfFacadeRollback", "EfFacadeCommitAsync", "EfFacadeRollbackAsync", "EfAsync", "EfCapture" })
+                    offenders.Should().Contain(offender => offender.Contains("::" + name + "(", StringComparison.Ordinal),
+                        "Fix: the real lifecycle predicate must reject compiled " + name);
+                offenders.Should().NotContain(offender => offender.Contains("/IntegrationLifecycleProbeClean::", StringComparison.Ordinal),
+                    "ordinary unit observations and rollback-only marking remain available");
+            }
+            finally { census.Modules.Remove(probes); }
         }
-        finally { census.Modules.Remove(probes); }
     }
 
     private static SortedSet<string> IntegrationLifecycleOffenders(ProductionCensus census)
@@ -241,9 +255,13 @@ public sealed partial class OutboxDispatchConventionTests
             ["unit.rollback"] = [],
             ["unit.announce"] = [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"),
                 Owner(DeliveryApplication, DeliveryPrepared, "CreateAsync"), Owner(InfrastructureAssembly, LifecycleAcceptance, "AcceptAsync")],
-            ["scope.complete"] = [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"), Owner(InfrastructureAssembly, LifecycleAcceptance, "AcceptAsync")],
+            ["scope.complete"] = [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"), Owner(InfrastructureAssembly, LifecycleAcceptance, "AcceptAsync"),
+                Owner(DeliveryApplication, LifecycleGlobalPrepared, "CompleteExistingAsync"),
+                Owner(LifecycleIdentityAssembly, LifecycleIdentityBindings + "GlobalIdentityBindingService", "ResolveExistingAsync")],
             ["scope.fail"] = [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"), Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"),
-                Owner(DeliveryApplication, DeliveryPrepared, "CreateAsync"), Owner(InfrastructureAssembly, LifecycleAcceptance, "AcceptAsync")],
+                Owner(DeliveryApplication, DeliveryPrepared, "CreateAsync"), Owner(InfrastructureAssembly, LifecycleAcceptance, "AcceptAsync"),
+                Owner(DeliveryApplication, LifecycleGlobalPrepared, "CreateAsync"),
+                Owner(DeliveryApplication, LifecycleGlobalPrepared, "FailBeforeConsumptionAsync")],
             ["owned-frame.fail"] = [Owner(InfrastructureAssembly, LifecycleFrame, "FailAsync"), Owner(InfrastructureAssembly, LifecycleFrame, "DisposeAsync")],
             ["database.CommitAsync"] =
             [
@@ -258,6 +276,13 @@ public sealed partial class OutboxDispatchConventionTests
                 Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobBridgeStore", "UpdateAsync"),
                 Owner(AuditAssembly, AuditStore, "WriteOwnTransactionCoreAsync",
                     ["LearnStack.SharedKernel.Audit.AuditEntryDraft", "LearnStack.SharedKernel.Jobs.JobApplicationAuxiliaryResources", BoundaryCancellation]),
+                Owner(AuditAssembly, AuditStore, "WriteGlobalIdentityTransactionAsync",
+                    ["LearnStack.SharedKernel.Audit.GlobalIdentityCreationReference", "LearnStack.SharedKernel.Audit.AuditEntryDraft", BoundaryCancellation]),
+                Owner(AuditAssembly, AuditStore, "HasGlobalIdentityEvidenceAsync",
+                    ["LearnStack.SharedKernel.Audit.GlobalIdentityCreationReference", "LearnStack.SharedKernel.Audit.AuditEntryDraft", BoundaryCancellation]),
+                Owner(LifecycleIdentityAssembly, LifecycleIdentityBindings + "IdentityAuthorityDeploymentInstaller", "InstallAsync",
+                    ["Npgsql.NpgsqlConnection", LifecycleIdentityBindings + "IdentityAuthorityRegistration", BoundaryCancellation]),
+                Owner(LifecycleIdentityAssembly, LifecycleIdentityBindings + "IdentityAuthorityQualification", "QualifyCoreAsync", [BoundaryCancellation]),
                 Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "CommitAsync",
                     ["LearnStack.Infrastructure.Jobs.BackgroundJobControlResources", BoundaryCancellation]),
                 Owner(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobTerminalStore", "CommitAsync",

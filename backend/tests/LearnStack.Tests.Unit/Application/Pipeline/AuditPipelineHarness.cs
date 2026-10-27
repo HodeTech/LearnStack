@@ -91,6 +91,14 @@ internal sealed class FakeClassifier(AuditClassification? forced = null) : IAudi
 /// <summary>Records every write, and fails the ones a case tells it to.</summary>
 internal sealed class RecordingAuditStore : IAuditStore
 {
+    public Task WriteGlobalIdentityPendingAsync(LearnStack.SharedKernel.Persistence.IUnitOfWork unit,
+        GlobalIdentityCreationReference creation, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Global identity has its own cases.");
+
+    public Task ReconcileGlobalIdentityAsync(AuditIntent intent, IReadOnlyList<CapturedEntityChange> changes,
+        AuditIntentState state, DateTimeOffset timestamp, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Global identity has its own cases.");
+
     public List<AuditEntryDraft> Standalone { get; } = [];
 
     /// <summary>Writes abandoned because the token handed in was already cancelled.</summary>

@@ -4,6 +4,7 @@ using FluentAssertions;
 using LearnStack.Api.Authentication;
 using LearnStack.Api.Common;
 using LearnStack.Api.Tenancy;
+using LearnStack.Modules.Identity.Application.Contracts.Bindings;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -20,6 +21,54 @@ namespace LearnStack.Tests.Integration;
 [Collection(TenantAuthenticationDiagnosticsTestGroup.Name)]
 public sealed class TenantAuthenticationHttpTests
 {
+    [Theory]
+    [InlineData(TenantAuthenticationHttpRequest.PublicPath)]
+    [InlineData(TenantAuthenticationHttpRequest.AccountPath)]
+    [InlineData("/api/v1/unknown-binding-control")]
+    public async Task Stock_actorless_credentials_resolve_existing_bindings_and_unknown_subjects_never_fall_back(string path)
+    {
+        await using var issuer = await TenantAuthenticationIssuer.StartAsync();
+        await using var factory = new TenantAuthenticationApiFactory(issuer);
+        using var client = factory.CreateClient();
+        using var bound = await TenantAuthenticationHttpRequest.Send(client,
+            TenantAuthenticationReconciliationHost.TenantHost, path,
+            token: issuer.Token(issuer.Without("user_id")));
+        bound.StatusCode.Should().Be(HttpStatusCode.NotFound,
+            "an absent compatibility actor resolves its stored binding before the existing denied membership question");
+        factory.Ports.Memberships.Should().ContainSingle().Which.Actor.Value.Should().Be(TenantAuthenticationIssuer.Actor);
+
+        using var unknown = await TenantAuthenticationHttpRequest.Send(client,
+            TenantAuthenticationReconciliationHost.TenantHost, path,
+            token: issuer.Token(issuer.Payload(("sub", "unknown-unbound-private-subject"))));
+        await Problem(unknown, HttpStatusCode.Unauthorized, "unauthorized");
+        BareBearer(unknown);
+        NoStore(unknown);
+    }
+
+    [Theory]
+    [InlineData(TenantAuthenticationHttpRequest.PublicPath)]
+    [InlineData(TenantAuthenticationHttpRequest.AccountPath)]
+    public async Task Binding_store_unavailability_remains_the_same_fixed_ordinary_401(string path)
+    {
+        await using var issuer = await TenantAuthenticationIssuer.StartAsync();
+        await using var factory = new TenantAuthenticationApiFactory(issuer, new UnavailableBindings());
+        using var client = factory.CreateClient();
+        using var response = await TenantAuthenticationHttpRequest.Send(client,
+            TenantAuthenticationReconciliationHost.TenantHost, path, token: issuer.Token());
+        await Problem(response, HttpStatusCode.Unauthorized, "unauthorized");
+        BareBearer(response);
+        NoStore(response);
+        factory.Recorder.Rejections.Should().BeEmpty();
+        factory.Ports.Memberships.Should().BeEmpty();
+    }
+
+    private sealed class UnavailableBindings : ITenantIdentityBindingResolver
+    {
+        public Task<IdentityBindingResult> ResolveExistingAsync(VerifiedProviderSubject subject,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(IdentityBindingResult.Refused(IdentityBindingOutcome.StorageUnavailable));
+    }
+
     [Fact]
     public async Task Api_Registers_Only_The_Tenant_Realm_Authority()
     {

@@ -133,7 +133,7 @@ public sealed class TenantAuthenticationRejectionAuditTests(SchemaFixture schema
         var store = new PostgresAuditStore(new AuditStateCapture(), dataSource,
             services.GetRequiredService<ILogger<PostgresAuditStore>>(),
             services.GetRequiredService<IMeterFactory>(), health, catalog,
-            services.GetRequiredService<ITenantContextAccessor>());
+            services.GetRequiredService<ITenantContextAccessor>(), new LearnStack.Infrastructure.Persistence.GlobalIdentityEnrollment());
         return new AuditingTenantAssertionRecorder(services.GetRequiredService<LoggingTenantAssertionRecorder>(),
             catalog, store, new TenantAssertionBurstDetector(Options.Create(new AssertionBurstOptions()), new SystemClock()),
             services.GetRequiredService<TenantAssertionAuditBudget>(),

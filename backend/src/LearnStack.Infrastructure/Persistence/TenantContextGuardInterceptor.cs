@@ -1,6 +1,7 @@
 using System.Data.Common;
 using LearnStack.SharedKernel.Errors;
 using LearnStack.SharedKernel.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace LearnStack.Infrastructure.Persistence;
@@ -58,7 +59,7 @@ public sealed class TenantContextGuardInterceptor : DbCommandInterceptor
     public override InterceptionResult<DbDataReader> ReaderExecuting(
         DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result)
     {
-        Guard(command);
+        Guard(command, eventData.Context);
         return base.ReaderExecuting(command, eventData, result);
     }
 
@@ -68,14 +69,14 @@ public sealed class TenantContextGuardInterceptor : DbCommandInterceptor
         InterceptionResult<DbDataReader> result,
         CancellationToken cancellationToken = default)
     {
-        Guard(command);
+        Guard(command, eventData.Context);
         return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
     }
 
     public override InterceptionResult<int> NonQueryExecuting(
         DbCommand command, CommandEventData eventData, InterceptionResult<int> result)
     {
-        Guard(command);
+        Guard(command, eventData.Context);
         return base.NonQueryExecuting(command, eventData, result);
     }
 
@@ -85,14 +86,14 @@ public sealed class TenantContextGuardInterceptor : DbCommandInterceptor
         InterceptionResult<int> result,
         CancellationToken cancellationToken = default)
     {
-        Guard(command);
+        Guard(command, eventData.Context);
         return base.NonQueryExecutingAsync(command, eventData, result, cancellationToken);
     }
 
     public override InterceptionResult<object> ScalarExecuting(
         DbCommand command, CommandEventData eventData, InterceptionResult<object> result)
     {
-        Guard(command);
+        Guard(command, eventData.Context);
         return base.ScalarExecuting(command, eventData, result);
     }
 
@@ -102,13 +103,19 @@ public sealed class TenantContextGuardInterceptor : DbCommandInterceptor
         InterceptionResult<object> result,
         CancellationToken cancellationToken = default)
     {
-        Guard(command);
+        Guard(command, eventData.Context);
         return base.ScalarExecutingAsync(command, eventData, result, cancellationToken);
     }
 
     /// <summary>Throws unless a sanctioned setter announced this command's transaction.</summary>
-    private void Guard(DbCommand command)
+    private void Guard(DbCommand command, DbContext? context)
     {
+        if (_unitOfWork is IGlobalIdentityUnitOfWork { IsGlobalIdentityTransaction: true } global)
+        {
+            if (context is not null && global.IsGlobalIdentityContextEnrolled(context, command.Transaction)) return;
+            throw new TenantContextMissingException("The command does not belong to the enrolled global identity context.");
+        }
+
         if (_unitOfWork.IsTenantContextIssuedOn(command.Transaction))
         {
             return;

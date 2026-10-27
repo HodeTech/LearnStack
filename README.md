@@ -65,10 +65,12 @@ items, rules, custom fields and notification templates; their delivery is tracke
 
 ## Where it is today
 
-**Phase 01, Phase 02a and Phase 02d are complete; Phase 02b is in progress.**
+**Phase 01, Phase 02a, Phase 02d and Phase 02b are complete; Phase 03 is in progress.**
 [Phase 02d](docs/roadmap/phase-02d-walking-skeleton.md) owns the two-tenant walking
-skeleton. Current packet state lives in the
-[Phase 02b](docs/roadmap/phase-02b-events-auth.md) document's Status block; the
+skeleton. [Phase 02b](docs/roadmap/phase-02b-events-auth.md) owns the delivered
+events, jobs, authentication and session baseline. The
+[Phase 03](docs/roadmap/phase-03-identity-admin.md) Status block owns current state
+for identity, membership and authorization work; the
 [roadmap](docs/roadmap/README.md) lists every phase.
 
 | Area | Delivered now | Next milestone |
@@ -80,8 +82,10 @@ skeleton. Current packet state lives in the
 | **API foundation** | Error contracts, validation, tenancy, concurrency, observability, durable events/subscriber delivery, background jobs, the closed tenant bearer/AccountSite boundary and development realm reconciliation | Membership and permissions in [Phase 03](docs/roadmap/phase-03-identity-admin.md); current exit state in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
 | **Frontend** | Native TLS ingress, live locale entry, trusted server caller, localized catalog/course/lesson pages, safe themes, accessibility controls/manual smoke, generated typed SDK and optional bounded native BFF session scaffolds | Full renderer/Studio and Playwright Test/axe in [Phase 06](docs/roadmap/phase-06-renderer-admin-studio.md) |
 
-**Four modules contain domain implementations:** Tenancy, Customization, Audit and
-Education. Identity, Content and Media remain scaffolded.
+**Five modules contain domain implementations:** Tenancy, Customization, Audit,
+Education and Identity. Identity's [module specification](docs/modules/identity/README.md)
+distinguishes implemented global/contextual foundations and seed admission from
+remaining API activation and live authorization. Content and Media remain scaffolded.
 
 The subsequent product milestones are CMS and media ([04](docs/roadmap/phase-04-cms-media-pages.md)),
 the full course catalog ([05](docs/roadmap/phase-05-education-learning-content.md)),
@@ -116,7 +120,8 @@ make hooks     # optional: install the repository Git hooks
 Continue with the manual HTTPS prerequisites below, then run `make demo`. It
 creates missing private configuration and restores dependencies without changing
 Git hooks. `make seed` converges application data and the development identity
-realm without starting the API or web. Direct .NET Seeder remains data-only.
+realm and its application-owned identity foundation without starting the API or
+web. The argument-free direct .NET Seeder remains data-only.
 
 The seed provisions `demo-english` and `demo-yoga`, their organizations and host
 mappings, enabled locales, distinct branding, built-in and tenant-authored definitions,
@@ -124,7 +129,8 @@ and eight scoped courses, ten lessons and twenty-seven translations. It uses the
 ordinary authoring pipeline and verifies completed acts before skipping them on rerun.
 [SeedData](backend/src/LearnStack.Tools.Seeder/SeedData.cs) owns the complete inventory.
 Both combined entries then await the same bounded development-realm reconciler.
-Older private files must explicitly add `KEYCLOAK_WEB_CLIENT_SECRET`; existing
+Older private files must explicitly add `KEYCLOAK_WEB_CLIENT_SECRET` and the
+stable authority/issuer pair described in the realm guide; existing
 passwords/MFA and provider IDs are preserved. Prepare this secret before the
 first `make dev` import, and retain it across reruns. Older files also need
 explicit private permissions after verifying their ownership/type; Makefile
@@ -191,7 +197,12 @@ no-hop API startup remains supported outside this paired renderer recipe; supply
 both `ConnectionStrings:Default` (`learnstack_app`) and
 `ConnectionStrings:OutboxDispatcher` (`learnstack_outbox_admin`). The mandatory
 API worker verifies dispatcher connectivity at startup.
-Supply `Authentication:Tenant:Issuer` too: the canonical HTTPS tenant-realm URL,
+Supply `Identity:AuthorityId` (`Identity__AuthorityId`) and
+`Authentication:Tenant:Issuer` (`Authentication__Tenant__Issuer`) matching the
+installed deployment authority, following
+[Identity deployment](docs/modules/identity/README.md#global-implementation-and-deployment).
+Direct API startup reads process/.NET configuration, not the root `.env`.
+The issuer is the canonical HTTPS tenant-realm URL,
 with loopback HTTP allowed only in `Development`. The development configuration
 defaults to `http://localhost:8080/realms/learnstack`; issuer configuration is
 validated without contacting Keycloak at startup. Credential-free public reads
@@ -213,7 +224,7 @@ the closed authenticated hop. See
 | `make help` | List available tasks. |
 | `make demo` | Build/start the seeded production sites; Ctrl+C preserves local data. |
 | `make dev` | Start the default local infrastructure. |
-| `make migrate` | Apply platform and module migration chains. |
+| `make migrate` | Apply platform/module migrations and install or verify an explicitly configured [identity authority](docs/modules/identity/README.md#global-implementation-and-deployment). |
 | `make test` | Restore dependencies and run backend and frontend suites; Docker is required. |
 | `make lint` | Check backend formatting and frontend lint rules. |
 | `make down` | Stop infrastructure while preserving its data volumes. |
@@ -231,7 +242,7 @@ three product surfaces. See the
 
 | Layer | Choice | Current scope |
 |---|---|---|
-| Backend | .NET 10 · ASP.NET Core · EF Core · MediatR | Foundation and four domain modules implemented |
+| Backend | .NET 10 · ASP.NET Core · EF Core · MediatR | Foundation and domain modules implemented |
 | Database | PostgreSQL 18 | Migrations, tenant / organization RLS and integration proofs |
 | Frontend | Next.js 15 · React 19 · TypeScript | App/UI scaffolds; generated SDK and injected transport implemented |
 | Observability | OpenTelemetry · Serilog → OTLP | Cross-cutting backend instrumentation implemented |
@@ -290,7 +301,7 @@ docs/             Architecture, decisions, standards, roadmap and module specs
 | Your question | Start here |
 |---|---|
 | What are we building, and for whom? | [Platform vision](docs/architecture/01-platform-vision.md) · [MVP scope](docs/architecture/05-mvp-scope.md) |
-| What works today, and what comes next? | [Roadmap](docs/roadmap/README.md) · [Current phase](docs/roadmap/phase-02b-events-auth.md) |
+| What works today, and what comes next? | [Roadmap](docs/roadmap/README.md) · [Next phase](docs/roadmap/phase-03-identity-admin.md) |
 | How do I contribute? | [Contributing](.github/CONTRIBUTING.md) · [Working agreement](CLAUDE.md) · [Engineering standards](docs/standards/README.md) |
 | Why was a decision made? | [ADR index](docs/decisions/README.md) |
 | How are institutions isolated? | [Tenant isolation](docs/architecture/09-tenant-isolation.md) · [Tenancy module](docs/modules/tenancy/README.md) |

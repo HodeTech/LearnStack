@@ -60,7 +60,9 @@ public sealed partial class BackgroundJobStorageMigrationTests(SchemaFixture sch
         await using (var owner = await PostgresFixture.OpenAsync(database.MigrationConnectionString))
         {
             (await SchemaQueries.ReadStringsAsync(owner, SchemaQueries.TableNames)).Should()
-                .BeEquivalentTo(SchemaTableClasses.Existing, "all preexisting data tables survive this additive migration reversal");
+                .BeEquivalentTo(SchemaTableClasses.Existing.Concat(SchemaTableClasses.GlobalIdentity)
+                    .Concat(SchemaTableClasses.IdentityPlatform).Concat(SchemaTableClasses.IdentityContextual),
+                    "all event-era and independently added Identity data tables survive this Platform-only reversal");
         }
 
         await context.Database.MigrateAsync();

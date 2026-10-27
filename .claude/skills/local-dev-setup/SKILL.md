@@ -126,6 +126,11 @@ session, supply `ConnectionStrings:Default` (`learnstack_app`) and
 `ConnectionStrings:OutboxDispatcher` (`learnstack_outbox_admin`) through environment
 or the project's `learnstack-api-dev` user-secrets store. The mandatory API worker
 resolves its guarded source and verifies dispatcher connectivity at startup.
+Also supply `Identity:AuthorityId` (`Identity__AuthorityId`) and
+`Authentication:Tenant:Issuer` (`Authentication__Tenant__Issuer`) matching the
+installed deployment authority, following
+[Identity deployment](../../../docs/modules/identity/README.md#global-implementation-and-deployment).
+Authority qualification is mandatory before the API accepts requests.
 The dispatcher credential belongs only to the API; every Seeder invocation uses
 an explicit application-only environment, and the web launcher receives neither
 database credential. Both empty hop lists remain

@@ -818,7 +818,7 @@ public sealed class DomainEventProductionTests(SchemaFixture schema)
             services.GetRequiredService<IAuditConfigService>(), services.GetRequiredService<IAuditStateCapture>(),
             services.GetRequiredService<IAuditStore>(), services.GetRequiredService<ITenantContext>(),
             services.GetRequiredService<IClock>(), services.GetRequiredService<IGuidFactory>(),
-            NullLogger<AuditExecutionCoordinator>.Instance);
+            NullLogger<AuditExecutionCoordinator>.Instance, services.GetRequiredService<IUnitOfWork>());
         return audit.ExecuteAsync(audited ? typeof(AuditedProbe) : typeof(SilentProbe), null,
             () => services.GetRequiredService<TransactionExecutionCoordinator>().ExecuteAsync(
                 null, TransactionMode.ReadWrite, "domain-production-proof", body, cancellationToken), cancellationToken);

@@ -1,3 +1,4 @@
+using LearnStack.Infrastructure.DataProtection;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Customization.Domain;
 using LearnStack.SharedKernel.Tenancy;
@@ -53,6 +54,12 @@ public sealed class CustomizationDbContext(
     /// </summary>
     public DbSet<CustomizationGeneration> CustomizationGenerations =>
         Set<CustomizationGeneration>();
+
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        base.ConfigureConventions(configurationBuilder);
+        configurationBuilder.UsePersonalDataClassification();
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

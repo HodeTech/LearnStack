@@ -14,6 +14,8 @@ derive from [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md),
 Accepted — 2026-10-20. Implementation has local runtime/exported proofs; the
 [implementation record](../roadmap/phase-02b-delivery-log.md#adr-0066-acceptance-and-implementation-2026-10-20)
 owns independent reviews and final-source CI qualification.
+Existing-binding admission additionally derives from Accepted
+[ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md).
 
 REST conventions for LearnStack public and admin APIs.
 
@@ -143,6 +145,15 @@ challenge, including on public endpoints. Unknown hosts retain their masked 404
 before JWT validation; credential-free public reads retain anonymous behavior.
 Production authentication and authorization services/middleware activate together
 with the complete Step 4 boundary.
+
+**Existing-binding handoff.** The [Security contract](11-security.md#identity-admission-contract)
+separates verified provider subject from normalized application identity. An
+optional wire actor is consistency evidence; quota precedes the uncached existing-
+binding read, which alone supplies a stored actor. Unknown/conflicting/Closed or
+unavailable bindings return uniform 401 without allocation. Ordinary resolution
+remains route-independent. Credential-free public reads and AccountSite's existing
+absent-bearer 404/admitted-wrong-method 405 remain. No POST, OpenAPI operation or
+SDK census change is admitted; P03-3/G1/G6 owns new-user transport decisions.
 
 ## Tenant Context
 

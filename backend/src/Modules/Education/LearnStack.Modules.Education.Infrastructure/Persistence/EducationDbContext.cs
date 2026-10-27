@@ -1,3 +1,4 @@
+using LearnStack.Infrastructure.DataProtection;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Education.Domain;
 using LearnStack.SharedKernel.Tenancy;
@@ -13,6 +14,12 @@ public sealed class EducationDbContext(
     public DbSet<Course> Courses => Set<Course>();
 
     public DbSet<Lesson> Lessons => Set<Lesson>();
+
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        base.ConfigureConventions(configurationBuilder);
+        configurationBuilder.UsePersonalDataClassification();
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -696,7 +696,16 @@ async function assemblePlan({ admin, desired, manifest, webSecret, before, event
 
   if (preparationOnly) return;
 
-  return { actions, verify: async () => {
+  return { actions,
+    // This credential-free projection is internal to the lock owner. It comes
+    // from authenticated Admin reads, not usernames, email or token claims.
+    providerSubjects: () => Object.freeze(manifest.users.map(declaration => {
+      const subject = before.candidates.get(declaration.username)?.user.id;
+      if (typeof subject !== 'string' || !subject.trim() || subject.length > 255)
+        refuse('readback', 'identity_conflict');
+      return Object.freeze({ actorId: declaration.userId, opaqueSub: subject });
+    })),
+    verify: async () => {
     await events.verify();
     const after = await snapshot(admin, desired, manifest, 'readback');
     await account.verify(after.candidates);

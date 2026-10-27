@@ -263,10 +263,12 @@ backend admission or turn caller-supplied tenant ids into authority.
 
 Route 100 previously carried
 `client_secret_ref: vault://learnstack/hub/internal-api-hmac-key`. That path is the
-**Hub internal API HMAC body-signing key** — a credential from an entirely different
-trust domain, whose possession lets the holder forge a signed entitlement push for **any
-tenant**. Handing it to the edge gateway as an OIDC client secret placed the platform's
-highest-value secret on its most exposed component.
+**Hub internal API HMAC body-signing key**, from a different trust domain.
+Possession permits forged body signatures for arbitrary tenant pushes; successful
+internal admission still independently requires accepted mTLS and a valid service
+JWT under [Security Standards](../standards/11-security.md#hub-contract-surface).
+Giving that secret to the gateway compromises the body-signature boundary even
+when the other two controls continue to hold.
 
 The line is **deleted**, and no substitute is needed: the route is `bearer_only: true`,
 which means APISIX validates a presented bearer token against the realm's public JWKS and
@@ -391,11 +393,13 @@ routes:
     upstream: { type: roundrobin, nodes: { "learnstack-hub:5000": 1 } }
 ```
 
-The corrections in Rules 1–3 land in the shipped `infra/apisix/apisix.yaml` in
-[Phase 03](../roadmap/phase-03-identity-admin.md). The `openid-connect` block stays
-disabled until its qualification and gateway activation in Phase 11. APISIX
-becomes a real
-gateway — TLS termination, consumer-keyed limits, WAF — in
+The corrections in Rules 1–3 land in the committed `infra/apisix/apisix.yaml`
+scaffold under [Phase 03 G18](../roadmap/phase-03-identity-admin.md#the-decision-register).
+That file already has priorities and no Hub-secret reference; its remaining
+version-wildcard correction must preserve disabled `openid-connect`. Phase 03
+does not copy this complete target example into live routes. The reviewed
+per-public-read allowlist, route lint, OIDC/TLS/provenance qualification and
+gateway activation remain
 [Phase 11](../roadmap/phase-11-production-hardening.md).
 
 ## 5. Defense-in-depth: JWT validated twice

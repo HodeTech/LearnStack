@@ -39,10 +39,12 @@ repository holds only LearnStack's side of the boundary, in
 
 ## What state this is in
 
-**Phase 01, Phase 02a and Phase 02d are complete; Phase 02b is the live phase.**
+**Phase 01, Phase 02a, Phase 02d and Phase 02b are complete; Phase 03 is in progress.**
 [Phase 02d](docs/roadmap/phase-02d-walking-skeleton.md) owns the two-tenant walking
-skeleton. [Phase 02b](docs/roadmap/phase-02b-events-auth.md) owns current packet
-and decision state for events, background jobs, identity and sessions.
+skeleton. [Phase 02b](docs/roadmap/phase-02b-events-auth.md) owns the delivered
+events, background jobs, API authentication and session baseline.
+[Phase 03](docs/roadmap/phase-03-identity-admin.md) owns identity, membership and authorization work; its Status block records
+current packet state. Acceptance of a contract does not complete its implementation.
 [Phase 06](docs/roadmap/phase-06-renderer-admin-studio.md) owns the full
 renderer/Studio expansion.
 
@@ -61,8 +63,8 @@ the foundation ports — is recorded packet by packet in
 frozen history, together with the 2026-08-08 restructure that moved correctness
 earlier, additive infrastructure later and proof earlier.
 
-**Four modules hold domain code:** Tenancy, Customization, Audit and Education.
-Content, Identity and Media remain scaffolded. Module-level references in the docs
+**Five modules hold domain code:** Tenancy, Customization, Audit, Education and
+Identity. Content and Media remain scaffolded. Module-level references in the docs
 to types such as `ILiveClassProvider` or `ITenantSearch` describe intended shape
 owned by their named phases.
 
@@ -77,10 +79,13 @@ For any task, read in this order:
 5. [docs/standards/00-principles.md](docs/standards/00-principles.md) — the beliefs every other standard descends from.
 6. [docs/glossary.md](docs/glossary.md) — terminology; the single source of truth for project-specific terms.
 
-Then read the phase that is live and the one it stands on:
+Then read the current phase and the completed baselines it stands on:
 
+- [docs/roadmap/phase-03-identity-admin.md](docs/roadmap/phase-03-identity-admin.md) —
+  **the current phase**. Read its identity,
+  membership, authorization and first-writer decisions before planning code.
 - [docs/roadmap/phase-02b-events-auth.md](docs/roadmap/phase-02b-events-auth.md) —
-  **the live phase**. Its Status block owns packet state; its decision register owns
+  complete. Its Status block owns packet state; its decision register owns
   gate state and links each Accepted decision package in the delivery log, which is
   normative — read it before writing the code its gate governs. Navigate a delivery
   log by the generated index at its top; never read the whole file.
@@ -177,6 +182,8 @@ rules:
 - OpenTelemetry + correlation id end to end ([10](docs/standards/10-observability.md)).
 - WCAG 2.2 AA across all surfaces ([16](docs/standards/16-accessibility.md)).
 - Audit-coverage matrix required per module ([18](docs/standards/18-audit-coverage.md)).
+- Global User identity consumes the existing typed `UserId`; global and tenant
+  transaction owners never join or retarget each other ([ADR-0072](docs/decisions/0072-application-owned-identity-bootstrap.md)).
 - Permission keys `{module}.{resource}.{action}` with closed action set + scope
   (Platform / Tenant / Organization) ([19](docs/standards/19-permissions.md)).
 - Infrastructure-stack rules (foundation ports and their default
@@ -294,9 +301,12 @@ rules:
   and every module's `IAuditCatalogSource` names the first two. Declaring them
   in the module is a project cycle. `AuditEntry` consumes them; it does not
   declare them.
-- **Announce `TenantId.PlatformSentinel` as a request's tenant.** Exactly one
-  class of row carries it — a platform-scope operation with no resolvable
-  tenant, written standalone — and Packet 9 puts the guard where the value
+- **Announce `TenantId.PlatformSentinel` as a request's tenant.** Exactly two named
+  classes of audit row may carry it: platform-scope standalone operations and
+  ADR-0072 global `identity.user.create` attempts under its confined common
+  owner. Neither class grants tenant authority or permits a tenant setter to
+  announce the sentinel.
+  Packet 9 puts the guard where the value
   enters: `SetProvisioningTenantContextAsync` refuses the sentinel exactly as it
   already refuses `Guid.Empty`, and `Tenant.Create` refuses it in the factory
   ([ADR-0044 Amendment 3](docs/decisions/0044-audit-write-path.md)). The

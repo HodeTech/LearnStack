@@ -1,6 +1,7 @@
 using LearnStack.Infrastructure.Persistence;
 using FluentAssertions;
 using LearnStack.Api.Messaging;
+using LearnStack.Api.Authentication;
 using LearnStack.Infrastructure.Messaging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -18,9 +19,12 @@ public sealed class ConstructionOnlyApiFactoryTests
         services.AddHostedService<OutboxProcessor>();
         services.AddHostedService<DeliveryProcessor>();
         services.AddHostedService<OtherWorker>();
-        services.Count(descriptor => descriptor.ServiceType == typeof(IHostedService)).Should().Be(3);
+        services.AddHostedService<TenantIdentityAuthorityStartupService>();
+        services.Count(descriptor => descriptor.ServiceType == typeof(IHostedService)).Should().Be(4);
 
         ConstructionOnlyApiFactory.RemoveDispatcher(services);
+        services.Where(descriptor => descriptor.ServiceType == typeof(IHostedService)).Should().HaveCount(2);
+        ConstructionOnlyApiFactory.RemoveIdentityQualification(services);
 
         services.Where(descriptor => descriptor.ServiceType == typeof(IHostedService))
             .Should().ContainSingle().Which.ImplementationType.Should().Be<OtherWorker>();
@@ -33,6 +37,7 @@ public sealed class ConstructionOnlyApiFactoryTests
         using var client = host.CreateClient();
 
         host.Services.GetServices<IHostedService>().Should().NotContain(service => service is OutboxProcessor || service is DeliveryProcessor);
+        host.Services.GetServices<IHostedService>().Should().NotContain(service => service is TenantIdentityAuthorityStartupService);
         host.Services.GetRequiredKeyedService<PrivilegedDataSource>(OutboxDispatcherDataSource.Key)
             .IsValueCreated.Should().BeFalse();
         (await client.GetAsync("/healthz")).IsSuccessStatusCode.Should().BeTrue();

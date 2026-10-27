@@ -5,6 +5,8 @@ using LearnStack.Modules.Customization.Domain;
 using LearnStack.Modules.Customization.Infrastructure.Persistence;
 using LearnStack.Modules.Education.Domain;
 using LearnStack.Modules.Education.Infrastructure.Persistence;
+using LearnStack.Modules.Identity.Domain;
+using LearnStack.Modules.Identity.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Domain;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Tenancy;
@@ -62,13 +64,21 @@ internal static class Modules
     /// guard is on the reverse direction — having a schema and not being swept.
     /// </para>
     /// </remarks>
-    public static readonly (Assembly Domain, Func<DbContext> Context)[] Scoped =
+    private static readonly (Assembly Domain, Func<DbContext> Context, bool TenantScoped)[] Models =
     [
-        (typeof(Tenant).Assembly, ModelOnly<TenancyDbContext>),
-        (typeof(TenantContentType).Assembly, ModelOnly<CustomizationDbContext>),
-        (typeof(AuditEntry).Assembly, ModelOnly<AuditDbContext>),
-        (typeof(Course).Assembly, ModelOnly<EducationDbContext>),
+        (typeof(Tenant).Assembly, ModelOnly<TenancyDbContext>, true),
+        (typeof(TenantContentType).Assembly, ModelOnly<CustomizationDbContext>, true),
+        (typeof(AuditEntry).Assembly, ModelOnly<AuditDbContext>, true),
+        (typeof(Course).Assembly, ModelOnly<EducationDbContext>, true),
+        (typeof(User).Assembly, ModelOnly<IdentityDbContext>, true),
     ];
+
+    // Declared class populations, never inferred from whether a marker happened
+    // to survive: deleting a marker must not delete the module from the sweep.
+    public static readonly (Assembly Domain, Func<DbContext> Context)[] Mapped =
+        Models.Select(model => (model.Domain, model.Context)).ToArray();
+    public static readonly (Assembly Domain, Func<DbContext> Context)[] Scoped =
+        Models.Where(model => model.TenantScoped).Select(model => (model.Domain, model.Context)).ToArray();
 
     /// <summary>
     /// A context built for its model alone. The connection string is never opened.
@@ -84,6 +94,10 @@ internal static class Modules
         var options = new DbContextOptionsBuilder<TContext>()
             .UseNpgsql("Host=model-only;Database=model-only;Username=model-only")
             .Options;
+
+        if (typeof(TContext) == typeof(IdentityDbContext))
+            return new IdentityDbContext((DbContextOptions<IdentityDbContext>)(object)options,
+                StaticTenantContextAccessor.Unresolved, EmptyIdentityScope.Instance);
 
         return (DbContext)Activator.CreateInstance(
             typeof(TContext), options, StaticTenantContextAccessor.Unresolved)!;

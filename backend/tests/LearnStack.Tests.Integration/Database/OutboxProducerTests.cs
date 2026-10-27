@@ -766,7 +766,7 @@ public sealed partial class OutboxProducerTests(SchemaFixture schema)
             services.GetRequiredService<ITenantContext>(),
             services.GetRequiredService<IClock>(),
             services.GetRequiredService<IGuidFactory>(),
-            NullLogger<AuditExecutionCoordinator>.Instance);
+            NullLogger<AuditExecutionCoordinator>.Instance, services.GetRequiredService<IUnitOfWork>());
         return audit.ExecuteAsync(audited ? typeof(DirectHandler) : typeof(OffHandler), provisioning,
             () => services.GetRequiredService<TransactionExecutionCoordinator>().ExecuteAsync(
                 provisioning, mode, "outbox-proof", body), CancellationToken.None);

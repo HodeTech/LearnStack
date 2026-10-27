@@ -146,9 +146,11 @@ that tree is descriptive, not a delivery plan.
 | Screen group | Owning phase |
 |---|---|
 | Studio shell, login, tenant switcher, org switcher, dashboard chrome, users, roles, invitations, `TenantCustomFieldDef` editor, tenant IdP federation surface | [Phase 03](phase-03-identity-admin.md) |
+| Member/profile preferences, tenant-scoped self/admin data-request status and separate account-closure request surface under their admitted authority | [Phase 03](phase-03-identity-admin.md) |
 | Content types, content entries, pages, page builder, `TenantPageBlock` editor, media library, navigation editor, publish / preview controls | [Phase 04](phase-04-cms-media-pages.md) |
 | Programs, courses, course structure, modules, lessons, lesson items, `TenantLessonItemType` editor, `TenantLevelTaxonomy` editor, `TenantCompletionRule` editor, course publish flow | [Phase 05](phase-05-education-learning-content.md) |
 | Branding and theme configuration, per-organization branding override, tenant settings (feature-flag overrides, read-only entitlement projection viewer, read-only custom-domain status), audit log viewer, **audit coverage override editor**, the customization editor consolidation, cross-phase Studio information architecture | **Phase 06** |
+| Organization list / detail / create screens over the Phase 03 Tenancy endpoints; the organization switcher remains Phase 03 | **Phase 06** |
 | Notification template library (`TenantTemplateLibrary`), assessment and question-bank screens, `TenantScoringRule` editor | [Phase 08a](phase-08a-assessment-notifications.md) |
 | Instructor availability, session and booking management | [Phase 08b](phase-08b-scheduling.md) |
 | Classroom session monitoring and recording metadata | [Phase 08c](phase-08c-classroom.md) |

@@ -4,6 +4,7 @@ using LearnStack.Modules.Audit.Infrastructure.Persistence;
 using LearnStack.Modules.Customization.Infrastructure.Persistence;
 using LearnStack.Modules.Education.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
+using LearnStack.Modules.Identity.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
@@ -49,9 +50,9 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
 
         // Applied state first, so a rollback that reversed nothing because nothing
         // was there cannot pass.
-        (await CountAsync(connection, TablesQuery)).Should().Be(47L,
+        (await CountAsync(connection, TablesQuery)).Should().Be(55L,
             "eight tenancy tables, twenty-four platform tables, four customization tables, "
-            + "two audit tables, four Education tables, and five history tables");
+            + "two audit tables, four Education tables, seven Identity tables and six history tables");
         (await CountAsync(connection, FunctionQuery)).Should().Be(1L,
             "fn_organization_id_immutable backs the tenant_settings trigger");
         (await CountAsync(connection, AuditFunctionQuery)).Should().Be(2L,
@@ -61,6 +62,8 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
             "each Education parent relation has its own invoker scope check");
         (await CountAsync(connection, InboxFunctionQuery)).Should().Be(1L,
             "fn_inbox_messages_immutable backs the shared inbox append-only trigger");
+        (await CountAsync(connection, IdentityFunctionQuery)).Should().Be(12L,
+            "Identity installs five global binding/creation/evidence functions and seven contextual functions");
 
         (await CountAsync(connection, JobFunctionQuery)).Should().BeGreaterThan(0,
             "the new job guards must be installed before their reversal is tested");
@@ -69,8 +72,8 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
         await _fixture.RollBackAsync();
 
         // The history tables survive: `database update 0` empties them, it does not
-        // drop them. Everything the five chains created is gone.
-        (await CountAsync(connection, TablesQuery)).Should().Be(5L);
+        // drop them. Everything the six chains created is gone.
+        (await CountAsync(connection, TablesQuery)).Should().Be(6L);
         (await CountAsync(connection, FunctionQuery)).Should().Be(0L);
 
         // The audit triggers went with their table; the FUNCTIONS did not, and a
@@ -80,6 +83,7 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
         (await CountAsync(connection, AuditFunctionQuery)).Should().Be(0L);
         (await CountAsync(connection, EducationFunctionQuery)).Should().Be(0L);
         (await CountAsync(connection, InboxFunctionQuery)).Should().Be(0L);
+        (await CountAsync(connection, IdentityFunctionQuery)).Should().Be(0L);
         (await CountAsync(connection, PolicyQuery)).Should().Be(0L);
 
         (await CountAsync(connection, JobFunctionQuery)).Should().Be(0L);
@@ -87,11 +91,12 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
 
         // A successful Down must also leave a state that can be installed again.
         await MigrationChains.ApplyAllAsync(_fixture.Postgres.MigrationConnectionString);
-        (await CountAsync(connection, TablesQuery)).Should().Be(47L);
+        (await CountAsync(connection, TablesQuery)).Should().Be(55L);
         (await CountAsync(connection, FunctionQuery)).Should().Be(1L);
         (await CountAsync(connection, AuditFunctionQuery)).Should().Be(2L);
         (await CountAsync(connection, EducationFunctionQuery)).Should().Be(3L);
         (await CountAsync(connection, InboxFunctionQuery)).Should().Be(1L);
+        (await CountAsync(connection, IdentityFunctionQuery)).Should().Be(12L);
         await EducationSchemaSeed.SeedAsync(_fixture.Postgres.AppConnectionString);
         await using var app = await PostgresFixture.OpenAsync(_fixture.Postgres.AppConnectionString);
         await using var transaction = await app.BeginTransactionAsync();
@@ -128,6 +133,9 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
     private const string InboxFunctionQuery =
         "SELECT count(*) FROM pg_proc WHERE pronamespace = 'public'::regnamespace "
         + "AND proname = 'fn_inbox_messages_immutable'";
+
+    private const string IdentityFunctionQuery =
+        "SELECT count(*) FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND proname LIKE 'fn_identity_%'";
 
     private const string EducationFunctionQuery =
         "SELECT count(*) FROM pg_proc WHERE pronamespace = 'public'::regnamespace "
@@ -167,6 +175,13 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
     /// </summary>
     public async Task RollBackAsync()
     {
+        // Disposable-schema reversal only: normal deployment never retires permanent
+        // bindings by rolling this chain back. Release Audit witness dependencies first.
+        await using (var identity = CreateIdentity())
+        {
+            await identity.GetService<IMigrator>().MigrateAsync(Migration.InitialDatabase);
+        }
+
         // Education first: its four immutability triggers call Tenancy's function.
         await using (var education = CreateEducation())
         {
@@ -204,6 +219,12 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
                     npgsql.MigrationsHistoryTable(TenancyDbContextFactory.HistoryTable))
                 .Options,
             StaticTenantContextAccessor.Unresolved);
+
+    private IdentityDbContext CreateIdentity() =>
+        new(new DbContextOptionsBuilder<IdentityDbContext>()
+            .UseNpgsql(Postgres.MigrationConnectionString, provider =>
+                provider.MigrationsHistoryTable(IdentityDbContextFactory.HistoryTable)).Options,
+            StaticTenantContextAccessor.Unresolved, EmptyIdentityScope.Instance);
 
     private EducationDbContext CreateEducation() =>
         new(

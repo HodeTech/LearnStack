@@ -117,21 +117,22 @@ public sealed partial class TenantRealmApiTests
             (await admin.GetAsync("attack-detection/brute-force/" + legacyPath)).GetProperty("disabled").GetBoolean()
                 .Should().BeFalse("the old-password control must not lock the account before its positive login");
             await WarmMfaRefusalAsync(warm, mfaIdentity.Username, passwords[mfaIdentity.Username], otp);
-            var auditCounts = await AuditCountsAsync();
-            var reads = database.Observation.Reads;
+            await using var warmDatabase = await KeycloakIdentityDatabase.CreateAsync(fixture.PublicDatabase, warm);
+            var auditCounts = await AuditCountsAsync(warmDatabase);
+            var reads = warmDatabase.Observation.Reads;
             foreach (var identity in SeedData.IdentityUsers)
             {
                 var password = passwords.GetValueOrDefault(identity.Username) ?? KeycloakFixture.DemoPassword;
                 var tokens = await WarmWebTokensAsync(warm, identity, password,
                     identity.Username == mfaIdentity.Username ? otp : null);
-                using var client = Client(identity.Tenant, out var observation, warm.RootCertificate, warm.Issuer);
+                using var client = Client(identity.Tenant, out var observation, warm.RootCertificate, warm.Issuer, warmDatabase);
                 using var response = await Send(client, identity.Tenant, tokens.AccessToken);
                 await AccountAsync(response, identity, observation);
                 observation.Reads.Should().HaveCount(1);
             }
-            database.Observation.Reads.Should().Be(reads + 4,
+            warmDatabase.Observation.Reads.Should().Be(reads + 4,
                 "each genuine warm-provider persona reaches the physical ReadOnly learnstack_app transaction");
-            (await AuditCountsAsync()).Should().Equal(auditCounts);
+            (await AuditCountsAsync(warmDatabase)).Should().Equal(auditCounts);
             output.WriteLine("Historical journey stage: four signed API personas passed physical ReadOnly application-role reads.");
 
             var legacyAfter = await WarmConsoleTokensAsync(warm, legacy.Username, changedPassword, true, 900);

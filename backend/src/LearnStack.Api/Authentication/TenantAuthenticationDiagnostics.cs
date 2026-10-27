@@ -9,6 +9,7 @@ internal enum TenantAuthenticationOutcome
     ProfileRejected,
     ValidationAccepted,
     ValidationRejected,
+    BindingStoreUnavailable,
 }
 
 /// <summary>Suppress vendor failure text before sinks; emit closed outcomes instead.</summary>
@@ -29,6 +30,7 @@ internal static class TenantAuthenticationDiagnostics
             TenantAuthenticationOutcome.ProfileRejected => ("profile", "rejected"),
             TenantAuthenticationOutcome.ValidationAccepted => ("validation", "accepted"),
             TenantAuthenticationOutcome.ValidationRejected => ("validation", "rejected"),
+            TenantAuthenticationOutcome.BindingStoreUnavailable => ("binding", "binding_store_unavailable"),
             _ => throw new ArgumentOutOfRangeException(nameof(outcome)),
         };
         AuthenticationOutcome(logger, stage, reason, null);

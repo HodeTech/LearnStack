@@ -15,7 +15,10 @@
 (supersedes ADR-0011 Vertical Extension Points).
 Background-job authority additionally derives from
 [ADR-0047](../decisions/0047-transactional-background-job-runtime.md)
-(Accepted; P02b-4 implementation in progress).
+(Accepted; implemented runtime and enforcement).
+Identity foundation boundaries additionally derive from Accepted
+[ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) and
+[ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md).
 
 These rules turn the architecture docs into enforceable code conventions. They are checked by architecture tests where possible.
 
@@ -85,6 +88,15 @@ exceptions below) — so the seam has nowhere else to live. The edge is one-way:
 `CoreInfrastructure_DoesNotDependOn_AnyModule` holds that. A module reaching into core
 Infrastructure for a **capability of its own** rather than for a shared seam is the
 misuse this sentence exists to name.
+
+**Bounded migration installer.** ADR-0072 admits only the Identity migration's
+enumerated `IdentityCreationWitnessInstaller` call on its migration connection
+after Audit exists. The [Database contract](05-database.md#lock-snapshot-and-adoption-conditions)
+owns its exact central Audit SQL/guard installation boundary. Identity copies no
+audit SQL, gains no direct audit writer or general cross-module join, and core
+Infrastructure gains no module assembly/entity reference. Step 3 implements the
+exact installer/body/caller census and the Identity-only common Application
+coordinator dependency. Other module/core edges remain forbidden.
 
 Forbidden edges:
 - Domain → Application
@@ -204,6 +216,11 @@ Rules:
   [ADR-0003 Amendment 3](../decisions/0003-tenant-isolation-defense-in-depth.md).
   The presence of a `TenantId` property is **not** the test: `PlatformHostMapping` has
   one and takes no marker.
+- Global self-identity `users` takes no `[TenantOwned]` marker or tenant column.
+  Its adopted subject-confined EF/RLS/owner contract is specified once in
+  [Database Standards](05-database.md#identity-storage-contract), implemented in Step 3.
+  Its common transaction/capture admission is an exact authority mode, not a
+  table-name exemption or a fifth cross-module communication mechanism.
 - `[TenantOwned]` entities must have a configured EF global query filter and a PostgreSQL RLS policy (see [Database Standards](05-database.md)).
 - Application services must never expose `IgnoreQueryFilters()` directly to callers.
 - Background jobs restore tenant/org from the authoritative LearnStack job envelope

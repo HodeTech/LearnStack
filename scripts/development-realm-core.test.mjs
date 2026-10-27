@@ -64,6 +64,52 @@ const memoryInput = transport => ({ baseUrl: 'http://localhost:8080/',
   adminPassword: privateCanary, webSecret: secret, desired: structuredClone(desired),
   manifest: structuredClone(manifest), transport });
 
+test('the private handoff receives exact Admin subjects only after final authenticated readback', async () => {
+  const state = provider();
+  const recording = providerTransport(state);
+  let handed;
+  const result = await reconcileRealm({ ...memoryInput(recording.transport), afterVerified: witness => {
+    assert.ok(recording.requests.filter(request => request.path === '/admin/realms/learnstack/' && !request.method).length >= 3);
+    assert.equal(witness.issuer, 'http://localhost:8080/realms/learnstack');
+    assert.equal(witness.version, 1);
+    assert.equal(witness.users.length, 4);
+    assert.deepEqual(witness.users.map(user => user.actorId), manifest.users.map(user => user.userId));
+    for (let index = 0; index < 4; index++) {
+      const actual = state.state.users.find(user => user.username === manifest.users[index].username);
+      assert.equal(witness.users[index].opaqueSub, actual.id);
+    }
+    assert.equal(Object.isFrozen(witness), true);
+    assert.equal(Object.isFrozen(witness.users), true);
+    handed = witness;
+  } });
+  assert.ok(handed);
+  assert.deepEqual(result, { mutations: 0 });
+  assert.ok(!JSON.stringify(result).includes('opaqueSub'));
+});
+
+test('an unsuccessful final readback never dispatches the private identity consumer', async () => {
+  const state = provider();
+  const recording = providerTransport(state);
+  let reads = 0, dispatched = false;
+  const transport = async (url, options) => {
+    const result = await recording.transport(url, options);
+    if (url.pathname === '/admin/realms/learnstack/' && !options.method && ++reads === 3)
+      return { ...result, bytes: Buffer.from(JSON.stringify({ ...JSON.parse(result.bytes), accessTokenLifespan: 1800 })) };
+    return result;
+  };
+  await assert.rejects(reconcileRealm({ ...memoryInput(transport), afterVerified: () => { dispatched = true; } }),
+    refusal('readback', 'readback_conflict'));
+  assert.equal(dispatched, false);
+});
+
+test('a private consumer failure is closed and never exposes provider facts in public results', async () => {
+  const state = provider();
+  const recording = providerTransport(state);
+  await assert.rejects(reconcileRealm({ ...memoryInput(recording.transport), afterVerified: witness => {
+    throw new Error(witness.users[0].opaqueSub + privateCanary);
+  } }), refusal('identity', 'seed_refused'));
+});
+
 test('the actual core applies one mutation, verifies full state, and makes an explicit next pass read only', async () => {
   const state = provider(); state.state.realm.accessTokenLifespan = 1800;
   const recording = providerTransport(state);

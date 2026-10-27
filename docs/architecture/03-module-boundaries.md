@@ -146,12 +146,29 @@ LearnStack mirrors the host→tenant mapping but does not own the issuance flow
 [21-feature-flags.md](21-feature-flags.md).
 
 ### Identity
-Owns users, memberships (triple-keyed on `(user_id, tenant_id, organization_id)`), roles,
-permissions (with scope: Platform / Tenant / Organization per ADR-0017), invitations,
-and sessions. Wraps the auth provider (Keycloak today — see
-[Authentication Strategy](13-identity-and-auth.md)). Security-relevant operations
-publish integration events that the Audit module consumes; Identity does **not** own its
-own audit table.
+The Accepted [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) /
+[ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md)
+foundation contract owns permanent global User bindings using the existing typed
+`UserId`, contextual Membership/Profile/assignments and tenant-wide Role templates.
+Identity implements global User/authority storage and internal binding/common-audit
+consumers. The [module specification](../modules/identity/README.md) owns current
+contextual/admission delivery boundaries, exact scope, lifecycle and seed targets;
+invitations remain P03-4.
+Wraps the auth provider (Keycloak today — see
+[Authentication Strategy](13-identity-and-auth.md)). Native credential/session
+custody belongs to the BFF owner under
+[ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md), not an Identity token table.
+Identity mutation audit uses the central same-transaction write path under
+[ADR-0044](../decisions/0044-audit-write-path.md). Provider-event mirroring is the
+separate [Phase 03 G10](../roadmap/phase-03-identity-admin.md#the-decision-register)
+ingress contract; integration events do not replace MUST mutation durability.
+Identity owns no audit table. Its global creation owner uses the common prepared
+transaction/audit extension under ADR-0072, never a mixed tenant/global owner or
+a private writer. Tenancy supplies bounded lifecycle facts through application
+contracts; no cross-module Organization FK/join is admitted. The
+[Database standard](../standards/05-database.md#proposed-p03-1-identity-storage-annex)
+owns canonical global SQL and evidence functions. P03-3 owns new-user HTTP/BFF
+activation; accepting this foundation opens no route.
 
 ### Tenant Customization
 Owns the customization aggregates per [ADR-0018](../decisions/0018-tenant-driven-customization-model.md):
@@ -164,15 +181,16 @@ records to compose per-tenant content shapes, scoring, completion, and custom fi
 [32-tenant-customization-model.md](32-tenant-customization-model.md).
 
 ### Audit
-Owns the append-only platform audit trail per [ADR-0016](../decisions/0016-audit-log-subsystem.md):
-the `AuditEntry` aggregate, `AuditConfig` (per-tenant override of MUST/SHOULD/MAY
-classification), the partitioned `audit_log` table, the retention job, and the admin
-read API. The capture infrastructure (`AuditChangeTrackerInterceptor`,
-`IAuditStateCapture`, `AuditLogBehavior`, `IAuditStore`) lives in
-`LearnStack.Infrastructure.Audit` and is shared by every module via the MediatR
-pipeline. Audit consumes integration events from Identity, Enrollment, Classroom, etc.
-to enrich entries (actor, target, before/after state). Deep dive:
-[31-audit-subsystem.md](31-audit-subsystem.md).
+Owns the central append-only audit trail, `AuditEntry` and `AuditConfig`, under
+[ADR-0033](../decisions/0033-audit-durability-model.md) and
+[ADR-0044](../decisions/0044-audit-write-path.md). The shared capture and write
+infrastructure lives in `LearnStack.Infrastructure.Audit`; MUST mutation rows
+share the business transaction. The [Audit module specification](../modules/audit/README.md)
+owns current storage and read-side boundaries. Partitioning and retention scale
+remain demand-gated to [Phase 11](../roadmap/phase-11-production-hardening.md);
+protected reads and provider-event mirroring require their respective
+[Phase 03 gates](../roadmap/phase-03-identity-admin.md#the-decision-register).
+Deep dive: [31-audit-subsystem.md](31-audit-subsystem.md).
 
 ### Content
 Owns content types, content entries, pages, page versions, page blocks, navigation,

@@ -325,6 +325,24 @@ owns progress and actual final-source qualification; the ordinary membership-I/O
 fault remains independent corrective work under this record. This amendment
 rewrites none of the Accepted body, date or acceptance metadata above.
 
+### Amendment 2 — Ordinary Docker execution window (2026-10-27)
+
+Accepted [ADR-0075](0075-ordinary-ci-job-window.md) supplies an
+ordinary-only exception to Amendment 1's statement, “All execution jobs keep twenty-minute ceilings”. Verified
+ordinary Docker producers have a twenty-five-minute whole-job ceiling;
+native, base and Architecture execution retain twenty minutes.
+[ADR-0063](0063-complete-bounded-ci-test-shards.md) receives its own dated amendment for the same bounded change.
+
+Native collector authority, excluded-host rules, process/Docker ownership,
+unchanged cleanup/export/upload reserve, complete result requirements and
+the other decisions above remain intact. Expected verified producer identity
+controls the longer observation/whole-job window; no receipt chooses it.
+Acceptance is not implementation or actual hosted fit. ADR-0075 and the
+[Phase 03 delivery log](../roadmap/phase-03-delivery-log.md#adr-0075-acceptance-and-step-1-2026-10-27)
+own the dependent implementation and fresh two-layout qualification receipts. The historical text, metadata and Amendment 1 are
+retained without rewriting. This is a bounded decision change, not an
+ADR-0041 factual correction.
+
 ## References
 
 - [ADR-0060](0060-fatal-hangfire-startup-and-unsafe-unwind.md#diagnostics-dumps-and-durable-consequences).

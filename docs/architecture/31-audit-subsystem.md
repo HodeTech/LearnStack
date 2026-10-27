@@ -110,6 +110,51 @@ Redaction, projection and external fan-out happen after the commit, reading the 
 row; none of them updates it. ADR-0016's "audit never blocks business logic" is preserved
 for that second stage and withdrawn for the first.
 
+### Accepted global identity audit extension
+
+Jointly Accepted [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) /
+[ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md)
+extend the common owner in P03-1 Step 3. `IAuditStore` exposes eight implemented
+writes: pending, standalone, best-effort, platform scope, event terminal, job
+terminal, `WriteGlobalIdentityPending` and `ReconcileGlobalIdentity`. Exact
+method/call-site controls and actual app-role positive/planted proofs qualify
+the global extension. The [Phase 03 Status block](../roadmap/phase-03-identity-admin.md)
+owns current qualification and review state.
+
+`PreparedGlobalIdentityOwner` binds the verified authority/subject, source and
+physical connection/transaction/generation under a distinct global authority
+kind. It serializes and freshly checks the subject before allocation or an
+audit intent; an existing binding returns without a mutation intent. Only
+serialized absence enters the common typed audit/capture entry. The single-use
+`GlobalIdentityCreationReference` supplies the exact audit key to the deferred
+User handler; the common transaction owner consumes the prepared handle and
+reports the actual commit boundary. No tenant/global joining, synthetic tenant
+context, private Identity writer or handler-owned capture manipulation is admitted.
+
+The typed global creation attribution flows through `AuditIntent`, captured
+attribution and `AuditDraftComposer`. Central composition supplies immutable
+metadata and exact creation references for success and non-success; callers
+receive no arbitrary metadata/draft writer. Reciprocal User/success witnesses
+are forced before commit; evidence APIs return only an exact Boolean match, and
+a duplicate-key error proves neither matching evidence nor business commitment.
+Unknown acknowledgement keeps the possible indeterminate pair and independent
+bounded reconciliation. A non-success row proves only its own durability, never
+User absence or business success. Bootstrap actor is NULL, seed adoption uses
+SystemActor, and proposed target remains distinct.
+
+The sentinel global class is exactly `identity.user.create`, MUST/SecurityEvent,
+with NULL organization and closed source; it never announces a tenant sentinel.
+Classification uses the central baseline directly, without tenant overrides or
+assertion suppression. The [Database standard](../standards/05-database.md#proposed-global-central-audit-branch)
+alone owns canonical typed fields, metadata, grants, policy/function/evidence
+predicates and global writer signatures. The [Identity matrix](../modules/identity/audit.md)
+owns the one operation row. Subject keys/targets remain linkable personal data;
+P03-10 owns locators and truthful retained-copy fulfillment, not this schema step.
+`Global_Identity_Creation_Uses_The_Common_Audit_Owner` is implemented in
+`IdentityAuditConventionTests` / `GlobalIdentityBootstrapTests`. Physical
+COMMIT fault twins, reciprocal preflight refusal and exact duplicate evidence
+remain separate from source inspection.
+
 ### Confined event-terminal audit
 
 **ADR-0046 fifth seam implemented in P02b-2 Step 2; both review rounds complete.**
@@ -213,8 +258,9 @@ Five components, separated concerns:
    `platform.admin_scope.enter` through `IAuditStore.WritePlatformScopeAsync`, on the
    scope's own platform-role connection and transaction, **before** the operation runs
    (§ 7 and [ADR-0044 § 10](../decisions/0044-audit-write-path.md)). It is not four
-   components but five, and this one is listed here because it is the only class of row
-   carrying `TenantId.PlatformSentinel`.
+   components but five in the shipped tenant/platform lifecycle. This platform
+   population carries `TenantId.PlatformSentinel`; the separately accepted global
+   identity population uses its qualified prepared owner in Step 3 above.
 
 ## 3. The interceptor
 
@@ -752,9 +798,10 @@ and wrote both columns `NULL` on every successful row
 principal the request carried, or `NULL` when it carried none: a handler's
 `UserId ?? UserId.SystemActor` for `created_by` attributes the aggregate and is not the audit
 actor, and an execution that acts as the system carries `UserId.SystemActor` in its own
-context. `actor_email` stays `NULL` until the `users` table lands in
-[Phase 03](../roadmap/phase-03-identity-admin.md); there is no `users` row to read it from
-and `actor_user_id` carries no foreign key. `ip_address` and `user_agent` need HTTP-layer
+context. `actor_email` stays `NULL`: the global User foundation stores no email
+mirror. [Phase 03 G10](../roadmap/phase-03-identity-admin.md#the-decision-register),
+or an earlier proven consumer, must decide its first source/freshness contract;
+`actor_user_id` carries no foreign key. `ip_address` and `user_agent` need HTTP-layer
 enrichment `LearnStack.Application` cannot see — that project references no
 `Microsoft.AspNetCore.*` package, and must not begin to — so they stay `NULL` until
 [Phase 03](../roadmap/phase-03-identity-admin.md) adds the request-context port that
@@ -1184,14 +1231,11 @@ CREATE INDEX ix_audit_log_correlation_id
 CREATE INDEX ix_audit_log_module_operation_timestamp
     ON audit_log (module, operation, timestamp DESC);
 
--- Row security is NOT written here. audit_log carries organization_id, so it is a
--- tenant-owned, ORG-SCOPED table and takes the canonical template unmodified: ENABLE
--- *and* FORCE, one AND-ed permissive policy with an explicit WITH CHECK, and the two
--- AS RESTRICTIVE write guards. That template lives in exactly one document —
--- Database Standards § Tenant-Owned and Organization-Scoped Tables — and the last
--- time it was copied it shipped broken into four files at once.
--- Cross-tenant reads run as learnstack_platform, entered through the audited
--- EnterPlatformAdminScope(reason) path.
+-- Row security is NOT written here. Database Standards owns the ordinary
+-- tenant-owned, ORG-SCOPED template and ADR-0072's accepted exact global-identity
+-- insertion/evidence departure. Do not copy either
+-- policy here. Ordinary cross-tenant reads retain the audited platform path;
+-- the global branch adds only its exact confined owner evidence functions.
 ```
 
 **Four indexes, and deliberately not the org-scoped template's fifth.** The canonical
@@ -1224,8 +1268,10 @@ Accepted records fix a name. The three `CHECK`s and the four indexes take the st
 the only other divergence on this table is `audit_log_append_only_guard`, which two
 Accepted records fix in the same way.
 
-The policy shape is [Database Standards § Table classes](../standards/05-database.md)'s,
-which also carries `audit_log`'s GRANT-matrix row and the class it belongs to. Two
+The ordinary tenant policy shape is [Database Standards § Table classes](../standards/05-database.md)'s.
+Its [accepted global audit extension](../standards/05-database.md#proposed-global-central-audit-branch)
+names the implemented additional exact insertion/evidence arms;
+the standard also owns `audit_log`'s grants and class. Two
 departures from the surrounding tables are stated there and repeated here because a
 reader of this section will look for them: `audit_log` carries **no foreign key** to
 `tenants` — the platform-scope row's sentinel tenant deliberately has no `tenants` row,
@@ -1246,19 +1292,22 @@ never *authorised by* the payload it describes. See
 [Database Standards](../standards/05-database.md) for the template and
 [ADR-0033](../decisions/0033-audit-durability-model.md) for the durability rule.
 
-**Which tenant and organization a row carries**, per
+**Which tenant and organization a row carries.** Ordinary tenant rows follow
 [ADR-0044 § 2](../decisions/0044-audit-write-path.md) and
-[Amendment 3 § 2](../decisions/0044-audit-write-path.md). The values are always the ones
-the ambient transaction **announced**, because those are the only ones its own `WITH CHECK`
-accepts, and they travel on the `AuditIntent` (§ 4) so that the in-transaction write and
-its standalone replacement cannot disagree:
+[Amendment 3 § 2](../decisions/0044-audit-write-path.md): their scope is the ambient
+tenant transaction's announcement, carried on `AuditIntent` (§ 4). Platform rows
+retain the separately admitted standalone scope below.
+ADR-0072 separately admits the typed global row below; sentinel attribution
+never comes from announcing tenant context. Its exact discriminator and owner
+guards are specified only in the Database standard:
 
 | Request shape | `tenant_id` on the row | `organization_id` on the row |
 |---|---|---|
 | Resolved context | `ITenantContext.TenantId` | `ITenantContext.OrganizationId` — `NULL` when the request targets a tenant-wide resource, which is what makes the row's scope follow the resource's |
 | `IProvisionsTenant` under an unresolved context | `IProvisionsTenant.ProvisioningTenantId` — the value the common transaction coordinator announced | `NULL`, and not by choice: `SetProvisioningTenantContextAsync` announces `app.organization_id` as the empty string, so any other value fails the org-scoped `WITH CHECK` |
 | No transaction and no resolvable tenant (`EnterPlatformAdminScope`) | `TenantId.PlatformSentinel` | `NULL` — the sentinel has no organizations |
-| Unresolved context, not provisioning | no row — there is no tenant whose admin could read it | — |
+| Admitted global identity creation/reconciliation owner (implemented in Step 3) | `TenantId.PlatformSentinel`, fixed by central typed composition, never a tenant announcement | `NULL`; exact `identity.user.create` discriminator |
+| Ordinary unresolved context, not provisioning/global identity | no row — there is no admitted attribution owner | — |
 
 **The third row has exactly one user in Packet 9**: entry into
 `EnterPlatformAdminScope(reason)` itself, which is not a MediatR request and writes its own
@@ -1288,8 +1337,11 @@ already sets, and **not** the nil UUID: all-zero is what three shipped mechanism
 *no tenant* — `NpgsqlUnitOfWork.SetTenantContextAsync` maps it to the empty string,
 `SetProvisioningTenantContextAsync` throws on it, and `TenantOwnership.EnsureRealTenant`
 refuses it in every aggregate factory — and `StronglyTypedId.IsAssigned` reports it
-unassigned. Its rows are invisible to every tenant policy and readable only through
-`learnstack_platform`.
+unassigned. Both named sentinel populations are invisible to ordinary tenant
+readers. Platform-scope access remains its separate platform path; global
+identity evidence is exposed only through the exact owner functions, with no
+app self-audit read or user/tenant endpoint. These global additions are
+implemented in Step 3; the tenant announcement guards remain in force.
 
 **The sentinel's invariant has an enforcer, and it is not the CHECK.** Packet 9 puts the
 guard where the value enters: `SetProvisioningTenantContextAsync` refuses
@@ -1578,8 +1630,10 @@ the [erasure first-writer prerequisites](23-data-protection.md#erasure-authority
 before its redaction handler ships.
 
 Every module that stores user references in audit payloads registers an
-`IUserReferenceLocator`. It lands in [Phase 03](../roadmap/phase-03-identity-admin.md)
-with the handler above and the `users` table both depend on, and
+`IUserReferenceLocator`. [Phase 03 P03-10](../roadmap/phase-03-identity-admin.md#inherited-architecture-obligations)
+owns its applicable-module census and the handler above; P03-1 supplies their
+global User prerequisite. Neither creating that table nor its PII census grants
+the privileged redaction writer. The rule
 `Every_PII_Module_RegistersUserReferenceLocator` is registered in
 [the catalogue](../standards/21-architecture-tests-catalogue.md) against that phase —
 unasserted until then, because a rule naming a phase's absent types would only fail.
@@ -1743,8 +1797,8 @@ update it constrains.
 
 `Every_PII_Module_RegistersUserReferenceLocator` is registered in the catalogue against
 [Phase 03](../roadmap/phase-03-identity-admin.md) and is deliberately **unasserted** until
-then: `IUserReferenceLocator` and the `users` table land there with the erasure handler,
-and a rule naming types no phase has built could only fail. It is absent from the Packet 9
+P03-10 supplies the locators and erasure handler, consuming P03-1's User foundation.
+A rule naming types no packet has built could only fail. It is absent from the Packet 9
 list above for that reason and no other — the catalogue row, not this list, is where its
 status lives.
 

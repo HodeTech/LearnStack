@@ -11,8 +11,11 @@ namespace LearnStack.Tests.Integration.TenancyIdentity;
 /// <summary>Committed provider issuance through Program, stock bearer validation and real application-role reads.</summary>
 [Collection(TenantRealmApiTestGroup.Name)]
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
-public sealed partial class TenantRealmApiTests(PublicReadFixture database, KeycloakFixture provider, Xunit.Abstractions.ITestOutputHelper output)
+public sealed partial class TenantRealmApiTests(TenantRealmApiFixture fixture, Xunit.Abstractions.ITestOutputHelper output)
 {
+    private readonly IdentityPublicReadFixture _database = fixture.Database;
+    private readonly KeycloakFixture _provider = fixture.Provider;
+
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
@@ -25,13 +28,13 @@ public sealed partial class TenantRealmApiTests(PublicReadFixture database, Keyc
         var tokens = await TokensAsync(identity);
         using var client = Client(identity.Tenant, out var observation);
         var audits = await AuditCountsAsync();
-        var reads = database.Observation.Reads;
+        var reads = _database.Observation.Reads;
 
         using var response = await Send(client, identity.Tenant, tokens.AccessToken);
         await AccountAsync(response, identity, observation);
 
         observation.Reads.Should().HaveCount(1);
-        database.Observation.Reads.Should().Be(reads + 1,
+        _database.Observation.Reads.Should().Be(reads + 1,
             "the existing observer must witness the physical ReadOnly learnstack_app transaction");
         (await AuditCountsAsync()).Should().Equal(audits, "successful account reads create no query audit");
     }
@@ -47,13 +50,13 @@ public sealed partial class TenantRealmApiTests(PublicReadFixture database, Keyc
         using var client = Client(identity.Tenant, out var observation);
         using (var positive = await Send(client, identity.Tenant, tokens.AccessToken))
             await AccountAsync(positive, identity, observation);
-        var reads = database.Observation.Reads;
+        var reads = _database.Observation.Reads;
         var audits = await AuditCountsAsync();
 
         using var refusal = await Send(client, defended, tokens.AccessToken);
         await TenantAuthenticationHttpTests.Problem(refusal, HttpStatusCode.NotFound, "tenant_mismatch");
 
-        database.Observation.Reads.Should().Be(reads);
+        _database.Observation.Reads.Should().Be(reads);
         observation.Reads.Should().HaveCount(1);
         await AssertRejectionAsync(refusal, defended, identity, "assertedTenantId", identity.Tenant.TenantId.Value);
         await AssertSingleAdditionalAuditAsync(audits, defended);
@@ -63,7 +66,7 @@ public sealed partial class TenantRealmApiTests(PublicReadFixture database, Keyc
     public async Task A_real_provider_organization_disagreement_refuses_and_records_the_trusted_host_organization()
     {
         var identity = SeedData.IdentityUsers.First(user => user.Tenant == SeedData.Yoga);
-        using var admin = await provider.CreateAdminClientAsync();
+        using var admin = await _provider.CreateAdminClientAsync();
         var user = await admin.UserAsync(identity.Username);
         var userPath = UserPath(user);
         var originalDetails = await admin.GetAsync(userPath);
@@ -76,7 +79,7 @@ public sealed partial class TenantRealmApiTests(PublicReadFixture database, Keyc
         using (var positive = await Send(client, identity.Tenant, originalTokens.AccessToken))
             await AccountAsync(positive, identity, observation);
         var audits = await AuditCountsAsync();
-        var reads = database.Observation.Reads;
+        var reads = _database.Observation.Reads;
 
         try
         {
@@ -85,7 +88,7 @@ public sealed partial class TenantRealmApiTests(PublicReadFixture database, Keyc
             using var refusal = await Send(client, identity.Tenant, changedTokens.AccessToken);
             await TenantAuthenticationHttpTests.Problem(refusal, HttpStatusCode.NotFound, "tenant_mismatch");
 
-            database.Observation.Reads.Should().Be(reads);
+            _database.Observation.Reads.Should().Be(reads);
             observation.Reads.Should().HaveCount(1);
             await AssertRejectionAsync(refusal, identity.Tenant, identity, "assertedOrganizationId",
                 SeedData.English.DefaultOrganization.OrganizationId.Value);
@@ -115,9 +118,9 @@ public sealed partial class TenantRealmApiTests(PublicReadFixture database, Keyc
         using var client = Client(identity.Tenant, out var observation);
         using (var positive = await Send(client, identity.Tenant, positiveTokens.AccessToken))
             await AccountAsync(positive, identity, observation);
-        using var admin = await provider.CreateAdminClientAsync();
+        using var admin = await _provider.CreateAdminClientAsync();
         var username = "api-claimless-" + Guid.NewGuid().ToString("N") + "@example.test";
-        var actor = Guid.NewGuid();
+        var actor = Guid.CreateVersion7();
         var created = false;
         var audits = await AuditCountsAsync();
         try
@@ -129,18 +132,19 @@ public sealed partial class TenantRealmApiTests(PublicReadFixture database, Keyc
             created = status == HttpStatusCode.Created;
             status.Should().Be(HttpStatusCode.Created);
             var user = await admin.UserAsync(username);
+            await _database.AdoptAsync(LearnStack.SharedKernel.Identifiers.UserId.From(actor), user.GetProperty("id").GetString()!);
             user.GetProperty("attributes").EnumerateObject().Select(property => property.Name)
                 .Should().Equal("user_id");
             var tokens = await ExchangeAsync(username, Callback(identity.Tenant));
-            var payload = await KeycloakTokenVerifier.ValidateAsync(provider, tokens.AccessToken, "learnstack-api");
+            var payload = await KeycloakTokenVerifier.ValidateAsync(_provider, tokens.AccessToken, "learnstack-api");
             payload.TryGetProperty("tenant_id", out _).Should().BeFalse();
             payload.TryGetProperty("organization_id", out _).Should().BeFalse();
             payload.GetProperty("user_id").GetGuid().Should().Be(actor);
 
-            var reads = database.Observation.Reads;
+            var reads = _database.Observation.Reads;
             using var protectedResponse = await Send(client, identity.Tenant, tokens.AccessToken);
             await TenantAuthenticationHttpTests.Problem(protectedResponse, HttpStatusCode.NotFound, "not_found");
-            database.Observation.Reads.Should().Be(reads);
+            _database.Observation.Reads.Should().Be(reads);
             observation.Reads.Should().HaveCount(1);
 
             using var publicResponse = await Send(client, identity.Tenant, tokens.AccessToken,
@@ -148,7 +152,7 @@ public sealed partial class TenantRealmApiTests(PublicReadFixture database, Keyc
             await PublicSiteAsync(publicResponse, identity.Tenant);
             observation.Reads.Should().HaveCount(2);
             AssertContext(observation.Reads.Last(), identity.Tenant, actor, TenantContextOrigin.HostOnly);
-            database.Observation.Reads.Should().Be(reads + 1);
+            _database.Observation.Reads.Should().Be(reads + 1);
             (await AuditCountsAsync()).Should().Equal(audits);
         }
         finally
@@ -162,12 +166,12 @@ public sealed partial class TenantRealmApiTests(PublicReadFixture database, Keyc
     {
         var identity = SeedData.IdentityUsers.First();
         var tokens = await TokensAsync(identity);
-        var id = await KeycloakTokenVerifier.ValidateAsync(provider, tokens.IdToken, "learnstack-web");
+        var id = await KeycloakTokenVerifier.ValidateAsync(_provider, tokens.IdToken, "learnstack-web");
         HasAudience(id, "learnstack-api").Should().BeFalse();
         using var client = Client(identity.Tenant, out var observation);
         using (var positive = await Send(client, identity.Tenant, tokens.AccessToken))
             await AccountAsync(positive, identity, observation);
-        var reads = database.Observation.Reads;
+        var reads = _database.Observation.Reads;
         var audits = await AuditCountsAsync();
 
         foreach (var path in new[] { TenantAuthenticationHttpRequest.AccountPath, TenantAuthenticationHttpRequest.PublicPath })
@@ -176,7 +180,7 @@ public sealed partial class TenantRealmApiTests(PublicReadFixture database, Keyc
             await UnauthorizedAsync(response);
         }
         // Keep purpose valid while independently removing only the API audience.
-        using var admin = await provider.CreateAdminClientAsync();
+        using var admin = await _provider.CreateAdminClientAsync();
         var scope = (await admin.GetAsync("client-scopes")).EnumerateArray()
             .Single(value => value.GetProperty("name").GetString() == "learnstack-tenant-api");
         var mapperBase = "client-scopes/" + scope.GetProperty("id").GetString() + "/protocol-mappers/models";
@@ -189,7 +193,7 @@ public sealed partial class TenantRealmApiTests(PublicReadFixture database, Keyc
         {
             (await admin.PutAsync(mapperPath, differentAudience)).Should().Be(HttpStatusCode.NoContent);
             var wrongAudience = await TokensAsync(identity);
-            var access = await KeycloakTokenVerifier.ValidateAsync(provider, wrongAudience.AccessToken, "account");
+            var access = await KeycloakTokenVerifier.ValidateAsync(_provider, wrongAudience.AccessToken, "account");
             HasAudience(access, "learnstack-api").Should().BeFalse();
             (access.GetProperty("typ").GetString() == "Bearer"
                 && access.GetProperty("azp").GetString() == "learnstack-web").Should().BeTrue();
@@ -200,7 +204,7 @@ public sealed partial class TenantRealmApiTests(PublicReadFixture database, Keyc
             }
         }
         finally { (await admin.PutAsync(mapperPath, mapper)).Should().Be(HttpStatusCode.NoContent); }
-        database.Observation.Reads.Should().Be(reads);
+        _database.Observation.Reads.Should().Be(reads);
         observation.Reads.Should().HaveCount(1);
         (await AuditCountsAsync()).Should().Equal(audits);
     }
@@ -213,12 +217,12 @@ public sealed partial class TenantRealmApiTests(PublicReadFixture database, Keyc
         using var client = Client(identity.Tenant, out var observation);
         using (var positive = await Send(client, identity.Tenant, positiveTokens.AccessToken))
             await AccountAsync(positive, identity, observation);
-        using var admin = await provider.CreateAdminClientAsync("learnstack-hub");
+        using var admin = await _provider.CreateAdminClientAsync("learnstack-hub");
         var originalOperator = await admin.UserAsync("demo-operator@learnstack.test");
         var originalClient = await admin.ClientAsync("learnstack-hub-web");
         var username = "api-hub-issuer-" + Guid.NewGuid().ToString("N") + "@example.test";
         var created = false;
-        var reads = database.Observation.Reads;
+        var reads = _database.Observation.Reads;
         var audits = await AuditCountsAsync();
         try
         {
@@ -228,15 +232,15 @@ public sealed partial class TenantRealmApiTests(PublicReadFixture database, Keyc
             // This owned unrelated account qualifies a genuine issuer negative, not an operator/MFA journey.
             var tokens = await ExchangeAsync(username, "http://localhost:3100/api/auth/callback/keycloak",
                 realm: "learnstack-hub", clientId: "learnstack-hub-web", secret: null);
-            var payload = await KeycloakTokenVerifier.ValidateAsync(provider, tokens.AccessToken,
+            var payload = await KeycloakTokenVerifier.ValidateAsync(_provider, tokens.AccessToken,
                 "account", "learnstack-hub");
-            payload.GetProperty("iss").GetString().Should().Be(provider.IssuerFor("learnstack-hub"));
+            payload.GetProperty("iss").GetString().Should().Be(_provider.IssuerFor("learnstack-hub"));
             foreach (var path in new[] { TenantAuthenticationHttpRequest.AccountPath, TenantAuthenticationHttpRequest.PublicPath })
             {
                 using var refusal = await Send(client, identity.Tenant, tokens.AccessToken, path);
                 await UnauthorizedAsync(refusal);
             }
-            database.Observation.Reads.Should().Be(reads);
+            _database.Observation.Reads.Should().Be(reads);
             observation.Reads.Should().HaveCount(1);
             (await AuditCountsAsync()).Should().Equal(audits);
         }
@@ -263,20 +267,20 @@ public sealed partial class TenantRealmApiTests(PublicReadFixture database, Keyc
         using var wrongAuthority = new KeycloakTls();
         using (var backchannel = Backchannel(wrongAuthority.RootCertificate))
         {
-            var metadata = async () => { using var response = await backchannel.Client.GetAsync(provider.Issuer + "/.well-known/openid-configuration"); };
+            var metadata = async () => { using var response = await backchannel.Client.GetAsync(_provider.Issuer + "/.well-known/openid-configuration"); };
             var tls = await metadata.Should().ThrowAsync<HttpRequestException>();
             tls.Which.InnerException.Should().BeOfType<System.Security.Authentication.AuthenticationException>(
                 "the actual production backchannel must fail certificate authentication with this CA");
         }
         using var wrongClient = Client(identity.Tenant, out var wrongObservation, wrongAuthority.RootCertificate);
-        var reads = database.Observation.Reads;
+        var reads = _database.Observation.Reads;
         var audits = await AuditCountsAsync();
 
         using var refusal = await Send(wrongClient, identity.Tenant, tokens.AccessToken);
         await UnauthorizedAsync(refusal);
 
         wrongObservation.Reads.Should().BeEmpty();
-        database.Observation.Reads.Should().Be(reads);
+        _database.Observation.Reads.Should().Be(reads);
         (await AuditCountsAsync()).Should().Equal(audits);
     }
 
@@ -291,15 +295,16 @@ public sealed partial class TenantRealmApiTests(PublicReadFixture database, Keyc
             await AccountAsync(positive, identity, positiveObservation);
         }
         await using var unavailable = new UnavailableTenantIssuer();
-        using var client = Client(identity.Tenant, out var observation, issuer: unavailable.Issuer);
-        var audits = await AuditCountsAsync();
-        var reads = database.Observation.Reads;
+        await using var unavailableDatabase = await IdentityPublicReadFixture.CreateAsync(fixture.PublicDatabase, unavailable.Issuer);
+        using var client = Client(identity.Tenant, out var observation, issuer: unavailable.Issuer, sourceDatabase: unavailableDatabase);
+        var audits = await AuditCountsAsync(unavailableDatabase);
+        var reads = unavailableDatabase.Observation.Reads;
         using (var account = await Send(client, identity.Tenant))
         {
             await TenantAuthenticationHttpTests.Problem(account, HttpStatusCode.NotFound, "not_found");
             account.Headers.WwwAuthenticate.Should().BeEmpty();
         }
-        database.Observation.Reads.Should().Be(reads);
+        unavailableDatabase.Observation.Reads.Should().Be(reads);
         using (var anonymous = await Send(client, identity.Tenant, path: TenantAuthenticationHttpRequest.PublicPath))
             await PublicSiteAsync(anonymous, identity.Tenant);
         unavailable.Connections.Should().Be(0, "absent credentials never attempt metadata transport");
@@ -315,7 +320,7 @@ public sealed partial class TenantRealmApiTests(PublicReadFixture database, Keyc
             await PublicSiteAsync(anonymousAgain, identity.Tenant);
         observation.Reads.Should().HaveCount(2);
         AssertContext(observation.Reads.Last(), identity.Tenant, null, TenantContextOrigin.HostOnly);
-        database.Observation.Reads.Should().Be(reads + 2);
-        (await AuditCountsAsync()).Should().Equal(audits);
+        unavailableDatabase.Observation.Reads.Should().Be(reads + 2);
+        (await AuditCountsAsync(unavailableDatabase)).Should().Equal(audits);
     }
 }

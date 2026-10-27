@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Closed ADR-0062/0063 execution owner. No command/path CLI overrides.
+"""Closed ADR-0062/0063/0075 execution owner. No command/path CLI overrides.
 
 The delegated work cgroup is retained by a live supervisor sibling. RemainAfterExit
 alone does not retain an empty cgroup: systemd prunes it on SERVICE_EXITED. Only
@@ -46,6 +46,7 @@ HOST_CRASH_ROOTS = ('/var/crash', '/var/lib/systemd/coredump', '/var/lib/docker'
 # Sole duration owner. These are bounded path allocations, not a hosted fit
 # claim. Qualification must measure setup, complete execution and failure tails.
 JOB_SECONDS = 20 * 60
+ORDINARY_JOB_SECONDS = 25 * 60
 UPLOAD_SECONDS = 60
 UNIT_STOP_SECONDS = 20
 JOIN_SECONDS = 15
@@ -1077,12 +1078,25 @@ def remaining(deadline, cap=None):
     return min(value, cap) if cap is not None else value
 
 
-def deadlines():
+def job_seconds(mode, job, counts):
+    # Expected identity selects the policy, never a receipt or a prefix match.
+    require(isinstance(mode, str) and mode in SHARD_JOBS, 'mode_refused')
+    require(job == SHARD_JOBS[mode], 'job_identity_mismatch')
+    require(isinstance(counts, dict), 'shard_index_invalid')
+    if mode not in ('base', 'native-shard'):
+        scope, _, index = mode.rpartition('-')
+        require(type(counts.get(scope)) is int and int(index) < counts[scope], 'shard_index_invalid')
+    return ORDINARY_JOB_SECONDS if job == 'backend-integration-tests' else JOB_SECONDS
+
+
+def deadlines(mode):
+    seconds = job_seconds(mode, os.environ.get('GITHUB_JOB'),
+                          shard_call(shard_owner().load_plan)['counts'])
     value = os.environ.get('LEARNSTACK_CI_STARTED_AT', '')
     require(re.fullmatch(r'[1-9][0-9]*', value), 'job_clock_missing')
     elapsed = time.time() - int(value)
-    require(0 <= elapsed < JOB_SECONDS, 'job_clock_invalid')
-    end = time.monotonic() + JOB_SECONDS - elapsed
+    require(0 <= elapsed < seconds, 'job_clock_invalid')
+    end = time.monotonic() + seconds - elapsed
     return end - RESERVE_SECONDS, end - UPLOAD_SECONDS - MARGIN_SECONDS
 
 
@@ -2111,7 +2125,7 @@ def observe_vm_memory():
 def leaf(mode):
     context = identity(mode)
     unit, private, output = locations(mode, context)
-    execution, cleanup = deadlines()
+    execution, cleanup = deadlines(mode)
     lower_core()
     base = '/system.slice/' + unit
     require(cgroup_path('self') == base + '/supervisor', 'leaf_requires_owned_unit')
@@ -2522,7 +2536,7 @@ def workload_failure(private):
 def execute(mode):
     global CANCELLED
     context = identity(mode)
-    execution, cleanup = deadlines()
+    execution, cleanup = deadlines(mode)
     remaining(execution)
     lower_core()
     unit, private, output = locations(mode, context)

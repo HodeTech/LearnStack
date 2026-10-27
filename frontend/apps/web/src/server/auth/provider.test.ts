@@ -315,6 +315,21 @@ describe('inactive tenant RP boundary', () => {
     });
   }
 
+  it.each([255, 256])(
+    'enforces the shared opaque subject bound at %i characters',
+    async (length) => {
+      const f = await fixture();
+      const subject = 's'.repeat(length);
+      f.setClaims({ sub: subject });
+      if (length === 255) {
+        const { result } = await f.login();
+        expect(result.identity.subject).toBe(subject);
+      } else {
+        await expect(f.login()).rejects.toMatchObject({ reason: 'identity' });
+      }
+    },
+  );
+
   it('rejects wrong signatures at both code and refresh processing', async () => {
     const f = await fixture();
     const { result } = await f.login();
@@ -324,6 +339,39 @@ describe('inactive tenant RP boundary', () => {
     });
     await expect(f.login()).rejects.toMatchObject({ reason: 'response' });
   });
+
+  it.each([
+    ' ',
+    '\u0085\u3000',
+    'private\0subject',
+    'private\ud800',
+    'private\udc00',
+    '🙂'.repeat(128),
+  ])(
+    'refuses nonstorable, whitespace-only or over-bound subjects at code and refresh processing (%#)',
+    async (subject) => {
+      const f = await fixture();
+      const { result } = await f.login();
+      f.setClaims({ sub: subject });
+      await expect(f.login()).rejects.toMatchObject({ reason: 'identity' });
+      await expect(f.provider.refresh(result.refreshToken!, result.identity)).rejects.toMatchObject(
+        { reason: 'identity' },
+      );
+    },
+  );
+
+  it.each(['  I/ı/🙂  ', '🙂'.repeat(127) + 'a'])(
+    'preserves exact non-ASCII subject text at both grants (%#)',
+    async (subject) => {
+      const f = await fixture();
+      f.setClaims({ sub: subject });
+      const { result } = await f.login();
+      expect(result.identity.subject).toBe(subject);
+      expect(
+        (await f.provider.refresh(result.refreshToken!, result.identity)).identity.subject,
+      ).toBe(subject);
+    },
+  );
 
   for (const patch of [
     { sub: 'replacement-subject' },

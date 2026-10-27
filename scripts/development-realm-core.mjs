@@ -7,7 +7,7 @@ export const realmPassMilliseconds = 120000;
 
 /** Internal core for the owned launcher and isolated provider tests; no CLI overrides. */
 export async function reconcileRealm({ baseUrl, expectedIssuer, adminUsername, adminPassword,
-  webSecret, manifest, desired, signal, ca, transport = realmRequest }) {
+  webSecret, manifest, desired, signal, ca, transport = realmRequest, afterVerified }) {
   let base;
   try { base = new URL(baseUrl); }
   catch { refuse('preflight', 'configuration'); }
@@ -123,6 +123,13 @@ export async function reconcileRealm({ baseUrl, expectedIssuer, adminUsername, a
     await plan.verify();
     const remaining = await buildRealmPlan({ admin, desired, manifest, webSecret });
     if (remaining.actions.length !== 0) refuse(stage, 'readback_conflict');
+    if (afterVerified) {
+      stage = 'identity';
+      if (active.aborted) refuse(stage, signal?.aborted ? 'cancelled' : 'deadline');
+      await afterVerified(Object.freeze({ version: 1, issuer: expectedIssuer,
+        users: remaining.providerSubjects() }));
+      if (active.aborted) refuse(stage, signal?.aborted ? 'cancelled' : 'deadline');
+    }
     return Object.freeze({ mutations, ...(preparationDispatched ? { preparationDispatched: true } : {}) });
   } catch (error) {
     if (error instanceof RealmError) {
@@ -130,7 +137,7 @@ export async function reconcileRealm({ baseUrl, expectedIssuer, adminUsername, a
         throw new RealmError(error.stage, error.reason, true);
       throw error;
     }
-    throw new RealmError(stage, 'response', preparationDispatched);
+    throw new RealmError(stage, stage === 'identity' ? 'seed_refused' : 'response', preparationDispatched);
   }
 }
 

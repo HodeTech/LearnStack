@@ -42,7 +42,8 @@ builder.AddLearnStackCrossCuttingFoundation(
     deploymentMode,
     typeof(LearnStack.Modules.Tenancy.Application.AssemblyMarker).Assembly,
     typeof(LearnStack.Modules.Customization.Application.AssemblyMarker).Assembly,
-    typeof(LearnStack.Modules.Education.Application.AssemblyMarker).Assembly);
+    typeof(LearnStack.Modules.Education.Application.AssemblyMarker).Assembly,
+    typeof(LearnStack.Modules.Identity.Application.AssemblyMarker).Assembly);
 builder.Services.AddLearnStackTenancyEdge(builder.Configuration);
 builder.Services.AddLearnStackPersistence(builder.Configuration);
 builder.Services.AddLearnStackRateLimiting();
@@ -53,6 +54,7 @@ builder.Services.AddLearnStackRateLimiting();
 builder.Services.AddLearnStackTenantAuthentication(
     TenantAuthenticationOptions.FromConfiguration(builder.Configuration, deploymentMode));
 builder.Services.AddLearnStackTenantSubjectAdmission();
+builder.Services.AddLearnStackTenantIdentityBindingAdmission();
 builder.Services.AddAuthorization();
 builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, TenantAuthorizationResultHandler>();
 
@@ -124,8 +126,9 @@ app.UseLearnStackHostClassification();
 app.UseAuthentication();
 app.UseLearnStackTenantCredentialAdmission();
 app.UseLearnStackTenantSubjectAdmission();
+app.UseLearnStackTenantIdentityBindingAdmission();
 
-// Reconcile both trusted signals once, after credential/subject admission.
+// Reconcile both trusted signals once, after credential/quota/binding admission.
 // Authentication precedes resolution; authorization follows header assertions.
 // Keeping these insertions separate preserves ADR-0036/ADR-0064's order.
 app.UseLearnStackTenantResolution();

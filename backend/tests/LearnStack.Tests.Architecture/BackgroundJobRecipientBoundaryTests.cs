@@ -185,7 +185,7 @@ public sealed partial class OutboxDispatchConventionTests
         }, RecipientOffenders);
     }
 
-    public sealed partial class JobLifecycleMutationTests
+    public sealed class JobRecipientMutationTests
     {
 
         /// <summary>ADR-0047: the production detector rejects added, removed, delegated and overloaded authority.</summary>
