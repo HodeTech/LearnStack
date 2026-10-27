@@ -2,6 +2,7 @@ using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Identity.Application.Abstractions;
 using LearnStack.Modules.Identity.Application.Audit;
 using LearnStack.Modules.Identity.Application.Bindings;
+using LearnStack.Modules.Identity.Application.Authorization;
 using LearnStack.Modules.Identity.Application.Contracts.Bindings;
 using LearnStack.Modules.Identity.Application.Contracts.Seeding;
 using LearnStack.Modules.Identity.Infrastructure.Persistence;
@@ -26,6 +27,7 @@ public static class IdentityFoundationRegistration
         services.TryAddScoped<IMembershipWriteStore, MembershipWriteStore>();
         services.TryAddScoped<ISeedStateReader, SeedStateReader>();
         services.TryAddScoped<IMembershipDirectoryReader, MembershipDirectoryReader>();
+        services.TryAddScoped<Func<RoleGrantAuthorization>>(provider => () => provider.GetRequiredService<RoleGrantAuthorization>());
         return services;
     }
 

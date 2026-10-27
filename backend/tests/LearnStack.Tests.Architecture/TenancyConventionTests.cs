@@ -263,7 +263,8 @@ public sealed partial class TenancyConventionTests
     /// must write.
     /// </summary>
     private static readonly string[] WritingSetters =
-        ["LearnStack.Infrastructure.Audit/PostgresAuditStore.cs", "LearnStack.Infrastructure.Audit/PostgresAuditStore.GlobalIdentity.cs"];
+        ["LearnStack.Infrastructure.Audit/PostgresAuditStore.cs", "LearnStack.Infrastructure.Audit/PostgresAuditStore.GlobalIdentity.cs",
+         "LearnStack.Infrastructure/Persistence/AuthorizationEvidenceSession.cs"];
 
     /// <summary>
     /// The readers, each in a short read-only transaction of its own: the host resolver, the
@@ -471,6 +472,7 @@ public sealed partial class TenancyConventionTests
         return relative is "LearnStack.Infrastructure/Persistence/NpgsqlUnitOfWork.cs"
             or "LearnStack.Infrastructure.Audit/PostgresAuditStore.GlobalIdentity.cs"
             or "LearnStack.Infrastructure/Persistence/AuthorizationReadOwner.cs"
+            or "LearnStack.Infrastructure/Persistence/AuthorizationEvidenceSession.cs"
             ? source.Replace("set_config('" + variable + "', '', true)", string.Empty, StringComparison.Ordinal)
             : source;
     }

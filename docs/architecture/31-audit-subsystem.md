@@ -116,9 +116,9 @@ for that second stage and withdrawn for the first.
 
 Jointly Accepted [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) /
 [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md)
-extend the common owner in P03-1 Step 3. `IAuditStore` exposes eight implemented
-writes: pending, standalone, best-effort, platform scope, event terminal, job
-terminal, `WriteGlobalIdentityPending` and `ReconcileGlobalIdentity`. Exact
+extend the common owner in P03-1 Step 3 with `WriteGlobalIdentityPending` and
+`ReconcileGlobalIdentity`, alongside the six existing ordinary/platform/event/job
+seams. The trusted-evidence extension below supplies two further writes. Exact
 method/call-site controls and actual app-role positive/planted proofs qualify
 the global extension. The [Phase 03 Status block](../roadmap/phase-03-identity-admin.md)
 owns current qualification and review state.
@@ -159,7 +159,7 @@ remain separate from source inspection.
 
 ### Accepted trusted authorization evidence extension
 
-**Contract Accepted; runtime and proofs pending in P03-2.** ADR-0077 adds one
+**Contract Accepted; runtime staged in P03-2 Step 4.** ADR-0077 adds one
 central denial owner beside ordinary plural resource intents. Off and best-effort
 operation classifications cannot remove this separate MUST event. HTTP rejection,
 application/resource refusal and absorbed nested denial retain the exact distinct
@@ -187,8 +187,9 @@ Typed immutable source provenance reaches the central composer, then the existin
 columns and versioned authorization metadata. No handler dictionary or enrichment
 UPDATE exists. Standard 18 owns field/source limits and per-row retention targets;
 [Data Protection](23-data-protection.md#accepted-authorization-evidence-linkage)
-owns retained linkage and P03-10 fulfillment. Acceptance alone neither populates
-these fields nor implements the denial barriers.
+owns retained linkage and P03-10 fulfillment. The actual central owner, typed
+snapshot and confined source/store methods exist; joint production activation
+remains Step 5. The phase record distinguishes implementation, proof and review.
 
 ### Confined event-terminal audit
 
@@ -623,7 +624,7 @@ public sealed record CapturedFieldChange(string Path, string? BeforeJson, string
 ```
 
 `State` is the ordinary resource buffer's durability signal, deliberately **not**
-a "consumed" flag. ADR-0077's pending denial implementation additionally requires
+a "consumed" flag. ADR-0077's separate denial implementation uses
 independent per-event/actual-owner state; this global state cannot acknowledge it.
 `WrittenInTransaction` is not durable; only `Committed` is. This interface is a `SharedKernel` abstraction and names no EF Core type — it lives in
 `LearnStack.SharedKernel.Audit` beside the other four ports, `IAuditStore`,
@@ -1764,7 +1765,7 @@ update it constrains.
      marker from becoming an escape.
    - *Off the request path.* Non-MediatR operations carry `(off-path)` and
      register by slug when their writer ships. Module matrices own the current
-     population, including the planned P03-2 denial/assertion events. See
+     population, including P03-2's staged denial/assertion events. See
      [Standard 18's join rules](../standards/18-audit-coverage.md#the-join);
      no absent writer is made registered by its acceptance.
    - *An `Off` registration carries no slug*, so it raises no matrix row and is outside

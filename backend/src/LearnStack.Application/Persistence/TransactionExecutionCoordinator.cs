@@ -1,5 +1,6 @@
 using LearnStack.Application.Jobs;
 using LearnStack.Application.Authorization;
+using LearnStack.Application.Audit;
 using System.Data.Common;
 using LearnStack.Application.Messaging;
 using LearnStack.SharedKernel.Audit;
@@ -26,7 +27,8 @@ public sealed partial class TransactionExecutionCoordinator(
     ProducerExecution producer,
     DomainEventCollector collector,
     ILogger<TransactionExecutionCoordinator> logger,
-    OperationAuthorizationCoordinator? authorization = null)
+    OperationAuthorizationCoordinator? authorization = null,
+    AuthorizationEvidenceCoordinator? authorizationEvidence = null)
 {
     /// <summary>
     /// Announces before dispatch, retains producer ancestry through completion,
@@ -144,6 +146,8 @@ public sealed partial class TransactionExecutionCoordinator(
         GlobalIdentityCreationReference? creation = null)
         where TResponse : IResultBase
     {
+        await using var evidenceScope = authorizationEvidence?.BeginExecution();
+        AuthorizationEvidenceCoordinator.CommitBatch? evidenceBatch = null;
         var committing = false;
         var failed = false;
 
@@ -233,6 +237,8 @@ public sealed partial class TransactionExecutionCoordinator(
                 {
                     await auditStore.WritePendingAsync(unitOfWork, cancellationToken);
                 }
+                if (authorizationEvidence is not null && globalOwner is null)
+                    evidenceBatch = await authorizationEvidence.BeforeOwnerCompletionAsync(unitOfWork, cancellationToken);
             }
 
             if (recipient is not null)
@@ -288,6 +294,7 @@ public sealed partial class TransactionExecutionCoordinator(
                     if (unitOfWork.IsRollbackOnly) capture.MarkRolledBack();
                     else capture.MarkIndeterminate(commitFailure);
                 }
+                authorizationEvidence?.RecordOwnerOutcome(evidenceBatch, committed: false);
 
                 // The new audited tenant-wide read discloses nothing until its
                 // evidence commits. Keep the actual completion state/cause, but
@@ -313,6 +320,7 @@ public sealed partial class TransactionExecutionCoordinator(
                 recipient?.Completion.RecordCommitted(unitOfWork);
                 completion?.Gate.RecordCommitted();
                 capture.MarkCommitted();
+                authorizationEvidence?.RecordOwnerOutcome(evidenceBatch, committed: true);
             }
             return response;
         }
@@ -353,6 +361,8 @@ public sealed partial class TransactionExecutionCoordinator(
         }
         finally
         {
+            if (evidenceBatch is not null && capture.State != AuditIntentState.Committed)
+                authorizationEvidence?.RecordOwnerOutcome(evidenceBatch, committed: false);
             globalOwner?.RecordOutcome(capture.State);
             await CleanupFrameAsync(scope, failed);
         }

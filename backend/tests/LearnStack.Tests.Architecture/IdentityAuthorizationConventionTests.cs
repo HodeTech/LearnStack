@@ -210,7 +210,8 @@ public sealed class IdentityAuthorizationConventionTests
     {
         var errors = new List<string>();
         Callers(census, errors, Source, "OpenAsync", [Reader + ".OpenAsync"]);
-        Callers(census, errors, ReaderPort, "ReadAsync", ["LearnStack.Modules.Identity.Application.Authorization.IdentityOperationAuthorizer.AuthorizeAsync"]);
+        Callers(census, errors, ReaderPort, "ReadAsync", ["LearnStack.Modules.Identity.Application.Authorization.IdentityOperationAuthorizer.AuthorizeAsync",
+            "LearnStack.Modules.Identity.Application.Authorization.RoleGrantAuthorization.RecheckAsync"]);
         Callers(census, errors, LifecyclePort, "ReadAuthorizationAsync", [Orchestrator + ".ReadAsync"]);
         Callers(census, errors, SessionFactoryPort, "OpenAsync", [Orchestrator + ".ReadAsync"]);
         Callers(census, errors, SessionPort, "ReadMembershipsAsync", [Orchestrator + ".ReadAsync"]);
@@ -320,7 +321,8 @@ public sealed class IdentityAuthorizationConventionTests
     private static List<string> GuardOffenders(Census census)
     {
         var errors = new List<string>();
-        Callers(census, errors, RoleGuard, "RefuseBypassRoleAsync", [Owner + ".OpenAsync"]);
+        Callers(census, errors, RoleGuard, "RefuseBypassRoleAsync", [Owner + ".OpenAsync",
+            "LearnStack.Infrastructure.Persistence.AuthorizationEvidenceSession.OpenAsync"]);
         var body = census.Body(Owner, "OpenAsync");
         var guards = Calls(body, RoleGuard, "RefuseBypassRoleAsync").ToArray();
         var begins = Calls(body, "Npgsql.NpgsqlConnection", "BeginTransactionAsync").ToArray();

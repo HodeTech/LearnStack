@@ -204,6 +204,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         handlers.Should().HaveCount(5, "the four public queries and authenticated query have real production handlers");
         Violations(modules, facts).Should().BeEmpty();
         AssertPolicyMetadataControls(modules, facts);
+        AssertControllerMetadataControls(modules, facts);
 
         var publicSite = map.Values.Single(type => type.FullName == PublicSite);
         PublicSurfaceTests.PersistenceOffenders([publicSite], map).Should().BeEmpty(

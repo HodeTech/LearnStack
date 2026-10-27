@@ -22,6 +22,8 @@ public sealed partial class OutboxDispatchConventionTests
     private const string LifecycleFrame = LifecycleAdapter + "/Frame";
     private const string LifecycleAuthorizationOwner = "LearnStack.Infrastructure.Persistence.AuthorizationReadOwner";
     private const string LifecycleAuthorizationView = LifecycleAuthorizationOwner + "/ConfinedUnit";
+    private const string LifecycleEvidenceOwner = "LearnStack.Infrastructure.Persistence.AuthorizationEvidenceSession";
+    private const string LifecycleEvidenceView = LifecycleEvidenceOwner + "/ConfinedUnit";
     private const string LifecycleReadWitness = "LearnStack.SharedKernel.Permissions.OperationReadWitness";
     private const string LifecycleGlobalPrepared = DeliveryCoordinator + "/PreparedGlobalIdentityOwner";
     private const string LifecycleIdentityAssembly = "LearnStack.Modules.Identity.Infrastructure";
@@ -141,6 +143,8 @@ public sealed partial class OutboxDispatchConventionTests
                              new[] { BoundaryCancellation }, "database.CommitAsync"),
                          (InfrastructureAssembly, LifecycleAuthorizationOwner, "CompleteAsync",
                              Array.Empty<string>(), "database.CommitAsync"),
+                         (InfrastructureAssembly, LifecycleEvidenceOwner, "CompleteAsync",
+                             Array.Empty<string>(), "database.CommitAsync"),
                          (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "CommitAsync",
                              new[] { "LearnStack.Infrastructure.Jobs.BackgroundJobControlResources", BoundaryCancellation }, "database.CommitAsync"),
                          (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobTerminalStore", "CommitAsync",
@@ -187,17 +191,20 @@ public sealed partial class OutboxDispatchConventionTests
             var defaultThrow = defaultWitness.Body.Instructions.Single(instruction => instruction.OpCode == OpCodes.Throw);
             AssertMutation(census, "a witness-capable fallback on units without a physical binder", () =>
                 ReplaceInstruction(defaultThrow, OpCodes.Ret, null!), IntegrationLifecycleOffenders);
-            var confined = types[(InfrastructureAssembly, LifecycleAuthorizationView)];
-            AssertMutation(census, "a witness override on the confined authorization child", () =>
+            foreach (var view in new[] { LifecycleAuthorizationView, LifecycleEvidenceView })
             {
-                var overload = new MethodDefinition("SetTenantContextAsync", Mono.Cecil.MethodAttributes.Public, defaultWitness.ReturnType);
-                foreach (var parameter in defaultWitness.Parameters)
-                    overload.Parameters.Add(new ParameterDefinition(parameter.ParameterType));
-                overload.Body.Instructions.Add(Instruction.Create(OpCodes.Ldnull));
-                overload.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
-                confined.Methods.Add(overload);
-                return () => confined.Methods.Remove(overload);
-            }, IntegrationLifecycleOffenders);
+                var confined = types[(InfrastructureAssembly, view)];
+                AssertMutation(census, "a witness override on a confined child", () =>
+                {
+                    var overload = new MethodDefinition("SetTenantContextAsync", Mono.Cecil.MethodAttributes.Public, defaultWitness.ReturnType);
+                    foreach (var parameter in defaultWitness.Parameters)
+                        overload.Parameters.Add(new ParameterDefinition(parameter.ParameterType));
+                    overload.Body.Instructions.Add(Instruction.Create(OpCodes.Ldnull));
+                    overload.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+                    confined.Methods.Add(overload);
+                    return () => confined.Methods.Remove(overload);
+                }, IntegrationLifecycleOffenders);
+            }
             var clean = AddProbe(application, "CleanIntegrationLifecycleObserver");
             foreach (var method in unit.Methods.Where(method => method.IsGetter || method.Name == "MarkRollbackOnly")
                          .Concat(scope.Methods.Where(method => method.IsGetter)))
@@ -233,7 +240,7 @@ public sealed partial class OutboxDispatchConventionTests
         var types = census.Types;
         foreach (var subject in new[] { (KernelAssembly, LifecycleUnit), (KernelAssembly, LifecycleScope),
                      (InfrastructureAssembly, LifecycleAdapter), (InfrastructureAssembly, LifecycleFrame),
-                     (InfrastructureAssembly, LifecycleAuthorizationView) })
+                     (InfrastructureAssembly, LifecycleAuthorizationView), (InfrastructureAssembly, LifecycleEvidenceView) })
             if (!types.ContainsKey(subject)) offenders.Add("Missing lifecycle subject: " + subject.Item2);
         if (offenders.Count != 0) return offenders;
         var unit = types[(KernelAssembly, LifecycleUnit)];
@@ -241,11 +248,13 @@ public sealed partial class OutboxDispatchConventionTests
         var adapter = types[(InfrastructureAssembly, LifecycleAdapter)];
         var frame = types[(InfrastructureAssembly, LifecycleFrame)];
         var confined = types[(InfrastructureAssembly, LifecycleAuthorizationView)];
+        var evidenceView = types[(InfrastructureAssembly, LifecycleEvidenceView)];
         CheckSet(offenders, "unit lifecycle implementations", types.Values.Where(type => !type.IsInterface && Derives(type, unit, types)).Select(TypeId),
-            [TypeId(adapter), TypeId(confined)]);
-        if (!confined.IsSealed || !confined.IsNestedPrivate
-            || confined.Methods.Any(method => method.Name == "SetTenantContextAsync" && method.Parameters.Count != 2))
-            offenders.Add("The authorization child retains its closed narrow-only unit view and inherits witness refusal");
+            [TypeId(adapter), TypeId(confined), TypeId(evidenceView)]);
+        foreach (var view in new[] { confined, evidenceView })
+            if (!view.IsSealed || !view.IsNestedPrivate
+                || view.Methods.Any(method => method.Name == "SetTenantContextAsync" && method.Parameters.Count != 2))
+                offenders.Add("The confined child retains its closed narrow-only unit view and inherits witness refusal: " + view.FullName);
         CheckSet(offenders, "frame lifecycle implementations", types.Values.Where(type => !type.IsInterface && Derives(type, scope, types)).Select(TypeId), [TypeId(frame)]);
         if (!adapter.IsSealed || !frame.IsSealed || !frame.IsNestedPrivate) offenders.Add("The unit adapter and its private frame must remain sealed");
         var ownedFailures = frame.Methods.Where(method => method.Name == "FailOwnedAsync").ToArray();
@@ -329,6 +338,7 @@ public sealed partial class OutboxDispatchConventionTests
             [
                 Owner(InfrastructureAssembly, LifecycleAdapter, "CommitFrameAsync"),
                 Owner(InfrastructureAssembly, LifecycleAuthorizationOwner, "CompleteAsync"),
+                Owner(InfrastructureAssembly, LifecycleEvidenceOwner, "CompleteAsync"),
                 Owner(InfrastructureAssembly, Store, "AcquireAsync"), Owner(InfrastructureAssembly, Store, "TryTerminalizeAsync"),
                 Owner(InfrastructureAssembly, DeliveryStore, "AcquireAsync"), Owner(InfrastructureAssembly, DeliveryStore, "UpdateAsync"),
                 Owner(InfrastructureAssembly, DeliveryStore, "TryTerminalizeAsync"), Owner(InfrastructureAssembly, DeliveryStore, "ReplayAsync"),

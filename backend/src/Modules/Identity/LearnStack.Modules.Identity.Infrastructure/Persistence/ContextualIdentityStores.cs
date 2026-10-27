@@ -164,7 +164,20 @@ public sealed class RoleWriteStore(IdentityDbContext db, ContextualIdentityStora
     }
     public Task UpdateAsync(Role aggregate, CancellationToken cancellationToken = default)
     {
-        WriteStoreTracking.EnsureTracked(db, aggregate);
+        // The database keeps its restrictive parent FK. Explicitly mark only
+        // removed tracked children before EF detects the severed required link;
+        // retained instances stay tracked and new children are discovered at save.
+        var detectChanges = db.ChangeTracker.AutoDetectChangesEnabled;
+        try
+        {
+            db.ChangeTracker.AutoDetectChangesEnabled = false;
+            WriteStoreTracking.EnsureTracked(db, aggregate);
+            foreach (var grant in db.ChangeTracker.Entries<RolePermissionGrant>().Where(entry =>
+                entry.Entity.TenantId == aggregate.TenantId && entry.Entity.RoleId == aggregate.Id
+                && !aggregate.Grants.Contains(entry.Entity)).ToArray())
+                grant.State = EntityState.Deleted;
+        }
+        finally { db.ChangeTracker.AutoDetectChangesEnabled = detectChanges; }
         return control.SaveAsync(cancellationToken);
     }
 }

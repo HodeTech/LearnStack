@@ -25,6 +25,8 @@ public sealed partial class OutboxDispatchConventionTests
     private const string AppJobRecoveryReceipt = "LearnStack.Application.Jobs.BackgroundJobExternalRecoveryReceipt";
     private const string AppJobAuthorizationSource = "LearnStack.Infrastructure.Persistence.IdentityAuthorizationReadSource";
     private const string AppJobAuthorizationOwner = "LearnStack.Infrastructure.Persistence.AuthorizationReadOwner";
+    private const string AppJobEvidenceSource = "LearnStack.Infrastructure.Persistence.AuthorizationEvidenceSource";
+    private const string AppJobEvidenceOwner = "LearnStack.Infrastructure.Persistence.AuthorizationEvidenceSession";
 
     private static SortedSet<string> JobApplicationSourceOffenders(ProductionCensus census)
     {
@@ -34,7 +36,7 @@ public sealed partial class OutboxDispatchConventionTests
             "LearnStack.Infrastructure.MultiTenancy.CachedHostToTenantResolver",
             "LearnStack.Infrastructure.MultiTenancy.OrganizationScopeValidator",
             AppJobRecovery, AppJobTerminalNoStart, AppJobRecoveryReceipt, JobAdmission,
-            AppJobAuthorizationSource, AppJobAuthorizationOwner };
+            AppJobAuthorizationSource, AppJobAuthorizationOwner, AppJobEvidenceSource, AppJobEvidenceOwner };
         var types = new Dictionary<string, TypeDefinition>(StringComparer.Ordinal);
         foreach (var name in subjects)
         {
@@ -103,8 +105,7 @@ public sealed partial class OutboxDispatchConventionTests
         Exact(owner, "BeginTenantFlagsLoad", [(AppJobFlags, "StartTenantFlagsLoadAsync")]);
         Exact(owner, "BeginKillswitchLoad", [(AppJobKillswitch, "StartLoadAsync")]);
         Exact(owner, "BeginAuthorizationRead", [(AppJobAuthorizationSource, "OpenAsync")]);
-        // Step 4 alone may activate this lane; its declaration supplies no production borrower today.
-        Exact(owner, "BeginAuthorizationEvidence", []);
+        Exact(owner, "BeginAuthorizationEvidence", [(AppJobEvidenceSource, "OpenAsync")]);
         Exact(owner, "BeginAuxiliary", [(AppJobOwner, "BeginAuditConfigLoad"), (AppJobOwner, "BeginStandaloneAudit"),
             (AppJobOwner, "BeginTenantFlagsLoad"), (AppJobOwner, "BeginKillswitchLoad")]);
         Exact(owner, "BeginConfinedLane", [(AppJobOwner, "BeginAuthorizationRead"), (AppJobOwner, "BeginAuthorizationEvidence")]);
@@ -112,14 +113,15 @@ public sealed partial class OutboxDispatchConventionTests
         var cores = new[] { (AppJobAuditConfig, "LoadAsync"), (AppJobAuditStore, "WriteOwnTransactionCoreAsync"),
             (AppJobFlags, "LoadTenantFlagsAsync"), (AppJobKillswitch, "LoadAsync") };
         Exact(resources, "HoldActualTask", [(AppJobAuditConfig, "StartLoadAsync"), (AppJobAuditStore, "WriteOwnTransactionAsync"),
-            (AppJobFlags, "StartTenantFlagsLoadAsync"), (AppJobKillswitch, "StartLoadAsync"), (AppJobAuthorizationOwner, ".ctor")]);
-        Exact(resources, "HoldConnection", [.. cores, (AppJobAuthorizationOwner, "OpenAsync")]);
+            (AppJobFlags, "StartTenantFlagsLoadAsync"), (AppJobKillswitch, "StartLoadAsync"), (AppJobAuthorizationOwner, ".ctor"),
+            (AppJobEvidenceOwner, ".ctor")]);
+        Exact(resources, "HoldConnection", [.. cores, (AppJobAuthorizationOwner, "OpenAsync"), (AppJobEvidenceOwner, "OpenAsync")]);
         Exact(resources, "HoldTransaction", [.. cores.Take(3), (AppJobAuthorizationOwner, "OpenAsync")]);
         Exact(resources, "HoldCommand", [cores[0], cores[0], cores[0], cores[1], cores[1], cores[2], cores[2], cores[2], cores[3]]);
         Exact(resources, "HoldReader", [cores[0], cores[2], cores[3]]);
         Exact(resources, "DisposeReaderAsync", [cores[0], cores[2], (AppJobResources, "CleanupAsync")]);
-        Exact(resources, "CleanupAsync", [.. cores, (AppJobAuthorizationOwner, "CleanupAsync")]);
-        Exact(resources, "MarkCleanupFailed", [(AppJobAuthorizationOwner, "MarkCleanupFailed")]);
+        Exact(resources, "CleanupAsync", [.. cores, (AppJobAuthorizationOwner, "CleanupAsync"), (AppJobEvidenceOwner, "CleanupAsync")]);
+        Exact(resources, "MarkCleanupFailed", [(AppJobAuthorizationOwner, "MarkCleanupFailed"), (AppJobEvidenceOwner, "MarkCleanupFailed")]);
         Exact(owner, "ReportCleanupFailure", [(AppJobResources, "MarkCleanupFailed"), (AppJobResources, "DisposeReaderAsync"),
             (AppJobResources, "CleanupAsync")]);
         Exact(owner, "Release", [(AppJobResources, "TryRelease")]);
@@ -132,7 +134,7 @@ public sealed partial class OutboxDispatchConventionTests
             (AppJobUnit, "RollbackCoreAsync"), (AppJobUnit, "RollbackCoreAsync")]);
         Exact(owner, "ReportMainCleanup", [(AppJobUnit, "DisposeAsync"), (AppJobUnit, "DisposeAsync")]);
         Exact(owner, "RefuseUnrelatedRead", [(subjects[8], "ReadAsync"), (subjects[9], "BelongsToTenantAsync"),
-            (AppJobAuthorizationSource, "QualifyAsync")]);
+            (AppJobAuthorizationSource, "QualifyAsync"), (AppJobEvidenceSource, "QualifyAsync")]);
         CheckJobApplicationRetainedFields(census, owner, resources, offenders);
         return offenders;
 

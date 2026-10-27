@@ -22,7 +22,7 @@ using Xunit.Abstractions;
 namespace LearnStack.Tests.Integration.Database;
 
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
-public sealed class AuthorizationPoolProgressTests(AuthorizationPoolProgressFixture fixture, ITestOutputHelper output)
+public sealed partial class AuthorizationPoolProgressTests(AuthorizationPoolProgressFixture fixture, ITestOutputHelper output)
     : IClassFixture<AuthorizationPoolProgressFixture>
 {
     [Fact]
@@ -69,7 +69,7 @@ public sealed class AuthorizationPoolProgressTests(AuthorizationPoolProgressFixt
         (await active.ExecuteScalarAsync(deadline.Token)).Should().Be((long)pids.Count);
         output.WriteLine("Observed 2+4+2 distinct reserved application backends; owned PostgreSQL publication remapped: "
             + fixture.DatabasePublicationWasRemapped);
-        // The evidence alias has a real backend reservation. Its production evidence owner ships in Step 4.
+        // The production evidence path is exercised below while these business backends remain occupied.
     }
 
     [Theory]
@@ -143,7 +143,8 @@ public sealed class AuthorizationPoolProgressTests(AuthorizationPoolProgressFixt
         if (postLock) await parents.HoldInvariantLocksAsync(deadline.Token);
         var observer = new LifecycleObserver(fixture.DirectConnectionString, parents);
         var reader = new CommittedIdentityAuthorizationReader(new PreContextIdentityAuthorizationSessionFactory(authorization), observer);
-        using var coordinator = DirectoryCoordinator(reader, trusted);
+        using var execution = DirectoryExecution(reader, trusted, parents.Units[0]);
+        var coordinator = execution.Operations;
 
         Result<None> result;
         if (postLock)
@@ -188,7 +189,8 @@ public sealed class AuthorizationPoolProgressTests(AuthorizationPoolProgressFixt
             await parents.HoldInvariantLocksAsync(deadline.Token);
             var observer = new LifecycleObserver(fixture.DirectConnectionString, parents);
             var reader = new CommittedIdentityAuthorizationReader(new PreContextIdentityAuthorizationSessionFactory(authorization), observer);
-            using var coordinator = DirectoryCoordinator(reader, trusted);
+            using var execution = DirectoryExecution(reader, trusted, parents.Units[0]);
+            var coordinator = execution.Operations;
             using (var refused = new CancellationTokenSource(TimeSpan.FromSeconds(2)))
             {
                 await FluentActions.Awaiting(() => coordinator.CheckHttpAsync(typeof(ListMembershipsQuery), new object(), refused.Token))
@@ -208,11 +210,12 @@ public sealed class AuthorizationPoolProgressTests(AuthorizationPoolProgressFixt
             ambientSource, NullLogger<NpgsqlUnitOfWork>.Instance);
         var recovered = new CommittedIdentityAuthorizationReader(new PreContextIdentityAuthorizationSessionFactory(authorization),
             new IdentityScopeLifecycleReader(ambient));
-        using var recoveredCoordinator = DirectoryCoordinator(recovered, trusted);
-        (await recoveredCoordinator.CheckHttpAsync(typeof(ListMembershipsQuery), new object(), deadline.Token)).IsSuccess.Should().BeTrue();
+        using var recoveredExecution = DirectoryExecution(recovered, trusted, ambient);
+        (await recoveredExecution.Operations.CheckHttpAsync(typeof(ListMembershipsQuery), new object(), deadline.Token)).IsSuccess.Should().BeTrue();
     }
 
-    private static OperationAuthorizationCoordinator DirectoryCoordinator(IIdentityAuthorizationReader reader, CandidateSource trusted)
+    private static PolicyExecution DirectoryExecution(IIdentityAuthorizationReader reader, CandidateSource trusted,
+        IUnitOfWork unit, LearnStack.SharedKernel.Audit.IAuthorizationEvidenceSessionFactory? evidence = null)
     {
         var catalog = new OperationPolicyCatalog([new IdentityOperationPolicySource()]);
         catalog.Definitions.Should().HaveCount(5);
@@ -223,7 +226,7 @@ public sealed class AuthorizationPoolProgressTests(AuthorizationPoolProgressFixt
         var context = TenantContextFactory.Create(new TenantResolutionAttempt
         {
             HasValidatedPrincipal = true,
-            UserId = UserId.From(IdentityMembershipFixture.AdminA),
+            UserId = trusted.Actor,
             ClaimTenantId = TenantId.From(SchemaFixture.TenantA),
             ClaimOrganizationId = OrganizationId.From(SchemaFixture.OrgA1),
             MembershipCovers = true,
@@ -231,7 +234,7 @@ public sealed class AuthorizationPoolProgressTests(AuthorizationPoolProgressFixt
         }).Value ?? throw new InvalidOperationException("Claim-only policy progress context was refused.");
         context.Origin.Should().Be(TenantContextOrigin.ClaimAndMembership);
         context.HostScope.Should().BeNull();
-        return new(catalog, new IdentityOperationAuthorizer(reader, catalog), context, [trusted], []);
+        return new(catalog, reader, context, trusted, unit, evidence);
     }
 
     private async Task AssertParentsStillHeldAsync(HeldBusinessOwners parents, bool postLock, CancellationToken cancellationToken)
@@ -252,14 +255,15 @@ public sealed class AuthorizationPoolProgressTests(AuthorizationPoolProgressFixt
         (await command.ExecuteScalarAsync(cancellationToken)).Should().Be(2L * AuthorizationPoolProgressFixture.BusinessCapacity);
     }
 
-    private sealed class CandidateSource : AuthorizationCandidate.MintingSource, IAuthorizationCandidateSource
+    private sealed class CandidateSource(Guid? actor = null) : AuthorizationCandidate.MintingSource, IAuthorizationCandidateSource
     {
+        public UserId Actor => UserId.From(actor ?? IdentityMembershipFixture.AdminA);
         public AuthorizationCandidate? ForValidatedScope(TenantId tenant, OrganizationId? organization) =>
             tenant == TenantId.From(SchemaFixture.TenantA) && organization == OrganizationId.From(SchemaFixture.OrgA1)
                 ? Candidate() : null;
 
         public AuthorizationCandidate Candidate() => ForCandidate(AuthorizationSourceKind.Http,
-            UserId.From(IdentityMembershipFixture.AdminA), TenantId.From(SchemaFixture.TenantA),
+            Actor, TenantId.From(SchemaFixture.TenantA),
             OrganizationId.From(SchemaFixture.OrgA1));
     }
 
@@ -321,7 +325,8 @@ public sealed class AuthorizationPoolProgressTests(AuthorizationPoolProgressFixt
         public List<int> BackendPids { get; } = [];
         private HeldBusinessOwners(string connectionString) => Source = ApplicationDataSource.Build(connectionString);
 
-        public static async Task<HeldBusinessOwners> OpenAsync(string connectionString, CancellationToken cancellationToken)
+        public static async Task<HeldBusinessOwners> OpenAsync(string connectionString, CancellationToken cancellationToken,
+            TransactionMode mode = TransactionMode.ReadWrite, bool orgless = false)
         {
             var owners = new HeldBusinessOwners(connectionString);
             try
@@ -330,8 +335,8 @@ public sealed class AuthorizationPoolProgressTests(AuthorizationPoolProgressFixt
                 {
                     var unit = new NpgsqlUnitOfWork(owners.Source, NullLogger<NpgsqlUnitOfWork>.Instance);
                     owners.Units.Add(unit);
-                    owners._frames.Add(await unit.BeginTransactionAsync(cancellationToken));
-                    await unit.SetTenantContextAsync(new ParentContext(), cancellationToken);
+                    owners._frames.Add(await unit.BeginTransactionAsync(mode, cancellationToken));
+                    await unit.SetTenantContextAsync(new ParentContext(orgless), cancellationToken);
                     await using var pid = new NpgsqlCommand("SELECT pg_backend_pid()", (NpgsqlConnection)unit.Connection,
                         (NpgsqlTransaction)unit.Transaction!);
                     owners.BackendPids.Add((int)(await pid.ExecuteScalarAsync(cancellationToken))!);
@@ -360,6 +365,8 @@ public sealed class AuthorizationPoolProgressTests(AuthorizationPoolProgressFixt
                 await command.ExecuteNonQueryAsync(cancellationToken);
             }
         }
+
+        public Task CompleteFirstAsync(CancellationToken cancellationToken) => _frames[0].CompleteAsync(cancellationToken);
 
         public async ValueTask DisposeAsync()
         {
@@ -401,11 +408,11 @@ public sealed class AuthorizationPoolProgressTests(AuthorizationPoolProgressFixt
         }
     }
 
-    private sealed class ParentContext : ITenantContext
+    private sealed class ParentContext(bool orgless = false) : ITenantContext
     {
         public bool IsResolved => true;
         public TenantId TenantId => TenantId.From(SchemaFixture.TenantA);
-        public OrganizationId? OrganizationId => LearnStack.SharedKernel.Identifiers.OrganizationId.From(SchemaFixture.OrgA1);
+        public OrganizationId? OrganizationId => orgless ? null : LearnStack.SharedKernel.Identifiers.OrganizationId.From(SchemaFixture.OrgA1);
         public UserId? UserId => LearnStack.SharedKernel.Identifiers.UserId.From(IdentityMembershipFixture.AdminA);
         public TenantContextOrigin? Origin => TenantContextOrigin.HostAndClaim;
         public string? CorrelationId => null;

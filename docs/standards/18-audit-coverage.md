@@ -195,9 +195,9 @@ will raise them — which this standard requires it to do.
   These sit outside the request-type join in both directions and register by
   slug through `DeclareOffPath` when their writer ships. The module matrices
   own the population, including platform entry/terminal operations, assertion
-  events, global identity creation and privileged Audit maintenance. P03-2 adds
-  planned off-path authorization-denial and claim-context assertion events;
-  acceptance creates no executable registration.
+  events, global identity creation and privileged Audit maintenance. P03-2 Step 4
+  registers authorization-denial and claim-context assertion events beside their
+  staged central writers; launch activation remains Step 5.
 - **One operation, one row.** A slug is classified in exactly one row across every
   matrix. A copy is a second answer that passes every comparison the moment it agrees, so
   the matrix → catalogue direction refuses it, and the catalogue → matrix direction compares
@@ -336,10 +336,12 @@ Rules:
   `occurredAt` as `timestamp`, `resource` / `resourceId` as `entity_type` / `entity_id`,
   `sourceIp` as `ip_address`, and `operation.key` as `operation`. Membership/Role
   references, privileged flags and route identity have no column of their own.
-  The current composer leaves email/IP/user agent null and has no
-  Membership/Role/route enrichment. The Accepted P03-2 contract stores
-  bounded trusted provenance under `metadata.authorization`, with IP/user agent
-  in their existing columns; [the canonical evidence rules below](#trusted-authorization-evidence)
+  The composer keeps email null. Its staged P03-2 owner attaches bounded trusted
+  provenance under `metadata.authorization`, with IP/user agent in their
+  existing columns. An exact invocation binds its own resource frame; a direct
+  inner act without a new frame cannot replace its parent's context, while a
+  fresh post-lock recheck of that same act can update it. Joint launch wiring
+  remains Step 5; [the canonical evidence rules below](#trusted-authorization-evidence)
   define its sources and limits. Runtime implementation remains pending.
 
 ## Storage
@@ -626,7 +628,7 @@ and applicable domain policy, not a blanket retention for all MUST rows.
 
 ## Trusted authorization evidence
 
-**Accepted contract; runtime and proofs pending in P03-2.** Jointly Accepted
+**Accepted contract; staged runtime implementation in P03-2 Step 4.** Jointly Accepted
 [ADR-0076](../decisions/0076-live-scoped-authorization.md) and
 [ADR-0077](../decisions/0077-trusted-authorization-evidence.md) add central evidence
 ownership without changing ordinary resource classifications or the pipeline order.
@@ -737,6 +739,8 @@ Identity audit table is admitted.
 - Effective actor comes from verified binding or the finite trusted source owner;
   event/job IDs and causal human remain separate from effective actor. A SystemActor
   UUID or provider claim grants no authority or privileged flag.
+  A finite seed owner's known absence of a principal remains null; provenance
+  does not invent SystemActor or a human actor for it.
 - At most two contributing Membership IDs and eight contributing built-in Role IDs
   come only from the live decision, sorted canonically. Excess or ambiguous evidence
   fails closed; never silently truncate an authority set.
@@ -765,7 +769,7 @@ Identity audit table is admitted.
 Store failure retains existing Critical/counter/audit-health signals. Independent
 composer refusal emits one fixed Critical signal, without raw provider/database
 exception details. [Observability](10-observability.md) owns diagnostic rules;
-acceptance does not claim these new paths or their fault/crash controls implemented.
+the phase delivery record owns actual fault/crash receipts and review state.
 
 ## Global identity creation
 

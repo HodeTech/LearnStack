@@ -185,6 +185,13 @@ public sealed class TrustedOperationSourceConventionTests
             if (method.DeclaringType.FullName.StartsWith("LearnStack.Application.Authorization.OperationAuthorizationCoordinator/<>c__DisplayClass", StringComparison.Ordinal)
                 && method.Name.StartsWith("<ExecuteAsync>b__", StringComparison.Ordinal))
                 return "LearnStack.Application.Authorization.OperationAuthorizationCoordinator::ExecuteAsync";
+            if (method.DeclaringType.FullName.StartsWith("LearnStack.Application.Audit.AuthorizationEvidenceCoordinator/<>c__DisplayClass", StringComparison.Ordinal)
+                && method.Name.StartsWith("<Snapshot>b__", StringComparison.Ordinal))
+                return "LearnStack.Application.Audit.AuthorizationEvidenceCoordinator::Snapshot";
+            if ((method.DeclaringType.FullName == "LearnStack.Modules.Identity.Application.Authorization.RoleGrantAuthorization"
+                    || method.DeclaringType.FullName.StartsWith("LearnStack.Modules.Identity.Application.Authorization.RoleGrantAuthorization/<>c__DisplayClass", StringComparison.Ordinal))
+                && method.Name.StartsWith("<RecheckAsync>g__Refused|", StringComparison.Ordinal))
+                return "LearnStack.Modules.Identity.Application.Authorization.RoleGrantAuthorization::RecheckAsync";
             return method.DeclaringType.FullName + "::" + method.Name;
         }
         public void Dispose() { foreach (var module in _modules) module.Dispose(); }

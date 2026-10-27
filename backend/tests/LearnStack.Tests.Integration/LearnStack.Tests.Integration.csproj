@@ -21,6 +21,8 @@
     <ProjectReference Include="..\..\src\LearnStack.Tools.IdentityAuthorityInstaller\LearnStack.Tools.IdentityAuthorityInstaller.csproj" />
     <ProjectReference Include="../LearnStack.Tests.JobLifecycleProbe/LearnStack.Tests.JobLifecycleProbe.csproj"
                       ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../LearnStack.Tests.AuthorizationEvidenceProbe/LearnStack.Tests.AuthorizationEvidenceProbe.csproj"
+                      ReferenceOutputAssembly="false" />
     <!-- The tenancy schema tests apply the module's own migration and assert its
          policies, so they need the migration assembly and the persistence model
          directly — not the DI registration. AddLearnStackPersistence does register
@@ -28,6 +30,10 @@
          context on the ambient connection at request time; it does not give a test
          the Migrations folder to apply. -->
     <ProjectReference Include="..\..\src\Modules\Tenancy\LearnStack.Modules.Tenancy.Infrastructure\LearnStack.Modules.Tenancy.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="../AuthorizationEvidenceProof/AuthorizationBarrierHarness.cs" Link="Database/AuthorizationBarrierHarness.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -62,6 +68,16 @@
     <Error Condition="'@(_JobLifecycleProbeFiles)' == ''" Text="The job lifecycle proof sidecar was not built." />
     <Copy SourceFiles="@(_JobLifecycleProbeFiles)"
           DestinationFiles="@(_JobLifecycleProbeFiles->'$(OutDir)job-lifecycle-probe/%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="StageAuthorizationEvidenceProbe" AfterTargets="Build">
+    <ItemGroup>
+      <_AuthorizationEvidenceProbeFiles Include="$(MSBuildThisFileDirectory)../LearnStack.Tests.AuthorizationEvidenceProbe/bin/$(Configuration)/$(TargetFramework)/**/*" />
+    </ItemGroup>
+    <Error Condition="'@(_AuthorizationEvidenceProbeFiles)' == ''" Text="The authorization evidence proof sidecar was not built." />
+    <Copy SourceFiles="@(_AuthorizationEvidenceProbeFiles)"
+          DestinationFiles="@(_AuthorizationEvidenceProbeFiles->'$(OutDir)authorization-evidence-probe/%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true" />
   </Target>
 

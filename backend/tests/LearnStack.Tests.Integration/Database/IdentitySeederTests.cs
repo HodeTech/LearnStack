@@ -3,8 +3,11 @@ using System.Text.Json;
 using FluentAssertions;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Identity.Application.Contracts.Bindings;
+using LearnStack.Modules.Identity.Application.Contracts.Roles;
+using LearnStack.Modules.Identity.Domain;
 using LearnStack.Modules.Identity.Infrastructure.Bindings;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Secrets;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.Tools.Seeder;
@@ -131,24 +134,20 @@ public sealed class IdentitySeederTests(SchemaFixture schema) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Edited_or_upgraded_initial_grants_refuse_without_repair_or_additional_audit()
+    public async Task Legitimate_audited_grant_change_makes_fixed_v1_seed_refuse_without_repair_or_additional_audit()
     {
         await using var dataSource = ApplicationDataSource.Build(_database.AppConnectionString);
         await SeedContentAsync(dataSource);
         await RunAsync(dataSource);
-        var role = SeedData.IdentityRoles[0];
-        await using (var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(_database.AppConnectionString))
-        await using (var transaction = await app.BeginTransactionAsync())
+        var role = SeedData.IdentityRoles.First(declaration => declaration.BuiltInKey == BuiltInRoleKey.TenantAdmin);
+        var administrator = SeedData.IdentityMemberships.First(member => member.IsFirstAdmin && member.Identity.Tenant == role.Tenant);
+        await using (var grants = await RoleGrantPipelineHarness.CreateAsync(_database.AppConnectionString, Registration,
+            role.Tenant.TenantId, administrator.Identity.UserId, "seed-legitimate-grant-change"))
         {
-            await IdentityMembershipFixture.ScopeAsync(app, transaction, role.Tenant.TenantId.Value);
-            await IdentityMembershipFixture.LockAsync(app, transaction, role.Tenant.TenantId.Value, null, true);
-            await IdentityMembershipFixture.ExecuteAsync(app, transaction, """
-                DELETE FROM public.role_permission_grants WHERE tenant_id=@tenant AND role_id=@role
-                    AND permission_key='identity.membership_profile.write';
-                UPDATE public.roles SET row_version=row_version+1 WHERE tenant_id=@tenant AND id=@role;
-                SET CONSTRAINTS ALL IMMEDIATE;
-                """, ("tenant", role.Tenant.TenantId.Value), ("role", role.RoleId));
-            await transaction.CommitAsync();
+            var changed = await grants.Sender.Send(new ChangeRoleGrantsCommand(role.RoleId, 0,
+                IdentityFoundationManifest.Version1.TenantAdminKernel));
+            changed.IsSuccess.Should().BeTrue();
+            changed.Value.Should().Be(1);
         }
         var before = await AuditCountAsync();
         var act = async () => await RunAsync(dataSource);

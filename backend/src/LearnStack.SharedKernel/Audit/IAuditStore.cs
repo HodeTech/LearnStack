@@ -4,7 +4,7 @@ using LearnStack.SharedKernel.Persistence;
 namespace LearnStack.SharedKernel.Audit;
 
 /// <summary>
-/// The only sanctioned way to put a row in <c>audit_log</c>. Eight writes, and
+/// The only sanctioned way to put a row in <c>audit_log</c>. Ten writes, and
 /// <b>no update</b>.
 /// </summary>
 /// <remarks>
@@ -34,6 +34,16 @@ namespace LearnStack.SharedKernel.Audit;
 /// </remarks>
 public interface IAuditStore
 {
+    /// <summary>Writes one fixed authorization event on its matching live ReadWrite owner.</summary>
+    Task WriteAuthorizationPendingAsync(IUnitOfWork unitOfWork, AuthorizationEvidenceOccurrence occurrence,
+        CancellationToken cancellationToken = default) =>
+        throw new InvalidOperationException("This audit store cannot write authorization evidence.");
+
+    /// <summary>Durably writes or exactly verifies one fixed event through the independent evidence source.</summary>
+    Task WriteAuthorizationStandaloneAsync(AuthorizationEvidenceOccurrence occurrence,
+        CancellationToken cancellationToken = default) =>
+        throw new InvalidOperationException("This audit store cannot write authorization evidence.");
+
     /// <summary>Writes the enrolled global creation intent on its original live owner.</summary>
     Task WriteGlobalIdentityPendingAsync(IUnitOfWork unitOfWork, GlobalIdentityCreationReference creation,
         CancellationToken cancellationToken = default);

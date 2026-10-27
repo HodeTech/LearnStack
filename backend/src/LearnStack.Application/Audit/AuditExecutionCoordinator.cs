@@ -38,7 +38,8 @@ public sealed class AuditExecutionCoordinator(
     IClock clock,
     IGuidFactory guidFactory,
     ILogger<AuditExecutionCoordinator> logger,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    AuthorizationEvidenceCoordinator? authorizationEvidence = null)
 {
     /// <summary>
     /// Classifies the declared operation before invoking its deferred work. A direct
@@ -135,6 +136,7 @@ public sealed class AuditExecutionCoordinator(
     private async Task<TResponse> ExecuteDeclaredAsync<TResponse>(Func<Task> declare, Func<Task<TResponse>> next,
         bool globalIdentity) where TResponse : IResultBase
     {
+        await using var evidenceScope = authorizationEvidence?.BeginExecution();
         var outermost = !capture.HasOpenFrame;
 
         // A frame per invocation, outermost or nested, so each intent belongs to the
@@ -153,6 +155,8 @@ public sealed class AuditExecutionCoordinator(
             JobApplicationSourceOwner.Current?.RequireBusinessReady();
 
             var response = await next().ConfigureAwait(false);
+            if (response.IsSuccess && authorizationEvidence is not null)
+                await authorizationEvidence.BeforeSuccessAsync(CancellationToken.None).ConfigureAwait(false);
 
             // Recorded rather than acted on. Every exit reconciles in one place below, so a
             // refusal, an exception and a cancellation cannot drift apart — and the
@@ -192,6 +196,8 @@ public sealed class AuditExecutionCoordinator(
                 }
                 finally
                 {
+                    if (authorizationEvidence is not null)
+                        await authorizationEvidence.ReconcileBeforeCaptureClearAsync().ConfigureAwait(false);
                     // The capture owns both attribution and frame ownership. Cleanup is
                     // scoped to this execution's capture, so another DI scope on the same
                     // async flow cannot suppress its own reconciliation.

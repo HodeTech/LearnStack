@@ -161,7 +161,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**313 test methods run in
+**315 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -2714,7 +2714,7 @@ noted below; acceptance never promotes an unrun proof.
 - **Test owners:** `IdentityAuthorizationReaderTests`,
   `AuthorizationReadSourceTests`, `AuthorizationPoolProgressTests`,
   `IdentityAuthorizationConventionTests`, `TrustedOperationSourceConventionTests`,
-  `OperationPolicyOwnershipTests`.
+  `OperationPolicyOwnershipTests`, `IdentityAuditConventionTests`.
 - **Status:** **Registered** — P03-2 Steps 2/3, before activation.
 - **Partial implementation:** the confined reader/source, actual PostgreSQL/
   PgBouncer policy progress, typed HTTP candidates and finite source ownership
@@ -2758,7 +2758,8 @@ noted below; acceptance never promotes an unrun proof.
   [Audit Coverage](18-audit-coverage.md#trusted-authorization-evidence).
 - **Type:** common-owner/source census plus real PostgreSQL/HTTP, process crash,
   uncertainty, capacity and cleanup controls. **Kind:** behavioural and structural.
-- **Test owners:** `AuthorizationEvidenceTests`, `AuthorizationEvidenceFaultTests`,
+- **Test owners:** `AuthorizationEvidenceCoordinatorTests`, `AuthorizationEvidenceStoreTests`,
+  `AuthorizationEvidenceSourceTests`, `AuthorizationEvidenceBarrierTests`,
   `AuthorizationPoolProgressTests`, `IdentityAuditConventionTests`.
 - **Status:** **Registered** — P03-2 Step 4; activation waits for these proofs.
 - **Phase:** 03 (P03-2).
@@ -2776,7 +2777,7 @@ noted below; acceptance never promotes an unrun proof.
   [Audit Coverage](18-audit-coverage.md#trusted-authorization-evidence).
 - **Type:** real source/HTTP/record composition and diagnostic sink controls.
   **Kind:** behavioural and structural.
-- **Test owners:** `AuthorizationEvidenceTests`, `IdentityDiagnosticsTests`,
+- **Test owners:** `AuthorizationEvidenceCoordinatorTests`, `IdentityDiagnosticsTests`,
   `TenantAuthenticationRejectionAuditTests`, `IdentityAuditConventionTests`.
 - **Status:** **Registered** — P03-2 Steps 4/5.
 - **Phase:** 03 (P03-2).

@@ -5,7 +5,7 @@ and [ADR-0073](../../decisions/0073-scoped-membership-and-identity-data-foundati
 The live contract is jointly Accepted in
 [ADR-0076](../../decisions/0076-live-scoped-authorization.md) /
 [ADR-0077](../../decisions/0077-trusted-authorization-evidence.md); runtime remains pending.
-The internal directory query, fresh operation evaluator and exact policy source
+The internal directory query, finite Role grant commands, fresh operation evaluator and exact policy source
 are staged; no Identity HTTP route or live permission admission is activated. The [module spec](README.md)
 owns storage/lifecycle; [Standard 19's accepted foundation contract](../../standards/19-permissions.md#proposed-identity-foundation-contract)
 owns the exact registry, grant manifests and kernel without a second copy here.
@@ -72,7 +72,7 @@ new assignable definitions require their own approved finite manifest.
   already admitted work is not retroactively cancelled. JWT/session/UI caching
   cannot establish that boundary. P03-3 owns UI freshness/target transitions.
 
-## Accepted P03-2 operation bindings — staged internal directory
+## Accepted P03-2 operation bindings — staged internal operations
 
 | Operation | Existing capability | Boundary |
 |---|---|---|
@@ -87,8 +87,8 @@ reads only; [Standard 19](../../standards/19-permissions.md) owns their exact se
 Default-deny HTTP and independent application checks consume fresh committed
 policy facts. P03-9 retains Platform admission; a SystemActor UUID is no bypass.
 `IdentityOperationPolicySource` classifies the six existing seed requests as
-finite Seed operations and the internal directory as the sole protected Identity
-consumer. The fresh evaluator distinguishes coverage from capability and
+finite Seed operations, the internal directory and the two orgless Role grant
+commands. The fresh evaluator distinguishes coverage from capability and
 returns bounded Membership/Role references only. Opt-in registration does not
 activate the HTTP gate or native transport.
 The [Standard 05 read authority contract](../../standards/05-database.md#operation-bound-read-authority)

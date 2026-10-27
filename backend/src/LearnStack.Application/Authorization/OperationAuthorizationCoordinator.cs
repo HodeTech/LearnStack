@@ -3,6 +3,7 @@ using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
+using LearnStack.Application.Audit;
 
 namespace LearnStack.Application.Authorization;
 
@@ -12,8 +13,9 @@ public sealed class OperationAuthorizationCoordinator(
     IProtectedOperationAuthorizer authorizer,
     ITenantContext context,
     IEnumerable<IAuthorizationCandidateSource> candidateSources,
-    IEnumerable<ITrustedOperationSource> trustedSources)
-    : OperationInvocation.MintingSource, IDisposable
+    IEnumerable<ITrustedOperationSource> trustedSources,
+    AuthorizationEvidenceCoordinator evidence)
+    : OperationInvocation.MintingSource, IOperationInvocationContext, IDisposable
 {
     private static readonly Error Forbidden = new(new LocalizedMessage("lockey_forbidden"));
     private static readonly Error Unavailable = new(new LocalizedMessage("lockey_dependency_unavailable"));
@@ -27,6 +29,9 @@ public sealed class OperationAuthorizationCoordinator(
 
     public OperationReadWitness? CurrentReadWitness => _current.Value is { Closed: false, Decision: { } decision }
         && decision.Outcome == ProtectedOperationOutcome.Allowed && decision.IsActive ? decision.ReadWitness : null;
+
+    public ProtectedOperationDecision? CurrentDecision => _current.Value is { Closed: false, Decision: { IsActive: true } decision }
+        ? decision : null;
 
     public Task<TResponse> ExecuteRequestAsync<TRequest, TResponse>(TRequest request,
         Func<Task<TResponse>> next, CancellationToken cancellationToken = default)
@@ -99,9 +104,14 @@ public sealed class OperationAuthorizationCoordinator(
         var previous = _current.Value;
         var frame = new Frame(invocation, previous);
         _current.Value = frame;
+        await using var evidenceScope = evidence.BeginExecution();
         try
         {
-            if (sourceFailure is not null) return Result.FailFor<TResponse>(sourceFailure);
+            if (sourceFailure is not null)
+            {
+                evidence.RecordPolicyRefusal(invocation, null, sourceFailure);
+                return Result.FailFor<TResponse>(sourceFailure);
+            }
             if (candidate is not null)
             {
                 var decision = await authorizer.AuthorizeAsync(invocation, policy, candidate, cancellationToken);
@@ -109,6 +119,7 @@ public sealed class OperationAuthorizationCoordinator(
                 if (decision is null || !ReferenceEquals(decision.Invocation, invocation) || !decision.IsActive)
                     return Result.FailFor<TResponse>(Unavailable);
                 frame.Decision = decision;
+                evidence.Observe(invocation, decision);
                 var error = decision.Outcome switch
                 {
                     ProtectedOperationOutcome.Allowed when policy.ReadScope == OperationReadScope.Tenant
@@ -118,12 +129,23 @@ public sealed class OperationAuthorizationCoordinator(
                     ProtectedOperationOutcome.Forbidden => Forbidden,
                     _ => Unavailable,
                 };
-                if (error is not null) return Result.FailFor<TResponse>(error);
+                if (error is not null)
+                {
+                    evidence.RecordPolicyRefusal(invocation, decision, error);
+                    return Result.FailFor<TResponse>(error);
+                }
                 if (policy.RequiresOrglessWrite && context.OrganizationId is not null)
+                {
+                    evidence.RecordPolicyRefusal(invocation, decision, Forbidden);
                     return Result.FailFor<TResponse>(Forbidden);
+                }
             }
+            else evidence.Observe(invocation, null);
             if (!invocation.IsActive) return Result.FailFor<TResponse>(Unavailable);
-            return await next();
+            var response = await next();
+            if (response.IsFailure) evidence.RecordPolicyRefusal(invocation, frame.Decision, response.Error!);
+            else await evidence.BeforeSuccessAsync(cancellationToken);
+            return response;
         }
         finally
         {

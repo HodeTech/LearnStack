@@ -1,7 +1,10 @@
 using FluentValidation;
 using LearnStack.Application.Audit;
+using LearnStack.Application.Authorization;
 using LearnStack.Application.Messaging;
 using LearnStack.Application.Persistence;
+using LearnStack.SharedKernel.Audit;
+using LearnStack.SharedKernel.Permissions;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -54,6 +57,12 @@ public static class MediatRPipelineRegistration
         // One scoped lifecycle for every entry and both API/Seeder compositions.
         // Behaviors adapt requests; direct owners reuse these same coordinators.
         services.TryAddScoped<AuditExecutionCoordinator>();
+        services.TryAddScoped<AuthorizationEvidenceCoordinator>();
+        services.TryAddScoped<UnadmittedOperationContext>();
+        services.TryAddScoped<IOperationInvocationContext>(provider => provider.GetRequiredService<UnadmittedOperationContext>());
+        services.TryAddScoped<IAuthorizationRefusalReporter>(provider => provider.GetRequiredService<UnadmittedOperationContext>());
+        services.TryAddScoped<Func<IOperationInvocationContext>>(provider =>
+            () => provider.GetRequiredService<IOperationInvocationContext>());
         // A pre-context binding reader must not construct creation-only owners
         // and pin their transient tenant context before ordinary resolution.
         services.TryAddScoped<Func<AuditExecutionCoordinator>>(provider =>

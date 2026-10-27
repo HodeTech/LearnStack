@@ -29,10 +29,10 @@ public sealed class OperationPolicyCatalogTests
             && type.GetInterfaces().Any(contract => contract.IsGenericType && contract.GetGenericTypeDefinition() == typeof(IRequest<>)))
             .OrderBy(type => type.FullName, StringComparer.Ordinal).ToArray();
         Assert.Equal(actual, catalog.All.Select(policy => policy.RequestType));
-        Assert.Equal(47, actual.Length);
+        Assert.Equal(49, actual.Length);
         Assert.Equal(4, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.PublicRead));
         Assert.Single(catalog.All, policy => policy.Kind == OperationPolicyKind.AccountRead);
-        Assert.Single(catalog.All, policy => policy.Kind == OperationPolicyKind.Protected);
+        Assert.Equal(3, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.Protected));
         Assert.Equal(41, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.FiniteTrusted));
         Assert.Equal(5, catalog.Definitions.Count(definition => definition.Assignable));
         Assert.Equal(3, catalog.Definitions.Count(definition => !definition.Assignable));

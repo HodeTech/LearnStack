@@ -22,6 +22,9 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                     IsHandlerTypeMetadata(type, pair.Definition, instruction, index, map)))
                 .Select(instruction => (Instruction: instruction, Original: (GenericInstanceMethod)instruction.Operand,
                     Method: pair.Definition))).ToArray();
+        var controllerTokens = Il.Methods(type).Where(pair => pair.Definition.HasBody).SelectMany(pair =>
+            pair.Definition.Body.Instructions.Where(instruction => IsControllerTypeMetadata(type, pair.Definition, instruction))
+                .Select(instruction => (Instruction: instruction, Original: instruction.Operand))).ToArray();
         try
         {
             foreach (var site in sites)
@@ -33,9 +36,14 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                         ? type.Module.TypeSystem.Object : original.GenericArguments[index]);
                 site.Instruction.Operand = metadata;
             }
+            foreach (var token in controllerTokens) token.Instruction.Operand = type.Module.TypeSystem.Object;
             return Il.ReferencedTypeReferences(type).ToArray();
         }
-        finally { foreach (var site in sites) site.Instruction.Operand = site.Original; }
+        finally
+        {
+            foreach (var site in sites) site.Instruction.Operand = site.Original;
+            foreach (var token in controllerTokens) token.Instruction.Operand = token.Original;
+        }
     }
 
     private static bool IsHandlerTypeMetadata(TypeDefinition owner, MethodDefinition method, Instruction instruction,

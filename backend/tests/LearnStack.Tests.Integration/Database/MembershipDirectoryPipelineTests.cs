@@ -277,7 +277,7 @@ public sealed class MembershipDirectoryPipelineTests(IdentityAuthorizationReader
             services.AddIdentityOperationPolicies();
             services.AddScoped<IIdentityScopeLifecycleReader, IdentityScopeLifecycleReader>();
             services.AddSingleton<IOperationPolicyCatalog>(provider => new OperationPolicyCatalog(provider.GetServices<IOperationPolicySource>()));
-            services.AddScoped<OperationAuthorizationCoordinator>();
+            services.AddLearnStackOperationAuthorization();
             services.AddScoped<AuditStateCapture>();
             services.AddScoped<IAuditStateCapture>(provider => provider.GetRequiredService<AuditStateCapture>());
             services.AddScoped<IAuditSubject>(provider => provider.GetRequiredService<AuditStateCapture>());

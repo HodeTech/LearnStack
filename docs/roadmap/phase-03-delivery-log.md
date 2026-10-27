@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 952 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 1,048 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -98,6 +98,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 Step 3 — Policy and operation-bound execution (2026-10-27)](#p03-2-step-3--policy-and-operation-bound-execution-2026-10-27) — 112 lines
   - [P03-2 Step 3 review round 1 and corrections (2026-10-27)](#p03-2-step-3-review-round-1-and-corrections-2026-10-27) — 31 lines
   - [P03-2 Step 3 review round 2 and closeout (2026-10-27)](#p03-2-step-3-review-round-2-and-closeout-2026-10-27) — 19 lines
+  - [P03-2 Step 4 — Trusted evidence and finite grant acts (2026-10-27)](#p03-2-step-4--trusted-evidence-and-finite-grant-acts-2026-10-27) — 96 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -3903,3 +3904,99 @@ retains the previous shell/deny-all behavior pending Steps 4/5. Step 4 proceeds
 under the approved plan with central fixed-occurrence evidence, its pre-success
 barrier, trusted provenance and separate explicit Role grant acts. No new
 maintainer decision or HTTP activation is implied by this closeout.
+
+### P03-2 Step 4 — Trusted evidence and finite grant acts (2026-10-27)
+
+**Implementation.** The common `AuthorizationEvidenceCoordinator` owns a separate
+fixed occurrence per refused policy act. It freezes the complete row and UTC
+microsecond decision time, keeps real nested acts distinct and serializes re-entry
+with the same decided reference. Ordinary capture's Committed flag acknowledges
+none of these events. Successful ReadWrite completion flushes unresolved events
+after domain draining and before final commit admission; physical ReadOnly and
+ownerless success require a standalone acknowledgement. Event rollback/uncertainty
+retains the same denied occurrence. Acknowledging a live transaction refuses, and
+each pending write rechecks the original physical reference and generation after
+I/O. The existing final event/job admission-to-COMMIT gap gains no await.
+
+Audit, policy and actual transaction scopes retain the population through their
+real enclosing owner. Failed/uncertain events reconcile before ordinary capture
+clears; a still-live prepared owner retains its events for its own barrier.
+Already-refused callers preserve 403/404 on audit loss. Failed standalone attempts
+are signaled by the MUST store and not retried by the same finally. No restart
+ledger or universal recovery promise is introduced.
+
+`AuthorizationEvidenceSource` owns two retained slots/connectors under the same
+guarded application role and installed authority. One shared five-second budget
+covers opening, role guard, setup, INSERT/COMMIT and sequential exact verification.
+The failed INSERT transaction's actual disposal finishes before a fresh physical
+ReadOnly verification transaction starts on that connector. Job accounting retains
+the physical connection and actual session task across both concrete transactions;
+cleanup faults retain source/job capacity and joined shutdown. The source publishes
+no general datasource/SQL callback. The two confined `IAuditStore` methods reuse the
+sole INSERT/binder; only the expected primary-key duplicate admits full null-safe
+22-field/typed-JSONB comparison. Exact event evidence establishes no business result.
+
+Typed immutable HTTP, finite seed/event/job and live decision provenance reaches
+the existing columns and versioned authorization metadata. Actor absence in an
+actual finite seed owner remains null, including unresolved provisioning's ordinary
+resource frame; no SystemActor is invented. A resource frame binds one exact
+invocation, so a direct inner act without its own frame cannot replace its parent;
+a fresh post-lock recheck of that act can refresh its context. Membership/Role IDs
+remain bounded/sorted and contextual. HTTP sources reuse the admitted visitor,
+fall back to the physical peer, sanitize/bound user agent and accept only canonical
+endpoint identity. Claim-only assertion observations freeze confirmed scope and
+dimension without asserted UUIDs or a host-budget debit. The adapters are staged;
+real resolver/HTTP activation remains Step 5.
+
+`ChangeRoleGrantsCommand` and `AdoptRoleGrantManifestCommand` each own one Role,
+expected version, current eligible admin/delegation ceiling and immutable kernel.
+The complete strongest tenant lock mode is selected before waiting; fresh actor
+and target checks precede mutation afterward. Orgless Tenant-to-Organization
+same-key authoring is explicit; no evaluation fallback, new key, v2 manifest,
+automatic seed upgrade or writer route follows. Contained grant changes retain
+references and delete only actually removed tracked children under the existing
+restrictive FK. Their actual common MUST rows carry the Role and its child diff.
+The policy census is 49 requests: 41 finite, four public, one AccountSite and three
+protected, with the same five assignable and three virtual definitions.
+
+**Validation and corrections.** Strict Release production builds pass with zero
+warnings/errors. The complete unit population passes 2,961/2,961 with zero skips;
+subsequent affected API-source/central-owner controls pass 34/34, including physical
+generation, precommit acknowledgement and actual admission/transport canaries.
+Actual SeedComposition provenance controls preserve null actors without opening
+a database or claiming the fixture intent became durable.
+
+The first 80-case PostgreSQL/PgBouncer group passes 67/80. Three source assertions
+incorrectly infer disposal from a null/new NpgsqlTransaction object; the corrected
+controls observe distinct server transaction IDs, immutable announcement generations
+and fresh physical ReadOnly state after an actual aborted transaction. Three grant
+tests incorrectly reuse a poisoned/validated scoped owner; each act now uses a
+fresh complete scope. The grant-diff assertion checks the actual RFC 6901-escaped
+composite key and exact before/after values. The pool fixture now announces legal
+orgless role writes for its uncommitted-authority dirty control and compares the
+actual empty contributor metadata on denial. One uncertainty test exposes ordinary
+capture clearing before event reconciliation; the owner now reconciles first.
+All 30 correction cases pass. The final relevant group passes **84/84**, including
+both actual precommit/postcommit SIGKILL controls, 22-field duplicate mismatches,
+source/job cleanup faults, all 15 direct/PgBouncer pool cases and the directory's
+physical MUST barrier. A separately staged test-only executable supplies the crash
+boundary; no production test hook or existing job probe is changed.
+
+The legitimate seed-rerun control now changes grants through the actual audited
+command, then proves the fixed v1 runner refuses without repair or another audit
+write; that case passes separately. The architecture population initially passes
+28/29; the new detector's fallback-throw and reference-comparison expectations are
+aligned with actual Release IL, retaining dirty controls. A transitive HTTP graph
+then exposes the classifier's fixed controller-type metadata as a false handler
+dependency. Only its exact data-only table tokens are distinguished, while real
+controller acquisition/execution/delegates remain covered by planted twins.
+All six current metadata/provenance cases pass. Adjacent store, catalogue count,
+aggregate and lifecycle checks pass except an incomplete job detector subject list;
+its two already-enumerated evidence subjects are added and the exact ownership/
+escape test then passes, including its planted controls. No
+complete architecture rerun or hosted qualification is claimed by these receipts.
+
+**Review state.** Step 4's targeted implementation validation is complete. Its
+implementation commit precedes two fresh independent review rounds. Broader
+rules remain Registered and launch still retains the prior shell/
+deny-all behavior; Step 5 owns joint production activation and its real HTTP matrix.

@@ -1,10 +1,15 @@
 using System.Data.Common;
 using LearnStack.Application.Authorization;
+using LearnStack.Application.Audit;
+using LearnStack.Infrastructure.Audit;
+using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
+using LearnStack.SharedKernel.Time;
+using Microsoft.Extensions.Logging.Abstractions;
 using MediatR;
 using NSubstitute;
 using Xunit;
@@ -199,8 +204,14 @@ public sealed class OperationAuthorizationCoordinatorTests
     }
 
     private static OperationAuthorizationCoordinator Owner(ITenantContext context, Authorizer authorizer,
-        IAuthorizationCandidateSource[] candidates, ITrustedOperationSource[]? trusted = null) =>
-        new(new OperationPolicyCatalog([new TestPolicySource()]), authorizer, context, candidates, trusted ?? []);
+        IAuthorizationCandidateSource[] candidates, ITrustedOperationSource[]? trusted = null)
+    {
+        OperationAuthorizationCoordinator? owner = null;
+        var evidence = new AuthorizationEvidenceCoordinator(Substitute.For<IAuditStore>(), new AuditStateCapture(),
+            Substitute.For<IUnitOfWork>(), new SystemClock(), new SystemGuidFactory(), () => owner!, [],
+            NullLogger<AuthorizationEvidenceCoordinator>.Instance);
+        return owner = new(new OperationPolicyCatalog([new TestPolicySource()]), authorizer, context, candidates, trusted ?? [], evidence);
+    }
 
     private static TenantContext Context() => TenantContextFactory.Create(new()
     {

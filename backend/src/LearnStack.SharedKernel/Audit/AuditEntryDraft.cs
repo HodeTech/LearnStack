@@ -120,8 +120,10 @@ public sealed record AuditEntryDraft
     public required string? UserAgent { get; init; }
 
     /// <summary>
-    /// Always supplied by the store from <c>IClock</c> — the intent's <c>DeclaredAt</c>
-    /// for the in-transaction row, a fresh reading for a standalone re-write. The
+    /// Supplied from <c>IClock</c> — the ordinary intent's <c>DeclaredAt</c>
+    /// for the in-transaction row, a fresh reading for its standalone re-write.
+    /// A central authorization occurrence instead freezes one UTC microsecond
+    /// timestamp across all of its writes and exact reconciliation. The
     /// column's <c>DEFAULT now()</c> is a backstop for a row inserted by something other
     /// than the store, and never the ordinary source.
     /// </summary>

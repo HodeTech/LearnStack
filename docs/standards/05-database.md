@@ -2075,9 +2075,9 @@ Connection Management and job-source inventories below with these confined
 sources. This section is the sole detailed standards owner for their physical
 capacity, configuration and lifetime; acceptance supplies no runtime proof.
 The four login roles, grants and canonical RLS templates remain unchanged.
-P03-2 Step 2 implements the authorization source/child reader and coupled
-configuration selector; evidence execution and production composition remain
-later steps. The [phase Status block](../roadmap/phase-03-identity-admin.md)
+P03-2 Steps 2/4 implement both confined sources and the coupled configuration
+selector. Joint production composition and HTTP activation remain Step 5;
+the [phase Status block](../roadmap/phase-03-identity-admin.md)
 owns current review and qualification state.
 
 | Source / configuration | Retained-owner and connector bound per API process | Permitted work |

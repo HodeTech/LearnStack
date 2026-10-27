@@ -1,4 +1,10 @@
 using FluentAssertions;
+using LearnStack.Application.Audit;
+using LearnStack.Application.Authorization;
+using LearnStack.SharedKernel.Audit;
+using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Results;
+using LearnStack.SharedKernel.Time;
 using LearnStack.Modules.Tenancy.Application.Contracts.Account;
 using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
 using LearnStack.Modules.Tenancy.Application.Contracts.Seeding;
@@ -17,6 +23,53 @@ namespace LearnStack.Tests.Integration;
 /// <summary>Actual per-act SeedComposition ownership, without opening a database connection.</summary>
 public sealed class SeedOperationSourceTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Actual_seed_owner_keeps_a_missing_actor_null_in_its_frozen_provenance_without_database_IO(bool provisioning)
+    {
+        await using var data = Source();
+        var tenant = TenantId.From(Guid.CreateVersion7());
+        var supplied = provisioning ? null : new SeedTenantContext(tenant, null);
+        await using var provider = SeedComposition.Build(data, supplied, NullLoggerFactory.Instance);
+        await using var scope = provider.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var context = services.GetRequiredService<ITenantContext>();
+        var capture = services.GetRequiredService<IAuditStateCapture>();
+        capture.OpenFrame();
+        capture.DeclareIntent(new AuditIntent(AuditEntryId.From(Guid.CreateVersion7()), tenant, null, null, null,
+            "tenancy", "tenancy.seed.provenance_probe", OperationType.SecurityEvent, OperationClass.Must, null, DateTimeOffset.UtcNow));
+        OperationAuthorizationCoordinator? owner = null;
+        using var evidence = new AuthorizationEvidenceCoordinator(services.GetRequiredService<IAuditStore>(), capture,
+            services.GetRequiredService<IUnitOfWork>(), new SystemClock(), new SystemGuidFactory(), () => owner!, [],
+            NullLogger<AuthorizationEvidenceCoordinator>.Instance);
+        using var coordinator = owner = new OperationAuthorizationCoordinator(new OperationPolicyCatalog(ModuleSources()),
+            new NoHumanReads(), context, [], services.GetServices<ITrustedOperationSource>(), evidence);
+        // This isolates source/provenance. It neither dispatches a business handler
+        // nor claims the manually declared fixture intent became durable.
+        if (provisioning)
+        {
+            var request = new ProvisionTenantCommand(tenant, "seed", "Seed", OrganizationId.From(Guid.CreateVersion7()), "default", "Default");
+            var result = await coordinator.ExecuteRequestAsync<ProvisionTenantCommand, Result<ProvisionedTenantDto>>(request,
+                () => Task.FromResult(Result.Ok(new ProvisionedTenantDto(tenant, "seed", request.DefaultOrganizationId, "default"))));
+            result.IsSuccess.Should().BeTrue();
+        }
+        else
+        {
+            var result = await coordinator.ExecuteRequestAsync<GetTenantSeedStateQuery, Result<SeedLookup<TenantSeedDto>>>(new(),
+                () => Task.FromResult(Result.Ok(new SeedLookup<TenantSeedDto>(null))));
+            result.IsSuccess.Should().BeTrue();
+        }
+        capture.CloseFrame(AuditIntentResult.Succeeded);
+        var draft = AuditDraftComposer.InTransaction(capture.Intents.Single(), []);
+        draft.ActorUserId.Should().BeNull("the finite source does not invent SystemActor for an absent principal");
+        capture.Intents.Single().Authorization.Should().NotBeNull();
+        capture.Intents.Single().Authorization!.SourceKind.Should().Be(AuthorizationSourceKind.Seed);
+        draft.Metadata.Should().Contain("\"source\":\"seed\"");
+        services.GetRequiredService<IUnitOfWork>().HasActiveTransaction.Should().BeFalse();
+        capture.Clear();
+    }
+
     [Fact]
     public async Task Actual_seed_composition_captures_the_exact_finite_manifest_and_closes_it_with_its_scope()
     {
@@ -68,6 +121,13 @@ public sealed class SeedOperationSourceTests
         Database = "seed_operation_no_io",
         Username = "learnstack_app"
     }.ConnectionString);
+
+    private sealed class NoHumanReads : IProtectedOperationAuthorizer
+    {
+        public Task<ProtectedOperationDecision> AuthorizeAsync(OperationInvocation invocation, OperationPolicy policy,
+            AuthorizationCandidate candidate, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Finite seed provenance cannot invoke human authorization.");
+    }
 
     private static IEnumerable<IOperationPolicySource> ModuleSources() => new[]
     {

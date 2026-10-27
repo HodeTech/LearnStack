@@ -1,5 +1,6 @@
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Permissions;
 
 namespace LearnStack.Infrastructure.Audit;
 
@@ -54,6 +55,7 @@ public sealed class AuditStateCapture : IAuditStateCapture, IAuditSubject
 
     /// <summary>The open frames, innermost last.</summary>
     private readonly List<int> _openFrames = [];
+    private readonly Dictionary<int, OperationInvocation> _authorizationFrames = [];
 
     private int _framesOpened;
 
@@ -185,6 +187,28 @@ public sealed class AuditStateCapture : IAuditStateCapture, IAuditSubject
     }
 
     /// <inheritdoc />
+    public void AttachAuthorization(AuthorizationAuditContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        if (!HasOpenFrame) return; // HTTP policy checks have no resource-intent frame.
+        var frame = CurrentFrame;
+        // A direct inner policy act can have no resource frame of its own. It
+        // still owns its denial occurrence, but cannot overwrite its parent's
+        // resource context. A post-lock recheck of the same act may refresh it.
+        if (_authorizationFrames.TryGetValue(frame, out var owner) && !ReferenceEquals(owner, context.Invocation)) return;
+        _authorizationFrames.TryAdd(frame, context.Invocation);
+        for (var index = 0; index < _intents.Count; index++)
+        {
+            var intent = _intents[index];
+            if (_intentFrames[index] != frame) continue;
+            if (intent.GlobalIdentity is not null || intent.TenantId != context.TenantId
+                || intent.OrganizationId != context.OrganizationId || intent.ActorUserId != context.Actor)
+                throw new InvalidOperationException("Authorization evidence does not belong to the current resource frame.");
+            _intents[index] = intent with { Authorization = context };
+        }
+    }
+
+    /// <inheritdoc />
     public void Designate<TId>(IAggregateRoot<TId> aggregate)
         where TId : struct, IStronglyTypedId<Guid>
     {
@@ -261,6 +285,7 @@ public sealed class AuditStateCapture : IAuditStateCapture, IAuditSubject
     /// <inheritdoc />
     public void Clear()
     {
+        _authorizationFrames.Clear();
         _changes.Clear();
         _changeFrames.Clear();
         _intents.Clear();
