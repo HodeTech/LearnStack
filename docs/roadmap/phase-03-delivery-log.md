@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 1,893 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 1,933 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -116,6 +116,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 Step 6 scoped census performance correction (2026-10-28)](#p03-2-step-6-scoped-census-performance-correction-2026-10-28) — 39 lines
   - [P03-2 census performance review round 1 (2026-10-28)](#p03-2-census-performance-review-round-1-2026-10-28) — 17 lines
   - [P03-2 census performance review round 2 and source freeze (2026-10-28)](#p03-2-census-performance-review-round-2-and-source-freeze-2026-10-28) — 27 lines
+  - [P03-2 authority proof decomposition and preservation (2026-10-28)](#p03-2-authority-proof-decomposition-and-preservation-2026-10-28) — 40 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -4862,3 +4863,43 @@ production code, test population, timing weight, owner count, thread setting,
 job ceiling or cleanup reserve changes after the correction. Source work freezes
 for new complete hosted A/B. Catalogue promotions, gate/packet closeout and PR
 handoff still wait for that actual evidence.
+
+### P03-2 authority proof decomposition and preservation (2026-10-28)
+
+Full A attempt [40593558449/1](https://github.com/HodeTech/LearnStack/actions/runs/40593558449)
+at source `33142a89` completes **25/27** jobs. Five Architecture producers,
+all ordinary producers and the integration aggregate pass. Architecture-0 and
+its backend aggregate fail. The complete producer union has **6,923** selected,
+**6,922** Passed and exactly **one** without a result: the monolithic authority
+mutation Fact. All **24** actual artifacts retain API/size/SHA-256/CRC checks.
+No B starts. This remains failed qualification, with no inferred test start time
+or claim that the standalone selector intrinsically cannot fit.
+
+Two independent source/contract assessments select a cohesive test-source
+refactor under ADR-0063's versioned population/plan rules. Five independently
+meaningful Facts replace the one orchestrating Fact in the same nested class:
+admission activation/live guards; routing store/holder escapes; generation-bound
+issuance/binding; executor/framework capability dispatch; opaque provenance and
+publication gates. Each owns a fresh census. One unchanged 21-capability factory
+serves the two related proof families. Every newly discovered method remains a
+whole selection unit; execution never slices a method's rows or mutation loop.
+No production code, detector, concurrency, time ceiling or reserve changes.
+
+A reproducible source-token ledger reconstructs all five moved blocks and the
+complete old helper, preserving string/character literals, token order, callbacks,
+undo actions, loop inventories and assertions. It finds the same **27** mutation
+source sites, **21** capabilities and **two** explicit positive evaluations.
+A separate temporary local instrumentation records the actual old/new runs:
+**1/1 -> 5/5** passing Facts, zero failures/skips, with exactly equal multisets
+of **374** mutation descriptions/detectors and **1,124** detector/result-count
+evaluations. The source-token and runtime checks complement each other; repeated
+descriptions alone would not prove the capability inventory. All temporary
+instrumentation is restored byte-for-byte to the committed wrapper afterward.
+Those diagnostic runs are not timing-weight sources or hosted qualification.
+
+The catalogue's compiled Fact/Theory method count changes **316 -> 320**;
+Implemented-rule counts and the canonical ordinary-job authority rule remain
+unchanged. Historical logs and the retired selector's weight remain historical.
+Clean uninstrumented whole-Fact timing receipts, actual full-population discovery,
+a reviewed plan revision, fresh reviews and complete final-source hosted A/B
+remain required before closeout.
