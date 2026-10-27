@@ -21,6 +21,7 @@ public sealed partial class AuthenticationAuthorityTests
     private const string BindingResolver = Authentication + nameof(TenantIdentityBindingResolver);
     private const string Provenance = Authentication + nameof(TenantSubjectAdmissionProvenance);
     private const string CandidateSource = Authentication + nameof(TenantAuthorizationCandidateSource);
+    private const string TransportSource = Authentication + nameof(HttpAuthorizationTransportSource);
     private const string CredentialWitness = CandidateSource + "/CredentialWitness";
     private const string Resolver = "LearnStack.Api.Tenancy.TenantResolverMiddleware";
     private static readonly string[] IdentityProperties = ["ActorUserId", "Issuer", "OrganizationId", "Subject", "TenantId"];
@@ -122,9 +123,11 @@ public sealed partial class AuthenticationAuthorityTests
         VerifiedConsumers("OrganizationId", BindingAdmission + ".InvokeAsync", CandidateSource + ".MatchesIdentity");
         Consumers("ActorUserId", Resolver + ".BuildAttemptAsync", Resolver + ".RecordRefusalAsync",
             "LearnStack.Api.Tenancy.TenantAssertionMiddleware.InvokeAsync",
-            Authentication + "TenantSurfaceAdmissionMiddleware.HasHostAuthority", CandidateSource + ".ForValidatedScope", CandidateSource + ".MatchesIdentity");
+            Authentication + "TenantSurfaceAdmissionMiddleware.HasHostAuthority", CandidateSource + ".ForValidatedScope", CandidateSource + ".MatchesIdentity",
+            TransportSource + ".Capture");
         Consumers("TenantId", Resolver + ".BuildAttemptAsync", Resolver + ".InvokeAsync",
-            Authentication + "TenantSurfaceAdmissionMiddleware.HasHostAuthority", CandidateSource + ".ForValidatedScope", CandidateSource + ".MatchesIdentity");
+            Authentication + "TenantSurfaceAdmissionMiddleware.HasHostAuthority", CandidateSource + ".ForValidatedScope", CandidateSource + ".MatchesIdentity",
+            TransportSource + ".Capture");
         Consumers("OrganizationId", Resolver + ".BuildAttemptAsync", Authentication + "TenantSurfaceAdmissionMiddleware.HasHostAuthority",
             CandidateSource + ".ForValidatedScope", CandidateSource + ".MatchesIdentity");
 

@@ -93,6 +93,7 @@ public sealed class IdentityFoundationConventionTests
     {
         string[] admitted =
         [
+            "LearnStack.Modules.Identity.Application.Roles.RoleGrantCommandHandlerBase.ExecuteAsync",
             "LearnStack.Modules.Identity.Application.Seeding.InitializeSeedRoleCommandHandler.Handle",
             "LearnStack.Modules.Identity.Application.Seeding.SeedMembershipCreation.CreateAsync",
             "LearnStack.Modules.Identity.Application.Seeding.SetSeedMembershipProfileCommandHandler.Handle",

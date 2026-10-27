@@ -33,7 +33,7 @@ public sealed class RoleGrantCommandIntegrationTests(IdentityAuthorizationReader
             Assert.Equal(["Organization:identity.membership.admin"], graph.Grants);
             var audit = await AuditAsync(Correlation, "identity.role.change_grants");
             Assert.Equal("success", audit.Outcome);
-            Assert.Equal("Must:Update:Role:" + role.ToString("D"), audit.Classification);
+            Assert.Equal("Must:SecurityEvent:Role:" + role.ToString("D"), audit.Classification);
             using var changes = JsonDocument.Parse(audit.Changes);
             var grant = Assert.Single(changes.RootElement.EnumerateArray(), field => field.GetProperty("path").GetString()
                 == "/Role/" + role.ToString("D") + "/Grants/Organization~1identity.membership.admin/PermissionKey");
@@ -115,7 +115,7 @@ public sealed class RoleGrantCommandIntegrationTests(IdentityAuthorizationReader
             Assert.Equal(2, adopted.Value);
             Assert.Equal(["Organization:identity.membership_profile.write"], (await ReadRoleAsync(role)).Grants);
             var row = await AuditAsync("grant-finite-adoption", "identity.role.adopt_manifest", "success");
-            Assert.Equal("Must:Update:Role:" + role.ToString("D"), row.Classification);
+            Assert.Equal("Must:SecurityEvent:Role:" + role.ToString("D"), row.Classification);
         }
         finally { await RestoreAsync(BuiltInRoleKey.Learner, PermissionScope.Organization); }
     }

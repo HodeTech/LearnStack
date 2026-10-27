@@ -201,6 +201,9 @@ public sealed partial class TransactionExecutionCoordinator(
             var response = await next();
             if (response.IsFailure)
             {
+                // A decided refusal must survive a faulted rollback or cancellation
+                // during cleanup, before the outer policy observer regains control.
+                authorizationEvidence?.RecordTransactionRefusal(operationType, response.Error!);
                 // Joiners are not savepoints. Successful production cannot escape
                 // merely because an ancestor absorbs this refusal.
                 if (invocation.HasProducedWork) unitOfWork.MarkRollbackOnly();

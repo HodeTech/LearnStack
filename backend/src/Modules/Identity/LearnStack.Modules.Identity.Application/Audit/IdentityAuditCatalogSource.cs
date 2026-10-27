@@ -20,8 +20,8 @@ public sealed class IdentityAuditCatalogSource : IAuditCatalogSource
         builder.Off<GetRoleSeedStateQuery>();
         builder.Off<GetMembershipSeedStateQuery>();
         builder.MustAudit<ListMembershipsQuery>(IdentityOperationPolicySource.MembershipDirectoryOperation, OperationType.ReadSensitive, typeof(Membership));
-        builder.MustAudit<ChangeRoleGrantsCommand>("identity.role.change_grants", OperationType.Update, typeof(Role));
-        builder.MustAudit<AdoptRoleGrantManifestCommand>("identity.role.adopt_manifest", OperationType.Update, typeof(Role));
+        builder.MustAudit<ChangeRoleGrantsCommand>("identity.role.change_grants", OperationType.SecurityEvent, typeof(Role));
+        builder.MustAudit<AdoptRoleGrantManifestCommand>("identity.role.adopt_manifest", OperationType.SecurityEvent, typeof(Role));
         builder.DeclareOffPath("identity.user.create", OperationType.SecurityEvent, OperationClass.Must, typeof(User));
         builder.DeclareOffPath("identity.authorization.deny", OperationType.SecurityEvent, OperationClass.Must);
     }

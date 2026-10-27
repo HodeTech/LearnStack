@@ -27,8 +27,8 @@ the request exists, and off-path events register by slug when their writer lands
 | MembershipProfile, captured under Membership | `identity.membership_profile.set_seed_profile` | **MUST** (`update`) | `SetSeedMembershipProfile`; same Membership transaction. The slug matches the gated sub-resource while the row's subject remains its owning aggregate. |
 | Authorization decision | `identity.authorization.deny` `(off-path)` | **MUST** (`security-event`) | Central HTTP/application/resource denial owner; one decided invocation event, separate from ordinary plural resource intents. No tenant override or host suppression budget. |
 | Membership directory | `identity.membership.list` | **MUST** (`read-sensitive`) | Internal `ListMembershipsQuery` under existing Tenant `identity.membership.admin`; ordinary ReadWrite owner commits its row before disclosure. No HTTP activation follows from its catalogue entry. |
-| Role including grants | `identity.role.change_grants` | **MUST** (`update`) | `ChangeRoleGrantsCommand`; one Role root and contained grant diff, expected row version and fresh post-lock authority recheck; success/audit share the transaction. |
-| Role including grants | `identity.role.adopt_manifest` | **MUST** (`update`) | `AdoptRoleGrantManifestCommand`; separately admitted finite v1 manifest adoption, one Role root and contained grant diff; no automatic registry/seed upgrade. |
+| Role including grants | `identity.role.change_grants` | **MUST** (`security-event`) | `ChangeRoleGrantsCommand`; one Role root and contained grant diff, expected row version and fresh post-lock authority recheck; success/audit share the transaction. |
+| Role including grants | `identity.role.adopt_manifest` | **MUST** (`security-event`) | `AdoptRoleGrantManifestCommand`; separately admitted finite v1 manifest adoption, one Role root and contained grant diff; no automatic registry/seed upgrade. |
 
 **Explicit Off reads.** Contextual seed verification request types are registered
 Off before use; they inspect only the exact bounded declared seed facts, with no

@@ -121,10 +121,11 @@ public sealed partial class PostgresAuditStore
             command.Transaction = session.Unit.Transaction;
             // All persisted fields use the one INSERT's parameters. In particular the
             // nullable JSON values are typed JSONB by Bind, never text or string equality.
+            // The nonnullable composite key uses equality so verification can seek its index.
             command.CommandText = """
                 SELECT EXISTS (
                     SELECT 1 FROM public.audit_log
-                    WHERE id IS NOT DISTINCT FROM @id
+                    WHERE id = @id
                       AND tenant_id IS NOT DISTINCT FROM @tenant_id
                       AND organization_id IS NOT DISTINCT FROM @organization_id
                       AND actor_user_id IS NOT DISTINCT FROM @actor_user_id
@@ -144,7 +145,7 @@ public sealed partial class PostgresAuditStore
                       AND correlation_id IS NOT DISTINCT FROM @correlation_id
                       AND ip_address IS NOT DISTINCT FROM @ip_address
                       AND user_agent IS NOT DISTINCT FROM @user_agent
-                      AND timestamp IS NOT DISTINCT FROM @timestamp
+                      AND timestamp = @timestamp
                       AND metadata IS NOT DISTINCT FROM @metadata)
                 """;
             Bind(command.Parameters, draft);

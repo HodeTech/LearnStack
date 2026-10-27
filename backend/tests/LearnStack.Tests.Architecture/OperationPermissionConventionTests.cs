@@ -5,6 +5,7 @@ using LearnStack.Modules.Customization.Application.Authorization;
 using LearnStack.Modules.Education.Application.Authorization;
 using LearnStack.Modules.Identity.Application;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
+using LearnStack.Modules.Identity.Application.Contracts.Roles;
 using LearnStack.Modules.Identity.Domain;
 using LearnStack.Modules.Tenancy.Application.Authorization;
 using LearnStack.SharedKernel.Permissions;
@@ -70,14 +71,24 @@ public sealed class OperationPermissionConventionTests
     public void Permission_Scope_Matches_Resource_Scope()
     {
         var catalog = Catalog();
+        catalog.All.Where(policy => policy.Kind == OperationPolicyKind.Protected).Select(policy => policy.RequestType)
+            .Should().BeEquivalentTo([typeof(ListMembershipsQuery), typeof(ChangeRoleGrantsCommand), typeof(AdoptRoleGrantManifestCommand)]);
         foreach (var policy in catalog.All)
         {
             if (policy.Kind == OperationPolicyKind.Protected)
             {
-                policy.RequestType.Should().Be<ListMembershipsQuery>("only the admitted directory is staged in Step 3");
-                policy.RequiredPermission.Should().Be(IdentityOperationPolicySource.MembershipAdministration);
-                policy.ReadScope.Should().Be(OperationReadScope.Tenant, "the tenant-wide Membership read is an explicit read exception, never org write scope");
-                policy.RequiresOrglessWrite.Should().BeFalse();
+                if (policy.RequestType == typeof(ListMembershipsQuery))
+                {
+                    policy.RequiredPermission.Should().Be(IdentityOperationPolicySource.MembershipAdministration);
+                    policy.ReadScope.Should().Be(OperationReadScope.Tenant, "the tenant-wide Membership read is an explicit read exception, never org write scope");
+                    policy.RequiresOrglessWrite.Should().BeFalse();
+                }
+                else
+                {
+                    policy.RequiredPermission.Should().Be(IdentityOperationPolicySource.RoleAdministration);
+                    policy.ReadScope.Should().Be(OperationReadScope.Scoped, "finite grant writes never mint tenant-wide read authority");
+                    policy.RequiresOrglessWrite.Should().BeTrue();
+                }
             }
             else
             {

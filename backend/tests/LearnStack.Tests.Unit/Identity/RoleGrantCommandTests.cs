@@ -192,7 +192,7 @@ public sealed class RoleGrantCommandTests
             Assert.True(catalog.TryGet(type, out var registration));
             var entry = Assert.Single(registration.Entries);
             Assert.Equal(typeof(Role), entry.EntityType);
-            Assert.Equal(OperationType.Update, entry.OperationType);
+            Assert.Equal(OperationType.SecurityEvent, entry.OperationType);
             Assert.Equal(OperationClass.Must, entry.OperationClass);
             Assert.True(policies.TryGet(type, out var policy));
             Assert.Equal(OperationPolicyKind.Protected, policy.Kind);

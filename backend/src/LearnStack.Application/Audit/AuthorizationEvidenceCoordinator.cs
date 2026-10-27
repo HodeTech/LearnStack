@@ -75,6 +75,17 @@ public sealed class AuthorizationEvidenceCoordinator(
             error.Message.Key, _contexts.GetValueOrDefault(invocation));
     }
 
+    /// <summary>Freezes an actual handler refusal before transaction cleanup can fault or revoke its invocation.</summary>
+    public void RecordTransactionRefusal(Type? operationType, Error error)
+    {
+        ArgumentNullException.ThrowIfNull(error);
+        var execution = current();
+        if (operationType is null || execution.CurrentInvocation is not { EntryKind: OperationEntryKind.Application } invocation
+            || invocation.Policy.RequestType != operationType || invocation.Operation.GetType() != operationType)
+            return;
+        RecordPolicyRefusal(invocation, execution.CurrentDecision, error);
+    }
+
     /// <summary>The API has already decided its masked refusal; audit failure never replaces that refusal.</summary>
     public async Task RecordConfirmedAssertionAsync(ConfirmedClaimAssertion assertion)
     {

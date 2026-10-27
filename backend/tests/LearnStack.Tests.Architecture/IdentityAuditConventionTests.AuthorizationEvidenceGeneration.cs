@@ -8,6 +8,69 @@ public sealed partial class IdentityAuditConventionTests
     private const string EvidenceUnit = "LearnStack.SharedKernel.Persistence.IUnitOfWork";
     private const string EvidenceBatch = CentralEvidence + "/CommitBatch";
     private const string NullableGeneration = "System.Nullable`1<System.Int64>";
+    private const string EvidenceInvocation = "LearnStack.SharedKernel.Permissions.OperationInvocation";
+    private const string EvidencePolicy = "LearnStack.SharedKernel.Permissions.OperationPolicy";
+    private const string EvidenceTransactionOwner = "LearnStack.Application.Persistence.TransactionExecutionCoordinator";
+
+    private static IEnumerable<(Instruction Entry, Instruction Policy, Instruction Operation)> EvidenceTransactionCaptureGuards(MethodDefinition body)
+    {
+        var current = EvidenceCalls(body, InvocationContext, "get_CurrentInvocation").SingleOrDefault();
+        if (current?.Previous is not { } context || EvidenceLocal(context) is not { } contextIndex
+            || context.Previous is not { OpCode.Code: Code.Brfalse or Code.Brfalse_S, Operand: Instruction refused }
+            || context.Previous.Previous?.OpCode != OpCodes.Ldarg_1 || refused.OpCode != OpCodes.Ret
+            || current.Next is not { } store || EvidenceStoredLocal(store) is not { } invocationIndex
+            || store.Next is not { } loaded || EvidenceLocal(loaded) != invocationIndex
+            || loaded.Next is not { OpCode.Code: Code.Brfalse or Code.Brfalse_S } missing || missing.Operand != refused
+            || !body.Body.Instructions.Any(instruction => instruction.Operand is MethodReference method && method.Name == "Invoke"
+                && method.DeclaringType.FullName == "System.Func`1<" + InvocationContext + ">"
+                && instruction.Next is { } retained && EvidenceStoredLocal(retained) == contextIndex)) yield break;
+        var entry = EvidenceCalls(body, EvidenceInvocation, "get_EntryKind").SingleOrDefault();
+        if (entry?.Previous is not { } entryOwner || EvidenceLocal(entryOwner) != invocationIndex
+            || entry.Next?.OpCode != OpCodes.Ldc_I4_1
+            || entry.Next.Next is not { OpCode.Code: Code.Bne_Un or Code.Bne_Un_S } wrongEntry || wrongEntry.Operand != refused) yield break;
+        var policy = EvidenceCalls(body, EvidencePolicy, "get_RequestType").SingleOrDefault();
+        if (policy?.Previous is not { } policyOwner || !EvidenceIsCall(policyOwner, EvidenceInvocation, "get_Policy")
+            || policyOwner.Previous is not { } policyInvocation || EvidenceLocal(policyInvocation) != invocationIndex
+            || policy.Next?.OpCode != OpCodes.Ldarg_1 || policy.Next.Next is not { } policyCompare
+            || !EvidenceIsCall(policyCompare, "System.Type", "op_Inequality")
+            || policyCompare.Next is not { OpCode.Code: Code.Brtrue or Code.Brtrue_S } wrongPolicy || wrongPolicy.Operand != refused) yield break;
+        var actual = EvidenceCalls(body, "System.Object", "GetType").SingleOrDefault();
+        if (actual?.Previous is not { } operation || !EvidenceIsCall(operation, EvidenceInvocation, "get_Operation")
+            || operation.Previous is not { } operationInvocation || EvidenceLocal(operationInvocation) != invocationIndex
+            || actual.Next?.OpCode != OpCodes.Ldarg_1 || actual.Next.Next is not { } operationCompare
+            || !EvidenceIsCall(operationCompare, "System.Type", "op_Inequality")
+            || operationCompare.Next is not { OpCode.Code: Code.Brfalse or Code.Brfalse_S, Operand: Instruction accepted } rightOperation
+            || rightOperation.Next != refused || refused.Next != accepted || accepted.OpCode != OpCodes.Ldarg_0
+            || accepted.Next is not { } acceptedInvocation || EvidenceLocal(acceptedInvocation) != invocationIndex
+            || acceptedInvocation.Next is not { } acceptedContext || EvidenceLocal(acceptedContext) != contextIndex
+            || acceptedContext.Next is not { } decision || !EvidenceIsCall(decision, InvocationContext, "get_CurrentDecision")
+            || decision.Next?.OpCode != OpCodes.Ldarg_2 || decision.Next.Next is not { } record
+            || !EvidenceIsCall(record, CentralEvidence, "RecordPolicyRefusal") || record.Next?.OpCode != OpCodes.Ret) yield break;
+        yield return (wrongEntry, wrongPolicy, rightOperation);
+    }
+
+    private static IEnumerable<(Instruction FailureBranch, Instruction OperationType)> EvidenceBeforeRollbackCaptures(MethodDefinition body)
+    {
+        foreach (var record in EvidenceCalls(body, CentralEvidence, "RecordTransactionRefusal"))
+        {
+            if (record.Previous is not { } error || !EvidenceIsCall(error, "LearnStack.SharedKernel.Results.IResultBase", "get_Error")
+                || error.Previous?.OpCode != OpCodes.Constrained || error.Previous.Previous?.OpCode != OpCodes.Ldflda
+                || error.Previous.Previous.Operand is not FieldReference response || error.Previous.Previous.Previous?.OpCode != OpCodes.Ldarg_0
+                || error.Previous.Previous.Previous.Previous is not { OpCode.Code: Code.Ldfld, Operand: FieldReference operationType } type
+                || operationType.Name != "operationType" || operationType.FieldType.FullName != "System.Type" || type.Previous?.OpCode != OpCodes.Ldarg_0) continue;
+            var failed = EvidenceCalls(body, "LearnStack.SharedKernel.Results.IResultBase", "get_IsFailure").SingleOrDefault(call =>
+                call.Previous?.OpCode == OpCodes.Constrained && call.Previous.Previous is { OpCode.Code: Code.Ldflda, Operand: FieldReference field }
+                && field.FullName == response.FullName && call.Previous.Previous.Previous?.OpCode == OpCodes.Ldarg_0);
+            if (failed?.Next is not { OpCode.Code: Code.Brfalse or Code.Brfalse_S, Operand: Instruction success } branch) continue;
+            var between = body.Body.Instructions.SkipWhile(instruction => instruction != branch).Skip(1).TakeWhile(instruction => instruction != record).ToArray();
+            var rollback = EvidenceCalls(body, "LearnStack.SharedKernel.Persistence.IUnitOfWorkScope", "FailAsync")
+                .FirstOrDefault(call => body.Body.Instructions.IndexOf(call) > body.Body.Instructions.IndexOf(record));
+            if (rollback is null || body.Body.Instructions.IndexOf(branch) >= body.Body.Instructions.IndexOf(record)
+                || body.Body.Instructions.IndexOf(rollback) >= body.Body.Instructions.IndexOf(success)
+                || between.Any(instruction => instruction.OpCode.Code is Code.Call or Code.Callvirt or Code.Calli or Code.Newobj && instruction != error)) continue;
+            yield return (branch, type);
+        }
+    }
 
     private static IEnumerable<Instruction> EvidencePrematureAcknowledgementGuards(MethodDefinition body)
     {

@@ -39,6 +39,7 @@ public sealed partial class AuthenticationAuthorityTests
         [CandidateSource + ".ForValidatedScope"] = Signature(CandidateSource, "ForValidatedScope", "LearnStack.SharedKernel.Permissions.AuthorizationCandidate", "LearnStack.SharedKernel.Identifiers.TenantId", Organization),
         [CandidateSource + ".IsEvidenceCurrent"] = Signature(CandidateSource, "IsEvidenceCurrent", "System.Boolean", "System.Object"),
         [CandidateSource + ".MatchesIdentity"] = Signature(CandidateSource, "MatchesIdentity", "System.Boolean", Identity, Verified),
+        [TransportSource + ".Capture"] = Signature(TransportSource, "Capture", "LearnStack.SharedKernel.Audit.OperationTransportProvenance", "LearnStack.SharedKernel.Permissions.OperationInvocation"),
         [CredentialWitness + "..ctor"] = Signature(CredentialWitness, ".ctor", "System.Void", Http, Host, Verified, Identity,
             Authentication + "SubjectAdmissionDecision", Provenance),
         [CredentialWitness + ".get_Subject"] = Signature(CredentialWitness, "get_Subject", Verified),
@@ -214,7 +215,52 @@ public sealed partial class AuthenticationAuthorityTests
         || instruction.OpCode.Code is Code.Stfld or Code.Stsfld && instruction.Operand is FieldReference field
             && IsOpaqueProjectionArgument(field.FieldType, owner: field.DeclaringType)
         || instruction.Operand is MethodReference target && ExportsProjection(target)
-            && !IsClosedWitnessForwarding(method, instruction, target));
+            && !IsClosedWitnessForwarding(method, instruction, target)
+            && !IsClosedUserAgentFormatting(method, instruction, target));
+
+    // Release emits a constrained Object.ToString for the StringValues value.
+    // Permit only the actual User-Agent local, passed directly as ForTransport's
+    // final string argument; identity/object formatting elsewhere stays opaque.
+    private static bool IsClosedUserAgentFormatting(Method method, Instruction instruction, MethodReference target)
+    {
+        const string StringValues = "Microsoft.Extensions.Primitives.StringValues";
+        if (method.Site != ApprovedSites[TransportSource + ".Capture"]
+            || target.FullName != "System.String System.Object::ToString()"
+            || instruction.Previous is not { OpCode.Code: Code.Constrained, Operand: TypeReference constrained }
+            || constrained.FullName != StringValues
+            || instruction.Previous.Previous is not { OpCode.Code: Code.Ldloca or Code.Ldloca_S, Operand: VariableDefinition local } receiver
+            || local.VariableType.FullName != StringValues)
+            return false;
+        var stores = method.Definition.Body.Instructions.Where(candidate => StoresLocal(candidate, local)).ToArray();
+        if (stores.Length != 1
+            || stores[0].Previous?.Operand is not MethodReference header
+            || header.FullName != "Microsoft.Extensions.Primitives.StringValues Microsoft.AspNetCore.Http.IHeaderDictionary::get_UserAgent()"
+            || stores[0].Previous.Previous?.Operand is not MethodReference headers
+            || headers.FullName != "Microsoft.AspNetCore.Http.IHeaderDictionary Microsoft.AspNetCore.Http.HttpRequest::get_Headers()"
+            || stores[0].Previous.Previous.Previous?.Operand is not MethodReference request
+            || request.FullName != "Microsoft.AspNetCore.Http.HttpRequest Microsoft.AspNetCore.Http.HttpContext::get_Request()")
+            return false;
+        return receiver.Previous is { OpCode.Code: Code.Brfalse or Code.Brfalse_S, Operand: Instruction absent }
+            && receiver.Previous.Previous?.Operand is MethodReference count
+            && count.FullName == "System.Int32 Microsoft.Extensions.Primitives.StringValues::get_Count()"
+            && receiver.Previous.Previous.Previous is { OpCode.Code: Code.Ldloca or Code.Ldloca_S, Operand: VariableDefinition counted }
+            && counted == local
+            && instruction.Next is { OpCode.Code: Code.Br or Code.Br_S, Operand: Instruction transport } jump
+            && jump.Next == absent && absent.OpCode == OpCodes.Ldnull && absent.Next == transport
+            && transport.Operand is MethodReference mint
+            && mint.FullName == "LearnStack.SharedKernel.Audit.OperationTransportProvenance LearnStack.SharedKernel.Audit.OperationTransportProvenance/MintingSource::ForTransport(LearnStack.SharedKernel.Permissions.OperationInvocation,System.String,System.Net.IPAddress,System.String)"
+            && transport.Next?.OpCode == OpCodes.Ret;
+    }
+
+    private static bool StoresLocal(Instruction instruction, VariableDefinition local) => instruction.OpCode.Code switch
+    {
+        Code.Stloc or Code.Stloc_S => instruction.Operand == local,
+        Code.Stloc_0 => local.Index == 0,
+        Code.Stloc_1 => local.Index == 1,
+        Code.Stloc_2 => local.Index == 2,
+        Code.Stloc_3 => local.Index == 3,
+        _ => false
+    };
 
     private static bool IsClosedWitnessForwarding(Method method, Instruction instruction, MethodReference target) =>
         method.Site == ApprovedSites[CandidateSource + ".ForValidatedScope"]

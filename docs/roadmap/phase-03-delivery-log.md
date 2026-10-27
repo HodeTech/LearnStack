@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 1,048 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 1,141 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -99,6 +99,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 Step 3 review round 1 and corrections (2026-10-27)](#p03-2-step-3-review-round-1-and-corrections-2026-10-27) — 31 lines
   - [P03-2 Step 3 review round 2 and closeout (2026-10-27)](#p03-2-step-3-review-round-2-and-closeout-2026-10-27) — 19 lines
   - [P03-2 Step 4 — Trusted evidence and finite grant acts (2026-10-27)](#p03-2-step-4--trusted-evidence-and-finite-grant-acts-2026-10-27) — 96 lines
+  - [P03-2 Step 4 review round 1 (2026-10-27)](#p03-2-step-4-review-round-1-2026-10-27) — 41 lines
+  - [P03-2 Step 4 review corrections (2026-10-27)](#p03-2-step-4-review-corrections-2026-10-27) — 52 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -4000,3 +4002,96 @@ complete architecture rerun or hosted qualification is claimed by these receipts
 implementation commit precedes two fresh independent review rounds. Broader
 rules remain Registered and launch still retains the prior shell/
 deny-all behavior; Step 5 owns joint production activation and its real HTTP matrix.
+
+### P03-2 Step 4 review round 1 (2026-10-27)
+
+**Reviewed source:** `c1a61dd4..6780597f`. Three fresh independent
+`gpt-6-astra` reviewers at xhigh effort examine central barriers/provenance,
+confined source/store ownership, and grant acts/architecture respectively. They
+make no repository edits and run no builds. Their source review identifies two
+Major findings and one subsequently verified Minor finding; the implementation
+does not pass this round unchanged.
+
+- **Major — grant audit type.** Both successful grant changes and explicit
+  manifest adoption are MUST but incorrectly classified as `Update`. Standards
+  19/18 require permission changes to be `SecurityEvent`. Correct the two
+  catalogue entries, matrix and unit/real-database assertions. Role snapshots
+  and contained diffs remain, and no retention mechanism is claimed.
+- **Major — refusal observation precedes cleanup.** The outer authorization
+  observer receives a handler's failed Result only after transaction rollback.
+  A rollback exception prevents observation; cancellation during rollback closes
+  the invocation before later observation. The transaction owner must record
+  the exact current act's already-decided closed refusal before cleanup. It
+  must not classify an arbitrary thrown exception, 503, validation or concurrency
+  result as a denial. Fault/cancellation controls and invocation deduplication
+  are required before closure.
+- **Minor — exact duplicate lookup.** The source/store reviewer reproduces the
+  nonnullable `(id,timestamp)` null-safe-predicate concern on an isolated pinned
+  PostgreSQL 18.4 fixture with 200,000 synthetic rows, the four audit indexes and
+  forced tenant/org RLS under `learnstack_app`. The complete comparison scans
+  6,895 shared-hit blocks; equality for only the two nonnullable key fields uses
+  the primary-key index and four blocks. Both comparisons match. This is a
+  representative planner control, not the complete migrated application or a
+  production latency/timeout claim. Preserve null-safe comparison for the other
+  twenty fields, typed JSONB, scoped verification and the unchanged deadline.
+  Both owned temporary database fixtures are removed.
+
+The parent independently verifies the two source/control-flow findings and the
+index predicates. Interpretation-sensitive observations about missing-resource
+404s and contributing-role attribution do not establish an additional contract
+violation and are not promoted into scope changes. The full architecture run is
+also started against the committed implementation; its first failures identify
+the exact new source/cleanup and Role-lock caller censuses that need extension.
+Corrections, their validation receipts and a separate second review follow.
+
+### P03-2 Step 4 review corrections (2026-10-27)
+
+The parent accepts both Major findings and the representative PostgreSQL lookup
+finding. `identity.role.change_grants` and `identity.role.adopt_manifest` now
+classify as MUST `SecurityEvent`, preserving ordinary Role snapshots/contained
+diffs. Only the two nonnullable duplicate-verification key predicates change to
+equality; all twenty other persisted fields retain null-safe comparison and the
+existing typed binder.
+
+The central evidence owner gains an exact transaction-result observer. It
+requires the actual current Application invocation, matching canonical request
+type and matching actual operation type. The transaction coordinator calls it
+inside the failed-result branch before rollback or any later fallible cleanup.
+The existing closed refusal filter and occurrence map prevent exception-text
+classification and duplication by the outer observer. Twenty-two new controls
+use the actual common audit/policy/transaction graph with a faulting/cancelling
+unit: all closed refused codes retain their fixed pre-cleanup event, clean
+cleanup keeps one occurrence, unrelated operations and non-policy failures mint
+none. This is a deterministic unit fault control, not a new physical rollback
+fault-injection claim.
+
+**Validation.** The rebuilt focused Unit population passes **55/55**
+with zero skips. An isolated output layout first prevents all 54 selected
+integration cases from locating the repository SQL fixture; no application
+statement is tested by that failed setup. The correct ordinary working-tree
+layout then passes **54/54**, including both grant audit types, complete duplicate
+comparisons and actual precommit/postcommit process-kill barriers. No fixture
+root rule is weakened to accommodate the incorrect test invocation.
+
+The long full-architecture diagnostic run is cancelled after its known failures
+while corrections are being made; it is not a successful full-suite receipt or
+a frozen final-source qualification. Its 33 failing cases reduce to five exact
+census groups: the evidence datasource constructor, its retained-owner cleanup
+join, the new Role lock caller, the two new protected Role policies, and the
+transport adapter's typed-identity acquisition/getters with their dirty twins.
+Only exact subjects are added. The cleanup proof keeps its actual-completion
+join/body/parameter controls; type/witness/raw-claim/opaque-export guards remain.
+The existing provenance fact also checks the actual failed-result branch and
+exact invocation/type gates before the first rollback, with planted bypasses.
+The first rebuilt architecture target passes 31 cases and still rejects all 29
+authentication-authority controls on one common clean baseline: Release IL
+formats the User-Agent `StringValues` through a constrained `Object.ToString`.
+The detector now distinguishes only the actual header's single-assignment local,
+conditional value/null flow and immediate final string argument to the fixed
+transport minter. It grants no general formatting or owner exemption. Planted
+wrong receiver, missing header acquisition and actual identity/object/object-array
+forwarding in that same approved method still fail. The rebuilt authentication
+population then passes **29/29**, zero skips. The other 31 cases, including the
+new pre-rollback/SQL predicate dirty controls, already pass; no production code
+changes after their validation. The correction commit precedes a second fresh
+review. Full final-source architecture qualification remains Step 6.
