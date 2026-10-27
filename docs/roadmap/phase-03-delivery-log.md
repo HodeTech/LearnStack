@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,076 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,095 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -121,6 +121,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 authority decomposition review round 2 and final source freeze (2026-10-28)](#p03-2-authority-decomposition-review-round-2-and-final-source-freeze-2026-10-28) — 27 lines
   - [P03-2 final-source A exhaustion and resolution profiling (2026-10-28)](#p03-2-final-source-a-exhaustion-and-resolution-profiling-2026-10-28) — 59 lines
   - [P03-2 resolution correction review round 1 (2026-10-28)](#p03-2-resolution-correction-review-round-1-2026-10-28) — 17 lines
+  - [P03-2 resolution correction review round 2 and source freeze (2026-10-28)](#p03-2-resolution-correction-review-round-2-and-source-freeze-2026-10-28) — 19 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -5050,3 +5051,22 @@ Both A/B layouts have **20** unique owners and zero unknown weights. Plan
 `f5161ae9` and manifest `1fa6c70c` remain unchanged; no weight, selector, policy
 or qualification requirement changes. The second fresh review round and complete
 final-source hosted A/B remain open.
+
+### P03-2 resolution correction review round 2 and source freeze (2026-10-28)
+
+Two new independent reviewers (`gpt-6-astra`, xhigh) approve
+`05a54634..ad7cb5e8` without verified findings. They reconstruct the exact
+source change, per-evaluation graph semantics and all unchanged control bodies;
+independently check raw TRX hashes, identical three-case outcomes and current
+source/four-DLL bindings; and retain local timing as advisory. The evidence
+reviewer independently parses all **64** discovery protocols, reproduces both
+assignments, reconciles all **24** hosted archives and confirms the sole missing
+case and four historical observations.
+
+Both fresh review rounds are closed. No further source or plan change follows:
+**6,927** cases, **320** Architecture methods, **20** owners per layout, zero
+unknown weights, plan `f5161ae9`, manifest `1fa6c70c`. Only the Architecture test
+DLL changes across the intentional optimization. Production and all other test
+binaries stay identical. The source freezes for new complete hosted A/B with the
+existing job windows/reserve; catalogue/gate/packet closeout and PR handoff remain
+open until successful qualification and independent evidence audit.
