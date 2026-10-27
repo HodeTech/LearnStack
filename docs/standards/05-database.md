@@ -2062,8 +2062,11 @@ requires a fresh scope. No fifth role or independent public-read connection is a
   writes the idempotency store and the audit store make on their own short transactions.
 - The database-side guard is fail-closed independently: with `app.tenant_id` unset or
   reset the policy predicate is `NULL`, so the query returns zero rows rather than
-  leaking. The interceptor exists to turn that silent empty result into a loud failure,
-  not to be the isolation boundary.
+  leaking. The interceptor makes that missing announcement explicit. For an
+  operation-bound tenant-wide read it also checks the invocation's live authority:
+  SQL scope can remain announced until cleanup after the invocation ends, so retained
+  EF commands must refuse through the same owner/witness check. RLS continues to
+  enforce the announced tenant and organization scope.
 
 ### Authorization and evidence source ledger
 

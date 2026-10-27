@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 902 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 933 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -96,6 +96,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 Step 2 review round 1 and corrections (2026-10-27)](#p03-2-step-2-review-round-1-and-corrections-2026-10-27) — 43 lines
   - [P03-2 Step 2 review round 2 and closeout (2026-10-27)](#p03-2-step-2-review-round-2-and-closeout-2026-10-27) — 32 lines
   - [P03-2 Step 3 — Policy and operation-bound execution (2026-10-27)](#p03-2-step-3--policy-and-operation-bound-execution-2026-10-27) — 112 lines
+  - [P03-2 Step 3 review round 1 and corrections (2026-10-27)](#p03-2-step-3-review-round-1-and-corrections-2026-10-27) — 31 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -3851,3 +3852,34 @@ are qualified; no Step 3 closeout or live activation is claimed here.
 The final lifetime check makes invocation-frame closure atomic across inherited
 execution contexts. All 13 coordinator unit cases and the compiled ownership
 rule pass after that change; the latter retains its corrupted closure controls.
+
+### P03-2 Step 3 review round 1 and corrections (2026-10-27)
+
+**Reviewed source: `a15716d3`, against `cf9454e5`.** Three fresh independent
+GPT-6 Astra reviewers at xhigh effort inspect policy/trusted sources,
+transaction/EF/RLS scope and directory/evaluator/HTTP metadata separately.
+They make no edits or test runs; author receipts remain author evidence.
+The policy/source reviewer finds no actionable defect. Two findings are verified
+against the current implementation and corrected:
+
+- The directory's new deferred audit COMMIT test expects the ordinary primary
+  PostgreSQL exception, which maps to 500. ADR-0077 requires 503 and no disclosure
+  for this sensitive read. The physical completion catch now retains the actual
+  transaction outcome and original cause, then reports `audit_unavailable` only
+  for the matching active tenant-wide read witness with exclusively MUST
+  ReadSensitive intents and no domain changes/produced work. Cancellation and
+  ordinary mutation/unknown-business-COMMIT paths retain their original behavior.
+- The interceptor XML/error text and Database standard still describe its role
+  as diagnostic only. They now state its live-witness protection for retained EF
+  commands while SQL scope remains announced until cleanup. No runtime guard is
+  removed or widened.
+
+**Validation.** All four real PostgreSQL directory pipeline cases pass, including
+the mapped-503/no-result/cause check and a new ordinary-owner counterexample
+with the same sensitive-read intent but no policy witness: its original exception
+and Indeterminate cause remain intact. All 87 transaction/audit/coordinator unit
+cases pass, including ordinary COMMIT and cancellation preservation. The compiled
+operation-ownership rule and both lifecycle census/mutation cases pass. The first
+architecture filter matches only the ownership rule; the two lifecycle cases are
+then selected by their actual compiled names and run separately. No broader
+rerun or second-round approval is implied.

@@ -289,6 +289,18 @@ public sealed partial class TransactionExecutionCoordinator(
                     else capture.MarkIndeterminate(commitFailure);
                 }
 
+                // The new audited tenant-wide read discloses nothing until its
+                // evidence commits. Keep the actual completion state/cause, but
+                // report unavailable evidence rather than a generic database 500.
+                // Ordinary mutations and cancellation retain their primary failure.
+                if (scope.IsOwner && commitFailure is DbException && globalOwner is null
+                    && authorization?.CurrentReadWitness is { } readWitness
+                    && readWitness.Policy.RequestType == operationType
+                    && !invocation.HasProducedWork && capture.Changes.Count == 0
+                    && capture.Intents.Count != 0 && capture.Intents.All(intent =>
+                        intent.OperationClass == OperationClass.Must && intent.OperationType == OperationType.ReadSensitive))
+                    throw new AuditWriteFailedException("The sensitive read's MUST evidence could not be committed.", commitFailure);
+
                 throw;
             }
 

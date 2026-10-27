@@ -1,5 +1,7 @@
 using System.Diagnostics.Metrics;
+using LearnStack.Api.Common;
 using LearnStack.Application.Authorization;
+using LearnStack.Application.Persistence;
 using LearnStack.Application.Pipeline;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.Infrastructure.Caching;
@@ -100,7 +102,7 @@ public sealed class MembershipDirectoryPipelineTests(IdentityAuthorizationReader
     }
 
     [Fact]
-    public async Task Actual_deferred_COMMIT_failure_preserves_its_exception_and_withholds_the_directory_result()
+    public async Task Actual_deferred_COMMIT_failure_answers_audit_unavailable_and_withholds_the_directory_result()
     {
         const string Correlation = "directory-proof-commit-refused";
         await InstallTriggerAsync(Correlation, "commit_failure");
@@ -108,14 +110,33 @@ public sealed class MembershipDirectoryPipelineTests(IdentityAuthorizationReader
         {
             await using var proof = await PipelineProof.CreateAsync(fixture, Correlation);
             Result<Page<MembershipDirectoryItem>>? published = null;
-            // The existing common audit lifecycle preserves an actual COMMIT exception;
-            // reconciliation failure must not replace it with a different refusal.
-            var failure = await Assert.ThrowsAsync<PostgresException>(async () =>
+            var failure = await Assert.ThrowsAsync<AuditWriteFailedException>(async () =>
                 published = await proof.Sender.Send(new ListMembershipsQuery()));
-            Assert.Equal("P0399", failure.SqlState);
+            Assert.Equal("P0399", Assert.IsType<PostgresException>(failure.InnerException).SqlState);
+            Assert.Equal("audit_unavailable", failure.Error.Code);
+            Assert.Equal(503, HttpStatusMap.For(failure));
             Assert.Null(published);
             Assert.False(proof.Unit.HasActiveTransaction);
             Assert.False(proof.Provider.GetRequiredService<IAuditHealth>().IsHealthy);
+            Assert.Equal(0, await CountRowsAsync(Correlation));
+        }
+        finally { await RemoveTriggerAsync(); }
+    }
+
+    [Fact]
+    public async Task Ordinary_owner_preserves_its_primary_COMMIT_failure_even_with_a_sensitive_read_intent()
+    {
+        const string Correlation = "ordinary-proof-commit-refused";
+        await InstallTriggerAsync(Correlation, "commit_failure");
+        try
+        {
+            await using var proof = await PipelineProof.CreateAsync(fixture, Correlation);
+            var failure = await Assert.ThrowsAsync<PostgresException>(() => proof.RunOrdinaryAuditedOwnerAsync(Correlation));
+            Assert.Equal("P0399", failure.SqlState);
+            Assert.Equal(500, HttpStatusMap.For(failure));
+            Assert.Equal(AuditIntentState.Indeterminate, proof.Capture.State);
+            Assert.Same(failure, proof.Capture.IndeterminateCause);
+            Assert.False(proof.Unit.HasActiveTransaction);
             Assert.Equal(0, await CountRowsAsync(Correlation));
         }
         finally { await RemoveTriggerAsync(); }
@@ -205,6 +226,17 @@ public sealed class MembershipDirectoryPipelineTests(IdentityAuthorizationReader
         public ServiceProvider Provider { get; }
         public ISender Sender => _scope.ServiceProvider.GetRequiredService<ISender>();
         public NpgsqlUnitOfWork Unit => (NpgsqlUnitOfWork)_scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+        public AuditStateCapture Capture => _scope.ServiceProvider.GetRequiredService<AuditStateCapture>();
+
+        public Task<Result<None>> RunOrdinaryAuditedOwnerAsync(string correlation)
+        {
+            Capture.DeclareIntent(new AuditIntent(AuditEntryId.From(Guid.CreateVersion7()), TenantId.From(SchemaFixture.TenantA),
+                OrganizationId.From(SchemaFixture.OrgA1), UserId.From(AdminA), correlation, "identity", "identity.membership.list",
+                OperationType.ReadSensitive, OperationClass.Must, typeof(LearnStack.Modules.Identity.Domain.Membership),
+                DateTimeOffset.UtcNow));
+            return _scope.ServiceProvider.GetRequiredService<TransactionExecutionCoordinator>()
+                .ExecuteAsync(null, TransactionMode.ReadWrite, "ordinary-proof", () => Task.FromResult(Result.Ok(None.Value)));
+        }
 
         public static async Task<PipelineProof> CreateAsync(IdentityAuthorizationReaderFixture fixture, string correlation)
         {
