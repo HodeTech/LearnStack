@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 1,752 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 1,810 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -112,6 +112,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 Step 6 review round 2 and final source corrections (2026-10-27)](#p03-2-step-6-review-round-2-and-final-source-corrections-2026-10-27) — 73 lines
   - [P03-2 Step 6 measured-plan review and qualification freeze (2026-10-27)](#p03-2-step-6-measured-plan-review-and-qualification-freeze-2026-10-27) — 48 lines
   - [P03-2 Step 6 failed qualification and owned cleanup correction (2026-10-28)](#p03-2-step-6-failed-qualification-and-owned-cleanup-correction-2026-10-28) — 50 lines
+  - [P03-2 Step 6 Architecture timing correction (2026-10-28)](#p03-2-step-6-architecture-timing-correction-2026-10-28) — 58 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -4717,3 +4718,61 @@ case. Its controlled fault twins and the clean rerun demonstrate repaired test
 unwinding; they still do not establish the missing hosted active-case boundary.
 Topology and documentation checks pass. The correction is frozen for a new full
 hosted A/B pair, retaining the same plan, assignment counts and job ceilings.
+
+### P03-2 Step 6 Architecture timing correction (2026-10-28)
+
+The corrected source `84abac5e` completes full hosted A attempt
+[40583371696/1](https://github.com/HodeTech/LearnStack/actions/runs/40583371696)
+with **25/27** successful jobs. All ordinary producers, native, frontend, public
+demo and the integration aggregate pass. Architecture-5 and the backend aggregate
+fail. The twenty producers select **6,923** distinct cases; **6,895** report
+Passed, zero Failed, and **28** lack results. All **24** actual artifacts are
+preserved with API identity, exact size, SHA-256 and ZIP CRC verification. B does
+not start. This attempt supplies no whole-workflow qualification.
+
+Architecture-5 completes **147/175** cases before `deadline_exhausted`. The new
+optional diagnostic identifies recipient-census and recurrence mutation cases
+without completed results. Source inspection finds finite Cecil graph mutations;
+the named `memory_readiness_wait` control rearranges IL and executes no runtime
+wait. This does not prove an implementation hang. The same 175-case selection
+previously passed in **740.791** test-process seconds, but the new cutoff is
+**704.669**. Pre-owner setup grows **190.610 -> 248.559** seconds and discovery
+**33.763 -> 43.368**, together consuming **67.554** extra seconds before tests.
+The prior passing provenance control took **357.260** seconds against its stale
+**126.011**-second advisory weight. The failed producer's partial durations are
+diagnostic only; they supply no new weights.
+
+Two independent reviewers verify the six complete, naturally cleaned Architecture
+producers from prior run **40577851910/1**: exact disjoint **589 cases / 316 whole
+selectors**, all Passed, with raw TRX, receipt and immutable artifact hashes.
+That overall run failed elsewhere and remains failed qualification. Its passing
+producer observations retain their actual source `696671b5`, run, artifact hash,
+whole-selector scope and summed milliseconds. They do not claim current-source
+wall-time bounds or unchanged implementation.
+
+The reviewed plan corrects **110** Architecture weights upward, retaining every
+historical scalar floor and every selector. It removes exactly **17** originally
+zero-reference source records from the active provenance map; their complete
+values remain preserved in Git and the evidence archive. Six actual TRX sources
+are added, giving **87 sources / 1,717 weights** within the unchanged 100-source
+bound. All non-Architecture weights and ordinary/base/native assignments remain
+unchanged. Counts remain **six Architecture / twelve ordinary / twenty execution
+VMs**; two Architecture threads, job ceilings, **203-second** cleanup reserve,
+whole-method grouping, salts, argument bounds and fixture census remain unchanged.
+
+The complete six-producer refresh is selected over a selective failed-shard-only
+refresh. Reusing prior observed summed work, its maximum A projection changes
+**1,346.572 -> 1,139.973** seconds; B changes **1,331.677 -> 1,379.367**. B's
+projection is worse, so this is not a fit or guaranteed-headroom claim. Complete
+measured weights are preferred to selecting a favorable subset; only new full
+final-source A/B can qualify the revised plan. Its digest is
+`c043f60588779307372be621e032dbc60e3437f525fab954136e15efb87027a0`.
+
+The rebuilt Release solution passes with zero warnings/errors. Actual no-build
+filter discovery repeats all **64** requests and independently reconciles both
+**20-owner** assignments to the same **6,923-case** population, with zero unknown
+weights and unchanged manifest digest. Source and all four DLL hashes remain
+stable across discovery. Native-owner controls pass **94/94**, planner **83/83**,
+and result/fixture controls **40/40**. The second independent review recomputes
+raw provenance, rounding, historical floors and candidate differences before the
+new commit. New hosted A/B remains the qualification gate.

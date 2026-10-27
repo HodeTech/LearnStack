@@ -1,705 +1,784 @@
 {
-  "schemaVersion": 1,
   "algorithmVersion": 1,
   "architectureAssemblies": [
     "learnstack.tests.architecture"
   ],
+  "bounds": {
+    "argvBytes": 65536,
+    "filterBytes": 32768
+  },
   "counts": {
     "architecture": 6,
     "ordinary": 12
   },
-  "salt": "LearnStack.CI.B.v1",
   "defaultMethodMs": 60000,
-  "bounds": {
-    "filterBytes": 32768,
-    "argvBytes": 65536
+  "fixedCosts": {
+    "basePreTestMs": [
+      160000,
+      182000,
+      232000
+    ],
+    "discoveryMs": null,
+    "fixtureStartupMs": null,
+    "note": "Unknown terms are not zero or wall-time guarantees."
   },
+  "salt": "LearnStack.CI.B.v1",
+  "schemaVersion": 1,
+  "sharedFixtureClasses": [
+    "LearnStack.Tests.Integration.ApiHandlerCompositionTests",
+    "LearnStack.Tests.Integration.ApiVersioningHttpTests",
+    "LearnStack.Tests.Integration.AssertionRecorderCompositionTests",
+    "LearnStack.Tests.Integration.AuthenticatedRateLimitTests",
+    "LearnStack.Tests.Integration.AuthorityCeilingHttpTests",
+    "LearnStack.Tests.Integration.CompositionRootCatalogueTests",
+    "LearnStack.Tests.Integration.CrossCuttingFoundationHttpTests",
+    "LearnStack.Tests.Integration.Database.AccountSiteHttpTests",
+    "LearnStack.Tests.Integration.Database.AccountSiteQueryTests",
+    "LearnStack.Tests.Integration.Database.AmbientUnitOfWorkTests",
+    "LearnStack.Tests.Integration.Database.AuditCaptureWiringTests",
+    "LearnStack.Tests.Integration.Database.AuditConfigServiceTests",
+    "LearnStack.Tests.Integration.Database.AuditPipelineTests",
+    "LearnStack.Tests.Integration.Database.AuditSchemaTests",
+    "LearnStack.Tests.Integration.Database.AuditStoreTests",
+    "LearnStack.Tests.Integration.Database.AuditWorkflowTests",
+    "LearnStack.Tests.Integration.Database.AuthorizationEvidenceBarrierTests",
+    "LearnStack.Tests.Integration.Database.AuthorizationEvidenceSourceTests",
+    "LearnStack.Tests.Integration.Database.AuthorizationEvidenceStoreTests",
+    "LearnStack.Tests.Integration.Database.AuthorizationPoolProgressTests",
+    "LearnStack.Tests.Integration.Database.AuthorizationReadSourceTests",
+    "LearnStack.Tests.Integration.Database.BackgroundJobAdmissionTests",
+    "LearnStack.Tests.Integration.Database.BackgroundJobApplicationSourceTests",
+    "LearnStack.Tests.Integration.Database.BackgroundJobBridgeFaultTests",
+    "LearnStack.Tests.Integration.Database.BackgroundJobBridgeTests",
+    "LearnStack.Tests.Integration.Database.BackgroundJobBusinessTests",
+    "LearnStack.Tests.Integration.Database.BackgroundJobCapacityAdmissionTests",
+    "LearnStack.Tests.Integration.Database.BackgroundJobControlTests",
+    "LearnStack.Tests.Integration.Database.BackgroundJobExternalCheckpointStoreTests",
+    "LearnStack.Tests.Integration.Database.BackgroundJobExternalIsolationTests",
+    "LearnStack.Tests.Integration.Database.BackgroundJobLifecycleProjectionTests",
+    "LearnStack.Tests.Integration.Database.BackgroundJobPositiveSdkTests",
+    "LearnStack.Tests.Integration.Database.BackgroundJobRecurrenceStoreTests",
+    "LearnStack.Tests.Integration.Database.BackgroundJobRoutingCleanupTests",
+    "LearnStack.Tests.Integration.Database.BackgroundJobRuntimeFacadeTests",
+    "LearnStack.Tests.Integration.Database.BackgroundJobStorageMigrationTests",
+    "LearnStack.Tests.Integration.Database.BackgroundJobSubmissionTests",
+    "LearnStack.Tests.Integration.Database.CourseContentAccessMigrationTests",
+    "LearnStack.Tests.Integration.Database.CustomizationCatalogTests",
+    "LearnStack.Tests.Integration.Database.CustomizationContentTypeQuotaTests",
+    "LearnStack.Tests.Integration.Database.CustomizationDefaultDeliveryTests",
+    "LearnStack.Tests.Integration.Database.CustomizationDefaultInitializationTests",
+    "LearnStack.Tests.Integration.Database.CustomizationProjectionTests",
+    "LearnStack.Tests.Integration.Database.CustomizationPublicationConcurrencyTests",
+    "LearnStack.Tests.Integration.Database.CustomizationSchemaTests",
+    "LearnStack.Tests.Integration.Database.DatabaseQualificationProofTests",
+    "LearnStack.Tests.Integration.Database.DatabaseRoleTests",
+    "LearnStack.Tests.Integration.Database.DeliveryDispatchStoreTests",
+    "LearnStack.Tests.Integration.Database.DeliveryExecutionTests",
+    "LearnStack.Tests.Integration.Database.DeliveryProcessorTests",
+    "LearnStack.Tests.Integration.Database.DomainEventProductionTests",
+    "LearnStack.Tests.Integration.Database.DurableEventAcceptanceTests",
+    "LearnStack.Tests.Integration.Database.EducationConstraintTests",
+    "LearnStack.Tests.Integration.Database.EducationIsolationTests",
+    "LearnStack.Tests.Integration.Database.EducationParentScopeTests",
+    "LearnStack.Tests.Integration.Database.EducationPersistenceTests",
+    "LearnStack.Tests.Integration.Database.EducationStructureTests",
+    "LearnStack.Tests.Integration.Database.EducationWriterTests",
+    "LearnStack.Tests.Integration.Database.EntitlementExpiryReversalTests",
+    "LearnStack.Tests.Integration.Database.EventDeliveryMigrationTests",
+    "LearnStack.Tests.Integration.Database.FeatureFlagsTests",
+    "LearnStack.Tests.Integration.Database.GlobalIdentityAuthorityToolTests",
+    "LearnStack.Tests.Integration.Database.GlobalIdentityBootstrapTests",
+    "LearnStack.Tests.Integration.Database.GlobalIdentitySchemaTests",
+    "LearnStack.Tests.Integration.Database.GlobalIdentityUnitOfWorkTests",
+    "LearnStack.Tests.Integration.Database.HangfireGenerationTests",
+    "LearnStack.Tests.Integration.Database.HangfirePoolOwnerTests",
+    "LearnStack.Tests.Integration.Database.HangfireStorageTests",
+    "LearnStack.Tests.Integration.Database.HostResolutionTests",
+    "LearnStack.Tests.Integration.Database.IdentityAuthorizationHttpTests",
+    "LearnStack.Tests.Integration.Database.IdentityAuthorizationReaderTests",
+    "LearnStack.Tests.Integration.Database.IdentityCommandQualificationTests",
+    "LearnStack.Tests.Integration.Database.IdentityDiagnosticSinkTests",
+    "LearnStack.Tests.Integration.Database.IdentityMembershipTests",
+    "LearnStack.Tests.Integration.Database.IdentityMutationLockTests",
+    "LearnStack.Tests.Integration.Database.IdentityReadDiagnosticSinkTests",
+    "LearnStack.Tests.Integration.Database.IdentityScopeLifecycleTests",
+    "LearnStack.Tests.Integration.Database.IdentitySeederTests",
+    "LearnStack.Tests.Integration.Database.InboxGuardTests",
+    "LearnStack.Tests.Integration.Database.KillswitchOverlayTests",
+    "LearnStack.Tests.Integration.Database.MembershipDirectoryIntegrationTests",
+    "LearnStack.Tests.Integration.Database.MembershipDirectoryPipelineTests",
+    "LearnStack.Tests.Integration.Database.MigrationRollbackTests",
+    "LearnStack.Tests.Integration.Database.OperationReadScopeTests",
+    "LearnStack.Tests.Integration.Database.OrgScopeMigrationTests",
+    "LearnStack.Tests.Integration.Database.OrgScopeSchemaTests",
+    "LearnStack.Tests.Integration.Database.OrganizationScopeValidatorTests",
+    "LearnStack.Tests.Integration.Database.OutboxDispatchMigrationTests",
+    "LearnStack.Tests.Integration.Database.OutboxDispatchStoreTests",
+    "LearnStack.Tests.Integration.Database.OutboxDispatcherRoleGuardTests",
+    "LearnStack.Tests.Integration.Database.OutboxProcessorTests",
+    "LearnStack.Tests.Integration.Database.OutboxProducerTests",
+    "LearnStack.Tests.Integration.Database.P02d2FoundationTests",
+    "LearnStack.Tests.Integration.Database.PlatformAdminScopeTests",
+    "LearnStack.Tests.Integration.Database.PlatformSchemaTests",
+    "LearnStack.Tests.Integration.Database.PoolHangfireStorageParityTests",
+    "LearnStack.Tests.Integration.Database.ProducerExecutionTests",
+    "LearnStack.Tests.Integration.Database.PublicAdmissionRenderingTests",
+    "LearnStack.Tests.Integration.Database.PublicEducationHttpTests",
+    "LearnStack.Tests.Integration.Database.PublicEducationStoreTests",
+    "LearnStack.Tests.Integration.Database.PublicLocalLaunchTests",
+    "LearnStack.Tests.Integration.Database.PublicLocaleEvolutionHttpTests",
+    "LearnStack.Tests.Integration.Database.PublicReadTransactionTests",
+    "LearnStack.Tests.Integration.Database.PublicServerRenderingTests",
+    "LearnStack.Tests.Integration.Database.PublicSiteHttpTests",
+    "LearnStack.Tests.Integration.Database.RoleGrantCommandIntegrationTests",
+    "LearnStack.Tests.Integration.Database.SeedAuthorizationActivationTests",
+    "LearnStack.Tests.Integration.Database.SeederTests",
+    "LearnStack.Tests.Integration.Database.StorageRelationCensusTests",
+    "LearnStack.Tests.Integration.Database.TenancySchemaTests",
+    "LearnStack.Tests.Integration.Database.TenancyWriterTests",
+    "LearnStack.Tests.Integration.Database.TenantAssertionAuditTests",
+    "LearnStack.Tests.Integration.Database.TenantAuthenticationRejectionAuditTests",
+    "LearnStack.Tests.Integration.Database.TenantContextGuardTests",
+    "LearnStack.Tests.Integration.Database.TenantCreatedProducerTests",
+    "LearnStack.Tests.Integration.Database.TenantExistingBindingAdmissionTests",
+    "LearnStack.Tests.Integration.Database.TenantIsolationHttpTests",
+    "LearnStack.Tests.Integration.Database.TenantLocaleDefaultTests",
+    "LearnStack.Tests.Integration.Database.TenantLocaleEnabledMigrationTests",
+    "LearnStack.Tests.Integration.Database.TenantProvisioningTests",
+    "LearnStack.Tests.Integration.Database.TenantSettingsAccessorTests",
+    "LearnStack.Tests.Integration.Database.TrustedVisitorHttpTests",
+    "LearnStack.Tests.Integration.Database.UnitOfWorkCommitCleanupTests",
+    "LearnStack.Tests.Integration.Database.UnitOfWorkTests",
+    "LearnStack.Tests.Integration.Database.WriteStoreConflictTests",
+    "LearnStack.Tests.Integration.ErrorShapeHttpTests",
+    "LearnStack.Tests.Integration.FoundationPortResolutionTests",
+    "LearnStack.Tests.Integration.HostClassificationHttpTests",
+    "LearnStack.Tests.Integration.IdempotencyHttpTests",
+    "LearnStack.Tests.Integration.IdempotentEndpointConventionTests",
+    "LearnStack.Tests.Integration.RateLimitForwardedForTests",
+    "LearnStack.Tests.Integration.RateLimitingHttpTests",
+    "LearnStack.Tests.Integration.SmokeTests",
+    "LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests",
+    "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmApiTests",
+    "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmEventTests",
+    "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmIssuanceTests",
+    "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmProfileProtectionTests",
+    "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests",
+    "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmSelfServiceTests",
+    "LearnStack.Tests.Integration.TenantAssertionDimensionTests",
+    "LearnStack.Tests.Integration.TenantAssertionHttpTests",
+    "LearnStack.Tests.Integration.TenantWideOrganizationAssertionTests",
+    "LearnStack.Tests.Integration.VersionedRouteEnforcementTests"
+  ],
   "sources": {
-    "local-ordinary-scaled": {
-      "kind": "local_trx",
-      "artifactSha256": "ed008455c0706b5fc3fc2d170a1d690094f8907db99ef80dd72f827d5f627fe1",
-      "sourceSha": null,
-      "runId": null,
-      "note": "Historical combined Docker receipt includes failures; ordinary row sums scaled by 2.271245 completed-prefix ratio; advisory only. Source not embedded in artifact."
-    },
-    "local-architecture": {
-      "kind": "local_trx",
-      "artifactSha256": "ede6e3df77289dac5cdd5db887120c03477bbc68bb542cf03b7b8f36f6f52ac1",
-      "sourceSha": null,
-      "runId": null,
-      "note": "Complete local Architecture row sums; overlapping durations are not wall bounds. Source not embedded in artifact."
-    },
-    "hosted-architecture-predecessor": {
-      "kind": "hosted_console",
-      "artifactSha256": "d1ac4a6dda51b2ae593f36635bc588aaa9d10141bf08f8cf7cdca1f3fdcdba6c",
-      "sourceSha": null,
-      "runId": "39131069558",
-      "note": "Completed-only, rounded Architecture console prefix; maps only exact unambiguous TRX test names to actual TestMethod metadata. Advisory, censored remainder unknown."
-    },
-    "hosted-architecture-first": {
-      "kind": "hosted_console",
-      "artifactSha256": "808cdbf102a7bceb5eb3b94dc5c78351b532d99e666e116d8fd9a0ce63d41168",
-      "sourceSha": "6daa9a1c4263bfc427f538013bd6f8673e4de9c7",
-      "runId": "39140874785",
-      "note": "Completed-only, rounded Architecture console prefix; maps only exact unambiguous TRX test names to actual TestMethod metadata. Advisory, censored remainder unknown."
-    },
-    "hosted-architecture-current": {
-      "kind": "hosted_console",
-      "artifactSha256": "0c464e7c1b8a197b2ada04487d2109d378e80968695fa4a0aca86f1fe18fb859",
-      "sourceSha": "3553ff16e509a1c2978edc13c1f68e592e30b247",
-      "runId": "39148006960",
-      "note": "Completed-only, rounded Architecture console prefix; maps only exact unambiguous TRX test names to actual TestMethod metadata. Advisory, censored remainder unknown."
-    },
-    "hosted-architecture-39417319998-2-0": {
-      "kind": "hosted_trx",
-      "artifactSha256": "59d80797f359ad0aec494654e77cac2e6187ad1e744ab3e8abde3695345cfe90",
-      "sourceSha": "d84ac3009f8ba84a339d91e023f7f6f5f9269cc0",
-      "runId": "39417319998",
-      "note": "Run attempt 2; owner architecture-0; PR head 00a7877e6b578c471fc52ae9b2c1e5d092e3f2f9; merge checkout d84ac3009f8ba84a339d91e023f7f6f5f9269cc0; artifact ID 12262603636. Exact completed hosted TRX case durations summed per actual assembly/selector in milliseconds (ceil, minimum 1); advisory only, not wall bounds."
-    },
-    "hosted-architecture-39417319998-2-1": {
-      "kind": "hosted_trx",
-      "artifactSha256": "c183ef8d7fc84a8e55c417b2c2e370c32a7688f7bbae49eb0d69fee16439f3d4",
-      "sourceSha": "d84ac3009f8ba84a339d91e023f7f6f5f9269cc0",
-      "runId": "39417319998",
-      "note": "Run attempt 2; owner architecture-1; PR head 00a7877e6b578c471fc52ae9b2c1e5d092e3f2f9; merge checkout d84ac3009f8ba84a339d91e023f7f6f5f9269cc0; artifact ID 12263044967. Exact completed hosted TRX case durations summed per actual assembly/selector in milliseconds (ceil, minimum 1); advisory only, not wall bounds."
-    },
-    "hosted-architecture-39417319998-2-2": {
-      "kind": "hosted_trx",
-      "artifactSha256": "8a0fda0db91affc86b8aa91568015a638f7d8bf981dc337cbca57dc9d761c002",
-      "sourceSha": "d84ac3009f8ba84a339d91e023f7f6f5f9269cc0",
-      "runId": "39417319998",
-      "note": "Run attempt 2; owner architecture-2; PR head 00a7877e6b578c471fc52ae9b2c1e5d092e3f2f9; merge checkout d84ac3009f8ba84a339d91e023f7f6f5f9269cc0; artifact ID 12264330218. Exact completed hosted TRX case durations summed per actual assembly/selector in milliseconds (ceil, minimum 1); advisory only, not wall bounds."
-    },
-    "hosted-architecture-39417319998-2-4": {
-      "kind": "hosted_trx",
-      "artifactSha256": "3ab8c70efadd50bdcbd40b92beb61a41f393400422293bafc4828d8001a2c9e0",
-      "sourceSha": "d84ac3009f8ba84a339d91e023f7f6f5f9269cc0",
-      "runId": "39417319998",
-      "note": "Run attempt 2; owner architecture-4; PR head 00a7877e6b578c471fc52ae9b2c1e5d092e3f2f9; merge checkout d84ac3009f8ba84a339d91e023f7f6f5f9269cc0; artifact ID 12262614196. Exact completed hosted TRX case durations summed per actual assembly/selector in milliseconds (ceil, minimum 1); advisory only, not wall bounds."
-    },
-    "hosted-architecture-39417319998-2-5": {
-      "kind": "hosted_trx",
-      "artifactSha256": "af2b09dfb114850f854e81ddcf12df9e9b995f00fb2f56051f71940bd7fa00ec",
-      "sourceSha": "d84ac3009f8ba84a339d91e023f7f6f5f9269cc0",
-      "runId": "39417319998",
-      "note": "Run attempt 2; owner architecture-5; PR head 00a7877e6b578c471fc52ae9b2c1e5d092e3f2f9; merge checkout d84ac3009f8ba84a339d91e023f7f6f5f9269cc0; artifact ID 12262804978. Exact completed hosted TRX case durations summed per actual assembly/selector in milliseconds (ceil, minimum 1); advisory only, not wall bounds."
-    },
-    "p02b6-local-api": {
-      "kind": "local_trx",
-      "artifactSha256": "7fafa97c24ea554cb0a629b5c3c952942d1ee54b767a7a988f4b9c5a5e8eb02e",
-      "sourceSha": null,
-      "runId": null,
-      "note": "Complete corrected P02b-6 Step 4 local provider receipt, zero failures/skips. Source commit not embedded in TRX. Exact row durations summed per selector and scaled by historical ordinary ratio 2.271245 (ceil ms, minimum 1); advisory, not a wall bound. Fixture startup/discovery costs are not inferred from case durations; actual hosted fit remains required."
-    },
-    "p02b6-local-account": {
-      "kind": "local_trx",
-      "artifactSha256": "a2b000ff5f9646ed7e4f03e20e74054a831e71410f863331892fbb3c0b30ca39",
-      "sourceSha": null,
-      "runId": null,
-      "note": "Complete corrected P02b-6 Step 4 local provider receipt, zero failures/skips. Source commit not embedded in TRX. Exact row durations summed per selector and scaled by historical ordinary ratio 2.271245 (ceil ms, minimum 1); advisory, not a wall bound. Fixture startup/discovery costs are not inferred from case durations; actual hosted fit remains required."
-    },
-    "p02b6-local-profile": {
-      "kind": "local_trx",
-      "artifactSha256": "f470c252cbbfc908e1d4996278cf116ba2b78eb514755d729c57a6ae6f8a2aa7",
-      "sourceSha": null,
-      "runId": null,
-      "note": "Complete corrected P02b-6 Step 4 local provider receipt, zero failures/skips. Source commit not embedded in TRX. Exact row durations summed per selector and scaled by historical ordinary ratio 2.271245 (ceil ms, minimum 1); advisory, not a wall bound. Fixture startup/discovery costs are not inferred from case durations; actual hosted fit remains required."
-    },
-    "adr68-local-preparation": {
-      "kind": "local_trx",
-      "artifactSha256": "b701d3166e5266dab904ae7e921a08034db5d2f6683d17c605bc625c8fa5dc83",
-      "sourceSha": null,
-      "runId": null,
-      "note": "Complete local provider receipt, all rows Passed/zero skips. Source commit absent from TRX; observed planner SHA256 8ef1d58c2774b531d88170ff6e04939bdd631a77d749527764744fdc832e94ed; other source hashes retained separately. Actual TestMethod groups sum case ms, scale 2.271245, ceil/min1; advisory, not wall bounds or final-head qualification."
-    },
     "adr68-local-mapper-correction": {
-      "kind": "local_trx",
       "artifactSha256": "4497a991aab51936afb923cbd60aa6d01d9480a700211580f6a9fe0b183a1db8",
-      "sourceSha": null,
+      "kind": "local_trx",
+      "note": "Complete local provider receipt, all rows Passed/zero skips. Source commit absent from TRX; observed account policy SHA256 3cc2c01bdfbb64e2343bed2c757434ed6c81f25b93001860c1a34238d9b39dd4; other source hashes retained separately. Actual TestMethod groups sum case ms, scale 2.271245, ceil/min1; advisory, not wall bounds or final-head qualification.",
       "runId": null,
-      "note": "Complete local provider receipt, all rows Passed/zero skips. Source commit absent from TRX; observed account policy SHA256 3cc2c01bdfbb64e2343bed2c757434ed6c81f25b93001860c1a34238d9b39dd4; other source hashes retained separately. Actual TestMethod groups sum case ms, scale 2.271245, ceil/min1; advisory, not wall bounds or final-head qualification."
-    },
-    "adr68-hosted-baseline-ordinary-1": {
-      "kind": "hosted_trx",
-      "artifactSha256": "515636cb1318709236b068f05bc984385ae651c79a0fd5236aec36c62b51d5f4",
-      "sourceSha": "d55ae6fc37b794e482c42ebbdd49d3e59a9c3f0a",
-      "runId": "39699380813",
-      "note": "Run attempt 1; owner ordinary-1; PR head f714a5af96363d880e7e3d72a24ee2642a29cf47; artifact ID 12393016518; API archive SHA256 98c6174c249fa80ad3b53356a2efe0c764f500454de74dc429698766137a14a7. Sanitized TRX IDs bind actual discovery FullyQualifiedName metadata; complete passing owner. Exact summed row ms, ceil/min1; advisory, not wall bounds."
-    },
-    "adr68-hosted-baseline-ordinary-4": {
-      "kind": "hosted_trx",
-      "artifactSha256": "7fcf4e254a1f35a96b59c187affdf345aa6400e60a13fc1b16712c3778717159",
-      "sourceSha": "d55ae6fc37b794e482c42ebbdd49d3e59a9c3f0a",
-      "runId": "39699380813",
-      "note": "Run attempt 1; owner ordinary-4; PR head f714a5af96363d880e7e3d72a24ee2642a29cf47; artifact ID 12392133270; API archive SHA256 d02f5a7ac79d62ce023ffde59d2989b7059be142925128f71cb6d129ebf714d6. Sanitized TRX IDs bind actual discovery FullyQualifiedName metadata; complete passing owner. Exact summed row ms, ceil/min1; advisory, not wall bounds."
+      "sourceSha": null
     },
     "adr68-local-warm-journey": {
-      "kind": "local_trx",
       "artifactSha256": "3487a4510af4444908eaef908365e8cc4334b0dfc6a531b0af25276f49e657c9",
-      "sourceSha": null,
-      "runId": null,
-      "note": "Complete final refresh-presence-guard local journey Fact, 1/1 Passed and zero skips. Commit is not embedded in TRX. Separate seven-file source hash manifest SHA256 92cde32454dfb23f0421ce4e2d92ffe3c054281138cfe2d8a2ebe8c734960da3. Actual TestMethod row is 40205.7204 ms; local scale 2.271245, ceil/min1. Advisory, not a hosted wall bound or final-source CI qualification."
-    },
-    "local-bff-lifecycle-20261024": {
       "kind": "local_trx",
-      "artifactSha256": "e7e98d28870397f11c8e0962dafc0c7fa2473cd9f25d9113098ba292e1df7d78",
-      "sourceSha": null,
+      "note": "Complete final refresh-presence-guard local journey Fact, 1/1 Passed and zero skips. Commit is not embedded in TRX. Separate seven-file source hash manifest SHA256 92cde32454dfb23f0421ce4e2d92ffe3c054281138cfe2d8a2ebe8c734960da3. Actual TestMethod row is 40205.7204 ms; local scale 2.271245, ceil/min1. Advisory, not a hosted wall bound or final-source CI qualification.",
       "runId": null,
-      "note": "Passing Step 5 local BFF lifecycle/browser/startup method durations. Local uncommitted source is not embedded in TRX. Advisory body sums exclude shared collection startup; hosted fit remains unqualified."
+      "sourceSha": null
     },
-    "local-bff-lifecycle-r1-20261024": {
-      "kind": "local_trx",
-      "artifactSha256": "a8aed7b2684219ebec622a931c85640c8a59fcfa40407aabe9f0be95a1208fb5",
-      "sourceSha": null,
-      "runId": null,
-      "note": "Passing Step 5 R1 native/browser/early-disposal/nonzero-stop controls. Local source not embedded in TRX; advisory method body costs exclude collection startup and do not establish hosted wall fit."
+    "hosted-architecture-39417319998-2-0": {
+      "artifactSha256": "59d80797f359ad0aec494654e77cac2e6187ad1e744ab3e8abde3695345cfe90",
+      "kind": "hosted_trx",
+      "note": "Run attempt 2; owner architecture-0; PR head 00a7877e6b578c471fc52ae9b2c1e5d092e3f2f9; merge checkout d84ac3009f8ba84a339d91e023f7f6f5f9269cc0; artifact ID 12262603636. Exact completed hosted TRX case durations summed per actual assembly/selector in milliseconds (ceil, minimum 1); advisory only, not wall bounds.",
+      "runId": "39417319998",
+      "sourceSha": "d84ac3009f8ba84a339d91e023f7f6f5f9269cc0"
     },
-    "local-bff-lifecycle-r2-20261024": {
-      "kind": "local_trx",
-      "artifactSha256": "eb29f34d707a87e2ddcdc9c0c269cd011c983cce4a79d8592ffaf9c95aa2ccf0",
-      "sourceSha": null,
-      "runId": null,
-      "note": "Passing Step 5 R2 six-case real BFF/browser and acquisition EOF/shutdown controls. Local source not embedded in TRX. Advisory method body costs exclude shared fixture startup; hosted fit remains unqualified."
+    "hosted-architecture-39417319998-2-1": {
+      "artifactSha256": "c183ef8d7fc84a8e55c417b2c2e370c32a7688f7bbae49eb0d69fee16439f3d4",
+      "kind": "hosted_trx",
+      "note": "Run attempt 2; owner architecture-1; PR head 00a7877e6b578c471fc52ae9b2c1e5d092e3f2f9; merge checkout d84ac3009f8ba84a339d91e023f7f6f5f9269cc0; artifact ID 12263044967. Exact completed hosted TRX case durations summed per actual assembly/selector in milliseconds (ceil, minimum 1); advisory only, not wall bounds.",
+      "runId": "39417319998",
+      "sourceSha": "d84ac3009f8ba84a339d91e023f7f6f5f9269cc0"
     },
-    "p02b7-local-causal-retry": {
+    "hosted-architecture-39417319998-2-2": {
+      "artifactSha256": "8a0fda0db91affc86b8aa91568015a638f7d8bf981dc337cbca57dc9d761c002",
+      "kind": "hosted_trx",
+      "note": "Run attempt 2; owner architecture-2; PR head 00a7877e6b578c471fc52ae9b2c1e5d092e3f2f9; merge checkout d84ac3009f8ba84a339d91e023f7f6f5f9269cc0; artifact ID 12264330218. Exact completed hosted TRX case durations summed per actual assembly/selector in milliseconds (ceil, minimum 1); advisory only, not wall bounds.",
+      "runId": "39417319998",
+      "sourceSha": "d84ac3009f8ba84a339d91e023f7f6f5f9269cc0"
+    },
+    "hosted-architecture-39417319998-2-4": {
+      "artifactSha256": "3ab8c70efadd50bdcbd40b92beb61a41f393400422293bafc4828d8001a2c9e0",
+      "kind": "hosted_trx",
+      "note": "Run attempt 2; owner architecture-4; PR head 00a7877e6b578c471fc52ae9b2c1e5d092e3f2f9; merge checkout d84ac3009f8ba84a339d91e023f7f6f5f9269cc0; artifact ID 12262614196. Exact completed hosted TRX case durations summed per actual assembly/selector in milliseconds (ceil, minimum 1); advisory only, not wall bounds.",
+      "runId": "39417319998",
+      "sourceSha": "d84ac3009f8ba84a339d91e023f7f6f5f9269cc0"
+    },
+    "hosted-architecture-39417319998-2-5": {
+      "artifactSha256": "af2b09dfb114850f854e81ddcf12df9e9b995f00fb2f56051f71940bd7fa00ec",
+      "kind": "hosted_trx",
+      "note": "Run attempt 2; owner architecture-5; PR head 00a7877e6b578c471fc52ae9b2c1e5d092e3f2f9; merge checkout d84ac3009f8ba84a339d91e023f7f6f5f9269cc0; artifact ID 12262804978. Exact completed hosted TRX case durations summed per actual assembly/selector in milliseconds (ceil, minimum 1); advisory only, not wall bounds.",
+      "runId": "39417319998",
+      "sourceSha": "d84ac3009f8ba84a339d91e023f7f6f5f9269cc0"
+    },
+    "hosted-architecture-current": {
+      "artifactSha256": "0c464e7c1b8a197b2ada04487d2109d378e80968695fa4a0aca86f1fe18fb859",
+      "kind": "hosted_console",
+      "note": "Completed-only, rounded Architecture console prefix; maps only exact unambiguous TRX test names to actual TestMethod metadata. Advisory, censored remainder unknown.",
+      "runId": "39148006960",
+      "sourceSha": "3553ff16e509a1c2978edc13c1f68e592e30b247"
+    },
+    "local-ordinary-scaled": {
+      "artifactSha256": "ed008455c0706b5fc3fc2d170a1d690094f8907db99ef80dd72f827d5f627fe1",
       "kind": "local_trx",
-      "artifactSha256": "8f004ff7e3631179620ed3ca5cc8873402520ec147f537cca224eb2a6b3d242d",
-      "sourceSha": null,
+      "note": "Historical combined Docker receipt includes failures; ordinary row sums scaled by 2.271245 completed-prefix ratio; advisory only. Source not embedded in artifact.",
       "runId": null,
-      "note": "Three passing local causal-restart variants, including the additional genuine-handler post-write conflict/retry journey. Exact case durations summed per actual selector and scaled by the existing historical ordinary ratio 2.271245 (ceil ms); advisory only, not a wall bound. Immutable source is not embedded in the local TRX."
+      "sourceSha": null
+    },
+    "p02b6-local-account": {
+      "artifactSha256": "a2b000ff5f9646ed7e4f03e20e74054a831e71410f863331892fbb3c0b30ca39",
+      "kind": "local_trx",
+      "note": "Complete corrected P02b-6 Step 4 local provider receipt, zero failures/skips. Source commit not embedded in TRX. Exact row durations summed per selector and scaled by historical ordinary ratio 2.271245 (ceil ms, minimum 1); advisory, not a wall bound. Fixture startup/discovery costs are not inferred from case durations; actual hosted fit remains required.",
+      "runId": null,
+      "sourceSha": null
+    },
+    "p02b6-local-api": {
+      "artifactSha256": "7fafa97c24ea554cb0a629b5c3c952942d1ee54b767a7a988f4b9c5a5e8eb02e",
+      "kind": "local_trx",
+      "note": "Complete corrected P02b-6 Step 4 local provider receipt, zero failures/skips. Source commit not embedded in TRX. Exact row durations summed per selector and scaled by historical ordinary ratio 2.271245 (ceil ms, minimum 1); advisory, not a wall bound. Fixture startup/discovery costs are not inferred from case durations; actual hosted fit remains required.",
+      "runId": null,
+      "sourceSha": null
     },
     "p031-hosted-architecture-0": {
-      "kind": "hosted_trx",
       "artifactSha256": "6c923d6eb54664b3f0d7d889e6ea9eaa29f1b582f6173fefa9318524d3be3b0f",
-      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63",
+      "kind": "hosted_trx",
+      "note": "Attempt 1; architecture-0; artifact ID 12628761734. Complete passing owner TRX. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound.",
       "runId": "40270967586",
-      "note": "Attempt 1; architecture-0; artifact ID 12628761734. Complete passing owner TRX. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound."
+      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63"
     },
     "p031-hosted-architecture-1": {
-      "kind": "hosted_trx",
       "artifactSha256": "26837faa8779817aab5f299d42c19b0d8cae668f6bdf2143ff3c4d3b303457dc",
-      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63",
-      "runId": "40270967586",
-      "note": "Attempt 1; architecture-1; artifact ID 12628722134. Complete passing owner TRX. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound."
-    },
-    "p031-hosted-architecture-4": {
       "kind": "hosted_trx",
-      "artifactSha256": "a1f6c92a3e543c063a47079065765ab823d05ac9e5d84c67f2ddbe7c8abbbb0d",
-      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63",
+      "note": "Attempt 1; architecture-1; artifact ID 12628722134. Complete passing owner TRX. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound.",
       "runId": "40270967586",
-      "note": "Attempt 1; architecture-4; artifact ID 12628133684. Complete passing owner TRX. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound."
+      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63"
     },
     "p031-hosted-architecture-2": {
-      "kind": "hosted_trx",
       "artifactSha256": "65d25372f760ad6db06297752a90c5ee80e8f7aea962ddd69eef02172b0ccb68",
-      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63",
-      "runId": "40270967586",
-      "note": "Attempt 1; architecture-2; artifact ID 12628433534. Complete passing owner TRX. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound."
-    },
-    "p031-hosted-architecture-5": {
       "kind": "hosted_trx",
-      "artifactSha256": "6733ccbeb3fddcfeca2c4d4283a94a39e32b91d9cecaed18cc64a9ee77d01363",
-      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63",
+      "note": "Attempt 1; architecture-2; artifact ID 12628433534. Complete passing owner TRX. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound.",
       "runId": "40270967586",
-      "note": "Attempt 1; architecture-5; artifact ID 12628931958. Complete passing owner TRX. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound."
+      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63"
     },
     "p031-hosted-architecture-3": {
-      "kind": "hosted_trx",
       "artifactSha256": "dd1213a26dbb87999c5545f71061f76dccc124e5950f44eec6dd237a240ffc02",
-      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63",
-      "runId": "40270967586",
-      "note": "Attempt 1; architecture-3; artifact ID 12629085167. Complete passing owner TRX. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound."
-    },
-    "p031-hosted-ordinary-1": {
       "kind": "hosted_trx",
-      "artifactSha256": "3f5b2ccc2342663a2d91fc7fdbdaa6ad71a2e7f57ecc175d1d313f3edb730b47",
-      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63",
+      "note": "Attempt 1; architecture-3; artifact ID 12629085167. Complete passing owner TRX. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound.",
       "runId": "40270967586",
-      "note": "Attempt 1; ordinary-1; artifact ID 12629017851. Complete passing owner TRX. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound."
+      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63"
     },
-    "p031-hosted-ordinary-8": {
+    "p031-hosted-architecture-4": {
+      "artifactSha256": "a1f6c92a3e543c063a47079065765ab823d05ac9e5d84c67f2ddbe7c8abbbb0d",
       "kind": "hosted_trx",
-      "artifactSha256": "ade39dd7df27cacff5d695a5884eab985bbf03ba2865040492f92797b875a16d",
-      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63",
+      "note": "Attempt 1; architecture-4; artifact ID 12628133684. Complete passing owner TRX. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound.",
       "runId": "40270967586",
-      "note": "Attempt 1; ordinary-8; artifact ID 12628007561. Complete passing owner TRX. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound."
+      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63"
     },
-    "p031-hosted-ordinary-10": {
+    "p031-hosted-architecture-5": {
+      "artifactSha256": "6733ccbeb3fddcfeca2c4d4283a94a39e32b91d9cecaed18cc64a9ee77d01363",
       "kind": "hosted_trx",
-      "artifactSha256": "d406d9eb07f741bf8e7fac412179aea37a22a6c29c836a643528f8de0626fa06",
-      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63",
+      "note": "Attempt 1; architecture-5; artifact ID 12628931958. Complete passing owner TRX. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound.",
       "runId": "40270967586",
-      "note": "Attempt 1; ordinary-10; artifact ID 12628957147. Complete passing owner TRX. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound."
-    },
-    "p031-hosted-ordinary-11": {
-      "kind": "hosted_trx",
-      "artifactSha256": "e676334117064f0fca31a26bafc3df2b006eca48ef5ba72fe61426f8f1572ce0",
-      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63",
-      "runId": "40270967586",
-      "note": "Attempt 1; ordinary-11; artifact ID 12628674843. Complete passing owner TRX. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound."
-    },
-    "p031-hosted-ordinary-7": {
-      "kind": "hosted_trx",
-      "artifactSha256": "080d1cc57fd1c23f872b9bd5499c954d7c57687e7ee3a4f2407cc9ed1a082682",
-      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63",
-      "runId": "40270967586",
-      "note": "Attempt 1; ordinary-7; artifact ID 12628697404. Complete passing owner TRX. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound."
-    },
-    "p031-hosted-ordinary-3": {
-      "kind": "hosted_trx",
-      "artifactSha256": "b998043ac9bc85b53d08720e258e7f6cb0c8e13b21d57cc21bd4b2038cde1396",
-      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63",
-      "runId": "40270967586",
-      "note": "Attempt 1; ordinary-3; artifact ID 12628189045. Complete passing owner TRX. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound."
-    },
-    "p031-hosted-ordinary-6": {
-      "kind": "hosted_console",
-      "artifactSha256": "6744c7ccf7d6b5b1b5b21a57c5475a71af3b78d7cdaf10b47cd52db33deca8be",
-      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63",
-      "runId": "40270967586",
-      "note": "Attempt 1; ordinary-6; artifact ID 12629027797. Interrupted owner exact JSONL prefix; complete all-Passed selector groups only. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound."
-    },
-    "p031-hosted-ordinary-5": {
-      "kind": "hosted_trx",
-      "artifactSha256": "810f97e389e284c0d2a9c590454a13317300d0bdac741bfcb5fff9f8dd56555c",
-      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63",
-      "runId": "40270967586",
-      "note": "Attempt 1; ordinary-5; artifact ID 12628422538. Complete passing owner TRX. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound."
-    },
-    "p031-hosted-ordinary-2": {
-      "kind": "hosted_trx",
-      "artifactSha256": "4e8c0ef2a4a4b82607c39540c3692e41b4c7b4d4c0725e17fe274958aac5a83c",
-      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63",
-      "runId": "40270967586",
-      "note": "Attempt 1; ordinary-2; artifact ID 12628257751. Complete passing owner TRX. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound."
+      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63"
     },
     "p031-hosted-ordinary-0": {
-      "kind": "hosted_trx",
       "artifactSha256": "79118f29f3dd1f8aa86dcc4c1fcc8aefea14cd330634236a4526d23880eb02c1",
-      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63",
+      "kind": "hosted_trx",
+      "note": "Attempt 1; ordinary-0; artifact ID 12628103725. Complete passing owner TRX. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound.",
       "runId": "40270967586",
-      "note": "Attempt 1; ordinary-0; artifact ID 12628103725. Complete passing owner TRX. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound."
+      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63"
+    },
+    "p031-hosted-ordinary-1": {
+      "artifactSha256": "3f5b2ccc2342663a2d91fc7fdbdaa6ad71a2e7f57ecc175d1d313f3edb730b47",
+      "kind": "hosted_trx",
+      "note": "Attempt 1; ordinary-1; artifact ID 12629017851. Complete passing owner TRX. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound.",
+      "runId": "40270967586",
+      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63"
+    },
+    "p031-hosted-ordinary-10": {
+      "artifactSha256": "d406d9eb07f741bf8e7fac412179aea37a22a6c29c836a643528f8de0626fa06",
+      "kind": "hosted_trx",
+      "note": "Attempt 1; ordinary-10; artifact ID 12628957147. Complete passing owner TRX. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound.",
+      "runId": "40270967586",
+      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63"
+    },
+    "p031-hosted-ordinary-11": {
+      "artifactSha256": "e676334117064f0fca31a26bafc3df2b006eca48ef5ba72fe61426f8f1572ce0",
+      "kind": "hosted_trx",
+      "note": "Attempt 1; ordinary-11; artifact ID 12628674843. Complete passing owner TRX. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound.",
+      "runId": "40270967586",
+      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63"
+    },
+    "p031-hosted-ordinary-2": {
+      "artifactSha256": "4e8c0ef2a4a4b82607c39540c3692e41b4c7b4d4c0725e17fe274958aac5a83c",
+      "kind": "hosted_trx",
+      "note": "Attempt 1; ordinary-2; artifact ID 12628257751. Complete passing owner TRX. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound.",
+      "runId": "40270967586",
+      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63"
+    },
+    "p031-hosted-ordinary-3": {
+      "artifactSha256": "b998043ac9bc85b53d08720e258e7f6cb0c8e13b21d57cc21bd4b2038cde1396",
+      "kind": "hosted_trx",
+      "note": "Attempt 1; ordinary-3; artifact ID 12628189045. Complete passing owner TRX. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound.",
+      "runId": "40270967586",
+      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63"
     },
     "p031-hosted-ordinary-4": {
-      "kind": "hosted_trx",
       "artifactSha256": "7a805d6c4f5c0f06048fc3fc4134e60f5feef9d39a0cbb9d4c5facf73acf801a",
-      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63",
+      "kind": "hosted_trx",
+      "note": "Attempt 1; ordinary-4; artifact ID 12628883881. Complete passing owner TRX. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound.",
       "runId": "40270967586",
-      "note": "Attempt 1; ordinary-4; artifact ID 12628883881. Complete passing owner TRX. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound."
+      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63"
+    },
+    "p031-hosted-ordinary-5": {
+      "artifactSha256": "810f97e389e284c0d2a9c590454a13317300d0bdac741bfcb5fff9f8dd56555c",
+      "kind": "hosted_trx",
+      "note": "Attempt 1; ordinary-5; artifact ID 12628422538. Complete passing owner TRX. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound.",
+      "runId": "40270967586",
+      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63"
+    },
+    "p031-hosted-ordinary-6": {
+      "artifactSha256": "6744c7ccf7d6b5b1b5b21a57c5475a71af3b78d7cdaf10b47cd52db33deca8be",
+      "kind": "hosted_console",
+      "note": "Attempt 1; ordinary-6; artifact ID 12629027797. Interrupted owner exact JSONL prefix; complete all-Passed selector groups only. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound.",
+      "runId": "40270967586",
+      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63"
+    },
+    "p031-hosted-ordinary-7": {
+      "artifactSha256": "080d1cc57fd1c23f872b9bd5499c954d7c57687e7ee3a4f2407cc9ed1a082682",
+      "kind": "hosted_trx",
+      "note": "Attempt 1; ordinary-7; artifact ID 12628697404. Complete passing owner TRX. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound.",
+      "runId": "40270967586",
+      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63"
+    },
+    "p031-hosted-ordinary-8": {
+      "artifactSha256": "ade39dd7df27cacff5d695a5884eab985bbf03ba2865040492f92797b875a16d",
+      "kind": "hosted_trx",
+      "note": "Attempt 1; ordinary-8; artifact ID 12628007561. Complete passing owner TRX. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound.",
+      "runId": "40270967586",
+      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63"
     },
     "p031-hosted-ordinary-9": {
-      "kind": "hosted_console",
       "artifactSha256": "c7771c4ccf4944d73bd8e83a7164a59aab07c47297721dd3c70ca525e0712bd8",
-      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63",
-      "runId": "40270967586",
-      "note": "Attempt 1; ordinary-9; artifact ID 12628692608. Interrupted owner exact JSONL prefix; complete all-Passed selector groups only. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound."
-    },
-    "pr38-a-ordinary-0": {
-      "kind": "hosted_trx",
-      "artifactSha256": "0b7776e02beaa6a740bde18ef1e2a1beac6d231d0f5b45fc7cfd5b4288afe0e6",
-      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c",
-      "runId": "40318359878",
-      "note": "Complete passing A TRX, attempt 1, ordinary-0, artifact ID 12648163006, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Exact selector case-duration sum in ceil milliseconds, minimum 1; advisory, not a wall bound."
-    },
-    "pr38-a-ordinary-1": {
-      "kind": "hosted_trx",
-      "artifactSha256": "dfa89757d8eeab01619c8538a8db0fe95cc70661c2d93d5b842c1c08bbbcc8c5",
-      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c",
-      "runId": "40318359878",
-      "note": "Complete passing A TRX, attempt 1, ordinary-1, artifact ID 12648317031, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Exact selector case-duration sum in ceil milliseconds, minimum 1; advisory, not a wall bound."
-    },
-    "pr38-a-ordinary-10": {
-      "kind": "hosted_trx",
-      "artifactSha256": "d6108a68815c7bec8f6f642998753673146fbce91cf13150725be77978cf4815",
-      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c",
-      "runId": "40318359878",
-      "note": "Complete passing A TRX, attempt 1, ordinary-10, artifact ID 12648073211, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Exact selector case-duration sum in ceil milliseconds, minimum 1; advisory, not a wall bound."
-    },
-    "pr38-a-ordinary-11": {
-      "kind": "hosted_trx",
-      "artifactSha256": "713976c7d837820e0812b0e1852cb22447dc62b724d297f3aafb3882a8c3c762",
-      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c",
-      "runId": "40318359878",
-      "note": "Complete passing A TRX, attempt 1, ordinary-11, artifact ID 12648422552, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Exact selector case-duration sum in ceil milliseconds, minimum 1; advisory, not a wall bound."
-    },
-    "pr38-a-ordinary-3": {
-      "kind": "hosted_trx",
-      "artifactSha256": "e26d9587beaab36041a1734d6a6992871c33dae8877dc4d3d2704c3be9331602",
-      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c",
-      "runId": "40318359878",
-      "note": "Complete passing A TRX, attempt 1, ordinary-3, artifact ID 12648717944, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Exact selector case-duration sum in ceil milliseconds, minimum 1; advisory, not a wall bound."
-    },
-    "pr38-a-ordinary-4": {
-      "kind": "hosted_trx",
-      "artifactSha256": "0f4e8bfa19e34a1a5254739365daf95f50e7efca1f5822ee6395bebd3083f32e",
-      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c",
-      "runId": "40318359878",
-      "note": "Complete passing A TRX, attempt 1, ordinary-4, artifact ID 12648627438, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Exact selector case-duration sum in ceil milliseconds, minimum 1; advisory, not a wall bound."
-    },
-    "pr38-a-ordinary-7": {
-      "kind": "hosted_trx",
-      "artifactSha256": "848ed3fcd2469cfa2ded4199afe0898f1c78cea68f91f1f566d63978dd35fff1",
-      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c",
-      "runId": "40318359878",
-      "note": "Complete passing A TRX, attempt 1, ordinary-7, artifact ID 12648149044, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Exact selector case-duration sum in ceil milliseconds, minimum 1; advisory, not a wall bound."
-    },
-    "pr38-a-ordinary-8": {
-      "kind": "hosted_trx",
-      "artifactSha256": "06360b250cc4468d4432f0435e88c7381a81126cd939faa86a95836209585769",
-      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c",
-      "runId": "40318359878",
-      "note": "Complete passing A TRX, attempt 1, ordinary-8, artifact ID 12648961775, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Exact selector case-duration sum in ceil milliseconds, minimum 1; advisory, not a wall bound."
-    },
-    "pr38-b-ordinary-0": {
-      "kind": "hosted_trx",
-      "artifactSha256": "23aeeab46cb657de67cac128a4287fc1279ee70896f4359bc4f8b3694804444e",
-      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c",
-      "runId": "40318359878",
-      "note": "Attempt 2, ordinary-0, artifact ID 12648909903, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Complete passing original TRX; ceil summed case ms/minimum 1; advisory, not a wall bound."
-    },
-    "pr38-b-ordinary-1": {
-      "kind": "hosted_trx",
-      "artifactSha256": "fec5fa78065ffdc395abeb2a36d27f8efd8023006650e380a9472a9c7694c86f",
-      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c",
-      "runId": "40318359878",
-      "note": "Attempt 2, ordinary-1, artifact ID 12649710644, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Complete passing original TRX; ceil summed case ms/minimum 1; advisory, not a wall bound."
-    },
-    "pr38-b-ordinary-10": {
-      "kind": "hosted_trx",
-      "artifactSha256": "150a193f0437c11be1b92e28d9d5c105283168f84ebd4ec31568d042066bcfc2",
-      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c",
-      "runId": "40318359878",
-      "note": "Attempt 2, ordinary-10, artifact ID 12649402118, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Complete passing original TRX; ceil summed case ms/minimum 1; advisory, not a wall bound."
-    },
-    "pr38-b-ordinary-2": {
-      "kind": "hosted_trx",
-      "artifactSha256": "17e9c12e832faab0bdd55dcf84dd4ef76759c7756353db93c642500d18fd615f",
-      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c",
-      "runId": "40318359878",
-      "note": "Attempt 2, ordinary-2, artifact ID 12650566478, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Complete passing original TRX; ceil summed case ms/minimum 1; advisory, not a wall bound."
-    },
-    "pr38-b-ordinary-5": {
-      "kind": "hosted_trx",
-      "artifactSha256": "6342d74f1ffaa5c5e1c5a88e6f36ababa3133d288c4fe2f8c1f142954274d52c",
-      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c",
-      "runId": "40318359878",
-      "note": "Attempt 2, ordinary-5, artifact ID 12649254130, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Complete passing original TRX; ceil summed case ms/minimum 1; advisory, not a wall bound."
-    },
-    "pr38-b-ordinary-7": {
       "kind": "hosted_console",
-      "artifactSha256": "de7a7a5ca42db46ad7c1fae567c64d98cd2f6c6fc11d140560491408ac944202",
-      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c",
-      "runId": "40318359878",
-      "note": "Attempt 2, ordinary-7, artifact ID 12648684971, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Interrupted original JSONL prefix, only complete all-Passed selector groups; ceil summed case ms/minimum 1; advisory, not a wall bound."
-    },
-    "pr38-b-ordinary-8": {
-      "kind": "hosted_trx",
-      "artifactSha256": "ca989b6ee3f7f0c24a6e7067ecc0ae934581b70380188fe0bb3581ff5e5f4ae9",
-      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c",
-      "runId": "40318359878",
-      "note": "Attempt 2, ordinary-8, artifact ID 12649532186, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Complete passing original TRX; ceil summed case ms/minimum 1; advisory, not a wall bound."
-    },
-    "pr38-df-1-architecture-1": {
-      "kind": "hosted_trx",
-      "artifactSha256": "810581e38845581eb1b96afd5551b3da6a3d136af5443cfa7f6582ee50096e69",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Attempt 1, architecture-1, artifact ID 12653685003, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
-    },
-    "pr38-df-1-architecture-2": {
-      "kind": "hosted_trx",
-      "artifactSha256": "97893f76633c41b6046d90bf2ec35c3bbc02d6249b28fd849d916f7e7f5dcdb5",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Attempt 1, architecture-2, artifact ID 12652606232, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
-    },
-    "pr38-df-1-architecture-3": {
-      "kind": "hosted_trx",
-      "artifactSha256": "113518ba341dcd597c26a6ed8ba6c8215a58b5107981a8869f582681f15532b6",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Attempt 1, architecture-3, artifact ID 12652816720, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
-    },
-    "pr38-df-1-architecture-4": {
-      "kind": "hosted_trx",
-      "artifactSha256": "77251e81bee71b3c63337be660df235e93de35421616b083ebf11fd35ba732b4",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Attempt 1, architecture-4, artifact ID 12653460765, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
-    },
-    "pr38-df-1-architecture-5": {
-      "kind": "hosted_trx",
-      "artifactSha256": "d5e63d905231142da8b8e614bfb8ed285508a81235e0924d957f72840c604a1e",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Attempt 1, architecture-5, artifact ID 12653630018, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
-    },
-    "pr38-df-1-ordinary-0": {
-      "kind": "hosted_trx",
-      "artifactSha256": "93ee7a30c7c4cdd8ff3922b1b3ea5ef6a27afc50385275078824df64ec55fcf8",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Attempt 1, ordinary-0, artifact ID 12652825643, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
-    },
-    "pr38-df-1-ordinary-10": {
-      "kind": "hosted_trx",
-      "artifactSha256": "94008ecc6d8565a79f4ad6023e1b2de981772eddb301af2ff1a5ecab7d46dca4",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Attempt 1, ordinary-10, artifact ID 12655025643, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
-    },
-    "pr38-df-1-ordinary-11": {
-      "kind": "hosted_trx",
-      "artifactSha256": "1afdc9d7a0e97ba5a0ca132d3100e045503994b132ed57d8ecae9bfcb5640475",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Attempt 1, ordinary-11, artifact ID 12653396243, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
-    },
-    "pr38-df-1-ordinary-4": {
-      "kind": "hosted_trx",
-      "artifactSha256": "1a6c40876afc25eca903fade8ac1958f06884c8dda0f435bbb2712c9effa69f3",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Attempt 1, ordinary-4, artifact ID 12655210098, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
-    },
-    "pr38-df-1-ordinary-6": {
-      "kind": "hosted_trx",
-      "artifactSha256": "a110991fc8936203d2eab59eb96933d02cba71ef5b99a433400efbb08ef7a29d",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Attempt 1, ordinary-6, artifact ID 12652851829, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
-    },
-    "pr38-df-1-ordinary-7": {
-      "kind": "hosted_trx",
-      "artifactSha256": "8d4622f7be166644fcd1e381b9039c935eb8f4ae045dbfc8c523107ed636665c",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Attempt 1, ordinary-7, artifact ID 12653571034, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
-    },
-    "pr38-df-1-ordinary-8": {
-      "kind": "hosted_trx",
-      "artifactSha256": "c9329ff6e95ca27b7420446545b982f4d122de22310d579cb8970ad9c8aeb2f8",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Attempt 1, ordinary-8, artifact ID 12652516461, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
-    },
-    "pr38-df-2-architecture-1": {
-      "kind": "hosted_trx",
-      "artifactSha256": "d0f7f75b02851e9ad2375a575053925d9601ccbe11aef33d919d3996989c8457",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Attempt 2, architecture-1, artifact ID 12653084289, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
-    },
-    "pr38-df-2-architecture-3": {
-      "kind": "hosted_trx",
-      "artifactSha256": "46d6ade56095884f79b05d6371224332c54be1c3db92825149553cc025c1cc8e",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Attempt 2, architecture-3, artifact ID 12655345633, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
-    },
-    "pr38-df-2-architecture-5": {
-      "kind": "hosted_trx",
-      "artifactSha256": "62975572f9d8aaa8ba479063ccc7b4cbea759b547edaf6c963043c9e92fec99b",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Attempt 2, architecture-5, artifact ID 12653768947, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
-    },
-    "pr38-df-2-ordinary-0": {
-      "kind": "hosted_console",
-      "artifactSha256": "818a8a5a8a659fb698896be2bdf03bff3413045eb433e2337cde35a266712a11",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Attempt 2, ordinary-0, artifact ID 12654553778, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; original interrupted JSONL prefix, full all-Passed groups only; ceil summed case ms/minimum 1; advisory, not wall time."
-    },
-    "pr38-df-2-ordinary-1": {
-      "kind": "hosted_trx",
-      "artifactSha256": "a5ddf6ae4cdf577399e7f294db3046ef511eeebf742ab950d0a11f76ee2215ec",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Attempt 2, ordinary-1, artifact ID 12654288868, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
-    },
-    "pr38-df-2-ordinary-10": {
-      "kind": "hosted_trx",
-      "artifactSha256": "7e8d78925b5ced3ea3446b3da9b69e11e6426fcf4ee9d778f0772d38df9c9ec8",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Attempt 2, ordinary-10, artifact ID 12654873440, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
-    },
-    "pr38-df-2-ordinary-5": {
-      "kind": "hosted_trx",
-      "artifactSha256": "2d131fcb0125e26e6df3382230ed586980dcc8f7375a6f40523cfebeb0e295ad",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Attempt 2, ordinary-5, artifact ID 12654363345, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
-    },
-    "pr38-df-2-ordinary-8": {
-      "kind": "hosted_trx",
-      "artifactSha256": "c7fbd6f616af4674de0cf0ce3e1a694d2d60b5791fbf56191200aeb785beb176",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Attempt 2, ordinary-8, artifact ID 12655268010, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
-    },
-    "pr38-df-2-ordinary-9": {
-      "kind": "hosted_trx",
-      "artifactSha256": "8e0e6870ca10e4c3e0f8408261ae68d74be5a9d769c7706fec3fe184a089a2cf",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Attempt 2, ordinary-9, artifact ID 12653204628, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
-    },
-    "pr38-class-alias-job-owner": {
-      "kind": "hosted_trx",
-      "artifactSha256": "c183ef8d7fc84a8e55c417b2c2e370c32a7688f7bbae49eb0d69fee16439f3d4",
-      "sourceSha": "d84ac3009f8ba84a339d91e023f7f6f5f9269cc0",
-      "runId": "39417319998",
-      "note": "Alias JobExecutionMutationTests->JobOwnerMutationTests, method Background_job_owner_census_detects_actual_removals_extra_subtypes_async_calls_and_delegates; unchanged Fact body SHA256 a18d18ee4893a501c4745978df1b24952e01bf24d6e443364c5c096132f10e37; inherits hosted-architecture-39417319998-2-1. Advisory scalar; new name not executed."
-    },
-    "pr38-class-alias-job-orchestration": {
-      "kind": "hosted_trx",
-      "artifactSha256": "62975572f9d8aaa8ba479063ccc7b4cbea759b547edaf6c963043c9e92fec99b",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Alias JobExecutionMutationTests->JobOrchestrationMutationTests, method External_job_orchestration_rejects_missing_seams_helpers_delegates_signatures_and_resource_carriers; unchanged Fact body SHA256 1f8352511ad2141801da6a1c4f8d0885550b70b703d42df8e28f176bf0d1f8d1; inherits pr38-df-2-architecture-5. Advisory scalar; new name not executed."
-    },
-    "pr38-class-alias-job-capacity": {
-      "kind": "hosted_trx",
-      "artifactSha256": "97893f76633c41b6046d90bf2ec35c3bbc02d6249b28fd849d916f7e7f5dcdb5",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Alias JobLifecycleMutationTests->JobCapacityMutationTests, method Background_job_capacity_census_rejects_forged_cleanup_recovery_and_checkpoint_owners; unchanged Fact body SHA256 0b07c37090e62af54d3b06ebc04473e74726b42da30b7dad16b00f45c4570527; inherits pr38-df-1-architecture-2. Advisory scalar; new name not executed."
-    },
-    "pr38-class-alias-job-recipient": {
-      "kind": "hosted_trx",
-      "artifactSha256": "dd1213a26dbb87999c5545f71061f76dccc124e5950f44eec6dd237a240ffc02",
-      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63",
+      "note": "Attempt 1; ordinary-9; artifact ID 12628692608. Interrupted owner exact JSONL prefix; complete all-Passed selector groups only. IDs bind actual discovery selectors. Sum case ms, ceil/min1. No failed/unfinished group reduction; advisory, excludes fixture/setup and gives no wall bound.",
       "runId": "40270967586",
-      "note": "Alias JobLifecycleMutationTests->JobRecipientMutationTests, method Background_job_recipient_census_detects_extra_authority_and_missing_real_fences; unchanged Fact body SHA256 3f0a97d5d175979b66f2361d96b9223260c4402afeea8809c32ed6826d1ff5f6; inherits p031-hosted-architecture-3. Advisory scalar; new name not executed."
+      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63"
     },
-    "pr38-class-alias-hangfire-runtime": {
+    "p032-hosted-architecture-40577851910-1-0": {
+      "artifactSha256": "a09d12c9edc5b7f920bd53444ea8f9fb2ccd60885fd10c5ab93eea418196a7e3",
       "kind": "hosted_trx",
-      "artifactSha256": "c183ef8d7fc84a8e55c417b2c2e370c32a7688f7bbae49eb0d69fee16439f3d4",
-      "sourceSha": "d84ac3009f8ba84a339d91e023f7f6f5f9269cc0",
-      "runId": "39417319998",
-      "note": "Alias JobLifecycleMutationTests->HangfireRuntimeMutationTests, method Hangfire_runtime_census_rejects_fatal_and_constructor_escapes; unchanged Fact body SHA256 748270afbda097f752e5c5dd32387bc4581eea0a74d544ddfc61d298297fa642; inherits hosted-architecture-39417319998-2-1. Advisory scalar; new name not executed."
+      "note": "Complete passing architecture-0 producer: 56 cases, 52 whole selectors. Summed milliseconds, historical maxima retained; failed overall run is not whole-run qualification.",
+      "runId": "40577851910",
+      "sourceSha": "696671b5a13202df87b2a8903d8da550a3067c96"
     },
-    "pr38-class-alias-job-recurrence": {
+    "p032-hosted-architecture-40577851910-1-1": {
+      "artifactSha256": "a7c412f576727b3b5bece115a8245a0c3177f4e4c513a5da0c65a41d4fc7a019",
       "kind": "hosted_trx",
-      "artifactSha256": "6733ccbeb3fddcfeca2c4d4283a94a39e32b91d9cecaed18cc64a9ee77d01363",
-      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63",
-      "runId": "40270967586",
-      "note": "Alias OutboxDispatchConventionTests->JobRecurrenceMutationTests, method Background_job_recurrence_runtime_controls_reject_changed_authority_and_cleanup; unchanged dedented Theory body SHA256 975ccdf103cc9626c2aeb68d8e064aa91cc6d26c1613104e953dafc3c7fe246c; inherits p031-hosted-architecture-5. Advisory scalar; new selector not executed hosted."
+      "note": "Complete passing architecture-1 producer: 60 cases, 53 whole selectors. Summed milliseconds, historical maxima retained; failed overall run is not whole-run qualification.",
+      "runId": "40577851910",
+      "sourceSha": "696671b5a13202df87b2a8903d8da550a3067c96"
     },
-    "pr38-class-alias-resolution": {
+    "p032-hosted-architecture-40577851910-1-2": {
+      "artifactSha256": "59653e21b8814ad5f2da5f31229fce245987c5dade0b3aa4f8870506ec47a114",
       "kind": "hosted_trx",
-      "artifactSha256": "113518ba341dcd597c26a6ed8ba6c8215a58b5107981a8869f582681f15532b6",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Alias OutboxDispatchConventionTests->ResolutionMutationTests, method Resolution_walk_detects_loading_construction_async_and_polymorphic_helpers; unchanged dedented Fact body SHA256 16a75e50ea90608d73b2b640588e06c5b8c9f8b40d5a5ab6058acd4da3949bc5; inherits pr38-df-1-architecture-3. Advisory scalar; new selector not executed hosted."
+      "note": "Complete passing architecture-2 producer: 84 cases, 53 whole selectors. Summed milliseconds, historical maxima retained; failed overall run is not whole-run qualification.",
+      "runId": "40577851910",
+      "sourceSha": "696671b5a13202df87b2a8903d8da550a3067c96"
     },
-    "pr38-class-alias-cleanup-owner-1067e9c3": {
+    "p032-hosted-architecture-40577851910-1-3": {
+      "artifactSha256": "9a006e3f58a6d694555456c00ed99cd13e585b327ba3d1461a8f40f028fea82f",
       "kind": "hosted_trx",
-      "artifactSha256": "62975572f9d8aaa8ba479063ccc7b4cbea759b547edaf6c963043c9e92fec99b",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Alias OutboxDispatchConventionTests->CleanupOwnerMutationTests, method Cleanup_owner_census_rejects_extra_acquisition_disposal_capture_and_observation_paths; unchanged dedented Fact body SHA256 74043e6354b36489a5f5e16686d445660ca4cbf1bf725b7711a03a9603518e23; inherits pr38-df-2-architecture-5. Advisory scalar; new selector not executed hosted."
+      "note": "Complete passing architecture-3 producer: 111 cases, 53 whole selectors. Summed milliseconds, historical maxima retained; failed overall run is not whole-run qualification.",
+      "runId": "40577851910",
+      "sourceSha": "696671b5a13202df87b2a8903d8da550a3067c96"
     },
-    "pr38-class-alias-delivery-lifecycle-4abc441d": {
+    "p032-hosted-architecture-40577851910-1-4": {
+      "artifactSha256": "f46283d8dce4cf5373a837a55612850259ce4c34bdd137c006fbe2f0acf7eca8",
       "kind": "hosted_trx",
-      "artifactSha256": "62975572f9d8aaa8ba479063ccc7b4cbea759b547edaf6c963043c9e92fec99b",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Alias OutboxDispatchConventionTests->DeliveryLifecycleMutationTests, method Integration_delivery_lifecycle_census_rejects_typed_helper_async_delegate_and_missing_paths; unchanged dedented Fact body SHA256 aadc5f058bab1e61d4c0b8c32ba7e42fe170d6dd3191ac472d34b5ec9596e772; inherits pr38-df-2-architecture-5. Advisory scalar; new selector not executed hosted."
+      "note": "Complete passing architecture-4 producer: 103 cases, 52 whole selectors. Summed milliseconds, historical maxima retained; failed overall run is not whole-run qualification.",
+      "runId": "40577851910",
+      "sourceSha": "696671b5a13202df87b2a8903d8da550a3067c96"
     },
-    "pr38-class-alias-bridge-credential-8d40b87a": {
+    "p032-hosted-architecture-40577851910-1-5": {
+      "artifactSha256": "19e0bf8a2c34690502299801d28b3130fbf44cc4c68dfc87bb75f9ae40f93af1",
       "kind": "hosted_trx",
-      "artifactSha256": "26837faa8779817aab5f299d42c19b0d8cae668f6bdf2143ff3c4d3b303457dc",
-      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63",
-      "runId": "40270967586",
-      "note": "Alias OutboxDispatchConventionTests->BridgeCredentialMutationTests, method Bridge_credential_census_rejects_extra_acquisition_forwarding_and_store_consumers; unchanged dedented Fact body SHA256 38cfb6cc97de0f4e724ee623df6e9a6ec9092bea5fc2e6a890280dee733d6c9c; inherits p031-hosted-architecture-1. Advisory scalar; new selector not executed hosted."
-    },
-    "pr38-class-alias-bridge-credential-c6cb9e31": {
-      "kind": "hosted_trx",
-      "artifactSha256": "59d80797f359ad0aec494654e77cac2e6187ad1e744ab3e8abde3695345cfe90",
-      "sourceSha": "d84ac3009f8ba84a339d91e023f7f6f5f9269cc0",
-      "runId": "39417319998",
-      "note": "Alias OutboxDispatchConventionTests->BridgeCredentialMutationTests, method Bridge_credential_census_rejects_changed_signatures_captures_and_missing_subjects; unchanged dedented Fact body SHA256 c42eef5db89c31e571ab1d1a7a666b752f4410d9f08f4bf005afcd485900bc25; inherits hosted-architecture-39417319998-2-0. Advisory scalar; new selector not executed hosted."
-    },
-    "pr38-class-alias-credential-binding-f900f146": {
-      "kind": "hosted_trx",
-      "artifactSha256": "6c923d6eb54664b3f0d7d889e6ea9eaa29f1b582f6173fefa9318524d3be3b0f",
-      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63",
-      "runId": "40270967586",
-      "note": "Alias OutboxDispatchConventionTests->CredentialBindingMutationTests, method Credential_census_rejects_crossed_keys_changed_closures_and_missing_subjects; unchanged dedented Fact body SHA256 815c4e74ec047c3a7b2baaf9133e788fcd65a4a27a2e152724030d9a1d1b8d6c; inherits p031-hosted-architecture-0. Advisory scalar; new selector not executed hosted."
-    },
-    "pr38-class-alias-credential-binding-1805dd42": {
-      "kind": "hosted_trx",
-      "artifactSha256": "26837faa8779817aab5f299d42c19b0d8cae668f6bdf2143ff3c4d3b303457dc",
-      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63",
-      "runId": "40270967586",
-      "note": "Alias OutboxDispatchConventionTests->CredentialBindingMutationTests, method Credential_census_rejects_compiled_connection_string_indexers_and_composed_keys; unchanged dedented Fact body SHA256 a7f0dab0b9ccf9cebf71449fb480bd5249270e95c262c3019ebb12d2740482c8; inherits p031-hosted-architecture-1. Advisory scalar; new selector not executed hosted."
-    },
-    "pr38-class-alias-integration-invocation-572fda26": {
-      "kind": "hosted_trx",
-      "artifactSha256": "97893f76633c41b6046d90bf2ec35c3bbc02d6249b28fd849d916f7e7f5dcdb5",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Alias OutboxDispatchConventionTests->IntegrationInvocationMutationTests, method Integration_invocation_census_rejects_all_layer_direct_interface_helper_async_and_delegate_bypasses; unchanged dedented Fact body SHA256 def20fa944e25cf4b1a8a4fab0f9297a663f5b042fb4a6b017ed646ec6aa391f; inherits pr38-df-1-architecture-2. Advisory scalar; new selector not executed hosted."
-    },
-    "pr38-class-alias-delivery-credential-0fe0826f": {
-      "kind": "hosted_trx",
-      "artifactSha256": "97893f76633c41b6046d90bf2ec35c3bbc02d6249b28fd849d916f7e7f5dcdb5",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Alias OutboxDispatchConventionTests->DeliveryCredentialMutationTests, method Delivery_credentials_reject_extra_store_locators_forwarding_overloads_and_wrong_keys; unchanged dedented Fact body SHA256 1a15c08a9e002ce9810a63319a1ba4c7e91d13e8fc2575102c8961bbed7d1185; inherits pr38-df-1-architecture-2. Advisory scalar; new selector not executed hosted."
-    },
-    "pr38-class-alias-job-orchestration-declaration-42dae548": {
-      "kind": "hosted_trx",
-      "artifactSha256": "6c923d6eb54664b3f0d7d889e6ea9eaa29f1b582f6173fefa9318524d3be3b0f",
-      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63",
-      "runId": "40270967586",
-      "note": "Alias OutboxDispatchConventionTests->JobOrchestrationDeclarationMutationTests, method Background_job_orchestration_has_closed_finite_owners_and_rejects_extra_callers_and_lost_retention; unchanged dedented Fact body SHA256 126d54402544743466ff3d0557a71f050e721072a768e7fef6b79dd6e6bde90a; inherits p031-hosted-architecture-0. Advisory scalar; new selector not executed hosted."
-    },
-    "pr38-class-alias-job-metric-bf372ff9": {
-      "kind": "hosted_trx",
-      "artifactSha256": "c183ef8d7fc84a8e55c417b2c2e370c32a7688f7bbae49eb0d69fee16439f3d4",
-      "sourceSha": "d84ac3009f8ba84a339d91e023f7f6f5f9269cc0",
-      "runId": "39417319998",
-      "note": "Alias OutboxDispatchConventionTests->JobMetricMutationTests, method Background_job_metric_callbacks_follow_the_actual_transitive_memory_graph_and_refuse_persistence_helpers; unchanged dedented Fact body SHA256 3f82b6de1b87ff1059613e5a3bdaccab051f292f7c24d83dc520cf3282aa0243; inherits hosted-architecture-39417319998-2-1. Advisory scalar; new selector not executed hosted."
-    },
-    "pr38-class-alias-job-metric-a826fef6": {
-      "kind": "hosted_trx",
-      "artifactSha256": "dd1213a26dbb87999c5545f71061f76dccc124e5950f44eec6dd237a240ffc02",
-      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63",
-      "runId": "40270967586",
-      "note": "Alias OutboxDispatchConventionTests->JobMetricMutationTests, method Background_job_metric_census_rejects_bait_callbacks_hidden_registration_and_skipped_binding; unchanged dedented Fact body SHA256 50ff6e956474be146837e346675629737c6d309c2cc9eedd1914af86ba373681; inherits p031-hosted-architecture-3. Advisory scalar; new selector not executed hosted."
-    },
-    "pr38-class-alias-job-authority-census-ef981129": {
-      "kind": "hosted_trx",
-      "artifactSha256": "810581e38845581eb1b96afd5551b3da6a3d136af5443cfa7f6582ee50096e69",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Alias OutboxDispatchConventionTests+JobAuthorityMutationTests->JobAuthorityCensusMutationTests, method Background_job_authority_census_detects_extra_activation_and_removed_live_guards; unchanged dedented Fact body SHA256 7665f56665cd4acbc8ae85f135e0e41bd19c7e4499d17cb2a0cb6b8a1c8fd499; inherits pr38-df-1-architecture-1. Advisory scalar; new selector not executed hosted."
+      "note": "Complete passing architecture-5 producer: 175 cases, 53 whole selectors. Summed milliseconds, historical maxima retained; failed overall run is not whole-run qualification.",
+      "runId": "40577851910",
+      "sourceSha": "696671b5a13202df87b2a8903d8da550a3067c96"
     },
     "p032-local-architecture": {
-      "kind": "local_trx",
       "artifactSha256": "3a787fa53ad878fd2b340fd0d7a1a6150704d5a4f52d64fd9e89d9706fe4dd78",
-      "sourceSha": "309e6d253c8e972fe62c9ad14a676b6d59eff0d5",
+      "kind": "local_trx",
+      "note": "Local architecture TRX at clean predecessor 309e6d25: 589 passed, 0 skips; 0 offline cases excluded. Exact-ID current-selector sums, ceil ms/max historical. Own source/tree/DLL before/after observers, not TRX-embedded SHA. IDs do not prove unchanged implementation. Shared-host concurrent no-build advisory; no mixed-head qualification or hosted-fit claim.",
       "runId": null,
-      "note": "Local architecture TRX at clean predecessor 309e6d25: 589 passed, 0 skips; 0 offline cases excluded. Exact-ID current-selector sums, ceil ms/max historical. Own source/tree/DLL before/after observers, not TRX-embedded SHA. IDs do not prove unchanged implementation. Shared-host concurrent no-build advisory; no mixed-head qualification or hosted-fit claim."
+      "sourceSha": "309e6d253c8e972fe62c9ad14a676b6d59eff0d5"
     },
     "p032-local-ordinary-broad": {
-      "kind": "local_trx",
       "artifactSha256": "54d943c9aa99d0b22055b0cb22ec7906f3c86f84838aaa2b9cdbbae17441ecbf",
-      "sourceSha": "309e6d253c8e972fe62c9ad14a676b6d59eff0d5",
+      "kind": "local_trx",
+      "note": "Local ordinary-broad TRX at clean predecessor 309e6d25: 844 passed, 0 skips; 1 offline cases excluded. Exact-ID current-selector sums, ceil ms/max historical. Own source/tree/DLL before/after observers, not TRX-embedded SHA. IDs do not prove unchanged implementation. Shared-host concurrent no-build advisory; no mixed-head qualification or hosted-fit claim.",
       "runId": null,
-      "note": "Local ordinary-broad TRX at clean predecessor 309e6d25: 844 passed, 0 skips; 1 offline cases excluded. Exact-ID current-selector sums, ceil ms/max historical. Own source/tree/DLL before/after observers, not TRX-embedded SHA. IDs do not prove unchanged implementation. Shared-host concurrent no-build advisory; no mixed-head qualification or hosted-fit claim."
+      "sourceSha": "309e6d253c8e972fe62c9ad14a676b6d59eff0d5"
     },
     "p032-local-ordinary-complement": {
-      "kind": "local_trx",
       "artifactSha256": "eaf728e7c81e35dbfb28624bfdfcb8a5e40c2528e9a0da7c4df3cd02a5c15347",
-      "sourceSha": "f3b8d764c6c3cb9e8d4666ec7cf7f12a5ce04422",
+      "kind": "local_trx",
+      "note": "Local ordinary-complement TRX at clean current f3b8d764: 2133 passed, 0 skips; 0 offline cases excluded. Exact-ID current-selector sums, ceil ms/max historical. Own source/tree/DLL before/after observers, not TRX-embedded SHA. IDs do not prove unchanged implementation. Shared-host concurrent no-build advisory; no mixed-head qualification or hosted-fit claim.",
       "runId": null,
-      "note": "Local ordinary-complement TRX at clean current f3b8d764: 2133 passed, 0 skips; 0 offline cases excluded. Exact-ID current-selector sums, ceil ms/max historical. Own source/tree/DLL before/after observers, not TRX-embedded SHA. IDs do not prove unchanged implementation. Shared-host concurrent no-build advisory; no mixed-head qualification or hosted-fit claim."
+      "sourceSha": "f3b8d764c6c3cb9e8d4666ec7cf7f12a5ce04422"
+    },
+    "pr38-a-ordinary-0": {
+      "artifactSha256": "0b7776e02beaa6a740bde18ef1e2a1beac6d231d0f5b45fc7cfd5b4288afe0e6",
+      "kind": "hosted_trx",
+      "note": "Complete passing A TRX, attempt 1, ordinary-0, artifact ID 12648163006, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Exact selector case-duration sum in ceil milliseconds, minimum 1; advisory, not a wall bound.",
+      "runId": "40318359878",
+      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c"
+    },
+    "pr38-a-ordinary-1": {
+      "artifactSha256": "dfa89757d8eeab01619c8538a8db0fe95cc70661c2d93d5b842c1c08bbbcc8c5",
+      "kind": "hosted_trx",
+      "note": "Complete passing A TRX, attempt 1, ordinary-1, artifact ID 12648317031, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Exact selector case-duration sum in ceil milliseconds, minimum 1; advisory, not a wall bound.",
+      "runId": "40318359878",
+      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c"
+    },
+    "pr38-a-ordinary-10": {
+      "artifactSha256": "d6108a68815c7bec8f6f642998753673146fbce91cf13150725be77978cf4815",
+      "kind": "hosted_trx",
+      "note": "Complete passing A TRX, attempt 1, ordinary-10, artifact ID 12648073211, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Exact selector case-duration sum in ceil milliseconds, minimum 1; advisory, not a wall bound.",
+      "runId": "40318359878",
+      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c"
+    },
+    "pr38-a-ordinary-11": {
+      "artifactSha256": "713976c7d837820e0812b0e1852cb22447dc62b724d297f3aafb3882a8c3c762",
+      "kind": "hosted_trx",
+      "note": "Complete passing A TRX, attempt 1, ordinary-11, artifact ID 12648422552, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Exact selector case-duration sum in ceil milliseconds, minimum 1; advisory, not a wall bound.",
+      "runId": "40318359878",
+      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c"
+    },
+    "pr38-a-ordinary-3": {
+      "artifactSha256": "e26d9587beaab36041a1734d6a6992871c33dae8877dc4d3d2704c3be9331602",
+      "kind": "hosted_trx",
+      "note": "Complete passing A TRX, attempt 1, ordinary-3, artifact ID 12648717944, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Exact selector case-duration sum in ceil milliseconds, minimum 1; advisory, not a wall bound.",
+      "runId": "40318359878",
+      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c"
+    },
+    "pr38-a-ordinary-4": {
+      "artifactSha256": "0f4e8bfa19e34a1a5254739365daf95f50e7efca1f5822ee6395bebd3083f32e",
+      "kind": "hosted_trx",
+      "note": "Complete passing A TRX, attempt 1, ordinary-4, artifact ID 12648627438, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Exact selector case-duration sum in ceil milliseconds, minimum 1; advisory, not a wall bound.",
+      "runId": "40318359878",
+      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c"
+    },
+    "pr38-a-ordinary-7": {
+      "artifactSha256": "848ed3fcd2469cfa2ded4199afe0898f1c78cea68f91f1f566d63978dd35fff1",
+      "kind": "hosted_trx",
+      "note": "Complete passing A TRX, attempt 1, ordinary-7, artifact ID 12648149044, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Exact selector case-duration sum in ceil milliseconds, minimum 1; advisory, not a wall bound.",
+      "runId": "40318359878",
+      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c"
+    },
+    "pr38-a-ordinary-8": {
+      "artifactSha256": "06360b250cc4468d4432f0435e88c7381a81126cd939faa86a95836209585769",
+      "kind": "hosted_trx",
+      "note": "Complete passing A TRX, attempt 1, ordinary-8, artifact ID 12648961775, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Exact selector case-duration sum in ceil milliseconds, minimum 1; advisory, not a wall bound.",
+      "runId": "40318359878",
+      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c"
+    },
+    "pr38-b-ordinary-0": {
+      "artifactSha256": "23aeeab46cb657de67cac128a4287fc1279ee70896f4359bc4f8b3694804444e",
+      "kind": "hosted_trx",
+      "note": "Attempt 2, ordinary-0, artifact ID 12648909903, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Complete passing original TRX; ceil summed case ms/minimum 1; advisory, not a wall bound.",
+      "runId": "40318359878",
+      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c"
+    },
+    "pr38-b-ordinary-1": {
+      "artifactSha256": "fec5fa78065ffdc395abeb2a36d27f8efd8023006650e380a9472a9c7694c86f",
+      "kind": "hosted_trx",
+      "note": "Attempt 2, ordinary-1, artifact ID 12649710644, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Complete passing original TRX; ceil summed case ms/minimum 1; advisory, not a wall bound.",
+      "runId": "40318359878",
+      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c"
+    },
+    "pr38-b-ordinary-10": {
+      "artifactSha256": "150a193f0437c11be1b92e28d9d5c105283168f84ebd4ec31568d042066bcfc2",
+      "kind": "hosted_trx",
+      "note": "Attempt 2, ordinary-10, artifact ID 12649402118, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Complete passing original TRX; ceil summed case ms/minimum 1; advisory, not a wall bound.",
+      "runId": "40318359878",
+      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c"
+    },
+    "pr38-b-ordinary-2": {
+      "artifactSha256": "17e9c12e832faab0bdd55dcf84dd4ef76759c7756353db93c642500d18fd615f",
+      "kind": "hosted_trx",
+      "note": "Attempt 2, ordinary-2, artifact ID 12650566478, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Complete passing original TRX; ceil summed case ms/minimum 1; advisory, not a wall bound.",
+      "runId": "40318359878",
+      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c"
+    },
+    "pr38-b-ordinary-5": {
+      "artifactSha256": "6342d74f1ffaa5c5e1c5a88e6f36ababa3133d288c4fe2f8c1f142954274d52c",
+      "kind": "hosted_trx",
+      "note": "Attempt 2, ordinary-5, artifact ID 12649254130, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Complete passing original TRX; ceil summed case ms/minimum 1; advisory, not a wall bound.",
+      "runId": "40318359878",
+      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c"
+    },
+    "pr38-b-ordinary-7": {
+      "artifactSha256": "de7a7a5ca42db46ad7c1fae567c64d98cd2f6c6fc11d140560491408ac944202",
+      "kind": "hosted_console",
+      "note": "Attempt 2, ordinary-7, artifact ID 12648684971, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Interrupted original JSONL prefix, only complete all-Passed selector groups; ceil summed case ms/minimum 1; advisory, not a wall bound.",
+      "runId": "40318359878",
+      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c"
+    },
+    "pr38-b-ordinary-8": {
+      "artifactSha256": "ca989b6ee3f7f0c24a6e7067ecc0ae934581b70380188fe0bb3581ff5e5f4ae9",
+      "kind": "hosted_trx",
+      "note": "Attempt 2, ordinary-8, artifact ID 12649532186, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Complete passing original TRX; ceil summed case ms/minimum 1; advisory, not a wall bound.",
+      "runId": "40318359878",
+      "sourceSha": "5e02e3cc26da696aaed43d7557127b8ca8164a9c"
+    },
+    "pr38-class-alias-bridge-credential-8d40b87a": {
+      "artifactSha256": "26837faa8779817aab5f299d42c19b0d8cae668f6bdf2143ff3c4d3b303457dc",
+      "kind": "hosted_trx",
+      "note": "Alias OutboxDispatchConventionTests->BridgeCredentialMutationTests, method Bridge_credential_census_rejects_extra_acquisition_forwarding_and_store_consumers; unchanged dedented Fact body SHA256 38cfb6cc97de0f4e724ee623df6e9a6ec9092bea5fc2e6a890280dee733d6c9c; inherits p031-hosted-architecture-1. Advisory scalar; new selector not executed hosted.",
+      "runId": "40270967586",
+      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63"
+    },
+    "pr38-class-alias-bridge-credential-c6cb9e31": {
+      "artifactSha256": "59d80797f359ad0aec494654e77cac2e6187ad1e744ab3e8abde3695345cfe90",
+      "kind": "hosted_trx",
+      "note": "Alias OutboxDispatchConventionTests->BridgeCredentialMutationTests, method Bridge_credential_census_rejects_changed_signatures_captures_and_missing_subjects; unchanged dedented Fact body SHA256 c42eef5db89c31e571ab1d1a7a666b752f4410d9f08f4bf005afcd485900bc25; inherits hosted-architecture-39417319998-2-0. Advisory scalar; new selector not executed hosted.",
+      "runId": "39417319998",
+      "sourceSha": "d84ac3009f8ba84a339d91e023f7f6f5f9269cc0"
+    },
+    "pr38-class-alias-cleanup-owner-1067e9c3": {
+      "artifactSha256": "62975572f9d8aaa8ba479063ccc7b4cbea759b547edaf6c963043c9e92fec99b",
+      "kind": "hosted_trx",
+      "note": "Alias OutboxDispatchConventionTests->CleanupOwnerMutationTests, method Cleanup_owner_census_rejects_extra_acquisition_disposal_capture_and_observation_paths; unchanged dedented Fact body SHA256 74043e6354b36489a5f5e16686d445660ca4cbf1bf725b7711a03a9603518e23; inherits pr38-df-2-architecture-5. Advisory scalar; new selector not executed hosted.",
+      "runId": "40326601181",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358"
+    },
+    "pr38-class-alias-credential-binding-1805dd42": {
+      "artifactSha256": "26837faa8779817aab5f299d42c19b0d8cae668f6bdf2143ff3c4d3b303457dc",
+      "kind": "hosted_trx",
+      "note": "Alias OutboxDispatchConventionTests->CredentialBindingMutationTests, method Credential_census_rejects_compiled_connection_string_indexers_and_composed_keys; unchanged dedented Fact body SHA256 a7f0dab0b9ccf9cebf71449fb480bd5249270e95c262c3019ebb12d2740482c8; inherits p031-hosted-architecture-1. Advisory scalar; new selector not executed hosted.",
+      "runId": "40270967586",
+      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63"
+    },
+    "pr38-class-alias-credential-binding-f900f146": {
+      "artifactSha256": "6c923d6eb54664b3f0d7d889e6ea9eaa29f1b582f6173fefa9318524d3be3b0f",
+      "kind": "hosted_trx",
+      "note": "Alias OutboxDispatchConventionTests->CredentialBindingMutationTests, method Credential_census_rejects_crossed_keys_changed_closures_and_missing_subjects; unchanged dedented Fact body SHA256 815c4e74ec047c3a7b2baaf9133e788fcd65a4a27a2e152724030d9a1d1b8d6c; inherits p031-hosted-architecture-0. Advisory scalar; new selector not executed hosted.",
+      "runId": "40270967586",
+      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63"
+    },
+    "pr38-class-alias-delivery-credential-0fe0826f": {
+      "artifactSha256": "97893f76633c41b6046d90bf2ec35c3bbc02d6249b28fd849d916f7e7f5dcdb5",
+      "kind": "hosted_trx",
+      "note": "Alias OutboxDispatchConventionTests->DeliveryCredentialMutationTests, method Delivery_credentials_reject_extra_store_locators_forwarding_overloads_and_wrong_keys; unchanged dedented Fact body SHA256 1a15c08a9e002ce9810a63319a1ba4c7e91d13e8fc2575102c8961bbed7d1185; inherits pr38-df-1-architecture-2. Advisory scalar; new selector not executed hosted.",
+      "runId": "40326601181",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358"
+    },
+    "pr38-class-alias-hangfire-runtime": {
+      "artifactSha256": "c183ef8d7fc84a8e55c417b2c2e370c32a7688f7bbae49eb0d69fee16439f3d4",
+      "kind": "hosted_trx",
+      "note": "Alias JobLifecycleMutationTests->HangfireRuntimeMutationTests, method Hangfire_runtime_census_rejects_fatal_and_constructor_escapes; unchanged Fact body SHA256 748270afbda097f752e5c5dd32387bc4581eea0a74d544ddfc61d298297fa642; inherits hosted-architecture-39417319998-2-1. Advisory scalar; new name not executed.",
+      "runId": "39417319998",
+      "sourceSha": "d84ac3009f8ba84a339d91e023f7f6f5f9269cc0"
+    },
+    "pr38-class-alias-integration-invocation-572fda26": {
+      "artifactSha256": "97893f76633c41b6046d90bf2ec35c3bbc02d6249b28fd849d916f7e7f5dcdb5",
+      "kind": "hosted_trx",
+      "note": "Alias OutboxDispatchConventionTests->IntegrationInvocationMutationTests, method Integration_invocation_census_rejects_all_layer_direct_interface_helper_async_and_delegate_bypasses; unchanged dedented Fact body SHA256 def20fa944e25cf4b1a8a4fab0f9297a663f5b042fb4a6b017ed646ec6aa391f; inherits pr38-df-1-architecture-2. Advisory scalar; new selector not executed hosted.",
+      "runId": "40326601181",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358"
+    },
+    "pr38-class-alias-job-authority-census-ef981129": {
+      "artifactSha256": "810581e38845581eb1b96afd5551b3da6a3d136af5443cfa7f6582ee50096e69",
+      "kind": "hosted_trx",
+      "note": "Alias OutboxDispatchConventionTests+JobAuthorityMutationTests->JobAuthorityCensusMutationTests, method Background_job_authority_census_detects_extra_activation_and_removed_live_guards; unchanged dedented Fact body SHA256 7665f56665cd4acbc8ae85f135e0e41bd19c7e4499d17cb2a0cb6b8a1c8fd499; inherits pr38-df-1-architecture-1. Advisory scalar; new selector not executed hosted.",
+      "runId": "40326601181",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358"
+    },
+    "pr38-class-alias-job-capacity": {
+      "artifactSha256": "97893f76633c41b6046d90bf2ec35c3bbc02d6249b28fd849d916f7e7f5dcdb5",
+      "kind": "hosted_trx",
+      "note": "Alias JobLifecycleMutationTests->JobCapacityMutationTests, method Background_job_capacity_census_rejects_forged_cleanup_recovery_and_checkpoint_owners; unchanged Fact body SHA256 0b07c37090e62af54d3b06ebc04473e74726b42da30b7dad16b00f45c4570527; inherits pr38-df-1-architecture-2. Advisory scalar; new name not executed.",
+      "runId": "40326601181",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358"
+    },
+    "pr38-class-alias-job-metric-a826fef6": {
+      "artifactSha256": "dd1213a26dbb87999c5545f71061f76dccc124e5950f44eec6dd237a240ffc02",
+      "kind": "hosted_trx",
+      "note": "Alias OutboxDispatchConventionTests->JobMetricMutationTests, method Background_job_metric_census_rejects_bait_callbacks_hidden_registration_and_skipped_binding; unchanged dedented Fact body SHA256 50ff6e956474be146837e346675629737c6d309c2cc9eedd1914af86ba373681; inherits p031-hosted-architecture-3. Advisory scalar; new selector not executed hosted.",
+      "runId": "40270967586",
+      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63"
+    },
+    "pr38-class-alias-job-metric-bf372ff9": {
+      "artifactSha256": "c183ef8d7fc84a8e55c417b2c2e370c32a7688f7bbae49eb0d69fee16439f3d4",
+      "kind": "hosted_trx",
+      "note": "Alias OutboxDispatchConventionTests->JobMetricMutationTests, method Background_job_metric_callbacks_follow_the_actual_transitive_memory_graph_and_refuse_persistence_helpers; unchanged dedented Fact body SHA256 3f82b6de1b87ff1059613e5a3bdaccab051f292f7c24d83dc520cf3282aa0243; inherits hosted-architecture-39417319998-2-1. Advisory scalar; new selector not executed hosted.",
+      "runId": "39417319998",
+      "sourceSha": "d84ac3009f8ba84a339d91e023f7f6f5f9269cc0"
+    },
+    "pr38-class-alias-job-orchestration": {
+      "artifactSha256": "62975572f9d8aaa8ba479063ccc7b4cbea759b547edaf6c963043c9e92fec99b",
+      "kind": "hosted_trx",
+      "note": "Alias JobExecutionMutationTests->JobOrchestrationMutationTests, method External_job_orchestration_rejects_missing_seams_helpers_delegates_signatures_and_resource_carriers; unchanged Fact body SHA256 1f8352511ad2141801da6a1c4f8d0885550b70b703d42df8e28f176bf0d1f8d1; inherits pr38-df-2-architecture-5. Advisory scalar; new name not executed.",
+      "runId": "40326601181",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358"
+    },
+    "pr38-class-alias-job-orchestration-declaration-42dae548": {
+      "artifactSha256": "6c923d6eb54664b3f0d7d889e6ea9eaa29f1b582f6173fefa9318524d3be3b0f",
+      "kind": "hosted_trx",
+      "note": "Alias OutboxDispatchConventionTests->JobOrchestrationDeclarationMutationTests, method Background_job_orchestration_has_closed_finite_owners_and_rejects_extra_callers_and_lost_retention; unchanged dedented Fact body SHA256 126d54402544743466ff3d0557a71f050e721072a768e7fef6b79dd6e6bde90a; inherits p031-hosted-architecture-0. Advisory scalar; new selector not executed hosted.",
+      "runId": "40270967586",
+      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63"
+    },
+    "pr38-class-alias-job-owner": {
+      "artifactSha256": "c183ef8d7fc84a8e55c417b2c2e370c32a7688f7bbae49eb0d69fee16439f3d4",
+      "kind": "hosted_trx",
+      "note": "Alias JobExecutionMutationTests->JobOwnerMutationTests, method Background_job_owner_census_detects_actual_removals_extra_subtypes_async_calls_and_delegates; unchanged Fact body SHA256 a18d18ee4893a501c4745978df1b24952e01bf24d6e443364c5c096132f10e37; inherits hosted-architecture-39417319998-2-1. Advisory scalar; new name not executed.",
+      "runId": "39417319998",
+      "sourceSha": "d84ac3009f8ba84a339d91e023f7f6f5f9269cc0"
+    },
+    "pr38-class-alias-job-recipient": {
+      "artifactSha256": "dd1213a26dbb87999c5545f71061f76dccc124e5950f44eec6dd237a240ffc02",
+      "kind": "hosted_trx",
+      "note": "Alias JobLifecycleMutationTests->JobRecipientMutationTests, method Background_job_recipient_census_detects_extra_authority_and_missing_real_fences; unchanged Fact body SHA256 3f0a97d5d175979b66f2361d96b9223260c4402afeea8809c32ed6826d1ff5f6; inherits p031-hosted-architecture-3. Advisory scalar; new name not executed.",
+      "runId": "40270967586",
+      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63"
+    },
+    "pr38-class-alias-job-recurrence": {
+      "artifactSha256": "6733ccbeb3fddcfeca2c4d4283a94a39e32b91d9cecaed18cc64a9ee77d01363",
+      "kind": "hosted_trx",
+      "note": "Alias OutboxDispatchConventionTests->JobRecurrenceMutationTests, method Background_job_recurrence_runtime_controls_reject_changed_authority_and_cleanup; unchanged dedented Theory body SHA256 975ccdf103cc9626c2aeb68d8e064aa91cc6d26c1613104e953dafc3c7fe246c; inherits p031-hosted-architecture-5. Advisory scalar; new selector not executed hosted.",
+      "runId": "40270967586",
+      "sourceSha": "3754e4eaa501b22ab97c70678e5622d48e6e8f63"
+    },
+    "pr38-class-alias-resolution": {
+      "artifactSha256": "113518ba341dcd597c26a6ed8ba6c8215a58b5107981a8869f582681f15532b6",
+      "kind": "hosted_trx",
+      "note": "Alias OutboxDispatchConventionTests->ResolutionMutationTests, method Resolution_walk_detects_loading_construction_async_and_polymorphic_helpers; unchanged dedented Fact body SHA256 16a75e50ea90608d73b2b640588e06c5b8c9f8b40d5a5ab6058acd4da3949bc5; inherits pr38-df-1-architecture-3. Advisory scalar; new selector not executed hosted.",
+      "runId": "40326601181",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358"
+    },
+    "pr38-df-1-architecture-3": {
+      "artifactSha256": "113518ba341dcd597c26a6ed8ba6c8215a58b5107981a8869f582681f15532b6",
+      "kind": "hosted_trx",
+      "note": "Attempt 1, architecture-3, artifact ID 12652816720, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time.",
+      "runId": "40326601181",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358"
+    },
+    "pr38-df-1-architecture-5": {
+      "artifactSha256": "d5e63d905231142da8b8e614bfb8ed285508a81235e0924d957f72840c604a1e",
+      "kind": "hosted_trx",
+      "note": "Attempt 1, architecture-5, artifact ID 12653630018, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time.",
+      "runId": "40326601181",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358"
+    },
+    "pr38-df-1-ordinary-0": {
+      "artifactSha256": "93ee7a30c7c4cdd8ff3922b1b3ea5ef6a27afc50385275078824df64ec55fcf8",
+      "kind": "hosted_trx",
+      "note": "Attempt 1, ordinary-0, artifact ID 12652825643, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time.",
+      "runId": "40326601181",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358"
+    },
+    "pr38-df-1-ordinary-10": {
+      "artifactSha256": "94008ecc6d8565a79f4ad6023e1b2de981772eddb301af2ff1a5ecab7d46dca4",
+      "kind": "hosted_trx",
+      "note": "Attempt 1, ordinary-10, artifact ID 12655025643, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time.",
+      "runId": "40326601181",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358"
+    },
+    "pr38-df-1-ordinary-11": {
+      "artifactSha256": "1afdc9d7a0e97ba5a0ca132d3100e045503994b132ed57d8ecae9bfcb5640475",
+      "kind": "hosted_trx",
+      "note": "Attempt 1, ordinary-11, artifact ID 12653396243, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time.",
+      "runId": "40326601181",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358"
+    },
+    "pr38-df-1-ordinary-4": {
+      "artifactSha256": "1a6c40876afc25eca903fade8ac1958f06884c8dda0f435bbb2712c9effa69f3",
+      "kind": "hosted_trx",
+      "note": "Attempt 1, ordinary-4, artifact ID 12655210098, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time.",
+      "runId": "40326601181",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358"
+    },
+    "pr38-df-1-ordinary-6": {
+      "artifactSha256": "a110991fc8936203d2eab59eb96933d02cba71ef5b99a433400efbb08ef7a29d",
+      "kind": "hosted_trx",
+      "note": "Attempt 1, ordinary-6, artifact ID 12652851829, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time.",
+      "runId": "40326601181",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358"
+    },
+    "pr38-df-1-ordinary-7": {
+      "artifactSha256": "8d4622f7be166644fcd1e381b9039c935eb8f4ae045dbfc8c523107ed636665c",
+      "kind": "hosted_trx",
+      "note": "Attempt 1, ordinary-7, artifact ID 12653571034, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time.",
+      "runId": "40326601181",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358"
+    },
+    "pr38-df-1-ordinary-8": {
+      "artifactSha256": "c9329ff6e95ca27b7420446545b982f4d122de22310d579cb8970ad9c8aeb2f8",
+      "kind": "hosted_trx",
+      "note": "Attempt 1, ordinary-8, artifact ID 12652516461, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time.",
+      "runId": "40326601181",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358"
+    },
+    "pr38-df-2-architecture-3": {
+      "artifactSha256": "46d6ade56095884f79b05d6371224332c54be1c3db92825149553cc025c1cc8e",
+      "kind": "hosted_trx",
+      "note": "Attempt 2, architecture-3, artifact ID 12655345633, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time.",
+      "runId": "40326601181",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358"
+    },
+    "pr38-df-2-ordinary-0": {
+      "artifactSha256": "818a8a5a8a659fb698896be2bdf03bff3413045eb433e2337cde35a266712a11",
+      "kind": "hosted_console",
+      "note": "Attempt 2, ordinary-0, artifact ID 12654553778, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; original interrupted JSONL prefix, full all-Passed groups only; ceil summed case ms/minimum 1; advisory, not wall time.",
+      "runId": "40326601181",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358"
+    },
+    "pr38-df-2-ordinary-1": {
+      "artifactSha256": "a5ddf6ae4cdf577399e7f294db3046ef511eeebf742ab950d0a11f76ee2215ec",
+      "kind": "hosted_trx",
+      "note": "Attempt 2, ordinary-1, artifact ID 12654288868, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time.",
+      "runId": "40326601181",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358"
+    },
+    "pr38-df-2-ordinary-10": {
+      "artifactSha256": "7e8d78925b5ced3ea3446b3da9b69e11e6426fcf4ee9d778f0772d38df9c9ec8",
+      "kind": "hosted_trx",
+      "note": "Attempt 2, ordinary-10, artifact ID 12654873440, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time.",
+      "runId": "40326601181",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358"
+    },
+    "pr38-df-2-ordinary-5": {
+      "artifactSha256": "2d131fcb0125e26e6df3382230ed586980dcc8f7375a6f40523cfebeb0e295ad",
+      "kind": "hosted_trx",
+      "note": "Attempt 2, ordinary-5, artifact ID 12654363345, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time.",
+      "runId": "40326601181",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358"
+    },
+    "pr38-df-2-ordinary-8": {
+      "artifactSha256": "c7fbd6f616af4674de0cf0ce3e1a694d2d60b5791fbf56191200aeb785beb176",
+      "kind": "hosted_trx",
+      "note": "Attempt 2, ordinary-8, artifact ID 12655268010, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time.",
+      "runId": "40326601181",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358"
+    },
+    "pr38-df-2-ordinary-9": {
+      "artifactSha256": "8e0e6870ca10e4c3e0f8408261ae68d74be5a9d769c7706fec3fe184a089a2cf",
+      "kind": "hosted_trx",
+      "note": "Attempt 2, ordinary-9, artifact ID 12653204628, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time.",
+      "runId": "40326601181",
+      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358"
     }
   },
   "weights": [
@@ -730,8 +809,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AggregateWriteTests.Write_Port_Census_Distinguishes_Typed_Read_Keys_From_Wrapped_Domain_Writes",
-      "milliseconds": 9,
-      "source": "p031-hosted-architecture-0"
+      "milliseconds": 28,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -754,8 +833,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AnalyzerWiringTests.The_EditorConfig_Control_Rejects_LS0002_Suppression",
-      "milliseconds": 1,
-      "source": "p031-hosted-architecture-2"
+      "milliseconds": 2,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -808,14 +887,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AsyncStoreInventoryTests.Inventory_coverage_rejects_added_removed_and_reclassified_storage",
-      "milliseconds": 1834,
-      "source": "p031-hosted-architecture-4"
+      "milliseconds": 1976,
+      "source": "p032-hosted-architecture-40577851910-1-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AsyncStoreInventoryTests.Inventory_coverage_rejects_every_removed_row_and_blank_vendor_classification",
-      "milliseconds": 4487,
-      "source": "p031-hosted-architecture-2"
+      "milliseconds": 6288,
+      "source": "p032-hosted-architecture-40577851910-1-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -826,8 +905,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AsyncStoreInventoryTests.Migration_census_detects_select_into_after_escape_literals",
-      "milliseconds": 8,
-      "source": "p031-hosted-architecture-0"
+      "milliseconds": 26,
+      "source": "p032-hosted-architecture-40577851910-1-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -838,32 +917,32 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AsyncStoreInventoryTests.Migration_census_preserves_literal_boundaries_before_table_declarations",
-      "milliseconds": 9,
-      "source": "p031-hosted-architecture-3"
+      "milliseconds": 17,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AsyncStoreInventoryTests.Migration_census_refuses_unsupported_ddl_for_the_expected_reason",
-      "milliseconds": 24,
-      "source": "p031-hosted-architecture-4"
+      "milliseconds": 48,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AsyncStoreInventoryTests.Migration_census_tracks_ordered_literal_and_typed_table_lifecycle",
-      "milliseconds": 8,
-      "source": "p031-hosted-architecture-2"
+      "milliseconds": 17,
+      "source": "p032-hosted-architecture-40577851910-1-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AsyncStoreInventoryTests.Typed_migration_operations_cannot_hide_non_public_storage_or_schema_removal",
-      "milliseconds": 8,
-      "source": "p031-hosted-architecture-5"
+      "milliseconds": 17,
+      "source": "p032-hosted-architecture-40577851910-1-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuditConventionTests.AuditEntry_Inherits_Entity_Not_AuditableEntity",
-      "milliseconds": 1,
-      "source": "p031-hosted-architecture-0"
+      "milliseconds": 2,
+      "source": "p032-hosted-architecture-40577851910-1-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -892,20 +971,20 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuditConventionTests.Modules_Do_Not_Write_AuditLog_Directly",
-      "milliseconds": 679,
-      "source": "hosted-architecture-39417319998-2-5"
+      "milliseconds": 1022,
+      "source": "p032-hosted-architecture-40577851910-1-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuditConventionTests.No_Set_Based_Write_Bypasses_The_Audit_Capture",
-      "milliseconds": 388,
-      "source": "p032-local-architecture"
+      "milliseconds": 438,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuditConventionTests.OperationType_Enum_Matches_Catalog",
-      "milliseconds": 7,
-      "source": "hosted-architecture-39417319998-2-1"
+      "milliseconds": 8,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -934,8 +1013,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuditCoverageTests.A_slug_classified_twice_fails_whichever_row_comes_first",
-      "milliseconds": 13,
-      "source": "hosted-architecture-39417319998-2-0"
+      "milliseconds": 77,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -988,14 +1067,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuditCoverageTests.Integration_Only_Module_Requires_An_Audit_Matrix",
-      "milliseconds": 4,
-      "source": "hosted-architecture-39417319998-2-4"
+      "milliseconds": 23,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuditCoverageTests.The_Forward_Sweep_Reads_Only_The_Registering_Module_s_Matrix",
-      "milliseconds": 8,
-      "source": "hosted-architecture-39417319998-2-2"
+      "milliseconds": 13,
+      "source": "p032-hosted-architecture-40577851910-1-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1030,20 +1109,20 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuthenticatedHttpSurfaceTests.Authenticated_http_census_detects_extra_routes_mutations_and_missing_subjects",
-      "milliseconds": 29479,
-      "source": "p032-local-architecture"
+      "milliseconds": 61999,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuthenticatedHttpSurfaceTests.Authenticated_http_census_follows_production_helpers_and_nested_dispatch",
-      "milliseconds": 86434,
-      "source": "p032-local-architecture"
+      "milliseconds": 118912,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuthenticationAuthorityTests.Authority_census_closes_shape_and_approved_owner_exports",
-      "milliseconds": 53887,
-      "source": "pr38-df-1-architecture-5"
+      "milliseconds": 62101,
+      "source": "p032-hosted-architecture-40577851910-1-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1054,14 +1133,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuthenticationAuthorityTests.Authority_census_rejects_actual_identity_forwarding_through_opaque_storage",
-      "milliseconds": 7210,
-      "source": "p031-hosted-architecture-4"
+      "milliseconds": 11157,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuthenticationAuthorityTests.Authority_census_rejects_actual_identity_forwarding_to_opaque_helpers",
-      "milliseconds": 7942,
-      "source": "p031-hosted-architecture-1"
+      "milliseconds": 11177,
+      "source": "p032-hosted-architecture-40577851910-1-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1102,8 +1181,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.CorpusConsistencyTests.The_Corpus_Guards_Can_Actually_Fail",
-      "milliseconds": 20,
-      "source": "hosted-architecture-39417319998-2-2"
+      "milliseconds": 38,
+      "source": "p032-hosted-architecture-40577851910-1-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1132,8 +1211,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.CrossCuttingFoundationTests.IExceptionHandler_Registered_AtStartup",
-      "milliseconds": 42,
-      "source": "p032-local-architecture"
+      "milliseconds": 145,
+      "source": "p032-hosted-architecture-40577851910-1-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1150,8 +1229,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.CrossCuttingFoundationTests.LearnStack_Modules_DoNotReference_Hub",
-      "milliseconds": 294,
-      "source": "p031-hosted-architecture-3"
+      "milliseconds": 743,
+      "source": "p032-hosted-architecture-40577851910-1-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1168,8 +1247,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.CrossCuttingFoundationTests.Modules_Do_Not_Inject_IEventBus_Directly",
-      "milliseconds": 714,
-      "source": "hosted-architecture-39417319998-2-4"
+      "milliseconds": 716,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1186,8 +1265,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.CrossCuttingFoundationTests.Modules_Do_Not_Reference_Sentry_SDK_Directly",
-      "milliseconds": 202,
-      "source": "hosted-architecture-39417319998-2-0"
+      "milliseconds": 203,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1228,8 +1307,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.CustomizationProjectionTests.Projection_validator_guard_follows_domain_contracts_and_external_production_helpers",
-      "milliseconds": 125,
-      "source": "p031-hosted-architecture-3"
+      "milliseconds": 160,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1240,8 +1319,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.CustomizationRegistryTests.Generic_Primitives_Only_In_Renderer",
-      "milliseconds": 8,
-      "source": "hosted-architecture-39417319998-2-2"
+      "milliseconds": 47,
+      "source": "p032-hosted-architecture-40577851910-1-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1270,14 +1349,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.DataProtectionConventionTests.Mapped_Properties_Have_Explicit_Personal_Data_Classification",
-      "milliseconds": 28,
-      "source": "p032-local-architecture"
+      "milliseconds": 234,
+      "source": "p032-hosted-architecture-40577851910-1-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.DataProtectionConventionTests.Production_model_accepts_the_same_neutral_property_with_an_explicit_declaration",
-      "milliseconds": 111,
-      "source": "p031-hosted-architecture-5"
+      "milliseconds": 667,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1318,14 +1397,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.DomainEventHandlerTests.Domain_handler_guard_reaches_planted_roots_and_helpers_in_every_production_assembly",
-      "milliseconds": 736,
-      "source": "hosted-architecture-39417319998-2-0"
+      "milliseconds": 855,
+      "source": "p032-hosted-architecture-40577851910-1-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.DomainEventHandlerTests.Domain_handler_guard_rejects_each_forbidden_dependency",
-      "milliseconds": 899,
-      "source": "hosted-architecture-39417319998-2-2"
+      "milliseconds": 1574,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1366,14 +1445,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.DomainGenericityTests.Seeder_Reference_Fence_Detects_Compiled_And_Restored_Edges",
-      "milliseconds": 4,
-      "source": "hosted-architecture-39417319998-2-2"
+      "milliseconds": 12,
+      "source": "p032-hosted-architecture-40577851910-1-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.DomainGenericityTests.The_Domain_Term_Scan_Can_Actually_Fail",
-      "milliseconds": 113,
-      "source": "p032-local-architecture"
+      "milliseconds": 188,
+      "source": "p032-hosted-architecture-40577851910-1-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1384,8 +1463,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.DomainModelTests.Aggregates_Do_Not_Redeclare_Entity_Equality",
-      "milliseconds": 25,
-      "source": "p032-local-architecture"
+      "milliseconds": 45,
+      "source": "p032-hosted-architecture-40577851910-1-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1426,14 +1505,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.GlobalIdentityModelTests.Generated_snapshot_matches_the_current_Identity_model",
-      "milliseconds": 123,
-      "source": "p031-hosted-architecture-3"
+      "milliseconds": 704,
+      "source": "p032-hosted-architecture-40577851910-1-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.GlobalIdentityModelTests.Historical_Identity_migrations_retain_their_ordered_SQL_operations",
-      "milliseconds": 37,
-      "source": "pr38-df-1-architecture-3"
+      "milliseconds": 46,
+      "source": "p032-hosted-architecture-40577851910-1-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1444,8 +1523,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.GlobalIdentityModelTests.User_binding_has_permanent_unique_key_creation_pair_and_sensitive_raw_subject",
-      "milliseconds": 460,
-      "source": "p031-hosted-architecture-2"
+      "milliseconds": 709,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1456,8 +1535,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.IdentityAuditConventionTests.Authorization_Evidence_Uses_Trusted_Bounded_Provenance",
-      "milliseconds": 126011,
-      "source": "p032-local-architecture"
+      "milliseconds": 357261,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1468,14 +1547,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.IdentityAuditConventionTests.Identity_infrastructure_core_edges_are_confined_to_exact_types_and_members",
-      "milliseconds": 627,
-      "source": "p031-hosted-architecture-1"
+      "milliseconds": 1378,
+      "source": "p032-hosted-architecture-40577851910-1-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.IdentityAuditConventionTests.Live_Authorization_Uses_Bounded_Independent_Owners",
-      "milliseconds": 10618,
-      "source": "p032-local-architecture"
+      "milliseconds": 35760,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1486,20 +1565,20 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.IdentityAuthorizationConventionTests.Authorization_borrowers_and_lifecycle_callers_are_exact_and_publish_no_raw_source_or_callback",
-      "milliseconds": 10267,
-      "source": "p032-local-architecture"
+      "milliseconds": 14130,
+      "source": "p032-hosted-architecture-40577851910-1-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.IdentityAuthorizationConventionTests.Authorization_candidates_have_one_verified_minter_and_closed_lifetime_evidence",
-      "milliseconds": 6119,
-      "source": "p032-local-architecture"
+      "milliseconds": 18384,
+      "source": "p032-hosted-architecture-40577851910-1-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.IdentityAuthorizationConventionTests.Authorization_checkout_awaits_the_shared_role_guard_with_its_deadline_before_begin",
-      "milliseconds": 604,
-      "source": "p032-local-architecture"
+      "milliseconds": 1162,
+      "source": "p032-hosted-architecture-40577851910-1-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1510,20 +1589,20 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.IdentityAuthorizationConventionTests.Authorization_reader_executes_only_bounded_nonlocking_identity_and_same_child_lifecycle_statements",
-      "milliseconds": 587,
-      "source": "p032-local-architecture"
+      "milliseconds": 933,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.IdentityFoundationConventionTests.Identity_Membership_Invariants_Use_Fresh_Ordered_Locks",
-      "milliseconds": 1006,
-      "source": "p031-hosted-architecture-4"
+      "milliseconds": 1179,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.IdentityFoundationConventionTests.Identity_Seed_Uses_Finite_Adopted_Manifests",
-      "milliseconds": 19,
-      "source": "p031-hosted-architecture-2"
+      "milliseconds": 113,
+      "source": "p032-hosted-architecture-40577851910-1-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1576,14 +1655,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.ModuleDependencyTests.Domain_Does_Not_Depend_On_Microsoft_EntityFrameworkCore_Except_Vogen_Emitted_Converters",
-      "milliseconds": 108,
-      "source": "hosted-architecture-39417319998-2-2"
+      "milliseconds": 212,
+      "source": "p032-hosted-architecture-40577851910-1-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.ModuleDependencyTests.Meta_NetArchTest_DetectsAPlantedViolation",
-      "milliseconds": 421,
-      "source": "hosted-architecture-39417319998-2-2"
+      "milliseconds": 463,
+      "source": "p032-hosted-architecture-40577851910-1-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1636,32 +1715,32 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OperationPermissionConventionTests.Permission_Definitions_DeclareScope",
-      "milliseconds": 60,
-      "source": "p032-local-architecture"
+      "milliseconds": 85,
+      "source": "p032-hosted-architecture-40577851910-1-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OperationPermissionConventionTests.Permission_Keys_Match_Convention",
-      "milliseconds": 12,
-      "source": "p032-local-architecture"
+      "milliseconds": 33,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OperationPermissionConventionTests.Permission_Registry_Has_DeniedTest",
-      "milliseconds": 162,
-      "source": "p032-local-architecture"
+      "milliseconds": 1497,
+      "source": "p032-hosted-architecture-40577851910-1-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OperationPermissionConventionTests.Permission_Scope_Matches_Resource_Scope",
-      "milliseconds": 5,
-      "source": "p032-local-architecture"
+      "milliseconds": 36,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OperationPolicyOwnershipTests.Protected_Operations_Require_Explicit_Live_Policies",
-      "milliseconds": 23860,
-      "source": "p032-local-architecture"
+      "milliseconds": 53949,
+      "source": "p032-hosted-architecture-40577851910-1-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1684,14 +1763,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+CredentialBindingMutationTests.Credential_census_rejects_compiled_connection_string_indexers_and_composed_keys",
-      "milliseconds": 42130,
-      "source": "pr38-class-alias-credential-binding-1805dd42"
+      "milliseconds": 48105,
+      "source": "p032-hosted-architecture-40577851910-1-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+CredentialBindingMutationTests.Credential_census_rejects_crossed_keys_changed_closures_and_missing_subjects",
-      "milliseconds": 154403,
-      "source": "pr38-class-alias-credential-binding-f900f146"
+      "milliseconds": 236652,
+      "source": "p032-hosted-architecture-40577851910-1-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1702,8 +1781,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+DeliveryLifecycleMutationTests.Integration_delivery_lifecycle_census_rejects_typed_helper_async_delegate_and_missing_paths",
-      "milliseconds": 197284,
-      "source": "p032-local-architecture"
+      "milliseconds": 276909,
+      "source": "p032-hosted-architecture-40577851910-1-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1726,14 +1805,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobAuthorityMutationTests.Background_job_application_source_ownership_has_exact_nonempty_callers_and_rejects_escapes",
-      "milliseconds": 217681,
-      "source": "p032-local-architecture"
+      "milliseconds": 292856,
+      "source": "p032-hosted-architecture-40577851910-1-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobAuthorityMutationTests.Credential_census_rejects_generic_direct_delegate_async_and_extra_helper_resolution",
-      "milliseconds": 469168,
-      "source": "p031-hosted-architecture-3"
+      "milliseconds": 474452,
+      "source": "p032-hosted-architecture-40577851910-1-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1750,8 +1829,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobMetricMutationTests.Background_job_metric_census_rejects_bait_callbacks_hidden_registration_and_skipped_binding",
-      "milliseconds": 34392,
-      "source": "pr38-class-alias-job-metric-a826fef6"
+      "milliseconds": 43382,
+      "source": "p032-hosted-architecture-40577851910-1-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1774,8 +1853,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobRecipientMutationTests.Background_job_recipient_census_detects_extra_authority_and_missing_real_fences",
-      "milliseconds": 206098,
-      "source": "pr38-class-alias-job-recipient"
+      "milliseconds": 218224,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1786,8 +1865,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+ResolutionMutationTests.Resolution_walk_detects_loading_construction_async_and_polymorphic_helpers",
-      "milliseconds": 277724,
-      "source": "pr38-class-alias-resolution"
+      "milliseconds": 321649,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1798,14 +1877,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.BackgroundJob_Completion_Is_Owner_Atomic_And_Fenced",
-      "milliseconds": 599,
-      "source": "p031-hosted-architecture-2"
+      "milliseconds": 786,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.BackgroundJob_Definitions_Stay_In_Their_Owning_Module",
-      "milliseconds": 16261,
-      "source": "p031-hosted-architecture-0"
+      "milliseconds": 16927,
+      "source": "p032-hosted-architecture-40577851910-1-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1816,20 +1895,20 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.BackgroundJob_Fanout_Uses_Recipient_Bound_Tenant_Admission",
-      "milliseconds": 682,
-      "source": "p031-hosted-architecture-3"
+      "milliseconds": 737,
+      "source": "p032-hosted-architecture-40577851910-1-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.BackgroundJob_Ordinary_Execution_Has_No_Platform_Authority",
-      "milliseconds": 927,
-      "source": "p031-hosted-architecture-0"
+      "milliseconds": 947,
+      "source": "p032-hosted-architecture-40577851910-1-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.BackgroundJob_Storage_And_Credentials_Are_Confined",
-      "milliseconds": 68217,
-      "source": "pr38-df-1-architecture-3"
+      "milliseconds": 82175,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1840,8 +1919,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.BackgroundJob_Worker_Pools_Reserve_Independent_Capacity",
-      "milliseconds": 298416,
-      "source": "p031-hosted-architecture-4"
+      "milliseconds": 332332,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1858,14 +1937,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Background_job_recipient_history_controls_reject_detached_cleanup_and_unfenced_status",
-      "milliseconds": 3776,
-      "source": "hosted-architecture-39417319998-2-2"
+      "milliseconds": 5573,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Background_job_recipient_shared_insert_controls_preserve_successful_production",
-      "milliseconds": 12443,
-      "source": "p031-hosted-architecture-2"
+      "milliseconds": 13162,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1894,8 +1973,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Delivery_SQL_census_rejects_quoted_CTE_helper_overload_missing_and_payload_paths",
-      "milliseconds": 5809,
-      "source": "p031-hosted-architecture-5"
+      "milliseconds": 8136,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1906,8 +1985,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Delivery_Terminal_Audit_Identity_Is_Row_Bound",
-      "milliseconds": 586,
-      "source": "p031-hosted-architecture-5"
+      "milliseconds": 597,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1984,14 +2063,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Job_terminal_census_detects_missing_subjects_extra_subtypes_factories_and_all_caller_escape_shapes",
-      "milliseconds": 25195,
-      "source": "hosted-architecture-39417319998-2-4"
+      "milliseconds": 27728,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Job_trace_source_and_actual_Activity_ownership_refuse_chained_Start_and_hidden_source_creation",
-      "milliseconds": 7525,
-      "source": "p031-hosted-architecture-1"
+      "milliseconds": 8712,
+      "source": "p032-hosted-architecture-40577851910-1-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2014,14 +2093,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Observation_walk_keeps_clean_memory_helpers_and_checks_real_gauge_callbacks",
-      "milliseconds": 2056,
-      "source": "p031-hosted-architecture-3"
+      "milliseconds": 2663,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Outbox_Health_And_Metrics_Are_Bounded",
-      "milliseconds": 213,
-      "source": "p031-hosted-architecture-0"
+      "milliseconds": 218,
+      "source": "p032-hosted-architecture-40577851910-1-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2038,8 +2117,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Outbox_SQL_census_preserves_reads_and_unrelated_table_writes",
-      "milliseconds": 598,
-      "source": "hosted-architecture-39417319998-2-2"
+      "milliseconds": 705,
+      "source": "p032-hosted-architecture-40577851910-1-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2050,14 +2129,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Outbox_Type_Resolution_Is_Declared_And_Bounded",
-      "milliseconds": 4521,
-      "source": "p032-local-architecture"
+      "milliseconds": 6214,
+      "source": "p032-hosted-architecture-40577851910-1-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Publication_census_rejects_interface_concrete_delegate_async_and_unowned_attempt_paths",
-      "milliseconds": 9171,
-      "source": "hosted-architecture-39417319998-2-4"
+      "milliseconds": 10822,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2068,8 +2147,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Subscriber_terminal_census_rejects_extra_mint_paths_crossed_owners_and_missing_subjects",
-      "milliseconds": 2114,
-      "source": "hosted-architecture-39417319998-2-4"
+      "milliseconds": 2412,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2080,8 +2159,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Terminal_census_detects_interface_concrete_delegate_async_and_extra_writer_paths",
-      "milliseconds": 2834,
-      "source": "p031-hosted-architecture-3"
+      "milliseconds": 2982,
+      "source": "p032-hosted-architecture-40577851910-1-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2098,8 +2177,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxProducerConventionTests.Outbox_Enqueue_Uses_The_Announced_Transaction",
-      "milliseconds": 413,
-      "source": "p031-hosted-architecture-0"
+      "milliseconds": 505,
+      "source": "p032-hosted-architecture-40577851910-1-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2110,8 +2189,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxProducerConventionTests.Producer_walk_reaches_helpers_in_other_production_assemblies",
-      "milliseconds": 4009,
-      "source": "p032-local-architecture"
+      "milliseconds": 7230,
+      "source": "p032-hosted-architecture-40577851910-1-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2140,26 +2219,26 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PersistenceConventionTests.Migrate_Target_Reads_The_Role_Through_A_Quoted_Value",
-      "milliseconds": 139,
-      "source": "p032-local-architecture"
+      "milliseconds": 255,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PersistenceConventionTests.Migrate_Target_Redacts_A_Quoted_Value_Whole",
-      "milliseconds": 440,
-      "source": "p032-local-architecture"
+      "milliseconds": 2540,
+      "source": "p032-hosted-architecture-40577851910-1-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PersistenceConventionTests.Migrate_Target_Refuses_A_Uri_Without_Echoing_Its_Userinfo",
-      "milliseconds": 160,
-      "source": "p032-local-architecture"
+      "milliseconds": 207,
+      "source": "p032-hosted-architecture-40577851910-1-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PersistenceConventionTests.Migrate_Target_Refuses_An_Aliased_Runtime_Credential",
-      "milliseconds": 479,
-      "source": "p032-local-architecture"
+      "milliseconds": 763,
+      "source": "p032-hosted-architecture-40577851910-1-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2170,8 +2249,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PersistenceConventionTests.Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork",
-      "milliseconds": 729,
-      "source": "p032-local-architecture"
+      "milliseconds": 1894,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2188,8 +2267,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PersistenceConventionTests.The_Docker_Trait_Sweep_Can_Actually_Fail",
-      "milliseconds": 284,
-      "source": "hosted-architecture-39417319998-2-0"
+      "milliseconds": 1479,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2212,8 +2291,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PersistenceConventionTests.The_parallelism_census_reaches_shared_code_and_bounds_its_singleton_exceptions",
-      "milliseconds": 141,
-      "source": "hosted-architecture-39417319998-2-0"
+      "milliseconds": 391,
+      "source": "p032-hosted-architecture-40577851910-1-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2242,14 +2321,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PlatformAdminScopeConventionTests.PlatformAdminScope_Entry_Requires_Platform_Permission",
-      "milliseconds": 139,
-      "source": "p031-hosted-architecture-1"
+      "milliseconds": 285,
+      "source": "p032-hosted-architecture-40577851910-1-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PlatformAdminScopeConventionTests.Platform_DataSource_Resolved_Only_By_PlatformAdminScope",
-      "milliseconds": 624,
-      "source": "hosted-architecture-39417319998-2-2"
+      "milliseconds": 817,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2260,8 +2339,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.ProductionAssembliesTests.Project_census_includes_every_project_name_and_excludes_generated_projects",
-      "milliseconds": 6,
-      "source": "hosted-architecture-39417319998-2-4"
+      "milliseconds": 8,
+      "source": "p032-hosted-architecture-40577851910-1-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2290,8 +2369,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PublicSurfaceTests.PublicSurface_Endpoints_Dispatch_Through_The_Pipeline",
-      "milliseconds": 157,
-      "source": "hosted-architecture-current"
+      "milliseconds": 302,
+      "source": "p032-hosted-architecture-40577851910-1-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2350,8 +2429,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.RequestSurfaceTests.PublicSurface_Requests_Are_Never_ReadSensitive",
-      "milliseconds": 45,
-      "source": "p032-local-architecture"
+      "milliseconds": 53,
+      "source": "p032-hosted-architecture-40577851910-1-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2362,8 +2441,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.RequestSurfaceTests.The_PublicSurface_Cross_Check_Can_Actually_Fail",
-      "milliseconds": 5,
-      "source": "p031-hosted-architecture-5"
+      "milliseconds": 8,
+      "source": "p032-hosted-architecture-40577851910-1-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2380,8 +2459,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.SeederConventionTests.Seed_Literal_Source_Is_Complete_And_Readable",
-      "milliseconds": 184,
-      "source": "hosted-architecture-39417319998-2-2"
+      "milliseconds": 260,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2440,26 +2519,26 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenancyConventionTests.Effective_Host_Computed_In_One_Place",
-      "milliseconds": 47,
-      "source": "hosted-architecture-39417319998-2-2"
+      "milliseconds": 110,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenancyConventionTests.Host_Resolution_Makes_No_Outbound_Calls",
-      "milliseconds": 66,
-      "source": "hosted-architecture-39417319998-2-4"
+      "milliseconds": 132,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenancyConventionTests.Organization_Aggregate_Declared_In_Tenancy_Domain",
-      "milliseconds": 4,
-      "source": "hosted-architecture-39417319998-2-1"
+      "milliseconds": 5,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenancyConventionTests.Out_Of_Band_Setters_Open_Read_Only_Transactions",
-      "milliseconds": 109,
-      "source": "hosted-architecture-39417319998-2-4"
+      "milliseconds": 167,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2476,8 +2555,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenancyConventionTests.Tenant_Scope_Widening_Is_Never_Set_From_Request_Input",
-      "milliseconds": 169,
-      "source": "hosted-architecture-39417319998-2-1"
+      "milliseconds": 629,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2494,26 +2573,26 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenancyConventionTests.The_Scope_Setter_Scan_Can_Actually_Fail",
-      "milliseconds": 19,
-      "source": "p032-local-architecture"
+      "milliseconds": 64,
+      "source": "p032-hosted-architecture-40577851910-1-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenancyConventionTests.The_Setter_Scan_Can_Actually_Fail",
-      "milliseconds": 76,
-      "source": "p031-hosted-architecture-3"
+      "milliseconds": 78,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenancyConventionTests.The_Slug_Scan_Finds_The_Files_It_Exempts",
-      "milliseconds": 911,
-      "source": "p031-hosted-architecture-0"
+      "milliseconds": 1165,
+      "source": "p032-hosted-architecture-40577851910-1-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenantContextConstructionTests.HostScope_Is_Constructed_Only_By_The_Factory",
-      "milliseconds": 20,
-      "source": "hosted-architecture-39417319998-2-0"
+      "milliseconds": 40,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2524,8 +2603,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenantContextConstructionTests.Organization_reader_census_rejects_missing_keys_extra_readers_and_unbounded_pages",
-      "milliseconds": 6359,
-      "source": "hosted-architecture-39417319998-2-1"
+      "milliseconds": 9372,
+      "source": "p032-hosted-architecture-40577851910-1-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2548,8 +2627,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenantContextConstructionTests.TenantContext_Is_Instantiated_In_One_File",
-      "milliseconds": 23,
-      "source": "hosted-architecture-39417319998-2-2"
+      "milliseconds": 34,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2572,8 +2651,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenantScopingTests.Every_Scoping_Interface_Carries_Its_Marker",
-      "milliseconds": 2,
-      "source": "p031-hosted-architecture-4"
+      "milliseconds": 3,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2596,8 +2675,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TrustedOperationSourceConventionTests.Finite_operation_descriptors_have_exact_minters_private_construction_and_revocable_evidence",
-      "milliseconds": 5713,
-      "source": "p032-local-architecture"
+      "milliseconds": 10755,
+      "source": "p032-hosted-architecture-40577851910-1-2"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -11005,161 +11084,5 @@
       "milliseconds": 146023,
       "source": "pr38-b-ordinary-5"
     }
-  ],
-  "sharedFixtureClasses": [
-    "LearnStack.Tests.Integration.ApiHandlerCompositionTests",
-    "LearnStack.Tests.Integration.ApiVersioningHttpTests",
-    "LearnStack.Tests.Integration.AssertionRecorderCompositionTests",
-    "LearnStack.Tests.Integration.AuthenticatedRateLimitTests",
-    "LearnStack.Tests.Integration.AuthorityCeilingHttpTests",
-    "LearnStack.Tests.Integration.CompositionRootCatalogueTests",
-    "LearnStack.Tests.Integration.CrossCuttingFoundationHttpTests",
-    "LearnStack.Tests.Integration.Database.AccountSiteHttpTests",
-    "LearnStack.Tests.Integration.Database.AccountSiteQueryTests",
-    "LearnStack.Tests.Integration.Database.AmbientUnitOfWorkTests",
-    "LearnStack.Tests.Integration.Database.AuditCaptureWiringTests",
-    "LearnStack.Tests.Integration.Database.AuditConfigServiceTests",
-    "LearnStack.Tests.Integration.Database.AuditPipelineTests",
-    "LearnStack.Tests.Integration.Database.AuditSchemaTests",
-    "LearnStack.Tests.Integration.Database.AuditStoreTests",
-    "LearnStack.Tests.Integration.Database.AuditWorkflowTests",
-    "LearnStack.Tests.Integration.Database.AuthorizationEvidenceBarrierTests",
-    "LearnStack.Tests.Integration.Database.AuthorizationEvidenceSourceTests",
-    "LearnStack.Tests.Integration.Database.AuthorizationEvidenceStoreTests",
-    "LearnStack.Tests.Integration.Database.AuthorizationPoolProgressTests",
-    "LearnStack.Tests.Integration.Database.AuthorizationReadSourceTests",
-    "LearnStack.Tests.Integration.Database.BackgroundJobAdmissionTests",
-    "LearnStack.Tests.Integration.Database.BackgroundJobApplicationSourceTests",
-    "LearnStack.Tests.Integration.Database.BackgroundJobBridgeFaultTests",
-    "LearnStack.Tests.Integration.Database.BackgroundJobBridgeTests",
-    "LearnStack.Tests.Integration.Database.BackgroundJobBusinessTests",
-    "LearnStack.Tests.Integration.Database.BackgroundJobCapacityAdmissionTests",
-    "LearnStack.Tests.Integration.Database.BackgroundJobControlTests",
-    "LearnStack.Tests.Integration.Database.BackgroundJobExternalCheckpointStoreTests",
-    "LearnStack.Tests.Integration.Database.BackgroundJobExternalIsolationTests",
-    "LearnStack.Tests.Integration.Database.BackgroundJobLifecycleProjectionTests",
-    "LearnStack.Tests.Integration.Database.BackgroundJobPositiveSdkTests",
-    "LearnStack.Tests.Integration.Database.BackgroundJobRecurrenceStoreTests",
-    "LearnStack.Tests.Integration.Database.BackgroundJobRoutingCleanupTests",
-    "LearnStack.Tests.Integration.Database.BackgroundJobRuntimeFacadeTests",
-    "LearnStack.Tests.Integration.Database.BackgroundJobStorageMigrationTests",
-    "LearnStack.Tests.Integration.Database.BackgroundJobSubmissionTests",
-    "LearnStack.Tests.Integration.Database.CourseContentAccessMigrationTests",
-    "LearnStack.Tests.Integration.Database.CustomizationCatalogTests",
-    "LearnStack.Tests.Integration.Database.CustomizationContentTypeQuotaTests",
-    "LearnStack.Tests.Integration.Database.CustomizationDefaultDeliveryTests",
-    "LearnStack.Tests.Integration.Database.CustomizationDefaultInitializationTests",
-    "LearnStack.Tests.Integration.Database.CustomizationProjectionTests",
-    "LearnStack.Tests.Integration.Database.CustomizationPublicationConcurrencyTests",
-    "LearnStack.Tests.Integration.Database.CustomizationSchemaTests",
-    "LearnStack.Tests.Integration.Database.DatabaseQualificationProofTests",
-    "LearnStack.Tests.Integration.Database.DatabaseRoleTests",
-    "LearnStack.Tests.Integration.Database.DeliveryDispatchStoreTests",
-    "LearnStack.Tests.Integration.Database.DeliveryExecutionTests",
-    "LearnStack.Tests.Integration.Database.DeliveryProcessorTests",
-    "LearnStack.Tests.Integration.Database.DomainEventProductionTests",
-    "LearnStack.Tests.Integration.Database.DurableEventAcceptanceTests",
-    "LearnStack.Tests.Integration.Database.EducationConstraintTests",
-    "LearnStack.Tests.Integration.Database.EducationIsolationTests",
-    "LearnStack.Tests.Integration.Database.EducationParentScopeTests",
-    "LearnStack.Tests.Integration.Database.EducationPersistenceTests",
-    "LearnStack.Tests.Integration.Database.EducationStructureTests",
-    "LearnStack.Tests.Integration.Database.EducationWriterTests",
-    "LearnStack.Tests.Integration.Database.EntitlementExpiryReversalTests",
-    "LearnStack.Tests.Integration.Database.EventDeliveryMigrationTests",
-    "LearnStack.Tests.Integration.Database.FeatureFlagsTests",
-    "LearnStack.Tests.Integration.Database.GlobalIdentityAuthorityToolTests",
-    "LearnStack.Tests.Integration.Database.GlobalIdentityBootstrapTests",
-    "LearnStack.Tests.Integration.Database.GlobalIdentitySchemaTests",
-    "LearnStack.Tests.Integration.Database.GlobalIdentityUnitOfWorkTests",
-    "LearnStack.Tests.Integration.Database.HangfireGenerationTests",
-    "LearnStack.Tests.Integration.Database.HangfirePoolOwnerTests",
-    "LearnStack.Tests.Integration.Database.HangfireStorageTests",
-    "LearnStack.Tests.Integration.Database.HostResolutionTests",
-    "LearnStack.Tests.Integration.Database.IdentityAuthorizationHttpTests",
-    "LearnStack.Tests.Integration.Database.IdentityAuthorizationReaderTests",
-    "LearnStack.Tests.Integration.Database.IdentityCommandQualificationTests",
-    "LearnStack.Tests.Integration.Database.IdentityDiagnosticSinkTests",
-    "LearnStack.Tests.Integration.Database.IdentityMembershipTests",
-    "LearnStack.Tests.Integration.Database.IdentityMutationLockTests",
-    "LearnStack.Tests.Integration.Database.IdentityReadDiagnosticSinkTests",
-    "LearnStack.Tests.Integration.Database.IdentityScopeLifecycleTests",
-    "LearnStack.Tests.Integration.Database.IdentitySeederTests",
-    "LearnStack.Tests.Integration.Database.InboxGuardTests",
-    "LearnStack.Tests.Integration.Database.KillswitchOverlayTests",
-    "LearnStack.Tests.Integration.Database.MembershipDirectoryIntegrationTests",
-    "LearnStack.Tests.Integration.Database.MembershipDirectoryPipelineTests",
-    "LearnStack.Tests.Integration.Database.MigrationRollbackTests",
-    "LearnStack.Tests.Integration.Database.OperationReadScopeTests",
-    "LearnStack.Tests.Integration.Database.OrgScopeMigrationTests",
-    "LearnStack.Tests.Integration.Database.OrgScopeSchemaTests",
-    "LearnStack.Tests.Integration.Database.OrganizationScopeValidatorTests",
-    "LearnStack.Tests.Integration.Database.OutboxDispatchMigrationTests",
-    "LearnStack.Tests.Integration.Database.OutboxDispatchStoreTests",
-    "LearnStack.Tests.Integration.Database.OutboxDispatcherRoleGuardTests",
-    "LearnStack.Tests.Integration.Database.OutboxProcessorTests",
-    "LearnStack.Tests.Integration.Database.OutboxProducerTests",
-    "LearnStack.Tests.Integration.Database.P02d2FoundationTests",
-    "LearnStack.Tests.Integration.Database.PlatformAdminScopeTests",
-    "LearnStack.Tests.Integration.Database.PlatformSchemaTests",
-    "LearnStack.Tests.Integration.Database.PoolHangfireStorageParityTests",
-    "LearnStack.Tests.Integration.Database.ProducerExecutionTests",
-    "LearnStack.Tests.Integration.Database.PublicAdmissionRenderingTests",
-    "LearnStack.Tests.Integration.Database.PublicEducationHttpTests",
-    "LearnStack.Tests.Integration.Database.PublicEducationStoreTests",
-    "LearnStack.Tests.Integration.Database.PublicLocalLaunchTests",
-    "LearnStack.Tests.Integration.Database.PublicLocaleEvolutionHttpTests",
-    "LearnStack.Tests.Integration.Database.PublicReadTransactionTests",
-    "LearnStack.Tests.Integration.Database.PublicServerRenderingTests",
-    "LearnStack.Tests.Integration.Database.PublicSiteHttpTests",
-    "LearnStack.Tests.Integration.Database.RoleGrantCommandIntegrationTests",
-    "LearnStack.Tests.Integration.Database.SeedAuthorizationActivationTests",
-    "LearnStack.Tests.Integration.Database.SeederTests",
-    "LearnStack.Tests.Integration.Database.StorageRelationCensusTests",
-    "LearnStack.Tests.Integration.Database.TenancySchemaTests",
-    "LearnStack.Tests.Integration.Database.TenancyWriterTests",
-    "LearnStack.Tests.Integration.Database.TenantAssertionAuditTests",
-    "LearnStack.Tests.Integration.Database.TenantAuthenticationRejectionAuditTests",
-    "LearnStack.Tests.Integration.Database.TenantContextGuardTests",
-    "LearnStack.Tests.Integration.Database.TenantCreatedProducerTests",
-    "LearnStack.Tests.Integration.Database.TenantExistingBindingAdmissionTests",
-    "LearnStack.Tests.Integration.Database.TenantIsolationHttpTests",
-    "LearnStack.Tests.Integration.Database.TenantLocaleDefaultTests",
-    "LearnStack.Tests.Integration.Database.TenantLocaleEnabledMigrationTests",
-    "LearnStack.Tests.Integration.Database.TenantProvisioningTests",
-    "LearnStack.Tests.Integration.Database.TenantSettingsAccessorTests",
-    "LearnStack.Tests.Integration.Database.TrustedVisitorHttpTests",
-    "LearnStack.Tests.Integration.Database.UnitOfWorkCommitCleanupTests",
-    "LearnStack.Tests.Integration.Database.UnitOfWorkTests",
-    "LearnStack.Tests.Integration.Database.WriteStoreConflictTests",
-    "LearnStack.Tests.Integration.ErrorShapeHttpTests",
-    "LearnStack.Tests.Integration.FoundationPortResolutionTests",
-    "LearnStack.Tests.Integration.HostClassificationHttpTests",
-    "LearnStack.Tests.Integration.IdempotencyHttpTests",
-    "LearnStack.Tests.Integration.IdempotentEndpointConventionTests",
-    "LearnStack.Tests.Integration.RateLimitForwardedForTests",
-    "LearnStack.Tests.Integration.RateLimitingHttpTests",
-    "LearnStack.Tests.Integration.SmokeTests",
-    "LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests",
-    "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmApiTests",
-    "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmEventTests",
-    "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmIssuanceTests",
-    "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmProfileProtectionTests",
-    "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmReconciliationTests",
-    "LearnStack.Tests.Integration.TenancyIdentity.TenantRealmSelfServiceTests",
-    "LearnStack.Tests.Integration.TenantAssertionDimensionTests",
-    "LearnStack.Tests.Integration.TenantAssertionHttpTests",
-    "LearnStack.Tests.Integration.TenantWideOrganizationAssertionTests",
-    "LearnStack.Tests.Integration.VersionedRouteEnforcementTests"
-  ],
-  "fixedCosts": {
-    "basePreTestMs": [
-      160000,
-      182000,
-      232000
-    ],
-    "discoveryMs": null,
-    "fixtureStartupMs": null,
-    "note": "Unknown terms are not zero or wall-time guarantees."
-  }
+  ]
 }
