@@ -23,7 +23,7 @@ public sealed partial class OperationPolicyOwnershipTests
     private const string AuthorizationBehavior = "LearnStack.Application.Pipeline.AuthorizationBehavior`2";
 
     [Fact]
-    public void Operation_invocations_decisions_and_read_witnesses_have_closed_owned_minting_and_one_time_physical_binding()
+    public void Protected_Operations_Require_Explicit_Live_Policies()
     {
         AssertLiveComposition();
         using var census = Census.Read();

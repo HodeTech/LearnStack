@@ -13,7 +13,7 @@ using static LearnStack.Tests.Integration.Database.IdentityMembershipFixture;
 namespace LearnStack.Tests.Integration.Database;
 
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
-public sealed class RoleGrantCommandIntegrationTests(IdentityAuthorizationReaderFixture fixture)
+public sealed partial class RoleGrantCommandIntegrationTests(IdentityAuthorizationReaderFixture fixture)
     : IClassFixture<IdentityAuthorizationReaderFixture>
 {
     [Fact]

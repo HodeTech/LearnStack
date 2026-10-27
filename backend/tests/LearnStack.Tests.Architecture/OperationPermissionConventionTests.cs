@@ -15,7 +15,7 @@ using Xunit;
 namespace LearnStack.Tests.Architecture;
 
 /// <summary>Actual module declarations are complete and finite; their registration grants no authority.</summary>
-public sealed class OperationPermissionConventionTests
+public sealed partial class OperationPermissionConventionTests
 {
     [Fact]
     public void Permission_Definitions_DeclareScope()

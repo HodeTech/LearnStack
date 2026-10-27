@@ -27,6 +27,7 @@ public sealed partial class OutboxDispatchConventionTests
     private const string AppJobAuthorizationOwner = "LearnStack.Infrastructure.Persistence.AuthorizationReadOwner";
     private const string AppJobEvidenceSource = "LearnStack.Infrastructure.Persistence.AuthorizationEvidenceSource";
     private const string AppJobEvidenceOwner = "LearnStack.Infrastructure.Persistence.AuthorizationEvidenceSession";
+    private const string AppJobDatabaseProof = "LearnStack.Infrastructure.Persistence.DatabaseQualificationProof";
 
     private static SortedSet<string> JobApplicationSourceOffenders(ProductionCensus census)
     {
@@ -36,7 +37,7 @@ public sealed partial class OutboxDispatchConventionTests
             "LearnStack.Infrastructure.MultiTenancy.CachedHostToTenantResolver",
             "LearnStack.Infrastructure.MultiTenancy.OrganizationScopeValidator",
             AppJobRecovery, AppJobTerminalNoStart, AppJobRecoveryReceipt, JobAdmission,
-            AppJobAuthorizationSource, AppJobAuthorizationOwner, AppJobEvidenceSource, AppJobEvidenceOwner };
+            AppJobAuthorizationSource, AppJobAuthorizationOwner, AppJobEvidenceSource, AppJobEvidenceOwner, AppJobDatabaseProof };
         var types = new Dictionary<string, TypeDefinition>(StringComparer.Ordinal);
         foreach (var name in subjects)
         {
@@ -134,7 +135,9 @@ public sealed partial class OutboxDispatchConventionTests
             (AppJobUnit, "RollbackCoreAsync"), (AppJobUnit, "RollbackCoreAsync")]);
         Exact(owner, "ReportMainCleanup", [(AppJobUnit, "DisposeAsync"), (AppJobUnit, "DisposeAsync")]);
         Exact(owner, "RefuseUnrelatedRead", [(subjects[8], "ReadAsync"), (subjects[9], "BelongsToTenantAsync"),
-            (AppJobAuthorizationSource, "QualifyAsync"), (AppJobEvidenceSource, "QualifyAsync")]);
+            (AppJobAuthorizationSource, "QualifyCoreEntryAsync"), (AppJobEvidenceSource, "QualifyCoreEntryAsync"),
+            (AppJobDatabaseProof, "OpenAsync")]);
+        CheckJobQualificationEntries(census, types, offenders);
         CheckJobApplicationRetainedFields(census, owner, resources, offenders);
         return offenders;
 
@@ -186,6 +189,7 @@ public sealed partial class OutboxDispatchConventionTests
         {
             using var census = ProductionCensus.Read();
             EvaluateDetector(census, JobApplicationSourceOffenders).Should().BeEmpty();
+            AssertJobQualificationMutations(census);
             var owner = census.Types.Values.Single(type => type.FullName == AppJobOwner);
             var resources = census.Types.Values.Single(type => type.FullName == AppJobResources);
             var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);

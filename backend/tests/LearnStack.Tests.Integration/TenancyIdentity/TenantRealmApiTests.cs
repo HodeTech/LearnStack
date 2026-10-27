@@ -37,6 +37,9 @@ public sealed partial class TenantRealmApiTests(TenantRealmApiFixture fixture, X
         _database.Observation.Reads.Should().Be(reads + 1,
             "the existing observer must witness the physical ReadOnly learnstack_app transaction");
         (await AuditCountsAsync()).Should().Equal(audits, "successful account reads create no query audit");
+
+        await DirectoryAsync(client, identity, tokens.AccessToken);
+        observation.Reads.Should().HaveCount(1, "the directory uses its contextual reader, not the account configuration reader");
     }
 
     [Theory]

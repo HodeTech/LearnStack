@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 1,417 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 1,468 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -106,6 +106,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 Step 5 — Live HTTP and application activation (2026-10-27)](#p03-2-step-5--live-http-and-application-activation-2026-10-27) — 82 lines
   - [P03-2 Step 5 review round 1 and corrections (2026-10-27)](#p03-2-step-5-review-round-1-and-corrections-2026-10-27) — 72 lines
   - [P03-2 Step 5 review round 2 and closeout (2026-10-27)](#p03-2-step-5-review-round-2-and-closeout-2026-10-27) — 29 lines
+  - [P03-2 Step 6 — Complete populations and qualification (2026-10-27)](#p03-2-step-6--complete-populations-and-qualification-2026-10-27) — 51 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -4376,3 +4377,54 @@ and fresh hosted A/B evidence, followed by the reviewable development-to-main PR
 Whole activation-dependent catalogue obligations remain Registered until that
 qualification completes; no unrun provider, browser or production topology is
 represented as delivered.
+
+### P03-2 Step 6 — Complete populations and qualification (2026-10-27)
+
+Step 6 adds actual-provider directory coverage for all four seed personas and
+extends the real native learner journey through a committed Membership revocation.
+The API refusal, local session invalidation, no-store response, absence of protected
+rendering and retained provider SSO are independently observed. The selected real
+provider/native/reader group passes **36/36**, zero skips. A separate 32-read warm
+app-role candidate-owner sample reports p50 **4.3778 ms**, p95 **11.4101 ms**, maximum
+**12.5116 ms**. This local reader sample excludes setup/provider/HTTP costs and
+establishes neither request p95 nor production capacity.
+
+The fixture census grows from 131 to **144** actual shared-fixture classes. CI
+preparation includes pinned PgBouncer `v1.26.0-p0` beside the existing PostgreSQL
+and Keycloak images. The 110-second preparation budget, per-image bound, retained
+cleanup reserve, VM cap and ordinary/native job windows do not change. Fixture
+controls pass **40/40**, native-owner controls **89/89**, and runtime Seeder
+environment controls **6/6**. The non-test evidence process remains explicitly
+staged without joining the native-test class list.
+
+The first full Architecture diagnostic completes **588** cases: **575 pass and
+13 fail**. Those failures identify three shared causes: auxiliary credential reads
+outside the existing composition owner, a stale closed controller set, and a stale
+qualification-overload caller census. It is a failed diagnostic, not qualification
+or a passing timing source. Reads move into the existing persistence composition
+file with frozen configuration captures; the two-file credential boundary remains
+closed. Exact controller and guarded overload/proof callers gain corresponding
+removed/extra/delegated controls. The corrected focused Architecture group passes
+**4/4**. The complete Release solution builds with **zero warnings/errors**.
+
+Registry closeout also exposes a missing production denied-test cross-reference.
+Five new real app-role cases prove each assignable pair's legal delegation target
+and refused target, unchanged refused state and committed denial evidence. Role
+administration remains confined to Tenant Admin with its kernel intact; no new
+authority is introduced. All **5/5** pass. The canonical Architecture map checks
+these exact cases, virtual-public and finite-owner controls, and removed
+pairs/methods/assertions. Existing policy and durability proofs take their canonical
+names. This adds one Architecture method/case and five Integration cases; actual
+rediscovery, complete-suite receipts and measured planner refresh remain required.
+
+Guarded frontend execution passes **2,432** cases across both tested packages,
+zero skips/todos; lint, typecheck and production build pass. Six initial lifecycle
+failures identify a stale test allowlist for the runtime Seeder's installed
+authority and explicit Development mode. Its exact argument-free application-seed
+boundary now checks those selected values; restore/build environments stay confined.
+
+**Qualification remains open.** The initial discovery and receipts are local
+working-tree observations, not hosted evidence or an exact committed-head claim.
+Complete rebuilt populations, updated advisory weights and both fresh hosted
+assignments are still required. Both Step 6 review rounds precede closeout; no
+whole-obligation catalogue promotion or packet completion is claimed here.

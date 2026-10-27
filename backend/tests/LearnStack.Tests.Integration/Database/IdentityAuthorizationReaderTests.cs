@@ -1,4 +1,5 @@
 using System.Data;
+using System.Diagnostics;
 using System.Text.Json;
 using FluentAssertions;
 using LearnStack.Infrastructure.Persistence;
@@ -13,12 +14,13 @@ using LearnStack.SharedKernel.Tenancy;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Xunit;
+using Xunit.Abstractions;
 using static LearnStack.Tests.Integration.Database.IdentityMembershipFixture;
 
 namespace LearnStack.Tests.Integration.Database;
 
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
-public sealed class IdentityAuthorizationReaderTests(IdentityAuthorizationReaderFixture fixture)
+public sealed class IdentityAuthorizationReaderTests(IdentityAuthorizationReaderFixture fixture, ITestOutputHelper output)
     : IClassFixture<IdentityAuthorizationReaderFixture>
 {
     [Fact]
@@ -41,6 +43,28 @@ public sealed class IdentityAuthorizationReaderTests(IdentityAuthorizationReader
         orgless.Memberships.Should().ContainSingle().Which.MembershipId.Should().Be(LearnerMembershipA);
         var otherBranch = await harness.Reader.ReadAsync(minter.For(PersonA, SchemaFixture.TenantA, SchemaFixture.OrgA2));
         otherBranch.Memberships.Select(member => member.MembershipId).Should().BeEquivalentTo([LearnerMembershipA, BranchMembershipA2]);
+
+        // Qualification reports the actual warm candidate-owner cost separately
+        // from fixture startup, token/provider work and HTTP/business execution.
+        // This small local sample is neither a CI wall bound nor production sizing.
+        var samples = new double[32];
+        for (var index = 0; index < samples.Length; index++)
+        {
+            var started = Stopwatch.GetTimestamp();
+            var measured = await harness.Reader.ReadAsync(minter.For(PersonA, SchemaFixture.TenantA, SchemaFixture.OrgA1));
+            samples[index] = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+            measured.Outcome.Should().Be(IdentityAuthorizationOutcome.Covered);
+            measured.Memberships.Select(member => member.MembershipId).Should().BeEquivalentTo([LearnerMembershipA, BranchMembershipA1]);
+        }
+        Array.Sort(samples);
+        output.WriteLine(JsonSerializer.Serialize(new
+        {
+            population = "warm-real-app-role-candidate-owner",
+            samples = samples.Length,
+            p50Milliseconds = samples[(int)Math.Ceiling(samples.Length * .50) - 1],
+            p95Milliseconds = samples[(int)Math.Ceiling(samples.Length * .95) - 1],
+            maximumMilliseconds = samples[^1],
+        }));
     }
 
     [Fact]

@@ -1,6 +1,7 @@
 using LearnStack.Application.Authorization;
 using LearnStack.Application.Audit;
 using LearnStack.Api.Tenancy;
+using LearnStack.Api.Composition;
 using LearnStack.Infrastructure.Messaging;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Customization.Application.Authorization;
@@ -43,9 +44,7 @@ internal static class LiveAuthorizationRegistration
         services.Replace(ServiceDescriptor.Scoped<ITenantMembershipReader, LiveTenantMembershipReader>());
 
         // Each type owns a private pool. Neither alias resolves a raw datasource.
-        services.TryAddSingleton(_ => AuthorizationSourceConfiguration.Resolve(
-            configuration.GetConnectionString("Default"), configuration.GetConnectionString("IdentityAuthorization"),
-            configuration.GetConnectionString("AuthorizationEvidence"), deploymentMode == DeploymentMode.Development));
+        services.AddLearnStackAuthorizationSourceConfiguration(configuration, deploymentMode == DeploymentMode.Development);
         services.TryAddSingleton(provider => new IdentityAuthorizationReadSource(
             provider.GetRequiredService<AuthorizationSourceConfiguration>().IdentityAuthorization));
         services.TryAddSingleton(provider => new AuthorizationEvidenceSource(

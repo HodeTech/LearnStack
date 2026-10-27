@@ -2590,6 +2590,16 @@ except launcher.Refusal as failure:
         solution.write_text('<Solution><Project Path="tests/LearnStack.Tests.Example.csproj" /></Solution>')
         self.assertEqual([('tests/LearnStack.Tests.Example.csproj', 'LearnStack.Tests.Example')],
                          list(self.owner.test_projects()))
+        probe = tests / 'LearnStack.Tests.AuthorizationEvidenceProbe.csproj'
+        probe.write_text('<Project><PropertyGroup><IsTestProject>false</IsTestProject></PropertyGroup></Project>')
+        solution.write_text('<Solution><Project Path="tests/LearnStack.Tests.Example.csproj" />'
+                            '<Project Path="tests/LearnStack.Tests.AuthorizationEvidenceProbe.csproj" /></Solution>')
+        self.assertEqual([('tests/LearnStack.Tests.Example.csproj', 'LearnStack.Tests.Example')],
+                         list(self.owner.test_projects()), 'explicit false sidecars are built inputs, not xUnit test assemblies')
+        solution.write_text('<Solution><Project Path="tests/LearnStack.Tests.Example.csproj" /></Solution>')
+        self.refuses('test_project_missing_from_solution', lambda: list(self.owner.test_projects()))
+        solution.write_text('<Solution><Project Path="tests/LearnStack.Tests.Example.csproj" />'
+                            '<Project Path="tests/LearnStack.Tests.AuthorizationEvidenceProbe.csproj" /></Solution>')
         project.write_text('<Project />')
         with self.assertRaises(self.owner.Refusal) as caught:
             list(self.owner.test_projects())

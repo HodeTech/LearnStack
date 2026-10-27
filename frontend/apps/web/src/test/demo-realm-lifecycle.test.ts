@@ -252,6 +252,8 @@ DemoProcesses.prototype.run = async function(command, args, options = {}) {
   const isCompose = command === 'docker' && args[0] === 'compose' && args.includes('--project-name');
   const startup = command === 'make' && args.includes('dev');
   const migration = command === 'make' && args.includes('migrate');
+  const applicationSeed = command === 'dotnet' && args.length === 1
+    && args[0].endsWith('/LearnStack.Tools.Seeder.dll');
   const allowed = new Set(['PATH', 'HOME', 'DOTNET_ROOT', 'TMPDIR', 'APPDATA',
     'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY', 'http_proxy', 'https_proxy', 'all_proxy', 'no_proxy',
     'NODE_EXTRA_CA_CERTS', 'SSL_CERT_FILE', 'SSL_CERT_DIR',
@@ -262,14 +264,18 @@ DemoProcesses.prototype.run = async function(command, args, options = {}) {
     ...(migration ? ['ConnectionStrings__Migration', 'Identity__AuthorityId', 'Authentication__Tenant__Issuer'] : []),
     ...(options.label === 'Contextual seed convergence' || options.label === 'Application seed convergence' ? ['ConnectionStrings__Default'] : [])]);
   // The app seed is recognised by its real, argument-free Release DLL call too.
-  if (command === 'dotnet' && args.length === 1 && args[0].endsWith('/LearnStack.Tools.Seeder.dll')) allowed.add('ConnectionStrings__Default');
+  if (applicationSeed) for (const key of ['ConnectionStrings__Default', 'Identity__AuthorityId',
+    'Authentication__Tenant__Issuer', 'Deployment__Mode']) allowed.add(key);
+  const runtimeIdentity = !applicationSeed || (env.Identity__AuthorityId === ${JSON.stringify(f.values.Identity__AuthorityId)}
+    && env.Authentication__Tenant__Issuer === ${JSON.stringify(f.values.Authentication__Tenant__Issuer)}
+    && env.Deployment__Mode === 'Development');
   f.commands.push({ command, args, label: options.label, timeout: options.timeout,
     dockerContext: env.DOCKER_CONTEXT ?? null,
     dockerHome: env.HOME ?? null,
     prerequisitesPreserved: (command === 'docker' ? ['DOCKER_CONFIG', 'DOCKER_CONTEXT']
       : ['HTTP_PROXY', 'http_proxy', 'NUGET_PACKAGES'])
       .every(key => process.env[key] === undefined || env[key] === process.env[key]),
-    confined: isCompose || Object.keys(env).every(key => allowed.has(key)) });
+    confined: (isCompose || Object.keys(env).every(key => allowed.has(key))) && runtimeIdentity });
   if (migration) f.migrationSelection = env.LEARNSTACK_COMPOSE_PROJECT?.startsWith('learnstack-demo-')
     && env.LEARNSTACK_COMPOSE_ENV_FILE === join(${JSON.stringify(f.root)}, '.env')
     && env.LEARNSTACK_COMPOSE_MODE === 'e2e' && env.ConnectionStrings__Migration?.includes('Username=learnstack_migration');

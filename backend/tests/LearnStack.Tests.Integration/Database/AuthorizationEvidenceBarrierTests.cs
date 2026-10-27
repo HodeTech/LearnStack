@@ -81,7 +81,7 @@ public sealed class AuthorizationEvidenceBarrierTests(SchemaFixture schema)
     [InlineData(ResourcePopulation.May, 1)]
     [InlineData(ResourcePopulation.OverrideOff, 0)]
     [InlineData(ResourcePopulation.Plural, 2)]
-    public async Task Absorbed_denial_keeps_its_MUST_floor_and_plural_resource_populations_on_actual_RW_commit(ResourcePopulation population, int resources)
+    public async Task Authorization_Denials_Have_PreSuccess_Durability_And_Stable_Identity(ResourcePopulation population, int resources)
     {
         var correlation = Correlation();
         await using var proof = await ProofAsync(correlation, population);

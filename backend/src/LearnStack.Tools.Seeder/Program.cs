@@ -47,9 +47,9 @@ if (args.Length != 0 && !identityFoundation)
 // database password, and an argument is visible to every local user through `ps` for as
 // long as the process runs. `make seed` already passes it this way.
 //
-// And NOT through IConfiguration's GetConnectionString: exactly one file in the solution
-// reads credentials that way, and Platform_DataSource_Resolved_Only_By_PlatformAdminScope
-// keeps it that way so one file decides what is done with them.
+// IConfiguration's GetConnectionString remains confined to the API persistence
+// composition and its separate dispatcher composition. The global credential
+// census pins each reader/key; this console root reads only its explicit environment.
 var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Default");
 
 if (string.IsNullOrWhiteSpace(connectionString))

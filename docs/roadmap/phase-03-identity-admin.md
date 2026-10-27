@@ -18,7 +18,7 @@
 > |---|---|---|
 > | P03-0 | Entry preparation | Complete — [reconciliation](phase-03-delivery-log.md#entry-preparation-2026-10-25) |
 > | P03-1 | Identity authority and membership foundation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-1-merge-and-closeout-2026-10-27) |
-> | P03-2 | Live membership and authorization | In progress — [Step 5 closed after both reviews](phase-03-delivery-log.md#p03-2-step-5-review-round-2-and-closeout-2026-10-27); Step 6 complete qualification |
+> | P03-2 | Live membership and authorization | In progress — [Step 6 implementation and qualification](phase-03-delivery-log.md#p03-2-step-6--complete-populations-and-qualification-2026-10-27); complete suites, reviews and hosted A/B remain open |
 > | P03-3 | Protected Studio and membership administration | Not started |
 > | P03-4 | Invitations and bounded delivery | Not started |
 > | P03-5 | Custom fields and privacy classification | Not started |
