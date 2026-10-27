@@ -15,7 +15,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
 
 - [P03-0 — Entry preparation](#p03-0--entry-preparation) — 83 lines
   - [Entry preparation (2026-10-25)](#entry-preparation-2026-10-25) — 81 lines
-- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,709 lines
+- [P03-1 — Identity authority and membership foundation](#p03-1--identity-authority-and-membership-foundation) — 2,768 lines
   - [P03-1 proposed decision package (2026-10-25)](#p03-1-proposed-decision-package-2026-10-25) — 130 lines
   - [P03-1 proposal review round 1 (2026-10-25)](#p03-1-proposal-review-round-1-2026-10-25) — 35 lines
   - [P03-1 proposal review round 2 (2026-10-25)](#p03-1-proposal-review-round-2-2026-10-25) — 36 lines
@@ -79,7 +79,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 fresh hosted A/B evidence (2026-10-27)](#adr-0075-step-3-fresh-hosted-ab-evidence-2026-10-27) — 54 lines
   - [ADR-0075 Step 3 review round 1 (2026-10-27)](#adr-0075-step-3-review-round-1-2026-10-27) — 30 lines
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
-  - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 32 lines
+  - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
+  - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -2874,3 +2875,62 @@ remain mandatory before merge; actual results belong to that check run rather
 than a prediction here. PR #38 remains open for maintainer review and merge.
 No merge is performed. P03-2 is not started; P03-3 still owns new-user HTTP/BFF
 activation. This CI correction changes no application authority or deployment.
+
+
+### P03-1 merge and closeout (2026-10-27)
+
+Read-only GitHub verification confirms
+[PR #38](https://github.com/HodeTech/LearnStack/pull/38) merged at
+`2026-10-27T05:43:45Z` (08:43:45 Europe/Istanbul), squash commit
+`012e67cc9294cbeea7379bb7d9664ef4af640d8e`. The final reviewed PR head is
+`58e5a1d939ddc9f6641eb2dffeef46a5707f3043`. Fetching the merge confirms both
+commits have tree `bb74b3b7eae2e2c5e8e100e88c0f82b14de13b6b`; their file
+contents are identical. Development incorporates main's squash history with a
+same-tree merge, without switching branches or rewriting published history.
+
+The [ADR-0075 closeout](#adr-0075-three-step-closeout-2026-10-27) owns the fresh
+implementation-source A/B qualification for `ea114d25` in
+[run 40412041726](https://github.com/HodeTech/LearnStack/actions/runs/40412041726).
+Each attempt completes 27 successful jobs and 6,490 Passed .NET cases with zero
+skips, twenty natural execution owners and 25 retained original archives. The
+final documentation head separately passes its normal current-head checks in
+[run 40420048044](https://github.com/HodeTech/LearnStack/actions/runs/40420048044):
+27 successful jobs, all seven required contexts and 6,490 Passed .NET cases.
+The retained packages and verification keep these source identities separate.
+This closeout rechecks merge/run metadata and tree equality; it does not rerun
+tests or relabel pre-merge qualification as a post-merge execution. At this
+verification, main's separate
+[push run 40456966945](https://github.com/HodeTech/LearnStack/actions/runs/40456966945)
+is queued; no result for that run is asserted here.
+
+All six implementation steps, both independent review rounds per step, the
+verified PR correction bundles and ADR-0075's three-step correction are closed.
+The shipped [Identity foundation](../modules/identity/README.md) supplies global
+User/subject binding, atomic creation with central MUST audit, fixed seed
+adoption, contextual Membership/Profile/Role/grant storage and database-backed
+lifecycle/last-admin guards. Existing-session API admission checks the durable
+binding after subject quota admission. Personal-data classification and actual
+diagnostic/snapshot controls cover the delivered models. Accepted ADR-0072/0073
+and the ADR-0074 timing delta govern these boundaries; the linked step records
+own their real PostgreSQL, Keycloak, HTTP and concurrency proofs.
+
+ADR-0075 changes only ordinary CI execution windows to twenty-five minutes;
+other execution windows stay at twenty minutes, with the 203-second reserve and
+test-operation caps unchanged. Its exact-source A/B evidence establishes
+observed fit, not a future timing guarantee. Historical failed runs and their
+limits remain recorded.
+
+P03-1 is complete; Phase 03 remains in progress. P03-2 is next: live membership
+and permission readers, authorization/default-deny enforcement, scoped reads
+and trusted audit enrichment. Its decision pass must close G2 execution, G5
+enforcement, G6 policy ordering and G7 denial/sensitive-read evidence before the
+first affected writer or protected activation. The
+[phase plan and decision register](phase-03-identity-admin.md#packets-and-decision-gates)
+own that remaining scope. This closeout starts no P03-2 implementation.
+
+New-user HTTP bootstrap, explicit no-session/multiple-membership BFF entry and
+management UI remain P03-3. Production first-admin/issuer-rebind authority
+remains P03-9; DSAR/global closure remains P03-10. Invitations, custom fields,
+provider ingress, back-channel logout, federation and phase-exit enforcement
+retain their named packets. No phase-wide criterion is marked complete by this
+foundation merge alone.

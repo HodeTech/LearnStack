@@ -1,32 +1,23 @@
 # Phase 03: Identity Domain, Authorization, and Admin Foundation
 
-> **Status (2026-10-27).** Entry preparation and P03-1's joint ADR approval
-> are complete. P03-1's six implementation steps and both review rounds are
-> complete; its implementation source has passed complementary full A/B
-> qualification ([Step 6 closeout](phase-03-delivery-log.md#p03-1-step-6-qualification-closeout-and-pr-handoff-2026-10-26)).
-> [PR review corrections](phase-03-delivery-log.md#p03-1-pr-38-review-corrections-2026-10-26)
-> are committed with both independent review rounds complete. Correction source
-> `7aabc6d8` passed A but left B incomplete. After accepted
-> [ADR-0075](../decisions/0075-ordinary-ci-job-window.md), implementation source
-> `ea114d25` passes fresh full A/B; the
-> [three-step correction](phase-03-delivery-log.md#adr-0075-three-step-closeout-2026-10-27)
-> and both independent review rounds per step are complete. Qualification is
-> source-bound to `ea114d25`; later documentation heads retain their own normal
-> protected checks before merge. PR review and merge remain required. The
-> [ADR-0074 timing delta](../decisions/0074-membership-admission-under-ordered-locks.md)
-> is Accepted; existing-binding API admission is implemented. This is the current
-> critical-path phase after
-> [Phase 02b](phase-02b-events-auth.md).
-> The [decision register](#the-decision-register) owns gate state;
-> the [P03-1 acceptance](phase-03-delivery-log.md#p03-1-joint-acceptance-and-step-1-2026-10-25)
-> authorizes its six-step implementation.
-> Dated records live in the [delivery log](phase-03-delivery-log.md).
+> **Status (2026-10-27).** P03-0 and P03-1 are complete. P03-1 is merged through
+> [PR #38](https://github.com/HodeTech/LearnStack/pull/38); its six implementation
+> steps, review corrections and ADR-0075 correction are closed. The
+> [merge closeout](phase-03-delivery-log.md#p03-1-merge-and-closeout-2026-10-27)
+> distinguishes implementation-source A/B qualification from the final PR head's
+> successful protected checks and records the identical squash-merge file tree.
+> Phase 03 remains in progress; P03-2 is next and has not started. Live membership
+> and permission enforcement belong to P03-2; new-user HTTP/BFF activation stays
+> in P03-3. This remains the critical-path phase after
+> [Phase 02b](phase-02b-events-auth.md). The
+> [decision register](#the-decision-register) owns gate state; dated records live
+> in the [delivery log](phase-03-delivery-log.md).
 >
 > | Packet | Title | State |
 > |---|---|---|
 > | P03-0 | Entry preparation | Complete — [reconciliation](phase-03-delivery-log.md#entry-preparation-2026-10-25) |
-> | P03-1 | Identity authority and membership foundation | Implemented; PR review/merge pending — [six-step closeout](phase-03-delivery-log.md#p03-1-step-6-qualification-closeout-and-pr-handoff-2026-10-26), [review corrections](phase-03-delivery-log.md#p03-1-pr-38-review-corrections-2026-10-26) and [ADR-0075 closeout](phase-03-delivery-log.md#adr-0075-three-step-closeout-2026-10-27); source `ea114d25` passes fresh full A/B, both independent review rounds per step complete; normal current-head protected checks remain mandatory; HTTP/new-user BFF activation belongs to P03-3 |
-> | P03-2 | Live membership and authorization | Not started |
+> | P03-1 | Identity authority and membership foundation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-1-merge-and-closeout-2026-10-27) |
+> | P03-2 | Live membership and authorization | Next — not started |
 > | P03-3 | Protected Studio and membership administration | Not started |
 > | P03-4 | Invitations and bounded delivery | Not started |
 > | P03-5 | Custom fields and privacy classification | Not started |
