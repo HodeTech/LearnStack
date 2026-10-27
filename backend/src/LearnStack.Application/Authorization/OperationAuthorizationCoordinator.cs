@@ -142,9 +142,10 @@ public sealed class OperationAuthorizationCoordinator(
             }
             else evidence.Observe(invocation, null);
             if (!invocation.IsActive) return Result.FailFor<TResponse>(Unavailable);
+            var refusalObservation = evidence.CaptureRefusalObservation(evidenceScope, policy.RequestType, operation);
             var response = await next();
-            if (response.IsFailure) evidence.RecordPolicyRefusal(invocation, frame.Decision, response.Error!);
-            else await evidence.BeforeSuccessAsync(cancellationToken);
+            evidence.RecordRefusalResult(refusalObservation, policy.RequestType, operation, response);
+            if (response.IsSuccess) await evidence.BeforeSuccessAsync(cancellationToken);
             return response;
         }
         finally
@@ -167,6 +168,13 @@ public sealed class OperationAuthorizationCoordinator(
         }
         return found;
     }
+
+    // Audit-only frame identity deliberately excludes cancellation, while public
+    // CurrentInvocation and every execution/read authority keep their active checks.
+    internal bool HasOpenObservationFrame(OperationInvocation invocation, object operation) =>
+        Volatile.Read(ref _closed) == 0 && _current.Value is { Closed: false } frame
+        && ReferenceEquals(frame.Invocation, invocation) && ReferenceEquals(invocation.Operation, operation)
+        && IsCurrent(invocation);
 
     public void Dispose()
     {

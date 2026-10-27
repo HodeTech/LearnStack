@@ -6,8 +6,8 @@
 > [merge closeout](phase-03-delivery-log.md#p03-1-merge-and-closeout-2026-10-27)
 > distinguishes implementation-source A/B qualification from the final PR head's
 > successful protected checks and records the identical squash-merge file tree.
-> Phase 03 remains in progress; P03-2 Steps 1–3 and both review rounds per step
-> are complete. Step 4 implements central authorization evidence and explicit grant acts. Live membership
+> Phase 03 remains in progress; P03-2 Steps 1–4 and both review rounds per step
+> are complete. Step 5 activates the live HTTP/application boundary and directory. Live membership
 > and permission enforcement belong to P03-2; new-user HTTP/BFF activation stays
 > in P03-3. This remains the critical-path phase after
 > [Phase 02b](phase-02b-events-auth.md). The
@@ -18,7 +18,7 @@
 > |---|---|---|
 > | P03-0 | Entry preparation | Complete — [reconciliation](phase-03-delivery-log.md#entry-preparation-2026-10-25) |
 > | P03-1 | Identity authority and membership foundation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-1-merge-and-closeout-2026-10-27) |
-> | P03-2 | Live membership and authorization | In progress — [Step 3 closed after both reviews](phase-03-delivery-log.md#p03-2-step-3-review-round-2-and-closeout-2026-10-27); Step 4 evidence and grant acts |
+> | P03-2 | Live membership and authorization | In progress — [Step 4 closed after both reviews](phase-03-delivery-log.md#p03-2-step-4-correction-verification-and-closeout-2026-10-27); Step 5 HTTP activation |
 > | P03-3 | Protected Studio and membership administration | Not started |
 > | P03-4 | Invitations and bounded delivery | Not started |
 > | P03-5 | Custom fields and privacy classification | Not started |

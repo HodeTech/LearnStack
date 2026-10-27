@@ -40,7 +40,7 @@ public sealed partial class TransactionExecutionCoordinator(
         ExecuteCoreAsync(request as IProvisionsTenant, mode, typeof(TRequest).Name, next,
             typeof(TRequest), request as AdmitBackgroundJobAttemptCommand,
             request as RecordBackgroundJobCapacityCleanupCommand, BackgroundJobExternalCheckpointOwner.For(request),
-            request as SubmitBackgroundJobRecipientCommand, cancellationToken);
+            request as SubmitBackgroundJobRecipientCommand, cancellationToken, operation: request);
 
     public Task<TResponse> ExecuteAsync<TResponse>(IProvisionsTenant? provisioning, TransactionMode mode,
         string operationName, Func<Task<TResponse>> next, CancellationToken cancellationToken = default)
@@ -54,7 +54,7 @@ public sealed partial class TransactionExecutionCoordinator(
         RecordBackgroundJobCapacityCleanupCommand? capacityCleanup,
         BackgroundJobExternalCheckpointOwner? externalCheckpoint,
         SubmitBackgroundJobRecipientCommand? recipient,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, object? operation = null)
         where TResponse : IResultBase
     {
         ArgumentNullException.ThrowIfNull(next);
@@ -88,7 +88,8 @@ public sealed partial class TransactionExecutionCoordinator(
         }
 
         return await ExecuteFrameAsync(scope, provisioning, operationName, next,
-            null, null, null, operationType, admission, jobCompletion, capacityCleanup, externalCheckpoint, recipient, cancellationToken);
+            null, null, null, operationType, admission, jobCompletion, capacityCleanup, externalCheckpoint, recipient, cancellationToken,
+            operation: operation);
     }
 
     /// <summary>
@@ -143,7 +144,7 @@ public sealed partial class TransactionExecutionCoordinator(
         SubmitBackgroundJobRecipientCommand? recipient,
         CancellationToken cancellationToken,
         PreparedGlobalIdentityOwner? globalOwner = null,
-        GlobalIdentityCreationReference? creation = null)
+        GlobalIdentityCreationReference? creation = null, object? operation = null)
         where TResponse : IResultBase
     {
         await using var evidenceScope = authorizationEvidence?.BeginExecution();
@@ -198,12 +199,13 @@ public sealed partial class TransactionExecutionCoordinator(
                 incomingEventId ?? BackgroundJobExecutionAdmission.IncomingEventId,
                 BackgroundJobExecutionAdmission.ProducerOperationType(operationType),
                 BackgroundJobExecutionAdmission.ParentJobId);
+            var refusalObservation = authorizationEvidence?.CaptureRefusalObservation(evidenceScope, operationType, operation);
             var response = await next();
             if (response.IsFailure)
             {
                 // A decided refusal must survive a faulted rollback or cancellation
                 // during cleanup, before the outer policy observer regains control.
-                authorizationEvidence?.RecordTransactionRefusal(operationType, response.Error!);
+                authorizationEvidence?.RecordRefusalResult(refusalObservation, operationType, operation, response);
                 // Joiners are not savepoints. Successful production cannot escape
                 // merely because an ancestor absorbs this refusal.
                 if (invocation.HasProducedWork) unitOfWork.MarkRollbackOnly();

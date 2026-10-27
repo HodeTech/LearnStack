@@ -1,4 +1,5 @@
 using System.Data.Common;
+using LearnStack.Application.Authorization;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
@@ -75,15 +76,36 @@ public sealed class AuthorizationEvidenceCoordinator(
             error.Message.Key, _contexts.GetValueOrDefault(invocation));
     }
 
-    /// <summary>Freezes an actual handler refusal before transaction cleanup can fault or revoke its invocation.</summary>
-    public void RecordTransactionRefusal(Type? operationType, Error error)
+    /// <summary>Retains only audit observation of this admitted request across its handler await.</summary>
+    internal RefusalObservation? CaptureRefusalObservation(ExecutionScope? scope, Type? operationType, object? operation)
     {
-        ArgumentNullException.ThrowIfNull(error);
-        var execution = current();
-        if (operationType is null || execution.CurrentInvocation is not { EntryKind: OperationEntryKind.Application } invocation
-            || invocation.Policy.RequestType != operationType || invocation.Operation.GetType() != operationType)
+        if (scope is null || !scope.IsOpen(this) || operationType is null || operation is null
+            || current() is not OperationAuthorizationCoordinator execution
+            || execution.CurrentInvocation is not { EntryKind: OperationEntryKind.Application } invocation
+            || invocation.Policy.RequestType != operationType || operation.GetType() != operationType
+            || !ReferenceEquals(invocation.Operation, operation) || !HasAttribution(invocation)
+            || !_contexts.ContainsKey(invocation)) return null;
+        return new RefusalObservation(this, scope, execution, invocation, operationType, operation);
+    }
+
+    /// <summary>Consumes the actual result once; cancellation does not erase the admitted act's frozen audit context.</summary>
+    internal void RecordRefusalResult(RefusalObservation? observation, Type? operationType, object? operation, IResultBase response)
+    {
+        ArgumentNullException.ThrowIfNull(response);
+        if (observation is null || !observation.TryConsume(this, operationType, operation)
+            || !response.IsFailure || response.Error is not { } error
+            || error.Code is not ("forbidden" or "not_found" or "resource_scope_violation" or "feature_disabled" or "limit_exceeded")
+            || !_contexts.TryGetValue(observation.Invocation, out var context))
             return;
-        RecordPolicyRefusal(invocation, execution.CurrentDecision, error);
+        try
+        {
+            RecordObservedDenial(observation.Invocation, context,
+                error.Code == "not_found" ? AuthorizationRefusalReason.Coverage
+                    : error.Code == "resource_scope_violation" ? AuthorizationRefusalReason.ResourceScope : AuthorizationRefusalReason.Capability,
+                error.Message.Key);
+        }
+        catch (Exception failure) when (failure is not OutOfMemoryException and not StackOverflowException)
+        { CompositionFailed(); }
     }
 
     /// <summary>The API has already decided its masked refusal; audit failure never replaces that refusal.</summary>
@@ -149,46 +171,53 @@ public sealed class AuthorizationEvidenceCoordinator(
         try
         {
             var context = observedContext ?? Snapshot(invocation, decision);
-            capture.AttachAuthorization(context);
-            var metadata = "{\"authorization\":" + context.ToJson()
-                + ",\"denial_reason\":" + AuditJson.Quote(reason switch
-                {
-                    AuthorizationRefusalReason.Capability => "capability",
-                    AuthorizationRefusalReason.ResourceScope => "resource_scope",
-                    AuthorizationRefusalReason.Delegation => "delegation",
-                    AuthorizationRefusalReason.Ownership => "ownership",
-                    AuthorizationRefusalReason.Coverage => "coverage",
-                    _ => throw new InvalidOperationException("Authorization refusal is unknown."),
-                }) + "}";
-            var draft = new AuditEntryDraft
-            {
-                Id = AuditEntryId.From(guids.NewUuidV7()),
-                TenantId = context.TenantId,
-                OrganizationId = context.OrganizationId,
-                ActorUserId = context.Actor,
-                ActorEmail = null,
-                ModuleName = "identity",
-                Operation = "identity.authorization.deny",
-                OperationType = OperationType.SecurityEvent,
-                OperationClass = OperationClass.Must,
-                EntityType = null,
-                EntityId = null,
-                Outcome = AuditOutcome.Denied,
-                ErrorKey = errorKey,
-                Reason = null,
-                BeforeState = null,
-                AfterState = null,
-                Changes = null,
-                CorrelationId = invocation.Context.CorrelationId,
-                IpAddress = context.Address,
-                UserAgent = context.UserAgent,
-                Timestamp = clock.UtcNow,
-                Metadata = metadata,
-            };
-            _entries.Add(invocation, new Entry(ForOccurrence(AuthorizationEvidenceKind.Denial, draft)));
+            RecordObservedDenial(invocation, context, reason, errorKey);
         }
         catch (Exception failure) when (failure is not OutOfMemoryException and not StackOverflowException)
         { CompositionFailed(); }
+    }
+
+    private void RecordObservedDenial(OperationInvocation invocation, AuthorizationAuditContext context,
+        AuthorizationRefusalReason reason, string errorKey)
+    {
+        if (_entries.ContainsKey(invocation)) return;
+        capture.AttachAuthorization(context);
+        var metadata = "{\"authorization\":" + context.ToJson()
+            + ",\"denial_reason\":" + AuditJson.Quote(reason switch
+            {
+                AuthorizationRefusalReason.Capability => "capability",
+                AuthorizationRefusalReason.ResourceScope => "resource_scope",
+                AuthorizationRefusalReason.Delegation => "delegation",
+                AuthorizationRefusalReason.Ownership => "ownership",
+                AuthorizationRefusalReason.Coverage => "coverage",
+                _ => throw new InvalidOperationException("Authorization refusal is unknown."),
+            }) + "}";
+        var draft = new AuditEntryDraft
+        {
+            Id = AuditEntryId.From(guids.NewUuidV7()),
+            TenantId = context.TenantId,
+            OrganizationId = context.OrganizationId,
+            ActorUserId = context.Actor,
+            ActorEmail = null,
+            ModuleName = "identity",
+            Operation = "identity.authorization.deny",
+            OperationType = OperationType.SecurityEvent,
+            OperationClass = OperationClass.Must,
+            EntityType = null,
+            EntityId = null,
+            Outcome = AuditOutcome.Denied,
+            ErrorKey = errorKey,
+            Reason = null,
+            BeforeState = null,
+            AfterState = null,
+            Changes = null,
+            CorrelationId = invocation.Context.CorrelationId,
+            IpAddress = context.Address,
+            UserAgent = context.UserAgent,
+            Timestamp = clock.UtcNow,
+            Metadata = metadata,
+        };
+        _entries.Add(invocation, new Entry(ForOccurrence(AuthorizationEvidenceKind.Denial, draft)));
     }
 
     private AuthorizationAuditContext Snapshot(OperationInvocation invocation, ProtectedOperationDecision? decision)
@@ -335,6 +364,19 @@ public sealed class AuthorizationEvidenceCoordinator(
         internal CommitBatch? Pending { get; set; }
     }
 
+    /// <summary>Opaque audit-only lease; it exposes no execution, read or candidate authority.</summary>
+    internal sealed class RefusalObservation(AuthorizationEvidenceCoordinator owner, ExecutionScope scope,
+        OperationAuthorizationCoordinator execution, OperationInvocation invocation, Type operationType, object operation)
+    {
+        private int _consumed;
+        internal OperationInvocation Invocation { get; } = invocation;
+        internal bool TryConsume(AuthorizationEvidenceCoordinator candidateOwner, Type? candidateType, object? candidateOperation) =>
+            ReferenceEquals(owner, candidateOwner) && scope.IsOpen(candidateOwner)
+            && operationType == candidateType && ReferenceEquals(operation, candidateOperation)
+            && execution.HasOpenObservationFrame(Invocation, operation)
+            && Interlocked.CompareExchange(ref _consumed, 1, 0) == 0;
+    }
+
 #pragma warning disable CA1034 // Private tokens bind completion and cleanup to the actual common owner.
     public sealed class CommitBatch
     {
@@ -355,6 +397,7 @@ public sealed class AuthorizationEvidenceCoordinator(
         private readonly int _depth;
         private int _closed;
         internal ExecutionScope(AuthorizationEvidenceCoordinator owner, int depth) { _owner = owner; _depth = depth; }
+        internal bool IsOpen(AuthorizationEvidenceCoordinator owner) => ReferenceEquals(_owner, owner) && Volatile.Read(ref _closed) == 0;
         public ValueTask DisposeAsync() => Interlocked.Exchange(ref _closed, 1) == 0 ? _owner.EndExecutionAsync(_depth) : ValueTask.CompletedTask;
     }
 #pragma warning restore CA1034

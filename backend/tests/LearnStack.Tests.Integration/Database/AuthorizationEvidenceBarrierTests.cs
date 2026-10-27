@@ -20,6 +20,62 @@ namespace LearnStack.Tests.Integration.Database;
 public sealed class AuthorizationEvidenceBarrierTests(SchemaFixture schema)
 {
     [Theory]
+    [InlineData("read-write")]
+    [InlineData("read-only")]
+    [InlineData("ownerless")]
+    public async Task An_absorbed_admitted_inner_refusal_survives_its_independent_token_cancellation_before_observation(string owner)
+    {
+        var correlation = Correlation();
+        var writable = owner == "read-write";
+        await using var proof = await ProofAsync(correlation, writable ? ResourcePopulation.Plural : ResourcePopulation.Off);
+        proof.InnerOutcome = ProtectedOperationOutcome.Allowed;
+        proof.CancelInnerBeforeObservation = true;
+        proof.Factory.HoldCommit = !writable;
+        var running = proof.RunAsync(writable ? TransactionMode.ReadWrite : owner == "read-only" ? TransactionMode.ReadOnly : null);
+        try
+        {
+            if (!writable)
+            {
+                try
+                {
+                    await proof.Factory.CommitEntered.Task.WaitAsync(TimeSpan.FromSeconds(4));
+                    running.IsCompleted.Should().BeFalse("an absorbed canceled act still requires durable standalone evidence before disclosure");
+                    (await ObserveAsync(correlation, proof.BusinessId)).Rows.Should().BeEmpty();
+                }
+                finally { proof.Factory.CommitRelease.TrySetResult(); }
+            }
+            (await running).IsSuccess.Should().BeTrue();
+            proof.InnerResult!.Error!.Code.Should().Be("forbidden");
+            proof.DeniedHandlerEntered.Should().BeTrue("this handler was admitted and itself decided the refusal");
+            proof.InnerCancellationRequested.Should().BeTrue();
+            proof.InnerAuthorityRevoked.Should().BeTrue();
+            proof.OuterAuthorityStillLive.Should().BeTrue("the independent inner token cannot revoke the outer operation");
+            var observed = await ObserveAsync(correlation, proof.BusinessId);
+            observed.Business.Should().Be(writable);
+            observed.Rows.Should().HaveCount(writable ? 3 : 1);
+            var row = observed.Rows.Should().ContainSingle(item => item.Operation == "identity.authorization.deny").Subject;
+            row.Outcome.Should().Be("denied");
+            row.Policy.Should().Be("proof.evidence.inner");
+            var occurrence = writable ? proof.Store.Pending.Should().ContainSingle().Subject : proof.Store.Standalone.Should().ContainSingle().Subject;
+            row.Id.Should().Be(occurrence.Draft.Id.Value);
+            row.Timestamp.Should().Be(occurrence.Draft.Timestamp);
+            if (writable)
+            {
+                proof.Store.Standalone.Should().BeEmpty();
+                proof.Factory.Opens.Should().Be(0);
+            }
+            else proof.Store.Pending.Should().BeEmpty();
+            proof.Unit.HasActiveTransaction.Should().BeFalse();
+        }
+        finally
+        {
+            proof.Factory.CommitRelease.TrySetResult();
+            await ((Task)running).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
+            await CleanupAsync(correlation, proof.BusinessId);
+        }
+    }
+
+    [Theory]
     [InlineData(ResourcePopulation.Off, 0)]
     [InlineData(ResourcePopulation.Should, 1)]
     [InlineData(ResourcePopulation.May, 1)]

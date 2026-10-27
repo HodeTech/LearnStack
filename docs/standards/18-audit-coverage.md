@@ -658,6 +658,12 @@ act or reevaluation is a new occurrence. Correlation, request and route IDs are
 not occurrence identities. The common owner captures/cleans this state, including
 Off and absorbed nested refusals; a joiner neither commits nor clears it.
 
+The common owner retains a private audit-only observation while consuming an
+admitted invocation's result. Cancellation revokes execution authority but does
+not erase that act's already-decided refusal. The observation binds the exact
+request and lexical owner and cannot be reused after that owner closes. Current
+invocation, candidate and read-witness authority still require their live checks.
+
 Earlier credential, unknown-host, malformed assertion and validation refusals
 keep their existing contracts. Public anonymous/tenantless refusals invent no
 tenant or sentinel. Resolver row 7 retains its host recorder, row 10 remains

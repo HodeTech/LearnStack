@@ -62,7 +62,7 @@ public sealed partial class IdentityAuditConventionTests
                      ("LearnStack.SharedKernel.Audit.IAuditStore", "WriteAuthorizationStandaloneAsync"),
                      ("LearnStack.SharedKernel.Audit.IAuditStateCapture", "AttachAuthorization"),
                      (CentralEvidence, "BeginExecution"), (CentralEvidence, "Observe"),
-                     (CentralEvidence, "RecordPolicyRefusal"), (CentralEvidence, "RecordTransactionRefusal"),
+                     (CentralEvidence, "RecordPolicyRefusal"), (CentralEvidence, "CaptureRefusalObservation"), (CentralEvidence, "RecordRefusalResult"),
                      (CentralEvidence, "BeforeSuccessAsync") })
             foreach (var opcode in new[] { OpCodes.Call, OpCodes.Ldftn }) EvidenceDirty(census, EvidenceProvenanceOffenders,
                 () => EvidenceExtraCall(census, census.Method(type, method), opcode));
@@ -76,8 +76,8 @@ public sealed partial class IdentityAuditConventionTests
             (Assertion + "/MintingSource", "Dispose", "System.Threading.Interlocked", "Exchange"),
             (AssertionSource, "Capture", "LearnStack.Api.Authentication.TenantAuthorizationCandidateSource", "ForValidatedScope"),
             (CentralEvidence, "Snapshot", InvocationContext, "get_CurrentInvocation"),
-            (CentralEvidence, "RecordDenial", "LearnStack.SharedKernel.Identifiers.IGuidFactory", "NewUuidV7"),
-            (CentralEvidence, "RecordDenial", "LearnStack.SharedKernel.Time.IClock", "get_UtcNow"),
+            (CentralEvidence, "RecordObservedDenial", "LearnStack.SharedKernel.Identifiers.IGuidFactory", "NewUuidV7"),
+            (CentralEvidence, "RecordObservedDenial", "LearnStack.SharedKernel.Time.IClock", "get_UtcNow"),
             (HttpTransport, "Capture", "LearnStack.Api.Authentication.OperationHttpClassifier", "Classify"),
             (EvidenceStore, "HasAuthorizationEvidenceAsync", EvidenceStore, "Bind"),
             (StateCapture, "AttachAuthorization", FrameBindings, "TryGetValue"),
@@ -137,13 +137,7 @@ public sealed partial class IdentityAuditConventionTests
         EvidenceDirty(census, EvidenceProvenanceOffenders, () => EvidenceReplace(generationGuard.GenerationEqual, OpCodes.Nop, null));
         var prematureAck = EvidencePrematureAcknowledgementGuards(census.Body(CentralEvidence, "RecordOwnerOutcome")).Single();
         EvidenceDirty(census, EvidenceProvenanceOffenders, () => EvidenceReplace(prematureAck, OpCodes.Nop, null));
-        var transactionCapture = EvidenceTransactionCaptureGuards(census.Body(CentralEvidence, "RecordTransactionRefusal")).Single();
-        foreach (var branch in new[] { transactionCapture.Entry, transactionCapture.Policy, transactionCapture.Operation })
-            EvidenceDirty(census, EvidenceProvenanceOffenders, () => EvidenceReplace(branch, OpCodes.Nop, null));
-        var beforeRollback = EvidenceBeforeRollbackCaptures(census.Body(EvidenceTransactionOwner, "ExecuteFrameAsync")).Single();
-        EvidenceDirty(census, EvidenceProvenanceOffenders, () => EvidenceReplace(beforeRollback.FailureBranch, OpCodes.Nop, null));
-        EvidenceDirty(census, EvidenceProvenanceOffenders, () => EvidenceReplace(beforeRollback.OperationType, OpCodes.Ldnull, null));
-        EvidenceDirty(census, EvidenceProvenanceOffenders, () => EvidenceRemoveCall(census.Body(EvidenceTransactionOwner, "ExecuteFrameAsync"), CentralEvidence, "RecordTransactionRefusal"));
+        EvidenceObservationDirtyControls(census);
     }
 
     private static List<string> EvidenceProvenanceOffenders(EvidenceCensus census)
@@ -184,7 +178,7 @@ public sealed partial class IdentityAuditConventionTests
         EvidenceCallers(census, errors, Assertion + "/MintingSource", "ForAssertion", [(AssertionSource, "Capture", 1)]);
         EvidenceCallers(census, errors, AssertionSource, "Capture", []);
         EvidenceCallers(census, errors, CentralEvidence, "RecordConfirmedAssertionAsync", []);
-        EvidenceCallers(census, errors, Occurrence + "/MintingSource", "ForOccurrence", [(CentralEvidence, "RecordDenial", 1),
+        EvidenceCallers(census, errors, Occurrence + "/MintingSource", "ForOccurrence", [(CentralEvidence, "RecordObservedDenial", 1),
             (CentralEvidence, "RecordConfirmedAssertionAsync", 1)]);
         EvidenceCallers(census, errors, AuditContext + "/MintingSource", "ForAuditContext", [(CentralEvidence, "Snapshot", 1)]);
         EvidenceCallers(census, errors, Transport + "/MintingSource", "ForTransport", [(HttpTransport, "Capture", 1)]);
@@ -200,15 +194,14 @@ public sealed partial class IdentityAuditConventionTests
         EvidenceCallers(census, errors, CentralEvidence, "BeginExecution", [(PolicyOwner, "ExecuteAsync", 1),
             (OrdinaryAuditOwner, "ExecuteDeclaredAsync", 1), ("LearnStack.Application.Persistence.TransactionExecutionCoordinator", "ExecuteFrameAsync", 1)]);
         EvidenceCallers(census, errors, CentralEvidence, "Observe", [(PolicyOwner, "ExecuteAsync", 2), (CentralEvidence, "ReportRecheck", 1)]);
-        EvidenceCallers(census, errors, CentralEvidence, "RecordPolicyRefusal", [(PolicyOwner, "ExecuteAsync", 4), (CentralEvidence, "RecordTransactionRefusal", 1)]);
-        EvidenceCallers(census, errors, CentralEvidence, "RecordTransactionRefusal", [("LearnStack.Application.Persistence.TransactionExecutionCoordinator", "ExecuteFrameAsync", 1)]);
+        EvidenceCallers(census, errors, CentralEvidence, "RecordPolicyRefusal", [(PolicyOwner, "ExecuteAsync", 3)]);
         EvidenceCallers(census, errors, CentralEvidence, "BeforeSuccessAsync", [(PolicyOwner, "ExecuteAsync", 1), (OrdinaryAuditOwner, "ExecuteDeclaredAsync", 1)]);
         EvidenceCallers(census, errors, CentralEvidence, "Snapshot", [(CentralEvidence, "Observe", 1), (CentralEvidence, "RecordDenial", 1)]);
         EvidenceCallers(census, errors, CentralEvidence, "RecordDenial", [(CentralEvidence, "ReportResourceRefusal", 1), (CentralEvidence, "RecordPolicyRefusal", 1)]);
         EvidenceCallers(census, errors, "LearnStack.SharedKernel.Audit.IAuditStateCapture", "AttachAuthorization",
-            [(CentralEvidence, "Observe", 1), (CentralEvidence, "RecordDenial", 1)]);
-        EvidenceCallers(census, errors, InvocationContext, "get_CurrentInvocation", [(CentralEvidence, "Snapshot", 1), (CentralEvidence, "RecordTransactionRefusal", 1), (RoleAuthorization, "Matches", 1), (RoleHandler, "ExecuteAsync", 1)]);
-        EvidenceCallers(census, errors, InvocationContext, "get_CurrentDecision", [(CentralEvidence, "RecordTransactionRefusal", 1), (RoleAuthorization, "Matches", 1), (RoleHandler, "ExecuteAsync", 1)]);
+            [(CentralEvidence, "Observe", 1), (CentralEvidence, "RecordObservedDenial", 1)]);
+        EvidenceCallers(census, errors, InvocationContext, "get_CurrentInvocation", [(CentralEvidence, "Snapshot", 1), (RoleAuthorization, "Matches", 1), (RoleHandler, "ExecuteAsync", 1)]);
+        EvidenceCallers(census, errors, InvocationContext, "get_CurrentDecision", [(RoleAuthorization, "Matches", 1), (RoleHandler, "ExecuteAsync", 1)]);
         EvidenceCallers(census, errors, "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportRecheck", [(RoleAuthorization, "ReportRecheck", 1)]);
         EvidenceCallers(census, errors, "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportResourceRefusal", [(RoleAuthorization, "ReportRefusal", 1)]);
         foreach (var (type, method, target, name) in new[]
@@ -220,8 +213,8 @@ public sealed partial class IdentityAuditConventionTests
             (Assertion, "get_IsActive", Assertion + "/MintingSource", "get_IsOpen"),
             (Assertion + "/MintingSource", "Dispose", "System.Threading.Interlocked", "Exchange"),
             (AssertionSource, "Capture", "LearnStack.Api.Authentication.TenantAuthorizationCandidateSource", "ForValidatedScope"),
-            (CentralEvidence, "RecordDenial", "LearnStack.SharedKernel.Identifiers.IGuidFactory", "NewUuidV7"),
-            (CentralEvidence, "RecordDenial", "LearnStack.SharedKernel.Time.IClock", "get_UtcNow"),
+            (CentralEvidence, "RecordObservedDenial", "LearnStack.SharedKernel.Identifiers.IGuidFactory", "NewUuidV7"),
+            (CentralEvidence, "RecordObservedDenial", "LearnStack.SharedKernel.Time.IClock", "get_UtcNow"),
             (HttpTransport, "Capture", "LearnStack.Api.Authentication.OperationHttpClassifier", "Classify"),
             (EvidenceStore, "HasAuthorizationEvidenceAsync", EvidenceStore, "Bind"),
             (StateCapture, "AttachAuthorization", FrameBindings, "TryGetValue"),
@@ -236,10 +229,7 @@ public sealed partial class IdentityAuditConventionTests
             errors.Add("Each pending write is acknowledged before checking the exact captured transaction and fresh announcement generation; mismatch poisons that owner");
         if (EvidencePrematureAcknowledgementGuards(census.Body(CentralEvidence, "RecordOwnerOutcome")).Count() != 1)
             errors.Add("Committed evidence is never acknowledged while that same captured physical unit remains active");
-        if (EvidenceTransactionCaptureGuards(census.Body(CentralEvidence, "RecordTransactionRefusal")).Count() != 1)
-            errors.Add("Transaction refusal capture requires the current Application act and exact policy/actual operation types, retaining that act's decision");
-        if (EvidenceBeforeRollbackCaptures(census.Body(EvidenceTransactionOwner, "ExecuteFrameAsync")).Count() != 1)
-            errors.Add("The actual failing result and operation type are frozen before transaction rollback can fault or cancel");
+        EvidenceObservationOffenders(census, errors);
         if (EvidenceFrameIdentityComparisons(census.Body(StateCapture, "AttachAuthorization")).Count() != 1)
             errors.Add("Only the existing frame's actual stored invocation may refresh the same resource snapshot");
         var auditOwner = census.Body(OrdinaryAuditOwner, "ExecuteDeclaredAsync");

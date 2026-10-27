@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 1,141 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 1,234 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -101,6 +101,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 Step 4 — Trusted evidence and finite grant acts (2026-10-27)](#p03-2-step-4--trusted-evidence-and-finite-grant-acts-2026-10-27) — 96 lines
   - [P03-2 Step 4 review round 1 (2026-10-27)](#p03-2-step-4-review-round-1-2026-10-27) — 41 lines
   - [P03-2 Step 4 review corrections (2026-10-27)](#p03-2-step-4-review-corrections-2026-10-27) — 52 lines
+  - [P03-2 Step 4 review round 2 (2026-10-27)](#p03-2-step-4-review-round-2-2026-10-27) — 36 lines
+  - [P03-2 Step 4 correction verification and closeout (2026-10-27)](#p03-2-step-4-correction-verification-and-closeout-2026-10-27) — 57 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -4095,3 +4097,96 @@ population then passes **29/29**, zero skips. The other 31 cases, including the
 new pre-rollback/SQL predicate dirty controls, already pass; no production code
 changes after their validation. The correction commit precedes a second fresh
 review. Full final-source architecture qualification remains Step 6.
+
+### P03-2 Step 4 review round 2 (2026-10-27)
+
+**Reviewed source:** `c1a61dd4..16667e76`. Three new independent
+`gpt-6-astra` reviewers at xhigh effort examine durability/provenance, confined
+resource ownership, and grants/census respectively. None authored Step 4 or
+reviewed it in the first round. They inspect the complete step and its fixes;
+the resource and grant/census reviewers approve without an actionable finding.
+The durability reviewer requests a correction for one further Major boundary.
+
+During that review the parent rebuilds and runs the complete Unit project:
+**2,983/2,983 pass**, zero skips. This covers the new pre-cleanup observer's
+generic transaction path alongside existing audit, job, producer, public and
+identity controls. The 55-case focused Unit, 54-case corrected real-PostgreSQL,
+31 non-authentication architecture and 29 authentication-authority receipts above
+remain the step's completed targeted controls. Full architecture/integration/
+contract inventories and hosted A/B remain the later final-source qualification.
+
+**Major — cancellation before result observation.** The first correction captures
+a failure before rollback, but still asks the live `CurrentInvocation` for it.
+If an admitted handler returns a closed refusal and its own token cancels before
+the transaction continuation consumes that Result, the live invocation is null
+and both observers drop it. In the meaningful nested case the outer token stays
+live, an event-free joiner does not poison its parent, and an absorbed failure
+can therefore leave no denial for the outer commit barrier. The parent verifies
+this source path; the reviewer runs no fault reproduction.
+
+This finding is accepted for correction. Retain a private observation of the
+exact admitted invocation/context through consumption of its actual failed
+Result, including cancellation before cleanup. Its lexical owner must reject
+reuse after completion. This is audit attribution, not renewed permission to
+execute, query or commit under cancelled authority: candidate/read-witness/
+`CurrentInvocation` checks remain live. Closed-code filtering, exception
+exclusion, post-lock attribution and one occurrence per actual invocation remain
+required. A deterministic pre-observer cancellation control and an absorbed
+inner-token/live-outer control precede Step 4 closeout.
+
+### P03-2 Step 4 correction verification and closeout (2026-10-27)
+
+**Correction after `16667e76`.** The deterministic new Unit control first fails
+against unchanged production: a completed handler refusal followed by immediate
+inner-token cancellation reaches cleanup with zero recorded decision-time reads.
+The correction introduces an internal opaque audit observation captured before
+the actual handler await. It binds the existing execution scope, concrete policy
+owner, exact invocation, request reference and request type. Its one-use
+consumption accepts only the actual closed failed Result, uses that invocation's
+latest already-verified immutable context, and keeps occurrence deduplication.
+Current invocation, candidate and read-witness authority retain their live
+cancellation checks. The internal audit-frame check retains current top-frame,
+request, source-disposal and closed-ancestor checks. No historical execution
+projection, tenant setter or additional async-local stack is introduced.
+
+The complete focused Unit population passes **33/33**, including cancellation
+before observation, cleanup faults, ReadOnly/ownerless cases, latest post-lock
+attribution, cancellation before admission, closed source/scope, foreign request/
+scope, changed current invocation and consumed-result replay controls. The full
+rebuilt Unit project then passes **2,994/2,994**, zero skips.
+
+The current real-PostgreSQL store/grant/barrier group passes **57/57**. Three new
+cases admit a real inner handler, form its refusal, cancel its independent token,
+and prove the outer authority stays live. The ReadWrite owner atomically commits
+its business row, two ordinary resource rows and one fixed denial without opening
+the evidence lane. ReadOnly/ownerless cases cannot publish while the actual
+standalone evidence COMMIT is held; they proceed only after acknowledgement.
+The existing process-kill, uncertain-COMMIT and full duplicate-comparison controls
+remain green. Test cleanup preserves xUnit's captured execution context.
+
+The existing closed invocation/read-witness ownership and canonical eight-step
+pipeline facts pass. The canonical evidence/provenance fact is rebuilt after the
+new observation census and passes with all planted scope/type/request/result/
+await/replay bypasses. Its first baseline shape assertion is corrected to the
+actual CLR representation: the nested observation type is internal and sealed,
+while its primary constructor is emitted Public. Exact construction remains
+confined to the sole central capture site; a planted publicly exposed type,
+nonconstructor reference write or other caller still fails. The indexed
+twenty-two-field SQL and physical transaction/generation controls remain covered.
+
+The R2 durability reviewer independently verifies only this finding's correction,
+inspects the reproduced failure and 33-case green receipt, and closes the Major
+without another finding. This is a narrow correction check, not a third full
+review round. The other two R2 reviewers already approve their complete slices.
+The parent verifies the current 57-case PostgreSQL and 2,994-case Unit receipts,
+whole-tree documentation lint and diff hygiene. Both requested independent
+review rounds and their verified corrections are complete for Step 4.
+
+**Handoff.** Central evidence, confined resources, provenance adapters and finite
+grant acts are implemented and verified in their explicit compositions. Launch
+still retains its shell/deny-all registration until Step 5 jointly activates the
+real HTTP/application boundary. Whole activation-dependent catalogue rules remain
+Registered. Step 5 proceeds with the directory/controller, named/runtime policy,
+live resolver/AccountSite admission, distinct claim-assertion source, OpenAPI/SDK
+and real HTTP compatibility matrix. Step 6 owns complete final-source suites,
+source-bound inventories, hosted A/B qualification and the reviewable PR.

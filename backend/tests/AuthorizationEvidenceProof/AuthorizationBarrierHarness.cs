@@ -5,9 +5,11 @@ using LearnStack.Application.Audit;
 using LearnStack.Application.Authorization;
 using LearnStack.Application.Messaging;
 using LearnStack.Application.Persistence;
+using LearnStack.Application.Pipeline;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.Infrastructure.Audit.Capture;
 using LearnStack.Infrastructure.Caching;
+using LearnStack.Infrastructure.Jobs;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Domain;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
@@ -53,6 +55,7 @@ internal sealed class AuthorizationBarrierHarness : IAsyncDisposable
     private readonly TransactionExecutionCoordinator _transactions;
     private readonly TenantContext _context;
     private readonly IClock _clock = new SystemClock();
+    private readonly CancellationTokenSource _innerCancellation = new();
 
     private AuthorizationBarrierHarness(NpgsqlDataSource business, AuthorizationEvidenceSource source,
         TenantContext context, ResourcePopulation population, bool compositionFault,
@@ -110,6 +113,10 @@ internal sealed class AuthorizationBarrierHarness : IAsyncDisposable
     internal TenantSettingId BusinessId { get; }
     internal Result<None>? InnerResult { get; private set; }
     internal bool DeniedHandlerEntered { get; private set; }
+    internal bool CancelInnerBeforeObservation { get; set; }
+    internal bool InnerAuthorityRevoked { get; private set; }
+    internal bool OuterAuthorityStillLive { get; private set; }
+    internal bool InnerCancellationRequested => _innerCancellation.IsCancellationRequested;
 
     internal static async Task<AuthorizationBarrierHarness> CreateAsync(string connectionString, IdentityAuthorityId authority,
         string issuer, TenantId tenant, OrganizationId organization, UserId actor, string correlation,
@@ -163,15 +170,33 @@ internal sealed class AuthorizationBarrierHarness : IAsyncDisposable
             _ = await db.TenantSettings.CountAsync();
         }
         InnerResult = await DenyAsync();
+        OuterAuthorityStillLive = _authorization.CurrentInvocation is { IsActive: true } current
+            && current.Policy.RequestType == typeof(Outer);
         return Result.Ok(None.Value);
     }
 
-    private Task<Result<None>> DenyAsync() => _audit.ExecuteAsync(typeof(Inner), null,
-        () => _authorization.ExecuteRequestAsync<Inner, Result<None>>(new Inner(), () =>
+    private Task<Result<None>> DenyAsync()
+    {
+        var request = new Inner();
+        var token = CancelInnerBeforeObservation ? _innerCancellation.Token : CancellationToken.None;
+        return _audit.ExecuteAsync(typeof(Inner), null,
+            () => _authorization.ExecuteRequestAsync<Inner, Result<None>>(request,
+                () => CancelInnerBeforeObservation && Unit.HasActiveTransaction
+                    ? new TransactionBehavior<Inner, Result<None>>(_transactions, BackgroundJobDefinitionRegistry.CreateEmpty(),
+                        new ExplicitReadOnlyRequestCatalog(Unit.Mode == TransactionMode.ReadOnly ? [new ExplicitReadOnlyRequest(typeof(Inner))] : []))
+                        .Handle(request, InnerHandler, token)
+                    : InnerHandler(), token), token);
+
+        Task<Result<None>> InnerHandler()
         {
             DeniedHandlerEntered = true;
-            return Task.FromResult(Result.Ok(None.Value));
-        }), CancellationToken.None);
+            if (!CancelInnerBeforeObservation) return Task.FromResult(Result.Ok(None.Value));
+            var response = Task.FromResult(Result.Fail<None>(new Error(new LocalizedMessage("lockey_forbidden"))));
+            _innerCancellation.Cancel();
+            InnerAuthorityRevoked = _authorization.CurrentInvocation is null && _authorization.CurrentDecision is null;
+            return response;
+        }
+    }
 
     public async ValueTask DisposeAsync()
     {
@@ -183,6 +208,7 @@ internal sealed class AuthorizationBarrierHarness : IAsyncDisposable
         await _physical.DisposeAsync();
         await _source.DisposeAsync();
         await _business.DisposeAsync();
+        _innerCancellation.Dispose();
         _meters.Dispose();
     }
 
