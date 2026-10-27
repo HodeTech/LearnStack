@@ -43,10 +43,17 @@ internal sealed class TenantAuthorizationCandidateSource(IHttpContextAccessor ac
         && identity.TenantId == subject.TenantId && identity.OrganizationId == subject.OrganizationId
         && StronglyTypedId.IsAssigned(identity.ActorUserId) && identity.ActorUserId != UserId.SystemActor;
 
-    private sealed record CredentialWitness(HttpContext Http, HostClassification Host, VerifiedProviderSubject Subject,
-        ValidatedTenantIdentity Identity, SubjectAdmissionDecision Decision,
-        TenantSubjectAdmissionProvenance Provenance)
+    private sealed class CredentialWitness(HttpContext http, HostClassification host, VerifiedProviderSubject subject,
+        ValidatedTenantIdentity identity, SubjectAdmissionDecision decision,
+        TenantSubjectAdmissionProvenance provenance)
     {
+        internal HttpContext Http { get; } = http;
+        internal HostClassification Host { get; } = host;
+        internal VerifiedProviderSubject Subject { get; } = subject;
+        internal ValidatedTenantIdentity Identity { get; } = identity;
+        internal SubjectAdmissionDecision Decision { get; } = decision;
+        internal TenantSubjectAdmissionProvenance Provenance { get; } = provenance;
+
         public override string ToString() => nameof(CredentialWitness);
     }
 }

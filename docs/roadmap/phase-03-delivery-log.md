@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 715 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 758 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -93,6 +93,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 Step 1 review round 1 and setup correction (2026-10-27)](#p03-2-step-1-review-round-1-and-setup-correction-2026-10-27) — 26 lines
   - [P03-2 Step 1 review round 2 and closeout (2026-10-27)](#p03-2-step-1-review-round-2-and-closeout-2026-10-27) — 26 lines
   - [P03-2 Step 2 — Confined candidate and committed authority (2026-10-27)](#p03-2-step-2--confined-candidate-and-committed-authority-2026-10-27) — 89 lines
+  - [P03-2 Step 2 review round 1 and corrections (2026-10-27)](#p03-2-step-2-review-round-1-and-corrections-2026-10-27) — 43 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -3661,3 +3662,46 @@ pass. Leakwatch initially flags three nonfunctional connection-string canaries
 in the configuration unit fixture. They are represented with the existing typed
 Npgsql builder pattern instead of raw DSN literals; no scan is disabled or ignored.
 All six affected configuration cases pass again. This changes no runtime value.
+
+### P03-2 Step 2 review round 1 and corrections (2026-10-27)
+
+**Reviewed source: `8ec7ee18`, against `5ee659b1`.** Two fresh independent
+GPT-6 Astra reviewers at xhigh effort examine resource/configuration/job ownership
+and candidate/query/trust boundaries. Both request changes. The parent reproduces
+the existing authentication-authority architecture failure and verifies the job
+gate and missing role-bound controls against source; all three findings remain
+valid. No finding is dismissed as stale.
+
+- `BeginAuxiliary` reconciles positively completed authorization/evidence lanes
+  before its admission gate. Deterministic tests retain the owner's monitor while
+  completing the real task, so its queued release continuation cannot run first;
+  either lane then permits the ordinary helper. Incomplete or failed cleanup
+  still refuses. The exact field/call census and planted deletion controls grow
+  with this correction.
+- The existing authentication-authority census enumerates the new minter's exact
+  signatures, typed getters and private retained witness. The witness is a sealed
+  immutable class with fixed text, avoiding a record's generated formatting and
+  equality members. Only the exact newly constructed witness may travel through
+  the candidate's opaque evidence argument. Shape, extra-member and substituted
+  constructor controls retain the existing export/forgery refusals; no type-wide
+  or assembly-wide exception is added.
+- Real app-role dirty controls add a duplicate eligible template below the bound
+  and nine eligible Role IDs. Each refuses with empty facts and restores its exact
+  index/data. Nine roles necessarily repeat one of the eight finite templates;
+  these runtime controls do not pretend to isolate the numeric guard. Separate
+  compiled mutations remove/change the actual role-ID count/bound/branch/throw
+  path, independently exercising that guard.
+
+**Validation.** The corrected 35-case architecture population and 24-case
+candidate/job unit population pass with zero skips. All 29 actual PostgreSQL
+reader cases pass, including both new dirty Role graphs; the five compiled reader
+controls pass again with the numeric-guard mutations. Release builds report zero
+warnings/errors. No launch registration, HTTP operation, grant or schema changes
+in this correction. A second fresh independent review round follows the commit.
+
+**Count correction.** The prior Step 2 record transposes two cases in its
+population breakdown: the original 52 cases comprise nine source, **27 reader**,
+**ten lifecycle** and six pool cases. Its 50/52 combined outcome and corrected
+six-case progress rerun remain accurate. The reader population becomes 29 only
+with this correction's two added controls. This is a reporting correction, not
+additional execution evidence.

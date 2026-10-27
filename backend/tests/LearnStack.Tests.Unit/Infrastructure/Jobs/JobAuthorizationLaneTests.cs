@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Reflection;
 using FluentAssertions;
 using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Persistence;
@@ -9,6 +10,36 @@ namespace LearnStack.Tests.Unit.Infrastructure.Jobs;
 
 public sealed class JobAuthorizationLaneTests
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Legacy_business_helper_reconciles_completed_confined_lane_before_its_queued_release_continuation(bool authorization)
+    {
+        var owner = JobApplicationSourceOwner.Create();
+        using var binding = owner.Enter();
+        var lane = authorization ? owner.BeginAuthorizationRead() : owner.BeginAuthorizationEvidence();
+        var actual = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        lane.HoldActualTask(actual.Task);
+        await lane.CleanupAsync();
+        const BindingFlags privateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
+        var sync = typeof(JobApplicationSourceOwner).GetField("_sync", privateInstance)!.GetValue(owner)!;
+        var retained = typeof(JobApplicationSourceOwner).GetField(authorization ? "_authorization" : "_evidence", privateInstance)!;
+        JobApplicationAuxiliaryResources helper;
+        lock (sync)
+        {
+            // The completed task's queued releaser cannot acquire this monitor. The helper
+            // must reconcile the positively finished lane itself, on this reentrant path.
+            actual.SetResult();
+            retained.GetValue(owner).Should().BeSameAs(lane);
+            helper = owner.BeginAuditConfigLoad();
+            retained.GetValue(owner).Should().BeNull();
+        }
+        helper.HoldActualTask(Task.CompletedTask);
+        await helper.CleanupAsync();
+        owner.CleanupConfirmed.Should().BeTrue();
+        owner.RequireFreshScopeReady();
+    }
+
     [Theory]
     [InlineData(true, false)]
     [InlineData(true, true)]

@@ -150,6 +150,11 @@ public sealed class IdentityAuthorizationConventionTests
             (string)sql.Operand + " FOR UPDATE",
             (string)sql.Operand + "; SELECT public.fn_identity_admin_admission_state(@actor,@tenant)",
         }) Dirty(census, QueryOffenders, () => Replace(sql, OpCodes.Ldstr, dirty));
+        var roleLimit = RoleMaterializationLimits(read).Single();
+        Dirty(census, QueryOffenders, () => Replace(roleLimit.Bound, OpCodes.Ldc_I4, 9));
+        Dirty(census, QueryOffenders, () => RemoveInstruction(roleLimit.Count));
+        Dirty(census, QueryOffenders, () => RemoveInstruction(roleLimit.Branch));
+        Dirty(census, QueryOffenders, () => RemoveInstruction(roleLimit.Throw));
         var lifecycle = census.Body(Lifecycle, "ReadAuthorizationAsync");
         var ambient = census.Type(Lifecycle).Fields.Single(field => field.FieldType.FullName == "LearnStack.SharedKernel.Persistence.IUnitOfWork");
         Dirty(census, QueryOffenders, () =>
@@ -316,6 +321,8 @@ public sealed class IdentityAuthorizationConventionTests
             errors.Add("The Identity statement remains exact, committed-mode checked and bounded with excess detection");
         if (identitySql is not null) Set(errors, "Identity tables", Tables(identitySql),
             ["memberships", "membership_role_assignments", "roles", "role_permission_grants"]);
+        if (RoleMaterializationLimits(reader).Count() != 1)
+            errors.Add("The actual role-ID set must reject more than eight materialized IDs with the fixed unavailable exception");
         if (lifecycleSql is null || !lifecycleSql.Contains("transaction_read_only", StringComparison.Ordinal)
             || !lifecycleSql.Contains("transaction_isolation", StringComparison.Ordinal))
             errors.Add("Lifecycle validates the actual server transaction mode");
@@ -347,6 +354,34 @@ public sealed class IdentityAuthorizationConventionTests
     private static IEnumerable<string> Sql(MethodDefinition body) => body.Body.Instructions
         .Where(instruction => instruction.OpCode == OpCodes.Ldstr).Select(instruction => (string)instruction.Operand)
         .Where(text => text.StartsWith("SELECT", StringComparison.Ordinal) || text.StartsWith("WITH", StringComparison.Ordinal));
+
+    // All nine-role stored graphs necessarily repeat a finite template today. This
+    // independently pins the actual materialization guard without claiming its >8 path
+    // executes before the duplicate-template guard in those database controls.
+    private static IEnumerable<RoleMaterializationLimit> RoleMaterializationLimits(MethodDefinition method)
+    {
+        const string RoleIds = "System.Collections.Generic.HashSet`1<System.Guid>";
+        foreach (var count in Calls(method, RoleIds, "get_Count"))
+        {
+            if (count.Previous?.OpCode != OpCodes.Ldfld || count.Previous.Operand is not FieldReference set
+                || set.DeclaringType.FullName != method.DeclaringType.FullName || set.FieldType.FullName != RoleIds
+                || !set.Name.StartsWith("<roleIds>", StringComparison.Ordinal)
+                || Calls(method, RoleIds, "Add").Count(add => add.Previous?.Previous?.OpCode == OpCodes.Ldfld
+                    && add.Previous.Previous.Operand is FieldReference receiver && receiver.FullName == set.FullName) != 1)
+                continue;
+            var bound = count.Next;
+            var branch = bound?.Next;
+            var refused = branch?.Next;
+            var terminal = refused?.Next;
+            if (bound?.OpCode != OpCodes.Ldc_I4_8 || branch?.OpCode.Code is not (Code.Ble or Code.Ble_S)
+                || !IsCall(refused, Reader, "Unavailable") || terminal?.OpCode != OpCodes.Throw
+                || branch.Operand is not Instruction admitted || admitted != terminal.Next)
+                continue;
+            yield return new(count, bound, branch, terminal);
+        }
+    }
+
+    private sealed record RoleMaterializationLimit(Instruction Count, Instruction Bound, Instruction Branch, Instruction Throw);
 
     // Release Roslyn lowers ReferenceEquals to reference-identity branches. Match each
     // actual live getter, captured witness getter and rejecting comparison, not a method name.

@@ -27,9 +27,9 @@ public sealed partial class OutboxDispatchConventionTests
         Lane("_auxiliary", [("get_CleanupConfirmed", 2), ("RequireBusinessReady", 2), ("JoinAuxiliaryCleanupAsync", 1),
             ("BeginAuxiliary", 2), ("BeginConfinedLane", 2), ("Release", 1), ("OwnsAuxiliary", 1)], "BeginAuxiliary");
         Lane("_authorization", [("get_CleanupConfirmed", 2), ("RequireBusinessReady", 2), ("JoinAuxiliaryCleanupAsync", 1),
-            ("BeginAuxiliary", 1), ("BeginConfinedLane", 2), ("Release", 1), ("OwnsAuxiliary", 1)], "BeginConfinedLane");
+            ("BeginAuxiliary", 2), ("BeginConfinedLane", 2), ("Release", 1), ("OwnsAuxiliary", 1)], "BeginConfinedLane");
         Lane("_evidence", [("get_CleanupConfirmed", 2), ("RequireBusinessReady", 2), ("JoinAuxiliaryCleanupAsync", 1),
-            ("BeginAuxiliary", 1), ("BeginConfinedLane", 2), ("OwnsAuxiliary", 1)], "BeginConfinedLane");
+            ("BeginAuxiliary", 2), ("BeginConfinedLane", 2), ("OwnsAuxiliary", 1)], "BeginConfinedLane");
 
         Field(owner, "_cleanupFailed", "System.Boolean", false, 3,
             ["get_CleanupConfirmed", "RequireBusinessReady", "BeginAuxiliary", "BeginConfinedLane",
@@ -61,6 +61,14 @@ public sealed partial class OutboxDispatchConventionTests
         RequireConstant(resources, "HoldCommand", 3);
         RequireConstant(owner, "BeginAuthorizationRead", 1);
         RequireConstant(owner, "BeginAuthorizationEvidence", 0);
+        foreach (var method in new[] { "get_CleanupConfirmed", "RequireBusinessReady", "BeginAuxiliary", "BeginConfinedLane" })
+        {
+            var reconciliations = bodies.Where(item => item.Owner.DeclaringType == owner && item.Owner.Name == method)
+                .SelectMany(item => item.Body.Body.Instructions).Where(instruction => instruction.Operand is MethodReference target
+                    && SameType(target.DeclaringType, resources) && target.Name == "TryRelease").ToArray();
+            if (reconciliations.Length != 3 || reconciliations.Any(site => site.OpCode != OpCodes.Call && site.OpCode != OpCodes.Callvirt))
+                offenders.Add("Each job readiness/acquisition gate reconciles all three completed lanes: " + method);
+        }
         foreach (var type in new[] { "System.Data.Common.DbCommand", "System.Data.Common.DbTransaction", "System.Data.Common.DbConnection" })
             RequireCall("CleanupAsync", type, "DisposeAsync");
         RequireCall("DisposeReaderAsync", "System.Data.Common.DbDataReader", "DisposeAsync");
@@ -139,6 +147,18 @@ public sealed partial class OutboxDispatchConventionTests
         foreach (var site in laneSites)
             AssertMutation(census, "a deleted actual authorization/evidence job lane gate or retained join", () =>
                 ReplaceInstruction(site, OpCodes.Nop, null!), JobApplicationSourceOffenders);
+        var reconciliationSites = bodies.Where(item => item.Owner.DeclaringType == owner
+                && item.Owner.Name is "get_CleanupConfirmed" or "RequireBusinessReady" or "BeginAuxiliary" or "BeginConfinedLane")
+            .SelectMany(item => item.Body.Body.Instructions).Where(instruction => instruction.Operand is MethodReference target
+                && SameType(target.DeclaringType, resources) && target.Name == "TryRelease").ToArray();
+        reconciliationSites.Should().HaveCount(12, "four readiness/acquisition gates each reconcile the three retained lanes");
+        foreach (var site in reconciliationSites)
+        {
+            AssertMutation(census, "a deleted actual completed-lane reconciliation", () =>
+                ReplaceInstruction(site, OpCodes.Nop, null!), JobApplicationSourceOffenders);
+            AssertMutation(census, "a delegated completed-lane reconciliation", () =>
+                ReplaceInstruction(site, OpCodes.Ldftn, site.Operand), JobApplicationSourceOffenders);
+        }
         foreach (var method in resources.Methods.Where(method => method.Name is ".ctor" or "HoldCommand"))
         {
             var bound = method.Body.Instructions.Single(instruction => JobApplicationConstant(instruction) == 3);

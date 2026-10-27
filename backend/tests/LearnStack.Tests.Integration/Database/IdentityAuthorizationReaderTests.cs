@@ -172,6 +172,14 @@ public sealed class IdentityAuthorizationReaderTests(IdentityAuthorizationReader
         }
     }
 
+    [Fact]
+    public Task Duplicate_eligible_role_template_below_eight_refuses_without_publishing_facts() =>
+        AssertDuplicateRoleRefusesAsync(fullPopulation: false);
+
+    [Fact]
+    public Task Nine_eligible_roles_with_a_duplicate_template_refuse_without_truncating_facts() =>
+        AssertDuplicateRoleRefusesAsync(fullPopulation: true);
+
     [Theory]
     [InlineData("Suspended")]
     [InlineData("Revoked")]
@@ -472,6 +480,119 @@ public sealed class IdentityAuthorizationReaderTests(IdentityAuthorizationReader
         await ScopeAsync(app, transaction, SchemaFixture.TenantA, organization);
         await LockAsync(app, transaction, SchemaFixture.TenantA, actor, false);
         await ExecuteAsync(app, transaction, sql, values);
+        await transaction.CommitAsync();
+    }
+
+    private async Task AssertDuplicateRoleRefusesAsync(bool fullPopulation)
+    {
+        var duplicateRole = Guid.CreateVersion7();
+        var organization = fullPopulation ? SchemaFixture.OrgA1 : (Guid?)null;
+        var templates = IdentityFoundationManifest.Version1.Templates
+            .Where(template => template.BuiltInKey != BuiltInRoleKey.Learner
+                && (fullPopulation || template is { BuiltInKey: BuiltInRoleKey.Instructor, Scope: PermissionScope.Tenant }))
+            .ToArray();
+        var added = new List<BuiltInRoleTemplate>();
+        await using var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(fixture.Membership.Postgres.MigrationConnectionString);
+        var indexDefinition = await ScalarAsync<string>(owner, null,
+            "SELECT pg_get_indexdef('public.ux_roles_current_builtin_scope'::regclass)");
+        var indexDropped = false;
+        await using var harness = await AuthorizationReaderHarness.CreateAsync(fixture);
+        using var minter = new CandidateSource();
+        var candidate = minter.For(PersonA, SchemaFixture.TenantA, organization);
+        try
+        {
+            foreach (var template in templates)
+            {
+                await ChangeAssignmentAsync(template, add: true);
+                added.Add(template);
+            }
+            var before = await harness.Reader.ReadAsync(candidate);
+            before.Covers.Should().BeTrue();
+            before.Memberships.SelectMany(member => member.Roles).Should().HaveCount(fullPopulation ? 8 : 2);
+
+            // Only this unique index is removed. The corrupt duplicate is committed by
+            // learnstack_app through all remaining guards, then read by the real app-role source.
+            await ExecuteAsync(owner, null, "DROP INDEX public.ux_roles_current_builtin_scope");
+            indexDropped = true;
+            await MutateAsync(null, PersonA, """
+                INSERT INTO public.roles(id,tenant_id,built_in_key,permission_scope,created_at,created_by)
+                VALUES(@role,@tenant,'Instructor','Tenant',clock_timestamp(),@actor);
+                INSERT INTO public.membership_role_assignments(tenant_id,membership_id,role_id)
+                VALUES(@tenant,@member,@role)
+                """, ("role", duplicateRole), ("tenant", SchemaFixture.TenantA),
+                ("actor", UserId.SystemActor.Value), ("member", LearnerMembershipA));
+
+            await using (var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(fixture.AppConnectionString))
+            await using (var transaction = await app.BeginTransactionAsync())
+            {
+                await SchemaQueries.AssertApplicationRoleAsync(app);
+                await ScopeAsync(app, transaction, SchemaFixture.TenantA, organization);
+                (await ScalarAsync<long>(app, transaction, """
+                    SELECT count(DISTINCT role.id)
+                    FROM public.memberships AS member
+                    JOIN public.membership_role_assignments AS assignment
+                      ON assignment.tenant_id=member.tenant_id AND assignment.membership_id=member.id
+                     AND assignment.organization_id IS NOT DISTINCT FROM member.organization_id
+                    JOIN public.roles AS role ON role.tenant_id=assignment.tenant_id AND role.id=assignment.role_id
+                    WHERE member.tenant_id=@tenant AND member.user_id=@actor AND member.status='Active'
+                      AND member.deleted_at IS NULL AND member.deleted_by IS NULL
+                      AND (member.organization_id IS NULL OR member.organization_id=@organization)
+                      AND role.deleted_at IS NULL AND role.deleted_by IS NULL
+                      AND role.permission_scope=CASE WHEN member.organization_id IS NULL THEN 'Tenant' ELSE 'Organization' END
+                    """, ("tenant", SchemaFixture.TenantA), ("actor", PersonA), ("organization", organization)))
+                    .Should().Be(fullPopulation ? 9 : 3);
+            }
+            var result = await harness.Reader.ReadAsync(candidate);
+            result.Outcome.Should().Be(IdentityAuthorizationOutcome.Unavailable);
+            result.Memberships.Should().BeEmpty();
+            // The ninth row necessarily repeats one of eight finite templates. This
+            // proves excess/ambiguous graph refusal; compiled controls independently pin the >8 guard.
+        }
+        finally
+        {
+            try
+            {
+                if (indexDropped) await RestoreDuplicateRoleAsync(owner, duplicateRole, indexDefinition);
+            }
+            finally
+            {
+                foreach (var template in added.AsEnumerable().Reverse()) await ChangeAssignmentAsync(template, add: false);
+            }
+        }
+
+        (await ScalarAsync<string>(owner, null, "SELECT pg_get_indexdef('public.ux_roles_current_builtin_scope'::regclass)"))
+            .Should().Be(indexDefinition);
+        var restored = await harness.Reader.ReadAsync(candidate);
+        restored.Covers.Should().BeTrue();
+        restored.Memberships.SelectMany(member => member.Roles).Should().HaveCount(fullPopulation ? 2 : 1);
+        await using var verifier = (NpgsqlConnection)await PostgresFixture.OpenAsync(fixture.AppConnectionString);
+        await using var verification = await verifier.BeginTransactionAsync();
+        await ScopeAsync(verifier, verification, SchemaFixture.TenantA);
+        (await ScalarAsync<long>(verifier, verification, "SELECT count(*) FROM public.roles WHERE id=@role", ("role", duplicateRole)))
+            .Should().Be(0);
+        (await ScalarAsync<long>(verifier, verification, "SELECT count(*) FROM public.membership_role_assignments WHERE role_id=@role", ("role", duplicateRole)))
+            .Should().Be(0);
+    }
+
+    private static async Task RestoreDuplicateRoleAsync(NpgsqlConnection owner, Guid duplicateRole, string indexDefinition)
+    {
+        await using var transaction = await owner.BeginTransactionAsync();
+        await ScopeAsync(owner, transaction, SchemaFixture.TenantA);
+        // Physical removal of this case-owned corrupt row needs only these table-owner
+        // trigger changes. The transaction restores all triggers and the exact saved index together.
+        await ExecuteAsync(owner, transaction, """
+            ALTER TABLE public.membership_role_assignments DISABLE TRIGGER tg_membership_role_assignments_mutation_guard;
+            ALTER TABLE public.membership_role_assignments DISABLE TRIGGER tg_membership_role_assignments_complete_graph;
+            ALTER TABLE public.roles DISABLE TRIGGER tg_roles_mutation_guard;
+            ALTER TABLE public.roles DISABLE TRIGGER tg_roles_complete_graph;
+            DELETE FROM public.membership_role_assignments WHERE tenant_id=@tenant AND role_id=@role;
+            DELETE FROM public.roles WHERE tenant_id=@tenant AND id=@role;
+            ALTER TABLE public.membership_role_assignments ENABLE TRIGGER tg_membership_role_assignments_mutation_guard;
+            ALTER TABLE public.membership_role_assignments ENABLE TRIGGER tg_membership_role_assignments_complete_graph;
+            ALTER TABLE public.roles ENABLE TRIGGER tg_roles_mutation_guard;
+            ALTER TABLE public.roles ENABLE TRIGGER tg_roles_complete_graph
+            """, ("tenant", SchemaFixture.TenantA), ("role", duplicateRole));
+        await ExecuteAsync(owner, transaction, indexDefinition);
         await transaction.CommitAsync();
     }
 

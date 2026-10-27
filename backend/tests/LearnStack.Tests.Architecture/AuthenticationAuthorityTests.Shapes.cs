@@ -36,6 +36,13 @@ public sealed partial class AuthenticationAuthorityTests
         [BindingResolver + ".ResolveExistingAsync"] = Signature(BindingResolver, "ResolveExistingAsync", TaskType + "`1<LearnStack.Modules.Identity.Application.Contracts.Bindings.IdentityBindingResult>", Verified, "System.Threading.CancellationToken"),
         [Provenance + "..ctor"] = Signature(Provenance, ".ctor", "System.Void", Verified),
         [Provenance + ".Matches"] = Signature(Provenance, "Matches", "System.Boolean", Verified),
+        [CandidateSource + ".ForValidatedScope"] = Signature(CandidateSource, "ForValidatedScope", "LearnStack.SharedKernel.Permissions.AuthorizationCandidate", "LearnStack.SharedKernel.Identifiers.TenantId", Organization),
+        [CandidateSource + ".IsEvidenceCurrent"] = Signature(CandidateSource, "IsEvidenceCurrent", "System.Boolean", "System.Object"),
+        [CandidateSource + ".MatchesIdentity"] = Signature(CandidateSource, "MatchesIdentity", "System.Boolean", Identity, Verified),
+        [CredentialWitness + "..ctor"] = Signature(CredentialWitness, ".ctor", "System.Void", Http, Host, Verified, Identity,
+            Authentication + "SubjectAdmissionDecision", Provenance),
+        [CredentialWitness + ".get_Subject"] = Signature(CredentialWitness, "get_Subject", Verified),
+        [CredentialWitness + ".get_Identity"] = Signature(CredentialWitness, "get_Identity", Identity),
         [Resolver + ".BuildAttemptAsync"] = Signature(Resolver, "BuildAttemptAsync", TaskType + "`1<" + Attempt + ">", Http, Host, ScopeValidator, Membership, Identity),
         [Resolver + ".RecordRefusalAsync"] = Signature(Resolver, "RecordRefusalAsync", TaskType, Attempt, Host, Identity, Recorder),
         [Resolver + ".InvokeAsync"] = Signature(Resolver, "InvokeAsync", TaskType, Http, ScopeValidator, Membership, Recorder),
@@ -143,6 +150,36 @@ public sealed partial class AuthenticationAuthorityTests
         && !provenance.HasProperties && !provenance.HasEvents && !provenance.HasInterfaces
         && !provenance.HasNestedTypes && !provenance.HasGenericParameters;
 
+    private static bool HasClosedCredentialWitnessShape(TypeDefinition witness)
+    {
+        var properties = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["Http"] = Http,
+            ["Host"] = Host,
+            ["Subject"] = Verified,
+            ["Identity"] = Identity,
+            ["Decision"] = Authentication + "SubjectAdmissionDecision",
+            ["Provenance"] = Provenance
+        };
+        return witness.IsSealed && witness.IsNestedPrivate && witness.BaseType.FullName == "System.Object"
+            && !witness.HasInterfaces && !witness.HasEvents && !witness.HasNestedTypes && !witness.HasGenericParameters
+            && Same(witness.Methods.Select(method => method.FullName), properties.Select(property =>
+                    Signature(CredentialWitness, "get_" + property.Key, property.Value))
+                .Append(ApprovedSites[CredentialWitness + "..ctor"])
+                .Append(Signature(CredentialWitness, "ToString", "System.String")))
+            && Same(witness.Properties.Select(property => property.Name), properties.Keys)
+            && witness.Properties.All(property => property.SetMethod is null && property.GetMethod.IsAssembly
+                && property.PropertyType.FullName == properties[property.Name])
+            && Same(witness.Fields.Select(field => field.Name + ":" + field.FieldType.FullName), properties.Select(property =>
+                "<" + property.Key + ">k__BackingField:" + property.Value))
+            && witness.Fields.All(field => field.IsPrivate && field.IsInitOnly && !field.IsStatic)
+            && witness.Methods.Single(method => method.Name == "ToString").Body.Instructions
+                .Where(instruction => instruction.OpCode != OpCodes.Nop).Select(instruction => instruction.OpCode.Code)
+                .SequenceEqual([Code.Ldstr, Code.Ret])
+            && witness.Methods.Single(method => method.Name == "ToString").Body.Instructions
+                .Single(instruction => instruction.OpCode == OpCodes.Ldstr).Operand as string == "CredentialWitness";
+    }
+
     private static bool IsOpaqueProjectionArgument(TypeReference type, MethodReference? method = null, TypeReference? owner = null)
     {
         if (type is GenericParameter parameter)
@@ -176,7 +213,14 @@ public sealed partial class AuthenticationAuthorityTests
         instruction.OpCode.Code is Code.Box or Code.Stelem_Ref
         || instruction.OpCode.Code is Code.Stfld or Code.Stsfld && instruction.Operand is FieldReference field
             && IsOpaqueProjectionArgument(field.FieldType, owner: field.DeclaringType)
-        || instruction.Operand is MethodReference target && ExportsProjection(target));
+        || instruction.Operand is MethodReference target && ExportsProjection(target)
+            && !IsClosedWitnessForwarding(method, instruction, target));
+
+    private static bool IsClosedWitnessForwarding(Method method, Instruction instruction, MethodReference target) =>
+        method.Site == ApprovedSites[CandidateSource + ".ForValidatedScope"]
+        && target.FullName == "LearnStack.SharedKernel.Permissions.AuthorizationCandidate LearnStack.SharedKernel.Permissions.AuthorizationCandidate/MintingSource::ForCandidate(LearnStack.SharedKernel.Permissions.AuthorizationSourceKind,LearnStack.SharedKernel.Identifiers.UserId,LearnStack.SharedKernel.Identifiers.TenantId,System.Nullable`1<LearnStack.SharedKernel.Identifiers.OrganizationId>,System.Object)"
+        && instruction.Previous is { OpCode.Code: Code.Newobj, Operand: MethodReference constructor }
+        && constructor.FullName == ApprovedSites[CredentialWitness + "..ctor"];
 
     private static bool ExportsProjection(MethodReference target) =>
         // At these few trust-boundary owners an untyped object/object[]

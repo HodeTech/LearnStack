@@ -231,6 +231,8 @@ public sealed class JobApplicationSourceOwner
         {
             RequireBinding();
             _auxiliary?.TryRelease();
+            _authorization?.TryRelease();
+            _evidence?.TryRelease();
             if (_closed || _cleanupFailed || _auxiliary is not null || _authorization is not null || _evidence is not null) throw Refused();
             _used = true;
             return _auxiliary = new JobApplicationAuxiliaryResources(this);

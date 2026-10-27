@@ -84,6 +84,17 @@ public sealed partial class AuthenticationAuthorityTests
         verifiedField.IsInitOnly = false;
         Offenders(modules).Should().NotBeEmpty("verified evidence must remain immutable for cached quota provenance");
         verifiedField.IsInitOnly = true;
+        var witness = api.GetType(CandidateSource).NestedTypes.Single(type => type.FullName == CredentialWitness);
+        var witnessField = witness.Fields.Single(candidate => Is(candidate.FieldType, Identity));
+        witnessField.IsInitOnly = false;
+        Offenders(modules).Should().Contain("Candidate credential witness must retain its private immutable nonformatting shape.");
+        witnessField.IsInitOnly = true;
+        var witnessText = witness.Methods.Single(method => method.Name == "ToString").Body.Instructions
+            .Single(instruction => instruction.OpCode == OpCodes.Ldstr);
+        var fixedText = witnessText.Operand;
+        witnessText.Operand = "Unexpected credential text";
+        Offenders(modules).Should().Contain("Candidate credential witness must retain its private immutable nonformatting shape.");
+        witnessText.Operand = fixedText;
         var actor = identity.Properties.Single(property => property.Name == "ActorUserId").SetMethod;
         var init = actor.ReturnType;
         actor.ReturnType = api.TypeSystem.Void;
@@ -178,6 +189,11 @@ public sealed partial class AuthenticationAuthorityTests
     [InlineData("feature-property")]
     [InlineData("feature-field")]
     [InlineData("feature-constructor")]
+    [InlineData("witness-method")]
+    [InlineData("witness-property")]
+    [InlineData("witness-field")]
+    [InlineData("witness-constructor")]
+    [InlineData("candidate-opaque-forwarding")]
     [InlineData("generic-export")]
     [InlineData("object-export")]
     [InlineData("identity-constraint")]
@@ -186,9 +202,27 @@ public sealed partial class AuthenticationAuthorityTests
     {
         Offenders(modules).Should().BeEmpty();
         var api = modules.Single(module => module.Assembly.Name.Name == "LearnStack.Api");
-        var owner = api.GetType(mutation.StartsWith("feature-", StringComparison.Ordinal) ? Feature
-            : mutation.StartsWith("verified-", StringComparison.Ordinal) ? Verified : Identity);
+        var owner = mutation.StartsWith("witness-", StringComparison.Ordinal)
+            ? api.GetType(CandidateSource).NestedTypes.Single(type => type.FullName == CredentialWitness)
+            : api.GetType(mutation.StartsWith("feature-", StringComparison.Ordinal) ? Feature
+                : mutation.StartsWith("verified-", StringComparison.Ordinal) ? Verified : Identity);
         var factory = api.GetType(Profile).Methods.Single(method => method.Name == "TryReadValidated");
+        if (mutation == "candidate-opaque-forwarding")
+        {
+            var minter = api.GetType(CandidateSource).Methods.Single(method => method.Name == "ForValidatedScope");
+            var forwarding = minter.Body.Instructions.Single(instruction => instruction.Operand is MethodReference target
+                && target.DeclaringType.FullName == "LearnStack.SharedKernel.Permissions.AuthorizationCandidate/MintingSource"
+                && target.Name == "ForCandidate");
+            // Erasing any other object here must not inherit the one closed
+            // private witness constructor's exemption.
+            var construction = forwarding.Previous;
+            var original = construction.Operand;
+            construction.Operand = api.ImportReference(typeof(object).GetConstructor(Type.EmptyTypes)!);
+            Offenders(modules).Should().Contain(value => value.StartsWith("Opaque typed identity/feature export:", StringComparison.Ordinal));
+            construction.Operand = original;
+            Offenders(modules).Should().BeEmpty("restoring the exact witness construction restores the clean graph");
+            return;
+        }
         if (mutation.EndsWith("-property", StringComparison.Ordinal))
             owner.Properties.Add(new PropertyDefinition("Extra", PropertyAttributes.None, api.TypeSystem.String));
         else if (mutation.EndsWith("-field", StringComparison.Ordinal))
