@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 758 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 790 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -94,6 +94,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 Step 1 review round 2 and closeout (2026-10-27)](#p03-2-step-1-review-round-2-and-closeout-2026-10-27) — 26 lines
   - [P03-2 Step 2 — Confined candidate and committed authority (2026-10-27)](#p03-2-step-2--confined-candidate-and-committed-authority-2026-10-27) — 89 lines
   - [P03-2 Step 2 review round 1 and corrections (2026-10-27)](#p03-2-step-2-review-round-1-and-corrections-2026-10-27) — 43 lines
+  - [P03-2 Step 2 review round 2 and closeout (2026-10-27)](#p03-2-step-2-review-round-2-and-closeout-2026-10-27) — 32 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -3705,3 +3706,35 @@ population breakdown: the original 52 cases comprise nine source, **27 reader**,
 six-case progress rerun remain accurate. The reader population becomes 29 only
 with this correction's two added controls. This is a reporting correction, not
 additional execution evidence.
+
+### P03-2 Step 2 review round 2 and closeout (2026-10-27)
+
+**Reviewed source: `7a7bb306`, against `5ee659b1`.** Two new independent
+GPT-6 Astra reviewers at xhigh effort review the complete step and its first-round
+corrections. The trust/query/lifecycle/proof reviewer and the separate resource/
+configuration/job/pool reviewer both approve with no verified actionable findings.
+Neither edits the repository or inspects preexisting worktrees.
+
+The trust reviewer verifies the exact closed witness/forwarding census, actual
+app-role three/nine-role controls and restoration, independent materialization
+guard mutations, query bounds, committed lifecycle handoff and fail-closed
+publication. The resource reviewer verifies completed-lane reconciliation,
+retained cleanup/capacity/deadline ownership and actual downstream reservation
+controls. Its independent Release no-build/no-restore unit run passes all 13
+job-lane/configuration cases with zero skips. Both run diff checks; neither
+reruns Docker, full suites or hosted qualification. Recorded parent runs remain
+author evidence rather than independently repeated execution.
+
+**Closeout.** Step 2 and both review rounds are complete. Its confined sources,
+candidate and reader are implemented; overall live-policy/evidence obligations
+remain Registered and launch still uses deny-all membership and the application
+shell. Step 3 proceeds automatically under the approved plan.
+
+**Step 3 dependency ordering.** Bring the already approved internal member-directory
+query/handler/read port and its MUST catalogue entry forward from Step 4, so the
+operation-bound read witness has a real production consumer in its implementation
+and SQL/EF proofs. This changes sequencing only: the existing Tenant
+`identity.membership.admin` pair, finite manifest, sensitive disclosure contract,
+HTTP activation in Step 5 and unchanged native BFF allowlist remain. The shared
+application coordinator uses a SharedKernel decision port; Identity retains its
+own facts and evaluation. No common Application-to-module dependency is added.
