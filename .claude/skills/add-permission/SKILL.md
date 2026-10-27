@@ -22,9 +22,11 @@ admitted operation and update its matrix. Registration grants no Role authority.
 
 > **Current implementation boundary.** P03-1 supplies `PermissionDefinition` and
 > the retained `IdentityFoundationManifest.Version1` with actual seed consumers.
-> Live enforcement and separately admitted grant adoption belong to P03-2; its
+> Jointly Accepted ADR-0076/0077 select the
+> [live contract](../../../docs/standards/19-permissions.md#live-permission-enforcement-contract);
+> enforcement/adoption runtime implementation remains P03-2. The
 > [phase decision register](../../../docs/roadmap/phase-03-identity-admin.md#the-decision-register)
-> owns acceptance. No `IModule` registration API or generated Roles facade is
+> owns gate state. No `IModule` registration API or generated Roles facade is
 > implied. Read the current source and accepted operation contract before coding;
 > do not introduce a module loader to match an illustrative sketch.
 
@@ -104,20 +106,16 @@ database registry guard/migration and approved grant contract before its writer.
 
 ### Step 3: Apply to the endpoint
 
-```csharp
-[ApiController]
-[Route("enrollments")]   // the versioned prefix is the convention's, not yours
-public sealed class EnrollmentsController : ControllerBase
-{
-    [HttpGet]
-    [Authorize(Policy = "enrollment.enrollment.read")]
-    public Task<IActionResult> List(...) => ...;
+Bind the endpoint to the admitted named ASP.NET policy and exact application
+request policy from the actual composition source. Scoped pair identity is
+explicit: a same-key Tenant/Organization pair is not one permission. Do not
+infer a functioning evaluator from an attribute or invent a policy API ahead
+of P03-2 implementation. Unknown, missing or conflicting classifications deny
+at runtime. Application step 5 repeats the policy on direct/nested dispatch.
 
-    [HttpPost]
-    [Authorize(Policy = "enrollment.enrollment.write")]
-    public Task<IActionResult> Create(...) => ...;
-}
-```
+Public and special AccountSite classifications retain their independent
+HostScope/physical mode boundaries. Platform and additional human-facing
+operations remain gated by their owning phase; this workflow grants no route.
 
 The admitted surface must prove the 4-step auth order
 ([11-security.md § Authorization](../../../docs/standards/11-security.md));
@@ -130,23 +128,15 @@ an attribute alone does not install it:
 
 ### Step 4: Resource scope (when needed)
 
-For "instructor edits only own courses", add an authorization handler:
+Use the admitted application-layer resource policy after capability admission
+and visible-scope lookup. A missing or foreign-scope resource is masked 404; a
+visible resource failing ownership is 403. The application policy consumes the
+trusted actor and exact resource facts; module code acquires no ASP.NET types.
 
-```csharp
-public sealed class CourseOwnedByActorHandler
-    : IAuthorizationHandler<CourseOwnedByActorRequirement, Course>
-{
-    public Task HandleAsync(AuthorizationHandlerContext ctx, ...)
-    {
-        if (resource.OwnerId == ctx.Actor.UserId) ctx.Succeed();
-        return Task.CompletedTask;
-    }
-}
-```
-
-The application-layer policy class combines with the permission key:
-permission grants the **capability** (`education.course.write`), policy decides
-**on which rows** (own course only).
+[Security's live policy contract](../../../docs/standards/11-security.md#live-authorization-contract)
+owns this ordering. Declared tenant-wide reads use the immutable
+[operation witness](../../../docs/standards/05-database.md#operation-bound-read-authority),
+never a header/body Boolean, Role name or cleared organization write scope.
 
 ### Step 5: Update the matrix
 
@@ -194,8 +184,11 @@ denied coverage; verify its current catalogue status and nonempty subjects.
 - The endpoint rejects unauthenticated, wrong-tenant, and wrong-permission callers
   with the right status codes.
 - The permission appears in `docs/modules/<module>/permissions.md`.
-- The architecture tests `Permission_Keys_Match_Convention` and
-  `Permission_Scope_Matches_Resource_Scope` are green.
+- Check `Permission_Keys_Match_Convention`,
+  `Permission_Scope_Matches_Resource_Scope` and
+  `Permission_Registry_Has_DeniedTest` against their current catalogue status.
+  Their P03-2 controls are Registered at acceptance; run the actual implemented
+  owners before claiming green, and never promote an absent proof.
 
 ## Common pitfalls
 

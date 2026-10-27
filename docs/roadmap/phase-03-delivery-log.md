@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 574 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 600 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -90,6 +90,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 revised proposal review round 1 (2026-10-27)](#p03-2-revised-proposal-review-round-1-2026-10-27) — 21 lines
   - [P03-2 revised proposal review round 2 and readiness (2026-10-27)](#p03-2-revised-proposal-review-round-2-and-readiness-2026-10-27) — 42 lines
   - [P03-2 joint acceptance and Step 1 (2026-10-27)](#p03-2-joint-acceptance-and-step-1-2026-10-27) — 117 lines
+  - [P03-2 Step 1 review round 1 and setup correction (2026-10-27)](#p03-2-step-1-review-round-1-and-setup-correction-2026-10-27) — 26 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -3517,3 +3518,29 @@ with zero skips, including the new planned/off-path matrix population. Changed
 relative targets, private-scratch reference scan and `git diff --check` pass.
 These tests validate documentation/catalogue compatibility, not the new runtime
 contract. The two fresh implementation-review rounds remain next.
+
+### P03-2 Step 1 review round 1 and setup correction (2026-10-27)
+
+**Reviewed source:** `e8266bbb` against approved `725d255a`. Two new independent
+`gpt-6-astra` reviewers at xhigh effort inspect authority/execution/census and
+evidence/privacy/corpus. Neither authored the carrier changes. The authority
+review independently reproduces the 46-request/nine-action baseline and checks
+candidate/witness/delegation/HostScope and own-record Amendment boundaries. The
+evidence review confirms the approved barrier, occurrence matching, crash limits,
+retention and planned/off-path distinctions. These are documentation/source
+reviews; no new runtime progress or durability proof is claimed.
+
+**Verified finding:** the environment template and local-development skill lack
+the approved pending setup handoff. Their four-login-role baseline is preserved,
+but their wording now distinguishes roles from additional app-role sources and
+links the coupled source/topology ledger. Executable environment assignments
+remain unchanged; API/Seeder projections change with qualified runtime wiring.
+The parent also completes the approved permission-workflow reconciliation:
+replace illustrative endpoint/resource-handler snippets with the accepted scoped
+HTTP/application policy, resource ordering and operation-witness contract, without
+inventing an implementation API. Registered proof status remains explicit.
+
+The authority slice approves its inspected contract scope; the evidence slice
+approves with the setup minor above. The parent verifies/corrects that finding;
+a second fresh independent round reviews the committed correction and complete
+Step 1 delta. Work stays on `development`; no runtime wiring is changed.
