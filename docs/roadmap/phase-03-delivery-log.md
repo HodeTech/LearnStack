@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,059 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,076 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -120,6 +120,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 decomposed authority review round 1 and measured plan (2026-10-28)](#p03-2-decomposed-authority-review-round-1-and-measured-plan-2026-10-28) — 40 lines
   - [P03-2 authority decomposition review round 2 and final source freeze (2026-10-28)](#p03-2-authority-decomposition-review-round-2-and-final-source-freeze-2026-10-28) — 27 lines
   - [P03-2 final-source A exhaustion and resolution profiling (2026-10-28)](#p03-2-final-source-a-exhaustion-and-resolution-profiling-2026-10-28) — 59 lines
+  - [P03-2 resolution correction review round 1 (2026-10-28)](#p03-2-resolution-correction-review-round-1-2026-10-28) — 17 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -5032,3 +5033,20 @@ is separate from dequeue visitation and is recreated for every clean, dirty and
 restored detector call. No production code, plan weight, selector, population,
 concurrency, deadline or reserve changes. Fresh independent review rounds and
 new complete hosted A/B remain open; no Architecture-window ADR is introduced.
+
+### P03-2 resolution correction review round 1 (2026-10-28)
+
+Two fresh independent reviewers (`gpt-6-astra`, xhigh) approve
+`05a54634..c1f1d4c1` without verified findings. The semantic review proves the
+separate expansion/visitation sets retain direct and transitive helper coverage
+and fresh per-evaluation state. Both reviewers reconstruct every unchanged source
+byte and independently check the raw three-case TRXs and stable binary bindings.
+The evidence reviewer also reconciles all **24** failed-attempt archives, all
+**20** producer unions and the four disclosed historical case durations.
+
+Fresh actual discovery at `c1f1d4c1` completes all **64** protocols with unchanged
+source/four DLLs, no untracked backend/script source and the same **6,927** cases.
+Both A/B layouts have **20** unique owners and zero unknown weights. Plan
+`f5161ae9` and manifest `1fa6c70c` remain unchanged; no weight, selector, policy
+or qualification requirement changes. The second fresh review round and complete
+final-source hosted A/B remain open.
