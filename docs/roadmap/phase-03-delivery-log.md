@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 1,933 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 1,973 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -117,6 +117,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 census performance review round 1 (2026-10-28)](#p03-2-census-performance-review-round-1-2026-10-28) — 17 lines
   - [P03-2 census performance review round 2 and source freeze (2026-10-28)](#p03-2-census-performance-review-round-2-and-source-freeze-2026-10-28) — 27 lines
   - [P03-2 authority proof decomposition and preservation (2026-10-28)](#p03-2-authority-proof-decomposition-and-preservation-2026-10-28) — 40 lines
+  - [P03-2 decomposed authority review round 1 and measured plan (2026-10-28)](#p03-2-decomposed-authority-review-round-1-and-measured-plan-2026-10-28) — 40 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -4903,3 +4904,43 @@ unchanged. Historical logs and the retired selector's weight remain historical.
 Clean uninstrumented whole-Fact timing receipts, actual full-population discovery,
 a reviewed plan revision, fresh reviews and complete final-source hosted A/B
 remain required before closeout.
+
+### P03-2 decomposed authority review round 1 and measured plan (2026-10-28)
+
+Two fresh independent reviewers (`gpt-6-astra`, xhigh) approve
+`33142a89..23262e95` without verified findings. They independently reconstruct
+all moved source blocks, the unchanged capability factory, runtime mutation/result
+multisets and failed-attempt case evidence. Fresh census ownership and whole-method
+selection remain explicit; diagnostic instrumentation never ships or supplies
+weights.
+
+A clean Release solution build at `23262e95` passes. With source/tree and all
+four DLL hashes unchanged before/after, the uninstrumented run passes **7/7**:
+five complete new Facts and both catalogue controls. Their actual whole-Fact
+weights are **8,967 / 22,619 / 80,941 / 45,128 / 37,824 ms** (sum case duration,
+round upward). The raw TRX SHA-256 is
+`d944c6abf53848f6e9ae7f425e4397a712d885e4d91634cb2efae239976ca8bc`.
+The proof reviewer independently joins actual TestMethod metadata to results,
+checks both catalogue exclusions and the clean source/binary bindings, and
+approves the candidate plan. No display-text parsing or division of a historical
+combined duration produces these weights.
+
+The revised plan adds one explicitly local timing source and five weights:
+**88 sources / 1,722 weights**. All **1,717** prior rows and **87** prior sources,
+including the retired selector's **603,500 ms**, remain unchanged. The new digest
+is `f5161ae946c9e3268c48be8d365cb653a190f218bbb1492731a0c7097e8d0c0d`.
+Every other plan setting is unchanged. These are advisory local observations,
+not hosted wall-time bounds.
+
+Actual discovery repeats all **64** requests, independently reconciles both
+**20-owner** assignments, and finds exactly one removed/five added selectors.
+All other case identities remain unchanged. The population is **6,927**:
+Unit **2,998**, Integration **3,331** (offline **324**, ordinary **2,976**, native
+**31**), Architecture **593**, Contract **5**. Backend has **3,920** cases;
+integration has **3,007**. Both assignments have zero unknown weights. Maximum
+filter sizes remain A **18,842** / B **28,198** bytes, below 32,768. The manifest
+is `1fa6c70c812d63948a2e7adc0bc762907b4c3496130088f818061c56ba67964e`.
+Comparison of old/new plans uses this same new population, not unlike historical
+bins. Planner controls pass **83/83**, result/fixture **40/40**, native owner
+**94/94**. The fresh second review round and complete final-source hosted A/B
+remain open.

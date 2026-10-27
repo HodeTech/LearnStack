@@ -623,6 +623,13 @@
       "sourceSha": "696671b5a13202df87b2a8903d8da550a3067c96",
       "runId": "40577851910",
       "note": "Complete passing architecture-5 producer: 175 cases, 53 whole selectors. Summed milliseconds, historical maxima retained; failed overall run is not whole-run qualification."
+    },
+    "p032-authority-decomposed-local": {
+      "kind": "local_trx",
+      "artifactSha256": "d944c6abf53848f6e9ae7f425e4397a712d885e4d91634cb2efae239976ca8bc",
+      "sourceSha": "23262e95a02f93c7c3c77b458e87d92b7567f74f",
+      "runId": null,
+      "note": "Clean 23262e95 whole-Fact TRX: 7 Passed/0 skips; five decomposed authority Facts weighted, two catalogue controls excluded. Actual source/tree/four DLLs stable before/after. Exact summed ms/ceil; retired selector weight retained. Local advisory, not hosted fit or aggregate qualification."
     }
   },
   "weights": [
@@ -1642,9 +1649,39 @@
     },
     {
       "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobAuthorityCensusMutationTests.Background_job_admission_rejects_extra_activators_and_removed_privileged_guards",
+      "milliseconds": 8967,
+      "source": "p032-authority-decomposed-local"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobAuthorityCensusMutationTests.Background_job_authority_census_detects_extra_activation_and_removed_live_guards",
       "milliseconds": 603500,
       "source": "pr38-class-alias-job-authority-census-ef981129"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobAuthorityCensusMutationTests.Background_job_authority_provenance_rejects_forgery_and_missing_publication_gates",
+      "milliseconds": 37824,
+      "source": "p032-authority-decomposed-local"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobAuthorityCensusMutationTests.Background_job_framework_capabilities_reject_extra_dispatch_and_issuance",
+      "milliseconds": 45128,
+      "source": "p032-authority-decomposed-local"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobAuthorityCensusMutationTests.Background_job_generation_binding_rejects_extra_capabilities_and_missing_sites",
+      "milliseconds": 80941,
+      "source": "p032-authority-decomposed-local"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobAuthorityCensusMutationTests.Background_job_routing_credentials_reject_store_and_holder_escapes",
+      "milliseconds": 22619,
+      "source": "p032-authority-decomposed-local"
     },
     {
       "assembly": "learnstack.tests.architecture",
