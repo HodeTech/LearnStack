@@ -248,8 +248,8 @@ making the business handler populate or replace its actor. HTTP early denials
 use the same typed composer through a short standalone owner; application
 denials are retained by the common frame, included in its pre-success barrier
 and reconciled independently of the business outcome on failure/uncertainty.
-Legitimate plural intents remain associated with their exact
-invocation, not an ambient last-result slot.
+Legitimate plural intents remain associated with their exact invocation, not an
+ambient last-result slot.
 
 ### Failure and capacity cost
 

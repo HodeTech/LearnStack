@@ -151,6 +151,8 @@ admitted nested and post-lock checks before parents release anything. Hold all
 authorization slots separately to prove immediate excess refusal and recovery
 only after actual cleanup. A deliberate shared-downstream-pool dirty topology
 must fail that progress control. These are correctness/activation proofs now;
+through PgBouncer, hold actual open server transactions and verify distinct
+backend PIDs, not merely checked-out client connectors that may own no server.
 Phase 11 owns actual production topology/instance-capacity qualification before
 deployment activation, not this packet's missing liveness test. General database
 outage/DDL blocking and excess offered load still can refuse or time out.
@@ -325,13 +327,14 @@ and query evidence is not a production p95 guarantee.
 
 ## Implementation Notes
 
-Acceptance appends dated navigation/extension Amendments to ADR-0036/0040/0073,
-and an ADR-0047 extension for tracked job authorization/evidence lanes,
-and a bounded-supersession Amendment to ADR-0064 for the new directory surface
+Acceptance appends dated navigation/extension Amendments to ADR-0036/0040/0073
+and ADR-0047's tracked job authorization/evidence lanes, plus a
+bounded-supersession Amendment to ADR-0064 for the new directory surface
 and AccountSite live admission. Accepted bodies/status/dates remain historical.
 Reconcile Standards 04/05/11/19/21, Identity permission/audit contracts,
-Tenancy/Education public permission matrices, Architecture 09/13/33, glossary and
-`add-permission`'s obsolete IModule/default-grants sketch in the same first step.
+Tenancy/Education public permission matrices, Architecture 09/13/33 and glossary
+in the same first step; recheck the independently repaired `add-permission`
+guidance rather than reintroducing its former IModule/default-grants sketch.
 The packet record owns exact proposed edit text, call-site census and proofs.
 Update Standard 05's source/capacity ledger, Standard 12/Phase 11's production
 pool-qualification trigger, and environment/Compose/Seeder setup documentation

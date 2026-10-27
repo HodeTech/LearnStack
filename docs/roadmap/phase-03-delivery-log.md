@@ -81,12 +81,13 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 394 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 415 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
   - [P03-2 proposal review round 2 and decision readiness (2026-10-27)](#p03-2-proposal-review-round-2-and-decision-readiness-2026-10-27) — 35 lines
   - [P03-2 maintainer review and revised package (2026-10-27)](#p03-2-maintainer-review-and-revised-package-2026-10-27) — 139 lines
+  - [P03-2 revised proposal review round 1 (2026-10-27)](#p03-2-revised-proposal-review-round-1-2026-10-27) — 21 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -3334,3 +3335,24 @@ or recovery of an uncompleted refusal. The directory/grant/evidence volume and
 retained-linkage tradeoffs in the initial package remain. These revisions are
 Proposed; new independent review rounds and document validation precede renewed
 maintainer acceptance. No runtime, schema, grant or protection setting changes.
+
+### P03-2 revised proposal review round 1 (2026-10-27)
+
+**Reviewed source:** `ead0a22b`, against the maintainer-reviewed `b81ed063`.
+Two new independent `gpt-6-astra` reviewers at xhigh effort examine F1/resource
+liveness and F2/F3/F4/evidence durability respectively. Neither performed the
+preceding design investigations or original proposal reviews. Both inspect the
+actual adjacent implementation/Accepted constraints and approve their scope
+without a verified actionable decision gap. No runtime or database tests run.
+
+The liveness reviewer confirms retained ordinary connectors, explicit job-lane
+ownership, separate four/two-slot sources and downstream PgBouncer reservations.
+Its useful execution note is incorporated: the pool proof must hold actual open
+server transactions and check backend PIDs, not only client connectors that a
+transaction pool may leave unassigned. Dirty shared-backend topology remains
+mandatory. The evidence reviewer confirms pre-success barriers for all owner
+modes, fixed occurrence/time/full-field duplicate semantics, truthful retention
+targets and accepted-carrier compatibility. These approvals concern the
+Proposed contracts; source implementation, runtime progress/crash proofs and
+production capacity remain unqualified. Parent edits otherwise only clarify
+already-repaired guidance and reflow prose. A fresh second round follows.
