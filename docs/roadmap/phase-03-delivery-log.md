@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 1,654 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 1,702 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -110,6 +110,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 Step 6 review round 1 and full-suite fixture diagnosis (2026-10-27)](#p03-2-step-6-review-round-1-and-full-suite-fixture-diagnosis-2026-10-27) — 43 lines
   - [P03-2 Step 6 R1 corrections and regression verification (2026-10-27)](#p03-2-step-6-r1-corrections-and-regression-verification-2026-10-27) — 70 lines
   - [P03-2 Step 6 review round 2 and final source corrections (2026-10-27)](#p03-2-step-6-review-round-2-and-final-source-corrections-2026-10-27) — 73 lines
+  - [P03-2 Step 6 measured-plan review and qualification freeze (2026-10-27)](#p03-2-step-6-measured-plan-review-and-qualification-freeze-2026-10-27) — 48 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -4617,3 +4618,51 @@ same-source local whole-suite run. Every input retains its own clean source/tree
 DLL observers, raw all-Passed TRX hash and complete selector mapping. Failed
 complement evidence is excluded. Fresh same-final-source/plan hosted A/B remains
 the final qualification; no mixed-source local qualification is claimed.
+
+### P03-2 Step 6 measured-plan review and qualification freeze (2026-10-27)
+
+At corrected commit `f3b8d764`, the full complementary ordinary group passes
+**2,133/2,133**, zero failures/skips, with unchanged clean source/tree and four
+DLL hashes across the run. Contract additionally passes **5/5**. Actual rebuilt
+discovery finds **6,923** cases: Unit 2,998, Integration 3,331 (324 offline /
+2,976 ordinary / 31 native), Architecture 589 and Contract 5. The base owner has
+3,327 cases; backend aggregate 3,916 and integration aggregate 3,007. All 64
+preweight list/diagnostic commands agree with their raw console/ID evidence.
+
+Independent R1 ownership and R2 inventory reviewers recompute all three passing
+raw TRX hashes/counters, each source/tree/four-DLL binding, own/current case names
+and IDs, decimal duration sums, ceiling milliseconds and historical floors.
+The ordinary timing observations cover **843 + 2,133 = 2,976** distinct current
+cases; exactly one offline helper is excluded from the 844-case predecessor
+receipt. The private validator initially includes similarly named Unit classes
+when predicting a command that actually executes only Integration. Its exact
+Integration-assembly restriction corrects the prediction without weakening raw
+receipt, selector or union checks. No failed diagnostic supplies timing data.
+
+The reviewed candidate adds three independently attributed local sources:
+**98 sources / 1,717 weights**, **122 additions / 62 increases**, zero unknown
+weighted selectors, and the existing **144** shared-fixture classes. Every other
+static plan setting remains unchanged. Both reviewers approve the exact candidate
+and independently reproduce its assignment differences and genuine A/B grouping.
+The written plan matches the reviewed preview bytes exactly. Its digest is
+`2cfb260303db173aa3c7f29139e570cf558f3359f629f13860161251ad2d6573`.
+Architecture/broad observations remain attributed to predecessor `309e6d25`;
+complement observations remain attributed to `f3b8d764`. Their complete four-path
+code delta is retained. These are advisory observations covering current
+selectors, not unchanged implementation or a mixed-source local qualification.
+
+A separate fresh output directory preserves all original binding artifacts while
+actual weighted discovery reruns all **64** no-build commands. A/B each
+independently rediscover all **20 owners**, exact filters and complete unions,
+with zero unknown weights. The unchanged population digest is
+`5abdc7f3f7d46c18ccd78ec856f2e3f1a9bc0b46e371cc7b9026c34b07e6a1ba`.
+Maximum filter sizes are A **18,842** / B **28,198** bytes (limit 32,768);
+maximum exact command argument sizes **19,193 / 28,550** bytes (limit 65,536).
+The observer honestly records `f3b8d764` plus only the reviewed plan diff; source
+and DLLs remain stable. It makes no clean-commit or hosted-fit claim.
+
+Weighted planner controls pass **83/83**, result/fixture controls **40/40**,
+workflow topology is complete, and native-owner controls pass **89/89** before
+the weight-only change. Review/source work is frozen for fresh full hosted A/B
+qualification. Catalogue promotions, final gate/packet closeout and PR handoff
+remain pending that actual evidence.
