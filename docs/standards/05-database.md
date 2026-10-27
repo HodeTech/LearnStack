@@ -2067,11 +2067,15 @@ requires a fresh scope. No fifth role or independent public-read connection is a
 
 ### Authorization and evidence source ledger
 
-**Accepted contract; not runtime implemented.** ADR-0076/0077 extend the
+**Accepted contract; staged implementation.** ADR-0076/0077 extend the
 Connection Management and job-source inventories below with these confined
 sources. This section is the sole detailed standards owner for their physical
 capacity, configuration and lifetime; acceptance supplies no runtime proof.
 The four login roles, grants and canonical RLS templates remain unchanged.
+P03-2 Step 2 implements the authorization source/child reader and coupled
+configuration selector; evidence execution and production composition remain
+later steps. The [phase Status block](../roadmap/phase-03-identity-admin.md)
+owns current review and qualification state.
 
 | Source / configuration | Retained-owner and connector bound per API process | Permitted work |
 |---|---|---|
@@ -2085,6 +2089,11 @@ The four login roles, grants and canonical RLS templates remain unchanged.
   INSERT/COMMIT and sequential verification, never a fresh verification budget.
   Elapsed time does not release a slot: unconfirmed/failed cleanup retains it,
   and source shutdown joins actual owners before disposal.
+- The authorization checkout awaits the shared reachable-bypass role guard with
+  that same deadline before BEGIN. Its physical driver initializer cannot carry
+  the operation token, so the confined source performs this guard explicitly on
+  every checkout; the ordinary business builder keeps its existing initializer.
+  No candidate owner is published before guard, READ ONLY and announcement finish.
 - Authorization excess admission immediately returns `503 dependency_unavailable`.
   Evidence capacity failure is audit-unavailable under the
   [pre-success/refusal rules](18-audit-coverage.md#trusted-authorization-evidence).
@@ -2118,6 +2127,10 @@ strings are explicit; no silent same-endpoint fallback is admitted. All sources
 qualify the same application role and installed identity authority. Credentials
 remain environment-only, absent from restore/build inputs; modules never choose
 endpoints or branch on deployment mode.
+Direct PostgreSQL is a supported-topology precondition for Development derivation,
+not a fact an arbitrary endpoint string can prove. PgBouncer needs an explicit
+pair and qualified backend reservation even in Development. A port heuristic or
+matching alias is not topology evidence.
 
 Through transaction-pooling PgBouncer, business, authorization and evidence use
 independent backend lanes. The auxiliary database aliases are

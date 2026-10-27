@@ -243,7 +243,10 @@ writes; no extra branch-admin Membership or provider-claim rewrite is required.
 
 ### Accepted live authorization and directory contract
 
-**Runtime pending in P03-2.** `PreContextIdentityAuthorizationReader` consumes an
+**Confined reader implemented; production activation pending.** P03-2 Step 2
+supplies the reader/source core. The remaining policy/directory/evidence contract
+below is Accepted and awaits its implementation steps.
+`PreContextIdentityAuthorizationReader` consumes an
 exact verified actor/tenant/optional-organization candidate in an isolated child
 owner. It returns bounded current Membership/Role/grant facts and consumes
 Tenancy's lifecycle contract, without a profile/global directory, synthetic

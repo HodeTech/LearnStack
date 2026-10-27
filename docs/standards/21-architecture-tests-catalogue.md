@@ -161,7 +161,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**303 test methods run in
+**308 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -2711,8 +2711,13 @@ noted below; acceptance never promotes an unrun proof.
 - **Type:** source/caller/role census plus real app-role PostgreSQL/PgBouncer
   progress and lifetime controls. **Kind:** behavioural and structural.
 - **Test owners:** `IdentityAuthorizationReaderTests`,
-  `AuthorizationPoolProgressTests`, `IdentityAuthorizationConventionTests`.
+  `AuthorizationReadSourceTests`, `AuthorizationPoolProgressTests`,
+  `IdentityAuthorizationConventionTests`.
 - **Status:** **Registered** — P03-2 Steps 2/3, before activation.
+- **Partial implementation:** Step 2 supplies the confined reader/source, actual
+  PostgreSQL/PgBouncer and typed HTTP-candidate controls. Complete trusted-source
+  classification/borrower composition and production activation remain pending;
+  those partial subjects do not promote the whole obligation.
 - **Phase:** 03 (P03-2).
 
 #### `Protected_Operations_Require_Explicit_Live_Policies`

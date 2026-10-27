@@ -275,6 +275,7 @@ public sealed partial class TenancyConventionTests
         "LearnStack.Infrastructure/MultiTenancy/OrganizationScopeValidator.cs",
         "LearnStack.Infrastructure.Audit/AuditConfigService.cs",
         "Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/FeatureFlags.cs",
+        "LearnStack.Infrastructure/Persistence/AuthorizationReadOwner.cs",
     ];
 
     /// <summary>
@@ -395,6 +396,8 @@ public sealed partial class TenancyConventionTests
             "LearnStack.Infrastructure.Audit.AuditConfigService",
         "Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/FeatureFlags.cs" =>
             "LearnStack.Modules.Tenancy.Infrastructure.FeatureFlags",
+        "LearnStack.Infrastructure/Persistence/AuthorizationReadOwner.cs" =>
+            "LearnStack.Infrastructure.Persistence.AuthorizationReadOwner",
         _ => throw new InvalidOperationException($"{reader} has no type mapped for the IL leg."),
     };
 
@@ -448,6 +451,12 @@ public sealed partial class TenancyConventionTests
         ScopeSetter().IsMatch(WithoutGlobalAuthorityClears(GlobalUnit,
             "SELECT set_config('app.scope', 'tenant', true)", "app.scope")).Should().BeTrue();
         ScopeSetter().IsMatch(WithoutGlobalAuthorityClears("Unlisted.cs", Empty, "app.scope")).Should().BeTrue();
+        const string AuthorizationOwner = "LearnStack.Infrastructure/Persistence/AuthorizationReadOwner.cs";
+        ScopeSetter().IsMatch(WithoutGlobalAuthorityClears(AuthorizationOwner, Empty, "app.scope")).Should().BeFalse();
+        ScopeSetter().IsMatch(WithoutGlobalAuthorityClears(AuthorizationOwner,
+            "SELECT set_config('app.scope', @scope, true)", "app.scope")).Should().BeTrue();
+        ScopeSetter().IsMatch(WithoutGlobalAuthorityClears(AuthorizationOwner,
+            "SELECT set_config('app.scope', 'tenant', true)", "app.scope")).Should().BeTrue();
     }
 
     /// <summary>Files allowed to set <c>app.scope</c>, by path under <c>backend/src</c>. Empty until Phase 03.</summary>
@@ -466,6 +475,7 @@ public sealed partial class TenancyConventionTests
         // tenant scope or host-lookup provenance. Nonempty/parameterized setters still fail.
         return relative is "LearnStack.Infrastructure/Persistence/NpgsqlUnitOfWork.cs"
             or "LearnStack.Infrastructure.Audit/PostgresAuditStore.GlobalIdentity.cs"
+            or "LearnStack.Infrastructure/Persistence/AuthorizationReadOwner.cs"
             ? source.Replace("set_config('" + variable + "', '', true)", string.Empty, StringComparison.Ordinal)
             : source;
     }

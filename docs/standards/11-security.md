@@ -546,9 +546,10 @@ context writer, factory privilege or tenant retargeting authority.
 ### The out-of-band setters
 
 `TransactionBehavior` delegates the general announcement path to
-`TransactionExecutionCoordinator`. Eight logical setter paths currently exist.
-The Accepted [candidate-reader extension](#owner-and-setter-census) registers a
-ninth for P03-2 implementation; no ninth setter is shipped. ADR-0077's confined
+`TransactionExecutionCoordinator`. The baseline eight logical setter paths are
+enumerated below. The Accepted [candidate-reader extension](#owner-and-setter-census)
+adds the ninth; its confined owner is implemented in P03-2 Step 2 while production
+membership registration remains deny-all until activation. ADR-0077's confined
 evidence methods extend central audit ownership, not the logical setter count. The current set is closed
 ([ADR-0040 § Who sets `app.tenant_id`, completely](../decisions/0040-ambient-unit-of-work.md),
 with its Amendments 3 and 7, is the authority; it is reproduced here because this section
@@ -1198,7 +1199,9 @@ controls before admission. No general SQL executor, global User directory or
 direct self audit read follows from them.
 
 `PreContextIdentityAuthorizationReader` is the Accepted ninth logical tenant
-setter under ADR-0076; it is not runtime implemented. A verified normalized actor
+setter under ADR-0076. P03-2 Step 2 implements its confined reader/source and
+normalized HTTP candidate minter; production membership registration remains
+deny-all until the later activation step. A verified normalized actor
 or separately enumerated trusted execution descriptor supplies the exact candidate
 actor/tenant/org; UserId alone supplies no authority. Its isolated child uses the
 [confined source ledger](05-database.md#authorization-and-evidence-source-ledger),
@@ -1209,7 +1212,9 @@ Tenancy's lifecycle reader uses this same physical child owner/generation.
 
 Nine is the Accepted logical setter set. The pre-existing eight-path census
 above remains the baseline; its durable idempotency path is still unimplemented.
-The ninth requires actual adapter/call-site qualification. Global subject owners and the
+The ninth's reader/owner has source and database controls; its complete trusted
+source classifications and production adapter activation remain gated.
+Global subject owners and the
 confined central denial-event methods add no tenant-context writer or logical
 setter. Standard 05 owns the source/configuration/retained-cleanup ledger.
 

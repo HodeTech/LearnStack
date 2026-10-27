@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 626 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 715 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -92,6 +92,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 joint acceptance and Step 1 (2026-10-27)](#p03-2-joint-acceptance-and-step-1-2026-10-27) — 117 lines
   - [P03-2 Step 1 review round 1 and setup correction (2026-10-27)](#p03-2-step-1-review-round-1-and-setup-correction-2026-10-27) — 26 lines
   - [P03-2 Step 1 review round 2 and closeout (2026-10-27)](#p03-2-step-1-review-round-2-and-closeout-2026-10-27) — 26 lines
+  - [P03-2 Step 2 — Confined candidate and committed authority (2026-10-27)](#p03-2-step-2--confined-candidate-and-committed-authority-2026-10-27) — 89 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -3571,3 +3572,92 @@ committed-only facts, physical READ ONLY, lifetime and direct/PgBouncer progress
 Production deny-all/live HTTP wiring remains held until the approved activation
 step and its complete evidence paths. No further maintainer approval is needed
 for the accepted six-step scope.
+
+### P03-2 Step 2 — Confined candidate and committed authority (2026-10-27)
+
+**Implementation.** The exact HTTP candidate minter consumes quota-admitted,
+normalized existing-binding evidence. A raw principal/UserId, replaced subject,
+quota/host/identity feature, canceled request or disposed source cannot vouch for
+its captured candidate. Kernel construction stays private and its production
+minter/caller set has compiled clean/dirty controls. No production membership
+registration is changed: the API still registers the deny-all adapter until
+Step 5's complete policy/evidence activation.
+
+`IdentityAuthorizationReadSource` owns four retained slots/connectors with no
+waiting admission queue. A dedicated child is READ COMMITTED, physically READ
+ONLY and exactly announced before data; it installs no TenantContext and exposes
+no raw source or caller-supplied SQL/callback API. The immutable generation/view
+cannot join, retarget, widen or independently resolve the owner. Expired/canceled
+views stop vouching while the underlying cleanup remains retained. The coupled
+configuration selector is implemented; production/launch composition and evidence
+execution remain later steps. Direct-PostgreSQL derivation is a supported topology
+precondition, never an endpoint-string/port inference.
+
+The actual Identity statement reads only current eligible Memberships, compatible
+assignments, nonretired closed Role templates and active assignable grants. It
+bounds facts to two Memberships/eight Roles, refuses excess/ambiguous evidence,
+ignores unknown/virtual stored grants, and projects no Profile/User/provider data.
+Tenancy's narrow authorization overload runs its separate lifecycle statement on
+that same child/generation; its older seed/lifecycle entry remains compatible.
+Both statements see committed state, not a parent's uncommitted authority. Store,
+deadline or cleanup failure yields fixed Unavailable without prepared facts;
+actual request cancellation propagates after owned cleanup.
+
+**Role-guard deadline correction.** Inspection of pinned
+[Npgsql 10.0.0's connector initializer](https://github.com/npgsql/npgsql/blob/v10.0.0/src/Npgsql/Internal/NpgsqlConnector.cs#L500-L519)
+shows its initializer delegate lacks an operation-token argument. Reusing the
+ordinary builder would leave that guard query outside the accepted total budget.
+The confined source instead awaits the existing shared role SQL explicitly on
+every checkout with its operation token before BEGIN. The ordinary builder's
+initializer is unchanged. A real blocked `pg_authid` control verifies cancellation
+finishes while the catalog lock remains held; elapsed time releases no slot.
+
+Named job authorization/evidence lanes enter the actual retained-resource and
+cleanup-join census, preserving the one main unit and exact four business helper
+seams. Evidence has no production caller yet. No ambient marker is suppressed.
+Concrete Npgsql connection-disposal delay/fault twins prove retained source/job
+ownership; the separate reported-command-fault control proves the denial-only
+reporting seam and does not pretend to inject an actual command disposal fault.
+
+**Progress proof.** The pinned
+[PgBouncer fixture image](https://github.com/edoburu/docker-pgbouncer/releases/tag/v1.26.0-p0)
+uses transaction pooling over the same actual app-role database. All business
+server transactions stay held while actual nested/post-lock Identity/Tenancy reads
+complete, directly and through independently reserved aliases. The fixture probes
+the actual child backend PID and separately checks it and every parent through
+app-role metadata; application names supply no reservation proof. The intentionally
+shared saturated downstream alias fails the same progress control and recovers
+only after parent release. A raw held 2/4/2-backend control proves configured alias
+headroom only; production evidence-owner liveness remains Step 4. Phase 11's real
+deployment/instance sizing is not claimed.
+
+**Validation.** Release builds use `CI=true`, with zero warnings/errors. The
+complete unit suite passes 2,810/2,810 with zero skips. The 52-case scoped Docker
+population comprises nine source, 29 reader, eight existing lifecycle and six
+pool-progress cases. The initial combined run passes 50/52; only two PgBouncer
+PID-observation assertions fail after successful Covered/grant results. Replacing
+the fixture's application-name inference with its actual-child PID probe makes
+all six progress cases pass on the corrected source. The other 46 unchanged
+cases passed the combined run. Earlier fixture SystemActor/API-shape issues were
+corrected without weakening production admission.
+
+The 71-case relevant architecture population passes 70/71 initially; its only
+remaining job census still expects one cleanup task after the admitted two named
+lanes add two more. The exact three-call census is corrected and that mutation
+Fact passes independently. All five new compiled source/async/SQL controls pass;
+the two earlier detector assumptions were corrected against actual Release IL
+(reference equality is lowered to branches; the concrete command executes an
+inherited DbCommand method), preserving planted failure controls. Standard 21's
+method count becomes 308; the overall Registered live-policy/evidence obligations
+are not promoted by this partial implementation.
+
+**Review state.** Step 2 implementation/validation is ready for its first committed
+source and two fresh independent review rounds. No HTTP route, grant/schema,
+provider configuration, native BFF allowlist or production policy wiring changes.
+
+**Commit gate.** Whole-tree docs/structure/index checks pass (2,737 fragments),
+seven ADR parser controls pass, and relative-target/private-scratch/diff checks
+pass. Leakwatch initially flags three nonfunctional connection-string canaries
+in the configuration unit fixture. They are represented with the existing typed
+Npgsql builder pattern instead of raw DSN literals; no scan is disabled or ignored.
+All six affected configuration cases pass again. This changes no runtime value.

@@ -120,6 +120,9 @@ public sealed class PostgresFixture : IAsyncLifetime
     /// <summary><c>BYPASSRLS</c>; only the outbox dispatcher's equivalent.</summary>
     public string OutboxConnectionString => For("learnstack_outbox_admin", OutboxPassword);
 
+    // An owned auxiliary fixture may attach this database to its disposable Docker network.
+    internal string ContainerId => _container.Id;
+
     internal async Task<bool> PublishedPortsAreLoopbackAsync()
     {
         using var docker = TestcontainersSettings.OS.DockerEndpointAuthConfig.GetDockerClientBuilder(Guid.NewGuid()).Build();

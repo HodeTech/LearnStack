@@ -81,7 +81,12 @@ public static class ApplicationDataSource
         }
     }
 
-    private static async Task RefuseBypassRole(NpgsqlConnection connection, bool async)
+    /// <summary>The confined authorization checkout applies this same guard within its total I/O deadline.</summary>
+    internal static Task RefuseBypassRoleAsync(NpgsqlConnection connection, CancellationToken cancellationToken) =>
+        RefuseBypassRole(connection, async: true, cancellationToken);
+
+    private static async Task RefuseBypassRole(NpgsqlConnection connection, bool async,
+        CancellationToken cancellationToken = default)
     {
         await using var command = connection.CreateCommand();
 
@@ -101,7 +106,7 @@ public static class ApplicationDataSource
             """;
 
         var bypasses = async
-            ? await command.ExecuteScalarAsync()
+            ? await command.ExecuteScalarAsync(cancellationToken)
             : command.ExecuteScalar();
 
         if (bypasses is true)

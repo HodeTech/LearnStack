@@ -175,7 +175,7 @@ public sealed partial class PersistenceConventionTests
         // SET LOCAL, so every read through it returns zero rows under the
         // corrected policy — silently.
         //
-        // Eleven files under backend/src may reach for a connection at all: the six
+        // The exact files below may reach for a connection: the six
         // design-time factories, where a connection string is the point — one per
         // migration chain, and a module that ships a schema ships one; the shared
         // module helper, which passes a connection rather than a string; the API's
@@ -223,6 +223,9 @@ public sealed partial class PersistenceConventionTests
             // Both runtime hosts delegate application-role construction to this
             // shared guard; the API retains its separate platform-role builder.
             "Persistence/ApplicationDataSource.cs",
+            // ADR-0076's private lane awaits the shared role guard with its total deadline before BEGIN.
+            // IdentityAuthorizationConventionTests checks the actual compiled guard/order and forbids raw aliases.
+            "Persistence/IdentityAuthorizationReadSource.cs",
             "Messaging/OutboxDispatcherDataSource.cs",
         ]);
     }
@@ -311,7 +314,7 @@ public sealed partial class PersistenceConventionTests
             "LearnStack.Application/Messaging/DomainEventCollector.cs",
             "LearnStack.Infrastructure.Audit/AuditStateCapture.cs",
         ], "the census includes shared scoped execution state, not only module callers");
-        ParallelSites.Keys.Concat(RetainedLoaderSites.Keys).Concat(RecurrenceParallelSites.Keys).Should().BeSubsetOf(relativeFiles,
+        ParallelSites.Keys.Concat(RetainedLoaderSites.Keys).Concat(RecurrenceParallelSites.Keys).Append(AuthorizationCleanupSite).Should().BeSubsetOf(relativeFiles,
             "an exception must name a real scanned source file");
 
         var offenders = ParallelOffenders(sourceRoot, files);
@@ -390,6 +393,22 @@ public sealed partial class PersistenceConventionTests
                 ParallelOffenders(sourceRoot, [probe]).Should().Equal([relative],
                     "a missing retained-loader subject cannot make the exception vacuous");
             }
+            var cleanupProbe = Path.Combine(sourceRoot, AuthorizationCleanupSite);
+            Directory.CreateDirectory(Path.GetDirectoryName(cleanupProbe)!);
+            var authorization = File.ReadAllText(Path.Combine(RepositoryPaths.BackendSrc(), AuthorizationCleanupSite));
+            File.WriteAllText(cleanupProbe, authorization);
+            ParallelOffenders(sourceRoot, [cleanupProbe]).Should().BeEmpty("the exact independent-owner cleanup join never runs business SQL concurrently");
+            foreach (var dirty in new[]
+            {
+                authorization.Replace("owner.ActualCompletion", "Task.CompletedTask", StringComparison.Ordinal),
+                authorization.Replace("await Task.WhenAll(owners.Select(owner => owner.ActualCompletion)).ConfigureAwait(false);", "", StringComparison.Ordinal),
+                authorization.Replace("return owner;", "var borrowed = BorrowAsync(); return owner;", StringComparison.Ordinal),
+            })
+            {
+                File.WriteAllText(cleanupProbe, dirty);
+                ParallelOffenders(sourceRoot, [cleanupProbe]).Should().ContainSingle()
+                    .Which.Should().Be(AuthorizationCleanupSite, "only the exact joined actual-cleanup expression is exempt; the rest of the source is scanned");
+            }
         }
         finally
         {
@@ -415,8 +434,33 @@ public sealed partial class PersistenceConventionTests
                 ? RetainedLoaderScanText(file.Code, site) is not { } scan || FansOut(scan)
                 : RecurrenceParallelSites.TryGetValue(file.Path, out var recurrence)
                     ? RecurrenceParallelScanText(file.Code, recurrence) is not { } retained || FansOut(retained)
+                : file.Path == AuthorizationCleanupSite
+                    ? AuthorizationCleanupScanText(file.Code) is not { } cleanup || FansOut(cleanup)
                 : FansOut(file.Code))
             .Select(file => file.Path).ToArray();
+
+    private const string AuthorizationCleanupSite = "LearnStack.Infrastructure/Persistence/IdentityAuthorizationReadSource.cs";
+
+    // ADR-0076 admits only this process-owned join of independently retained physical owners.
+    // Removing that exact statement from the scan never exempts any other source method.
+    private static string? AuthorizationCleanupScanText(string code)
+    {
+        var syntax = CSharpSyntaxTree.ParseText(code).GetRoot();
+        var types = syntax.DescendantNodes().OfType<ClassDeclarationSyntax>()
+            .Where(type => TypeIdentity(type) == "LearnStack.Infrastructure.Persistence.IdentityAuthorizationReadSource`0").ToArray();
+        if (syntax.ContainsDiagnostics || types.Length != 1) return null;
+        var methods = types[0].Members.OfType<MethodDeclarationSyntax>()
+            .Where(method => method.Identifier.ValueText == "DisposeCoreAsync").ToArray();
+        if (methods.Length != 1 || !methods[0].Modifiers.Any(token => token.IsKind(SyntaxKind.PrivateKeyword))
+            || !methods[0].Modifiers.Any(token => token.IsKind(SyntaxKind.AsyncKeyword))
+            || !SyntaxFactory.AreEquivalent(methods[0].ParameterList, SyntaxFactory.ParseParameterList("(AuthorizationReadOwner[] owners)"))
+            || !SyntaxFactory.AreEquivalent(methods[0].Body, SyntaxFactory.ParseStatement("""
+                { await Task.WhenAll(owners.Select(owner => owner.ActualCompletion)).ConfigureAwait(false);
+                  await _source.DisposeAsync().ConfigureAwait(false); }
+                """))) return null;
+        var join = methods[0].Body!.Statements[0];
+        return code.Remove(join.SpanStart, join.Span.Length).Insert(join.SpanStart, "await Task.CompletedTask;");
+    }
 
     // These four private starters retain one actual auxiliary operation before a cache or
     // audit caller can observe its Task. They use an independent connection, never the

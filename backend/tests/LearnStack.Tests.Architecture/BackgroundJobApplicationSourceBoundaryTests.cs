@@ -23,6 +23,8 @@ public sealed partial class OutboxDispatchConventionTests
     private const string AppJobRecovery = "LearnStack.Infrastructure.Jobs.BackgroundJobExecutionControl";
     private const string AppJobTerminalNoStart = "LearnStack.Infrastructure.Jobs.BackgroundJobTerminalNoStartOperation";
     private const string AppJobRecoveryReceipt = "LearnStack.Application.Jobs.BackgroundJobExternalRecoveryReceipt";
+    private const string AppJobAuthorizationSource = "LearnStack.Infrastructure.Persistence.IdentityAuthorizationReadSource";
+    private const string AppJobAuthorizationOwner = "LearnStack.Infrastructure.Persistence.AuthorizationReadOwner";
 
     private static SortedSet<string> JobApplicationSourceOffenders(ProductionCensus census)
     {
@@ -31,7 +33,8 @@ public sealed partial class OutboxDispatchConventionTests
             AppJobFlags, AppJobKillswitch, JobExecutorType,
             "LearnStack.Infrastructure.MultiTenancy.CachedHostToTenantResolver",
             "LearnStack.Infrastructure.MultiTenancy.OrganizationScopeValidator",
-            AppJobRecovery, AppJobTerminalNoStart, AppJobRecoveryReceipt, JobAdmission };
+            AppJobRecovery, AppJobTerminalNoStart, AppJobRecoveryReceipt, JobAdmission,
+            AppJobAuthorizationSource, AppJobAuthorizationOwner };
         var types = new Dictionary<string, TypeDefinition>(StringComparer.Ordinal);
         foreach (var name in subjects)
         {
@@ -53,9 +56,10 @@ public sealed partial class OutboxDispatchConventionTests
             "RequireFreshScopeReady", "RequireOwnedMainUnit", "BindMainUnit", "HoldMainConnection", "HoldMainTransaction",
             "ReportMainTransactionCleanup", "ReportMainCleanup", "RefuseUnrelatedRead", "CloseIssuance", "JoinAuxiliaryCleanupAsync",
             "BeginAuditConfigLoad", "BeginStandaloneAudit", "BeginTenantFlagsLoad", "BeginKillswitchLoad",
+            "BeginAuthorizationRead", "BeginAuthorizationEvidence",
             "get_IsExternal", "RefuseExternalEntry", "EnterExternal", "BindExternalRecovery" };
         var resourceSurface = new[] { "HoldConnection", "HoldTransaction", "HoldCommand", "HoldReader", "HoldActualTask",
-            "DisposeReaderAsync", "CleanupAsync" };
+            "DisposeReaderAsync", "CleanupAsync", "MarkCleanupFailed" };
         CheckSurface(owner, ownerSurface);
         CheckSurface(resources, resourceSurface);
         if (!owner.Methods.Any(method => method.Name == "JoinAuxiliaryCleanupAsync" && method.IsPublic
@@ -91,24 +95,34 @@ public sealed partial class OutboxDispatchConventionTests
         Exact(owner, "BindExternalRecovery", [(AppJobRecoveryReceipt, "Bind")]);
         // This marker only denies app entry during provider construction/calls.
         Exact(owner, "EnterExternal", [(JobAdmission, "EnterExternal")]);
-        Exact(resources, "JoinActualTaskAsync", [(AppJobOwner, "JoinAuxiliaryCleanupAsync")]);
+        Exact(resources, "JoinActualTaskAsync", [(AppJobOwner, "JoinAuxiliaryCleanupAsync"),
+            (AppJobOwner, "JoinAuxiliaryCleanupAsync"), (AppJobOwner, "JoinAuxiliaryCleanupAsync")]);
         Exact(owner, "BeginAuditConfigLoad", [(AppJobAuditConfig, "StartLoadAsync")]);
         Exact(owner, "BeginStandaloneAudit", [(AppJobAuditStore, "WriteOwnTransactionAsync")]);
         Exact(owner, "BeginTenantFlagsLoad", [(AppJobFlags, "StartTenantFlagsLoadAsync")]);
         Exact(owner, "BeginKillswitchLoad", [(AppJobKillswitch, "StartLoadAsync")]);
+        Exact(owner, "BeginAuthorizationRead", [(AppJobAuthorizationSource, "OpenAsync")]);
+        // Step 4 alone may activate this lane; its declaration supplies no production borrower today.
+        Exact(owner, "BeginAuthorizationEvidence", []);
         Exact(owner, "BeginAuxiliary", [(AppJobOwner, "BeginAuditConfigLoad"), (AppJobOwner, "BeginStandaloneAudit"),
             (AppJobOwner, "BeginTenantFlagsLoad"), (AppJobOwner, "BeginKillswitchLoad")]);
-        Exact(resources, ".ctor", [(AppJobOwner, "BeginAuxiliary")]);
+        Exact(owner, "BeginConfinedLane", [(AppJobOwner, "BeginAuthorizationRead"), (AppJobOwner, "BeginAuthorizationEvidence")]);
+        Exact(resources, ".ctor", [(AppJobOwner, "BeginAuxiliary"), (AppJobOwner, "BeginConfinedLane")]);
         var cores = new[] { (AppJobAuditConfig, "LoadAsync"), (AppJobAuditStore, "WriteOwnTransactionCoreAsync"),
             (AppJobFlags, "LoadTenantFlagsAsync"), (AppJobKillswitch, "LoadAsync") };
         Exact(resources, "HoldActualTask", [(AppJobAuditConfig, "StartLoadAsync"), (AppJobAuditStore, "WriteOwnTransactionAsync"),
-            (AppJobFlags, "StartTenantFlagsLoadAsync"), (AppJobKillswitch, "StartLoadAsync")]);
-        Exact(resources, "HoldConnection", cores);
-        Exact(resources, "HoldTransaction", cores.Take(3).ToArray());
+            (AppJobFlags, "StartTenantFlagsLoadAsync"), (AppJobKillswitch, "StartLoadAsync"), (AppJobAuthorizationOwner, ".ctor")]);
+        Exact(resources, "HoldConnection", [.. cores, (AppJobAuthorizationOwner, "OpenAsync")]);
+        Exact(resources, "HoldTransaction", [.. cores.Take(3), (AppJobAuthorizationOwner, "OpenAsync")]);
         Exact(resources, "HoldCommand", [cores[0], cores[0], cores[0], cores[1], cores[1], cores[2], cores[2], cores[2], cores[3]]);
         Exact(resources, "HoldReader", [cores[0], cores[2], cores[3]]);
         Exact(resources, "DisposeReaderAsync", [cores[0], cores[2], (AppJobResources, "CleanupAsync")]);
-        Exact(resources, "CleanupAsync", cores);
+        Exact(resources, "CleanupAsync", [.. cores, (AppJobAuthorizationOwner, "CleanupAsync")]);
+        Exact(resources, "MarkCleanupFailed", [(AppJobAuthorizationOwner, "MarkCleanupFailed")]);
+        Exact(owner, "ReportCleanupFailure", [(AppJobResources, "MarkCleanupFailed"), (AppJobResources, "DisposeReaderAsync"),
+            (AppJobResources, "CleanupAsync")]);
+        Exact(owner, "Release", [(AppJobResources, "TryRelease")]);
+        Exact(resources, "MarkReleased", [(AppJobOwner, "Release")]);
         Exact(owner, "BindMainUnit", [(AppJobUnit, "BindJobMainUnit")]);
         Exact(owner, "HoldMainConnection", [(AppJobUnit, "get_Connection"), (AppJobUnit, "BeginTransactionCoreAsync")]);
         Exact(owner, "HoldMainTransaction", [(AppJobUnit, "BeginTransactionCoreAsync")]);
@@ -116,7 +130,9 @@ public sealed partial class OutboxDispatchConventionTests
             (AppJobUnit, "DisposeCompletedTransactionAsync"), (AppJobUnit, "DisposeCompletedTransactionAsync"),
             (AppJobUnit, "RollbackCoreAsync"), (AppJobUnit, "RollbackCoreAsync")]);
         Exact(owner, "ReportMainCleanup", [(AppJobUnit, "DisposeAsync"), (AppJobUnit, "DisposeAsync")]);
-        Exact(owner, "RefuseUnrelatedRead", [(subjects[8], "ReadAsync"), (subjects[9], "BelongsToTenantAsync")]);
+        Exact(owner, "RefuseUnrelatedRead", [(subjects[8], "ReadAsync"), (subjects[9], "BelongsToTenantAsync"),
+            (AppJobAuthorizationSource, "QualifyAsync")]);
+        CheckJobApplicationRetainedFields(census, owner, resources, offenders);
         return offenders;
 
         void CheckSurface(TypeDefinition subject, string[] expected)
@@ -171,7 +187,8 @@ public sealed partial class OutboxDispatchConventionTests
             var resources = census.Types.Values.Single(type => type.FullName == AppJobResources);
             var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
             var guardedOwnerMethods = new[] { ".ctor", "Create", "Enter", "BeginAuditConfigLoad", "BeginStandaloneAudit", "BeginTenantFlagsLoad",
-            "BeginKillswitchLoad", "BindMainUnit", "HoldMainConnection", "HoldMainTransaction", "ReportMainTransactionCleanup",
+            "BeginKillswitchLoad", "BeginAuthorizationRead", "BeginAuthorizationEvidence", "BeginConfinedLane",
+            "BindMainUnit", "HoldMainConnection", "HoldMainTransaction", "ReportMainTransactionCleanup",
             "ReportMainCleanup", "RefuseUnrelatedRead", "JoinAuxiliaryCleanupAsync", "BindExternalRecovery", "EnterExternal" };
             foreach (var target in owner.Methods.Where(method => guardedOwnerMethods.Contains(method.Name, StringComparer.Ordinal))
                          .Concat(resources.Methods.Where(method => method.IsPublic || method.IsConstructor
@@ -281,6 +298,7 @@ public sealed partial class OutboxDispatchConventionTests
                         }, JobApplicationSourceOffenders);
                 }
             }
+            AssertJobApplicationRetainedFieldMutations(census, owner, resources, application);
         }
 
     }
