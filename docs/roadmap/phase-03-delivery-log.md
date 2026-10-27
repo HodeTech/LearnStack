@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 1,388 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 1,417 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -105,6 +105,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 Step 4 correction verification and closeout (2026-10-27)](#p03-2-step-4-correction-verification-and-closeout-2026-10-27) — 57 lines
   - [P03-2 Step 5 — Live HTTP and application activation (2026-10-27)](#p03-2-step-5--live-http-and-application-activation-2026-10-27) — 82 lines
   - [P03-2 Step 5 review round 1 and corrections (2026-10-27)](#p03-2-step-5-review-round-1-and-corrections-2026-10-27) — 72 lines
+  - [P03-2 Step 5 review round 2 and closeout (2026-10-27)](#p03-2-step-5-review-round-2-and-closeout-2026-10-27) — 29 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -4346,3 +4347,32 @@ The current Contract suite passes **5/5**; documentation lint and diff hygiene
 pass. These focused receipts complement, rather than replace, Step 6's complete
 backend/provider/native populations, source/image/shard inventories and hosted
 A/B qualification. R1 corrections are committed before the requested fresh R2.
+
+### P03-2 Step 5 review round 2 and closeout (2026-10-27)
+
+Three new independent `gpt-6-astra` / `xhigh` reviewers inspect current
+`effc9c5a` over the complete Step 5 base `56f95547`, including the committed R1
+corrections: resources/startup (`p032_s5_r2_resources`), HTTP/application boundaries
+(`p032_s5_r2_boundaries`) and proofs/docs/tooling (`p032_s5_r2_proofs`). All three
+approve their source slices with no verified actionable finding. Each explicitly
+runs no build/test and makes no changes; supplied test receipts remain the
+parent's evidence, not independent reruns.
+
+Their checks cover the bounded live database witness and actual-cleanup lifetime,
+production bound overloads, role/authority/source and job-resource ownership,
+canonical default deny, exact HTTP/application metadata, candidate and read-scope
+lifetimes, directory cursor/projection/pre-disclosure audit, distinct assertion
+population and AccountSite/native ceilings. Proof review additionally verifies
+real clone/PgBouncer counterfactuals, closed opcode/caller controls, explicit
+component-versus-Program separation, atomic selected credentials and contract
+closure. No third full review round is asserted.
+
+**Step 5 is closed.** Both requested fresh review rounds and all independently
+verified R1 corrections are committed. Current focused/whole-offline validation
+is recorded immediately above; this source review claims no additional runtime
+qualification. Step 6 proceeds automatically with complete backend populations,
+actual Keycloak/native compatibility, source-bound fixture/image/shard inventories
+and fresh hosted A/B evidence, followed by the reviewable development-to-main PR.
+Whole activation-dependent catalogue obligations remain Registered until that
+qualification completes; no unrun provider, browser or production topology is
+represented as delivered.
