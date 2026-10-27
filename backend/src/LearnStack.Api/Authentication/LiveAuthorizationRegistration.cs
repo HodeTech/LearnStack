@@ -89,11 +89,17 @@ public sealed class TenantAuthorizationSourcesStartupService(IdentityAuthorityQu
         {
             var authorizationSource = authorization();
             var evidenceSource = evidence();
-            await authorizationSource.QualifyAsync(registration.AuthorityId, registration.Issuer, cancellationToken);
-            await evidenceSource.QualifyAsync(registration.AuthorityId, registration.Issuer, cancellationToken);
-            if (authorizationSource.QualifiedDatabaseName != qualification.QualifiedDatabaseName
-                || evidenceSource.QualifiedDatabaseName != qualification.QualifiedDatabaseName)
-                throw new InvalidOperationException("Identity authorization sources must use the qualified business database.");
+            var proof = await qualification.OpenDatabaseQualificationProofAsync(cancellationToken);
+            var deadline = proof.DeadlineToken;
+            await using (proof)
+            {
+                await authorizationSource.QualifyAsync(registration.AuthorityId, registration.Issuer, proof, deadline);
+                await evidenceSource.QualifyAsync(registration.AuthorityId, registration.Issuer, proof, deadline);
+                if (authorizationSource.QualifiedDatabaseName != qualification.QualifiedDatabaseName
+                    || evidenceSource.QualifiedDatabaseName != qualification.QualifiedDatabaseName)
+                    throw new InvalidOperationException("Identity authorization sources must use the qualified business database.");
+            }
+            deadline.ThrowIfCancellationRequested();
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception failure) when (failure is not (OutOfMemoryException or StackOverflowException))

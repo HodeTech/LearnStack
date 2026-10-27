@@ -323,6 +323,7 @@ public sealed class IdentityAuthorizationConventionTests
     {
         var errors = new List<string>();
         Callers(census, errors, RoleGuard, "RefuseBypassRoleAsync", [Owner + ".OpenAsync",
+            "LearnStack.Infrastructure.Persistence.DatabaseQualificationProof.OpenAsync",
             "LearnStack.Infrastructure.Persistence.AuthorizationEvidenceSession.OpenAsync"]);
         var body = census.Body(Owner, "OpenAsync");
         var guards = Calls(body, RoleGuard, "RefuseBypassRoleAsync").ToArray();

@@ -143,7 +143,7 @@ public sealed class ApiVersioningHttpTests(ApiVersioningFixture fixture)
     public async Task Scalar_Reference_Ui_Is_Served()
     {
         // Redirects are NOT followed here on purpose. The default
-        // WebApplicationFactory client follows them, which would have hidden
+        // browser client follows them, which would have hidden
         // that /openapi answers 302 -> /openapi/ and reported a green 200 for
         // a URL that does not serve the page.
         using var client = fixture.CreateClient(
@@ -279,13 +279,13 @@ public sealed class ApiVersioningHttpTests(ApiVersioningFixture fixture)
 /// declaring <c>v2</c> — plus a second live major so the per-document
 /// filtering has something to filter.
 /// </summary>
-public sealed class ApiVersioningFixture : ConstructionOnlyApiFactory
+public sealed class ApiVersioningFixture : ComponentApiFactory
 {
     protected override void ConfigureTestHost(IWebHostBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
         builder.UseEnvironment(Environments.Development);
-        builder.ConfigureTestServices(services =>
+        builder.ConfigureServices(services =>
         {
             // Keep only this file's probes — the enforcement probes in
             // VersionedRouteEnforcementTests are deliberately broken and would

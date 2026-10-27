@@ -21,6 +21,7 @@ public sealed partial class IdentityAuditConventionTests
     public void Live_Authorization_Uses_Bounded_Independent_Owners()
     {
         using var census = EvidenceCensus.Read();
+        CheckDatabaseProofControls(census);
         EvidenceLaneOffenders(census).Should().BeEmpty("the evidence lane is a confined standalone-audit owner, never a caller SQL executor");
         foreach (var contract in new[] { EvidenceFactoryPort, EvidenceSessionPort }) EvidenceDirty(census, EvidenceLaneOffenders, () =>
         {

@@ -15,6 +15,7 @@ public sealed class IdentityAuthorizationReadSource : IAsyncDisposable
     private readonly int _capacity;
     private readonly HashSet<AuthorizationReadOwner> _owners = [];
     private Task? _qualification;
+    private DatabaseQualificationProof? _businessProof;
     private Task? _disposal;
     private IdentityAuthorityId? _authority;
     private string? _issuer;
@@ -53,7 +54,19 @@ public sealed class IdentityAuthorizationReadSource : IAsyncDisposable
     /// <summary>The actual server database observed at qualification, independently of a PgBouncer alias.</summary>
     public string? QualifiedDatabaseName { get; private set; }
 
-    public Task QualifyAsync(IdentityAuthorityId authorityId, string issuer, CancellationToken cancellationToken = default)
+    public Task QualifyAsync(IdentityAuthorityId authorityId, string issuer, CancellationToken cancellationToken = default) =>
+        QualifyCoreEntryAsync(authorityId, issuer, null, cancellationToken);
+
+    public Task QualifyAsync(IdentityAuthorityId authorityId, string issuer, DatabaseQualificationProof businessProof,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(businessProof);
+        businessProof.RequireActive();
+        return QualifyCoreEntryAsync(authorityId, issuer, businessProof, cancellationToken);
+    }
+
+    private Task QualifyCoreEntryAsync(IdentityAuthorityId authorityId, string issuer,
+        DatabaseQualificationProof? businessProof, CancellationToken cancellationToken)
     {
         if (!StronglyTypedId.IsAssigned(authorityId) || string.IsNullOrWhiteSpace(issuer))
             throw new ArgumentException("Identity authorization qualification is invalid.");
@@ -63,13 +76,15 @@ public sealed class IdentityAuthorizationReadSource : IAsyncDisposable
             ObjectDisposedException.ThrowIf(_closed, this);
             if (_qualification is not null)
             {
-                if (_authority != authorityId || !string.Equals(_issuer, issuer, StringComparison.Ordinal))
+                if (_authority != authorityId || !string.Equals(_issuer, issuer, StringComparison.Ordinal)
+                    || !ReferenceEquals(_businessProof, businessProof))
                     throw new InvalidOperationException("Identity authorization qualification cannot be retargeted.");
                 return _qualification;
             }
             _authority = authorityId;
             _issuer = issuer;
-            return _qualification = QualifyCoreAsync(authorityId, issuer, cancellationToken);
+            _businessProof = businessProof;
+            return _qualification = QualifyCoreAsync(authorityId, issuer, businessProof, cancellationToken);
         }
     }
 
@@ -133,16 +148,18 @@ public sealed class IdentityAuthorizationReadSource : IAsyncDisposable
         return owner;
     }
 
-    private async Task QualifyCoreAsync(IdentityAuthorityId authorityId, string issuer, CancellationToken cancellationToken)
+    private async Task QualifyCoreAsync(IdentityAuthorityId authorityId, string issuer,
+        DatabaseQualificationProof? businessProof, CancellationToken cancellationToken)
     {
         // Qualification is itself a retained owner, with no user-directory or candidate access.
         var owner = RetainOwner(null, NewDeadline(cancellationToken), null);
         await using (owner.ConfigureAwait(false))
         {
             await owner.OpenAsync().ConfigureAwait(false);
-            QualifiedDatabaseName = await owner.QualifyAsync(authorityId, issuer).ConfigureAwait(false);
+            QualifiedDatabaseName = await owner.QualifyAsync(authorityId, issuer, businessProof).ConfigureAwait(false);
             await owner.CompleteAsync().ConfigureAwait(false);
         }
+        businessProof?.RequireActive();
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_closed, this);

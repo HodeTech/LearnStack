@@ -9,6 +9,7 @@ using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.Tools.Seeder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -51,7 +52,8 @@ namespace LearnStack.Tests.Integration.Database;
 /// <para>
 /// <b>No production endpoint ships in this packet.</b> The reads go through a test-only
 /// controller registered in the fixture, which is the precedent <c>IdempotencyFixture</c>
-/// set for <c>/api/v1/sideeffectprobe</c>. What is production is everything beneath it.
+/// set for <c>/api/v1/sideeffectprobe</c>. The production tenancy, transaction,
+/// query-filter and RLS components run beneath it; HTTP authorization is separate.
 /// </para>
 /// <para>
 /// <b>What these cases constrain, measured in both directions.</b> They constrain the
@@ -319,14 +321,15 @@ public sealed class TenantIsolationHttpTests : IClassFixture<TenantIsolationFixt
 }
 
 /// <summary>
-/// The real application, on a real database, with the two seed tenants in it.
+/// Production isolation components on a real database with both seeded tenants.
+/// The isolated probe transport does not claim Program HTTP authorization admission.
 /// </summary>
 /// <remarks>
 /// Its own container rather than the shared schema one: this fixture seeds through
 /// <c>SeedRunner</c> and serves HTTP, and sharing would make the schema suite's exact row
 /// counts depend on whether these tests ran first.
 /// </remarks>
-public sealed class TenantIsolationFixture : ConstructionOnlyApiFactory, IAsyncLifetime
+public sealed class TenantIsolationFixture : ComponentApiFactory, IAsyncLifetime
 {
     private readonly PostgresFixture _postgres = new();
 
@@ -442,19 +445,19 @@ public sealed class TenantIsolationFixture : ConstructionOnlyApiFactory, IAsyncL
         return client;
     }
 
+    protected override void ConfigureComponentSettings(WebApplicationBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        builder.Configuration["ConnectionStrings:Default"] = _postgres.AppConnectionString;
+        builder.Configuration["ConnectionStrings:PlatformAdmin"] = _postgres.PlatformConnectionString;
+    }
+
     protected override void ConfigureTestHost(IWebHostBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
         builder.UseEnvironment(Environments.Development);
 
-        // UseSetting, not ConfigureAppConfiguration: the composition root reads these while
-        // building the host, and a source added later loses to the appsettings the app
-        // already read. Measured — the first shape produced "ConnectionStrings:Default is
-        // not configured" from the guard that exists to catch exactly this.
-        builder.UseSetting("ConnectionStrings:Default", _postgres.AppConnectionString);
-        builder.UseSetting("ConnectionStrings:PlatformAdmin", _postgres.PlatformConnectionString);
-
-        builder.ConfigureTestServices(services =>
+        builder.ConfigureServices(services =>
         {
             services.AddControllers(options => options.Conventions.Insert(
                     0, new TestControllerFilter(typeof(IsolationProbeController))))
@@ -483,6 +486,7 @@ public sealed class TenantIsolationFixture : ConstructionOnlyApiFactory, IAsyncL
             // does not know — so without this they would be refused before reaching the
             // policy at all, and the cases would pass for the wrong reason.
             services.AddSingleton<SharedKernel.Audit.IAuditCatalogSource, TestAuditCatalogSource>();
+            ComponentDatabaseOperations.AddIsolationOperations(services);
         });
     }
 }

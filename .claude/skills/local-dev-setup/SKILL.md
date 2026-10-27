@@ -156,6 +156,14 @@ explicit Development permits supported direct-PostgreSQL derivation; the tool
 does not load `.env`. Follow [seed-tenant](../seed-tenant/SKILL.md) for its exact
 startup contract. Do not expose these values to the web, silently accept a
 partial pair, or mistake extra client pools for PgBouncer backend reservation.
+The local API configuration loader selects a complete explicit process
+authorization/evidence pair atomically over the selected root-file pair.
+When both process keys are absent, the root-file pair is used. Partial, empty or
+whitespace process values refuse before the API child starts; sources never fill
+one another's missing partner. The constructed runtime preserves selected strings
+exactly and imports neither partner from its ambient prerequisite environment.
+The owned demo separately retains its selected-stack conflict check: explicit
+process values cannot disagree with values present in its selected private file.
 The phase Status block owns current qualification and review state.
 
 **`make migrate` runs as `learnstack_migration`, not as the API's role.** From

@@ -338,7 +338,7 @@ public sealed class TenantWideFixture : ResolvedTenantFixture
     protected override void ConfigureTestHost(IWebHostBuilder builder)
     {
         base.ConfigureTestHost(builder);
-        builder.ConfigureTestServices(services =>
+        builder.ConfigureServices(services =>
         {
             services.RemoveAll<ITenantContext>();
             services.AddScoped<ITenantContext>(_ => TenantWideContext.Instance);
@@ -348,8 +348,8 @@ public sealed class TenantWideFixture : ResolvedTenantFixture
     /// <summary>
     /// The same host, with an organization that is present but never assigned.
     /// </summary>
-    public WebApplicationFactory<Program> WithUnassignedOrganization() =>
-        WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+    public ComponentApiFactory WithUnassignedOrganization() =>
+        WithWebHostBuilder(builder => builder.ConfigureServices(services =>
         {
             services.RemoveAll<ITenantContext>();
             services.AddScoped<ITenantContext>(_ => UnassignedOrganizationContext.Instance);
@@ -522,7 +522,7 @@ public sealed class MisconfiguredBurstFixture(string key, string value)
     }
 }
 
-public class ResolvedTenantFixture : ConstructionOnlyApiFactory
+public class ResolvedTenantFixture : ComponentApiFactory
 {
     public static readonly Guid TenantId = Guid.Parse("018f4d40-0000-7000-8000-0000000000aa");
     public static readonly Guid OrganizationId = Guid.Parse("018f4d40-0000-7000-8000-0000000000bb");
@@ -531,7 +531,7 @@ public class ResolvedTenantFixture : ConstructionOnlyApiFactory
     {
         ArgumentNullException.ThrowIfNull(builder);
         builder.UseEnvironment(Environments.Development);
-        builder.ConfigureTestServices(services =>
+        builder.ConfigureServices(services =>
         {
             services.AddControllers(options =>
                     options.Conventions.Insert(0, new TestControllerFilter(

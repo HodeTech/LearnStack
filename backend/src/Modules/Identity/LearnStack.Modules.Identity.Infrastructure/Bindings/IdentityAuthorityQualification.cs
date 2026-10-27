@@ -1,3 +1,4 @@
+using LearnStack.Infrastructure.Persistence;
 using System.Data;
 using Npgsql;
 
@@ -14,6 +15,12 @@ public sealed class IdentityAuthorityQualification(
     public IdentityAuthorityRegistration? Current => Volatile.Read(ref _current);
 
     public string? QualifiedDatabaseName { get; private set; }
+
+    public Task<DatabaseQualificationProof> OpenDatabaseQualificationProofAsync(CancellationToken cancellationToken = default)
+    {
+        if (Current is null) throw Unavailable();
+        return DatabaseQualificationProof.OpenAsync(dataSource.Value, cancellationToken);
+    }
 
     public Task QualifyAsync(CancellationToken cancellationToken = default)
     {

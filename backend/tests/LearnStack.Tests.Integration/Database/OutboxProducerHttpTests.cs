@@ -9,6 +9,7 @@ using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
 using MediatR;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -33,21 +34,7 @@ public sealed partial class OutboxProducerTests
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         var observation = new HttpProducerObservation();
-        await using var host = new ConstructionOnlyApiFactory().WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment(Environments.Development);
-            builder.UseSetting("ConnectionStrings:Default", database.AppConnectionString);
-            builder.ConfigureTestServices(services =>
-            {
-                services.AddControllers(options => options.Conventions.Insert(0,
-                        new TestControllerFilter(typeof(OutboxHttpProbeController))))
-                    .AddApplicationPart(typeof(OutboxHttpProbeController).Assembly);
-                services.AddSingleton(observation);
-                services.RemoveAll<IOutbox>();
-                services.AddScoped<PostgresOutbox>();
-                services.AddScoped<IOutbox, HttpObservedOutbox>();
-            });
-        });
+        await using var host = new HttpProducerFixture(database.AppConnectionString, observation);
         using var client = host.CreateClient(new WebApplicationFactoryClientOptions
         {
             BaseAddress = new Uri("http://localhost"),
@@ -75,6 +62,31 @@ public sealed partial class OutboxProducerTests
         ActivityContext.TryParse(observation.HttpActivity, null, out var http).Should().BeTrue();
         ActivityContext.TryParse(AmbientCorrelation, null, out var incoming).Should().BeTrue();
         persisted.TraceId.Should().Be(enqueuing.TraceId).And.Be(http.TraceId).And.Be(incoming.TraceId);
+    }
+
+    private sealed class HttpProducerFixture(string connectionString, HttpProducerObservation observation) : ComponentApiFactory
+    {
+        protected override void ConfigureComponentSettings(WebApplicationBuilder builder)
+        {
+            ArgumentNullException.ThrowIfNull(builder);
+            builder.Configuration["ConnectionStrings:Default"] = connectionString;
+        }
+
+        protected override void ConfigureTestHost(IWebHostBuilder builder)
+        {
+            ArgumentNullException.ThrowIfNull(builder);
+            builder.ConfigureServices(services =>
+            {
+                services.AddControllers(options => options.Conventions.Insert(0,
+                        new TestControllerFilter(typeof(OutboxHttpProbeController))))
+                    .AddApplicationPart(typeof(OutboxHttpProbeController).Assembly);
+                services.AddSingleton(observation);
+                services.RemoveAll<IOutbox>();
+                services.AddScoped<PostgresOutbox>();
+                services.AddScoped<IOutbox, HttpObservedOutbox>();
+                ComponentDatabaseOperations.AddProvisioningOperation(services);
+            });
+        }
     }
 
     private sealed class HttpObservedOutbox(

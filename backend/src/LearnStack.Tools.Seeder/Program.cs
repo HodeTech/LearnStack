@@ -89,7 +89,11 @@ try
     var qualification = new IdentityAuthorityQualification(new Lazy<Npgsql.NpgsqlDataSource>(() => dataSource), registration);
     await qualification.QualifyAsync(cancellation.Token);
     await using var evidence = new AuthorizationEvidenceSource(auxiliary.AuthorizationEvidence);
-    await evidence.QualifyAsync(registration.AuthorityId, registration.Issuer, cancellation.Token);
+    var proof = await qualification.OpenDatabaseQualificationProofAsync(cancellation.Token);
+    var qualificationDeadline = proof.DeadlineToken;
+    await using (proof)
+        await evidence.QualifyAsync(registration.AuthorityId, registration.Issuer, proof, qualificationDeadline);
+    qualificationDeadline.ThrowIfCancellationRequested();
     if (!string.Equals(qualification.QualifiedDatabaseName, evidence.QualifiedDatabaseName, StringComparison.Ordinal))
         throw new InvalidOperationException("Authorization evidence must use the qualified application database.");
     sourceStartupQualified = true;

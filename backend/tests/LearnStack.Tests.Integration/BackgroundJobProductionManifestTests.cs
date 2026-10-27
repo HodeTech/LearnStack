@@ -2,6 +2,7 @@ using System.Reflection;
 using FluentAssertions;
 using LearnStack.Api.Account;
 using LearnStack.Api.Jobs;
+using LearnStack.Api.Identity;
 using LearnStack.Api.Messaging;
 using LearnStack.Api.PublicReads;
 using LearnStack.Application.Jobs;
@@ -194,8 +195,9 @@ public sealed class BackgroundJobProductionManifestTests
         }).Order(StringComparer.Ordinal).ToArray();
         var applicationRoutes = new[]
         {
-            // ADR-0064 adds one authenticated read, never a job operator route.
+            // The two authenticated reads add no job operator route.
             "account/site|GET|" + typeof(AccountController).FullName + ".GetSite",
+            "identity/memberships|GET|" + typeof(MembershipsController).FullName + ".List",
             "public/site|GET|" + typeof(PublicSiteController).FullName + ".Get",
             "public/site|HEAD|" + typeof(PublicSiteController).FullName + ".Head",
             "public/courses|GET|" + typeof(PublicEducationController).FullName + ".Catalog",

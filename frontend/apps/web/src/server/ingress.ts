@@ -321,6 +321,18 @@ export function loadLocalEnvironment(
   ]) {
     if (environment[key] !== undefined) result[key] = environment[key];
   }
+  if (options.apiAuthentication) {
+    // A complete explicit process pair overrides the selected root file as one
+    // value. A partial pair cannot borrow its missing partner from that file.
+    const auxiliaryKeys = [
+      'ConnectionStrings__IdentityAuthorization',
+      'ConnectionStrings__AuthorizationEvidence',
+    ];
+    const explicit = auxiliaryKeys.filter((key) => environment[key] !== undefined);
+    if (explicit.length !== 0 && explicit.length !== auxiliaryKeys.length)
+      throw new Error('Incomplete API authorization source configuration');
+    for (const key of explicit) result[key] = environment[key]!;
+  }
   // Web startup does not consume API authentication configuration. Only the API
   // launcher resolves the exact issuer/authority pair and its conflict checks.
   const identityKeys = ['Authentication__Tenant__Issuer', 'Identity__AuthorityId'];

@@ -7,6 +7,7 @@ using LearnStack.Api.Tenancy;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -305,7 +306,7 @@ public sealed class HostClassificationHttpTests(HostClassificationFixture fixtur
 }
 
 /// <summary>A host whose resolver is a stub, so no database is involved.</summary>
-public sealed class HostClassificationFixture : ConstructionOnlyApiFactory
+public sealed class HostClassificationFixture : ComponentApiFactory
 {
     public const string OrganizationHost = "branch.example.com";
     public const string TenantHost = "school.example.com";
@@ -318,21 +319,19 @@ public sealed class HostClassificationFixture : ConstructionOnlyApiFactory
 
     public StubResolver Resolver { get; } = new();
 
+    protected override void ConfigureComponentSettings(WebApplicationBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        // Applied before the real tenancy component snapshots its host options.
+        builder.Configuration[$"{PlatformHostOptions.SectionName}:1"] = PlatformHostWithAMappingRow;
+    }
+
     protected override void ConfigureTestHost(IWebHostBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
         builder.UseEnvironment(Environments.Development);
 
-        // UseSetting, not ConfigureAppConfiguration: the composition root reads
-        // Tenancy:PlatformHosts while the builder is being assembled, which is
-        // before a deferred ConfigureAppConfiguration runs — the same trap
-        // DeploymentModeCompositionTests documents for Deployment:Mode, and
-        // measured here too (the host classified Tenant, not Platform).
-        // appsettings.Development.json already carries localhost at index 0; this
-        // adds the one that ALSO has a mapping row.
-        builder.UseSetting($"{PlatformHostOptions.SectionName}:1", PlatformHostWithAMappingRow);
-
-        builder.ConfigureTestServices(services =>
+        builder.ConfigureServices(services =>
         {
             services.AddControllers(options =>
                     options.Conventions.Insert(0, new TestControllerFilter(

@@ -125,22 +125,30 @@ internal sealed class AuthorizationEvidenceSession : IAuthorizationEvidenceSessi
         await AnnounceAsync().ConfigureAwait(false);
     }
 
-    internal async Task<string> QualifyAsync(IdentityAuthorityId authorityId, string issuer)
+    internal async Task<string> QualifyAsync(IdentityAuthorityId authorityId, string issuer, DatabaseQualificationProof? businessProof)
     {
         var command = new NpgsqlCommand("""
-            SELECT current_user, current_database(), authority_id, issuer
+            SELECT current_user, current_database(), authority_id, issuer,
+                   NOT @has_business_proof OR EXISTS (
+                       SELECT 1 FROM pg_catalog.pg_locks
+                       WHERE locktype = 'advisory' AND granted AND mode = 'ExclusiveLock'
+                         AND database = (SELECT oid FROM pg_catalog.pg_database WHERE datname = current_database())
+                         AND pid = @business_pid AND objsubid = 2
+                         AND classid::bigint = @business_first AND objid::bigint = @business_second)
             FROM public.identity_authority WHERE id = 1
             """, _connection, _transaction);
         DbDataReader? reader = null;
         try
         {
+            DatabaseQualificationProof.Bind(command, businessProof);
             reader = await command.ExecuteReaderAsync(DeadlineToken).ConfigureAwait(false);
             if (!await reader.ReadAsync(DeadlineToken).ConfigureAwait(false)
                 || reader.GetString(0) != ApplicationDataSource.RuntimeRole
                 || string.IsNullOrEmpty(reader.GetString(1))
                 || reader.GetGuid(2) != authorityId.Value
-                || !string.Equals(reader.GetString(3), issuer, StringComparison.Ordinal))
+                || !string.Equals(reader.GetString(3), issuer, StringComparison.Ordinal) || !reader.GetBoolean(4))
                 throw new InvalidOperationException("Authorization evidence startup qualification is unavailable or does not match.");
+            businessProof?.RequireActive();
             return reader.GetString(1);
         }
         finally { await DisposeStatementAsync(reader, command).ConfigureAwait(false); }

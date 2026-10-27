@@ -2715,6 +2715,10 @@ noted below; acceptance never promotes an unrun proof.
   controls and a shared-backend dirty topology prove independent capacity;
   parent uncommitted grants never supply authority. Saturation, cancellation,
   delayed/failed cleanup, shutdown and pool reuse preserve retained ownership.
+- **Startup qualification:** exact API/Seeder callers bind the auxiliary lanes to
+  the live business witness under [Standard 05](05-database.md#authorization-and-evidence-source-ledger);
+  closed factory/binder callers and bound-overload removal/extra-call controls
+  complement actual same-cluster/PgBouncer positives and foreign-cluster/expiry negatives.
 - **Source:** [ADR-0076](../decisions/0076-live-scoped-authorization.md);
   [source ledger](05-database.md#authorization-and-evidence-source-ledger).
 - **Type:** source/caller/role census plus real app-role PostgreSQL/PgBouncer
@@ -5630,13 +5634,15 @@ of structural detection.
 - **Asserts:** production composition and committed snapshot have the same document
   after object-key normalization, preserving array order; exactly eight public
   operations and four public GET wrappers exist, alongside the separate
-  authenticated AccountSite GET contract (nine operations and five GET contracts). Drift and policy-breaking
+  authenticated AccountSite and membership-directory GET contracts (ten operations
+  and six GET contracts). The four public wrappers and AccountSite-only native
+  authenticated transport remain closed. Drift and policy-breaking
   fixtures fail the pinned diff/generation checks.
-- **Source:** ADR-0024; ADR-0052; accepted P02d-4 G31.
+- **Source:** ADR-0024; ADR-0052; ADR-0076; accepted P02d-4 G31.
 - **Type:** xUnit + served OpenAPI + SDK/CLI fixtures. **Kind:** behavioural +
   structural.
-- **Status:** **Implemented** (`OpenApiContractTests.PublicSurface_Contract_Matches_Served_OpenApi`, P02d-4 Step 4); nine-operation, disjoint public/authenticated GET ownership, missing-operation/parameter/status and array-drift controls; generated SDK coverage and pinned CLI fixtures accompany it.
-- **Phase:** 02d (P02d-4 Step 4).
+- **Status:** **Implemented** (`OpenApiContractTests.PublicSurface_Contract_Matches_Served_OpenApi`, P02d-4 Step 4; P03-2 Step 5 extends the contract union); ten-operation, disjoint public/authenticated GET ownership, directory projection/403/pagination, missing-operation/parameter/status and array-drift controls; generated SDK coverage and pinned CLI fixtures accompany it.
+- **Phase:** 02d (P02d-4 Step 4); 03 (P03-2 Step 5 contract extension).
 
 ## P02d-5 public server rendering controls
 

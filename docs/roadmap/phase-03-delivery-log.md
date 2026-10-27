@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 1,316 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 1,388 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -104,6 +104,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 Step 4 review round 2 (2026-10-27)](#p03-2-step-4-review-round-2-2026-10-27) — 36 lines
   - [P03-2 Step 4 correction verification and closeout (2026-10-27)](#p03-2-step-4-correction-verification-and-closeout-2026-10-27) — 57 lines
   - [P03-2 Step 5 — Live HTTP and application activation (2026-10-27)](#p03-2-step-5--live-http-and-application-activation-2026-10-27) — 82 lines
+  - [P03-2 Step 5 review round 1 and corrections (2026-10-27)](#p03-2-step-5-review-round-1-and-corrections-2026-10-27) — 72 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -4273,3 +4274,75 @@ The phase Status block owns packet state. Whole activation-dependent catalogue
 obligations remain Registered until Step 6 completes final-source qualification.
 Full backend/provider/native suites, source/image/shard inventories and fresh
 hosted A/B qualification are not inferred from these focused receipts.
+
+### P03-2 Step 5 review round 1 and corrections (2026-10-27)
+
+Three new independent `gpt-6-astra` / `xhigh` reviewers inspect implementation
+`02bce2a1` against base `56f95547`: HTTP/EF isolation (`p032_s5_r1_http`),
+execution/startup/launch (`p032_s5_r1_execution`) and proofs/SDK/docs
+(`p032_s5_r1_proofs`). All are read-only source reviews; none claims a test run.
+The HTTP slice approves. The other slices request concrete corrections below;
+the parent independently verifies each before changing it.
+
+- **Selected API credentials.** The API launch environment drops both explicit
+  auxiliary keys, unlike the new Seeder runtime helper. The correction preserves
+  the selected pair byte-for-byte, refuses partial/empty/control-bearing input
+  before spawning the API, and atomically selects a complete explicit process
+  pair before file fallback. It never combines one process key with a file key
+  or imports an unrelated ambient credential into the runtime helper. Demo's
+  pre-existing selected-stack conflict refusal remains. Nineteen new controls
+  include a real copied CLI/marker-child boundary: old source fails eighteen of
+  them, corrected source passes all nineteen. The four-file frontend group passes
+  **253/253**; web typecheck/native SDK compilation and targeted ESLint pass.
+- **Common database execution.** Role, authority and database-name agreement alone
+  cannot distinguish a restored same-name database on another cluster. API and
+  Seeder startup now use the bounded live business-database witness documented
+  once in Standard 05. Both used lanes must see the exact active transaction
+  marker before qualification; runtime caps, roles, grants, schema and tenant
+  setter counts stay unchanged. Cleanup remains awaited and joined, with final
+  deadline checks after actual cleanup. This implements the Accepted common-
+  database requirement without claiming backend-reservation/topology proof.
+- **Real protocol controls.** The same-name/same-authority second-cluster test
+  first proves that each clone is independently reachable/qualified and that a
+  fully self-consistent clone host can start. Crossing either lane into it then
+  refuses; original rows/anchor stay unchanged and the original host recovers.
+  Direct and pinned PgBouncer positives catch an initial driver-PID assumption;
+  qualification uses the actual SQL backend PID. A raw migration-source control
+  catches a missing exact-role check in the new factory. Those three prototype
+  cases initially yield one pass/two failures, then all pass after the correction.
+  The complete qualification group passes **14/14**, zero skips, including actual
+  marker cleanup, both lanes, disposal/cancellation/real five-second expiry,
+  foreign database, no unbound-result upgrade and no proof retargeting.
+- **Legacy component fixtures.** The parent's broad Docker-free run exposes probe
+  controllers now correctly refused by production default deny; some old negative
+  assertions could consequently pass at the wrong boundary. That run is stopped
+  with known failures and supplies no completion receipt. Explicit component-only
+  hosts now assemble the production routing/MVC/body/error/tenancy components
+  these tests own, remove production controllers, and admit only their selected
+  test controllers. They make no Program/authentication claim. Application
+  dispatch retains canonical slot 5 and exact test-owned policy/provenance;
+  existing no-database tests invent neither physical transactions nor durability.
+  Actual Program/undeclared-controller/authorization proofs remain separate and
+  unchanged. The affected offline group passes **164/164**; real app-role tenant
+  isolation and HTTP outbox controls pass **9/9**. The full Docker-free integration
+  population subsequently passes **322/322**, zero skips.
+- **Closed contracts.** The production job manifest adds only the exact tenth
+  membership-directory action; extra-route/dashboard controls remain. The existing
+  OpenAPI catalogue rule now says ten operations/six GET contracts, retaining four
+  public wrappers and the sole native AccountSite method.
+
+The startup witness's closed factory/binder/root callers, guarded role check and
+bound production overloads extend the existing independent-owner Architecture
+fact. Planted extra calls/function pointers, removed gates and substitution of an
+unbound overload all refuse. That fact and the updated shared-role-guard caller
+fact pass **2/2**. The original execution reviewer independently checks the narrow
+correction, actual fourteen-case receipt and launcher controls and closes both
+findings without another issue; this is correction verification, not a third full
+review round.
+
+After corrections, the rebuilt full Unit project passes **2,994/2,994** and the
+current real HTTP/directory/AccountSite/binding/seed selection passes **62/62**.
+The current Contract suite passes **5/5**; documentation lint and diff hygiene
+pass. These focused receipts complement, rather than replace, Step 6's complete
+backend/provider/native populations, source/image/shard inventories and hosted
+A/B qualification. R1 corrections are committed before the requested fresh R2.

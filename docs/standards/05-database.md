@@ -2127,8 +2127,29 @@ The two new configuration keys are coupled: partial input refuses. Development
 alone may derive both from a direct-PostgreSQL Default string, preserving three
 physically separate bounded client sources. Outside Development both guarded
 strings are explicit; no silent same-endpoint fallback is admitted. All sources
-qualify the same application role and installed identity authority. Credentials
-remain environment-only, absent from restore/build inputs; modules never choose
+qualify the same application role and installed identity authority. API/Seeder
+startup also binds each used auxiliary lane to a live business-database witness:
+one existing Default connector holds a READ COMMITTED, physically READ ONLY
+transaction with a fresh random 64-bit two-int advisory marker. Auxiliary
+qualification checks that marker's actual SQL backend PID, key and current database
+in `pg_catalog.pg_locks`, before becoming qualified. Database name/authority
+matching alone cannot distinguish a restored copy on another cluster.
+The two-int key space (`objsubid = 2`) is separate from bigint business fences;
+no business row mutation, User/tenant invariant fence, role, grant, table or
+tenant announcement is added.
+The SQL backend PID is used because PgBouncer's protocol client cancellation PID
+is not PostgreSQL backend identity. The startup witness has one five-second total
+deadline across its open/setup and the sequential lane qualifications. Actual
+rollback/disposal releases its marker and connector; elapsed time does not.
+Concurrent disposal joins that same completion. This is transient startup use of
+the existing business source, not another runtime pool or wider four/two cap.
+Production uses the witness-bearing overload; an unbound qualification cannot be
+upgraded/rebound to a different witness. Direct PostgreSQL and pinned PgBouncer
+aliases have positive controls; same-name/same-authority foreign clusters,
+wrong roles and expired/closed/foreign witnesses have negative controls.
+This verifies common database execution, not the separately required downstream
+backend reserve, replica/failover routing or production topology sizing.
+Credentials remain environment-only, absent from restore/build inputs; modules never choose
 endpoints or branch on deployment mode.
 Direct PostgreSQL is a supported-topology precondition for Development derivation,
 not a fact an arbitrary endpoint string can prove. PgBouncer needs an explicit
