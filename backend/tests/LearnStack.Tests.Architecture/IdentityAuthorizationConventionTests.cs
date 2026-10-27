@@ -15,7 +15,11 @@ public sealed class IdentityAuthorizationConventionTests
     private const string Source = "LearnStack.Infrastructure.Persistence.IdentityAuthorizationReadSource";
     private const string Owner = "LearnStack.Infrastructure.Persistence.AuthorizationReadOwner";
     private const string RoleGuard = "LearnStack.Infrastructure.Persistence.ApplicationDataSource";
-    private const string Reader = "LearnStack.Modules.Identity.Infrastructure.Authorization.PreContextIdentityAuthorizationReader";
+    private const string Reader = "LearnStack.Modules.Identity.Infrastructure.Authorization.PreContextIdentityAuthorizationSessionFactory";
+    private const string Orchestrator = "LearnStack.Modules.Identity.Application.Authorization.CommittedIdentityAuthorizationReader";
+    private const string Session = Reader + "/AuthorizationSession";
+    private const string SessionFactoryPort = "LearnStack.Modules.Identity.Application.Abstractions.IIdentityAuthorizationSessionFactory";
+    private const string SessionPort = "LearnStack.Modules.Identity.Application.Abstractions.IIdentityAuthorizationSession";
     private const string ReaderPort = "LearnStack.Modules.Identity.Application.Contracts.Authorization.IIdentityAuthorizationReader";
     private const string Lifecycle = "LearnStack.Modules.Tenancy.Infrastructure.Persistence.IdentityScopeLifecycleReader";
     private const string LifecyclePort = "LearnStack.Modules.Tenancy.Application.Contracts.IdentityLifecycle.IIdentityScopeLifecycleReader";
@@ -60,8 +64,18 @@ public sealed class IdentityAuthorizationConventionTests
     {
         using var census = Census.Read();
         BorrowerOffenders(census).Should().BeEmpty("Fix: borrow only through the enumerated candidate reader and keep its datasource private (ADR-0076)");
-        foreach (var target in new[] { census.Method(Source, "OpenAsync"), census.Method(LifecyclePort, "ReadAuthorizationAsync") })
+        foreach (var target in new[] { census.Method(Source, "OpenAsync"), census.Method(LifecyclePort, "ReadAuthorizationAsync"),
+                     census.Method(ReaderPort, "ReadAsync"), census.Method(SessionFactoryPort, "OpenAsync"), census.Method(SessionPort, "ReadMembershipsAsync") })
             Dirty(census, BorrowerOffenders, () => AddCall(census.Type(HttpMinter).Module, target));
+        foreach (var port in new[] { ReaderPort, SessionFactoryPort, SessionPort })
+            Dirty(census, BorrowerOffenders, () =>
+            {
+                var module = census.Type(Reader).Module;
+                var extra = new TypeDefinition("AuthorizationControl", "AdditionalReaderOwner", TypeAttributes.NotPublic | TypeAttributes.Sealed, module.TypeSystem.Object);
+                extra.Interfaces.Add(new InterfaceImplementation(module.ImportReference(census.Type(port))));
+                module.Types.Add(extra);
+                return () => module.Types.Remove(extra);
+            });
         foreach (var wrapped in new[] { false, true })
             Dirty(census, BorrowerOffenders, () =>
             {
@@ -195,15 +209,40 @@ public sealed class IdentityAuthorizationConventionTests
     private static List<string> BorrowerOffenders(Census census)
     {
         var errors = new List<string>();
-        Callers(census, errors, Source, "OpenAsync", [Reader + ".ReadAsync"]);
-        Callers(census, errors, LifecyclePort, "ReadAuthorizationAsync", [Reader + ".ReadAsync"]);
+        Callers(census, errors, Source, "OpenAsync", [Reader + ".OpenAsync"]);
+        Callers(census, errors, ReaderPort, "ReadAsync", ["LearnStack.Modules.Identity.Application.Authorization.IdentityOperationAuthorizer.AuthorizeAsync"]);
+        Callers(census, errors, LifecyclePort, "ReadAuthorizationAsync", [Orchestrator + ".ReadAsync"]);
+        Callers(census, errors, SessionFactoryPort, "OpenAsync", [Orchestrator + ".ReadAsync"]);
+        Callers(census, errors, SessionPort, "ReadMembershipsAsync", [Orchestrator + ".ReadAsync"]);
+        Callers(census, errors, SessionPort, "get_Unit", [Orchestrator + ".ReadAsync"], distinct: true);
+        Callers(census, errors, SessionPort, "get_DeadlineToken", [Orchestrator + ".ReadAsync"], distinct: true);
+        Callers(census, errors, SessionPort, "CompleteAsync", [Orchestrator + ".ReadAsync"]);
+        if (Calls(census.Body(Orchestrator, "ReadAsync"), "System.IAsyncDisposable", "DisposeAsync").Count() != 1)
+            errors.Add("The committed-state orchestrator retains its real asynchronous session cleanup");
+        Callers(census, errors, SessionPort, "MarkCleanupFailed", [Orchestrator + ".ReadAsync"]);
+        Callers(census, errors, Reader, "ReadMembershipsAsync", [Session + ".ReadMembershipsAsync"]);
+        Callers(census, errors, Session, ".ctor", [Reader + ".OpenAsync"]);
         Callers(census, errors, Lifecycle, "ReadAuthorizationAsync", []);
         Callers(census, errors, Owner, ".ctor", [Source + ".RetainOwner"]);
         Callers(census, errors, Owner, "OpenAsync", [Source + ".OpenAsync", Source + ".QualifyCoreAsync"]);
-        Callers(census, errors, Owner, "CompleteAsync", [Source + ".QualifyCoreAsync", Reader + ".ReadAsync"]);
-        Callers(census, errors, Owner, "get_Unit", [Reader + ".ReadAsync", Reader + ".ReadMembershipsAsync"], distinct: true);
+        Callers(census, errors, Owner, "CompleteAsync", [Source + ".QualifyCoreAsync", Session + ".CompleteAsync"]);
+        Callers(census, errors, Owner, "get_Unit", [Session + ".get_Unit", Reader + ".ReadMembershipsAsync"], distinct: true);
         Set(errors, "authorization reader implementations", census.Types.Where(type => type.Interfaces.Any(item => item.InterfaceType.FullName == ReaderPort))
+            .Select(type => type.FullName), [Orchestrator]);
+        Set(errors, "authorization session factories", census.Types.Where(type => type.Interfaces.Any(item => item.InterfaceType.FullName == SessionFactoryPort))
             .Select(type => type.FullName), [Reader]);
+        Set(errors, "authorization sessions", census.Types.Where(type => type.Interfaces.Any(item => item.InterfaceType.FullName == SessionPort))
+            .Select(type => type.FullName), [Session]);
+        var session = census.Type(Session);
+        if (!session.IsNestedPrivate || !session.IsSealed || session.Fields.Count != 2
+            || session.Fields.Any(field => !field.IsPrivate || !field.IsInitOnly || field.IsStatic)
+            || !session.Fields.Select(field => field.FieldType.FullName).Order(StringComparer.Ordinal)
+                .SequenceEqual(new[] { Owner, Candidate }.Order(StringComparer.Ordinal), StringComparer.Ordinal))
+            errors.Add("The private session retains only its immutable actual owner and candidate");
+        if (census.Type(Reader).Module.AssemblyReferences.Any(reference => reference.Name.StartsWith("LearnStack.Modules.Tenancy.", StringComparison.Ordinal))
+            || Il.ReferencedTypeNames(census.Type(Orchestrator)).Any(name => name.StartsWith("Npgsql.", StringComparison.Ordinal)
+                || name.StartsWith("LearnStack.Infrastructure.", StringComparison.Ordinal)))
+            errors.Add("Only Application coordinates the cross-module lifecycle contract; provider ownership remains in Infrastructure");
         foreach (var type in new[] { census.Type(Source), census.Type(Owner) })
         {
             if (!type.IsSealed || type.Fields.Any(field => field.FieldType.FullName == "Npgsql.NpgsqlDataSource" && (!field.IsPrivate || !field.IsInitOnly)))
@@ -341,8 +380,9 @@ public sealed class IdentityAuthorizationConventionTests
             errors.Add("The lifecycle authorization overload never reads its captured ambient business unit");
         var forbiddenTypes = new[] { "LearnStack.SharedKernel.Tenancy.ITenantContext", "Npgsql.NpgsqlDataSource",
             "LearnStack.Modules.Identity.Domain.User", "LearnStack.Modules.Identity.Domain.MembershipProfile", "System.IServiceProvider", "MediatR.ISender" };
-        if (Il.ReferencedTypeNames(census.Type(Reader)).Intersect(forbiddenTypes, StringComparer.Ordinal).Any())
-            errors.Add("The reader has no profile/global identity, ambient context, raw datasource or dispatch capability");
+        foreach (var component in new[] { Reader, Orchestrator })
+            if (Il.ReferencedTypeNames(census.Type(component)).Intersect(forbiddenTypes, StringComparer.Ordinal).Any())
+                errors.Add("The reader has no profile/global identity, ambient context, raw datasource or dispatch capability: " + component);
         foreach (var (type, expected) in new[] { (Reader, 1), (Source, 0), (Owner, 2), (Lifecycle, 2) })
             if (census.Bodies.Where(item => item.Owner.DeclaringType.FullName == type)
                 .Sum(item => item.Body.Body.Instructions.Count(instruction => instruction.OpCode == OpCodes.Newobj

@@ -6,8 +6,11 @@ namespace LearnStack.Api.Authentication;
 
 /// <summary>Mints only the exact claim/host candidate after quota-admitted existing-binding normalization.</summary>
 internal sealed class TenantAuthorizationCandidateSource(IHttpContextAccessor accessor)
-    : AuthorizationCandidate.MintingSource
+    : AuthorizationCandidate.MintingSource, IAuthorizationCandidateSource
 {
+    AuthorizationCandidate? IAuthorizationCandidateSource.ForValidatedScope(TenantId tenant, OrganizationId? organization) =>
+        ForValidatedScope(tenant, organization);
+
     internal AuthorizationCandidate? ForValidatedScope(TenantId tenant, OrganizationId? organization)
     {
         var http = accessor.HttpContext;

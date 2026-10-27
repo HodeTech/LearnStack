@@ -278,8 +278,9 @@ Why this order:
   [Security Standards § Tenant Context](../standards/11-security.md), the single
   authority for this placement.
 - **Authorization after tenant.** Phase 03's permission decision needs ambient
-  `(tenant_id, user_id, resource)`. The current behavior passes requests through;
-  the accepted P03-2 live HTTP/application policy contract is not implemented yet.
+  `(tenant_id, user_id, resource)`. The staged scoped coordinator and Identity
+  evaluator implement the accepted policy core; launch retains the pass-through
+  adapter until joint trusted-evidence activation.
 - **Transaction after authorization.** This position lets Phase 03 refuse a
   permission-sensitive request before opening a business transaction; its
   independent denial event uses the standalone path when no business owner exists;
@@ -620,7 +621,7 @@ Two integration points
 | Sensitive exception-message analyzer | P02b-8 | `LS0002` covers bounded sensitive-name expressions across production C#; ADR-0032 Amendment 6 |
 | MUST-class audit write path (`IAuditStore`, `IAuditStateCapture`) | Phase 02a Packet 9 | Shape fixed by ADR-0033 + ADR-0044; `audit_log` ships plain, unpartitioned |
 | Public read-only transaction mode and host ceiling | P02d-4 | ADR-0052 Accepted; P02d-4 Step 1 delivers host admission, transaction modes and app-role write-refusal proofs; Step 2 adds site endpoints and structural dispatch/Off/persistence guards; Steps 3–4 deliver Education reads and contract/SDK/CI proofs |
-| Live authorization and trusted denial evidence | P03-2 | ADR-0076/0077 Accepted; implementation/proofs pending. Per-act checks, immutable read/provenance authority and pre-success evidence barriers; canonical rules in Standards 05/18. |
+| Live authorization and trusted denial evidence | P03-2 | Reader, staged policy/read authority and internal directory implemented; trusted denial evidence and joint launch activation remain gated. Canonical rules in Standards 05/18. |
 | Outbox / background-job correlation propagation | Phase 02b | Trusted outbox/job rows and delivery/`JobExecutor` restoration; Hangfire hints remain opaque |
 | Hub HTTPS correlation middleware | Phase 02b / 02c | Cross-repo |
 | OTel Collector + Tempo + Loki + Prometheus deployment | Phase 11 | Production-side backends |

@@ -5,7 +5,8 @@ and [ADR-0073](../../decisions/0073-scoped-membership-and-identity-data-foundati
 The live contract is jointly Accepted in
 [ADR-0076](../../decisions/0076-live-scoped-authorization.md) /
 [ADR-0077](../../decisions/0077-trusted-authorization-evidence.md); runtime remains pending.
-No Identity HTTP route or live permission admission is implemented. The [module spec](README.md)
+The internal directory query, fresh operation evaluator and exact policy source
+are staged; no Identity HTTP route or live permission admission is activated. The [module spec](README.md)
 owns storage/lifecycle; [Standard 19's accepted foundation contract](../../standards/19-permissions.md#proposed-identity-foundation-contract)
 owns the exact registry, grant manifests and kernel without a second copy here.
 
@@ -39,7 +40,7 @@ adoption supplies identity facts; it does not independently grant seed authority
 
 Empty cells mean no foundation key exists. Bootstrap/seed verification reads
 do not invent directory/read keys; their exact owner/audit classification is
-separate. P03-2 reuses the existing Tenant admin pairs for the planned operations below;
+separate. P03-2 reuses the existing Tenant admin pairs for the internal directory and planned operations below;
 new assignable definitions require their own approved finite manifest.
 
 ## Delegation and scope boundary
@@ -71,10 +72,11 @@ new assignable definitions require their own approved finite manifest.
   already admitted work is not retroactively cancelled. JWT/session/UI caching
   cannot establish that boundary. P03-3 owns UI freshness/target transitions.
 
-## Accepted P03-2 operation bindings — runtime pending
+## Accepted P03-2 operation bindings — staged internal directory
 
 | Operation | Existing capability | Boundary |
 |---|---|---|
+| `ListMembershipsQuery` (internal) | Tenant `identity.membership.admin` | Exact protected policy with invocation-bound tenant-wide reads, six approved contextual fields and MembershipId continuation. Fresh committed authority is required for every act. Ordinary ReadWrite; MUST sensitive-read audit. |
 | `GET /api/v1/identity/memberships` | Tenant `identity.membership.admin` | Declared tenant-wide administrative read; an eligible NULL-org Tenant Admin Membership can authorize it from a branch session. Organization grants cannot. MUST sensitive-read audit; no native BFF expansion. |
 | `ChangeRoleGrantsCommand` | Eligible Tenant Admin and Tenant `identity.role.admin` | Orgless write, current delegation ceiling/kernel, expected Role row version; recheck actor/target authority after invariant-lock wait. No HTTP writer. |
 | `AdoptRoleGrantManifestCommand` | Same admin gate | Separate approved finite v1 manifest/diff and same concurrency/audit rules; unknown manifests refuse, no v2 bundle or automatic adoption. No HTTP writer. |
@@ -84,6 +86,11 @@ Virtual Portal Public definitions are nonassignable and describe existing public
 reads only; [Standard 19](../../standards/19-permissions.md) owns their exact set.
 Default-deny HTTP and independent application checks consume fresh committed
 policy facts. P03-9 retains Platform admission; a SystemActor UUID is no bypass.
+`IdentityOperationPolicySource` classifies the six existing seed requests as
+finite Seed operations and the internal directory as the sole protected Identity
+consumer. The fresh evaluator distinguishes coverage from capability and
+returns bounded Membership/Role references only. Opt-in registration does not
+activate the HTTP gate or native transport.
 The [Standard 05 read authority contract](../../standards/05-database.md#operation-bound-read-authority)
 owns immutable invocation/transaction scope and EF/RLS agreement.
 

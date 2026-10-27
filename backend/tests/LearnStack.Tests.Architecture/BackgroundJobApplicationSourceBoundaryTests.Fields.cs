@@ -32,10 +32,10 @@ public sealed partial class OutboxDispatchConventionTests
             ("BeginAuxiliary", 2), ("BeginConfinedLane", 2), ("OwnsAuxiliary", 1)], "BeginConfinedLane");
 
         Field(owner, "_cleanupFailed", "System.Boolean", false, 3,
-            ["get_CleanupConfirmed", "RequireBusinessReady", "BeginAuxiliary", "BeginConfinedLane",
+            ["get_CleanupConfirmed", "get_IsCurrentBinding", "RequireBusinessReady", "BeginAuxiliary", "BeginConfinedLane",
              "ReportMainTransactionCleanup", "ReportMainCleanup", "ReportCleanupFailure"]);
         Field(owner, "_closed", "System.Boolean", false, 1,
-            ["Enter", "RequireBusinessReady", "CloseIssuance", "BeginAuxiliary", "BeginConfinedLane"]);
+            ["Enter", "get_IsCurrentBinding", "RequireBusinessReady", "CloseIssuance", "BeginAuxiliary", "BeginConfinedLane"]);
         Field(resources, "_owner", AppJobOwner, true, 1,
             [".ctor", "MarkCleanupFailed", "DisposeReaderAsync", "CleanupAsync", "TryRelease"]);
         Field(resources, "_connection", "System.Data.Common.DbConnection", false, 1, ["HoldConnection", "CleanupAsync"]);

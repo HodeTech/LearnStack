@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using LearnStack.Infrastructure.Messaging;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Permissions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
@@ -189,6 +190,8 @@ public static class ModuleDbContextRegistration
             // options, so it would fail to construct any context with a second
             // parameter, which is now every tenant-scoped one.
             var context = ActivatorUtilities.CreateInstance<TContext>(provider, options);
+            if (context is TenantScopedDbContext scoped && unitOfWork is IOperationReadScopeView readScope)
+                scoped.AttachOperationReadScope(readScope);
             if (globalAnnouncement is not null)
                 global!.EnrollGlobalIdentityContext(context, globalAnnouncement.Descriptor);
             foreach (var interceptor in saveInterceptors.OfType<DomainEventSaveChangesInterceptor>())

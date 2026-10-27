@@ -405,12 +405,9 @@ public sealed partial class TenancyConventionTests
     public void Tenant_Scope_Widening_Is_Never_Set_From_Request_Input()
     {
         // app.scope = 'tenant' widens an organization-scoped read to the whole tenant, and
-        // ADR-0036 § The reconciliation matrix derives it from the actor's role plus a
-        // declared tenant-wide operation — never from a header, a query parameter, a cookie
-        // or a body. The role arrives in Phase 03; until then nothing sets the variable at
-        // all, and "nothing sets it" is the strongest form of "nothing sets it from request
-        // input". The setter Phase 03 writes adds its own path to ScopeSetterSites, which is
-        // where the role derivation gets reviewed.
+        // ADR-0076 admits only the operation-bound witness overload of the existing logical
+        // setter. Its private core is recognized by exact signature, fixed forwarding flags
+        // and the one scope parameter expression; every other statement is still scanned.
         //
         // The premise first, or the rule guards a variable nothing reads: the policies do
         // read it.
@@ -421,16 +418,16 @@ public sealed partial class TenancyConventionTests
             .Where(member => member.Name.Contains("Scope", StringComparison.OrdinalIgnoreCase))
             .Where(member => member.Name is not (nameof(ITenantContext.HostScope) or "get_HostScope"))
             .Should().BeEmpty(
-                "Fix: no app.scope authority carrier is permitted; ADR-0052's immutable HostScope only narrows reads");
+                "Fix: ITenantContext carries no writable read-scope authority; the operation witness and physical owner own it");
 
         Directory.EnumerateFiles(SourceScan.SourceRoot, "*.cs", SearchOption.AllDirectories)
             .Where(file => !file.Split(Path.DirectorySeparatorChar).Any(segment => segment is "bin" or "obj"))
-            .Where(file => ScopeSetter().IsMatch(WithoutGlobalAuthorityClears(file, "app.scope")))
-            .Select(file => Path.GetRelativePath(SourceScan.SourceRoot, file).Replace('\\', '/'))
-            .Where(file => !ScopeSetterSites.Contains(file))
+            .Select(file => (Relative: Path.GetRelativePath(SourceScan.SourceRoot, file).Replace('\\', '/'),
+                Source: WithoutGlobalAuthorityClears(file, "app.scope")))
+            .Where(file => ScopeSetter().IsMatch(WithoutOperationReadAnnouncement(file.Relative, file.Source)))
+            .Select(file => file.Relative)
             .Should().BeEmpty(
-                "nothing sets app.scope until Phase 03 derives it from a role "
-                + "(ADR-0036 § The reconciliation matrix)");
+                "only the exact witness-consuming ordinary announcement sets app.scope (ADR-0076)");
     }
 
     [Fact]
@@ -457,10 +454,8 @@ public sealed partial class TenancyConventionTests
             "SELECT set_config('app.scope', @scope, true)", "app.scope")).Should().BeTrue();
         ScopeSetter().IsMatch(WithoutGlobalAuthorityClears(AuthorizationOwner,
             "SELECT set_config('app.scope', 'tenant', true)", "app.scope")).Should().BeTrue();
+        AssertOperationScopeCarrierControls();
     }
-
-    /// <summary>Files allowed to set <c>app.scope</c>, by path under <c>backend/src</c>. Empty until Phase 03.</summary>
-    private static readonly HashSet<string> ScopeSetterSites = new(StringComparer.Ordinal);
 
     private static string WithoutGlobalAuthorityClears(string file, string variable)
     {

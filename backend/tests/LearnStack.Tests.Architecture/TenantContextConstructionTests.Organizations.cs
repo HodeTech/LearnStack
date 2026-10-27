@@ -21,15 +21,19 @@ public sealed partial class TenantContextConstructionTests
         ORDER BY tenant_id,id LIMIT @limit
         """;
     private const string OrganizationIdentityLifecycleSql = """
-        SELECT t.deleted_at IS NULL,
-               t.deleted_at IS NULL AND t.status IN ('Trial', 'Active'),
+        SELECT t.id IS NOT NULL AND t.deleted_at IS NULL,
+               t.id IS NOT NULL AND t.deleted_at IS NULL AND t.status IN ('Trial', 'Active'),
                o.id IS NOT NULL,
                o.id IS NOT NULL AND o.deleted_at IS NULL AND o.status = 'Active',
-               current_setting('transaction_isolation') = 'read committed'
-        FROM public.tenants AS t
+               current_setting('transaction_isolation') = 'read committed',
+               current_setting('transaction_read_only') = 'on',
+               NULLIF(current_setting('app.tenant_id', true), '')::uuid = @tenant
+                 AND NULLIF(current_setting('app.organization_id', true), '')::uuid IS NOT DISTINCT FROM @organization
+                 AND NULLIF(current_setting('app.scope', true), '') IS NULL
+        FROM (VALUES (1)) AS query_anchor(value)
+        LEFT JOIN public.tenants AS t ON t.id = @tenant
         LEFT JOIN public.organizations AS o
           ON o.tenant_id = t.id AND o.id = @organization
-        WHERE t.id = @tenant
         """;
 
     private sealed record OrganizationSqlSubject(string Path, string Type, string Member, string Sql);
@@ -44,7 +48,7 @@ public sealed partial class TenantContextConstructionTests
         new(OrganizationOccurrences, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "FreezeOccurrenceBoundsAsync",
             "SELECT tenant_id,id FROM organizations ORDER BY tenant_id DESC,id DESC LIMIT 1"),
         new(OrganizationIdentityLifecycle, "LearnStack.Modules.Tenancy.Infrastructure.Persistence.IdentityScopeLifecycleReader",
-            "ReadAsync", OrganizationIdentityLifecycleSql),
+            "LifecycleSql", OrganizationIdentityLifecycleSql),
     ];
 
     private static (string Path, string Code)[] OrganizationSources() =>
@@ -114,6 +118,14 @@ public sealed partial class TenantContextConstructionTests
             "command.Parameters.AddWithValue(\"tenant\", tenantId.Value)",
             "command.Parameters.AddWithValue(\"organization\", NpgsqlDbType.Uuid, organizationId is { } org ? org.Value : DBNull.Value)",
             "command.ExecuteReaderAsync(cancellationToken)");
+        Require(OrganizationIdentityLifecycle, "IdentityScopeLifecycleReader", "ReadAuthorizationAsync",
+            "command.Parameters.AddWithValue(\"tenant\", candidate.TenantId.Value)",
+            "command.Parameters.AddWithValue(\"organization\", NpgsqlDbType.Uuid, candidate.OrganizationId is { } organization ? organization.Value : DBNull.Value)",
+            "command.ExecuteReaderAsync(cancellationToken)");
+        if (roots.TryGetValue(OrganizationIdentityLifecycle, out var lifecycleRoot)
+            && lifecycleRoot.DescendantTokens().Count(token => token.IsKind(SyntaxKind.IdentifierToken)
+                && token.ValueText == "LifecycleSql") != 3)
+            offenders.Add(OrganizationIdentityLifecycle + ": the SQL constant must have exactly its declaration and two executed argument uses");
         return offenders.Distinct(StringComparer.Ordinal).ToArray();
 
         void Require(string path, string type, string method, params string[] calls)
@@ -136,6 +148,7 @@ public sealed partial class TenantContextConstructionTests
                 "CreateCommand" => ("string sql", "NpgsqlCommand", SyntaxKind.PrivateKeyword, false),
                 "ReadLifecyclePageAsync" => ("BackgroundJobControlResources resources, OccurrenceCursor cursor, CancellationToken token", "Task<IReadOnlyList<BackgroundJobLifecycleRoute>>", SyntaxKind.PrivateKeyword, true),
                 "ReadAsync" => ("TenantId tenantId, OrganizationId? organizationId, CancellationToken cancellationToken = default", "Task<IdentityScopeLifecycle>", SyntaxKind.PublicKeyword, true),
+                "ReadAuthorizationAsync" => ("IUnitOfWork child, AuthorizationCandidate candidate, CancellationToken cancellationToken = default", "Task<IdentityScopeLifecycle>", SyntaxKind.PublicKeyword, true),
                 _ => throw new InvalidOperationException("Unknown organization binding owner."),
             };
             if (ownerMethod.Body is null || ownerMethod.TypeParameterList is not null
@@ -145,6 +158,21 @@ public sealed partial class TenantContextConstructionTests
                 || ownerMethod.Modifiers.Any(token => token.IsKind(SyntaxKind.StaticKeyword))
                 || ownerMethod.Modifiers.Any(token => token.IsKind(SyntaxKind.AsyncKeyword)) != isAsync)
             { offenders.Add(path + ": changed binding owner signature " + method); return; }
+            if (path == OrganizationIdentityLifecycle)
+            {
+                var construction = method == "ReadAsync"
+                    ? "new NpgsqlCommand(LifecycleSql, (NpgsqlConnection)unit.Connection, (NpgsqlTransaction)transaction) { CommandTimeout = 10 }"
+                    : "new NpgsqlCommand(LifecycleSql, (NpgsqlConnection)child.Connection, (NpgsqlTransaction)transaction) { CommandTimeout = 5 }";
+                var statement = SyntaxFactory.ParseStatement(method == "ReadAsync"
+                    ? "await using var command = " + construction + ";"
+                    : "command = " + construction + ";");
+                var creations = ownerMethod.DescendantNodes().OfType<ObjectCreationExpressionSyntax>()
+                    .Where(item => SyntaxFactory.AreEquivalent(item.Type, SyntaxFactory.ParseTypeName("NpgsqlCommand"))).ToArray();
+                if (creations.Length != 1 || !SyntaxFactory.AreEquivalent(creations[0], SyntaxFactory.ParseExpression(construction))
+                    || !SyntaxFactory.AreEquivalent(creations[0].Ancestors().OfType<StatementSyntax>().FirstOrDefault(), statement)
+                    || !ExecutedBinding(creations[0], ownerMethod))
+                    offenders.Add(path + ": the shared SQL must be the exact executed command argument in " + method);
+            }
             var actual = ownerMethod.DescendantNodes().OfType<InvocationExpressionSyntax>().ToArray();
             foreach (var call in calls)
                 if (actual.Count(item => SyntaxFactory.AreEquivalent(item, SyntaxFactory.ParseExpression(call))
@@ -173,19 +201,19 @@ public sealed partial class TenantContextConstructionTests
         }
     }
 
-    private static bool ExecutedBinding(InvocationExpressionSyntax call, MethodDeclarationSyntax owner)
+    private static bool ExecutedBinding(SyntaxNode call, MethodDeclarationSyntax owner)
     {
-        if (call.Expression is MemberAccessExpressionSyntax { Name.Identifier.ValueText: "AddWithValue" }
+        if (call is InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax { Name.Identifier.ValueText: "AddWithValue" } }
             && (call.Parent is not ExpressionStatementSyntax expression || !ReferenceEquals(expression.Expression, call)))
             return false; // The returned parameter cannot be captured/rebound or conditionally evaluated.
         if (call.Ancestors().TakeWhile(node => !ReferenceEquals(node, owner))
             .Any(node => node is LocalFunctionStatementSyntax or AnonymousFunctionExpressionSyntax)) return false;
         var statement = call.Ancestors().OfType<StatementSyntax>().FirstOrDefault();
         if (statement?.Parent == owner.Body) return true;
-        // This exact reader translates store failures around one unconditional
+        // Each exact reader translates store failures around one unconditional
         // command. Its bindings execute in that root try body, never its catch,
         // a nested conditional or a deferred helper.
-        if (owner.Identifier.ValueText == "ReadAsync" && owner.Parent is TypeDeclarationSyntax lifecycle
+        if (owner.Identifier.ValueText is "ReadAsync" or "ReadAuthorizationAsync" && owner.Parent is TypeDeclarationSyntax lifecycle
             && OrganizationTypeIdentity(lifecycle) == "LearnStack.Modules.Tenancy.Infrastructure.Persistence.IdentityScopeLifecycleReader"
             && statement?.Parent is BlockSyntax { Parent: TryStatementSyntax guarded } tryBody
             && guarded.Parent == owner.Body && ReferenceEquals(guarded.Block, tryBody)) return true;
@@ -216,6 +244,18 @@ public sealed partial class TenantContextConstructionTests
     {
         if (path == OrganizationOccurrences && member == "OrganizationLifecyclePageSql")
             return literal.Parent is EqualsValueClauseSyntax;
+        if (path == OrganizationIdentityLifecycle && member == "LifecycleSql")
+            return literal.Parent is EqualsValueClauseSyntax
+            {
+                Parent: VariableDeclaratorSyntax
+                { Identifier.ValueText: "LifecycleSql", Parent: VariableDeclarationSyntax declaration }
+            }
+                && declaration.Variables.Count == 1
+                && SyntaxFactory.AreEquivalent(declaration.Type, SyntaxFactory.ParseTypeName("string"))
+                && declaration.Parent is FieldDeclarationSyntax field
+                && field.Modifiers.Count == 2
+                && field.Modifiers.Any(token => token.IsKind(SyntaxKind.PrivateKeyword))
+                && field.Modifiers.Any(token => token.IsKind(SyntaxKind.ConstKeyword));
         var sql = literal.ToString();
         var expression = path switch
         {
@@ -224,8 +264,6 @@ public sealed partial class TenantContextConstructionTests
             OrganizationHistory => "RecipientHistoryCommand(resources, claim, " + sql + ")",
             OrganizationOccurrences => "Command(resources, cursor.Organizations ? " + sql
                 + " : \"SELECT id FROM tenants ORDER BY id DESC LIMIT 1\")",
-            OrganizationIdentityLifecycle => "new NpgsqlCommand(" + sql
-                + ", (NpgsqlConnection)unit.Connection, (NpgsqlTransaction)transaction) { CommandTimeout = 10 }",
             _ => null,
         };
         if (expression is null) return false;
@@ -291,6 +329,42 @@ public sealed partial class TenantContextConstructionTests
         Dirty(history.Path, history.Code.Replace(TenantBinding, "if (false) { " + TenantBinding + " }", StringComparison.Ordinal));
         Dirty(history.Path, history.Code + "\ninternal sealed class SplitReader { string Sql() => \"SELECT status FROM \" + \"organizations WHERE id=@organization\"; }");
         var identity = production.Single(file => file.Path == OrganizationIdentityLifecycle);
+        var identityRoot = CSharpSyntaxTree.ParseText(identity.Code).GetRoot();
+        var lifecycleField = identityRoot.DescendantNodes().OfType<FieldDeclarationSyntax>()
+            .Single(field => field.Declaration.Variables.Any(variable => variable.Identifier.ValueText == "LifecycleSql"));
+        Dirty(identity.Path, identity.Code.Remove(lifecycleField.SpanStart, lifecycleField.Span.Length));
+        Dirty(identity.Path, identity.Code.Remove(lifecycleField.SpanStart, lifecycleField.Span.Length)
+            + "\ninternal static class UnusedLifecycleSql { " + lifecycleField + " }");
+        Dirty(identity.Path, identity.Code.Replace("private const string LifecycleSql", "public const string LifecycleSql", StringComparison.Ordinal));
+        Dirty(identity.Path, identity.Code.Replace("private const string LifecycleSql", "private readonly string LifecycleSql", StringComparison.Ordinal));
+        foreach (var method in identityRoot.DescendantNodes().OfType<MethodDeclarationSyntax>()
+                     .Where(method => method.Identifier.ValueText is "ReadAsync" or "ReadAuthorizationAsync"))
+        {
+            var creation = method.DescendantNodes().OfType<ObjectCreationExpressionSyntax>()
+                .Single(item => item.Type.ToString() == "NpgsqlCommand");
+            var statement = creation.Ancestors().OfType<StatementSyntax>().First();
+            Dirty(identity.Path, identityRoot.ReplaceNode(statement,
+                SyntaxFactory.ParseStatement("void UnusedCommand() { " + statement + " } ")).ToFullString());
+            // Keep exactly two references: a constant mentioned by a deferred
+            // helper cannot justify another SQL argument on the live command.
+            var wrongArgument = identityRoot.ReplaceNode(creation, SyntaxFactory.ParseExpression(
+                creation.ToString().Replace("LifecycleSql", "string.Empty", StringComparison.Ordinal)));
+            var changedMethod = wrongArgument.DescendantNodes().OfType<MethodDeclarationSyntax>()
+                .Single(item => item.Identifier.ValueText == method.Identifier.ValueText);
+            Dirty(identity.Path, wrongArgument.ReplaceNode(changedMethod, changedMethod.WithBody(changedMethod.Body!
+                .AddStatements(SyntaxFactory.ParseStatement("void UnusedSql() { _ = LifecycleSql; }")))).ToFullString());
+            if (method.Identifier.ValueText != "ReadAuthorizationAsync") continue;
+            foreach (var binding in method.DescendantNodes().OfType<InvocationExpressionSyntax>()
+                         .Where(call => call.Expression is MemberAccessExpressionSyntax { Name.Identifier.ValueText: "AddWithValue" }))
+            {
+                var bindingStatement = binding.Ancestors().OfType<StatementSyntax>().First();
+                Dirty(identity.Path, identityRoot.RemoveNode(bindingStatement, SyntaxRemoveOptions.KeepNoTrivia)!.ToFullString());
+                Dirty(identity.Path, identityRoot.ReplaceNode(bindingStatement,
+                    SyntaxFactory.ParseStatement("void UnusedBinding() { " + bindingStatement + " } ")).ToFullString());
+                Dirty(identity.Path, identityRoot.ReplaceNode(bindingStatement,
+                    SyntaxFactory.ParseStatement("if (false) { " + bindingStatement + " } ")).ToFullString());
+            }
+        }
         const string IdentityTenantBinding = "command.Parameters.AddWithValue(\"tenant\", tenantId.Value);";
         const string IdentityOrganizationBinding = "command.Parameters.AddWithValue(\"organization\", NpgsqlDbType.Uuid, organizationId is { } org\n                ? org.Value : DBNull.Value);";
         foreach (var binding in new[] { IdentityTenantBinding, IdentityOrganizationBinding })
@@ -302,7 +376,7 @@ public sealed partial class TenantContextConstructionTests
         }
         foreach (var (from, to) in new[]
                  {
-                     ("o.tenant_id = t.id AND ", ""), ("WHERE t.id = @tenant", "WHERE t.id IS NOT NULL"),
+                     ("o.tenant_id = t.id AND ", ""), ("LEFT JOIN public.tenants AS t ON t.id = @tenant", "LEFT JOIN public.tenants AS t ON t.id IS NOT NULL"),
                      ("\"tenant\", tenantId.Value", "\"tenant\", Guid.Empty"),
                      ("? org.Value : DBNull.Value", "? Guid.Empty : DBNull.Value"),
                      ("OrganizationId? organizationId", "OrganizationId organizationId"),
@@ -310,6 +384,11 @@ public sealed partial class TenantContextConstructionTests
                      ("(NpgsqlConnection)unit.Connection", "unit.Connection"),
                      ("(NpgsqlTransaction)transaction", "transaction"),
                      ("CommandTimeout = 10", "CommandTimeout = 20"),
+                     ("CommandTimeout = 5", "CommandTimeout = 20"),
+                     ("\"tenant\", candidate.TenantId.Value", "\"tenant\", Guid.Empty"),
+                     ("? organization.Value : DBNull.Value", "? Guid.Empty : DBNull.Value"),
+                     ("IUnitOfWork child, AuthorizationCandidate candidate", "IUnitOfWork child, object candidate"),
+                     ("(NpgsqlConnection)child.Connection", "child.Connection"),
                      ("command.ExecuteReaderAsync(cancellationToken)", "command.ExecuteReaderAsync(CancellationToken.None)"),
                  }) Dirty(identity.Path, identity.Code.Replace(from, to, StringComparison.Ordinal));
         Dirty(identity.Path, identity.Code.Replace(IdentityTenantBinding, IdentityTenantBinding

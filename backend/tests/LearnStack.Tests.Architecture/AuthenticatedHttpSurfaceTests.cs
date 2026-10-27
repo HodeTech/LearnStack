@@ -149,6 +149,9 @@ public sealed partial class AuthenticatedHttpSurfaceTests
 
         var maps = MappingSites(modules).ToArray();
         EndpointCompositionControls.Plant(api, (prefix, because) => Dirty(prefix, because));
+        EndpointCompositionControls.PlantMetadata(api, (owner, because) => Violations(modules, facts).Should().Contain(error =>
+            error.StartsWith("Unapproved endpoint mapping:", StringComparison.Ordinal)
+            && error.Contains(owner, StringComparison.Ordinal), because));
         var health = maps.Single(site => site.Target.Name == "MapGet");
         var duplicate = Instruction.Create(OpCodes.Call, health.Target);
         health.Owner.Body.Instructions.Add(duplicate);
@@ -200,6 +203,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         var handlers = HandlerRoots(map).ToArray();
         handlers.Should().HaveCount(5, "the four public queries and authenticated query have real production handlers");
         Violations(modules, facts).Should().BeEmpty();
+        AssertPolicyMetadataControls(modules, facts);
 
         var publicSite = map.Values.Single(type => type.FullName == PublicSite);
         PublicSurfaceTests.PersistenceOffenders([publicSite], map).Should().BeEmpty(
@@ -434,7 +438,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                 foreach (var implementation in implementations) queue.Enqueue((root, implementation));
             }
             if (!referencesByType.TryGetValue(typeKey, out var references))
-                referencesByType[typeKey] = references = Il.ReferencedTypeReferences(type).ToArray();
+                referencesByType[typeKey] = references = HandlerReferences(type, map);
             if (!capabilities.TryGetValue(typeKey, out var capability))
                 capabilities[typeKey] = capability = HasHandlerCapability(type, map);
             if (references.Any(reference => reference.FullName is "MediatR.ISender" or "MediatR.IMediator" or "MediatR.Mediator" or "MediatR.IPublisher")
@@ -475,7 +479,8 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                         FieldReference field => field.Name != "<>4__this" && Handler(field.FieldType),
                         MethodReference target => (target.Name is "Handle" or ".ctor" && Handler(target.DeclaringType))
                             || Handler(target.ReturnType) || target.Parameters.Any(parameter => Handler(parameter.ParameterType))
-                            || target is GenericInstanceMethod generic && generic.GenericArguments.Any(Handler),
+                            || target is GenericInstanceMethod generic && generic.GenericArguments.Where((_, index) =>
+                                !IsHandlerTypeMetadata(type, pair.Definition, instruction, index, map)).Any(Handler),
                         _ => false
                     })));
     }
@@ -530,7 +535,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
     private static IEnumerable<Mapping> MappingSites(IEnumerable<ModuleDefinition> modules, Func<MethodReference, bool>? predicate = null) =>
         Types(modules).SelectMany(type => type.Methods).Where(method => method.HasBody)
             .SelectMany(method => method.Body.Instructions.Where(instruction => instruction.Operand is MethodReference target
-                    && (predicate ?? IsEndpointMapping)(target))
+                    && (predicate ?? IsEndpointMapping)(target) && !EndpointComposition.IsFixedInfrastructureMetadata(method, instruction))
                 .Select(instruction => new Mapping(method, instruction, (MethodReference)instruction.Operand)));
 
     private static bool IsEndpointMapping(MethodReference target) => EndpointComposition.IsCapability(target);

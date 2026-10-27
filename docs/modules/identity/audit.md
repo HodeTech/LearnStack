@@ -1,6 +1,6 @@
 # Identity — Audit Coverage Matrix
 
-**Status: Global and contextual seed writers implemented.** Current qualification
+**Status: Global and contextual seed writers and the internal directory catalogue implemented.** Current qualification
 and review state lives in the [phase Status block](../../roadmap/phase-03-identity-admin.md).
 The User off-path catalogue, contextual requests and persistence exist.
 Derived from jointly Accepted [ADR-0072](../../decisions/0072-application-owned-identity-bootstrap.md),
@@ -11,12 +11,13 @@ and jointly Accepted [ADR-0076](../../decisions/0076-live-scoped-authorization.m
 
 The baseline MUST floor applies. `IdentityAuditCatalogSource` declares
 actual operations: catalogue-to-matrix coverage is total. Audit slugs are not
-additional permission keys. The P03-2 rows below are accepted classifications,
-with runtime writers and registrations pending. `(planned)` marks an absent
+additional permission keys. The internal `ListMembershipsQuery` has a real MUST
+catalogue entry and ordinary ReadWrite adapter; HTTP admission remains staged.
+The remaining P03-2 rows below are accepted classifications. `(planned)` marks an absent
 request/writer; `(off-path)` marks a central event without a MediatR request.
 Catalogue → matrix remains total; the reverse request join applies only when
 the request exists, and off-path events register by slug when their writer lands.
-No synthetic request or executable registration is claimed.
+Planned rows claim no synthetic request or executable registration.
 
 | Resource | Operation | Class | Why |
 |---|---|---|---|
@@ -26,7 +27,7 @@ No synthetic request or executable registration is claimed.
 | Membership including Profile/Assignments | `identity.membership.create_seed` | **MUST** (`security-event`) | `CreateSeedMembership`; one Membership transaction. |
 | MembershipProfile, captured under Membership | `identity.membership_profile.set_seed_profile` | **MUST** (`update`) | `SetSeedMembershipProfile`; same Membership transaction. The slug matches the gated sub-resource while the row's subject remains its owning aggregate. |
 | Authorization decision | `identity.authorization.deny` `(planned)` `(off-path)` | **MUST** (`security-event`) | Central HTTP/application/resource denial owner; one decided invocation event, separate from ordinary plural resource intents. No tenant override or host suppression budget. |
-| Membership directory | `identity.membership.list` `(planned)` | **MUST** (`read-sensitive`) | Administrative directory query under existing Tenant `identity.membership.admin`; ordinary ReadWrite owner commits its row before disclosure. |
+| Membership directory | `identity.membership.list` | **MUST** (`read-sensitive`) | Internal `ListMembershipsQuery` under existing Tenant `identity.membership.admin`; ordinary ReadWrite owner commits its row before disclosure. No HTTP activation follows from its catalogue entry. |
 | Role including grants | `identity.role.change_grants` `(planned)` | **MUST** (`security-event`) | `ChangeRoleGrantsCommand`; one Role root and contained grant diff, expected row version and post-lock authority recheck; success/audit share the transaction. |
 | Role including grants | `identity.role.adopt_manifest` `(planned)` | **MUST** (`security-event`) | `AdoptRoleGrantManifestCommand`; separately admitted finite v1 manifest adoption, one Role root and contained grant diff; no automatic registry/seed upgrade. |
 
@@ -84,8 +85,9 @@ No runtime test is claimed here.
 P03-2's Accepted [trusted evidence contract](../../standards/18-audit-coverage.md#trusted-authorization-evidence)
 owns immutable provenance, fixed denial occurrence/time and exact full-row
 verification, pre-success barriers and refusal preservation. It keeps normal
-resource classification unchanged and AccountSite success Off. These paths and
-the four planned rows remain unimplemented here; P03-5 extends revision-aware
+resource classification unchanged and AccountSite success Off. Central denial
+evidence and the three planned rows remain unimplemented here; the internal
+directory request and its MUST catalogue entry are present. P03-5 extends revision-aware
 dynamic values; P03-10 delivers applicable user-reference locators and export/
 erasure/closure under separate authority. A stub or retained hash is not completion
 or anonymisation. The module table records current versus planned proof status.

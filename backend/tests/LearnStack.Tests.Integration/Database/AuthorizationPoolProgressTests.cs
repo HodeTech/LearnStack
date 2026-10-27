@@ -1,6 +1,10 @@
 using FluentAssertions;
+using LearnStack.Application.Authorization;
 using LearnStack.Infrastructure.Persistence;
+using LearnStack.Modules.Identity.Application;
+using LearnStack.Modules.Identity.Application.Authorization;
 using LearnStack.Modules.Identity.Application.Contracts.Authorization;
+using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Infrastructure.Authorization;
 using LearnStack.Modules.Tenancy.Application.Contracts.IdentityLifecycle;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
@@ -8,6 +12,7 @@ using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Identity;
 using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
@@ -87,7 +92,7 @@ public sealed class AuthorizationPoolProgressTests(AuthorizationPoolProgressFixt
             fixture.ConnectionString(transactionPooled, "business", "business-progress"), deadline.Token);
         if (postLock) await parents.HoldInvariantLocksAsync(deadline.Token);
         var observer = new LifecycleObserver(fixture.DirectConnectionString, parents);
-        var reader = new PreContextIdentityAuthorizationReader(authorization, observer);
+        var reader = new CommittedIdentityAuthorizationReader(new PreContextIdentityAuthorizationSessionFactory(authorization), observer);
 
         IdentityAuthorizationResult result;
         if (postLock)
@@ -119,12 +124,57 @@ public sealed class AuthorizationPoolProgressTests(AuthorizationPoolProgressFixt
         // Disposal below is the first parent release; completion above cannot borrow a released server.
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task Actual_directory_policy_admission_completes_while_every_business_server_transaction_is_held(
+        bool transactionPooled, bool postLock)
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        using var trusted = new CandidateSource();
+        await using var authorization = new IdentityAuthorizationReadSource(
+            fixture.ConnectionString(transactionPooled, "authorization", "directory-policy-progress"));
+        await authorization.QualifyAsync(IdentityMembershipFixture.Authority.AuthorityId,
+            IdentityMembershipFixture.Authority.Issuer, deadline.Token);
+        await using var parents = await HeldBusinessOwners.OpenAsync(
+            fixture.ConnectionString(transactionPooled, "business", "directory-policy-business-progress"), deadline.Token);
+        if (postLock) await parents.HoldInvariantLocksAsync(deadline.Token);
+        var observer = new LifecycleObserver(fixture.DirectConnectionString, parents);
+        var reader = new CommittedIdentityAuthorizationReader(new PreContextIdentityAuthorizationSessionFactory(authorization), observer);
+        using var coordinator = DirectoryCoordinator(reader, trusted);
+
+        Result<None> result;
+        if (postLock)
+            result = await coordinator.CheckHttpAsync(typeof(ListMembershipsQuery), new object(), deadline.Token);
+        else
+        {
+            await using var nested = await parents.Units[0].BeginTransactionAsync(deadline.Token);
+            nested.IsOwner.Should().BeFalse();
+            result = await coordinator.CheckHttpAsync(typeof(ListMembershipsQuery), new object(), deadline.Token);
+            await nested.CompleteAsync(deadline.Token);
+        }
+
+        // Only the actual policy/grant admission runs; no directory handler or sensitive result is published.
+        result.IsSuccess.Should().BeTrue();
+        coordinator.CurrentInvocation.Should().BeNull();
+        coordinator.CurrentReadWitness.Should().BeNull();
+        observer.Calls.Should().Be(1);
+        observer.ChildWasDistinct.Should().BeTrue();
+        observer.ChildMode.Should().Be(TransactionMode.ReadOnly);
+        observer.AuthorizationBackendPids.Should().ContainSingle();
+        observer.AuthorizationBackendPids.Should().NotIntersectWith(parents.BackendPids);
+        observer.AuthorizationTransactionsDuringChild.Should().Be(1);
+        observer.BusinessTransactionsDuringChild.Should().Be(AuthorizationPoolProgressFixture.BusinessCapacity);
+        await AssertParentsStillHeldAsync(parents, postLock, deadline.Token);
+    }
+
     [Fact]
     public async Task A_separate_client_pool_on_the_saturated_business_alias_fails_the_same_progress_control()
     {
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         using var trusted = new CandidateSource();
-        var candidate = trusted.Candidate();
         var name = "dirty-authorization-progress-" + Guid.NewGuid().ToString("N");
         // Deliberately route the separate authorization client pool into the business server pool.
         await using var authorization = new IdentityAuthorizationReadSource(
@@ -137,13 +187,16 @@ public sealed class AuthorizationPoolProgressTests(AuthorizationPoolProgressFixt
         {
             await parents.HoldInvariantLocksAsync(deadline.Token);
             var observer = new LifecycleObserver(fixture.DirectConnectionString, parents);
-            var reader = new PreContextIdentityAuthorizationReader(authorization, observer);
+            var reader = new CommittedIdentityAuthorizationReader(new PreContextIdentityAuthorizationSessionFactory(authorization), observer);
+            using var coordinator = DirectoryCoordinator(reader, trusted);
             using (var refused = new CancellationTokenSource(TimeSpan.FromSeconds(2)))
             {
-                await FluentActions.Awaiting(() => reader.ReadAsync(candidate, refused.Token))
+                await FluentActions.Awaiting(() => coordinator.CheckHttpAsync(typeof(ListMembershipsQuery), new object(), refused.Token))
                     .Should().ThrowAsync<OperationCanceledException>();
             }
             observer.Calls.Should().Be(0, "the saturated downstream pool cannot start the real authorization statements");
+            coordinator.CurrentInvocation.Should().BeNull();
+            coordinator.CurrentReadWitness.Should().BeNull();
             await AssertParentsStillHeldAsync(parents, postLock: true, deadline.Token);
         }
         finally { await parents.DisposeAsync(); }
@@ -153,8 +206,32 @@ public sealed class AuthorizationPoolProgressTests(AuthorizationPoolProgressFixt
             fixture.ConnectionString(true, "business", "dirty-recovery-ambient"));
         await using var ambient = new NpgsqlUnitOfWork(
             ambientSource, NullLogger<NpgsqlUnitOfWork>.Instance);
-        var recovered = new PreContextIdentityAuthorizationReader(authorization, new IdentityScopeLifecycleReader(ambient));
-        (await recovered.ReadAsync(candidate, deadline.Token)).Outcome.Should().Be(IdentityAuthorizationOutcome.Covered);
+        var recovered = new CommittedIdentityAuthorizationReader(new PreContextIdentityAuthorizationSessionFactory(authorization),
+            new IdentityScopeLifecycleReader(ambient));
+        using var recoveredCoordinator = DirectoryCoordinator(recovered, trusted);
+        (await recoveredCoordinator.CheckHttpAsync(typeof(ListMembershipsQuery), new object(), deadline.Token)).IsSuccess.Should().BeTrue();
+    }
+
+    private static OperationAuthorizationCoordinator DirectoryCoordinator(IIdentityAuthorizationReader reader, CandidateSource trusted)
+    {
+        var catalog = new OperationPolicyCatalog([new IdentityOperationPolicySource()]);
+        catalog.Definitions.Should().HaveCount(5);
+        catalog.TryGet(typeof(ListMembershipsQuery), out var policy).Should().BeTrue();
+        policy.Kind.Should().Be(OperationPolicyKind.Protected);
+        policy.ReadScope.Should().Be(OperationReadScope.Tenant);
+        policy.RequiredPermission.Should().Be(IdentityOperationPolicySource.MembershipAdministration);
+        var context = TenantContextFactory.Create(new TenantResolutionAttempt
+        {
+            HasValidatedPrincipal = true,
+            UserId = UserId.From(IdentityMembershipFixture.AdminA),
+            ClaimTenantId = TenantId.From(SchemaFixture.TenantA),
+            ClaimOrganizationId = OrganizationId.From(SchemaFixture.OrgA1),
+            MembershipCovers = true,
+            ClaimedOrganizationBelongsToTenant = true,
+        }).Value ?? throw new InvalidOperationException("Claim-only policy progress context was refused.");
+        context.Origin.Should().Be(TenantContextOrigin.ClaimAndMembership);
+        context.HostScope.Should().BeNull();
+        return new(catalog, new IdentityOperationAuthorizer(reader, catalog), context, [trusted], []);
     }
 
     private async Task AssertParentsStillHeldAsync(HeldBusinessOwners parents, bool postLock, CancellationToken cancellationToken)
@@ -175,8 +252,12 @@ public sealed class AuthorizationPoolProgressTests(AuthorizationPoolProgressFixt
         (await command.ExecuteScalarAsync(cancellationToken)).Should().Be(2L * AuthorizationPoolProgressFixture.BusinessCapacity);
     }
 
-    private sealed class CandidateSource : AuthorizationCandidate.MintingSource
+    private sealed class CandidateSource : AuthorizationCandidate.MintingSource, IAuthorizationCandidateSource
     {
+        public AuthorizationCandidate? ForValidatedScope(TenantId tenant, OrganizationId? organization) =>
+            tenant == TenantId.From(SchemaFixture.TenantA) && organization == OrganizationId.From(SchemaFixture.OrgA1)
+                ? Candidate() : null;
+
         public AuthorizationCandidate Candidate() => ForCandidate(AuthorizationSourceKind.Http,
             UserId.From(IdentityMembershipFixture.AdminA), TenantId.From(SchemaFixture.TenantA),
             OrganizationId.From(SchemaFixture.OrgA1));

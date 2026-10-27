@@ -1,5 +1,6 @@
 using System.Data.Common;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Tenancy;
 
 namespace LearnStack.SharedKernel.Persistence;
@@ -109,6 +110,15 @@ public interface IUnitOfWork : IAsyncDisposable
     /// silently retarget the outer frame's tenant.
     /// </remarks>
     Task SetTenantContextAsync(ITenantContext context, CancellationToken cancellationToken = default);
+
+    /// <summary>Announces an invocation-bound tenant-wide read on the actual ordinary owner.</summary>
+    /// <remarks>
+    /// The physical owner consumes the witness once and binds it to its transaction generation.
+    /// Units without that capability fail closed; the ordinary overload always requests narrow scope.
+    /// </remarks>
+    Task SetTenantContextAsync(ITenantContext context, OperationReadWitness readWitness,
+        CancellationToken cancellationToken = default) =>
+        throw new InvalidOperationException("This unit cannot bind operation read authority.");
 
     /// <summary>
     /// Whether a sanctioned setter has announced the tenant on

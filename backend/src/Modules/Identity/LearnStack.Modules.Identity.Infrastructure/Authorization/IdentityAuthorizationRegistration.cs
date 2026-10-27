@@ -1,4 +1,9 @@
 using LearnStack.Modules.Identity.Application.Contracts.Authorization;
+using LearnStack.Modules.Identity.Application;
+using LearnStack.Modules.Identity.Application.Abstractions;
+using LearnStack.Modules.Identity.Application.Authorization;
+using LearnStack.Modules.Identity.Infrastructure.Persistence;
+using LearnStack.SharedKernel.Permissions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -10,7 +15,18 @@ public static class IdentityAuthorizationRegistration
     public static IServiceCollection AddIdentityAuthorizationReader(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
-        services.TryAddScoped<IIdentityAuthorizationReader, PreContextIdentityAuthorizationReader>();
+        services.TryAddScoped<IIdentityAuthorizationSessionFactory, PreContextIdentityAuthorizationSessionFactory>();
+        services.TryAddScoped<IIdentityAuthorizationReader, CommittedIdentityAuthorizationReader>();
+        return services;
+    }
+
+    /// <summary>Staged internal policy and directory adapters; installs no HTTP or native operation.</summary>
+    public static IServiceCollection AddIdentityOperationPolicies(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IOperationPolicySource, IdentityOperationPolicySource>());
+        services.TryAddScoped<IProtectedOperationAuthorizer, IdentityOperationAuthorizer>();
+        services.TryAddScoped<IMembershipDirectoryReader, MembershipDirectoryReader>();
         return services;
     }
 }

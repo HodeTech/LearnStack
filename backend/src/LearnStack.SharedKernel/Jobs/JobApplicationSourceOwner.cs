@@ -41,6 +41,17 @@ public sealed class JobApplicationSourceOwner
     /// <summary>A stale inherited binding remains visible and refuses new work.</summary>
     public static JobApplicationSourceOwner? Current => Ambient.Value?.Owner;
 
+    /// <summary>Current execution lifetime, independent of temporary auxiliary-lane readiness.</summary>
+    public bool IsCurrentBinding
+    {
+        get
+        {
+            lock (_sync)
+                return !IsExternal && !_closed && !_cleanupFailed
+                    && Ambient.Value is { IsOpen: true } binding && ReferenceEquals(binding.Owner, this);
+        }
+    }
+
     /// <summary>Denial remains visible in inherited tasks after their parent's scope restores.</summary>
     public static bool IsExternal => External.Value is not null;
 

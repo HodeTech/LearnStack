@@ -1,11 +1,18 @@
 using FluentAssertions;
+using System.Collections.Concurrent;
+using LearnStack.Application.Authorization;
 using LearnStack.Api.Authentication;
 using LearnStack.Api.Messaging;
 using LearnStack.Infrastructure.Messaging;
 using LearnStack.Modules.Tenancy.Application.Contracts.IntegrationEvents;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
+using LearnStack.Modules.Customization.Application.Authorization;
+using LearnStack.Modules.Customization.Application.Contracts.Customization;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Messaging;
+using LearnStack.SharedKernel.Permissions;
+using LearnStack.SharedKernel.Results;
+using LearnStack.SharedKernel.Tenancy;
 using System.Text.Json;
 using LearnStack.Tools.Seeder;
 using MediatR;
@@ -13,6 +20,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
@@ -28,6 +36,23 @@ public sealed class CustomizationDefaultDeliveryTests(SchemaFixture schema)
     private const string ContentSubscription = "customization.initialize-content-type-default.v1";
     private const string TaxonomySubscription = "customization.initialize-taxonomy-default.v1";
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(45);
+
+    [Fact]
+    public async Task Both_real_initializers_capture_only_their_validated_delivery_and_revoke_evidence_after_completion()
+    {
+        await using var fixture = await Fixture.CreateAsync(schema);
+        await fixture.ProvisionAsync();
+        fixture.StartApi(observeTrustedOperations: true);
+        await fixture.WaitForBothDeliveriesAsync();
+        await fixture.AssertCreatedDefaultsAsync();
+        fixture.AssertTrustedOperations();
+        await using var scope = fixture.ApiServices.CreateAsyncScope();
+        var fabricated = new SeedIdentityTenantContext(SeedData.English.TenantId, null);
+        scope.ServiceProvider.GetServices<ITrustedOperationSource>()
+            .Select(source => source.Capture(typeof(InitializeTenantContentTypeDefaultCommand), fabricated))
+            .Should().OnlyContain(descriptor => descriptor == null,
+                "constructing an Ambient SystemActor context outside the delivery grants no initializer authority");
+    }
 
     [Theory]
     [InlineData(false)]
@@ -147,6 +172,7 @@ public sealed class CustomizationDefaultDeliveryTests(SchemaFixture schema)
         private string _gateTable = "";
         private CancellationTokenSource? _seedCancellation;
         private Task<int>? _seedTask;
+        private readonly TrustedObservation _trusted = new();
 
         private Fixture(DisposableSchemaDatabase database)
         {
@@ -160,10 +186,19 @@ public sealed class CustomizationDefaultDeliveryTests(SchemaFixture schema)
         public static async Task<Fixture> CreateAsync(SchemaFixture schema) =>
             new(await DisposableSchemaDatabase.CreateAsync(schema.Postgres));
 
-        public void StartApi()
+        public void StartApi(bool observeTrustedOperations = false)
         {
-            _api = new ApiFactory(_database);
+            _api = new ApiFactory(_database, observeTrustedOperations ? _trusted : null);
             _ = _api.Services;
+        }
+
+        public void AssertTrustedOperations()
+        {
+            var observations = _trusted.Items.ToArray();
+            observations.Select(item => item.RequestType).Should().BeEquivalentTo(
+                [typeof(InitializeTenantContentTypeDefaultCommand), typeof(InitializeTenantLevelTaxonomyDefaultCommand)]);
+            observations.Should().OnlyContain(item => item.WasActive && item.WrongRequestRefused && item.ForeignContextRefused
+                && item.Descriptor.SourceKind == AuthorizationSourceKind.IntegrationEvent && !item.Descriptor.IsActive);
         }
 
         public void AssertProductionSubscriptions()
@@ -414,7 +449,7 @@ public sealed class CustomizationDefaultDeliveryTests(SchemaFixture schema)
             await _database.DisposeAsync();
         }
 
-        private sealed class ApiFactory(DisposableSchemaDatabase database) : WebApplicationFactory<Program>
+        private sealed class ApiFactory(DisposableSchemaDatabase database, TrustedObservation? trusted = null) : WebApplicationFactory<Program>
         {
             protected override void ConfigureWebHost(IWebHostBuilder builder)
             {
@@ -424,6 +459,13 @@ public sealed class CustomizationDefaultDeliveryTests(SchemaFixture schema)
                 builder.UseSetting("ConnectionStrings:OutboxDispatcher", database.OutboxConnectionString);
                 builder.ConfigureTestServices(services =>
                 {
+                    if (trusted is not null)
+                    {
+                        services.TryAddSingleton<IOperationPolicyCatalog>(_ => new OperationPolicyCatalog([new CustomizationOperationPolicySource()]));
+                        services.AddTrustedDeliveryOperations();
+                        services.AddSingleton(trusted);
+                        services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ObserveTrustedOperation<,>));
+                    }
                     // This fixture owns real default delivery and provisioning, but no Identity authority.
                     foreach (var descriptor in services.Where(descriptor => descriptor.ServiceType == typeof(IHostedService)
                                  && (descriptor.ImplementationType ?? descriptor.ImplementationFactory?.Method.ReturnType)
@@ -431,6 +473,38 @@ public sealed class CustomizationDefaultDeliveryTests(SchemaFixture schema)
                         services.Remove(descriptor);
                 });
             }
+        }
+    }
+
+    private sealed class TrustedObservation
+    {
+        internal ConcurrentQueue<TrustedObservationItem> Items { get; } = new();
+    }
+
+    private sealed record TrustedObservationItem(Type RequestType, TrustedOperationDescriptor Descriptor,
+        bool WasActive, bool WrongRequestRefused, bool ForeignContextRefused);
+
+    private sealed class ObserveTrustedOperation<TRequest, TResponse>(IEnumerable<ITrustedOperationSource> sources,
+        ITenantContext context, TrustedObservation observations) : IPipelineBehavior<TRequest, TResponse>
+        where TRequest : notnull where TResponse : IResultBase
+    {
+        public Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
+        {
+            if (typeof(TRequest) == typeof(InitializeTenantContentTypeDefaultCommand)
+                || typeof(TRequest) == typeof(InitializeTenantLevelTaxonomyDefaultCommand))
+            {
+                var owners = sources.ToArray();
+                var descriptor = owners.Select(source => source.Capture(typeof(TRequest), context))
+                    .Where(value => value is not null).Cast<TrustedOperationDescriptor>().Should().ContainSingle().Subject;
+                var other = typeof(TRequest) == typeof(InitializeTenantContentTypeDefaultCommand)
+                    ? typeof(InitializeTenantLevelTaxonomyDefaultCommand) : typeof(InitializeTenantContentTypeDefaultCommand);
+                var wrongRequestRefused = owners.All(source => source.Capture(other, context) is null)
+                    && owners.All(source => source.Capture(typeof(ProvisionTenantCommand), context) is null);
+                var fabricated = new SeedIdentityTenantContext(context.TenantId, context.OrganizationId);
+                observations.Items.Enqueue(new(typeof(TRequest), descriptor, descriptor.IsActive,
+                    wrongRequestRefused, owners.All(source => source.Capture(typeof(TRequest), fabricated) is null)));
+            }
+            return next();
         }
     }
 }

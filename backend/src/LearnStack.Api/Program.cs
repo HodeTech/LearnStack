@@ -145,7 +145,8 @@ app.UseAuthorization();
 app.UseLearnStackTenantSurfaceAdmission();
 
 app.MapGet("/healthz", () => Results.Ok(new { status = "healthy" }))
-    .WithName("HealthCheck");
+    .WithName("HealthCheck")
+    .WithMetadata(InfrastructureOperationMetadata.Health);
 
 app.MapControllers();
 

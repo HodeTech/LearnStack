@@ -390,7 +390,8 @@ implementation proof. Current qualification state lives in the
 
 ## Live permission enforcement contract
 
-**Accepted contract; not runtime implemented.** ADR-0076 replaces the live
+**Frozen definitions and policy evaluation implemented; activation remains gated.**
+ADR-0076 replaces the live
 admission/delegation deferrals above while retaining P03-1's exact five assignable
 pairs, eight templates, two-pair admin kernel and fixed v1 seed manifest.
 Registration remains distinct from grants; no v2 manifest or new assignable

@@ -108,6 +108,12 @@ public sealed class AggregateWriteTests
             .Should().BeFalse("the exact untracked Role lookup is a read, not a second aggregate writer");
         TakesDomainObject(typeof(LearnStack.Modules.Identity.Application.Abstractions.ISeedStateReader), identityDomains)
             .Should().BeFalse("the exact seed DTO lookups do not write their typed keys");
+        var directory = typeof(LearnStack.Modules.Identity.Application.Abstractions.IMembershipDirectoryReader);
+        TakesDomainObject(directory, identityDomains).Should().BeFalse("the exact directory seek reads its typed Membership key");
+        var read = directory.GetMethod("ReadAsync")!;
+        ReadMethods.Remove(read).Should().BeTrue();
+        try { TakesDomainObject(directory, identityDomains).Should().BeTrue("removing this exact read-method entry must expose its typed key"); }
+        finally { ReadMethods.Add(read); }
         TakesDomainObject(typeof(IWrappedKeyReader), domains).Should().BeTrue("an unenumerated key-only port must not escape; Fix: enumerate genuine read methods explicitly");
         foreach (var writer in new[] { typeof(IDirectWriter), typeof(IBulkWriter), typeof(IArrayWriter), typeof(IByRefWriter), typeof(IMixedWriter), typeof(IInheritedWriter), typeof(IIdOnlyWriteProbe), typeof(IValueReturningKeyWriter) })
         {
@@ -186,6 +192,7 @@ public sealed class AggregateWriteTests
         typeof(LearnStack.Modules.Customization.Application.Abstractions.ISeedStateReader).GetMethod("ReadContentTypeAsync")!,
         typeof(LearnStack.Modules.Customization.Application.Abstractions.ISeedStateReader).GetMethod("ReadTaxonomyAsync")!,
         typeof(LearnStack.Modules.Identity.Application.Abstractions.IRoleReadStore).GetMethod("ReadAsync")!,
+        typeof(LearnStack.Modules.Identity.Application.Abstractions.IMembershipDirectoryReader).GetMethod("ReadAsync")!,
         typeof(LearnStack.Modules.Identity.Application.Abstractions.ISeedStateReader).GetMethod("ReadRoleAsync")!,
         typeof(LearnStack.Modules.Identity.Application.Abstractions.ISeedStateReader).GetMethod("ReadMembershipAsync")!,
     ];

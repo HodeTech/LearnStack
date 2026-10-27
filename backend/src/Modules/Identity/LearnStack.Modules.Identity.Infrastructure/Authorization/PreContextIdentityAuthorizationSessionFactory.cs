@@ -1,9 +1,8 @@
 using System.Collections.Immutable;
-using System.Data;
 using LearnStack.Infrastructure.Persistence;
+using LearnStack.Modules.Identity.Application.Abstractions;
 using LearnStack.Modules.Identity.Application.Contracts.Authorization;
 using LearnStack.Modules.Identity.Domain;
-using LearnStack.Modules.Tenancy.Application.Contracts.IdentityLifecycle;
 using LearnStack.SharedKernel.Errors;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Permissions;
@@ -13,10 +12,14 @@ using NpgsqlTypes;
 
 namespace LearnStack.Modules.Identity.Infrastructure.Authorization;
 
-/// <summary>Committed authorization facts from one isolated child, closed before any business or audit continuation.</summary>
-public sealed class PreContextIdentityAuthorizationReader(
-    IdentityAuthorizationReadSource source, IIdentityScopeLifecycleReader lifecycle) : IIdentityAuthorizationReader
+/// <summary>Owns the exact Identity statement and physical candidate-bound child; module orchestration stays in Application.</summary>
+public sealed class PreContextIdentityAuthorizationSessionFactory : IIdentityAuthorizationSessionFactory
 {
+    private readonly IdentityAuthorizationReadSource _source;
+
+    public PreContextIdentityAuthorizationSessionFactory(IdentityAuthorizationReadSource source) =>
+        _source = source ?? throw new ArgumentNullException(nameof(source));
+
     private static readonly string[] TenantRoleKeys = RoleKeys(PermissionScope.Tenant);
     private static readonly string[] OrganizationRoleKeys = RoleKeys(PermissionScope.Organization);
     private static readonly string[] TenantPermissionKeys = PermissionKeys(PermissionScope.Tenant);
@@ -69,60 +72,12 @@ public sealed class PreContextIdentityAuthorizationReader(
         ORDER BY member.id, role.id, grant_row.permission_scope, grant_row.permission_key
         """;
 
-    public async Task<IdentityAuthorizationResult> ReadAsync(AuthorizationCandidate candidate,
+    public async Task<IIdentityAuthorizationSession?> OpenAsync(AuthorizationCandidate candidate,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(candidate);
-        cancellationToken.ThrowIfCancellationRequested();
-        AuthorizationReadOwner? owner = null;
-        var result = Empty(candidate, IdentityAuthorizationOutcome.Unavailable);
-        var cleaned = true;
-        try
-        {
-            if (candidate.IsActive)
-            {
-                owner = await source.OpenAsync(candidate, cancellationToken);
-                if (owner is not null)
-                {
-                    var transaction = owner.Unit.Transaction;
-                    var announced = RequireAnnouncement(owner.Unit, candidate, transaction);
-                    var memberships = await ReadMembershipsAsync(owner, candidate, owner.DeadlineToken);
-                    RequireSameAnnouncement(owner.Unit, candidate, transaction, announced);
-                    // Tenancy owns this separate statement. READ COMMITTED gives each statement its own committed view.
-                    var state = await lifecycle.ReadAuthorizationAsync(owner.Unit, candidate, owner.DeadlineToken);
-                    RequireSameAnnouncement(owner.Unit, candidate, transaction, announced);
-                    var covers = memberships.Length > 0 && state.TenantExistsAndNotDeleted && state.TenantAllowsOrdinaryWork
-                        && (candidate.OrganizationId is null || (state.OrganizationBelongsToTenant && state.OrganizationAllowsOrdinaryWork));
-                    result = covers
-                        ? new(IdentityAuthorizationOutcome.Covered, candidate.Actor, candidate.TenantId, candidate.OrganizationId, memberships)
-                        : Empty(candidate, IdentityAuthorizationOutcome.NotCovered);
-                    await owner.CompleteAsync();
-                }
-            }
-        }
-        catch (IdentityScopeLifecycleReadException exception)
-        {
-            if (exception.CleanupFailed) owner?.MarkCleanupFailed();
-            result = Empty(candidate, IdentityAuthorizationOutcome.Unavailable);
-        }
-        catch (Exception exception) when (exception is not (OutOfMemoryException or StackOverflowException))
-        {
-            // Storage, internal deadline and owner faults expose no provider payload or false noncoverage.
-            result = Empty(candidate, IdentityAuthorizationOutcome.Unavailable);
-        }
-        finally
-        {
-            if (owner is not null)
-            {
-                try { await owner.DisposeAsync(); }
-                catch (Exception exception) when (exception is not (OutOfMemoryException or StackOverflowException)) { cleaned = false; }
-            }
-        }
-
-        // Owned cleanup finishes (or retains its slot) before request cancellation leaves the adapter.
-        cancellationToken.ThrowIfCancellationRequested();
-        return cleaned && candidate.IsActive && owner?.DeadlineToken.IsCancellationRequested != true
-            ? result : Empty(candidate, IdentityAuthorizationOutcome.Unavailable);
+        var owner = await _source.OpenAsync(candidate, cancellationToken);
+        return owner is null ? null : new AuthorizationSession(owner, candidate);
     }
 
     private static async Task<ImmutableArray<AuthorizationMembershipFacts>> ReadMembershipsAsync(
@@ -189,26 +144,6 @@ public sealed class PreContextIdentityAuthorizationReader(
         }
     }
 
-    private static TenantContextAnnouncement RequireAnnouncement(IUnitOfWork unit, AuthorizationCandidate candidate,
-        System.Data.Common.DbTransaction? transaction)
-    {
-        if (!candidate.IsActive || !unit.HasActiveTransaction || unit.Mode != TransactionMode.ReadOnly || unit.IsRollbackOnly
-            || transaction is not { IsolationLevel: IsolationLevel.ReadCommitted }
-            || unit.GetTenantContextAnnouncement(transaction) is not { Generation: > 0 } announced
-            || announced.TenantId != candidate.TenantId || announced.OrganizationId != candidate.OrganizationId)
-            throw Unavailable();
-        return announced;
-    }
-
-    private static void RequireSameAnnouncement(IUnitOfWork unit, AuthorizationCandidate candidate,
-        System.Data.Common.DbTransaction? transaction, TenantContextAnnouncement announced)
-    {
-        if (RequireAnnouncement(unit, candidate, transaction) != announced) throw Unavailable();
-    }
-
-    private static IdentityAuthorizationResult Empty(AuthorizationCandidate candidate, IdentityAuthorizationOutcome outcome) =>
-        new(outcome, candidate.Actor, candidate.TenantId, candidate.OrganizationId, []);
-
     private static InfrastructureException Unavailable() => new("Identity authorization is unavailable.");
 
     private static string[] RoleKeys(PermissionScope scope) => [.. IdentityFoundationManifest.Version1.Templates
@@ -237,5 +172,25 @@ public sealed class PreContextIdentityAuthorizationReader(
         public BuiltInRoleKey Key { get; } = key;
         public PermissionScope Scope { get; } = scope;
         public HashSet<PermissionDefinition> Grants { get; } = [];
+    }
+
+    private sealed class AuthorizationSession : IIdentityAuthorizationSession
+    {
+        private readonly AuthorizationReadOwner _owner;
+        private readonly AuthorizationCandidate _candidate;
+
+        public AuthorizationSession(AuthorizationReadOwner owner, AuthorizationCandidate candidate)
+        {
+            _owner = owner;
+            _candidate = candidate;
+        }
+
+        public IUnitOfWork Unit => _owner.Unit;
+        public CancellationToken DeadlineToken => _owner.DeadlineToken;
+        public Task<ImmutableArray<AuthorizationMembershipFacts>> ReadMembershipsAsync(CancellationToken cancellationToken = default) =>
+            PreContextIdentityAuthorizationSessionFactory.ReadMembershipsAsync(_owner, _candidate, cancellationToken);
+        public Task CompleteAsync() => _owner.CompleteAsync();
+        public void MarkCleanupFailed() => _owner.MarkCleanupFailed();
+        public ValueTask DisposeAsync() => _owner.DisposeAsync();
     }
 }

@@ -52,7 +52,7 @@ public sealed partial class OutboxDispatchConventionTests
             || resources.Methods.Count(method => method.IsConstructor && !method.IsStatic) != 1
             || resources.Methods.Any(method => method.IsConstructor && !method.IsStatic && !method.IsAssembly))
             offenders.Add("Job application-source constructors are closed");
-        var ownerSurface = new[] { "Create", "get_Current", "Enter", "get_CleanupConfirmed", "RequireBusinessReady",
+        var ownerSurface = new[] { "Create", "get_Current", "get_IsCurrentBinding", "Enter", "get_CleanupConfirmed", "RequireBusinessReady",
             "RequireFreshScopeReady", "RequireOwnedMainUnit", "BindMainUnit", "HoldMainConnection", "HoldMainTransaction",
             "ReportMainTransactionCleanup", "ReportMainCleanup", "RefuseUnrelatedRead", "CloseIssuance", "JoinAuxiliaryCleanupAsync",
             "BeginAuditConfigLoad", "BeginStandaloneAudit", "BeginTenantFlagsLoad", "BeginKillswitchLoad",
@@ -95,6 +95,7 @@ public sealed partial class OutboxDispatchConventionTests
         Exact(owner, "BindExternalRecovery", [(AppJobRecoveryReceipt, "Bind")]);
         // This marker only denies app entry during provider construction/calls.
         Exact(owner, "EnterExternal", [(JobAdmission, "EnterExternal")]);
+        Exact(owner, "get_IsCurrentBinding", [(JobAdmission, "IsOperationEvidenceCurrent")]);
         Exact(resources, "JoinActualTaskAsync", [(AppJobOwner, "JoinAuxiliaryCleanupAsync"),
             (AppJobOwner, "JoinAuxiliaryCleanupAsync"), (AppJobOwner, "JoinAuxiliaryCleanupAsync")]);
         Exact(owner, "BeginAuditConfigLoad", [(AppJobAuditConfig, "StartLoadAsync")]);

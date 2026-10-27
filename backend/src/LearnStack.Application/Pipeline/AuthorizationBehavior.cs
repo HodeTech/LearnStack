@@ -5,18 +5,14 @@ namespace LearnStack.Application.Pipeline;
 
 /// <summary>
 /// MediatR pipeline behavior — step 5 of the canonical 8-step order
-/// (ADR-0032 § Sub-decision 2). The current shell passes requests through;
-/// Phase 03 owns resource-aware permission checks and the
-/// <c>Result.Fail(forbidden)</c> refusal path.
+/// (ADR-0032 § Sub-decision 2). Launch retains this shell until P03-2 jointly
+/// activates the staged scoped policy implementation and trusted denial evidence.
 /// </summary>
 /// <remarks>
-/// Phase 02a Packet 3 ships the <strong>shell</strong>: there is no
-/// permission catalogue yet (it lands together with the Identity module in
-/// Phase 03 + Standards 19). The shell passes every request through and
-/// preserves the pipeline-order contract. When the permission catalogue
-/// arrives the shell flips to consuming <c>IAuthorizationService</c> and
-/// per-request <c>[Authorize]</c> metadata; the registration order does not
-/// change.
+/// <see cref="ScopedAuthorizationBehavior{TRequest,TResponse}"/> exercises the
+/// real coordinator in an explicit proof composition at this same slot. The
+/// common Application layer consumes SharedKernel policy/decision contracts;
+/// ASP.NET requirements remain in the API. The eight-step order is unchanged.
 /// </remarks>
 public sealed class AuthorizationBehavior<TRequest, TResponse>
     : IPipelineBehavior<TRequest, TResponse>
@@ -30,10 +26,8 @@ public sealed class AuthorizationBehavior<TRequest, TResponse>
     {
         ArgumentNullException.ThrowIfNull(next);
 
-        // TODO(2026-05-21, @platform): Phase 03 — resolve the request's
-        // [Authorize(Policy)] attribute, call IAuthorizationService.AuthorizeAsync
-        // with the tenant + organization-scoped resource, and return
-        // Result.FailFor<TResponse>(forbidden) on deny.
+        // TODO(2026-10-27, @platform): P03-2 Step 5 activates the scoped
+        // coordinator only together with its trusted denial-evidence owner.
 
         return next();
     }

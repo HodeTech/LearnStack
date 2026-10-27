@@ -8,6 +8,7 @@ using LearnStack.Application.Persistence;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Messaging;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.Extensions.DependencyInjection;
@@ -90,6 +91,7 @@ public sealed class DeliveryExecutor(
         TransactionExecutionCoordinator.PreparedDeliveryOwner? prepared = null;
         IUnitOfWork? unit = null;
         Activity? activity = null;
+        IDisposable? operationSource = null;
         try
         {
             // Routing validation/read owns no inherited caller identity. Module
@@ -142,6 +144,9 @@ public sealed class DeliveryExecutor(
                     outcome = claimed ? DeliveryExecutionOutcome.Completed : DeliveryExecutionOutcome.Duplicate;
                     if (claimed)
                     {
+                        operationSource = services.GetServices<ITrustedOperationSource>()
+                            .OfType<DeliveryOperationSource>().SingleOrDefault()
+                            ?.Enter(prepared, subscription, envelope, gate, cancellationToken);
                         var audit = services.GetRequiredService<AuditExecutionCoordinator>();
                         var response = await audit.ExecuteAsync(subscription.HandlerType, null,
                             () => transaction.ExecutePreparedDeliveryAsync(prepared, completion, claim.EventId,
@@ -207,6 +212,7 @@ public sealed class DeliveryExecutor(
                 }
                 finally
                 {
+                    operationSource?.Dispose();
                     tenantAccessor.Current = previous;
                 }
             }

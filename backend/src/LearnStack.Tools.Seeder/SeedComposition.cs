@@ -28,6 +28,7 @@ using LearnStack.SharedKernel.Entitlements;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Caching;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Messaging;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Validation;
@@ -98,6 +99,8 @@ public static class SeedComposition
         services.AddTransient<ITenantContext>(provider =>
             provider.GetRequiredService<ITenantContextAccessor>().Current
             ?? UnresolvedTenantContext.Instance);
+        services.AddScoped<ITrustedOperationSource>(provider =>
+            new SeedOperationSource(provider.GetRequiredService<ITenantContext>()));
 
         services.TryAddScoped<GlobalIdentityEnrollment>();
         services.TryAddScoped<LearnStack.SharedKernel.Identity.IGlobalIdentityEnrollment>(provider =>

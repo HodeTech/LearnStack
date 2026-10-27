@@ -10,8 +10,10 @@ are implemented; the [Phase 03 Status block](../../roadmap/phase-03-identity-adm
 owns current qualification and review state. Jointly Accepted
 [ADR-0076](../../decisions/0076-live-scoped-authorization.md) /
 [ADR-0077](../../decisions/0077-trusted-authorization-evidence.md) define P03-2 live
-authorization and one administrative directory GET; runtime implementation and
-proofs remain pending. New-user/native editing activation remains P03-3.
+authorization and one administrative directory GET. Its confined reader,
+staged policy/evaluator and internal directory are implemented; trusted denial
+evidence and joint HTTP/launch activation remain gated. New-user/native editing
+activation remains P03-3.
 The ordered admission timing/observation contract additionally derives from
 [ADR-0074](../../decisions/0074-membership-admission-under-ordered-locks.md),
 Accepted 2026-10-26. The phase Status block owns qualification and review state.
@@ -243,10 +245,14 @@ writes; no extra branch-admin Membership or provider-claim rewrite is required.
 
 ### Accepted live authorization and directory contract
 
-**Confined reader implemented; production activation pending.** P03-2 Step 2
-supplies the reader/source core. The remaining policy/directory/evidence contract
-below is Accepted and awaits its implementation steps.
-`PreContextIdentityAuthorizationReader` consumes an
+**Reader, staged policy and internal directory implemented; joint activation pending.**
+The policy/evaluator consumes the confined reader/source through the shared
+decision port; common Application gains no Identity module dependency. The
+internal directory uses the real EF read adapter and common MUST write path.
+Trusted denial evidence and human-facing activation remain gated below.
+`CommittedIdentityAuthorizationReader` coordinates the module statements from
+Application; its Infrastructure session factory retains the exact Identity SQL
+and physical child owner. The reader consumes an
 exact verified actor/tenant/optional-organization candidate in an isolated child
 owner. It returns bounded current Membership/Role/grant facts and consumes
 Tenancy's lifecycle contract, without a profile/global directory, synthetic

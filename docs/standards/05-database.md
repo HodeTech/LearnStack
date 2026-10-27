@@ -381,11 +381,11 @@ Rules:
   `app.organization_id` are set inside the ambient transaction — by
   `TransactionBehavior` in the general case, and by each of the out-of-band setters on
   the transaction it opens ([Security Standards § The out-of-band setters](11-security.md)).
-  `app.scope` has no implemented carrier yet. Accepted ADR-0076's
+  `app.scope` has an implemented operation-bound carrier under Accepted ADR-0076's
   [operation-bound read authority](#operation-bound-read-authority) replaces that
   deferral; it derives from a live eligible Tenant capability plus a declared
-  tenant-wide operation and binds EF/SQL to the actual owner generation. Until
-  qualified implementation, the hatch remains unreachable. The placement rule
+  tenant-wide operation and binds EF/SQL to the actual owner generation. Launch
+  cannot mint it until the joint policy/evidence activation. The placement rule
   applies to that carrier unchanged. `app.resolving_host` is set by
   `CachedHostToTenantResolver` alone, in its own short read-only transaction, and is
   read by exactly one policy — see § Table classes. Always call `current_setting` with
@@ -2158,8 +2158,8 @@ the resource contract and required progress proof.
 
 ### Operation-bound read authority
 
-**Accepted contract; not runtime implemented.** ADR-0076 supplies the previously
-absent `app.scope` carrier. Only a declared tenant-wide read with an eligible
+**Implemented carrier; launch activation remains gated.** ADR-0076 supplies the
+`app.scope` carrier. Only a declared tenant-wide read with an eligible
 Tenant capability mints an immutable witness binding actor, tenant/org, exact
 request policy and invocation. Branch grants cannot mint it. Step 6 binds the
 actual owner generation and announced values before data SQL; parameterized EF
@@ -2172,6 +2172,16 @@ clear it. Mixed read-scope nesting, including narrow work inside a widened owner
 refuses and poisons the unit; a join never retargets scope. Existing transaction-
 mode compatibility remains mandatory. The canonical SQL templates above are
 unchanged; no second RLS template or IgnoreQueryFilters exception is admitted.
+
+`OperationReadWitness` is immutable; its exact `OperationInvocation` owner retains
+one-time consumption state. The ordinary `NpgsqlUnitOfWork` validates every bound
+frame and actual generation before exposing its live read view, unit access, EF
+announcement or COMMIT. Open ancestors remain live during compatible nesting;
+closed nodes cannot revive in inherited execution contexts. The existing setter
+always sends `app.scope` as `tenant` or empty, including narrow setup on pooled
+connections. The common module-context registration attaches only that unit's
+read-only view; the filter reads a context-instance parameter and retains its
+tenant predicate. Unattached contexts remain narrow.
 
 The directory's ordinary ReadWrite owner commits its MUST read evidence before
 disclosure. Denial occurrences instead use the confined central store seams and

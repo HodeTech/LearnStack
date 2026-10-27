@@ -1,5 +1,6 @@
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Identity.Infrastructure.Authorization;
+using LearnStack.Modules.Identity.Application.Authorization;
 using LearnStack.Modules.Tenancy.Application.Contracts.IdentityLifecycle;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Identifiers;
@@ -73,12 +74,12 @@ internal sealed class AuthorizationReaderHarness : IAsyncDisposable
         _business = business;
         _ambient = ambient;
         Lifecycle = lifecycle;
-        Reader = new(source, lifecycle);
+        Reader = new(new PreContextIdentityAuthorizationSessionFactory(source), lifecycle);
     }
 
     public IdentityAuthorizationReadSource Source { get; }
     public IIdentityScopeLifecycleReader Lifecycle { get; }
-    public PreContextIdentityAuthorizationReader Reader { get; }
+    public CommittedIdentityAuthorizationReader Reader { get; }
 
     public static async Task<AuthorizationReaderHarness> CreateAsync(IdentityAuthorizationReaderFixture fixture,
         Func<IIdentityScopeLifecycleReader, IIdentityScopeLifecycleReader>? decorate = null)

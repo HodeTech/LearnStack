@@ -2,6 +2,7 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using FluentAssertions;
+using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Customization.Domain;
 using LearnStack.Modules.Customization.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Domain;
@@ -155,6 +156,10 @@ public sealed class TenantScopingTests
             members.Should().Contain(
                 nameof(IOrganizationScoped.OrganizationId),
                 $"{table}'s filter must carry the organization term too");
+            var readFilters = entityType.GetDeclaredQueryFilters().Select(filter => filter.Expression)
+                .OfType<LambdaExpression>().Where(filter => IsOwnerBoundReadFilter(filter)).ToArray();
+            readFilters.Should().ContainSingle($"{table} keeps the tenant AND (live owner read hatch OR narrow organization) filter");
+            AssertReadFilterControls(readFilters[0]);
 
             // The organization term is AND-ed into the same single policy, never a
             // second permissive one.
@@ -172,6 +177,58 @@ public sealed class TenantScopingTests
             RestrictiveGuard(migrations, table, "DELETE").Should().NotBeNull(
                 $"{table} needs an AS RESTRICTIVE FOR DELETE guard");
         }
+    }
+
+    private static bool IsOwnerBoundReadFilter(LambdaExpression filter)
+    {
+        if (filter.Parameters.Count != 1 || filter.Body is not BinaryExpression { NodeType: ExpressionType.AndAlso } both
+            || both.Left is not BinaryExpression { NodeType: ExpressionType.Equal } tenant
+            || both.Right is not BinaryExpression { NodeType: ExpressionType.OrElse } widened
+            || widened.Right is not BinaryExpression { NodeType: ExpressionType.OrElse } scoped
+            || scoped.Left is not BinaryExpression { NodeType: ExpressionType.Equal } tenantWideRow
+            || scoped.Right is not BinaryExpression { NodeType: ExpressionType.Equal } ownOrganization)
+            return false;
+        var row = filter.Parameters[0];
+        var context = ContextMember(tenant.Right, nameof(ITenantScopedDbContext.CurrentTenantId));
+        return context is not null && RowMember(tenant.Left, nameof(ITenantOwned.TenantId))
+            && ReferenceEquals(context, ContextMember(widened.Left, nameof(ITenantScopedDbContext.CurrentTenantWideRead)))
+            && RowMember(tenantWideRow.Left, nameof(IOrganizationScoped.OrganizationId))
+            && tenantWideRow.Right is ConstantExpression { Value: null }
+            && RowMember(ownOrganization.Left, nameof(IOrganizationScoped.OrganizationId))
+            && ReferenceEquals(context, ContextMember(ownOrganization.Right, nameof(ITenantScopedDbContext.CurrentOrganizationId)));
+
+        bool RowMember(Expression expression, string name) => expression is MemberExpression member
+            && member.Expression == row && member.Member.Name == name;
+        static TenantScopedDbContext? ContextMember(Expression expression, string name) =>
+            expression is MemberExpression { Expression: ConstantExpression { Value: TenantScopedDbContext context } } member
+                && member.Member.Name == name && member.Member.DeclaringType == typeof(TenantScopedDbContext)
+                ? context : null;
+    }
+
+    private static void AssertReadFilterControls(LambdaExpression actual)
+    {
+        var captured = Expression.Property(Expression.Constant(new CapturedReadScope()), nameof(CapturedReadScope.CurrentTenantWideRead));
+        foreach (var replacement in new Expression[] { Expression.Constant(true), Expression.Constant(false), captured })
+        {
+            var dirty = (LambdaExpression)new ReadParameterReplacement(replacement).Visit(actual)!;
+            IsOwnerBoundReadFilter(dirty).Should().BeFalse("the scope hatch must remain a member parameter of this DbContext instance");
+        }
+        var both = (BinaryExpression)actual.Body;
+        IsOwnerBoundReadFilter(Expression.Lambda(both.Right, actual.Parameters)).Should().BeFalse("tenant scope never removes the tenant predicate");
+        var wide = (BinaryExpression)both.Right;
+        IsOwnerBoundReadFilter(Expression.Lambda(Expression.OrElse(wide.Left, both), actual.Parameters))
+            .Should().BeFalse("the live read hatch cannot be OR-ed outside the tenant boundary");
+    }
+
+    private sealed class ReadParameterReplacement(Expression replacement) : ExpressionVisitor
+    {
+        protected override Expression VisitMember(MemberExpression node) =>
+            node.Member.Name == nameof(ITenantScopedDbContext.CurrentTenantWideRead) ? replacement : base.VisitMember(node);
+    }
+
+    private sealed class CapturedReadScope
+    {
+        public bool CurrentTenantWideRead { get; } = true;
     }
 
     [Fact]

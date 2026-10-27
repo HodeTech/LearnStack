@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 790 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 902 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -95,6 +95,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 Step 2 — Confined candidate and committed authority (2026-10-27)](#p03-2-step-2--confined-candidate-and-committed-authority-2026-10-27) — 89 lines
   - [P03-2 Step 2 review round 1 and corrections (2026-10-27)](#p03-2-step-2-review-round-1-and-corrections-2026-10-27) — 43 lines
   - [P03-2 Step 2 review round 2 and closeout (2026-10-27)](#p03-2-step-2-review-round-2-and-closeout-2026-10-27) — 32 lines
+  - [P03-2 Step 3 — Policy and operation-bound execution (2026-10-27)](#p03-2-step-3--policy-and-operation-bound-execution-2026-10-27) — 112 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -3738,3 +3739,115 @@ and SQL/EF proofs. This changes sequencing only: the existing Tenant
 HTTP activation in Step 5 and unchanged native BFF allowlist remain. The shared
 application coordinator uses a SharedKernel decision port; Identity retains its
 own facts and evaluation. No common Application-to-module dependency is added.
+
+### P03-2 Step 3 — Policy and operation-bound execution (2026-10-27)
+
+**Implementation.** `OperationPolicyCatalog` freezes actual module definitions
+and exact production request policies. It retains the five assignable foundation
+pairs, adds only the three accepted virtual-public definitions, and distinguishes
+public, AccountSite, protected and finite trusted acts. Missing/conflicting
+declarations refuse; registration changes no Role grant or retained manifest.
+The current census covers 47 requests, including the internal directory brought
+forward from Step 4. Compiler-level missing/extra request and source controls
+compare the whole production universe with the actual composition.
+
+The common scoped coordinator owns each act and its nested lifetime; Identity
+evaluates fresh committed facts behind the SharedKernel decision port. Neither
+the same request object, resolver outcome nor earlier decision is reused as a
+grant. AccountSite retains matching real HostScope; public reads call no human
+candidate or membership evaluator. Exact descriptor minters bind seed authority
+to its owned per-act DI scope, event authority to validated delivery/subscription/
+prepared owner, and job authority to the existing retained Frame/RequestFrame.
+The job adapter captures rather than re-admits an already claimed request.
+Closed/faulted bindings and inherited tasks cannot revive those owners.
+
+Only an eligible Tenant capability and declared tenant-wide read mint immutable
+`OperationReadWitness` authority. Its invocation retains one-time consumption
+state; the actual ordinary unit binds unit/transaction/generation and compatible
+per-frame scope. Both mixed nesting directions poison outer commit, even if a
+handler absorbs the inner failure. Stale/canceled witnesses refuse raw unit
+access, EF and commit. The common context registration attaches the actual live
+view; EF's context-instance parameter and RLS consume the same read scope while
+retaining the tenant predicate and organization write restrictions. Narrow and
+provisioning setup explicitly clear `app.scope`, including no-reset pool reuse.
+This extends the existing logical setter, not TenantContext writers.
+
+The real internal directory has a contract, validator/cursor, handler, EF adapter
+and common MUST ReadSensitive catalogue entry. It returns only the approved
+six-field projection with current Active/Suspended rows and bounded canonical
+actor/tenant/org/operation-bound navigation. The bounded status enum serializes
+as `Active`/`Suspended` through a type-local converter. Its ordinary writable
+owner commits the read evidence before result disclosure. No directory controller
+or native transport operation is activated. HTTP controller/infrastructure
+metadata and named requirement values are prepared against the same policies;
+an actual built endpoint census and corrupted metadata twins exercise the
+classifier separately from future middleware activation.
+
+**Composition boundary.** The explicit proof graph replaces only slot 5 with
+the actual scoped adapter and dispatches the actual directory through the common
+eight-stage audit/transaction pipeline. Launch retains its previous shell and
+deny-all membership until Steps 4/5 jointly activate trusted denial evidence.
+The new handler's real read-store port is registered in ordinary Identity
+composition so API/Seeder graphs remain complete; that adapter still requires
+the actual bound witness. The handler workflow skill's obsolete no-auth/implicit-
+grant instructions are reconciled with the accepted source contract.
+
+**Runtime validation.** Strict Release builds pass with zero warnings/errors.
+The complete unit population passes 2,894/2,894 with zero skips. The first relevant
+integration run passes 117/121: all read-scope, directory adapter, endpoint and
+existing owner/filter cases pass. Three new pipeline cases first expose a missing
+job catalogue in the proof graph; the real initializer control exposes the
+new read-store dependency missing from ordinary DI. Both graphs are corrected
+through their real registrations. Those four changed cases then pass together.
+The directory's success test observes its actual COMMIT blocked at a deferred
+audit gate with no visible row/result; release permits the row and result.
+Real INSERT and deferred COMMIT faults withhold the result and preserve the
+existing audit-error/primary-exception distinctions.
+
+All ten direct/PgBouncer pool cases pass: the four added cases execute the actual
+coordinator and Identity evaluator while every business server transaction remains
+held, nested and post-lock. The saturated shared downstream alias refuses the
+same policy path and recovers only after parent release. This proves policy
+progress, not directory data publication or production instance sizing.
+
+**Architecture validation.** The complete architecture run passes 575/586 cases
+and identifies eleven failures. It catches a real dependency-direction
+violation in the earlier combined reader: Infrastructure consumes another
+module's lifecycle contract. Orchestration moves to Identity Application behind
+its own confined session factory; SQL and physical ownership stay in
+Infrastructure. The exact SQL bytes are unchanged, and no dependency rule is
+relaxed. The related factory/session/caller controls follow the actual split.
+A new descriptor-shape detector's
+initial field list omits its two readonly auto-property backing fields; the exact
+compiled five-field shape is corrected without a production exemption. The
+actual generated coordinator lambda is normalized to its exact owner family,
+preserving call multisets. The typed directory seek method joins the existing
+exact read-method census; its MembershipId remains typed, with a removed-entry
+control. This is not another aggregate writer exception. The organization SQL
+census verifies the private shared literal at both real executed argument sites.
+
+HTTP traversal distinguishes only the two declared event-initializer type
+arguments and their two existing Off catalogue registrations as data metadata.
+Actual factory/builder bodies must be data-only; fields, constructors, locals,
+handler calls, delegates and extra registrations retain dirty controls. Endpoint
+composition counts the three fixed infrastructure metadata attachments in
+addition to the four existing mappings, with exact object-array/getter/receiver
+provenance. No general metadata, source-type or assembly exemption follows.
+
+The correction population passes 122/126; a subsequent seven-case run passes all
+remaining failures and adjacent metadata/ownership controls. Every original
+failure now has current green evidence. The unaffected cases are not represented
+as another complete rerun. After the layer split, all 47 reader/directory/MUST/
+pool cases pass again, and the complete current unit population passes
+2,894/2,894 again. Compiled architecture method count is 313; its self-count guard
+passes. These local runs are not hosted CI/shard qualification, which remains
+Step 6.
+
+**Review state.** Step 3 implementation and relevant validation are ready for its
+commit and two fresh independent review rounds. The broader live-policy/evidence
+obligations remain Registered until their remaining subjects and launch paths
+are qualified; no Step 3 closeout or live activation is claimed here.
+
+The final lifetime check makes invocation-frame closure atomic across inherited
+execution contexts. All 13 coordinator unit cases and the compiled ownership
+rule pass after that change; the latter retains its corrupted closure controls.

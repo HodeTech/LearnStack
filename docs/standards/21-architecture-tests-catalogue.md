@@ -161,7 +161,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**308 test methods run in
+**313 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -2680,14 +2680,15 @@ Implemented requires nonempty production subjects and dirty/clean controls.
   [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md);
   [Permissions Standards](19-permissions.md#identity-foundation-contract).
 - **Type:** compiled definitions/consumers with planted controls. **Kind:** structural.
-- **Test owner:** `IdentityFoundationConventionTests`.
+- **Test owners:** `IdentityFoundationConventionTests`, `OperationPermissionConventionTests`.
 - **Status:** **Implemented** (`IdentityFoundationConventionTests`) — the actual five-pair registry, command metadata,
   generated artifacts and planted definition controls are exercised.
-- **Accepted P03-2 extension (implementation pending):** ADR-0076 composes
+- **Implemented P03-2 metadata extension:** ADR-0076 composes
   actual module definition sources and three nonassignable virtual-public pairs;
   the five-pair assignable manifest remains intact. Complete metadata/consumer
-  controls extend this owner in P03-2 Step 3, without promoting that new subject
-  merely because the foundation is Implemented.
+  controls exercise actual module sources and the complete production request
+  universe, with missing/extra compiled request/source controls and conflicting
+  runtime registration cases. Policy/evidence launch qualification remains separate.
 - **Phase:** P03-1 Step 4; P03-2 Step 3 extension.
 
 ### Accepted live-authorization obligations
@@ -2712,11 +2713,12 @@ noted below; acceptance never promotes an unrun proof.
   progress and lifetime controls. **Kind:** behavioural and structural.
 - **Test owners:** `IdentityAuthorizationReaderTests`,
   `AuthorizationReadSourceTests`, `AuthorizationPoolProgressTests`,
-  `IdentityAuthorizationConventionTests`.
+  `IdentityAuthorizationConventionTests`, `TrustedOperationSourceConventionTests`,
+  `OperationPolicyOwnershipTests`.
 - **Status:** **Registered** — P03-2 Steps 2/3, before activation.
-- **Partial implementation:** Step 2 supplies the confined reader/source, actual
-  PostgreSQL/PgBouncer and typed HTTP-candidate controls. Complete trusted-source
-  classification/borrower composition and production activation remain pending;
+- **Partial implementation:** the confined reader/source, actual PostgreSQL/
+  PgBouncer policy progress, typed HTTP candidates and finite source ownership
+  have actual controls. Joint production activation remains pending;
   those partial subjects do not promote the whole obligation.
 - **Phase:** 03 (P03-2).
 
@@ -2733,7 +2735,9 @@ noted below; acceptance never promotes an unrun proof.
   [Permissions](19-permissions.md#live-permission-enforcement-contract).
 - **Type:** complete compiled metadata/caller census, real direct dispatch and
   administrative-directory HTTP/database controls. **Kind:** behavioural and structural.
-- **Test owners:** `IdentityAuthorizationConventionTests`,
+- **Test owners:** `IdentityAuthorizationConventionTests`, `OperationPermissionConventionTests`,
+  `OperationPolicyOwnershipTests`, `OperationHttpClassificationTests`,
+  `OperationAuthorizationCoordinatorTests`, `IdentityOperationAuthorizerTests`,
   `IdentityAuthorizationTests`, `IdentityMembershipDirectoryHttpTests`.
 - **Status:** **Registered** — P03-2 Steps 3–5.
 - **Phase:** 03 (P03-2).
@@ -2789,7 +2793,8 @@ noted below; acceptance never promotes an unrun proof.
   [Permissions](19-permissions.md#live-permission-enforcement-contract).
 - **Type:** actual registry/consumer metadata plus scoped direct/HTTP controls.
   **Kind:** structural and behavioural.
-- **Test owners:** `IdentityAuthorizationConventionTests`, `IdentityAuthorizationTests`.
+- **Test owners:** `IdentityAuthorizationConventionTests`, `OperationPermissionConventionTests`,
+  `OperationReadScopeTests`, `MembershipDirectoryIntegrationTests`, `IdentityAuthorizationTests`.
 - **Status:** **Registered** — P03-2; moved from Awaiting backfill on acceptance.
 - **Phase:** 03 (P03-2).
 
@@ -2803,7 +2808,8 @@ noted below; acceptance never promotes an unrun proof.
   [Permissions](19-permissions.md).
 - **Type:** complete nonempty compiled source/consumer census with dirty controls.
   **Kind:** structural.
-- **Test owner:** `IdentityAuthorizationConventionTests`.
+- **Test owners:** `IdentityAuthorizationConventionTests`, `OperationPermissionConventionTests`,
+  `OperationPolicyCatalogTests`.
 - **Status:** **Registered** — P03-2; moved from Awaiting backfill on acceptance.
 - **Phase:** 03 (P03-2).
 

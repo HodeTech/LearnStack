@@ -257,32 +257,25 @@ See [add-audit-coverage](../add-audit-coverage/SKILL.md).
 
 ### Step 5: Permission policy
 
-> **Not wired yet.** No `IPermissionRegistry`, `registry.Tenant(...)` or `Roles`
-> catalogue exists in `backend/src`, `LearnStack.Api` registers no authorization
-> middleware, and `AuthorizationBehavior` passes every request through; the catalogue
-> lands with the Identity module in
-> [Phase 03](../../../docs/roadmap/phase-03-identity-admin.md). Until then this step's
-> registration, Step 7's `[Authorize(Policy = …)]` and the `403` check under
-> § Validation have nothing to bind to. A module's `permissions.md` is a forward
-> declaration, a handler with no HTTP route stands on reachability, as
-> [the Tenancy permission matrix](../../../docs/modules/tenancy/permissions.md)
-> records, and an anonymous endpoint carries `[AllowAnonymous]` with its reason
-> ([Permissions Standards § HTTP endpoints](../../../docs/standards/19-permissions.md#http-endpoints)).
+Declare the exact request through the module's `IOperationPolicySource`, using
+the existing scoped `PermissionDefinition` and the admitted `OperationPolicy`.
+`OperationPolicyCatalog` freezes those declarations independently of stored Role
+grants. Registration grants nothing and seed reruns never adopt new permissions.
+There is no `registry.Tenant`, generated `Roles` facade or implicit default grant.
 
-The endpoint that invokes this handler is guarded by
-`[Authorize(Policy = "enrollment.enrollment.write")]`. Register the permission in
-the module:
+The API already authenticates its closed tenant surface. P03-2 stages the actual
+scoped coordinator and exact HTTP metadata before their joint activation with
+trusted denial evidence; the [phase Status block](../../../docs/roadmap/phase-03-identity-admin.md)
+owns that boundary. Verify current composition before claiming enforcement from
+an attribute. Public, AccountSite and finite seed/event/job classifications have
+different ceilings; none grants an implicit general exception. Application
+step 5 repeats the current permission check before handler construction.
 
-```csharp
-registry.Tenant(
-    key: "enrollment.enrollment.write",
-    description: "Create or update enrollments",
-    defaultGrants: [Roles.TenantAdmin, Roles.OrgAdmin]);
-```
-
-`Roles.*` references come from the **Built-in Roles** catalogue authoritative
-at [19-permissions.md § Built-in Roles](../../../docs/standards/19-permissions.md).
-Do not invent role names; pick from that table or extend it via PR.
+When an HTTP operation is admitted, bind its exact application request metadata
+and the named ASP.NET requirement generated from that canonical policy. Preserve
+the [four-step authorization order](../../../docs/standards/11-security.md#live-authorization-contract)
+and prove unknown/missing/conflicting declarations deny. Keep initial templates
+and explicit grant adoption separate from definition composition.
 
 See [add-permission](../add-permission/SKILL.md).
 
@@ -311,7 +304,8 @@ Endpoint controllers are thin:
 public sealed class EnrollmentsController(ISender mediator) : ApiControllerBase
 {
     [HttpPost]
-    [Authorize(Policy = "enrollment.enrollment.write")]
+    [Authorize(Policy = "LearnStackOperation:enrollment.enrollment.create")]
+    [OperationPolicy(typeof(CreateEnrollmentCommand))]
     public async Task<IActionResult> Create(
         [FromBody] CreateEnrollmentRequest body, CancellationToken ct)
     {
@@ -320,6 +314,11 @@ public sealed class EnrollmentsController(ISender mediator) : ApiControllerBase
     }
 }
 ```
+
+This illustrates an already admitted operation whose module source uses policy
+id `enrollment.enrollment.create`; it does not register that policy or license a
+new endpoint. Use the current API classifier/requirement mapping and its exact
+source census, rather than copying a policy string without its source.
 
 ## Validation
 

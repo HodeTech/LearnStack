@@ -119,6 +119,7 @@ public sealed partial class OutboxDispatchConventionTests
             [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteCoreAsync"), Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"),
              Owner(DeliveryApplication, JobAdmission, "RequireOwnerEntry"), Owner(DeliveryApplication, JobAdmission, "RequireOwnerEntry"),
              Owner(DeliveryApplication, JobAdmission, "RequireOwnerEntry"),
+             Owner(DeliveryApplication, JobAdmission, "IsOperationEvidenceCurrent"),
              Owner(DeliveryApplication, JobAdmission, "RequireOwnerEntry"),
              Owner(InfrastructureAssembly, JobExecutorType, "ExecuteBusinessAsync"), Owner(InfrastructureAssembly, JobExecutorType, "ExecuteBusinessAsync"),
              Owner(InfrastructureAssembly, JobExecutorType, "ExecuteCapacityCleanupAsync"),

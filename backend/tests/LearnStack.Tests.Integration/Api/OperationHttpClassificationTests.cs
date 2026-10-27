@@ -1,0 +1,123 @@
+using LearnStack.Api.Account;
+using LearnStack.Api.Authentication;
+using LearnStack.Api.Versioning;
+using LearnStack.Application.Authorization;
+using LearnStack.Modules.Customization.Application.Authorization;
+using LearnStack.Modules.Education.Application.Authorization;
+using LearnStack.Modules.Identity.Application;
+using LearnStack.Modules.Tenancy.Application.Authorization;
+using LearnStack.SharedKernel.Permissions;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc.ApplicationParts;
+using Microsoft.AspNetCore.Mvc.Controllers;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Xunit;
+
+namespace LearnStack.Tests.Integration.Api;
+
+public sealed class OperationHttpClassificationTests
+{
+    [Fact]
+    public async Task Every_actual_built_controller_and_infrastructure_endpoint_has_one_closed_classification()
+    {
+        await using var app = await CreateAsync();
+        var endpoints = Endpoints(app);
+        var catalog = Catalog();
+        var classifier = new OperationHttpClassifier(catalog);
+        Assert.Equal(9, endpoints.Count(endpoint => endpoint.Metadata.GetMetadata<ControllerActionDescriptor>() is not null));
+        foreach (var endpoint in endpoints)
+        {
+            var classification = classifier.Classify(endpoint, out var policy);
+            if (endpoint.Metadata.GetMetadata<ControllerActionDescriptor>() is not null)
+            {
+                Assert.Equal(HttpOperationClassification.Application, classification);
+                Assert.NotNull(policy);
+                Assert.True(catalog.TryGet(policy.RequestType, out var registered));
+                Assert.Same(registered, policy);
+                var requirement = new OperationPolicyRequirement(policy);
+                Assert.Equal(OperationPolicyRequirement.Prefix + policy.Id, requirement.Name);
+                Assert.Same(policy, requirement.Policy);
+            }
+            else
+            {
+                Assert.Equal(HttpOperationClassification.Infrastructure, classification);
+                Assert.Null(policy);
+            }
+        }
+        Assert.Equal(new[] { InfrastructureOperationKind.Health, InfrastructureOperationKind.OpenApi, InfrastructureOperationKind.Documentation },
+            endpoints.Select(endpoint => endpoint.Metadata.GetMetadata<InfrastructureOperationMetadata>())
+                .Where(metadata => metadata is not null).Select(metadata => metadata!.Kind).Distinct().Order());
+    }
+
+    [Theory]
+    [InlineData("missing")]
+    [InlineData("duplicate")]
+    [InlineData("wrong-request")]
+    [InlineData("wrong-name")]
+    [InlineData("wrong-method")]
+    [InlineData("infrastructure-on-controller")]
+    public async Task Actual_endpoint_metadata_twins_refuse_before_a_handler_can_run(string defect)
+    {
+        await using var app = await CreateAsync();
+        var original = Assert.Single(Endpoints(app), endpoint => endpoint.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName == "GetPublicSite");
+        var classifier = new OperationHttpClassifier(Catalog());
+        Assert.Equal(HttpOperationClassification.Application, classifier.Classify(original, out _));
+        var metadata = original.Metadata.ToList();
+        var declaration = Assert.Single(metadata.OfType<OperationPolicyAttribute>());
+        switch (defect)
+        {
+            case "missing": metadata.Remove(declaration); break;
+            case "duplicate": metadata.Add(declaration); break;
+            case "wrong-request": metadata.Remove(declaration); metadata.Add(new OperationPolicyAttribute(typeof(LearnStack.Modules.Tenancy.Application.Contracts.Account.GetAccountSiteQuery))); break;
+            case "wrong-name": metadata.RemoveAll(value => value is IEndpointNameMetadata); metadata.Add(new EndpointNameMetadata("UnclassifiedAction")); break;
+            case "wrong-method": metadata.RemoveAll(value => value is IHttpMethodMetadata); metadata.Add(new HttpMethodMetadata(["POST"])); break;
+            case "infrastructure-on-controller": metadata.Add(InfrastructureOperationMetadata.Health); break;
+        }
+        var dirty = new Endpoint(original.RequestDelegate, new EndpointMetadataCollection(metadata), original.DisplayName);
+        Assert.Equal(HttpOperationClassification.Refused, classifier.Classify(dirty, out var refused));
+        Assert.Null(refused);
+        Assert.Equal(HttpOperationClassification.Application, classifier.Classify(original, out _));
+    }
+
+    [Fact]
+    public void Matched_undeclared_endpoint_refuses_while_no_match_keeps_routing_ownership()
+    {
+        var classifier = new OperationHttpClassifier(Catalog());
+        Assert.Equal(HttpOperationClassification.Unmatched, classifier.Classify(null, out _));
+        var undeclared = new Endpoint(_ => Task.CompletedTask, EndpointMetadataCollection.Empty, "Undeclared endpoint");
+        Assert.Equal(HttpOperationClassification.Refused, classifier.Classify(undeclared, out _));
+    }
+
+    private static OperationPolicyCatalog Catalog() => new([
+        new TenancyOperationPolicySource(), new CustomizationOperationPolicySource(),
+        new EducationOperationPolicySource(), new IdentityOperationPolicySource(), new BackgroundJobOperationPolicySource()]);
+
+    private static Endpoint[] Endpoints(WebApplication app) =>
+        [.. ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints)];
+
+    private static async Task<WebApplication> CreateAsync()
+    {
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+        {
+            EnvironmentName = "Testing",
+            ApplicationName = typeof(AccountController).Assembly.GetName().Name,
+        });
+        builder.WebHost.UseTestServer();
+        builder.Services.AddLearnStackApiVersioning();
+        builder.Services.AddControllers().ConfigureApplicationPartManager(manager =>
+        {
+            manager.ApplicationParts.Clear();
+            manager.ApplicationParts.Add(new AssemblyPart(typeof(AccountController).Assembly));
+        });
+        var app = builder.Build();
+        app.MapLearnStackOpenApi();
+        app.MapGet("/healthz", () => Results.Ok()).WithName("HealthCheck").WithMetadata(InfrastructureOperationMetadata.Health);
+        app.MapControllers();
+        await app.StartAsync();
+        return app;
+    }
+}

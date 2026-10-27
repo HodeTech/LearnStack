@@ -524,14 +524,15 @@ consequences follow, and both are load-bearing:
   shared across transactions, so the value is either absent or — worse — left over from
   another tenant's transaction.
 
-**`app.scope` has no implemented carrier yet.** Accepted ADR-0076 replaces the
+**`app.scope` has an implemented operation-bound carrier.** Accepted ADR-0076 replaces the
 former role-missing deferral with an operation-bound witness; P03-1 already stores
 Memberships, Roles and scoped definitions. The
 [database read-authority contract](05-database.md#operation-bound-read-authority)
 owns SQL/EF derivation, owner generation, nesting and cleanup. Step 6 announces
 that admitted read authority inside the actual transaction; no middleware or
-ITenantContext member may manufacture it. Until implementation is qualified the
-hatch remains unreachable. HostScope remains an independent narrowing ceiling.
+ITenantContext member may manufacture it. Launch remains unable to mint the
+witness until joint live-policy/evidence activation. HostScope remains an
+independent narrowing ceiling.
 
 P02b-1 Step 1 adds a read-only announcement snapshot through
 `IUnitOfWork.GetTenantContextAnnouncement(DbTransaction?)`, under
@@ -1261,11 +1262,19 @@ qualification remains P03-2. None establishes production capacity.
 
 ## Live authorization contract
 
-**Accepted contract; not runtime implemented.** ADR-0076/0077 replace only the
+**Policy core and source/read lifetimes implemented; joint activation remains gated.**
+ADR-0076/0077 replace only the
 live-policy, ninth-setter and evidence deferrals identified here. The existing
 credential/quota/binding, context writers, public ceilings and BFF contracts
 remain; the [phase Status block](../roadmap/phase-03-identity-admin.md) owns
 implementation and qualification state.
+
+The frozen `OperationPolicyCatalog`, scoped coordinator and Identity evaluator
+are exercised through an explicit proof composition. Exact seed, validated
+delivery and retained job descriptors supply finite authority independently of
+SystemActor values. HTTP controller/infrastructure metadata and named requirements
+are declared, while launch retains its previous membership/authorization adapters
+until trusted denial evidence is ready. Staged implementation grants no new route.
 
 - Freeze exact HTTP endpoint and application-request policies at composition:
   public reads, special AccountSite, scoped protected capabilities and finite

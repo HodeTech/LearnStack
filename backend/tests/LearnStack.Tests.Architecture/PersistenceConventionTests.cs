@@ -228,6 +228,7 @@ public sealed partial class PersistenceConventionTests
             "Persistence/IdentityAuthorizationReadSource.cs",
             "Messaging/OutboxDispatcherDataSource.cs",
         ]);
+        AssertOperationReadScopeAttachment();
     }
 
     /// <summary>

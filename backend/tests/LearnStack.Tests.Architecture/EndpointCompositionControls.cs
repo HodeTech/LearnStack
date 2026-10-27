@@ -9,6 +9,50 @@ namespace LearnStack.Tests.Architecture;
 
 internal static class EndpointCompositionControls
 {
+    internal static void PlantMetadata(ModuleDefinition api, Action<string, string> assertDirty)
+    {
+        var owners = new[] { api.GetType("Program").Methods.Single(method => method.Name == "<Main>$"),
+            api.GetType("LearnStack.Api.Versioning.ApiVersioningExtensions").Methods.Single(method => method.Name == "MapLearnStackOpenApi") };
+        foreach (var owner in owners)
+            foreach (var attachment in owner.Body.Instructions.Where(instruction => instruction.Operand is MethodReference
+            { Name: "WithMetadata", DeclaringType.FullName: "Microsoft.AspNetCore.Builder.RoutingEndpointConventionBuilderExtensions" }).ToArray())
+            {
+                var declaration = attachment.Previous.Previous;
+                var originalGetter = (MethodReference)declaration.Operand;
+                var otherGetter = api.GetType("LearnStack.Api.Authentication.InfrastructureOperationMetadata").Methods
+                    .Single(method => method.Name == (originalGetter.Name == "get_Health" ? "get_OpenApi" : "get_Health"));
+                declaration.Operand = otherGetter;
+                try { assertDirty(owner.DeclaringType.FullName, "a fixed declaration cannot be borrowed by another mapping"); }
+                finally { declaration.Operand = originalGetter; }
+
+                var size = declaration.Previous.Previous.Previous.Previous;
+                var originalSize = size.OpCode;
+                size.OpCode = OpCodes.Ldc_I4_2;
+                try { assertDirty(owner.DeclaringType.FullName, "the metadata attachment permits exactly one array element"); }
+                finally { size.OpCode = originalSize; }
+
+                declaration.OpCode = OpCodes.Ldftn;
+                try { assertDirty(owner.DeclaringType.FullName, "an aliased declaration is not a fixed getter invocation"); }
+                finally { declaration.OpCode = OpCodes.Call; }
+
+                var receiver = EndpointComposition.ArgumentProducer(owner, attachment, 0)
+                    ?? throw new InvalidOperationException("The fixed attachment must have a direct receiver.");
+                var originalReceiver = (MethodReference)receiver.Operand;
+                var delegatedReceiver = new MethodReference("DelegateMapping", originalReceiver.ReturnType,
+                    api.GetType("LearnStack.Api.Authentication.InfrastructureOperationMetadata"));
+                foreach (var parameter in originalReceiver.Parameters)
+                    delegatedReceiver.Parameters.Add(new ParameterDefinition(parameter.ParameterType));
+                receiver.Operand = delegatedReceiver;
+                try { assertDirty(owner.DeclaringType.FullName, "a delegated mapping cannot borrow the fixed metadata attachment"); }
+                finally { receiver.Operand = originalReceiver; }
+
+                var duplicate = Instruction.Create(OpCodes.Call, (MethodReference)attachment.Operand);
+                owner.Body.Instructions.Add(duplicate);
+                try { assertDirty(owner.DeclaringType.FullName, "a second metadata call cannot borrow the original fixed composition site"); }
+                finally { owner.Body.Instructions.Remove(duplicate); }
+            }
+    }
+
     // Mutate the real production mapping, then restore it before the next
     // detector runs. These instructions are inspected, never executed.
     internal static void Plant(ModuleDefinition api, Action<string, string> assertDirty)

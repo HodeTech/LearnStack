@@ -1,4 +1,5 @@
 using LearnStack.Application.Jobs;
+using LearnStack.Application.Authorization;
 using System.Data.Common;
 using LearnStack.Application.Messaging;
 using LearnStack.SharedKernel.Audit;
@@ -24,7 +25,8 @@ public sealed partial class TransactionExecutionCoordinator(
     IAuditStateCapture capture,
     ProducerExecution producer,
     DomainEventCollector collector,
-    ILogger<TransactionExecutionCoordinator> logger)
+    ILogger<TransactionExecutionCoordinator> logger,
+    OperationAuthorizationCoordinator? authorization = null)
 {
     /// <summary>
     /// Announces before dispatch, retains producer ancestry through completion,
@@ -168,8 +170,11 @@ public sealed partial class TransactionExecutionCoordinator(
             }
             else
             {
-                await unitOfWork.SetTenantContextAsync(
-                    BackgroundJobExecutionAdmission.AnnouncementContext(tenantContext, operationType), cancellationToken);
+                var announcementContext = BackgroundJobExecutionAdmission.AnnouncementContext(tenantContext, operationType);
+                if (authorization?.CurrentReadWitness is { } readWitness && readWitness.Policy.RequestType == operationType)
+                    await unitOfWork.SetTenantContextAsync(announcementContext, readWitness, cancellationToken);
+                else
+                    await unitOfWork.SetTenantContextAsync(announcementContext, cancellationToken);
             }
 
             // Capture causal identity at the trusted entry. Nested invocations inherit it;

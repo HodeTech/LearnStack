@@ -13,6 +13,7 @@ namespace LearnStack.Api.Account;
 public sealed class AccountController(ISender sender) : ApiControllerBase
 {
     [HttpGet("site", Name = "GetAccountSite")]
+    [OperationPolicy(typeof(GetAccountSiteQuery))]
     [ProducesResponseType<AccountSite>(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetSite(CancellationToken cancellationToken) =>
         (await sender.Send(new GetAccountSiteQuery(Request.Query.Count != 0), cancellationToken)).ToActionResult();
