@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 1,973 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,000 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -118,6 +118,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 census performance review round 2 and source freeze (2026-10-28)](#p03-2-census-performance-review-round-2-and-source-freeze-2026-10-28) — 27 lines
   - [P03-2 authority proof decomposition and preservation (2026-10-28)](#p03-2-authority-proof-decomposition-and-preservation-2026-10-28) — 40 lines
   - [P03-2 decomposed authority review round 1 and measured plan (2026-10-28)](#p03-2-decomposed-authority-review-round-1-and-measured-plan-2026-10-28) — 40 lines
+  - [P03-2 authority decomposition review round 2 and final source freeze (2026-10-28)](#p03-2-authority-decomposition-review-round-2-and-final-source-freeze-2026-10-28) — 27 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -4944,3 +4945,30 @@ Comparison of old/new plans uses this same new population, not unlike historical
 bins. Planner controls pass **83/83**, result/fixture **40/40**, native owner
 **94/94**. The fresh second review round and complete final-source hosted A/B
 remain open.
+
+### P03-2 authority decomposition review round 2 and final source freeze (2026-10-28)
+
+Two new independent reviewers (`gpt-6-astra`, xhigh) approve the complete
+`33142a89..3ccdfc40` decomposition and measured-plan revision without verified
+findings. They independently reconstruct all control bodies and the capability
+factory; check fresh census/evaluation ownership, callbacks/undo, async and
+detached-target semantics; recompute the **374 / 1,124** runtime multisets;
+and join clean TRX method metadata to all five weights. They verify every prior
+weight/source remains unchanged and distinguish instrumented diagnostics from
+clean timing advice.
+
+Both reviewers independently reconcile all **64** actual discovery protocols,
+exactly one removed/five added selectors and unchanged remaining identities.
+The final inventory is **6,927 cases / 320 Architecture methods**, with two
+complete, unique **20-owner** layouts and zero unknown weights. The plan remains
+`f5161ae946c9e3268c48be8d365cb653a190f218bbb1492731a0c7097e8d0c0d`;
+the manifest remains
+`1fa6c70c812d63948a2e7adc0bc762907b4c3496130088f818061c56ba67964e`.
+No reviewer edits source, builds or executes .NET tests. No production code,
+detector, execution owner/count, concurrency, job ceiling or reserve changes.
+
+Both fresh decomposition review rounds are closed. Source work freezes for new
+complete hosted A/B using this same source, toolchain, plan and population.
+Catalogue implementation promotions, phase gate/packet closeout and PR handoff
+remain open until actual successful qualification; historical failed attempts
+remain preserved.
