@@ -26,7 +26,10 @@ internal sealed class OperationClassificationMiddleware(RequestDelegate next)
         {
             if (!tenant.IsResolved || tenant.HostScope is null)
             {
-                await RefuseAsync(context, new Error(new LocalizedMessage("lockey_not_found")));
+                // Preserve the generic unresolved MediatR refusal; a resolved
+                // claim-only context still cannot replace public host authority.
+                await RefuseAsync(context, new Error(new LocalizedMessage(
+                    tenant.IsResolved ? "lockey_not_found" : "lockey_tenant_mismatch")));
                 return;
             }
             var response = await operations().CheckHttpAsync(policy.RequestType, context.GetEndpoint()!, context.RequestAborted);

@@ -498,6 +498,14 @@ public sealed class SeederTests : IAsyncLifetime
     [Fact]
     public async Task Seeder_process_returns_zero_on_repeat_and_nonzero_on_mismatch()
     {
+        var authority = IdentityMembershipFixture.Authority;
+        await using (var owner = new NpgsqlConnection(_database.MigrationConnectionString))
+        {
+            await owner.OpenAsync();
+            await LearnStack.Modules.Identity.Infrastructure.Bindings.IdentityAuthorityDeploymentInstaller
+                .InstallAsync(owner, authority);
+        }
+
         async Task<int> RunProcess()
         {
             var start = new System.Diagnostics.ProcessStartInfo("dotnet")
@@ -514,6 +522,13 @@ public sealed class SeederTests : IAsyncLifetime
             start.ArgumentList.Add(typeof(SeedRunner).Assembly.Location);
             // The test-owned password stays in the environment, never argv or a failure message.
             start.Environment["ConnectionStrings__Default"] = _database.AppConnectionString;
+            start.Environment["Identity__AuthorityId"] = authority.AuthorityId.Value.ToString("D");
+            start.Environment["Authentication__Tenant__Issuer"] = authority.Issuer;
+            // This fixture owns direct PostgreSQL. Derive both auxiliary lanes from
+            // its Default rather than inheriting another deployment's endpoints.
+            start.Environment["Deployment__Mode"] = "Development";
+            start.Environment.Remove("ConnectionStrings__IdentityAuthorization");
+            start.Environment.Remove("ConnectionStrings__AuthorizationEvidence");
             using var process = new System.Diagnostics.Process { StartInfo = start };
             process.Start().Should().BeTrue();
             var output = process.StandardOutput.ReadToEndAsync();

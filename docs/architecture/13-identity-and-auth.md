@@ -165,10 +165,11 @@ P03-1 admits fixed witnessed seed creation/adoption and existing-session binding
 only. It adds no POST, SDK operation or native no-session completion. P03-3 owns
 new-user HTTP/BFF entry and independently validated orgless/branch reissue. The
 shipped complete native profile and AccountSite host ceiling remain; optional API
-actor evidence does not publish a tenantless native session. G2 execution remains
-P03-2. G4 scope transitions remain P03-3; current provider user-global attributes
-do not prove independent simultaneous session scopes. Ordinary refresh remains
-scope-preserving until that bounded transition contract ships.
+actor evidence does not publish a tenantless native session. The
+[live authorization contract](../standards/11-security.md#live-authorization-contract)
+owns G2 execution. G4 scope transitions remain P03-3; current provider user-global
+attributes do not prove independent simultaneous session scopes. Ordinary
+refresh remains scope-preserving until that bounded transition contract ships.
 
 No missing profile is repaired by email merging, a new per-login actor, a client
 tenant selector or a permissive membership default. Existing seed/provider IDs

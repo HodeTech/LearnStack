@@ -590,23 +590,16 @@ request and are the only Tenancy work an anonymous visitor pays for.
 
 ## Risks and open questions
 
-- **`app.scope` has no carrier.** `ITenantContext` exposes no scope member
-  ([ADR-0040 Amendment 1](../../decisions/0040-ambient-unit-of-work.md)), so
-  no application path sets `app.scope = 'tenant'` and the cross-organization read
-  hatch on `tenant_settings` is unreachable at runtime. That is the correct
-  default, and no carrier ships in
-  [Packet 7](../../roadmap/phase-02a-kernel-tenancy.md): the flag derives from the
-  actor's role, and roles land with `Membership` / `Role` in
-  [Phase 03](../../roadmap/phase-03-identity-admin.md) — after
-  [Phase 02b](../../roadmap/phase-02b-events-auth.md)'s authenticated principal, which is
-  the prerequisite and not the carrier. The deferral is forced, not chosen
-  ([Security Standards § Tenant Context](../../standards/11-security.md)).
-  The two `AS RESTRICTIVE` write guards are tested **now** rather than then —
-  `TheTenantScopeHatchWidensReadsAndNeitherWrite` sets the flag directly — because
-  under any ordinary organization-scoped session the base policy's own
-  organization term already refuses a sibling's row, so both guards could be
-  deleted with the whole suite green. Measured: with the hatch set and the delete
-  guard dropped, a `DELETE` removed another organization's row.
+- **`app.scope` has an operation-bound carrier.** Eligible Tenant capability and
+  an explicitly declared tenant-wide read supply the immutable witness consumed
+  by the transaction owner under
+  [Security Standards § Tenant Context](../../standards/11-security.md#tenant-context).
+  `ITenantContext` has no writable scope authority; organization writes never widen.
+  The two `AS RESTRICTIVE` write guards have direct controls:
+  `TheTenantScopeHatchWidensReadsAndNeitherWrite` sets the flag explicitly because
+  an ordinary organization-scoped session's base policy already refuses sibling
+  rows. Measured: with the hatch set and the delete guard dropped, a `DELETE`
+  removed another organization's row.
 - **The query filters landed in Packet 7 step 3**, ahead of
   `TenantResolverMiddleware`, which supplies the resolved context they read. Every
   entity marked `[TenantOwned]` carries one; the two exceptions are table classes

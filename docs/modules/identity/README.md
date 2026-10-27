@@ -237,8 +237,8 @@ Yoga admin `b001` keeps its existing provider claim for default studio `b1`.
 Its seed Membership declaration independently selects NULL organization, and
 the seed transaction derives NULL SQL organization scope from that trusted
 target; the authentication manifest does not choose the Membership write scope.
-After live authorization ships, a branch session may consume eligible Tenant
-grants for branch operations and explicitly declared tenant-wide reads. Tenant-wide Membership/Profile/template
+A branch session may consume eligible Tenant grants for branch operations and
+explicitly declared tenant-wide reads. Tenant-wide Membership/Profile/template
 writes require an explicitly selected orgless context through P03-3's validated
 reissue transition. Neither the existing branch claim nor `app.scope` promotes
 writes; no extra branch-admin Membership or provider-claim rewrite is required.

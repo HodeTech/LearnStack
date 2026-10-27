@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 1,581 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 1,654 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -109,6 +109,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 Step 6 — Complete populations and qualification (2026-10-27)](#p03-2-step-6--complete-populations-and-qualification-2026-10-27) — 51 lines
   - [P03-2 Step 6 review round 1 and full-suite fixture diagnosis (2026-10-27)](#p03-2-step-6-review-round-1-and-full-suite-fixture-diagnosis-2026-10-27) — 43 lines
   - [P03-2 Step 6 R1 corrections and regression verification (2026-10-27)](#p03-2-step-6-r1-corrections-and-regression-verification-2026-10-27) — 70 lines
+  - [P03-2 Step 6 review round 2 and final source corrections (2026-10-27)](#p03-2-step-6-review-round-2-and-final-source-corrections-2026-10-27) — 73 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -4543,3 +4544,76 @@ operation-policy, database-fixture and corpus Architecture controls pass **16/16
 All four raw TRX receipts report zero failures/skips. Documentation/index checks
 pass. These local receipts do not replace the remaining ordinary partitions or
 final-source hosted A/B qualification.
+
+### P03-2 Step 6 review round 2 and final source corrections (2026-10-27)
+
+Three fresh independent reviewers, `p032_s6_r2_ownership`,
+`p032_s6_r2_proofs` and `p032_s6_r2_inventory` (`gpt-6-astra`, `xhigh`), inspect
+`070aa676..309e6d25` across ownership/liveness/audit, actual proof boundaries and
+CI/inventory/corpus. Their read-only source reviews approve their slices;
+qualification remains separate. A later narrow carrier verification checks
+actual canonical owners, preserved anchors and the seven proposed promotions.
+No reviewer builds, edits or substitutes source inspection for runtime evidence.
+
+**Clean predecessor receipts.** At `309e6d25`, the complete Architecture population
+passes **589/589**, zero skips, and the affected ordinary group passes **844/844**
+(including one Docker-free helper). Independent before/after source/tree and four
+DLL observations agree. Actual post-completion Architecture process inspection
+finds no surviving testhost. Complete no-build discovery then finds **6,922**
+cases: 3,915 non-Docker and 3,007 Docker (2,976 ordinary / 31 native). Both A/B
+layouts independently rediscover all 20 owners and exact unions; all 64 discovery
+commands agree with their raw diagnostic/console evidence. These remain
+predecessor-source observations after the correction below.
+
+The disjoint complementary run completes **2,133** cases: **2,108 passed / 25
+failed**, zero skips. It is a failed diagnostic, never a passing timing source.
+All failures resolve to three verified causes:
+
+- A delivery-only worker fixture removes the old Identity startup owner but
+  retains the new authorization-source startup owner without an Identity anchor.
+  The exact removal list now includes both. Its existing registration proof
+  requires their absence and exactly one real DeliveryProcessor; the actual
+  worker, app-role SQL, source, audit, trace and lifetime checks remain intact.
+  A complete scan of the five old-startup removal sites identifies this sole
+  missing companion.
+- The direct Seeder process Fact supplies only Default, omitting the installed
+  authority and approved runtime settings. It now installs the fixture-owned
+  anchor through the actual deployment installer, supplies the same authority/
+  issuer and Development mode, and clears inherited auxiliary endpoints so the
+  two lanes derive from its owned direct PostgreSQL Default. Credentials remain
+  environment-only. Repeat/no-write and mismatch/snapshot assertions remain.
+  The external-process census identifies this sole stale writing Seeder child;
+  the runtime wrappers already supply the approved environment.
+- The new public HTTP classifier changes unresolved platform public reads from
+  the generic `tenant_mismatch` to `not_found`. ADR-0064 and Standard 04 explicitly
+  preserve that generic result. The narrow correction restores it before any
+  authorization owner or dispatch; resolved contexts lacking public HostScope
+  still receive `not_found`, and unknown hosts still refuse in the resolver.
+  Existing real GET/HEAD cases remain unchanged. A new Docker-free Fact scans all
+  eight actual public controller endpoints and checks the generic code/no-store
+  with zero authorization-owner resolution or dispatch.
+
+The ownership reviewer independently approves the delivery correction and actual
+public classifier/control; the proof reviewer approves the Seeder correction.
+These are R2 correction verifications, not fresh full review rounds. The first
+37-case correction group passes all 36 production regressions; its new inventory
+Fact initially includes three infrastructure endpoints. The corrected scan names
+only actual public controller endpoints, preserving the separate infrastructure
+census. The complete corrected Docker-free Integration suite passes **324/324**;
+Unit **2,998/2,998** and relevant Architecture **18/18** also pass, zero skips.
+Release builds with zero warnings/errors.
+
+Active carriers remove stale pass-through/no-carrier/unregistered-runtime claims,
+retaining historical ADR/delivery records, existing fragment anchors and phase
+qualification ownership. Catalogue promotions and packet/gate completion remain
+pending. The canonical proof-owner correction replaces three nonexistent-class
+references only when its separately reviewed catalogue patch is applied.
+
+**Timing and final qualification.** ADR-0063 permits each advisory timing source's
+own source/run/artifact identity. Passing predecessor Architecture/broad receipts
+and a later corrected complement may supply separate observations covering
+current selectors; matching IDs do not prove unchanged implementation or a
+same-source local whole-suite run. Every input retains its own clean source/tree/
+DLL observers, raw all-Passed TRX hash and complete selector mapping. Failed
+complement evidence is excluded. Fresh same-final-source/plan hosted A/B remains
+the final qualification; no mixed-source local qualification is claimed.

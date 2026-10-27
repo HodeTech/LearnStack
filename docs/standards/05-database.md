@@ -4349,7 +4349,7 @@ stable `Lazy<NpgsqlDataSource>` registration, without a raw-source DI alias.
 Container disposal requests release; actual release waits for the same job and
 messaging completion witnesses. Each job invocation's `JobApplicationSourceOwner`
 permits one main unit and one independently tracked business auxiliary operation.
-The Accepted, unimplemented [authorization/evidence extension](#authorization-and-evidence-source-ledger)
+The [authorization/evidence extension](#authorization-and-evidence-source-ledger)
 adds separate globally bounded tracked lanes; it does not widen that business pair. Cache
 waiter expiry cannot replace the actual loader, connection or failed cleanup.
 The four closed auxiliary helpers are audit-config, standalone/best-effort audit,

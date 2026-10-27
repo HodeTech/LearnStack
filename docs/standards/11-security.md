@@ -566,15 +566,12 @@ yet:
 | The `AuditConfig` override loader | its own short read-only one | An out-of-band cached projection, never a request-path query |
 | The tenant-flag loader (`FeatureFlags`) | its own short read-only one | A cached projection of `tenant_feature_flags`, read on a cache miss wherever `IFeatureFlags` is asked — inside a request's transaction or outside any ([ADR-0045 § 2](../decisions/0045-entitlement-and-feature-flag-socket.md), [ADR-0040 Amendment 7](../decisions/0040-ambient-unit-of-work.md)) |
 
-> **`IOrganizationScopeValidator` is registered and has no reachable caller yet.** Its
-> only non-vacuous caller is the reconciliation matrix's row 7. P02b-5 activates
-> validated claims, but `DenyAllTenantMembershipReader` refuses row 7 before
-> organization-scope validation. Phase 03 owns the live membership path that can
-> reach it. The assertion path ADR-0036 § What the assertions do names as its caller is
-> subsumed by `TenantAssertionMiddleware`, which refuses on any difference between the
-> asserted and the resolved value before belonging can matter. This table lists it because
-> the set of setters is closed and a closed set is worth stating whole; it is not evidence
-> that a seventh short transaction runs on any Packet 7 request path.
+> **`IOrganizationScopeValidator` performs row-7 organization narrowing after
+> affirmative live Membership admission.** `TenantAssertionMiddleware` separately
+> refuses differences between asserted and resolved values. Neither path supplies
+> authority or widens scope. The
+> [live authorization contract](#live-authorization-contract) owns admission and
+> its boundaries.
 
 > **P02d-2 closes G15 without a new setter.** Seed ownership verification now sends
 > module-owned contextual `ISender` queries in fresh trusted scopes; its old private

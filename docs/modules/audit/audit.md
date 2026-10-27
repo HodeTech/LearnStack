@@ -109,7 +109,9 @@ until Phase 11, so rows can outlive their targets. The planned purge/redaction
 security events preserve evidence of the maintenance act; retention machinery
 must apply the canonical policy when admitted.
 
-## Accepted authorization evidence — runtime pending
+<a id="accepted-authorization-evidence--runtime-pending"></a>
+
+## Authorization evidence
 
 Jointly Accepted [ADR-0076](../../decisions/0076-live-scoped-authorization.md) /
 [ADR-0077](../../decisions/0077-trusted-authorization-evidence.md) extend the common
@@ -117,8 +119,9 @@ store/composer, not this module's operation catalogue. The sole denial/directory
 grant rows belong to [Identity](../identity/audit.md); the claim-context assertion
 row belongs to [Tenancy](../tenancy/audit.md). [Standard 18](../../standards/18-audit-coverage.md#trusted-authorization-evidence)
 owns their event/resource populations, fixed occurrence/time/full-row verification,
-pre-success barriers, failure signals and immutable provenance. No P03-2 writer
-or test is represented as implemented here.
+pre-success barriers, failure signals and immutable provenance. The common
+store/composer implement these paths;
+[Phase 03](../../roadmap/phase-03-identity-admin.md) owns source-bound qualification.
 
 P03-10's Audit participant locates authorization Membership/Role metadata through
 retained actor/subject attribution and reports surviving references. Metadata

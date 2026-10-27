@@ -433,15 +433,12 @@ ID tokens under ADR-0070; no application identity table stores them.
 
 ### Authorization
 
-**Gate before the first permission-sensitive route.** P02b-5's
-`AuthorizationBehavior` remains pass-through; its AccountSite admission middleware
-and production census constrain that one nonsensitive read. They do not install a
-general runtime policy for a newly added endpoint. This phase's first authorization
-packet must decide and implement a deny-by-default runtime gate before exposing its
-first protected route. Accepted [ADR-0076](../decisions/0076-live-scoped-authorization.md) selects the
-endpoint/application policy mechanism. Its runtime implementation and activation
-proofs remain required; a census entry alone grants no route. Preserve explicit
-public anonymous reads.
+**Runtime gate before protected dispatch.** The API runtime classifier and
+`AuthorizationBehavior` enforce the explicit HTTP/application policies selected
+by [ADR-0076](../decisions/0076-live-scoped-authorization.md). Missing classifications
+and insufficient authority refuse before dispatch; the endpoint census remains an
+independent structural check. Explicit public reads remain anonymous. The
+Status block above owns final-source qualification.
 
 The gate's real HTTP controls must show that an unclassified protected endpoint and
 an authenticated principal without the required permission cannot dispatch the

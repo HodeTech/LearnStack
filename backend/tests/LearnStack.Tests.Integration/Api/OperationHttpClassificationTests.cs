@@ -7,6 +7,8 @@ using LearnStack.Modules.Education.Application.Authorization;
 using LearnStack.Modules.Identity.Application;
 using LearnStack.Modules.Tenancy.Application.Authorization;
 using LearnStack.SharedKernel.Permissions;
+using LearnStack.SharedKernel.Tenancy;
+using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
@@ -22,6 +24,38 @@ namespace LearnStack.Tests.Integration.Api;
 
 public sealed class OperationHttpClassificationTests
 {
+    [Fact]
+    public async Task Unresolved_actual_public_operations_preserve_the_generic_refusal_without_authorization_or_dispatch()
+    {
+        await using var app = await CreateAsync();
+        var classifier = new OperationHttpClassifier(Catalog());
+        var endpoints = Endpoints(app).Where(endpoint =>
+            endpoint.Metadata.GetMetadata<ControllerActionDescriptor>() is not null
+            && endpoint.Metadata.GetMetadata<IAllowAnonymous>() is not null).ToArray();
+        Assert.Equal(8, endpoints.Length);
+        var dispatched = 0;
+        var authorizations = 0;
+        var middleware = new OperationClassificationMiddleware(_ => { dispatched++; return Task.CompletedTask; });
+        foreach (var endpoint in endpoints)
+        {
+            var context = new DefaultHttpContext { RequestServices = app.Services };
+            context.SetEndpoint(endpoint);
+            context.Request.Method = Assert.Single(endpoint.Metadata.GetRequiredMetadata<IHttpMethodMetadata>().HttpMethods);
+            await using var body = new MemoryStream();
+            context.Response.Body = body;
+            await middleware.InvokeAsync(context, classifier,
+                () => { authorizations++; throw new InvalidOperationException("Unresolved public operations must not resolve an authorization owner."); },
+                UnresolvedTenantContext.Instance);
+            Assert.Equal(StatusCodes.Status404NotFound, context.Response.StatusCode);
+            Assert.Contains("no-store", context.Response.Headers.CacheControl.ToString(), StringComparison.Ordinal);
+            body.Position = 0;
+            using var problem = await JsonDocument.ParseAsync(body);
+            Assert.Equal("tenant_mismatch", problem.RootElement.GetProperty("code").GetString());
+        }
+        Assert.Equal(0, authorizations);
+        Assert.Equal(0, dispatched);
+    }
+
     [Fact]
     public async Task Every_actual_built_controller_and_infrastructure_endpoint_has_one_closed_classification()
     {

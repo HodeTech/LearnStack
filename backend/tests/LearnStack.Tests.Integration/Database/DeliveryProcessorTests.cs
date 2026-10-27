@@ -55,7 +55,10 @@ public sealed class DeliveryProcessorTests(SchemaFixture schema)
     {
         await using var fixture = await Fixture.CreateAsync(schema);
         fixture.Start();
-        fixture.Services.GetServices<IHostedService>().OfType<DeliveryProcessor>().Should().ContainSingle();
+        var hosted = fixture.Services.GetServices<IHostedService>().ToArray();
+        hosted.OfType<DeliveryProcessor>().Should().ContainSingle();
+        hosted.OfType<TenantIdentityAuthorityStartupService>().Should().BeEmpty();
+        hosted.OfType<TenantAuthorizationSourcesStartupService>().Should().BeEmpty();
         await UntilAsync(() => fixture.Observation.IsHealthy);
         var source = fixture.Services.GetRequiredKeyedService<PrivilegedDataSource>(OutboxDispatcherDataSource.Key);
         source.IsValueCreated.Should().BeTrue();
@@ -867,6 +870,7 @@ public sealed class DeliveryProcessorTests(SchemaFixture schema)
                                  && (descriptor.ImplementationType ?? descriptor.ImplementationFactory?.Method.ReturnType) is { } implementation
                                  && (implementation == typeof(OutboxProcessor) || implementation == typeof(BackgroundJobHostedService)
                                      || implementation == typeof(TenantIdentityAuthorityStartupService)
+                                     || implementation == typeof(TenantAuthorizationSourcesStartupService)
                                      || removeWorker && implementation == typeof(DeliveryProcessor))).ToArray())
                         services.Remove(descriptor);
                     services.RemoveAll<DeliveryDispatchOptions>();
