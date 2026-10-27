@@ -81,10 +81,11 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 220 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 255 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
+  - [P03-2 proposal review round 2 and decision readiness (2026-10-27)](#p03-2-proposal-review-round-2-and-decision-readiness-2026-10-27) — 35 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -3158,3 +3159,38 @@ Both second-round proposal reviewers receive these additional mutable-carrier
 diffs for inspection. Validation: whole-tree docs/structure/index, seven ADR
 parser controls and `git diff --check` pass. This is not runtime qualification
 or acceptance of ADR-0076/0077.
+
+### P03-2 proposal review round 2 and decision readiness (2026-10-27)
+
+**Reviewed source:** corrected proposal `7159c983`, plus the independent guidance
+repair at `9f0edb66`, against `daf03a48`. Two new independent `gpt-6-astra`
+reviewers at xhigh effort cover authority/execution and evidence/privacy/corpus.
+Neither participated in the first proposal round. Both compare the proposals
+with adjacent source/Accepted contracts, inspect the three guidance repairs,
+and approve their slice with no remaining verified actionable finding.
+
+The authority review checks candidate ownership/deadline, source trust,
+classification, virtual-public separation, witness nesting, directory/BFF staging,
+revocation, grant adoption and acceptance instruments. The evidence review checks
+the separate denial queue against the real pending/committed shortcuts, nested
+refusals, plural intents, claim-only attribution, trusted address/UA, retention/
+redaction and sensitive disclosure. Their approval is of a Proposed design,
+not implementation or a production safety/availability guarantee.
+
+**Validation.** Whole-tree Markdown fragments, roadmap structure and generated
+indexes pass; the seven ADR parser controls pass, both new records parse
+Proposed, and `git diff --check` passes. No backend/runtime/provider tests were
+run for this documentation-only pass. No runtime, database privilege/schema,
+provider configuration, BFF allowlist, protection rule or external service was
+changed. Work stays on `development`; the preexisting worktree directory remains
+untouched. The commits are local pending the maintainer's decision.
+
+**Decision requested.** Jointly approve ADR-0076, ADR-0077 and the six steps in
+the proposed package above. This includes the minimum administrative directory
+GET in P03-2, fresh database admission and separate per-occurrence denial evidence.
+G2 execution/G5 enforcement/G6 policy/G7 remain Open until that acceptance.
+The maintainer's explicit new-ADR approval requirement is the remaining gate;
+the independent repairs already licensed by ADR-0073 are complete. After approval,
+acceptance/reconciliation is Step 1, followed by the committed implementation and
+two-fresh-review-round cycle for every step. There is no approval request for an
+unspecified later redesign or extra runtime scope.
