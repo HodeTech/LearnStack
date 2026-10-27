@@ -199,7 +199,7 @@ public sealed class AuthorizationReadSourceTests(SchemaFixture schema)
     {
         await using var source = await SourceAsync(capacity: 1);
         using var trusted = new TestSource();
-        var warm = (await source.OpenAsync(trusted.Candidate()))!;
+        await using var warm = (await source.OpenAsync(trusted.Candidate()))!;
         var backend = ((NpgsqlConnection)warm.Unit.Connection).ProcessID;
         await warm.DisposeAsync();
         // Both clients exist before the shared catalog is locked. The source reuses its
@@ -227,9 +227,21 @@ public sealed class AuthorizationReadSourceTests(SchemaFixture schema)
         finally
         {
             cancellation.Cancel();
-            await heldLock;
-            if (blocked is not null)
-                await ((Task)blocked).ConfigureAwait(ConfigureAwaitOptions.ContinueOnCapturedContext | ConfigureAwaitOptions.SuppressThrowing);
+            try { await heldLock; }
+            finally
+            {
+                if (blocked is not null)
+                {
+                    await ((Task)blocked).ConfigureAwait(ConfigureAwaitOptions.ContinueOnCapturedContext | ConfigureAwaitOptions.SuppressThrowing);
+                    // A failed cancellation assertion can still leave a returned owner.
+                    // The source joins its actual disposal, not cancellation alone.
+                    if (blocked.IsCompletedSuccessfully)
+                    {
+                        var opened = await blocked;
+                        if (opened is not null) await opened.DisposeAsync();
+                    }
+                }
+            }
         }
         await using var recovered = (await source.OpenAsync(trusted.Candidate()))!;
         recovered.Should().NotBeNull();

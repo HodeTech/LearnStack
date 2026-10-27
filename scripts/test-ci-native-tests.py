@@ -218,12 +218,14 @@ class OwnerControls(unittest.TestCase):
         fixture = fixtures.ShardControls(); fixture.plan = self.owner.shard_owner().load_plan()
         return fixture
 
-    def run_workload(self, manifest, status, name):
+    def run_workload(self, manifest, status, name, execution=None):
         private, output = self.root / ('private-' + name), self.root / ('output-' + name)
         private.mkdir(); output.mkdir(); (output / 'results').mkdir()
         plan = self.owner.shard_owner().load_plan()
         expected = self.owner.shard_owner().assign(manifest, plan, '1')['owners']['ordinary-0']
         def completed(argv, deadline, work, consume, progress):
+            if execution is not None:
+                return execution(progress, expected)
             self.trx(private / 'trx', expected, raw_canary=True)
             progress.line(self.execution_complete(expected, tail=expected).encode())
             return status
@@ -1962,6 +1964,106 @@ except launcher.Refusal as failure:
             'Reason = None, MetadataHeartbeatTimestamp = 0 }')})
         self.assertEqual([], nonwire['pools'], 'Internal record members are not part of the actual ToString wire shape')
         self.assertIsNone(parse(self.case(2), {'ErrorMessage': message}))
+
+    def test_start_only_protocol_is_diagnostic_and_does_not_complete_a_case(self):
+        case = self.case(1)
+        stream = io.StringIO()
+        progress = self.progress(self.root / 'start-only.diag', 'LearnStack.Tests.Integration', [case], stream)
+        raw = self.execution_result(case)['TestCase']
+        raw['Properties'] = [{'Key': 'PRIVATE-CANARY', 'Value': 'PRIVATE-CANARY'}]
+        progress.line(self.execution_message('TestExecution.StatsChange',
+            {'NewTestResults': [], 'ActiveTests': [raw]}).encode())
+        self.assertEqual({'status': 'observed', 'startedWithoutResult': [case]}, progress.execution_diagnostics())
+        self.assertEqual('', stream.getvalue())
+        self.assertEqual(set(), progress.seen)
+        self.assertEqual(Counter(), progress.outcomes)
+        self.assertFalse(progress.completed)
+        self.assertNotIn('PRIVATE-CANARY', json.dumps(progress.execution_diagnostics()))
+        self.refuses('execution_incomplete', progress.poll, final=True)
+
+    def test_start_deltas_accumulate_and_actual_results_remove_only_their_case(self):
+        cases = [self.case(1), self.case(2), self.case(3)]
+        progress = self.progress(self.root / 'start-deltas.diag', 'LearnStack.Tests.Integration', cases, io.StringIO())
+        def starts(rows):
+            progress.line(self.execution_message('TestExecution.StatsChange',
+                {'NewTestResults': [], 'ActiveTests': [self.execution_result(case)['TestCase'] for case in rows]}).encode())
+        starts(cases[:1]); starts(cases[1:2]); starts([])
+        self.assertEqual(cases[:2], progress.execution_diagnostics()['startedWithoutResult'])
+        with contextlib.redirect_stdout(io.StringIO()):
+            progress.line(self.execution_event(cases[:1]).encode())
+        self.assertEqual(cases[1:2], progress.execution_diagnostics()['startedWithoutResult'])
+        # Repeated and late starts cannot resurrect an already completed case.
+        starts(cases[:2]); starts(cases[1:2])
+        self.assertEqual(cases[1:2], progress.execution_diagnostics()['startedWithoutResult'])
+        with contextlib.redirect_stdout(io.StringIO()):
+            progress.line(self.execution_message('TestExecution.StatsChange', {
+                'ActiveTests': [self.execution_result(cases[2])['TestCase']],
+                'NewTestResults': [self.execution_result(cases[2])]}).encode())
+            progress.line(self.execution_complete(cases, tail=cases[1:2]).encode())
+        self.assertEqual({'status': 'observed', 'startedWithoutResult': []}, progress.execution_diagnostics())
+        self.assertTrue(progress.completed)
+        self.assertEqual(progress.expected, progress.seen)
+
+    def test_absent_or_null_starts_remain_unknown_without_erasing_observed_starts(self):
+        case = self.case(1)
+        progress = self.progress(self.root / 'start-unavailable.diag', 'LearnStack.Tests.Integration', [case], io.StringIO())
+        for payload in ({'NewTestResults': []}, {'NewTestResults': [], 'ActiveTests': None}):
+            progress.line(self.execution_message('TestExecution.StatsChange', payload).encode())
+            self.assertEqual({'status': 'unavailable', 'startedWithoutResult': None}, progress.execution_diagnostics())
+        progress.line(self.execution_message('TestExecution.StatsChange',
+            {'NewTestResults': [], 'ActiveTests': [self.execution_result(case)['TestCase']]}).encode())
+        progress.line(self.execution_message('TestExecution.StatsChange',
+            {'NewTestResults': [], 'ActiveTests': None}).encode())
+        self.assertEqual({'status': 'observed', 'startedWithoutResult': [case]}, progress.execution_diagnostics())
+        self.assertFalse(progress.completed)
+
+    def test_malformed_or_unselected_starts_are_unknown_and_never_exported_or_authoritative(self):
+        case = self.case(1)
+        raw = self.execution_result(case)['TestCase']
+        invalid = ('PRIVATE-CANARY', {}, 1, [None], [raw, raw],
+                   [{**raw, 'Id': 'PRIVATE-CANARY'}], [{**raw, 'DisplayName': 'PRIVATE-CANARY'}],
+                   [{**raw, 'Source': None}], [{**raw, 'Source': '/private/Foreign.dll'}],
+                   [self.execution_result(self.case(99))['TestCase']])
+        for index, value in enumerate(invalid):
+            with self.subTest(value=value):
+                stream = io.StringIO()
+                progress = self.progress(self.root / f'start-invalid-{index}.diag',
+                                         'LearnStack.Tests.Integration', [case], stream)
+                progress.line(self.execution_message('TestExecution.StatsChange',
+                    {'NewTestResults': [], 'ActiveTests': [raw]}).encode())
+                progress.line(self.execution_message('TestExecution.StatsChange',
+                    {'NewTestResults': [], 'ActiveTests': value}).encode())
+                progress.line(self.execution_message('TestExecution.StatsChange',
+                    {'NewTestResults': [], 'ActiveTests': [raw]}).encode())
+                self.assertEqual({'status': 'invalid', 'startedWithoutResult': None}, progress.execution_diagnostics())
+                self.assertEqual('', stream.getvalue())
+                self.assertEqual(set(), progress.seen)
+                self.assertFalse(progress.completed)
+                self.refuses('execution_incomplete', progress.poll, final=True)
+                with contextlib.redirect_stdout(io.StringIO()):
+                    progress.line(self.execution_complete([case], tail=[case]).encode())
+                self.assertTrue(progress.completed, 'Optional starts do not replace or alter actual completion validation')
+                self.assertEqual(progress.expected, progress.seen)
+                self.assertNotIn('PRIVATE-CANARY', stream.getvalue() + json.dumps(progress.execution_diagnostics()))
+
+    def test_deadline_retains_start_diagnostics_in_measurements_without_completion_evidence(self):
+        manifest = self.selector_fixture().manifest()
+        started = []
+        def interrupted(progress, expected):
+            started.append({name: expected[0][name] for name in ('assembly', 'id', 'name')})
+            progress.line(self.execution_message('TestExecution.StatsChange',
+                {'NewTestResults': [], 'ActiveTests': [self.execution_result(started[0])['TestCase']]}).encode())
+            raise self.owner.Refusal('deadline_exhausted')
+        self.refuses('deadline_exhausted', self.run_workload, manifest, 0, 'start-deadline', interrupted)
+        output = self.root / 'output-start-deadline'
+        private = self.root / 'private-start-deadline'
+        measured = self.owner.read_json(output / 'measurements.json')
+        self.assertEqual({'status': 'observed', 'startedWithoutResult': started},
+                         measured['projects'][0]['executionDiagnostics'])
+        self.assertEqual('', (output / 'completed-cases.jsonl').read_text())
+        self.assertFalse((private / 'workload.json').exists())
+        self.refuses('trx_missing', self.owner.validate_results, output, started)
+        self.assertEqual([], list(private.glob('*-execution*')), 'The private raw protocol remains unexported')
 
     def test_execution_protocol_requires_unique_expected_ids_and_finite_non_skip_outcomes(self):
         case = self.case(1)

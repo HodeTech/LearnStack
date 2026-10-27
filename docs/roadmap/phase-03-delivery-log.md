@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 1,702 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 1,752 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -111,6 +111,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 Step 6 R1 corrections and regression verification (2026-10-27)](#p03-2-step-6-r1-corrections-and-regression-verification-2026-10-27) — 70 lines
   - [P03-2 Step 6 review round 2 and final source corrections (2026-10-27)](#p03-2-step-6-review-round-2-and-final-source-corrections-2026-10-27) — 73 lines
   - [P03-2 Step 6 measured-plan review and qualification freeze (2026-10-27)](#p03-2-step-6-measured-plan-review-and-qualification-freeze-2026-10-27) — 48 lines
+  - [P03-2 Step 6 failed qualification and owned cleanup correction (2026-10-28)](#p03-2-step-6-failed-qualification-and-owned-cleanup-correction-2026-10-28) — 50 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -4666,3 +4667,53 @@ workflow topology is complete, and native-owner controls pass **89/89** before
 the weight-only change. Review/source work is frozen for fresh full hosted A/B
 qualification. Catalogue promotions, final gate/packet closeout and PR handoff
 remain pending that actual evidence.
+
+### P03-2 Step 6 failed qualification and owned cleanup correction (2026-10-28)
+
+Full hosted A attempt [40577851910/1](https://github.com/HodeTech/LearnStack/actions/runs/40577851910)
+at source `696671b5`, tree `33c27d67`, completes **25/27** jobs. Its twenty
+producer archives select **6,923** distinct cases; **6,737** report Passed,
+zero report Failed, and **186** have no result. Only ordinary-8 is incomplete:
+**44/230** Passed, then the owner exhausts its existing deadline. Its receipt
+honestly records `complete=false`, `forcedCleanup=true` and `dockerAbsent=false`.
+The integration aggregate consequently fails. This is failed qualification;
+no B attempt or catalogue promotion follows from it.
+
+All **24** actual artifacts are retained with API identity, exact byte sizes,
+SHA-256 and ZIP CRC checks. The last completed provider cases do not identify
+the stalled operation: all four selected shared-provider cases complete,
+whereas SharedSchema completes only **15/181**. The old launcher retains
+completion events but no active-case diagnostic, so neither a particular test
+nor provider cleanup is established as the hosted root cause. The hosted SDK is
+**10.0.403**, selected by the existing `latestFeature` roll-forward policy;
+it is not the workstation's SDK or an exact 10.0.112 execution claim.
+
+Independent source inspection verifies a narrower cleanup defect in
+`AuthorizationReadSourceTests`: a cancellation/assertion race can return an
+owner that its test finally never disposes. Source shutdown correctly waits for
+actual disposal, so this test failure can hide behind an indefinite join.
+The repair always joins the pending open and disposes a returned owner, even
+when the blocker task faults; the warm owner also has unwind coverage. Production
+ownership rules and the original guard/cancellation/recovery assertions remain
+unchanged. The original isolated role-guard test passes **1/1**. A temporary,
+restored source overlay forces both successful-open/assertion-failure and
+independent blocker failure: **2/2** deliberate failures complete promptly,
+without a timeout. The normal source and DLL are rebuilt afterward.
+
+The launcher additionally retains optional, bounded start observations in project
+measurements. It accumulates validated start deltas and removes actual results;
+only selected assembly/ID/name values are exported. Missing/malformed start data
+remains unknown and supplies no completion, ownership or qualification evidence.
+Collection fixture initialization/disposal remains outside this diagnostic.
+Five new controls cover concurrency, late starts, privacy and deadline retention.
+Native-owner controls pass **94/94**, planner **83/83** and result/fixture
+controls **40/40**. An independent reviewer approves the complete correction.
+A local run of the exact 230-case A selection and fresh full final-source hosted
+A/B remain required; the failed attempt is preserved rather than relabelled.
+
+The corrected local run of the exact failed owner's **230** selected cases now
+passes **230/230**, zero failures/skips, including the role-guard cancellation
+case. Its controlled fault twins and the clean rerun demonstrate repaired test
+unwinding; they still do not establish the missing hosted active-case boundary.
+Topology and documentation checks pass. The correction is frozen for a new full
+hosted A/B pair, retaining the same plan, assignment counts and job ceilings.
