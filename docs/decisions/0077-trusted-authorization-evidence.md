@@ -2,7 +2,8 @@
 
 ## Status
 
-Proposed — no audit policy or runtime behavior is changed before acceptance.
+Accepted — jointly with ADR-0076 on 2026-10-27.
+Runtime implementation remains pending at acceptance.
 
 **Date:** 2026-10-27
 **Deciders:** @cemil
@@ -12,6 +13,14 @@ attribution alongside [ADR-0076](0076-live-scoped-authorization.md). It preserve
 ADR-0033/0044 durability and legitimate plural resource intents. It adds a named
 denial-evidence population and a separately attributed assertion population,
 without extending ADR-0065's host allowance to either.
+
+**Maintainer acceptance — 2026-10-27.** The maintainer explicitly approves
+the revised records and six-step P03-2 package at `725d255a`, including
+bounded independent authority/evidence sources, pre-success denial
+durability and fixed occurrence reconciliation. The [acceptance record](../roadmap/phase-03-delivery-log.md#p03-2-joint-acceptance-and-step-1-2026-10-27)
+owns the receipt and implementation/review progress. This acceptance grants
+the named contract authority; it establishes no runtime, pool, crash or
+production-capacity proof.
 
 ## Decision Drivers
 

@@ -1284,3 +1284,27 @@ Joint approval accepts these bounded contracts while preserving route invariance
 host authority and the existing resolution matrix. P03-1 Step 5 owns actual
 existing-binding admission proofs. New-user HTTP/BFF entry remains subject to
 P03-3 acceptance and activation.
+
+### Amendment 16 — Live candidate execution and evidence (2026-10-27)
+
+Accepted [ADR-0076](0076-live-scoped-authorization.md) specifies execution of the
+previously admitted ninth candidate reader and fresh protected-act checks without
+changing this resolution matrix or its four context writers. Matching rows 6/9
+still require independent live authorization for protected acts. AccountSite
+retains its HostAndClaim and matching real HostScope ceiling; membership alone
+cannot supply it.
+
+After successful ClaimAndMembership resolution, a conflicting header uses
+[ADR-0077](0077-trusted-authorization-evidence.md)'s distinct
+`tenancy.assertion.reject_claim_context` event under the Membership-confirmed
+tenant. It is per-occurrence MUST and consumes no ADR-0065 host allowance. This
+is not refused row-14 membership evidence. Row-7's host recorder, unaudited row 10,
+refused row-14 diagnostics, malformed/unresolved assertions and host-backed
+budgets retain their existing contracts. No asserted header selects a scope.
+
+The bounded administrative directory HTTP extension is owned by ADR-0076 and
+ADR-0064's corresponding Amendment; it does not make resolution depend on the
+endpoint. [Security](../standards/11-security.md) owns placement and the
+[phase record](../roadmap/phase-03-delivery-log.md#p03-2-joint-acceptance-and-step-1-2026-10-27)
+owns implementation/proof progress. Acceptance is not activation. Other decisions
+and historical Accepted body/status/date remain unchanged.

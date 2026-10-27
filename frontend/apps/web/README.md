@@ -63,6 +63,15 @@ document with 503. Enabled mode exposes the closed `/api/auth` actions in native
 middleware and requires a session for those two shells. The shells show the
 read-only AccountSite projection, not future authoring or role permissions.
 
+Accepted [ADR-0076](../../../docs/decisions/0076-live-scoped-authorization.md)
+adds live AccountSite membership admission and one administrative directory GET
+at the API. It does not extend this native caller's AccountSite-only allowlist
+or expose the directory in these shells. Native authenticated operations and
+member/role UI remain P03-3; backend authorization/evidence source keys belong
+to API configuration, never the web runtime or browser. The
+[Phase 03 Status block](../../../docs/roadmap/phase-03-identity-admin.md) owns
+implementation and qualification; acceptance activates no new web operation.
+
 The browser receives only host-only opaque cookies and a safe session projection.
 The warning uses the actual effective expiry; an explicit extension refreshes the
 provider and reports an unchanged deadline honestly. Logout revokes locally first;

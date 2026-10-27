@@ -54,8 +54,9 @@ Organization provisioning, a separate Organization create, and host mapping crea
 P02d-2 adds two locale commands (SHOULD over Tenant) and one branding command (MUST over
 TenantSetting). P02b-2 Step 2 adds the producer terminal MUST security-event writer;
 P02b-3 Step 4 adds its independent subscriber terminal counterpart.
-Thirteen rows remain `(planned)`; seven operations have no MediatR request and
-carry `(off-path)`.
+Rows without a writer remain `(planned)`; operations without a MediatR request
+carry `(off-path)`. The accepted P03-2 claim-context assertion row below remains
+planned and unregistered.
 
 All four original writes are **MUST**. Their records commit with the business state,
 under [ADR-0033](../../decisions/0033-audit-durability-model.md). The branding writer
@@ -154,6 +155,7 @@ unmarked row is one a shipped command already raises.
 | `platform_host_to_tenant` | `tenancy.hostmapping.delete` `(planned)` | **MUST** | The same row removed. The table carries no `deleted_at`, so the delete is a row gone and a host that resolves to nobody |
 | `TenantAssertion` | `tenancy.tenant_assertion.reject` `(off-path)` | **MUST** for admitted events (`security-event`) | A validated header/claim mismatch with an independently defended host tenant is recorded under that host tenant, never the asserted tenant or sentinel; row 14 is counted only. [ADR-0065](../../decisions/0065-bounded-tenant-assertion-diagnostics.md) admits 600 authenticated standalone write attempts per host tenant per API instance per first-request-anchored monotonic minute, shared across scoped recorders, actors, sources and dimensions. Failed writes consume permits; later occurrences make no audit-store call and retain their refusal, count and exactly one attributed Warning (4006 replaces normal 4001). An attacker can exhaust the allowance, so later actors lose durable evidence; aggregate log volume remains unbounded. Admitted events retain MUST failure/health behavior, tenant-wide organization scope, exact actor/correlation and trusted organization in metadata. No tenant `AuditConfig` override or independent tenant-registry cap exists. General mutation MUST durability is unchanged. Packet 9 owns the recorder/decorator path; P02b-5 Steps 3–4 implement JWT attribution and HTTP activation under ADR-0064. ADR-0065 acceptance precedes the dependent budget implementation; the [merge closeout](../../roadmap/phase-02b-delivery-log.md#p02b-5-merge-and-closeout-2026-10-20) owns its final delivery status |
 | `TenantAssertion` | `tenancy.tenant_assertion.anonymous_burst` `(off-path)` | **MUST** (`security-event`) | The anonymous half of the same detector, written once per `(resolved tenant, dimension, window)` when the mismatch counter crosses its threshold. An anonymous mismatch is not itself an audited operation; the burst is — the precedent the baseline's "login failure burst" already sets ([ADR-0036 Amendment 7](../../decisions/0036-tenant-resolution-trusted-inputs.md)). Same writer, and `(off-path)` for the same reason. The window is **in-process** and never `ICacheService` — a cache outage must not decide whether a MUST-class security event is recorded — so the effective threshold is per instance, which errs toward more auditing. `Tenancy:AssertionBurst` sets it; the defaults are ten occurrences in five minutes |
+| Confirmed claim-context assertion | `tenancy.assertion.reject_claim_context` `(planned)` `(off-path)` | **MUST** (`security-event`) | Accepted ADR-0077; a header conflicting with actual successful ClaimAndMembership resolution uses the confirmed tenant/actor, fixed dimension/reason and membership-confirmed source. No asserted UUID or host allowance. Central assertion adapter/writer remains pending. |
 | any | `platform.admin_scope.enter` `(off-path)` | **MUST** (`security-event`) | Cross-tenant access is the one read worth a row; [Audit Coverage](../../standards/18-audit-coverage.md) puts every platform-bypass invocation on `security-event`. [Packet 9](../../roadmap/phase-02a-kernel-tenancy.md) ships it: an admitted `PlatformAdminScope.EnterAsync` writes the row through `IAuditStore.WritePlatformScopeAsync` on the scope's own platform-role connection, in a transaction of its own that **commits before** the caller's begins — so work that later fails, throws or is abandoned cannot take the record with it — carrying `TenantId.PlatformSentinel` ([ADR-0044 § 1, § 10](../../decisions/0044-audit-write-path.md)). An entry the catalogue cannot classify, or whose row cannot be written, is **refused** — no transaction is handed out for it. The `Warning` log line stays beside the row, carrying its id, as the real-time signal the row is not. `EnterAsync` is a service method and not a MediatR request, and the catalogue is keyed by request type — so its catalogue entry is registered by slug rather than by request type. Its module segment is `platform` for the same reason: the scope belongs to no module's request path. The permission gate denies before opening a connection; those denied attempts write no entry row. Phase 03 must decide denied-entry evidence before its first privileged consumer |
 
 A feature flag that gates a **billed** capability is not a `tenant_feature_flags`
@@ -179,26 +181,13 @@ classification and not drift — and a `(planned)` row whose command has since s
 fails, so the marker is a claim the rule re-checks on every run rather than an
 exemption.
 
-Seven rows sit outside that join in both directions, each marked `(off-path)` for the
-reason its own cell gives: `platform.admin_scope.enter`, written on the fourth write path
-([ADR-0044 § 10](../../decisions/0044-audit-write-path.md));
-`tenancy.killswitch.toggle`, written inside `EnterPlatformAdminScope(reason)`;
-`tenancy.entitlement.refresh`, whose writer is `IEntitlementProvider.RefreshAsync` and
-whose refreshing implementation lands in Phase 02c; the two
-`tenancy.tenant_assertion.*` keys, written by a non-MediatR caller reaching
-`IAuditStore.WriteStandaloneAsync`
-([ADR-0033 Amendment 2](../../decisions/0033-audit-durability-model.md));
-`platform.outbox.dead_letter`, written with its fenced producer terminal UPDATE
-through `IAuditStore.WriteEventTerminalAsync`; and `platform.delivery.dead_letter`,
-whose subscriber writer is delivered by P02b-3 Step 4. Five are
-registered by slug through `DeclareOffPath` because their writer ships —
-`platform.admin_scope.enter`, `platform.outbox.dead_letter`,
-`platform.delivery.dead_letter` and the two
-`tenancy.tenant_assertion.*` keys.
-`tenancy.killswitch.toggle` and `tenancy.entitlement.refresh` also carry
-`(planned)` and register by slug when Phase 03 and Phase 02c,
-respectively, land their writers. Every other slug above is
-joined in both directions the day its command lands.
+Off-path rows use slug registration when their writer ships. Delivered
+registrations are platform entry, producer/subscriber/job terminal transitions
+and the two `tenancy.tenant_assertion.*` operations. The entitlement refresh,
+killswitch and P03-2 claim-context assertion rows carry both `(off-path)` and
+`(planned)` until their named writers exist. They have no synthetic request type
+and sit outside the request-type join in both directions. Every ordinary request
+slug joins in both directions when its command/query lands.
 
 ## P02d-2 contextual verification reads
 
@@ -223,9 +212,10 @@ internal ports, not separately dispatched or directly routed endpoints.
 [ADR-0064](../../decisions/0064-tenant-api-authentication-boundary.md#closed-authenticated-read).
 The non-public query, exposed only by AccountSite GET, returns its own actor/scope
 and the existing
-public site projection. Normal success and refusal create no query intent,
-operation slug or audit row; it is neither ReadSensitive nor MAY. Independent
-rejected-assertion auditing retains its own path. The
+public site projection. Normal success and refusal create no query resource intent
+or slug; it is neither ReadSensitive nor MAY. Accepted ADR-0077 separately requires a central Identity
+denial event for live membership denial attributable to a resolved tenant, with
+runtime pending in P03-2. Independent rejected assertions retain their own path. The
 [module contract](README.md#p02b-5-authenticated-account-site-read) owns admission.
 
 
@@ -251,6 +241,19 @@ keeps the two existing operation slugs and extends their captured evidence:
   fields, never metric labels; no audit slug or row is added.
 - Existing anonymous burst limits and failure behavior remain: a failed audit preserves
   the refusal while the audit store reports Critical, failure count and unhealthy state.
+
+## Accepted P03-2 claim-context evidence — runtime pending
+
+[Standard 18](../../standards/18-audit-coverage.md#trusted-authorization-evidence)
+owns the exact evidence population, trusted provenance and durability rules.
+The new assertion event requires confirmed ClaimAndMembership resolution from
+the production reader. It cannot use a candidate/raw claim or impersonate a
+host-backed rejection. Host-backed events keep their own allowance; row 7 stays
+host-recorded, row 10 unaudited, and refused row 14 diagnostic-only. A successful
+row 14 followed by conflicting tenant/org header is the distinct new MUST event,
+without an asserted UUID or host-budget debit. Actual refusal survives audit
+failure with the existing failure signals. No new registration or runtime proof
+is claimed here.
 
 ## Mapped-property personal-data declarations
 

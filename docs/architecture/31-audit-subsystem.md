@@ -6,6 +6,8 @@
 [ADR-0065 (Bounded Tenant Assertion Diagnostics)](../decisions/0065-bounded-tenant-assertion-diagnostics.md),
 [ADR-0046 (Durable Event Delivery and Recovery)](../decisions/0046-durable-event-delivery-and-recovery.md),
 [ADR-0057 (Transactional Event Production and Completion)](../decisions/0057-transactional-event-production-and-completion.md),
+[ADR-0076 (Live Scoped Authorization)](../decisions/0076-live-scoped-authorization.md),
+[ADR-0077 (Trusted Authorization Evidence)](../decisions/0077-trusted-authorization-evidence.md),
 [ADR-0017 (Tenant + Organization)](../decisions/0017-tenant-organization-hierarchy.md),
 [18-audit-coverage.md](../standards/18-audit-coverage.md).
 
@@ -155,6 +157,39 @@ P03-10 owns locators and truthful retained-copy fulfillment, not this schema ste
 COMMIT fault twins, reciprocal preflight refusal and exact duplicate evidence
 remain separate from source inspection.
 
+### Accepted trusted authorization evidence extension
+
+**Contract Accepted; runtime and proofs pending in P03-2.** ADR-0077 adds one
+central denial owner beside ordinary plural resource intents. Off and best-effort
+operation classifications cannot remove this separate MUST event. HTTP rejection,
+application/resource refusal and absorbed nested denial retain the exact distinct
+populations in [Standard 18](../standards/18-audit-coverage.md#trusted-authorization-evidence),
+which owns the full contract rather than the ordinary-resource sketches below.
+
+The actual owner enforces a pre-success barrier: unresolved denial events commit
+atomically with otherwise-successful ReadWrite business work; ReadOnly/ownerless
+success waits for standalone acknowledgement. A joiner never acknowledges or
+clears the population, and normal capture's Committed state cannot suppress it.
+Failure prevents outer success before commit/disclosure. An actual refused caller
+retains its 403/404. There is no finally-only successful-commit gap or durable
+recovery queue for an uncompleted refusal lost before any event write commits.
+
+The central owner freezes one occurrence reference, decision time and complete
+draft. Its confined store methods reuse the sole INSERT/binder and verify only
+expected-key duplicates against the entire captured row in a clean scoped read
+transaction. This proves the denial event, never an uncertain business COMMIT.
+Ordinary resource reconciliation keeps its different-timestamp contract.
+[Standard 05](../standards/05-database.md#authorization-and-evidence-source-ledger)
+owns auxiliary source/cleanup capacity and topology; no global function, sentinel,
+bypass, additional SELECT grant or second Identity audit store follows.
+
+Typed immutable source provenance reaches the central composer, then the existing
+columns and versioned authorization metadata. No handler dictionary or enrichment
+UPDATE exists. Standard 18 owns field/source limits and per-row retention targets;
+[Data Protection](23-data-protection.md#accepted-authorization-evidence-linkage)
+owns retained linkage and P03-10 fulfillment. Acceptance alone neither populates
+these fields nor implements the denial barriers.
+
 ### Confined event-terminal audit
 
 **ADR-0046 fifth seam implemented in P02b-2 Step 2; both review rounds complete.**
@@ -218,6 +253,9 @@ flowchart TB
     Recon -->|"anything else, MUST"| Standalone["IAuditStore.WriteStandaloneAsync<br/>own transaction, real outcome"]
     Recon -->|"SHOULD / MAY"| Best["IAuditStore.WriteBestEffortAsync"]
 ```
+
+This diagram describes ordinary resource intents; the Accepted denial population
+uses the separate pre-success barrier above.
 
 Read as text — **decide → write → reconcile**. At step 3 the behavior classifies the
 request from in-process state and, for MUST, parks one intent per audited
@@ -584,9 +622,10 @@ public sealed record CapturedEntityChange(
 public sealed record CapturedFieldChange(string Path, string? BeforeJson, string? AfterJson);
 ```
 
-`State` is the only durability signal in the system, and it is deliberately **not**
-a "consumed" flag. `WrittenInTransaction` is not durable; only `Committed` is. This
-interface is a `SharedKernel` abstraction and names no EF Core type — it lives in
+`State` is the ordinary resource buffer's durability signal, deliberately **not**
+a "consumed" flag. ADR-0077's pending denial implementation additionally requires
+independent per-event/actual-owner state; this global state cannot acknowledge it.
+`WrittenInTransaction` is not durable; only `Committed` is. This interface is a `SharedKernel` abstraction and names no EF Core type — it lives in
 `LearnStack.SharedKernel.Audit` beside the other four ports, `IAuditStore`,
 `AuditEntryDraft`, `AuditIntent` and `AuditEntryId`
 ([ADR-0044 § 11](../decisions/0044-audit-write-path.md)).
@@ -804,10 +843,11 @@ or an earlier proven consumer, must decide its first source/freshness contract;
 `actor_user_id` carries no foreign key. `ip_address` and `user_agent` need HTTP-layer
 enrichment `LearnStack.Application` cannot see — that project references no
 `Microsoft.AspNetCore.*` package, and must not begin to — so they stay `NULL` until
-[Phase 03](../roadmap/phase-03-identity-admin.md) adds the request-context port that
+P03-2 implements the accepted trusted provenance port that
 carries them — as `System.Net.IPAddress`, not `string`: the column is `inet`, Npgsql maps
 that type onto it with no configuration, and a `string` maps onto `text`, which
-PostgreSQL will not assign to `inet`. When it does, that port's population sites are enumerated and counted the
+PostgreSQL will not assign to `inet`. The accepted [Standard 18 contract](../standards/18-audit-coverage.md#trusted-authorization-evidence)
+owns their bounded source/field rules. That port's population sites are enumerated the
 way [ADR-0036 Amendment 2](../decisions/0036-tenant-resolution-trusted-inputs.md) counts
 the ambient tenant context's four, and for the same reason: an ambient value anyone may
 write is an ambient value nobody can reason about.
@@ -823,7 +863,7 @@ Key invariants enforced by the shared lifecycle:
 - **Ownership gates distinct duties.** A UoW joiner writes and signals nothing.
   A nested audit frame does not reconcile or clear; the outermost audit
   coordinator owns those duties (§ 4).
-- **Only `Committed` counts.** The reconcile step branches on
+- **Only `Committed` counts for ordinary resource intents.** The reconcile step branches on
   `IAuditStateCapture.State`, never on a "consumed" flag. **Any** state other than
   `Committed` produces standalone rows — `Pending` included, which is the state a
   short-circuit at step 4 or 5 leaves behind, and which the three-shapes sentence in § 1
@@ -870,7 +910,7 @@ Key invariants enforced by the shared lifecycle:
   writes the `failed` outcome through the standalone path — the business transaction has
   rolled back, so there is no transaction left to ride — then rethrows via
   `ExceptionDispatchInfo` so the original stack trace survives.
-- **`Indeterminate` prefers a duplicate to a loss.** When `CommitAsync` faults, the rows'
+- **Ordinary resource `Indeterminate` prefers a duplicate to a loss.** When `CommitAsync` faults, the rows'
   fate is genuinely unknown, so each standalone row is written anyway, carrying the same
   `AuditEntryId` as the in-transaction attempt and outcome `indeterminate`. The pair is
   legal under the composite primary key because `PostgresAuditStore` supplies a **fresh**
@@ -961,8 +1001,9 @@ before dispatch and enrolls
 The invocation stays open through completion. Successful production records sticky
 receipts in its invocation and ancestors; a returned refusal with produced work
 marks rollback-only before frame resolution. Ordinary event-free absorbed
-refusals retain ADR-0040's meaning. Producer frames remain distinct from audit
-ownership and cannot make a raw transaction into an enrolled producer owner.
+refusals retain ADR-0040's meaning; ADR-0077 additionally requires unresolved
+denial evidence to pass its pre-success barrier before outer success. Producer
+frames remain distinct from audit ownership and cannot make a raw transaction into an enrolled producer owner.
 
 Only the transaction owner writes pending MUST intents and reports durability.
 It refuses rollback-only or read-only-with-produced-work before composition;
@@ -1000,7 +1041,8 @@ handle (`CompleteAsync` / `FailAsync`) rather than through the frame-blind
 otherwise turns the outer commit into a silent no-op. ADR-0057 adds rollback-only
 for a returned refusal whose invocation or descendants
 produced work; ordinary event-free absorbed refusals keep ADR-0040 § Nesting
-semantics. The `committing` flag keeps a faulted `COMMIT` from being followed by
+semantics, subject to ADR-0077's accepted denial-evidence pre-success barrier.
+The `committing` flag keeps a faulted `COMMIT` from being followed by
 a rollback attempt.
 
 That same handle carries `IsOwner`, which is why the audit gating above is a property of
@@ -1351,7 +1393,7 @@ refuses it in the factory. `tenants` still carries
 but a constraint is the **backstop**, not the control, because it cannot stop a GUC from
 being announced ([ADR-0044 Amendment 3 § 5](../decisions/0044-audit-write-path.md)).
 
-**The row's identity and its clock.** `AuditEntryId` is minted **app-side** by
+**The ordinary resource row's identity and its clock.** `AuditEntryId` is minted **app-side** by
 `AuditLogBehavior` at pipeline step 3 — the one high-volume append-only table whose id is
 ([ADR-0023 Amendment 9](../decisions/0023-strongly-typed-id-source-generator.md)) —
 because the `Indeterminate` pair has to carry a single identity across two connections and
@@ -1362,7 +1404,9 @@ under the composite primary key instead of raising `23505`. `DEFAULT uuidv7()` a
 `DEFAULT now()` both stay on their columns for the same narrow purpose — a backstop for a
 row inserted by something other than the store — which is why the fence above carries both
 and Database Standards § Identifiers names `audit_log` as the table that takes **both** id
-paths.
+paths. ADR-0077 denial occurrences instead keep their exact fixed decision time
+and complete draft across owned attempts, as defined in
+[Standard 18](../standards/18-audit-coverage.md#trusted-authorization-evidence).
 
 ### Append-only enforcement
 
@@ -1569,30 +1613,23 @@ shape, different table.
 
 ## 9. Retention
 
-Default retention by operation class (per-tenant overridable within plan limits):
+[Standard 18 Retention](../standards/18-audit-coverage.md#retention) is the
+single policy source for per-row OperationType/domain targets and permitted
+bounds. Denial/assertion SecurityEvent rows target seven years; directory
+ReadSensitive rows target two years, including their retained authorization
+metadata. MUST is a durability class, not a blanket retention period.
 
-| Class | Default | Override range |
-|-------|---------|----------------|
-| SecurityEvent | **7 years** | 1–10 years |
-| Create / Update / Delete on financial / identity / enrollment data | **7 years** | 1–10 years |
-| Create / Update / Delete on content / scheduling | **2 years** | 6 months – 5 years |
-| ReadSensitive | **2 years** | 6 months – 5 years |
-| Other Action | **1 year** | 3 months – 3 years |
+Automatic purge, retention columns and tenant retention overrides remain
+unimplemented. Rows can outlive policy targets until the separately admitted
+Phase 11 machinery exists. The two planned daily jobs have distinct duties:
 
-Both retention jobs run **daily**. Three documents previously disagreed — daily in
-[Audit Coverage Standards](../standards/18-audit-coverage.md) and
-[ADR-0028](../decisions/0028-audit-log-partition-management.md), weekly here — and this
-document was the outlier. Daily is correct: a weekly purge means a tenant's stated
-retention can be exceeded by up to six days, which is a compliance answer nobody wants to
-give.
-
-Both jobs land in [Phase 11](../roadmap/phase-11-production-hardening.md) alongside
-partitioning; until then `audit_log` is a single table and nothing purges it.
-
-| Hangfire recurring job | Cadence | What it does |
+| Hangfire recurring job | Target cadence | Planned duty |
 |---|---|---|
-| `learnstack:audit:partition-management` | Daily | Creates next month's partition if absent; drops partitions older than the maximum retention window across all tenants (10y for safety) |
-| `learnstack:audit:retention-purge` | **Daily** | Deletes individual rows per the tenant's configured retention, in batches. Runs as `learnstack_platform` through the audited platform-admin scope. The purge itself emits a `SecurityEvent` audit row summarising what was deleted |
+| `learnstack:audit:partition-management` | Daily | Create future partitions and remove only partitions beyond the applicable platform maximum; ADR-0028 owns partition lifecycle. |
+| `learnstack:audit:retention-purge` | Daily | Delete eligible individual rows in batches under the canonical policy; use audited Platform authority and a MUST result row. |
+
+Neither job is activated by the P03-2 evidence contract. A retention table or
+declared job name is not proof of deletion or production capacity.
 
 ## 10. GDPR / PII redaction
 
@@ -1624,10 +1661,12 @@ Phase 11 owns retention purge, not redaction.
 `actor_user_id`, `module`, `operation`, `operation_type`, `operation_class`, `outcome`,
 `correlation_id` and `timestamp` are **never** redacted; the trigger rejects an `UPDATE`
 that changes any of them. `metadata` is also outside the six-column redaction
-grant and can retain causal actor references. Preserving an attributable history
-is not proof of complete anonymisation. Phase 03 settles those references under
+grant and can retain causal actor and authorization Membership/Role references.
+Preserving an attributable history is not proof of complete anonymisation. Phase 03 settles those references under
 the [erasure first-writer prerequisites](23-data-protection.md#erasure-authority-and-first-writer-prerequisites)
-before its redaction handler ships.
+before its redaction handler ships. P03-10's Audit participant locates the
+accepted authorization metadata through retained actor/subject attribution and
+reports surviving references; no metadata UPDATE authority follows.
 
 Every module that stores user references in audit payloads registers an
 `IUserReferenceLocator`. [Phase 03 P03-10](../roadmap/phase-03-identity-admin.md#inherited-architecture-obligations)
@@ -1723,16 +1762,11 @@ update it constrains.
      ahead of its command carries `(planned)` and is outside this direction — and a
      `(planned)` row whose command has since shipped **fails**, which is what stops the
      marker from becoming an escape.
-   - *Off the request path.* Operations that are not MediatR requests at all carry
-     `(off-path)` and are outside both directions. Nine rows carry it — Tenancy's
-     `platform.admin_scope.enter`, `platform.outbox.dead_letter`,
-     `platform.delivery.dead_letter`, `tenancy.killswitch.toggle`,
-     `tenancy.entitlement.refresh` and
-     [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md)'s
-     `tenancy.tenant_assertion.reject` and `tenancy.tenant_assertion.anonymous_burst`, and
-     Audit's `audit.redaction.apply` and `audit.purge.apply`. They register by slug: the
-     five whose writer ships through `DeclareOffPath`, the other four — also
-     `(planned)` — when their writer lands.
+   - *Off the request path.* Non-MediatR operations carry `(off-path)` and
+     register by slug when their writer ships. Module matrices own the current
+     population, including the planned P03-2 denial/assertion events. See
+     [Standard 18's join rules](../standards/18-audit-coverage.md#the-join);
+     no absent writer is made registered by its acceptance.
    - *An `Off` registration carries no slug*, so it raises no matrix row and is outside
      both directions too (§ 5).
 2. `AuditEntry_Inherits_Entity_Not_AuditableEntity` — append-only by construction: an

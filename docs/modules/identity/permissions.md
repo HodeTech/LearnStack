@@ -2,6 +2,9 @@
 
 **Status: Finite foundation definitions and seed commands implemented; live enforcement remains P03-2.** Derived from jointly Accepted [ADR-0072](../../decisions/0072-application-owned-identity-bootstrap.md)
 and [ADR-0073](../../decisions/0073-scoped-membership-and-identity-data-foundation.md).
+The live contract is jointly Accepted in
+[ADR-0076](../../decisions/0076-live-scoped-authorization.md) /
+[ADR-0077](../../decisions/0077-trusted-authorization-evidence.md); runtime remains pending.
 No Identity HTTP route or live permission admission is implemented. The [module spec](README.md)
 owns storage/lifecycle; [Standard 19's accepted foundation contract](../../standards/19-permissions.md#proposed-identity-foundation-contract)
 owns the exact registry, grant manifests and kernel without a second copy here.
@@ -36,7 +39,8 @@ adoption supplies identity facts; it does not independently grant seed authority
 
 Empty cells mean no foundation key exists. Bootstrap/seed verification reads
 do not invent directory/read keys; their exact owner/audit classification is
-separate. P03-2/3 registers broader production operations before activation.
+separate. P03-2 reuses the existing Tenant admin pairs for the planned operations below;
+new assignable definitions require their own approved finite manifest.
 
 ## Delegation and scope boundary
 
@@ -45,16 +49,20 @@ separate. P03-2/3 registers broader production operations before activation.
 - Eligible Tenant grants compose with that organization's grants. Another branch
   or a no-org Tenant check cannot consume an Organization grant. Tenant association
   for discovery is not administrative authority.
-- Branch-scoped sessions use eligible Tenant grants only for branch operations.
+- Branch-scoped sessions use eligible Tenant grants for branch operations and
+  explicitly declared tenant-wide reads, including the accepted directory.
   Tenant-wide writes require the explicit orgless reissue transition owned by
   P03-3; `app.scope` widens reads only. The [seed handoff](README.md#first-admin-and-seed-sequence)
   preserves Yoga admin's branch claim while using its declared NULL-org target.
 - Org Admin cannot edit templates. Editing requires an eligible Tenant Admin
   binding and Tenant `identity.role.admin`; that capability is reserved to Tenant
   Admin and cannot be delegated to another built-in/Organization binding.
-- Later live writes cannot delegate beyond current authority, cross scope, edit
-  self into higher authority or remove the immutable kernel. P03-2/G5 qualifies
-  these controls before a protected administration path activates.
+- Live writes cannot exceed the current delegation ceiling, self-escalate or
+  remove the immutable kernel. The accepted authoring relation permits an eligible
+  Tenant Admin with Tenant `identity.role.admin` to add an exact registered
+  Organization pair only while holding that same key's Tenant pair. This is not
+  evaluation equivalence; other-key, Organization-to-Tenant and unregistered-pair
+  implications refuse. P03-2 proves this before activation.
 - The two-pair admin kernel is deliberately smaller than the three-pair initial
   Tenant Admin bundle. P03-2 owns explicit audited grant adoption/removal outside
   that kernel. A later adopted manifest does not make the fixed v1 seed an
@@ -62,6 +70,22 @@ separate. P03-2/3 registers broader production operations before activation.
 - A per-act committed snapshot defines revocation: later admissions see the change;
   already admitted work is not retroactively cancelled. JWT/session/UI caching
   cannot establish that boundary. P03-3 owns UI freshness/target transitions.
+
+## Accepted P03-2 operation bindings — runtime pending
+
+| Operation | Existing capability | Boundary |
+|---|---|---|
+| `GET /api/v1/identity/memberships` | Tenant `identity.membership.admin` | Declared tenant-wide administrative read; an eligible NULL-org Tenant Admin Membership can authorize it from a branch session. Organization grants cannot. MUST sensitive-read audit; no native BFF expansion. |
+| `ChangeRoleGrantsCommand` | Eligible Tenant Admin and Tenant `identity.role.admin` | Orgless write, current delegation ceiling/kernel, expected Role row version; recheck actor/target authority after invariant-lock wait. No HTTP writer. |
+| `AdoptRoleGrantManifestCommand` | Same admin gate | Separate approved finite v1 manifest/diff and same concurrency/audit rules; unknown manifests refuse, no v2 bundle or automatic adoption. No HTTP writer. |
+
+The five assignable scoped pairs, eight templates and fixed v1 seed remain.
+Virtual Portal Public definitions are nonassignable and describe existing public
+reads only; [Standard 19](../../standards/19-permissions.md) owns their exact set.
+Default-deny HTTP and independent application checks consume fresh committed
+policy facts. P03-9 retains Platform admission; a SystemActor UUID is no bypass.
+The [Standard 05 read authority contract](../../standards/05-database.md#operation-bound-read-authority)
+owns immutable invocation/transaction scope and EF/RLS agreement.
 
 ## Proof ownership
 

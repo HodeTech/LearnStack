@@ -1262,3 +1262,35 @@ Fixed central witness SQL receives only
 installer/evidence exception. Existing append-only, redaction and retention
 authority remains unchanged. Joint ADR-0072/0073 approval accepts these bounds;
 P03-1 Step 3 still owns the actual writer, mode-refusal, guard and evidence proofs.
+
+## Amendment 15 — Typed denial events and immutable provenance (2026-10-27)
+
+Accepted [ADR-0077](0077-trusted-authorization-evidence.md) adds a centrally owned
+MUST authorization-denial population, distinct from ordinary plural resource
+intents. It supplies typed immutable actor/membership/role/source/route and
+bounded transport provenance; handlers acquire no arbitrary metadata channel.
+ActorEmail stays null until a separately admitted trustworthy source exists.
+
+The denial occurrence has one fixed id and microsecond-normalized decision time.
+Its pending and standalone seams reuse the sole INSERT/binder, but do not inherit
+ordinary standalone's broad 23505 shortcut or fresh reconciliation timestamp.
+Only the expected composite-key conflict followed by a clean scoped full-draft
+match proves this event durable; it proves no business outcome. Ordinary resource
+reconciliation and its deliberate timestamp distinction remain unchanged.
+
+The enclosing successful ReadWrite commit atomically carries unresolved denial
+events. ReadOnly/ownerless success requires their standalone acknowledgement first.
+Audit failure therefore prevents otherwise-successful commit/disclosure; an
+already-refused caller retains refusal. Per-event owner/generation state cannot
+be replaced by the business capture's global Committed state, and joiners cannot
+claim completion. Process loss before any applicable write commits can lose an
+uncompleted refusal; no persistent invocation/replay ledger is added.
+
+`tenancy.assertion.reject_claim_context` is a separate Membership-confirmed
+per-occurrence MUST event after successful claim-only resolution, outside the
+host budget. The [canonical audit contract](../standards/18-audit-coverage.md#trusted-authorization-evidence)
+owns exact populations, privacy, source and proof obligations. Its two-slot
+standalone evidence lane remains app-role/tenant-scoped; no sentinel, bypass,
+new table or redaction privilege follows. P03-2's new confined seams extend the
+prior eight central seams only when implemented; acceptance does not claim they
+exist. Other decisions and historical Accepted body/status/date remain unchanged.

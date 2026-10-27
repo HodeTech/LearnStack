@@ -29,6 +29,9 @@ Identity lock/admission observation derives from Accepted
 [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md),
 [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md) and
 [ADR-0074](../decisions/0074-membership-admission-under-ordered-locks.md).
+Accepted [ADR-0076](../decisions/0076-live-scoped-authorization.md) /
+[ADR-0077](../decisions/0077-trusted-authorization-evidence.md) add live
+authorization/evidence obligations; P03-2 runtime implementation remains pending.
 
 Three signals — logs, traces, metrics — bound by a single correlation id. Everything we ship is observable from day one.
 
@@ -291,6 +294,35 @@ owns their current qualification status.
 
 Step 3 implements recorder/claimless/quota diagnostics; Steps 4–5 qualify the
 complete active path. Acceptance alone claims none of these mechanisms delivered.
+
+### Trusted authorization diagnostics
+
+**Accepted contract; runtime pending in P03-2.** The canonical
+[Standard 18 evidence contract](18-audit-coverage.md#trusted-authorization-evidence)
+owns denial/assertion populations, immutable provenance, exact reconciliation
+and pre-success durability. Diagnostic records do not substitute for those rows.
+
+- Authorization-source unavailability/capacity refusal is fixed
+  `503 dependency_unavailable`, never fabricated noncoverage or invalid-token 401.
+  Evidence-source saturation is audit-unavailable: preserve an actual decided
+  refusal, but prevent otherwise-successful outer commit/disclosure with 503.
+- MUST store failures retain existing Critical/counter/audit-health reporting.
+  Independent composer refusal has one fixed Critical signal. Attach no raw
+  provider/database exception, claims, body, query or asserted UUID.
+- A matching fixed denial row establishes that occurrence's durability only;
+  neither a duplicate counter, 23505 nor event evidence establishes business COMMIT.
+  Ordinary resource reconciliation retains its separate historical semantics.
+- Confirmed claim-only header mismatches use their distinct MUST event and fixed
+  provenance without host allowance/suppression signals. Refused row 14 remains
+  diagnostic-only; row 7/10 and host-backed budget signals retain their contracts.
+- The trusted provenance snapshot reuses admitted transport address and bounded
+  route/user agent under Standard 18. User agent supplies no authority and never
+  becomes a log label. Actor, Membership, Role, tenant and correlation identities
+  remain excluded from metric labels; no free-form provenance dictionary exists.
+- [Standard 05](05-database.md#authorization-and-evidence-source-ledger) owns the
+  four/two retained-owner sources, deadlines, cleanup and topology proofs.
+  Elapsed time is not resource release. Local progress/fault controls are P03-2
+  correctness gates; Phase 11 owns production capacity, alerts and runbooks.
 
 ### Sampling
 
@@ -635,14 +667,16 @@ reported as `other`; adapters never derive a label from a full cache key, tenant
 organization id, host, session id, or entity id. `reason` is one of `explicit`, `expired`,
 or `capacity`; `outcome` is one of `success`, `faulted`, or `cancelled`.
 
-The two audit counters are labelled by `operation` — the catalogue's dotted slug, a
-bounded set nobody outside the deployment chooses — and never by tenant. They answer
-different questions and both are required by
-[ADR-0033 Amendment 3](../decisions/0033-audit-durability-model.md): a **write failure**
-is an operation that succeeded with no record of it, which also takes the `audit` health
-check unhealthy and logs at `Critical`; a **duplicate** is the opposite signal, positive
-evidence that a business `COMMIT` landed whose outcome the process could not observe, so a
-rate that moves is about the database connection rather than about any one request.
+The two audit counters are labelled by `operation` — the fixed catalogue slug,
+never tenant or caller input. Existing standalone failures log at Critical and
+mark audit health unhealthy. They may record an already-refused operation whose
+403/404 survives the failure; they do not mean successful unaudited business work.
+Ordinary resource duplicates retain
+[ADR-0033 Amendment 3](../decisions/0033-audit-durability-model.md)'s separate
+reconciliation semantics. Under Accepted ADR-0077, denial duplicates count as
+durable evidence only after exact full-draft verification; that evidence never
+proves the enclosing business COMMIT outcome. Neither counter replaces the
+[pre-success barrier](18-audit-coverage.md#trusted-authorization-evidence).
 
 The two entitlement counters belong to the Hub-backed provider's read path
 ([Hybrid License Model § Failure policy by key class](../architecture/26-hybrid-license-model.md))

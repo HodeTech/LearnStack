@@ -54,8 +54,12 @@ activates the strict tenant bearer boundary. Only its immutable validated
 projection feeds the existing factory; a raw principal, role, email or free claim
 is not a second authority. The exact AccountSite read independently requires
 HostAndClaim plus matching real host provenance before any reader. Claimless
-actors retain HostOnly/public-only authority; Phase 03 owns live membership and
-permissions. Existing filters, RLS, grants and context writers are unchanged.
+actors retain HostOnly/public-only authority. Accepted
+[ADR-0076](../decisions/0076-live-scoped-authorization.md) adds fresh Membership,
+lifecycle and capability checks at each protected act, independently of tenant
+resolution. Its candidate reader has a confined READ ONLY owner; it never installs
+an ambient TenantContext. The [Phase 03 Status block](../roadmap/phase-03-identity-admin.md)
+owns implementation and qualification.
 
 P02d-4's accepted public boundary adds immutable factory-preserved HostScope,
 intersected with normal context, filters and RLS. Tenant hosts expose tenant-wide
@@ -65,6 +69,11 @@ lifecycle remain explicit read predicates. P02d-4 Step 1 delivers host provenanc
 public admission and physical transaction-mode proofs. Steps 2–4 delivered endpoint,
 eligibility and contract proofs;
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md) owns the boundary.
+Live membership or a tenant-wide administrative read does not replace this
+independent HostScope ceiling. AccountSite still requires matching real host
+provenance; confirmed ClaimAndMembership alone cannot reach it. The separately
+admitted administrative directory can use confirmed claim-only authority under
+its own policy, without widening any public or AccountSite read.
 
 | Layer | Tenant mechanism | Organization mechanism |
 |-------|------------------|------------------------|
@@ -156,28 +165,20 @@ Three properties of that template matter to the isolation model described on thi
 - **An explicit `WITH CHECK`.** `USING` decides what is readable; `WITH CHECK` decides
   what is writable.
 
-The `app.scope = 'tenant'` setting belongs with `app.tenant_id` and
-`app.organization_id`, announced before data under
-[Security's sequencing rule](../standards/11-security.md#the-rule) — the read-only
-setup exception does not move announcement to middleware. All are transaction-local,
-so middleware setting them would discard
-them before the guarded query ran. **Two of the three are issued today.** Packet 6
-ships `IUnitOfWork.SetTenantContextAsync`, which writes `app.tenant_id` and
-`app.organization_id`; `ITenantContext` carries no scope member
-([ADR-0040 Amendment 1](../decisions/0040-ambient-unit-of-work.md)), so nothing sets
-`app.scope` and the hatch below is unreachable at runtime — the correct default. The
-flag derives from the actor's role plus a declared tenant-wide operation.
-[Phase 02b](../roadmap/phase-02b-events-auth.md) delivers the authenticated principal it
-needs and nothing more — `Membership`, `Role` and `Permission` are
-[Phase 03](../roadmap/phase-03-identity-admin.md)'s — so Phase 03 is the earliest phase
-that can own a working carrier: the deferral is forced, not chosen
-([Security Standards § Tenant Context](../standards/11-security.md) is the single
-authority). What middleware contributes is the *input*: the request comes from a
-tenant-admin role carrying a tenant-wide operation flag (e.g. cross-org reporting), and
-the behavior turns that into the session variable. It
-widens **reads** across organizations within the caller's tenant; it never widens
-writes, and it never crosses a tenant boundary. The default scope (`null` or
-`'organization'`) restricts reads to the caller's organization plus tenant-wide rows.
+The accepted operation-bound read authority in
+[ADR-0076](../decisions/0076-live-scoped-authorization.md) connects the existing
+`app.scope = 'tenant'` read hatch to eligible Tenant capability and a declared
+tenant-wide read. The policy evaluator mints invocation-bound authority; the
+ordinary transaction owner binds it to its actual generation and announcement.
+EF and RLS consume the same read scope. This is no TenantContext setter,
+middleware flag or request input. Organization grants cannot mint the hatch;
+neither tenant boundaries nor organization write guards widen.
+
+[Database Standards § Operation-bound read authority](../standards/05-database.md#operation-bound-read-authority)
+owns exact announcement, nesting and cleanup rules, under
+[Security's sequencing rule](../standards/11-security.md#the-rule). The existing
+runtime announces tenant/organization only until P03-2 implements that carrier;
+acceptance alone does not activate it.
 
 P02b-1 Step 1 centralizes this existing general announcement path in
 [`TransactionExecutionCoordinator`](../../backend/src/LearnStack.Application/Persistence/TransactionExecutionCoordinator.cs).

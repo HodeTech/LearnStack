@@ -44,6 +44,10 @@ Identity storage and global audit authority additionally derive from Accepted
 [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md) and
 [ADR-0074](../decisions/0074-membership-admission-under-ordered-locks.md).
 
+Live authorization and evidence source contracts additionally derive from Accepted
+[ADR-0076](../decisions/0076-live-scoped-authorization.md) and
+[ADR-0077](../decisions/0077-trusted-authorization-evidence.md).
+
 PostgreSQL schema, EF Core, and migration conventions.
 
 ## Database
@@ -377,13 +381,12 @@ Rules:
   `app.organization_id` are set inside the ambient transaction — by
   `TransactionBehavior` in the general case, and by each of the out-of-band setters on
   the transaction it opens ([Security Standards § The out-of-band setters](11-security.md)).
-  `app.scope` has **no carrier**: it derives from the actor's role plus a declared
-  tenant-wide operation, and roles land with `Membership` / `Role` in
-  [Phase 03](../roadmap/phase-03-identity-admin.md) — after
-  [Phase 02b](../roadmap/phase-02b-events-auth.md)'s authenticated principal, which is the
-  prerequisite and not the carrier. Until then the tenant-scope read hatch is unreachable
-  — the correct default. Its placement rule is unchanged and applies
-  the moment a carrier exists. `app.resolving_host` is set by
+  `app.scope` has no implemented carrier yet. Accepted ADR-0076's
+  [operation-bound read authority](#operation-bound-read-authority) replaces that
+  deferral; it derives from a live eligible Tenant capability plus a declared
+  tenant-wide operation and binds EF/SQL to the actual owner generation. Until
+  qualified implementation, the hatch remains unreachable. The placement rule
+  applies to that carrier unchanged. `app.resolving_host` is set by
   `CachedHostToTenantResolver` alone, in its own short read-only transaction, and is
   read by exactly one policy — see § Table classes. Always call `current_setting` with
   the second argument `true` (missing-OK), and always wrap the result in `NULLIF(…, '')`,
@@ -601,6 +604,9 @@ drops the other tenants' rows when the filter is missing.
 - **Tenant-owned, org-scoped** — `e.TenantId == currentTenantId` **and**
   `e.OrganizationId == null || e.OrganizationId == currentOrgId`, the null arm being the
   tenant-wide row ([ADR-0017](../decisions/0017-tenant-organization-hierarchy.md)).
+  This is the implemented narrow form; the Accepted
+  [operation witness](#operation-bound-read-authority) adds only the matching
+  parameterized tenant-wide read state, with no write-scope widening.
 - **Tenant-owned, tenant-wide** — `e.TenantId == currentTenantId`, with no organization
   term, for the same reason the class carries no restrictive guards.
 - **Tenant-owned, self-keyed** — `t.Id == currentTenantId`. `tenants` has no `TenantId`
@@ -2058,6 +2064,109 @@ requires a fresh scope. No fifth role or independent public-read connection is a
   reset the policy predicate is `NULL`, so the query returns zero rows rather than
   leaking. The interceptor exists to turn that silent empty result into a loud failure,
   not to be the isolation boundary.
+
+### Authorization and evidence source ledger
+
+**Accepted contract; not runtime implemented.** ADR-0076/0077 extend the
+Connection Management and job-source inventories below with these confined
+sources. This section is the sole detailed standards owner for their physical
+capacity, configuration and lifetime; acceptance supplies no runtime proof.
+The four login roles, grants and canonical RLS templates remain unchanged.
+
+| Source / configuration | Retained-owner and connector bound per API process | Permitted work |
+|---|---|---|
+| Business — `ConnectionStrings:Default` | Existing application/job floor below, plus separately budgeted HTTP/delivery headroom | Ordinary business owners and existing sanctioned helpers |
+| Authorization — `ConnectionStrings:IdentityAuthorization` | Four owners, at most four physical connectors; no waiting admission queue | Exact Identity coverage/grant statement and separate Tenancy lifecycle statement on one isolated READ COMMITTED, physically READ ONLY child unit |
+| Evidence — `ConnectionStrings:AuthorizationEvidence` | Two owners, at most two physical connectors; at most one connector per operation including sequential verification; no unbounded admission queue | Central fixed-occurrence event INSERT and exact duplicate verification under captured tenant/org scope |
+
+- Claim a slot before connection creation/open. Open, statements, cancellation
+  and actual cleanup occupy it. Authorization has one five-second total admission
+  deadline; evidence has one shared five-second I/O budget across open,
+  INSERT/COMMIT and sequential verification, never a fresh verification budget.
+  Elapsed time does not release a slot: unconfirmed/failed cleanup retains it,
+  and source shutdown joins actual owners before disposal.
+- Authorization excess admission immediately returns `503 dependency_unavailable`.
+  Evidence capacity failure is audit-unavailable under the
+  [pre-success/refusal rules](18-audit-coverage.md#trusted-authorization-evidence).
+  These limits add at most six retained connectors, not six per job or borrower;
+  tests may reduce caps, deployment settings cannot widen them. They are bounded
+  local concurrency choices, not throughput or fairness guarantees.
+- Both auxiliary sources use the same guarded `learnstack_app` role, actual
+  database, installed identity authority and tenant/org RLS as business work.
+  Neither has a raw general-DI datasource alias, generic SQL/callback API or
+  caller-selected endpoint. Neither acquires another source while held, dispatches
+  a business handler or takes business advisory/row locks. Authorization performs
+  only nonlocking MVCC reads and closes before audit/business continuation.
+  Evidence performs only captured-scope INSERT/verification and completion.
+- Resolver, HTTP, application, nested and post-lock authorization calls all use
+  this source. The child binds the verified actor and exact candidate tenant/org,
+  clears unrelated authority, announces only after physical READ ONLY setup and
+  uses that same owner/generation for `IIdentityScopeLifecycleReader`. It never
+  replaces a parent unit, installs TenantContext or reads profiles/global Users.
+  A writable parent or clean ChangeTracker cannot substitute: its own uncommitted
+  grant/lifecycle writes are not committed authority.
+- Job callers add named tracked authorization and evidence lanes to
+  `JobApplicationSourceOwner` and its actual-cleanup join. Existing main/auxiliary
+  business accounting remains; these globally bounded lanes neither claim a
+  second main unit nor suppress the ambient job marker. All opens, borrowers and
+  retained cleanup enter the source-lifetime census before activation.
+
+The two new configuration keys are coupled: partial input refuses. Development
+alone may derive both from a direct-PostgreSQL Default string, preserving three
+physically separate bounded client sources. Outside Development both guarded
+strings are explicit; no silent same-endpoint fallback is admitted. All sources
+qualify the same application role and installed identity authority. Credentials
+remain environment-only, absent from restore/build inputs; modules never choose
+endpoints or branch on deployment mode.
+
+Through transaction-pooling PgBouncer, business, authorization and evidence use
+independent backend lanes. The auxiliary database aliases are
+`learnstack_identity_authorization` and `learnstack_authorization_evidence`, both
+mapped to the same actual business database and app role. Alias/backend limits,
+cross-alias user/database limits, PostgreSQL total capacity and deployed instance
+count must reserve auxiliary headroom outside business capacity. Application
+names, extra client pools and matching authority strings prove no backend reserve.
+No new login role or BYPASSRLS privilege follows.
+
+P03-2 activation requires small real-PostgreSQL pools and a pinned transaction-
+pooling PgBouncer fixture: hold all business connectors/server transactions while
+admitted nested/post-lock checks and ReadOnly standalone evidence complete before
+parents release anything. Verify distinct backend PIDs; checked-out client
+connections alone may own no PgBouncer server. A deliberately shared saturated
+backend topology must fail that progress control. Separately prove auxiliary
+saturation/immediate refusal, recovery only after actual cleanup, no observation
+of uncommitted parent grants, cancellation/failed cleanup and tracked job shutdown.
+Phase 11 owns actual production topology/instance-capacity qualification before
+production activation; it cannot replace these P03-2 correctness controls.
+General outage, DDL blocking and excess offered load can still refuse or time out.
+[Infrastructure topology](12-infrastructure.md#authorization-and-evidence-topology)
+owns operational setup and the production activation handoff; this ledger owns
+the resource contract and required progress proof.
+
+### Operation-bound read authority
+
+**Accepted contract; not runtime implemented.** ADR-0076 supplies the previously
+absent `app.scope` carrier. Only a declared tenant-wide read with an eligible
+Tenant capability mints an immutable witness binding actor, tenant/org, exact
+request policy and invocation. Branch grants cannot mint it. Step 6 binds the
+actual owner generation and announced values before data SQL; parameterized EF
+filters and RLS consume the same narrow or tenant-wide read state.
+
+The witness is neither an ITenantContext setter nor a handler-writable Boolean.
+It cannot widen tenant boundaries, organization writes or the independent public/
+AccountSite HostScope ceiling. Completion, failure, cancellation and pool reuse
+clear it. Mixed read-scope nesting, including narrow work inside a widened owner,
+refuses and poisons the unit; a join never retargets scope. Existing transaction-
+mode compatibility remains mandatory. The canonical SQL templates above are
+unchanged; no second RLS template or IgnoreQueryFilters exception is admitted.
+
+The directory's ordinary ReadWrite owner commits its MUST read evidence before
+disclosure. Denial occurrences instead use the confined central store seams and
+fixed `(id,timestamp)`/expected-`audit_log_pkey` verification governed by
+[Standard 18](18-audit-coverage.md#trusted-authorization-evidence). Their clean
+READ ONLY verification uses captured RLS scope and full null-safe draft equality;
+it grants no new SELECT, global function or sentinel authority. Ordinary resource
+intent reconciliation retains its different-timestamp contract.
 
 ## Background jobs
 
@@ -4185,7 +4294,9 @@ The API application source has one `ApplicationDataSourceLifetime` owner and a
 stable `Lazy<NpgsqlDataSource>` registration, without a raw-source DI alias.
 Container disposal requests release; actual release waits for the same job and
 messaging completion witnesses. Each job invocation's `JobApplicationSourceOwner`
-permits one main unit and one independently tracked auxiliary operation. Cache
+permits one main unit and one independently tracked business auxiliary operation.
+The Accepted, unimplemented [authorization/evidence extension](#authorization-and-evidence-source-ledger)
+adds separate globally bounded tracked lanes; it does not widen that business pair. Cache
 waiter expiry cannot replace the actual loader, connection or failed cleanup.
 The four closed auxiliary helpers are audit-config, standalone/best-effort audit,
 tenant flags and killswitch reads; nested ordinary work shares the same main unit.
@@ -4223,8 +4334,10 @@ supported boundary has source-specific qualification in the
 The combined real-owner proof at the default52 configuration complements the
 complete ledger and existing topology/retention controls; it does not claim52
 simultaneously busy connections or a tight empirical minimum.
-Later SQL lanes require a new census and requalification; Phase 11 owns measured
-production capacity and PgBouncer.
+Later SQL lanes require a new census and requalification. The accepted
+[authorization/evidence ledger](#authorization-and-evidence-source-ledger) owns
+P03-2's additional lanes and mandatory local PgBouncer progress proof; Phase 11
+owns measured production capacity and actual deployment qualification.
 
 <a id="proposed-p03-1-identity-storage-annex"></a>
 

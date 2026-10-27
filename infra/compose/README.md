@@ -65,6 +65,16 @@ docker compose --env-file .env -f infra/compose/dev.yml exec -T postgres   sh -c
 It is idempotent, so re-running it against a cluster that already has the roles
 is a no-op rather than an error.
 
+The accepted P03-2 source contract adds two backend-only configuration keys,
+`ConnectionStrings:IdentityAuthorization` and
+`ConnectionStrings:AuthorizationEvidence`, as a guarded pair alongside Default.
+[Infrastructure Standards § Authorization and evidence topology](../../docs/standards/12-infrastructure.md#authorization-and-evidence-topology)
+owns the Development-only direct-PostgreSQL derivation, fixed 4/2 lane bounds
+and explicit non-Development/PgBouncer setup. This acceptance slice adds no
+Compose service, environment example or source wiring. P03-2 must prove progress
+against its pinned PgBouncer fixture before live activation; production aliases,
+downstream reserves and admitted instance count require Phase 11 qualification.
+
 Fresh imports do not upgrade an existing realm. P02b-6's bounded warm-realm
 reconciler is shared by `make seed` and `make demo` after application seed. Both
 entries validate the selected private source before infrastructure work; older

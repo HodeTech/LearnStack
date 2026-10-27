@@ -618,3 +618,28 @@ Joint ADR-0072/0073 approval accepts this bounded authentication change. P03-1
 Step 5 owns provider/app-role admission, lookup load, pool, cancellation and
 store-failure proofs. P03-3 needs separate acceptance before new-user HTTP/BFF
 activation; no new endpoint is authorized here.
+
+### Amendment 5 — Live authorization and one administrative read (2026-10-27)
+
+Accepted [ADR-0076](0076-live-scoped-authorization.md) narrowly supersedes this
+record's AccountSite-only authenticated surface. It admits one additional
+`GET /api/v1/identity/memberships`, under Tenant `identity.membership.admin`,
+HostAndClaim or confirmed ClaimAndMembership and ordinary MUST sensitive-read
+durability. This administrative read can cross branches within its tenant;
+it does not relax PublicSurface or AccountSite's independent HostScope ceiling.
+No Organization grant or HostOnly context admits the directory.
+
+AccountSite gains live Membership/lifecycle admission while retaining its
+nonsensitive Off/physical READ ONLY shape, HostAndClaim and matching real host.
+Present invalid/undecidable credentials retain fixed 401; absent protected
+credentials/noncoverage remain masked 404; capability denial is 403. Candidate
+store unavailability has fixed 503 dependency_unavailable, separately from
+ADR-0072's binding-store uniform 401 contract. Resolution stays route-independent.
+
+The exact [API contract](../standards/04-api-design.md) and
+[Security contract](../standards/11-security.md) own bounds, pagination and
+precedence. [ADR-0077](0077-trusted-authorization-evidence.md) supplies denied/
+sensitive-read evidence before activation. No HTTP mutation, new-user bootstrap,
+BFF proxy/allowlist expansion or generic authenticated read follows. P03-2 owns
+implementation/qualification; approval alone changes no runtime. Other decisions
+and historical Accepted body/status/date remain unchanged.

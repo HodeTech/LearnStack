@@ -118,14 +118,14 @@ records hosted qualification. Phase 11 owns production qualification.
 | 0073 | [Scoped Membership and Identity Data Foundation](0073-scoped-membership-and-identity-data-foundation.md) | Accepted jointly with ADR-0072 on 2026-10-25: contained Membership state, tenant-wide Role templates, finite manifests, fresh administration invariants and semantic PII census. No live authorization or production first-admin path is activated by acceptance. |
 | 0074 | [Membership Admission Under Ordered Locks](0074-membership-admission-under-ordered-locks.md) | Accepted 2026-10-26: creation/reactivation and every assignment addition retain User-before-tenant fences; the real mutation trigger freshly verifies eligibility under the complete preheld plan. No reader, scope or grant is added; the [Phase 03 Status block](../roadmap/phase-03-identity-admin.md) owns current implementation and qualification state. |
 | 0075 | [Ordinary CI Job Window](0075-ordinary-ci-job-window.md) | Accepted 2026-10-27: ordinary-only twenty-five-minute whole-job and expected-owner observation bounds, with own-record ADR-0062/0063 amendments. Other ceilings, counts, assignment, reserves and resource policy stay fixed; the [Phase 03 Status block](../roadmap/phase-03-identity-admin.md) owns implementation and fresh A/B qualification state. |
+| 0076 | [Live Scoped Authorization](0076-live-scoped-authorization.md) | Accepted 2026-10-27: bounded independent authorization source, explicit HTTP/application policies, operation-bound SQL/EF read scope and one administrative directory GET. Runtime implementation/qualification remains P03-2. |
+| 0077 | [Trusted Authorization Evidence](0077-trusted-authorization-evidence.md) | Accepted 2026-10-27: central denial owner, pre-success durability barrier, fixed occurrence reconciliation, trusted enrichment and separate claim-context assertions. Runtime implementation/qualification remains P03-2. |
 
 ## Proposed ADRs
 
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
-| 0076 | [Live Scoped Authorization](0076-live-scoped-authorization.md) | Fresh candidate owner on a bounded independent source, explicit HTTP/application policy, operation-bound read scope and one administrative directory read; no runtime change before acceptance | P03-2 G2 execution / G5 enforcement / G6 policy |
-| 0077 | [Trusted Authorization Evidence](0077-trusted-authorization-evidence.md) | Central denial ownership with pre-success durability barrier and fixed occurrence evidence, trusted enrichment and separately attributed claim-only assertion rejection; no implicit host budget | P03-2 G7 and coupled G2 activation |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
 the P02d-2 package on 2026-10-02. Their rows are now in Active ADRs; ADR-0049 remains

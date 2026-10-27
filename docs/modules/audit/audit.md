@@ -67,9 +67,9 @@ describes does not already carry. `audit_log` is append-only, so a row's existen
 itself the record that it was written.
 
 **No row for a failed write.** When a MUST-class row cannot be written durably the
-operation is **rejected** — the caller sees `audit_unavailable`, and the failure is a
-log line and a health-check signal, not a row in the table that just proved it cannot
-accept one ([ADR-0033](../../decisions/0033-audit-durability-model.md)). A matrix entry
+otherwise-successful operation is **rejected** with `audit_unavailable` before
+commit/disclosure; an actual refused caller retains its own refusal. The failure
+is a log/health signal, not a row in the table that cannot accept one ([ADR-0033](../../decisions/0033-audit-durability-model.md)). A matrix entry
 here would describe a write that by construction cannot happen.
 
 **No row for reading `audit_config`.** The classifier reads it on every audited request
@@ -102,12 +102,29 @@ when it does.
 
 ## Retention
 
-Audit rows for this module take the same retention class as every other MUST-class row —
-[Audit Subsystem § 9](../../architecture/31-audit-subsystem.md) is the authority, and no
-class is defined here. The two `(off-path)` rows are the ones a retention policy must
-never expire ahead of the rows they describe: a purge record that outlives nothing is a
-record of a deletion whose subject is gone, which is the only durable evidence that the
-deletion happened.
+Each row takes its OperationType/domain's target from
+[Standard 18 Retention](../../standards/18-audit-coverage.md#retention), not a blanket
+MUST-class period. Automatic purge and retention overrides remain unimplemented
+until Phase 11, so rows can outlive their targets. The planned purge/redaction
+security events preserve evidence of the maintenance act; retention machinery
+must apply the canonical policy when admitted.
+
+## Accepted authorization evidence — runtime pending
+
+Jointly Accepted [ADR-0076](../../decisions/0076-live-scoped-authorization.md) /
+[ADR-0077](../../decisions/0077-trusted-authorization-evidence.md) extend the common
+store/composer, not this module's operation catalogue. The sole denial/directory/
+grant rows belong to [Identity](../identity/audit.md); the claim-context assertion
+row belongs to [Tenancy](../tenancy/audit.md). [Standard 18](../../standards/18-audit-coverage.md#trusted-authorization-evidence)
+owns their event/resource populations, fixed occurrence/time/full-row verification,
+pre-success barriers, failure signals and immutable provenance. No P03-2 writer
+or test is represented as implemented here.
+
+P03-10's Audit participant locates authorization Membership/Role metadata through
+retained actor/subject attribution and reports surviving references. Metadata
+remains outside the six-column redaction grant; neither new UPDATE authority nor
+complete anonymisation follows. The canonical [data-protection ownership](../../architecture/23-data-protection.md#erasure-authority-and-first-writer-prerequisites)
+applies, with each row's own retention target.
 
 ## Mapped-property personal-data declarations
 

@@ -24,6 +24,10 @@ Job additions derive from
 Global identity creation and contextual foundation authority derive from Accepted
 [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) and
 [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md).
+Live authorization evidence derives from jointly Accepted
+[ADR-0076](../decisions/0076-live-scoped-authorization.md) and
+[ADR-0077](../decisions/0077-trusted-authorization-evidence.md); their runtime
+implementation and proofs remain pending in P03-2.
 
 This standard defines **which operations must be audited**, **what an audit entry
 contains**, **how long entries are retained**, and how each module signs up for its
@@ -187,22 +191,18 @@ will raise them — which this standard requires it to do.
 - **`(planned)` is re-checked, not an escape.** A row still marked `(planned)` whose
   command has since shipped **fails**. The marker is a claim the rule tests on every run,
   which is what stops the scoping from becoming a hole.
-- **`(off-path)` is for operations that are not MediatR requests at all.** Ten rows
-  carry it: Tenancy's `platform.admin_scope.enter`, `platform.outbox.dead_letter`,
-  `platform.delivery.dead_letter`, `platform.job.dead_letter`,
-  `tenancy.killswitch.toggle`,
-  `tenancy.entitlement.refresh` and the two tenant-assertion keys of § Baseline Coverage,
-  and Audit's `audit.redaction.apply` and `audit.purge.apply`. They sit outside the
-  request-type join in **both** directions and register by slug rather than by type — the
-  six whose writer ships through `DeclareOffPath` today, the other four when their
-  writer lands. P02b-2 Step 2 registers the shipped producer terminal writer;
-  P02b-3 Step 4 adds subscriber terminal registration; P02b-4 Step 5 adds the
-  job terminal writer under Accepted ADR-0047.
+- **`(off-path)` is for operations that are not MediatR requests at all.**
+  These sit outside the request-type join in both directions and register by
+  slug through `DeclareOffPath` when their writer ships. The module matrices
+  own the population, including platform entry/terminal operations, assertion
+  events, global identity creation and privileged Audit maintenance. P03-2 adds
+  planned off-path authorization-denial and claim-context assertion events;
+  acceptance creates no executable registration.
 - **One operation, one row.** A slug is classified in exactly one row across every
   matrix. A copy is a second answer that passes every comparison the moment it agrees, so
   the matrix → catalogue direction refuses it, and the catalogue → matrix direction compares
   every row that carries a slug rather than the first.
-- **A row can carry both markers**, and four do. `tenancy.killswitch.toggle` is
+- **A row can carry both markers**. `tenancy.killswitch.toggle` is
   `(off-path)` because every write runs inside `EnterPlatformAdminScope(reason)` rather
   than through the pipeline, and `(planned)` because Packet 9 ships the table, the policies
   and the read path but no writer —
@@ -230,7 +230,7 @@ not prove implementation or production fit.
 
 | Domain | MUST-audit operation |
 |--------|----------------------|
-| Identity | Membership created / removed (per `(user_id, tenant_id, organization_id)`); role assigned / revoked; permission set changed; invitation created / accepted / revoked; platform-admin tenant access; Hub operator access to a tenant resource. |
+| Identity | Membership created / removed (per `(user_id, tenant_id, organization_id)`); role assigned / revoked; permission set changed; protected-act authorization denied under trusted resolved tenant (`identity.authorization.deny`, accepted P03-2 contract, runtime pending); invitation created / accepted / revoked; platform-admin tenant access; Hub operator access to a tenant resource. |
 | Tenancy | Tenant created / suspended / deleted; organization created / archived; tenant setting changed; custom domain added / verified / removed; feature flag toggled; entitlement projection refresh (`tenancy.entitlement.refresh`); killswitch toggled (`tenancy.killswitch.toggle`). |
 | Customization | `TenantContentType` / `TenantPageBlock` / `TenantLessonItemType` / `TenantLevelTaxonomy` / `TenantScoringRule` / `TenantCompletionRule` / `TenantCustomFieldDef` / `TenantTemplateLibrary` created / updated / deleted (schema changes are MUST; both `before` and `after` snapshots required). |
 | Content / Pages | Page published / unpublished; content type schema changed; redirect created / changed. |
@@ -244,14 +244,17 @@ not prove implementation or production fit.
 | Hub contract | Inbound Hub command received (`tenancy.tenant.create_from_hub`, and the entitlement push, which is the Tenancy row's `tenancy.entitlement.refresh` — one operation, one slug); outbound usage report (`platform.usage.report`); license verification result. |
 | Notifications | Template changed; outbound delivery to a recipient (SHOULD for non-PII channels; MUST for password reset / invitation / billing). |
 | Integrations | External provider credential created / rotated / revoked; webhook secret rotated. |
-| Security | Login failure burst beyond rate limit; MFA challenge failed; admin override of any guard; mTLS / signed-JWT / HMAC verification failure on `/api/internal/*`; admitted cross-tenant assertion mismatch carrying a validated principal (`tenancy.tenant_assertion.reject`, bounded admission under ADR-0065); anonymous assertion-mismatch burst beyond threshold (`tenancy.tenant_assertion.anonymous_burst`). |
+| Security | Login failure burst beyond rate limit; MFA challenge failed; admin override of any guard; mTLS / signed-JWT / HMAC verification failure on `/api/internal/*`; admitted cross-tenant assertion mismatch carrying a validated principal (`tenancy.tenant_assertion.reject`, bounded admission under ADR-0065); anonymous assertion-mismatch burst beyond threshold (`tenancy.tenant_assertion.anonymous_burst`); a header conflicting with successfully confirmed ClaimAndMembership context (`tenancy.assertion.reject_claim_context`, accepted P03-2 contract, runtime pending; no host allowance). |
 
 There are **no vertical modules**. Tenant-specific extensions land as data via the
 Customization aggregates and inherit the MUST-audit rules above for schema changes.
 
 ## Audit Entry Payload Contract
 
-Every audit entry conforms to this shape; deviations require a one-line note in the module spec and a code-review approval.
+The example illustrates ordinary audit fields; it is not an HTTP response DTO or
+a caller-authored draft. The mapping rules below and the
+[trusted provenance contract](#trusted-authorization-evidence) govern persisted
+fields and enrichment; their implementation state is explicit.
 
 ```json
 {
@@ -260,11 +263,7 @@ Every audit entry conforms to this shape; deviations require a one-line note in 
   "tenantId": "ten_01H...",
   "organizationId": "org_01H...",
   "actor": {
-    "userId": "usr_01J...",
-    "membershipId": "mbr_01J...",
-    "roles": ["instructor"],
-    "platformAdmin": false,
-    "hubOperator": false
+    "userId": "usr_01J..."
   },
   "operation": {
     "key": "enrollment.enrollment.create",
@@ -277,8 +276,7 @@ Every audit entry conforms to this shape; deviations require a one-line note in 
   "request": {
     "correlationId": "01H...",
     "sourceIp": "203.0.113.4",
-    "userAgent": "Mozilla/5.0 ...",
-    "route": "POST /v1/enrollments"
+    "userAgent": "Mozilla/5.0 ..."
   },
   "outcome": "success",
   "before": null,
@@ -287,7 +285,7 @@ Every audit entry conforms to this shape; deviations require a one-line note in 
     { "path": "/Enrollment/status", "before": null, "after": "active" }
   ],
   "reason": null,
-  "metadata": { "source": "tenant-admin-studio" }
+  "metadata": null
 }
 ```
 
@@ -308,7 +306,9 @@ Rules:
   pair is what a reviewer reads as one commit in doubt. `PostgresAuditStore` supplies
   `occurredAt` from `IClock` — the intent's declaration time in the transaction, a fresh
   reading for a standalone re-write — which is what keeps that pair legal under the
-  composite primary key `(id, timestamp)`.
+  composite primary key `(id, timestamp)`. This describes ordinary resource
+  reconciliation; [trusted denial occurrences](#trusted-authorization-evidence)
+  instead retain one fixed key, timestamp and draft.
 - `reason` is required when the operator is a platform admin acting on a tenant they are not a member of. It is `EnterPlatformAdminScope(reason)`'s short operator-authored slug naming the operation — never caller-supplied text — and it is surfaced in the tenant admin's audit view. A refusal's cause is not a `reason`: it is the refusal's message key, in the `error_key` column.
 - `correlationId` matches the trace id in logs and the value in the Problem Details response for failures.
 - `changes` is always a JSON **array** of `{ path, before, after }`, never the polymorphic
@@ -334,12 +334,13 @@ Rules:
 - **Not every field above is a column.** The `audit_log` DDL
   ([31-audit-subsystem.md § 7](../architecture/31-audit-subsystem.md)) carries
   `occurredAt` as `timestamp`, `resource` / `resourceId` as `entity_type` / `entity_id`,
-  `sourceIp` as `ip_address`, and `operation.key` as `operation`. `actor.membershipId`,
-  `actor.roles`, `actor.platformAdmin`, `actor.hubOperator` and `request.route` have no
-  column of their own, and the shipped `PostgresAuditStore` writes none of them: nothing
-  on the request path carries a membership, a role set or a route yet.
-  [Phase 03](../roadmap/phase-03-identity-admin.md) settles where they go, with the
-  identity and request-context work that gives them a source.
+  `sourceIp` as `ip_address`, and `operation.key` as `operation`. Membership/Role
+  references, privileged flags and route identity have no column of their own.
+  The current composer leaves email/IP/user agent null and has no
+  Membership/Role/route enrichment. The Accepted P03-2 contract stores
+  bounded trusted provenance under `metadata.authorization`, with IP/user agent
+  in their existing columns; [the canonical evidence rules below](#trusted-authorization-evidence)
+  define its sources and limits. Runtime implementation remains pending.
 
 ## Storage
 
@@ -461,7 +462,7 @@ Rules:
 
 ## Retention
 
-| Class | Default retention | Notes |
+| Class | Default retention target | Notes |
 |-------|-------------------|-------|
 | `security-event` | **7 years** | KVKK / GDPR / sector compliance baseline |
 | `platform-admin` | **7 years** | Cross-tenant operations |
@@ -470,9 +471,9 @@ Rules:
 | `create` / `update` / `delete` / `action` (other domains) | **2 years** | Tenant-configurable down to 6 months or up to 7 years |
 | Recording-policy and consent changes | **7 years** | Lives with the recording itself if longer. **Note:** this is the retention of the *audit-log entry* about a recording policy or consent change — not the retention of the recording **file** itself. Recording files follow the per-tenant retention policy declared in [16-media-pipeline.md § Recordings](../architecture/16-media-pipeline.md) (default 30 days; tenant-configurable up to the platform cap). The two retentions are independent: the audit entry persists for compliance reconstruction even after the recording file is purged. |
 
-A tenant cannot reduce retention below the platform-defined floor for `security-event`, `platform-admin`, or financial entries. Retention is enforced by a daily Hangfire job; deletions are batched, logged, and themselves audited (`security-event`).
+A tenant cannot reduce retention below the platform-defined floor for `security-event`, `platform-admin`, or financial entries. Phase 11 owns enforcement by a daily Hangfire job; its deletions must be batched, logged, and themselves audited (`security-event`).
 
-**None of this schedule runs in Phase 02a.** Packet 9 ships `audit_log` with no retention
+**This schedule is not implemented today.** Packet 9 ships `audit_log` with no retention
 column, no purge job and no per-tenant override, and `audit_config` carries classification
 overrides only. The daily `learnstack:audit:retention-purge` job, the per-tenant override
 and the partition lifecycle are owned by
@@ -480,6 +481,9 @@ and the partition lifecycle are owned by
 ([ADR-0044 § What we explicitly punted on](../decisions/0044-audit-write-path.md),
 [ADR-0028 Amendment 2026-09-07](../decisions/0028-audit-log-partition-management.md)). The
 table above is the policy those deliverables implement, not a description of today.
+Rows, including retained authorization metadata, can outlive these targets until
+that separately admitted machinery exists. Each row follows its OperationType
+and applicable domain policy, not a blanket retention for all MUST rows.
 
 ## Required Behaviours
 
@@ -545,7 +549,9 @@ table above is the policy those deliverables implement, not a description of tod
   "no row".
 - Fan-out to external sinks rides the outbox and is best-effort; the **local audit row**
   is not.
-- Failed `denied` outcomes are audited even though no state changed.
+- Failed `denied` outcomes are audited even though no state changed; the
+  [trusted authorization evidence contract](#trusted-authorization-evidence)
+  defines the separate P03-2 event population and pre-success barrier.
 - Background jobs that mutate MUST-audit resources use the runtime-stamped
   SystemActor under ADR-0047. A nullable causal human is separate attribution,
   never execution authority. The authoritative job envelope supplies identity;
@@ -617,6 +623,149 @@ table above is the policy those deliverables implement, not a description of tod
   ([ADR-0044 Amendment 3 § 5](../decisions/0044-audit-write-path.md)).
 - The outbox dispatcher attaches the actor and the correlation id to every event it
   dispatches.
+
+## Trusted authorization evidence
+
+**Accepted contract; runtime and proofs pending in P03-2.** Jointly Accepted
+[ADR-0076](../decisions/0076-live-scoped-authorization.md) and
+[ADR-0077](../decisions/0077-trusted-authorization-evidence.md) add central evidence
+ownership without changing ordinary resource classifications or the pipeline order.
+The [phase Status block](../roadmap/phase-03-identity-admin.md) owns delivery state.
+
+### Evidence populations
+
+| Decided act | Required population |
+|---|---|
+| HTTP protected-policy rejection under a trusted resolved tenant | One MUST/SecurityEvent `identity.authorization.deny`; no handler dispatch or invented resource attempt. |
+| Application/resource capability or ownership rejection | One denial event for that invocation, plus each normally declared resource intent at its existing classification/outcome. |
+| HTTP allow, then application/resource deny | Only the rejecting act supplies a denial event; the HTTP allow supplies none. |
+| Nested refusal absorbed by an outer success | The inner denial remains `denied` and independently required; the outer capture's Committed flag cannot suppress it. |
+| Successful ClaimAndMembership resolution, then conflicting tenant/org header | One MUST/SecurityEvent `tenancy.assertion.reject_claim_context` under the confirmed tenant; no host-budget debit. |
+| Successful administrative membership directory read | MUST/ReadSensitive `identity.membership.list` on the ordinary ReadWrite owner, committed before any result disclosure. |
+
+An Off operation has no resource intent but still owes its denial event; SHOULD,
+MAY and tenant override-Off never remove this MUST floor. Plural resource intents
+remain plural. The denial event is a separate population, not an ordinary intent
+or a promotion of successful operations to MUST. Fixed policy/operation IDs come
+from the protected policy catalogue; callers cannot choose slugs, attribution,
+tenants or arbitrary subject payloads. Module matrices own the sole operation rows.
+
+Each policy invocation has its own occurrence. Sharing the same decided reference
+between HTTP/application adapters cannot create another event; a genuine nested
+act or reevaluation is a new occurrence. Correlation, request and route IDs are
+not occurrence identities. The common owner captures/cleans this state, including
+Off and absorbed nested refusals; a joiner neither commits nor clears it.
+
+Earlier credential, unknown-host, malformed assertion and validation refusals
+keep their existing contracts. Public anonymous/tenantless refusals invent no
+tenant or sentinel. Resolver row 7 retains its host recorder, row 10 remains
+unaudited, and refused row 14 remains diagnostic-only. AccountSite success stays
+Off; live membership denial attributable to its resolved tenant owes the denial
+event. This is not a generic audit of all 401/403/404 responses.
+
+The claim-context assertion event requires actual successful production-reader
+ClaimAndMembership resolution, never a candidate, raw claim or asserted header.
+Its fixed source is membership-confirmed header assertion. Capture confirmed
+scope/admitted actor and only the fixed tenant/org dimension and mismatch reason;
+copy no asserted UUID into audit or diagnostics. Host-backed rejection keeps its
+existing separate source/budget. This event is neither refused-row-14 evidence
+nor a host-tenant rejection.
+
+### Durability and occurrence reconciliation
+
+| Actual enclosing owner/outcome | Barrier and failure posture |
+|---|---|
+| Otherwise-successful ReadWrite owner | Insert every unresolved denial on the business transaction after domain-event draining and before final event/job commit admission. Failure rolls back business state and yields `503 audit_unavailable`. |
+| Otherwise-successful physical ReadOnly or ownerless execution | Acknowledge every unresolved event in its own short evidence transaction before completion/disclosure. Failure yields `503 audit_unavailable`; no INSERT or mode upgrade on the read-only transaction. |
+| Actual HTTP/application refusal with no business owner | Attempt standalone before returning; audit failure preserves the decided 403/404. |
+| Refusal, exception, cancellation or rollback | Final reconciliation attempts unresolved events standalone and preserves the actual refusal/exception. |
+| Unknown business COMMIT acknowledgement | Reconcile the same fixed denial occurrence. Exact event evidence proves only the event, never business COMMIT success. |
+
+Track pending/written, acknowledged, rolled-back and uncertain state per event and
+actual owner generation, independently of normal capture state. An in-transaction
+event is acknowledged only by confirmed enclosing commit; standalone acknowledgement
+survives a later outer failure. The barrier preserves the existing no-await gap
+between final event/job commit admission and physical completion. It is never a
+finally-only write after an otherwise-successful business commit.
+
+The central owner mints one opaque reference containing an `AuditEntryId`, trusted
+UTC decision timestamp normalized once to PostgreSQL microseconds, and frozen
+complete draft: scope, actor, policy/subject/reason and bounded provenance.
+All admitted writes/reconciliation of that occurrence reuse the same `(id,timestamp)`
+and fields. Serialize reentry with the same reference. New HTTP requests, event/job
+executions and real nested evaluations receive new references; no restart ledger
+or persistent replay identity is introduced.
+
+Confined denial methods on existing `IAuditStore`/`PostgresAuditStore` reuse the
+single INSERT/binder, catalogue and failure signals. They do not use generic
+`WriteStandaloneAsync`'s broad 23505 acceptance. Only a duplicate of
+`audit_log_pkey` for the expected `(id,timestamp)` permits verification. Dispose
+the failed INSERT transaction first; a clean physical READ ONLY transaction under
+captured tenant/org RLS compares every persisted draft field, including the fixed
+event discriminator/outcome, using null-safe and typed JSONB equality. A missing,
+mismatched, foreign-scope or unreadable row fails. No new SELECT grant, global
+function, sentinel or bypass is admitted. Ordinary plural resource reconciliation
+keeps its different-timestamp semantics. Later privileged redaction can make an
+exact match fail; this is no indefinitely replayable original-row witness.
+
+An acknowledged ReadWrite commit carries its denial even if the process exits
+immediately afterward. ReadOnly/ownerless success waits for standalone acknowledgement.
+A crash before any applicable write commits can lose an uncompleted in-memory
+refusal. Already-refused audit-outage paths retain their explicit evidence-loss
+posture; no durable recovery queue or universal crash-proof collection is claimed.
+
+The [Standard 05 source ledger](05-database.md#authorization-and-evidence-source-ledger)
+owns the independent four-slot authorization/two-slot evidence sources, retained
+cleanup, shared five-second evidence I/O deadline, tracked job lanes and downstream
+reservation/progress proofs. Evidence saturation is audit-unavailable, never event
+suppression or permission to report outer success. No new aggregate suppression
+budget applies. At 600 denied acts/minute one subject can generate 864,000 denial
+rows/day plus resource attempts; an illustrative 1,000 bytes/row is about 864 MB/day
+before indexes/WAL/replication. This is a cost illustration, not production sizing.
+Phase 11 owns measured capacity, distributed admission and alert/runbook hardening;
+reducing coverage or retention requires reopening the decision.
+
+### Immutable trusted provenance
+
+Trusted HTTP, seed, event and job adapters supply a typed immutable snapshot;
+handlers cannot write or replace arbitrary audit context. The central composer
+merges source provenance with each invocation's exact policy/subject facts before
+INSERT. An early frame may declare intents before authorization; central ownership
+attaches evidence when that act's decision exists. No enrichment UPDATE or second
+Identity audit table is admitted.
+
+- Effective actor comes from verified binding or the finite trusted source owner;
+  event/job IDs and causal human remain separate from effective actor. A SystemActor
+  UUID or provider claim grants no authority or privileged flag.
+- At most two contributing Membership IDs and eight contributing built-in Role IDs
+  come only from the live decision, sorted canonically. Excess or ambiguous evidence
+  fails closed; never silently truncate an authority set.
+- A typed versioned `metadata.authorization` holds those references, fixed policy/
+  route identifiers and source kind. No grant graph, body, query string, raw path,
+  provider claim or credential belongs there. An inner operation retains its own
+  policy/subject; child scopes cannot inherit another actor's evidence.
+- Route is an admitted template/descriptor bounded to 128 characters. Direct
+  non-HTTP execution invents no route/IP/user agent. The source/caller census names
+  finite population and cleanup sites; unknown/untrusted sources forge nothing.
+- Reuse the admitted visitor/transport snapshot's effective address, with physical
+  peer fallback, without reparsing forwarded headers. The existing `inet`/user-agent
+  columns carry these redactable values. User agent is untrusted descriptive data:
+  remove controls, bound to 256 characters, and never use it for authority or labels.
+- ActorEmail stays null until P03-6/G10 or a separately accepted earlier source/
+  freshness contract. P03-9 owns actual Platform/operator population.
+- Membership/Role references remain personal linkage. Each row retains its own
+  [retention target](#retention): denial/assertion SecurityEvent seven years;
+  directory ReadSensitive two years. Automatic purge, retention columns and tenant
+  retention overrides remain unimplemented until Phase 11, so rows can outlive
+  targets. Metadata stays outside the six-column redaction grant. P03-10's Audit
+  participant locates it through retained actor/subject attribution and reports
+  surviving references under [Data Protection](../architecture/23-data-protection.md#erasure-authority-and-first-writer-prerequisites),
+  without new metadata UPDATE authority or an anonymisation claim.
+
+Store failure retains existing Critical/counter/audit-health signals. Independent
+composer refusal emits one fixed Critical signal, without raw provider/database
+exception details. [Observability](10-observability.md) owns diagnostic rules;
+acceptance does not claim these new paths or their fault/crash controls implemented.
 
 ## Global identity creation
 
@@ -725,7 +874,10 @@ Platform admins additionally see cross-tenant entries through a separate route g
 
 ## Forbidden
 
-- Writing a MUST-class audit entry **after** the controlling transaction commits, so that a commit failure can lose it. The standalone path is not this: it exists precisely for the cases where no business transaction committed, and it opens its own.
+- Writing a MUST-class audit entry **after** its controlling transaction commits.
+  Standalone writes own their transaction; absorbed denial evidence must satisfy
+  the [pre-success barrier](#trusted-authorization-evidence) before the enclosing
+  execution commits or discloses success.
 - Truncating `before` / `after` / `changes` snapshots silently, or writing an empty object
   in place of one that was too large. Over `JsonValue.MaxRowBytes` the value becomes the
   elision record of § Storage, in the column's own JSON type. There is **no**

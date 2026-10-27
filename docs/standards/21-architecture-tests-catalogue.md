@@ -62,6 +62,10 @@ Identity foundation registration additionally derives from Accepted
 [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md),
 [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md) and
 [ADR-0074](../decisions/0074-membership-admission-under-ordered-locks.md).
+Accepted live-authorization extensions additionally derive from
+[ADR-0076](../decisions/0076-live-scoped-authorization.md) and
+[ADR-0077](../decisions/0077-trusted-authorization-evidence.md); their new proof
+obligations remain Registered until implemented and qualified.
 The implemented Identity obligations and extensions name their actual proof
 owners below; the [phase Status block](../roadmap/phase-03-identity-admin.md) owns
 current qualification and review state.
@@ -2679,7 +2683,139 @@ Implemented requires nonempty production subjects and dirty/clean controls.
 - **Test owner:** `IdentityFoundationConventionTests`.
 - **Status:** **Implemented** (`IdentityFoundationConventionTests`) — the actual five-pair registry, command metadata,
   generated artifacts and planted definition controls are exercised.
-- **Phase:** P03-1 Step 4.
+- **Accepted P03-2 extension (implementation pending):** ADR-0076 composes
+  actual module definition sources and three nonassignable virtual-public pairs;
+  the five-pair assignable manifest remains intact. Complete metadata/consumer
+  controls extend this owner in P03-2 Step 3, without promoting that new subject
+  merely because the foundation is Implemented.
+- **Phase:** P03-1 Step 4; P03-2 Step 3 extension.
+
+### Accepted live-authorization obligations
+
+Accepted ADR-0076/0077 add the following P03-2 controls. Their Registered status
+does not establish current runtime capability. Existing Implemented controls
+retain their shipped populations and acquire the explicit pending extensions
+noted below; acceptance never promotes an unrun proof.
+
+#### `Live_Authorization_Uses_Bounded_Independent_Owners`
+
+- **Asserts:** actual verified candidate checks use the confined app-role READ
+  ONLY owner, exact actor/tenant/org and generation, four-slot source and tracked
+  job authorization lane. Every business connector can remain held while admitted
+  nested/post-lock checks complete. Actual transaction-pooled backend/PID clean
+  controls and a shared-backend dirty topology prove independent capacity;
+  parent uncommitted grants never supply authority. Saturation, cancellation,
+  delayed/failed cleanup, shutdown and pool reuse preserve retained ownership.
+- **Source:** [ADR-0076](../decisions/0076-live-scoped-authorization.md);
+  [source ledger](05-database.md#authorization-and-evidence-source-ledger).
+- **Type:** source/caller/role census plus real app-role PostgreSQL/PgBouncer
+  progress and lifetime controls. **Kind:** behavioural and structural.
+- **Test owners:** `IdentityAuthorizationReaderTests`,
+  `AuthorizationPoolProgressTests`, `IdentityAuthorizationConventionTests`.
+- **Status:** **Registered** — P03-2 Steps 2/3, before activation.
+- **Phase:** 03 (P03-2).
+
+#### `Protected_Operations_Require_Explicit_Live_Policies`
+
+- **Asserts:** complete real HTTP/request/source composition explicitly classifies
+  public, AccountSite, permission-bound and confined seed/system operations.
+  Unclassified or underprivileged requests cannot dispatch at HTTP or direct
+  application entry. Fresh live Membership/capability, denial/resource ordering,
+  committed revocation, same-key scoped delegation, finite manifest adoption and
+  retained public/AccountSite ceilings have useful production positive/denied
+  controls. Ambient/SystemActor or realm-role values alone supply no exemption.
+- **Source:** [ADR-0076](../decisions/0076-live-scoped-authorization.md);
+  [Permissions](19-permissions.md#live-permission-enforcement-contract).
+- **Type:** complete compiled metadata/caller census, real direct dispatch and
+  administrative-directory HTTP/database controls. **Kind:** behavioural and structural.
+- **Test owners:** `IdentityAuthorizationConventionTests`,
+  `IdentityAuthorizationTests`, `IdentityMembershipDirectoryHttpTests`.
+- **Status:** **Registered** — P03-2 Steps 3–5.
+- **Phase:** 03 (P03-2).
+
+#### `Authorization_Denials_Have_PreSuccess_Durability_And_Stable_Identity`
+
+- **Asserts:** one central occurrence with fixed id/microsecond decision time
+  and complete frozen draft is distinct from plural ordinary resource intents.
+  ReadWrite outer success commits unresolved events atomically; ReadOnly or
+  ownerless success requires standalone acknowledgement first. Per-event state,
+  rollback/unknown COMMIT, expected-key full scoped duplicate matching, real
+  nested acts versus re-entry, Off/SHOULD/MAY/override-Off and process-crash controls
+  preserve the precise guarantee without claiming a persistent replay ledger.
+  The independent two-slot app-role evidence lane retains actual cleanup and
+  progresses while business owners remain held; audit fault preserves a real
+  refusal but prevents otherwise-successful outer commit/disclosure.
+- **Source:** [ADR-0077](../decisions/0077-trusted-authorization-evidence.md);
+  [Audit Coverage](18-audit-coverage.md#trusted-authorization-evidence).
+- **Type:** common-owner/source census plus real PostgreSQL/HTTP, process crash,
+  uncertainty, capacity and cleanup controls. **Kind:** behavioural and structural.
+- **Test owners:** `AuthorizationEvidenceTests`, `AuthorizationEvidenceFaultTests`,
+  `AuthorizationPoolProgressTests`, `IdentityAuditConventionTests`.
+- **Status:** **Registered** — P03-2 Step 4; activation waits for these proofs.
+- **Phase:** 03 (P03-2).
+
+#### `Authorization_Evidence_Uses_Trusted_Bounded_Provenance`
+
+- **Asserts:** frozen actor/Membership/Role/source/route and admitted address/UA
+  facts come only from enumerated trusted owners, never arbitrary handler
+  dictionaries, claims or forwarded input. Direct/nested/job scopes preserve
+  ownership and clearing. Exact successful claim-only header refusals use their
+  Membership-confirmed tenant and separate per-occurrence event without a host
+  budget debit. Typed sink canaries, source/caller dirty controls and per-row
+  retention/redaction declarations preserve personal linkage honestly.
+- **Source:** [ADR-0077](../decisions/0077-trusted-authorization-evidence.md);
+  [Audit Coverage](18-audit-coverage.md#trusted-authorization-evidence).
+- **Type:** real source/HTTP/record composition and diagnostic sink controls.
+  **Kind:** behavioural and structural.
+- **Test owners:** `AuthorizationEvidenceTests`, `IdentityDiagnosticsTests`,
+  `TenantAuthenticationRejectionAuditTests`, `IdentityAuditConventionTests`.
+- **Status:** **Registered** — P03-2 Steps 4/5.
+- **Phase:** 03 (P03-2).
+
+#### `Permission_Scope_Matches_Resource_Scope`
+
+- **Asserts:** exact registered scoped pairs match admitted target facts;
+  Organization grants apply only through the matching branch Membership.
+  Tenant grants alone remove no filter or write scope. The declared operation
+  witness alone permits accepted tenant-wide reads; independent HostScope and
+  organization write guards survive. Missing/forged/other-branch target metadata
+  and prohibited scope implications refuse.
+- **Source:** [ADR-0076](../decisions/0076-live-scoped-authorization.md);
+  [Permissions](19-permissions.md#live-permission-enforcement-contract).
+- **Type:** actual registry/consumer metadata plus scoped direct/HTTP controls.
+  **Kind:** structural and behavioural.
+- **Test owners:** `IdentityAuthorizationConventionTests`, `IdentityAuthorizationTests`.
+- **Status:** **Registered** — P03-2; moved from Awaiting backfill on acceptance.
+- **Phase:** 03 (P03-2).
+
+#### `Permission_Keys_Match_Convention`
+
+- **Asserts:** every actual module definition has the closed three-segment key,
+  module/resource/action grammar and explicit scope. Missing/inactive/duplicate
+  pairs and invalid action/name controls fail; virtual-public pairs are separate
+  from assignable grants and cannot expand the retained v1 manifest.
+- **Source:** [ADR-0076](../decisions/0076-live-scoped-authorization.md);
+  [Permissions](19-permissions.md).
+- **Type:** complete nonempty compiled source/consumer census with dirty controls.
+  **Kind:** structural.
+- **Test owner:** `IdentityAuthorizationConventionTests`.
+- **Status:** **Registered** — P03-2; moved from Awaiting backfill on acceptance.
+- **Phase:** 03 (P03-2).
+
+#### `Permission_Registry_Has_DeniedTest`
+
+- **Asserts:** each actual scoped pair has meaningful actual production-consumer
+  denial proof. Virtual-public and confined seed/system classes have their own
+  explicit negative controls; an empty scan, matching test name or test-only
+  operation cannot establish coverage. Missing-pair and removed-test controls
+  fail the complete cross-reference.
+- **Source:** [ADR-0076](../decisions/0076-live-scoped-authorization.md);
+  [Permissions](19-permissions.md).
+- **Type:** registry/production-consumer proof map with removed/missing controls.
+  **Kind:** structural with behavioural subjects.
+- **Test owners:** `IdentityAuthorizationConventionTests`, `IdentityAuthorizationTests`.
+- **Status:** **Registered** — P03-2; moved from Awaiting backfill on acceptance.
+- **Phase:** 03 (P03-2).
 
 <a id="pending-identity-extensions-to-implemented-rules"></a>
 
@@ -2755,6 +2891,13 @@ which decides identity, multiplicity, capture and classification;
   carrying the `denied` outcome and zero business rows, and keeps its own `403` — the 503
   is for a write that would otherwise have **succeeded**
   ([ADR-0033 Amendment 1](../decisions/0033-audit-durability-model.md)).
+- **Accepted P03-2 extension (implementation pending).** ADR-0077 adds one
+  central denial occurrence beside the separately classified resource intents.
+  The real step-5 denial control must count both populations exactly. Absorbed
+  denials obey the ReadWrite/ReadOnly/ownerless pre-success barrier, fixed-key
+  reconciliation and fault/crash controls of
+  [Audit Coverage](18-audit-coverage.md#trusted-authorization-evidence).
+  A handler-returned forbidden result alone still does not prove authorization.
 - **The `denied` clause lands with Phase 03, and the rest lands in Packet 9.** Nothing in
   the Packet 9 pipeline can produce a `403`: `AuthorizationBehavior` is still the Packet 3
   pass-through, because the permission registry arrives with Identity in
@@ -4105,9 +4248,6 @@ implements it.
 | `Cert_PrivateKey_NeverLeavesVault_To_Logs` | The log redaction filter strips a PEM private-key block before a line is emitted, in every deployment mode | behavioural | [Phase 02c](../roadmap/phase-02c-hub-foundation.md) on the Hub side, per ADR-0022, which applies it in every mode; on the LearnStack side [Phase 11](../roadmap/phase-11-production-hardening.md), with the TLS automation — the first LearnStack code that handles certificate material, and a Self-Hosted air-gapped deployment has no Hub | ADR-0022; [Custom Domain TLS](../architecture/27-custom-domain-tls.md) |
 | `Frontend_Has_Only_The_OperatorPortal_App` | The Hub repository ships exactly one frontend application, the operator portal | structural | [Phase 02c](../roadmap/phase-02c-hub-foundation.md), owned and run by the `learnstack-hub` repository | [ADR-0019](../decisions/0019-learnstack-hub.md) |
 | `Customization_Reference_Resolution_Is_Batched` | Resolving an entry's references costs a small constant number of queries, not one per reference | behavioural | [Phase 05](../roadmap/phase-05-education-learning-content.md), with the batched reference walk — Phase 02d's lesson body carries its fields inline and resolves no reference | [Tenant Customization Model](../architecture/32-tenant-customization-model.md); [Phase 05](../roadmap/phase-05-education-learning-content.md) |
-| `Permission_Scope_Matches_Resource_Scope` | An `Organization`-scope permission is checked only against an `[OrganizationScoped]` resource, and a `Tenant`-scope permission never gains organization filtering | structural | [Phase 03](../roadmap/phase-03-identity-admin.md) | [Permissions](19-permissions.md); `add-permission` |
-| `Permission_Keys_Match_Convention` | Every registered key parses as `{module}.{resource}.{action}` with an action from the closed set | structural | [Phase 03](../roadmap/phase-03-identity-admin.md) | [Permissions](19-permissions.md); `add-permission` |
-| `Permission_Registry_Has_DeniedTest` | Every registered key has at least one test that is denied it | structural | [Phase 03](../roadmap/phase-03-identity-admin.md) | [Permissions](19-permissions.md); `add-permission` |
 | `Search_Kinds_AreNot_Domain_Prefixed_In_Code` | No module registers a domain-prefixed search kind; every domain-shaped index arrives through a `TenantContentType` | structural | [Phase 04](../roadmap/phase-04-cms-media-pages.md), with `ITenantSearch` | [Search](../architecture/20-search.md) |
 | `Block_Schemas_Are_Immutable_After_Publish` | A published page-block schema version is never edited in place; a breaking change ships a new version | behavioural | [Phase 04](../roadmap/phase-04-cms-media-pages.md), with `TenantPageBlock` | [ADR-0013](../decisions/0013-page-block-schema-versioning.md); `add-page-block` |
 | `Scoring_Rules_Compile_Against_Sandbox` | Every `TenantScoringRule` expression compiles inside the DSL sandbox and nowhere else | behavioural | [Phase 05](../roadmap/phase-05-education-learning-content.md), with the evaluator | [Phase 05](../roadmap/phase-05-education-learning-content.md); `add-tenant-scoring-rule` |
@@ -5046,6 +5186,14 @@ structural test proves — and what it does not.
   cross-contract local proof ships in Step 4; Step 5 owns full hosted qualification.
 - **Status:** **Implemented** (`AuthenticatedHttpSurfaceTests`, `AccountSiteHttpTests`,
   `AccountSiteQueryTests`, `OpenApiContractTests`).
+- **Accepted P03-2 extension (implementation pending):** ADR-0076 adds only
+  the administrative directory GET and explicit policy metadata/classes, while
+  AccountSite/public reads retain their exact physical READ ONLY contracts. The
+  directory uses an ordinary ReadWrite owner for MUST sensitive-read evidence;
+  the canonical rule name no longer implies every authenticated GET is physically
+  READ ONLY. Existing runtime/source controls remain until Step 5 updates them
+  together with live wiring. New real classified/unclassified/underprivileged
+  controls complement the separate application gate.
 - **Phase:** P02b-5 Step 2 query/database boundary; Step 4 route/contract
   activation; Step 5 complete transitive enforcement.
 
@@ -5280,7 +5428,13 @@ structural test proves — and what it does not.
 #### `Tenant_Scope_Widening_Is_Never_Set_From_Request_Input`
 
 - **Asserts:** `app.scope = 'tenant'` is derived from the actor's role plus a declared tenant-wide operation, never from a header, query parameter, cookie or body, and is unreachable under `TenantContextOrigin.HostOnly`. Until Phase 03 derives it from a role, that holds as its strongest form: no production code sets the variable — no `set_config('app.scope'`, no `SET [LOCAL|SESSION] app.scope` — outside an exact-path list, empty until the Phase 03 setter adds its own path, and `ITenantContext` has no app.scope authority member for request input to reach. ADR-0052's immutable HostScope only narrows public reads.
-- **Source:** ADR-0036 § The reconciliation matrix.
+- **Accepted P03-2 extension (implementation pending):** ADR-0076 replaces the
+  intentional no-carrier premise only alongside its actual immutable operation
+  witness, live generation, mint/consume caller census, SQL/EF parameterization,
+  nested mismatch and pooled-cleanup dirty controls. HostOnly and branch grants
+  cannot mint the hatch, and restrictive organization writes never widen.
+- **Source:** ADR-0036 § The reconciliation matrix;
+  [ADR-0076](../decisions/0076-live-scoped-authorization.md).
 - **Type:** xUnit + source scan + reflection. **Kind:** structural.
 - **Status:** **Implemented** — `TenancyConventionTests.cs`, Packet 10. It asserts its
   premise first — a row-security policy does read `app.scope`, so the variable guards

@@ -16,6 +16,10 @@ Accepted — 2026-10-20. Implementation has local runtime/exported proofs; the
 owns independent reviews and final-source CI qualification.
 Existing-binding admission additionally derives from Accepted
 [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md).
+Live policy and sensitive-directory contracts derive from Accepted
+[ADR-0076](../decisions/0076-live-scoped-authorization.md) and
+[ADR-0077](../decisions/0077-trusted-authorization-evidence.md), not yet runtime
+implemented; their acceptance does not activate the new operation.
 
 REST conventions for LearnStack public and admin APIs.
 
@@ -152,8 +156,10 @@ optional wire actor is consistency evidence; quota precedes the uncached existin
 binding read, which alone supplies a stored actor. Unknown/conflicting/Closed or
 unavailable bindings return uniform 401 without allocation. Ordinary resolution
 remains route-independent. Credential-free public reads and AccountSite's existing
-absent-bearer 404/admitted-wrong-method 405 remain. No POST, OpenAPI operation or
-SDK census change is admitted; P03-3/G1/G6 owns new-user transport decisions.
+absent-bearer 404/admitted-wrong-method 405 remain. That P03-1 handoff admits no
+POST or SDK operation. ADR-0076 separately accepts
+the [administrative directory](#administrative-membership-directory) below;
+P03-3/G1/G6 retains new-user transport and native BFF extension decisions.
 
 ## Tenant Context
 
@@ -295,6 +301,41 @@ census, with explicit infrastructure exclusions, bearer OpenAPI security and
 no-store on success and early errors. Generated GETs have exact disjoint public
 and authenticated ownership with an exhaustive union. The public transport stays
 credential-free; P02b-7 owns authenticated session transport.
+
+### Administrative membership directory
+
+**Accepted contract; not runtime implemented.** ADR-0076 narrowly extends the
+AccountSite-only authenticated API with `GET /api/v1/identity/memberships`.
+It is a declared tenant-wide administrative read requiring the existing Tenant
+`identity.membership.admin` capability, including an eligible NULL-org Tenant
+Admin Membership in a branch session. An Organization grant never authorizes it.
+HostAndClaim and confirmed ClaimAndMembership authority admit it, including a
+platform host with a confirmed claim; HostOnly and host/claim disagreement do not.
+PublicSurface and AccountSite keep their separate real-HostScope ceilings.
+
+- Return only MembershipId, UserId, OrganizationId, status, contextual DisplayName
+  and PreferredLocale for undeleted Active/Suspended Memberships. Revoked/retired
+  rows, provider subject, email, grant graph and global profile are excluded.
+  Module-local IDs cross contracts as Guid; SharedKernel identity/scope types stay.
+- Use fixed MembershipId ordering and an opaque versioned cursor bound to actor,
+  tenant/org and declared operation. Limit defaults to 20 and clamps at 100.
+  Bound the cursor to 1,024 encoded/768 decoded bytes and strictly validate
+  canonical version/fields. Every page rechecks live policy and actual scope;
+  the anchor supplies no authentication or snapshot authority. No search,
+  arbitrary filter/sort or mutation is admitted.
+- Responses are no-store. Success discloses the DTO only after the MUST
+  `identity.membership.list` ReadSensitive row commits on the ordinary ReadWrite
+  owner. This GET is not added to the physical READ ONLY catalogue. Audit failure
+  returns `503 audit_unavailable` without a result payload.
+- Add the exact contract to served OpenAPI/generated SDK when implemented.
+  The native authenticated transport allowlist still contains only AccountSite;
+  its extension, editing routes and UI remain P03-3.
+
+[Security's live policy boundary](11-security.md#live-authorization-contract)
+owns early-gate precedence, runtime default deny, independent application checks
+and 403/404/503 outcomes. [Database read authority](05-database.md#operation-bound-read-authority)
+owns the invocation witness shared by EF and SQL. Accepted endpoint/schema text
+is not proof that the route, SDK, grants or audit path are implemented.
 
 ## Pagination
 

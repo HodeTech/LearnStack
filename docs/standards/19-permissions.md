@@ -10,6 +10,9 @@
 Identity foundation definitions, manifests and role ownership derive from Accepted
 [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) and
 [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md).
+Live enforcement and evidence additionally derive from Accepted
+[ADR-0076](../decisions/0076-live-scoped-authorization.md) and
+[ADR-0077](../decisions/0077-trusted-authorization-evidence.md).
 
 LearnStack uses permission-based RBAC layered on top of tenant membership. This standard pins the **naming convention**, **closed action set**, **registration pattern**, **enforcement points**, and the **per-module matrix template** that every module must produce.
 
@@ -17,7 +20,8 @@ LearnStack uses permission-based RBAC layered on top of tenant membership. This 
 and confined seed commands are implemented in P03-1 Step 4.
 Accepted ADR-0073 settles scoped definition identity, tenant-wide templates and
 the finite initial seed manifests in the [Identity foundation contract](#identity-foundation-contract).
-P03-2 owns live enforcement/delegation/adoption and
+The [live contract](#live-permission-enforcement-contract) is Accepted, not
+runtime implemented. P03-2 owns its enforcement/delegation/adoption and
 P03-9/G13 owns operator admission. Adoption of this standard grants no runtime
 authority. The closed key/action/scope rules remain binding.
 
@@ -74,26 +78,28 @@ This rule prevents permission sprawl and keeps the matrix template stable.
 Permissions are identified by **`(PermissionScope, PermissionKey)`** at
 registration time under ADR-0017/0073. Tenant and Organization can register the
 same key as distinct definitions. Platform definitions are never assignable to
-tenant Roles. Unknown/inactive pairs authorize nothing; Step 4 implements the
+tenant Roles. Unknown/inactive pairs authorize nothing; P03-1 Step 4 implements the
 nonempty foundation registry.
 
 | Scope | Examples | Granted to |
 |-------|----------|------------|
 | **Platform** | `platform.tenant.write`, `platform.feature_flag.admin`, `platform.audit.read` | Only platform admins / Hub operators; never assignable to a tenant role. |
 | **Tenant** | `education.course.write`, `enrollment.course_access.read`, `tenancy.organization.write`, `customization.content_type.write` | Tenant roles; permission check requires a `Membership` in the target tenant. |
-| **Organization** | `education.course.write` (org-scoped role), `enrollment.enrollment.write` (org-scoped role) | Org-scoped roles; permission check requires `Membership.OrganizationId` matches the resource's `OrganizationId` (or the role is tenant-scoped). |
+| **Organization** | `education.course.write` (org-scoped role), `enrollment.enrollment.write` (org-scoped role) | Organization-capability templates assigned to an eligible Membership for the resource's exact organization; Tenant grants are separately evaluated. |
 
-Tenant permissions are only meaningful inside a resolved tenant context. Org-scoped
-permissions further require the actor's `OrganizationId` match (or the actor have the
-tenant-wide variant of the same role). Platform permissions bypass tenant scope but
-require platform-admin authentication and write a `platform-admin` audit entry (see
+Tenant permissions are only meaningful inside an admitted tenant scope.
+Organization grants require an eligible Membership for that exact organization.
+An explicit eligible Tenant grant can independently authorize the declared
+operation; same-key pairs never imply one another. Platform admission remains
+P03-9 and requires its privileged authentication/audit contract (see
 [18-audit-coverage.md](18-audit-coverage.md)).
 
 Registered architecture obligation
 `Permission_Scope_Matches_Resource_Scope` requires permissions registered as
 `Organization`-scope are only checked against `[OrganizationScoped]` resources, and
-that `Tenant`-scope permissions never gain `OrganizationId` filtering at runtime
-without an explicit `organization-scope` role binding.
+that capability identity is never inferred from a storage scope or role name.
+The Accepted operation witness below governs tenant-wide reads; a Tenant grant
+alone never removes organization filters or widens writes.
 
 ## Module-Driven Registration
 
@@ -123,17 +129,22 @@ A permission is **only meaningful** if every code path that could expose the res
 
 ### HTTP endpoints
 
-Every endpoint has one of:
-
-- `[Authorize(Policy = "education.course.write")]` — explicit permission requirement.
-- `[Authorize(Policy = "platform.*.<action>")]` — explicit platform-scope requirement.
-- `[AllowAnonymous]` with a one-line comment explaining why (public site renderer, health checks, webhook receivers).
-
-Architecture test fails the build for any endpoint missing one of these attributes.
+Every endpoint has an exact classification under the Accepted
+[live policy boundary](11-security.md#live-authorization-contract): public,
+AccountSite, protected scoped capability or finite trusted operation.
+Named ASP.NET requirements agree with application metadata; infrastructure
+endpoints are explicitly classified. The runtime missing-classification guard
+supplements the endpoint census; authentication alone is no fallback permission.
+Application step 5 independently repeats authorization on direct/nested dispatch.
+The live contract is not runtime implemented yet.
 
 ### Background jobs and event handlers
 
-Tenant-scoped jobs and integration-event handlers call `IAuthorizationService.AuthorizeAsync(actor, permission)` before mutating MUST-audit resources. System actors (outbox dispatcher, scheduled jobs) use a stable system identity with explicit permissions; ad-hoc bypass is forbidden.
+Trusted seed, event and job sources keep their finite validated source/request
+contracts. They do not gain a blanket SystemActor exemption, Platform permission
+or authority from a causal actor field. Unknown sources/requests deny.
+[Standard 05](05-database.md#authorization-and-evidence-source-ledger) owns their
+tracked auxiliary authorization/evidence lanes and actual-cleanup lifetime.
 
 ### Resource-scope checks
 
@@ -196,9 +207,10 @@ customization data; they configure role grants by composing the closed set above
 
 The historical proposed operator key used `operator` as its action, outside the
 closed set. It is not a registration exception; G5/G13 choose a conforming key.
-`Portal Public` is the anonymous capability model, not a stored membership: its
-eventual registry integration preserves the `HostOnly`/PublicSurface ceiling under
-ADR-0036 and grants no protected authority.
+`Portal Public` is the virtual anonymous capability model, not a stored
+Membership. Its Accepted exact definitions are in the
+[live contract](#live-permission-enforcement-contract); integration is not yet
+implemented and grants no protected authority.
 
 ## Testing Requirements
 
@@ -260,7 +272,8 @@ adopt this implemented foundation contract. Live enforcement remains P03-2.
 
 P03-1's five pairs and version-1 grants below are the complete foundation set.
 P03-2 owns the separately admitted finite live-authorization/grant-adoption
-contract; P03-3 owns protected operations and UI/scope transitions. Neither a
+contract, including its administrative GET; P03-3 owns remaining protected
+HTTP operations and UI/scope transitions. Neither a
 later operation nor an older built-in-role example silently expands v1 grants.
 
 ### Capability scope and template ownership
@@ -363,8 +376,9 @@ owns ordering and interrupted-run disposition.
 
 P03-1 Step 4 supplies nonempty actual-command registry, templates, reference/
 scope guards and kernel artifact. P03-2 owns default deny/delegation, per-act
-revocation/freshness, grant adoption and denied controls. P03-3 owns HTTP/new-user
-BFF activation, protected UI and explicit scope transitions;
+revocation/freshness, grant adoption and denied controls. P03-2 also owns the one
+administrative directory GET; P03-3 owns new-user
+HTTP/BFF activation, protected UI and explicit scope transitions;
 P03-9/G13 owns production first-admin/recovery before its production provisioner.
 The development seed capability is not that future authority.
 
@@ -373,3 +387,56 @@ semantic property census and foundation/manifests/scope controls with actual
 clean/dirty subjects. Empty censuses, stored Roles and diagrams alone are not
 implementation proof. Current qualification state lives in the
 [phase Status block](../roadmap/phase-03-identity-admin.md).
+
+## Live permission enforcement contract
+
+**Accepted contract; not runtime implemented.** ADR-0076 replaces the live
+admission/delegation deferrals above while retaining P03-1's exact five assignable
+pairs, eight templates, two-pair admin kernel and fixed v1 seed manifest.
+Registration remains distinct from grants; no v2 manifest or new assignable
+capability is selected. Current implementation status remains in the
+[phase Status block](../roadmap/phase-03-identity-admin.md).
+
+| Virtual Tenant definition | Existing PublicSurface requests |
+|---|---|
+| `tenancy.public_site.read` | `GetPublicSiteQuery` |
+| `education.public_course.read` | `GetPublicCoursesQuery`, `GetPublicCourseQuery` |
+| `education.public_lesson.read` | `GetPublicLessonQuery` |
+
+These three Portal Public definitions are unavailable as stored Role grants.
+They create no Membership/template and widen neither publication, HostScope,
+tenant/org scope nor physical READ ONLY bounds. Credential-free public requests
+perform no identity/grant lookup; these definitions do not expand the assignable
+foundation manifest.
+
+Every protected act uses fresh committed Membership/lifecycle/grant admission
+under [Security](11-security.md#live-authorization-contract). Eligible NULL-org
+Tenant grants compose with the exact requested branch's eligible Organization
+grants; coverage alone supplies no capability. Resolver, HTTP and earlier nested
+results are not reusable grants. Tenant-wide read widening requires the
+[operation witness](05-database.md#operation-bound-read-authority), never an
+Organization grant or implicit clearing of authenticated branch write scope.
+
+`ChangeRoleGrantsCommand` and `AdoptRoleGrantManifestCommand` are separate
+production application acts, each with one Role root and expected Role row version.
+Both require current Tenant Admin/role-admin authority, orgless write scope,
+concurrency/kernel guards and a current delegation ceiling, rechecked after the
+invariant-lock wait before mutation. They cannot grant authority the actor lacks.
+An eligible Tenant Admin holding Tenant `identity.role.admin` may author an exact
+registered Organization pair only while holding the same key's Tenant pair.
+That is an explicit authoring relation, not scoped-key equivalence or evaluation
+fallback. Other-key, Organization-to-Tenant and unknown-pair implications refuse.
+
+Grant edits and finite approved release-manifest adoption have separate MUST
+`identity.role.change_grants` / `identity.role.adopt_manifest` audit transactions,
+including contained grant changes. Adoption accepts only the approved finite
+manifest/diff; P03-2 proves retained v1, unknown manifests refuse, and registration
+or rerunning seed never upgrades grants. Legitimate differing adopted state makes
+fixed-v1 seed refuse instead of reset. Human-facing edit/adoption routes remain
+P03-3; arbitrary roles, wildcard grants and Platform admission are not added.
+
+Actual denial evidence and successful sensitive disclosure obey
+[Standard 18](18-audit-coverage.md#trusted-authorization-evidence), independently
+of an ordinary operation's Off/SHOULD/MAY classification. Real HTTP, direct,
+post-lock revocation, scoped SQL/EF and finite-source dirty controls must qualify
+this contract before activation; acceptance alone advances no runtime proof.

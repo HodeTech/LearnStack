@@ -987,3 +987,26 @@ runtime, migration or passing proof claim; canonical SQL stays in Standard 05.
 - [Media Pipeline](../architecture/16-media-pipeline.md)
 - [Quartz.NET persistent job stores](https://www.quartz-scheduler.net/documentation/quartz-3.x/tutorial/job-stores.html)
 - [Quartz.NET execution/cancellation FAQ](https://www.quartz-scheduler.net/documentation/faq.html)
+
+### Amendment 5 — Tracked authorization and denial-evidence lanes (2026-10-27)
+
+Accepted [ADR-0076](0076-live-scoped-authorization.md) and
+[ADR-0077](0077-trusted-authorization-evidence.md) add explicitly tracked
+application authorization/evidence auxiliary lanes. Their separate global four/
+two caps, actual-cleanup retention/join and source lifetimes supplement the
+existing main/auxiliary business ledger. An authorization child is not a second
+main unit. No ambient-marker suppression, broader SystemActor permission,
+external-profile capability or quiescence shortcut is admitted.
+
+For an otherwise-successful job owner, unresolved denial evidence satisfies the
+same pre-success barrier as ordinary work: ReadWrite commits carry it atomically;
+ReadOnly/ownerless success waits for standalone acknowledgement. The barrier
+precedes final commit admission and preserves the existing no-await interval
+before physical completion. Event identity, uncertain outcomes and actual cleanup
+follow the canonical [Audit contract](../standards/18-audit-coverage.md#trusted-authorization-evidence)
+and [source ledger](../standards/05-database.md#authorization-and-evidence-source-ledger).
+
+P03-2 implements/proves these tracked lanes and updates actual resource/caller
+censuses before activation. This acceptance supplies no completed shutdown,
+progress, cancellation or production-capacity evidence. Other decisions and the
+historical Accepted body/status/date remain unchanged.

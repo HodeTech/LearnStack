@@ -2,16 +2,25 @@
 
 ## Status
 
-Proposed — no runtime, grant, schema or HTTP change is authorized yet.
+Accepted — jointly with ADR-0077 on 2026-10-27.
+Runtime implementation remains pending at acceptance.
 
 **Date:** 2026-10-27
 **Deciders:** @cemil
 
 **Relationship:** Completes P03-2 G2 execution, G5 enforcement and G6 policy
-ordering alongside [ADR-0077](0077-trusted-authorization-evidence.md). Acceptance
-requires both records and the packet's decision package. The bounded HTTP
+ordering alongside [ADR-0077](0077-trusted-authorization-evidence.md). Joint acceptance
+of both records and the packet's decision package is complete. The bounded HTTP
 extension replaces ADR-0064's AccountSite-only authenticated surface; its token,
 resolution and independent AccountSite HostScope rules remain unchanged.
+
+**Maintainer acceptance — 2026-10-27.** The maintainer explicitly approves
+the revised records and six-step P03-2 package at `725d255a`, including
+bounded independent authority/evidence sources, pre-success denial
+durability and fixed occurrence reconciliation. The [acceptance record](../roadmap/phase-03-delivery-log.md#p03-2-joint-acceptance-and-step-1-2026-10-27)
+owns the receipt and implementation/review progress. This acceptance grants
+the named contract authority; it establishes no runtime, pool, crash or
+production-capacity proof.
 
 ## Decision Drivers
 

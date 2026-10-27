@@ -245,3 +245,23 @@ preheld; it cannot first acquire a missing User key beneath tenant authority.
 owns the current algorithm, heldness limits and pending Step 4 proofs. No new
 scope, grant, Role variant, generic User reader or live endpoint follows. All
 other decisions and the Accepted body, status and date above remain unchanged.
+
+### Amendment 2 — Live scoped permission execution (2026-10-27)
+
+Accepted [ADR-0076](0076-live-scoped-authorization.md) completes the execution
+contract for fresh live Membership/permission checks, operation-bound SQL/EF
+read scope, finite source classification and explicit audited grant edits/
+release-manifest adoption outside the immutable kernel. Current Tenant grants
+can bound same-key Organization-template authoring under the exact role-admin
+contract, without scope-identity equivalence or reverse escalation.
+
+The five assignable foundation pairs, eight templates and fixed version-1 seed
+manifest remain. Three virtual public definitions grant no stored Role authority.
+Registry additions/seed reruns do not upgrade grants; the separately admitted
+finite adoption act does. The bounded administrative directory uses the existing
+Tenant membership-admin key; native editing/UI and orgless reissue remain P03-3.
+
+[Permissions](../standards/19-permissions.md) owns the detailed current contract,
+and [ADR-0077](0077-trusted-authorization-evidence.md) owns evidence. P03-2 runtime
+implementation/proofs remain required. Other decisions and historical Accepted
+body/status/date remain unchanged.

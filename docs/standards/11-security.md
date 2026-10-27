@@ -50,7 +50,10 @@ Identity admission/owner contracts additionally derive from Accepted
 [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md) and
 [ADR-0074](../decisions/0074-membership-admission-under-ordered-locks.md).
 The [phase Status block](../roadmap/phase-03-identity-admin.md) owns current
-implementation and qualification state; live membership execution remains P03-2.
+implementation and qualification state. Live membership and trusted evidence
+derive from Accepted [ADR-0076](../decisions/0076-live-scoped-authorization.md) and
+[ADR-0077](../decisions/0077-trusted-authorization-evidence.md); their runtime
+implementation remains P03-2.
 Bounded authenticated assertion recording derives from
 [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md); its
 implementation and local proofs are delivered in the
@@ -366,14 +369,17 @@ tenant-facing endpoints. Per [ADR-0019](../decisions/0019-learnstack-hub.md) and
 
 ## Authorization
 
-Every ordinary tenant write use case checks, in order:
+Every protected tenant act checks, in order (the live P03-2 contract below is
+Accepted, not yet runtime implemented):
 
 1. **Authentication** (valid token).
 2. **Tenant membership** (user has a Membership in the resolved tenant).
 3. **Role / permission** (user's roles include the required permission).
 4. **Resource scope** (e.g. instructor can only edit their own courses).
 
-A failure at any step returns a Problem Details response with the right code (`unauthorized`, `tenant_mismatch`, `forbidden`, `resource_scope_violation`).
+The [live policy boundary](#live-authorization-contract) owns precise masked
+404/capability 403/dependency 503 precedence; the generic list above does not
+override earlier credential, host or binding refusals.
 The exact internal global-identity creation class instead uses the
 [adopted subject-confined owner](#identity-admission-contract), with no tenant
 selection or membership authority. It is not a routed HTTP write in P03-1.
@@ -472,8 +478,8 @@ transaction by the step-6 `TransactionBehavior` adapter through
 `TransactionExecutionCoordinator`, from the context admitted at step 4.
 Default ReadWrite transactions announce them as their first SQL statement.
 
-For a physical PublicSurface ReadOnly owner or the exact authenticated
-`GetAccountSiteQuery` ReadOnly owner only,
+For the implemented physical PublicSurface ReadOnly owner or exact authenticated
+`GetAccountSiteQuery` ReadOnly owner,
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md) and
 [ADR-0040 Amendment 8](../decisions/0040-ambient-unit-of-work.md#amendment-8--read-only-public-frames-2026-10-03)
 with each ADR's 2026-10-19 dated scope-extension disclosure under
@@ -490,7 +496,9 @@ The authenticated-query extension is implemented by
 Step 4 owns HTTP activation. Selection is by exact request type, never a
 query-name suffix, public marker or general authenticated
 read category. It reuses the existing physical owner and tenant announcement;
-the closed setter set and transaction-ownership contracts do not change.
+that extension does not change the setter set or transaction ownership.
+ADR-0076 separately accepts the ninth candidate owner below, with the same
+READ COMMITTED → awaited physical READ ONLY → exact announcement ordering.
 
 Every institution public read dispatches a marked request through ISender, audit
 Off and GET/HEAD only. Factory HostScope is an independent host ceiling intersected
@@ -516,21 +524,14 @@ consequences follow, and both are load-bearing:
   shared across transactions, so the value is either absent or — worse — left over from
   another tenant's transaction.
 
-**`app.scope` has no carrier.** No application path sets it, and
-[Packet 7](../roadmap/phase-02a-kernel-tenancy.md) ships nothing that does:
-`ITenantContext` carries no `app.scope` authority member; ADR-0052's immutable
-HostScope is an independent narrowing ceiling, never a scope-widening carrier
-([ADR-0040 Amendment 1](../decisions/0040-ambient-unit-of-work.md)), and the flag
-derives from the actor's role plus a declared tenant-wide operation, and **the role is
-the part that does not exist yet**. [Phase 02b](../roadmap/phase-02b-events-auth.md)
-delivers the authenticated principal the carrier needs and says in its own scope that it
-delivers "only the authentication plumbing"; `Membership`, `Role` and `Permission` land in
-[Phase 03](../roadmap/phase-03-identity-admin.md), which is therefore the earliest phase
-that can own a working carrier. The deferral is forced, not chosen.
-Until it lifts, the cross-organization read hatch in the policy template is unreachable at
-runtime — the hatch term reads an unset variable and is never true, so reads stay inside
-the caller's organization plus the tenant-wide rows — which is the correct default. The
-placement rule above is unchanged and governs `app.scope` the moment a carrier exists.
+**`app.scope` has no implemented carrier yet.** Accepted ADR-0076 replaces the
+former role-missing deferral with an operation-bound witness; P03-1 already stores
+Memberships, Roles and scoped definitions. The
+[database read-authority contract](05-database.md#operation-bound-read-authority)
+owns SQL/EF derivation, owner generation, nesting and cleanup. Step 6 announces
+that admitted read authority inside the actual transaction; no middleware or
+ITenantContext member may manufacture it. Until implementation is qualified the
+hatch remains unreachable. HostScope remains an independent narrowing ceiling.
 
 P02b-1 Step 1 adds a read-only announcement snapshot through
 `IUnitOfWork.GetTenantContextAnnouncement(DbTransaction?)`, under
@@ -546,8 +547,9 @@ context writer, factory privilege or tenant retargeting authority.
 
 `TransactionBehavior` delegates the general announcement path to
 `TransactionExecutionCoordinator`. Eight logical setter paths currently exist.
-The adopted [candidate-reader extension](#owner-and-setter-census) registers a
-ninth for P03-2 implementation; no ninth setter is shipped. The current set is closed
+The Accepted [candidate-reader extension](#owner-and-setter-census) registers a
+ninth for P03-2 implementation; no ninth setter is shipped. ADR-0077's confined
+evidence methods extend central audit ownership, not the logical setter count. The current set is closed
 ([ADR-0040 § Who sets `app.tenant_id`, completely](../decisions/0040-ambient-unit-of-work.md),
 with its Amendments 3 and 7, is the authority; it is reproduced here because this section
 is the placement authority). Two set it on the **ambient** transaction; six own a **short
@@ -1195,18 +1197,21 @@ execute with migration-owner rights and need their own exact privilege/body/call
 controls before admission. No general SQL executor, global User directory or
 direct self audit read follows from them.
 
-`PreContextIdentityAuthorizationReader` is the planned ninth logical tenant
-setter, owned by P03-2 execution under G2. It uses `learnstack_app`, NOBYPASSRLS,
-and a short physically READ ONLY transaction. It binds the verified application
-actor and exact candidate tenant/organization to a minimal coverage/grant read,
-announces only that candidate scope, and closes before the request owner opens.
-It installs no `ITenantContext` and returns no profile or member directory.
-Candidate scope remains a question; validated identity and the confined reader
-contract supply input authority. P03-1 specifies the port/storage contract only.
-Accepted ADR-0040's disclosure and this census admit only that ninth logical path;
-P03-2 must implement/register/qualify its actual adapter before activation. The
-eight current tenant setters remain the implemented set. The global subject
-owners do not add tenant setters or ITenantContext writers.
+`PreContextIdentityAuthorizationReader` is the Accepted ninth logical tenant
+setter under ADR-0076; it is not runtime implemented. A verified normalized actor
+or separately enumerated trusted execution descriptor supplies the exact candidate
+actor/tenant/org; UserId alone supplies no authority. Its isolated child uses the
+[confined source ledger](05-database.md#authorization-and-evidence-source-ledger),
+physical READ ONLY and narrow UoW announcement seam, with no ambient TenantContext
+or new global User/profile/directory projection. It closes before ordinary
+business continuation, including when a nested/post-lock parent already exists.
+Tenancy's lifecycle reader uses this same physical child owner/generation.
+
+Nine is the Accepted logical setter set. The pre-existing eight-path census
+above remains the baseline; its durable idempotency path is still unimplemented.
+The ninth requires actual adapter/call-site qualification. Global subject owners and the
+confined central denial-event methods add no tenant-context writer or logical
+setter. Standard 05 owns the source/configuration/retained-cleanup ledger.
 
 <a id="proposed-bounded-contention-and-proof"></a>
 
@@ -1248,6 +1253,71 @@ the lock signal contract. Its real mutation/race/cleanup and local command-path
 measurement controls qualify their recorded contextual scope. Existing-binding
 load observations retain their distinct control and scope; live-admission
 qualification remains P03-2. None establishes production capacity.
+
+## Live authorization contract
+
+**Accepted contract; not runtime implemented.** ADR-0076/0077 replace only the
+live-policy, ninth-setter and evidence deferrals identified here. The existing
+credential/quota/binding, context writers, public ceilings and BFF contracts
+remain; the [phase Status block](../roadmap/phase-03-identity-admin.md) owns
+implementation and qualification state.
+
+- Freeze exact HTTP endpoint and application-request policies at composition:
+  public reads, special AccountSite, scoped protected capabilities and finite
+  trusted seed/system operations. Infrastructure endpoints are explicitly
+  classified too. Missing, unknown or conflicting declarations deny at runtime,
+  in addition to the structural census. Named ASP.NET requirements must agree
+  with application metadata in SharedKernel/contracts; modules gain no API or
+  ASP.NET dependency. When no endpoint matches, routing retains 404/405.
+- Preserve earlier visitor/host/credential/subject/binding/assertion precedence.
+  On admitted protected surfaces absent credentials or noncoverage is masked 404;
+  valid coverage without capability is 403 before handler/resource lookup.
+  Only admitted capability permits lookup: missing/foreign-scope rows are 404,
+  a visible row failing ownership policy is 403. Wrong methods keep routing
+  semantics after earlier refusals. HostOnly never becomes protected authority.
+- Every protected act queries committed Membership/Role/grant authority again.
+  Resolver evidence never authorizes a later HTTP or application act; direct
+  MediatR repeats classification/capability at step 5. Only active/nondeleted
+  Memberships, compatible assignments, nonretired Roles and active registered
+  definitions contribute. NULL-org Tenant grants compose only with the requested
+  organization's grants. Coverage and capability remain distinct outcomes.
+- The separate lifecycle statement admits Trial/Active tenant and, when named,
+  Active/nondeleted belonging organization. Identity and Tenancy statements each
+  see committed state; they are not one atomic cross-module snapshot. A revocation
+  committed before the act's grant query affects admission; already-admitted work
+  may finish. Earlier subject binding remains the global User eligibility check.
+  P03-3 owns lifecycle-transition races and P03-10 closure fences before writers.
+- Authorization storage unavailability is `503 dependency_unavailable`, never
+  false noncoverage or invalid-token 401. Binding lookup retains its separate
+  uniform 401 contract. Cancellation propagates through owned cleanup. No cache,
+  retry or configurable authority override is admitted.
+- AccountSite gains live Membership/lifecycle admission on matching resolution
+  rows 6/9, retaining audit Off, exact physical READ ONLY and real matching
+  HostScope; ClaimAndMembership remains ineligible. Row 7 independently retains
+  its organization validator. Public reads retain publication/HostScope ceilings;
+  credential-free public reads perform no identity/grant lookup.
+- Seed, event and job owners keep exact validated source/request contracts.
+  SystemActor UUID, provider role or unknown/direct-untrusted source supplies no
+  bypass. Platform admission remains P03-9. Unrouted production requests require
+  exact classification before the pass-through behavior is removed.
+
+[Standard 19](19-permissions.md#live-permission-enforcement-contract) owns the
+finite public definitions and grant/delegation rules;
+[Standard 04](04-api-design.md#administrative-membership-directory) owns the sole
+new HTTP consumer. The [database ledger](05-database.md#authorization-and-evidence-source-ledger)
+owns physical owners, progress, deadlines and production topology qualification.
+
+[Standard 18](18-audit-coverage.md#trusted-authorization-evidence) owns the typed
+per-occurrence MUST denial population, separate plural resource intents, fixed
+microsecond occurrence identity and clean scoped full-draft duplicate verification.
+Its pre-success barrier binds unresolved denials to an enclosing ReadWrite commit
+or acknowledged standalone evidence before ReadOnly/ownerless disclosure. An
+actual refused caller keeps 403/404 on audit failure; an outer success that absorbs
+that denial fails before commit/disclosure if required evidence is unavailable.
+Event evidence never proves an uncertain business COMMIT. Successful
+ClaimAndMembership resolution followed by a conflicting assertion has its own
+Membership-confirmed event, outside the host allowance. Existing row-7/10/refused-14,
+anonymous/tenantless and earlier refusal evidence boundaries remain unchanged.
 
 ## Incident Response
 

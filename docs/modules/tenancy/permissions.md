@@ -9,7 +9,11 @@ returns only the context's own actor/scope with the existing public site
 projection. Its independent `HostAndClaim`/host-scope guard precedes all readers;
 membership alone cannot admit it. [The module contract](README.md#p02b-5-authenticated-account-site-read)
 owns the boundary. P02b-5 Step 4 exposes only its authenticated GET route;
-Phase 03 owns permission-sensitive disclosure and live membership.
+Accepted [ADR-0076](../../decisions/0076-live-scoped-authorization.md) adds live
+membership/lifecycle checks to its protected admission while preserving its
+independent host ceiling and Off success classification. The
+[Phase 03 Status block](../../roadmap/phase-03-identity-admin.md) owns execution
+and qualification; acceptance is not activation.
 
 **P02b-1 Step 3 producer implemented — 2026-10-12.** The completed-provisioning
 domain translator runs only during owner completion, adds no endpoint or
@@ -33,6 +37,12 @@ configuration/settings ports remain internal and unrouted. Independent rejected-
 assertion auditing remains unchanged. [The public contract](README.md#p02d-4-public-configuration-contract)
 owns allowlisting and lifecycle/locale checks.
 
+Accepted ADR-0076 classifies that existing bootstrap through virtual Tenant
+`tenancy.public_site.read`. This is Portal Public policy metadata, unavailable
+as a stored Role grant; it adds no endpoint, Membership, template or visibility.
+Credential-free public reads perform no identity/grant lookup. The
+[Permission standard](../../standards/19-permissions.md) owns the virtual class.
+
 **P02d-3 Step 1 implemented — 2026-10-02; both review rounds passed.**
 `ITenantSettingsAccessor` is internal and unrouted, uses trusted ambient
 scope and adds no HTTP endpoint or permission key. Public admission belongs to
@@ -44,13 +54,14 @@ are implemented unrouted tenant-wide operations, with no registered permission o
 organization override. Their eventual identity-backed permission admission remains
 Phase 03. This note grants no HTTP or Hub-internal reachability for the new commands.
 
-**No Tenancy permission keys yet.** The matrix below is a forward declaration in the
+**No assignable Tenancy permission keys yet.** The matrix below is a forward declaration in the
 `{module}.{resource}.{action}` form with the closed action set of
 [Permission Standards](../../standards/19-permissions.md). Its adopted module-source
 contract registers scoped definitions separately from finite grants; no `IModule`
 API is implied. Identity's foundation definitions/Role templates are implemented.
-Tenancy's actual keys and live enforcement require their owning Phase 03
-decision; these examples register or grant nothing.
+Tenancy's assignable keys and live enforcement require their owning Phase 03
+decision; these examples register or grant nothing. The accepted virtual public
+definition above is separate from this assignable resource matrix.
 
 **Six write handlers exist without identity-backed authorization**, for two
 different reasons. Four contextual verification queries are explicitly audit Off.

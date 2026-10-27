@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 457 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 574 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -89,6 +89,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 maintainer review and revised package (2026-10-27)](#p03-2-maintainer-review-and-revised-package-2026-10-27) — 139 lines
   - [P03-2 revised proposal review round 1 (2026-10-27)](#p03-2-revised-proposal-review-round-1-2026-10-27) — 21 lines
   - [P03-2 revised proposal review round 2 and readiness (2026-10-27)](#p03-2-revised-proposal-review-round-2-and-readiness-2026-10-27) — 42 lines
+  - [P03-2 joint acceptance and Step 1 (2026-10-27)](#p03-2-joint-acceptance-and-step-1-2026-10-27) — 117 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -3399,3 +3400,120 @@ The maintainer withheld acceptance in the preceding review; that decision is
 not inferred from correction completion or reviewer approval. Until explicit
 acceptance, G2 execution/G5 enforcement/G6 policy/G7 remain Open and runtime
 implementation stays held under the maintainer's new-ADR approval instruction.
+
+### P03-2 joint acceptance and Step 1 (2026-10-27)
+
+**Acceptance receipt.** The maintainer explicitly accepts revised ADR-0076,
+ADR-0077 and the six-step package at `725d255a`: “Revize ADR’leri ve planı
+onaylıyorum; uygula”. This closes their contract approval gate, not an
+implementation or production-readiness gate. Both ADRs become Accepted jointly
+on 2026-10-27. Work remains on `development`; no new-user HTTP/BFF flow, native
+operation allowlist expansion, mutation route or Platform admission is added.
+
+The approved F1–F4 corrections are binding: independent four-owner authorization
+and two-owner evidence sources, actual downstream backend reservation/progress,
+pre-success evidence for absorbed denials, fixed occurrence identity/time with
+full-draft reconciliation, and policy-target retention without implemented purge.
+The bounded directory uses the existing Tenant membership-admin grant. The
+revised six-step package above remains the implementation plan; every step has
+its own commit, two fresh independent review rounds and verified corrections.
+
+**Canonical reconciliation.** Own-record dated Amendments are appended to
+ADR-0033/0036/0040/0044/0047/0064/0065/0073, preserving their historical bodies,
+statuses and dates. Standards 04/05/10/11/12/18/19, the module matrices/specs,
+architecture 09/13/23/31/33, glossary and operational/Phase 11 handoffs reconcile
+with the approved scope. Standard 05 owns source/cleanup capacity and read
+witness mechanics; Standard 11 owns placement; Standard 18 owns evidence and
+retention; Standard 19 owns definitions/delegation; Standard 04 owns the directory
+wire contract. Architecture and deployment notes link those owners.
+
+The phase register records accepted G2 execution/G5 enforcement/G6 policy and
+directory/G7 evidence slices. P03-3 retains native/mutation/UI and new-user
+activation decisions; G13 retains privileged population. Acceptance alone does
+not replace deny-all membership wiring or the application pass-through shell.
+
+**Baseline source-classification census.** The inspected production source at
+`725d255a` contains 46 concrete MediatR request declarations. This declaration
+inventory scopes the complete classification implementation; it is neither a
+compiled census proof nor an exemption from runtime default deny. Step 3 compares
+the actual compiled requests/handlers and trusted owner call sites in both
+directions and plants missing/extra/forged-source controls.
+
+| Population | Count | Required classification |
+|---|---|---|
+| Existing public queries | 4 | Exact virtual Portal Public policy; unchanged host/publication/READ ONLY ceiling |
+| AccountSite query | 1 | Exact special host-backed protected policy, no assignable permission and Off success |
+| Contextual seed verification queries | 12 | Exact finite seed-owner request authority, no human route |
+| Identity seed commands | 4 | Existing private witness/owner admission, never SystemActor-by-value bypass |
+| Other seed/system writers | 18 | Exact existing seed composition; two named initialization commands also have admitted delivery owners |
+| Framework job requests | 7 | Existing exact framework source/profile gates; no general business-job authority |
+| **Total** | **46** | Every concrete request accounted for once |
+
+- Public: `GetPublicSiteQuery`, `GetPublicCoursesQuery`, `GetPublicCourseQuery`,
+  `GetPublicLessonQuery`. Their three virtual definitions add no stored grants.
+- AccountSite: `GetAccountSiteQuery`, retaining matching real HostScope and
+  HostAndClaim in addition to its new live membership/lifecycle check.
+- Tenancy seed verification: `GetTenantSeedStateQuery`,
+  `GetOrganizationSeedStateQuery`, `GetHostMappingSeedStateQuery`,
+  `GetSettingSeedStateQuery`.
+- Customization seed verification: `GetContentTypeSeedStateQuery`,
+  `GetTaxonomySeedStateQuery`, `GetActiveContentTypeSeedRevisionQuery`,
+  `GetActiveTaxonomySeedRevisionQuery`.
+- Education seed verification: `GetCourseSeedStateQuery`, `GetLessonSeedStateQuery`.
+- Identity seed verification: `GetRoleSeedStateQuery`, `GetMembershipSeedStateQuery`.
+- Identity seed commands: `InitializeSeedRoleCommand`,
+  `CreateFirstSeedAdminMembershipCommand`, `CreateSeedMembershipCommand`,
+  `SetSeedMembershipProfileCommand`.
+- Tenancy seed writers: `ProvisionTenantCommand`, `CreateOrganizationCommand`,
+  `MapHostToTenantCommand`, `AddTenantLocaleCommand`,
+  `SetDefaultTenantLocaleCommand`, `SetTenantBrandingCommand`.
+- Customization writers: `RegisterTenantContentTypeCommand`,
+  `PublishTenantContentTypeCommand`, `RegisterTenantLevelTaxonomyCommand`,
+  `PublishTenantLevelTaxonomyCommand`, `InitializeTenantContentTypeDefaultCommand`,
+  `InitializeTenantLevelTaxonomyDefaultCommand`.
+- Education seed writers: `CreateCourseCommand`, `AddCourseTranslationCommand`,
+  `PublishCourseCommand`, `CreateLessonCommand`, `AddLessonTranslationCommand`,
+  `PublishLessonCommand`.
+- Framework jobs: `ReadBackgroundJobEnvelopeQuery`,
+  `AdmitBackgroundJobAttemptCommand`, `ReadBackgroundJobExternalStateQuery`,
+  `RecordBackgroundJobArmCommand`, `RecordBackgroundJobOutcomeCommand`,
+  `RecordBackgroundJobCapacityCleanupCommand`, `SubmitBackgroundJobRecipientCommand`.
+
+The baseline HTTP consumer inventory is eight public GET/HEAD actions and the
+single AccountSite GET, plus explicitly classified infrastructure health/OpenAPI
+surfaces. Routing misses keep 404/405 semantics. The planned directory is the only
+additional routed operation. No current seed command becomes a human permission
+operation merely because it is reachable through the Seeder.
+
+Non-MediatR trusted entries are also explicit: Customization's
+`InitializeContentTypeDefaultHandler` and `InitializeTaxonomyDefaultHandler`
+consume their exact two initialization commands through the validated delivery
+owner; existing global binding/self lookup, seed adoption and creation/
+reconciliation retain the prepared global owner. These remain separate from the
+ordinary tenant policy population and add neither Platform nor HTTP creation
+capability. The compiled source/caller census must include these boundaries and
+actual job auxiliary lanes, not rely on an ambient UUID or a comment.
+
+**Proof registration.** Standard 21 registers four new owner/policy/evidence/
+provenance obligations and moves three permission placeholders from Awaiting
+backfill to Registered with named proof owners. Existing Implemented rules keep
+their shipped subjects and explicitly pending P03-2 extensions; no new runtime
+control is promoted. Five planned audit rows are present once in the owning
+Identity/Tenancy matrices, with the central denial/assertion rows also off-path.
+
+**Step 1 review state.** Acceptance/carrier implementation is under validation;
+the two fresh independent review rounds follow the initial committed source.
+No authorization source, database privilege/schema, policy adapter, live membership
+wiring or new endpoint is implemented by this documentation step. Runtime,
+PostgreSQL/PgBouncer progress, cleanup, crash and ambiguous-COMMIT evidence remain
+mandatory in the later steps. The preexisting untracked worktree directory is
+untouched.
+
+**Step 1 initial validation.** `make docs-index` regenerates the log index;
+`make lint-docs` passes with 2,729 resolved fragment links and all phase/index
+structure checks. All seven ADR parser controls pass; both records parse
+Accepted. Release `CorpusConsistencyTests` and `AuditCoverageTests` pass 20/20
+with zero skips, including the new planned/off-path matrix population. Changed
+relative targets, private-scratch reference scan and `git diff --check` pass.
+These tests validate documentation/catalogue compatibility, not the new runtime
+contract. The two fresh implementation-review rounds remain next.
