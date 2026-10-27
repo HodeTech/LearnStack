@@ -15,11 +15,11 @@ P02d-4. [The module contract](README.md#primary-read-flow-resolving-a-tenants-sh
 
 **No permission keys yet.** The matrix below is a forward declaration in the
 `{module}.{resource}.{action}` form with the closed action set of
-[Permission Standards](../../standards/19-permissions.md). Registration runs
-through `IModule.RegisterPermissions(IPermissionRegistry)`, and neither type
-exists in `backend/src` yet; the catalogue lands with the Identity module in
-[Phase 03](../../roadmap/phase-03-identity-admin.md), together with `Role`,
-`Permission` and the lighting-up of the `AuthorizationBehavior` shell.
+[Permission Standards](../../standards/19-permissions.md). Its adopted module-source
+contract registers scoped definitions separately from finite grants; no `IModule`
+API is implied. Identity's foundation definitions/Role templates are implemented.
+Customization keys and their live consumers require their owning operation
+decision; these examples register or grant nothing.
 
 | Resource | read | write | delete | admin | Default role grants |
 |----------|:----:|:-----:|:------:|:-----:|---------------------|

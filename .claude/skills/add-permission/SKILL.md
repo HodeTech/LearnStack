@@ -3,7 +3,7 @@ name: add-permission
 description: >
   Register a new permission key in a module — closed action set
   (`read | write | delete | admin`), explicit scope (Platform / Tenant /
-  Organization), default role grants, matrix entry, and `[Authorize(Policy = …)]`
+  Organization), finite grant manifests, matrix entry, and `[Authorize(Policy = …)]`
   on the relevant endpoint. USE FOR: adding a permission for a new resource,
   splitting an existing resource into separate read/write capabilities, or
   promoting a "platform admin only" gate into a tenant-scoped permission. DO NOT
@@ -16,16 +16,17 @@ description: >
 
 ## Purpose
 
-Add a permission to the module's
-[IPermissionRegistry](../../../docs/standards/19-permissions.md) using the closed
-naming convention, register it on the right endpoint, and update the per-module
-permission matrix.
+Add an explicitly scoped definition through the module-owned source described in
+[Permissions Standards](../../../docs/standards/19-permissions.md), bind the
+admitted operation and update its matrix. Registration grants no Role authority.
 
-> **Not wired yet.** `IPermissionRegistry`, `IModule.RegisterPermissions` and the
-> `Roles` catalogue land with the Identity module in
-> [Phase 03](../../../docs/roadmap/phase-03-identity-admin.md); none exists in
-> `backend/src`. Until then only Step 1 and Step 5 apply, as a forward declaration on
-> [the Tenancy precedent](../../../docs/modules/tenancy/permissions.md).
+> **Current implementation boundary.** P03-1 supplies `PermissionDefinition` and
+> the retained `IdentityFoundationManifest.Version1` with actual seed consumers.
+> Live enforcement and separately admitted grant adoption belong to P03-2; its
+> [phase decision register](../../../docs/roadmap/phase-03-identity-admin.md#the-decision-register)
+> owns acceptance. No `IModule` registration API or generated Roles facade is
+> implied. Read the current source and accepted operation contract before coding;
+> do not introduce a module loader to match an illustrative sketch.
 
 ## When to use
 
@@ -50,7 +51,7 @@ permission matrix.
 | Permission key | Yes | Dotted `{module}.{resource}.{action}`, snake_case multi-word resources. |
 | Scope | Yes | `Platform` / `Tenant` / `Organization`. |
 | Description | Yes | One short sentence shown in Studio's role editor. |
-| Default role grants | Yes | Which built-in roles get this on tenant provisioning. |
+| Initial/adopted grant manifest | Yes | Explicit finite version; registration and seed reruns grant nothing to existing Roles. |
 
 ## Workflow
 
@@ -83,36 +84,23 @@ Rules:
 
 ### Step 2: Register in the module
 
-In `<Module>.Application/<Module>Module.cs`:
+Declare `(PermissionScope, PermissionKey)` through the admitted module definition
+source. The current value-type shape is:
 
 ```csharp
-public void RegisterPermissions(IPermissionRegistry registry)
-{
-    registry.Tenant(
-        key: "enrollment.course_access.read",
-        description: "View entitlements",
-        defaultGrants: [Roles.TenantAdmin, Roles.OrgAdmin, Roles.Instructor]);
-
-    registry.Tenant(
-        key: "enrollment.course_access.write",
-        description: "Grant or revoke entitlements",
-        defaultGrants: [Roles.TenantAdmin]);
-
-    registry.Organization(
-        key: "enrollment.enrollment.write",
-        description: "Create or update enrollments (org-scoped)",
-        defaultGrants: [Roles.OrgAdmin, Roles.OrgInstructor]);
-}
+new PermissionDefinition(PermissionScope.Organization, "enrollment.enrollment.write");
 ```
 
-`registry.Tenant(...)` / `registry.Organization(...)` / `registry.Platform(...)`
-declare scope explicitly; the three registries are disjoint, asserted at seed.
+This example registers nothing by itself. The same key at Tenant and Organization
+scope is two distinct definitions; Platform definitions cannot enter tenant Role
+grants. Unknown/inactive pairs authorize nothing.
 
-`Roles.*` references come from the **Built-in Roles** catalogue authoritative
-at [19-permissions.md § Built-in Roles](../../../docs/standards/19-permissions.md)
-(`TenantAdmin`, `Instructor`, `Learner`, `Guardian`, `Editor`, `OrgAdmin`,
-`OrgInstructor`, `PortalPublic`, `HubOperator`, `PlatformAdmin`). Do not invent
-role names; pick from that table or extend it via PR + standard update.
+Pick the template/capability from the canonical
+[Built-in Roles](../../../docs/standards/19-permissions.md#built-in-roles).
+Keep definition composition separate from finite initial grants and explicit
+adoption. Never extend retained v1 seed grants or the immutable admin kernel by
+editing a registration's defaults. A new assignable pair also needs the actual
+database registry guard/migration and approved grant contract before its writer.
 
 ### Step 3: Apply to the endpoint
 
@@ -131,8 +119,9 @@ public sealed class EnrollmentsController : ControllerBase
 }
 ```
 
-The 4-step auth order ([11-security.md § Authorization](../../../docs/standards/11-security.md))
-runs automatically:
+The admitted surface must prove the 4-step auth order
+([11-security.md § Authorization](../../../docs/standards/11-security.md));
+an attribute alone does not install it:
 
 1. Authentication (valid JWT).
 2. Tenant membership (Membership exists in resolved tenant).
@@ -167,8 +156,8 @@ Open `docs/modules/<module>/permissions.md`. Add a row:
 | Entitlement | ✓ | ✓ | – | – | tenant-admin: read+write; instructor: read |
 ```
 
-Legend: ✓ = exists, – = N/A. The "Default role grants" column summarises
-`defaultGrants` from the registration call.
+Legend: ✓ = exists, – = N/A. The "Default role grants" column names the approved
+finite initial manifest; it does not promise automatic grants on upgrade/rerun.
 
 ### Step 6: Tests
 
@@ -189,17 +178,19 @@ Plus, for org-scoped permissions, a cross-org test:
 
 ```csharp
 [Fact]
-public async Task Cross_org_actor_within_same_tenant_is_403() { ... }
+public async Task Cross_org_actor_is_refused_without_disclosure() { ... }
 ```
 
-Architecture test `Permission_Registry_Has_DeniedTest` ensures every registered
-key has at least one denied test.
+Use the admitted surface's masking/denial contract for exact status assertions;
+foreign resource scope and a visible ownership denial are different controls.
+The canonical obligation `Permission_Registry_Has_DeniedTest` requires actual
+denied coverage; verify its current catalogue status and nonempty subjects.
 
 ## Validation
 
 - `dotnet build` and `dotnet test` pass.
-- The permission is visible in `IPermissionRegistry` (assert via a one-off
-  startup-test).
+- The exact scoped pair is in the admitted composition source; a missing or
+  inactive definition denies, and registry additions do not mutate stored grants.
 - The endpoint rejects unauthenticated, wrong-tenant, and wrong-permission callers
   with the right status codes.
 - The permission appears in `docs/modules/<module>/permissions.md`.
@@ -213,13 +204,12 @@ key has at least one denied test.
 - **Skipping scope.** A `Tenant`-scope permission checked against an
   `[OrganizationScoped]` resource without an org test is a bug; the matching
   architecture test catches it.
-- **Hard-coding the key string in policy code.** Use the generated catalogue
-  (`Permissions.Education.Course.Write`); typos in raw strings silently pass at
-  compile time.
+- **Duplicating key strings.** Reuse the owning compiled definition/constants;
+  do not invent a generated catalogue that is not present in the source.
 - **Frontend-only check.** Hidden buttons are not security. Every UI permission
   check has a server-side counterpart.
-- **Storing the permission in Keycloak.** Keycloak handles authentication, not
-  LearnStack authorization. Permissions live in `IPermissionRegistry` only.
+- **Storing the permission in Keycloak.** Keycloak handles authentication;
+  LearnStack's admitted definition/Role contracts own application authorization.
 - **Renaming an existing key.** A rename without a deprecation window
   invalidates every role assignment in the wild. Renaming is a deprecation cycle
   (one release with the old key warning-logged), not an in-place edit.

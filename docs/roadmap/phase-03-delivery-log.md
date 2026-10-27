@@ -81,9 +81,10 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 200 lines
-  - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 166 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 220 lines
+  - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
+  - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -2973,9 +2974,10 @@ the current source. This is a preflight, not implementation qualification.
 | Endpoint/runtime census, public/AccountSite tests, framework-job/source admission and real Customization initializer consumers | Exact existing classifications must be backfilled; neither Ambient nor SystemActor grants a general exception. |
 | implement-task/start-task dispatch, write-adr, add-permission, commit-and-pr | add-permission's IModule/default-grants sketch is stale against adopted Standard 19 and must be replaced on acceptance before use. |
 
-The obsolete IModule/default-grants sentence also appears in Tenancy's permission
-matrix. These mutable carriers will adopt the existing module-source/finite-
-manifest authority; no new module-loader interface follows. Existing matrix
+The obsolete IModule/default-grants sentence also appears in Tenancy and
+Customization permission matrices. A separate preflight correction adopts the
+already Accepted module-source/finite-manifest authority in these mutable
+carriers; no new module-loader interface follows. Existing matrix
 examples are not a declaration of every future permission in this packet.
 
 Primary-source checks: PostgreSQL 18 documents separate READ COMMITTED statement
@@ -3064,7 +3066,7 @@ No invented review transcripts or count-only proof substitutes are recorded.
 
 | Step | Implementation and closure condition |
 |---|---|
-| 1 — Accept and reconcile | Accept both ADRs/package; append exact affected-record Amendments and canonical carrier updates; classify complete current production requests/endpoints/sources and register proof obligations without pretending implementation. Correct stale skill/matrix guidance. Validate whole-tree docs and exact source census; no live activation. |
+| 1 — Accept and reconcile | Accept both ADRs/package; append exact affected-record Amendments and canonical carrier updates; classify complete current production requests/endpoints/sources and register proof obligations without pretending implementation. Recheck the independently corrected skill/matrix guidance. Validate whole-tree docs and exact source census; no live activation. |
 | 2 — Candidate and live authority | Implement narrow candidate announcement/UoW owner, bounded actual Identity query and Tenancy lifecycle handoff, trusted source descriptors and immutable results. Prove real app-role READ ONLY/no profile/global directory, wrong/stale/foreign candidate, lifecycle/coverage/grants, cancellation/outage/cleanup and grant-revocation races. Keep deny-all production registration until evidence is ready. |
 | 3 — Policy and scoped execution | Implement immutable policy composition, independent HTTP/application classification and step-5 capability checks, finite public/seed/event/job classes, read-witness mint/consume and exact SQL/EF scope. Prove missing/forged/reused witnesses, nested mismatch poisoning, no org write widening, real system/default-initializer positives and unrelated-command negatives. Activation remains held for Step 5. |
 | 4 — Evidence and grant acts | Implement typed central denial/event ownership and captured provenance, new assertion provenance path, contextual sensitive query/catalogue and audited grant-edit/v1-adoption commands. Preserve plural intents and kernel/last-admin/lock rules. Prove exact Off/SHOULD/MAY/override-Off and nested populations, MUST rollback, delegation/current-authority checks and hostile sink canaries. No human write route. |
@@ -3137,3 +3139,22 @@ The authority reviewer reports no further actionable finding in its slice; the
 evidence reviewer approves its slice subject to the listed corrections. These
 are document reviews, not proof of code, PostgreSQL or provider behavior. The
 corrected proposal proceeds to a new independent second round before presentation.
+
+### P03-2 independent preflight carrier correction (2026-10-27)
+
+The already Accepted ADR-0073/Standard 19 contract, not either new proposal,
+licenses this documentation repair. `add-permission`, Tenancy's permission
+matrix and Customization's permission matrix still prescribed nonexistent
+`IModule.RegisterPermissions` and registration-time automatic defaults.
+The current `PermissionDefinition` and retained `IdentityFoundationManifest`
+source verify the mismatch. They now describe scoped definition sources,
+separate finite grant manifests and the implemented-foundation/live-enforcement
+boundary. No registry, grants, endpoint, schema or runtime code changes.
+
+The skill also stops claiming a generated catalogue exists or an attribute
+automatically installs authorization. Exact denial status follows the owning
+admitted surface; current/registered test status is checked rather than assumed.
+Both second-round proposal reviewers receive these additional mutable-carrier
+diffs for inspection. Validation: whole-tree docs/structure/index, seven ADR
+parser controls and `git diff --check` pass. This is not runtime qualification
+or acceptance of ADR-0076/0077.

@@ -44,13 +44,13 @@ are implemented unrouted tenant-wide operations, with no registered permission o
 organization override. Their eventual identity-backed permission admission remains
 Phase 03. This note grants no HTTP or Hub-internal reachability for the new commands.
 
-**No permission keys yet.** The matrix below is a forward declaration in the
+**No Tenancy permission keys yet.** The matrix below is a forward declaration in the
 `{module}.{resource}.{action}` form with the closed action set of
-[Permission Standards](../../standards/19-permissions.md). Registration runs
-through `IModule.RegisterPermissions(IPermissionRegistry)`, and neither type
-exists in `backend/src` yet; the catalogue lands with the Identity module in
-[Phase 03](../../roadmap/phase-03-identity-admin.md), together with `Role`,
-`Permission` and the lighting-up of the `AuthorizationBehavior` shell.
+[Permission Standards](../../standards/19-permissions.md). Its adopted module-source
+contract registers scoped definitions separately from finite grants; no `IModule`
+API is implied. Identity's foundation definitions/Role templates are implemented.
+Tenancy's actual keys and live enforcement require their owning Phase 03
+decision; these examples register or grant nothing.
 
 **Six write handlers exist without identity-backed authorization**, for two
 different reasons. Four contextual verification queries are explicitly audit Off.
