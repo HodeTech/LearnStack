@@ -81,8 +81,9 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 168 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 200 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 166 lines
+  - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -3010,12 +3011,12 @@ own approved finite manifest and database registry-guard migration.
 The acceptance step appends the following **dated** Amendment content with the
 next free numbers at that time. These are proposed texts, not current authority:
 
-- **ADR-0036:** “ADR-0076 implements the previously admitted candidate reader and
+- **ADR-0036:** “ADR-0076 specifies the previously admitted candidate reader and
   live protected-act checks without changing the resolution matrix. Successful
   ClaimAndMembership resolution followed by a conflicting header uses ADR-0077's
   separately classified Membership-confirmed assertion event. Refused row 14,
   row 10, host-backed evidence and public/AccountSite host ceilings are unchanged.”
-- **ADR-0040:** “ADR-0076 implements the ninth logical candidate-reader setter
+- **ADR-0040:** “ADR-0076 specifies the ninth logical candidate-reader setter
   through an isolated physically READ ONLY owner with exact candidate/generation
   announcement. The ordinary step-6 owner additionally consumes immutable
   operation read authority for SQL/EF scope. Same read-scope joins preserve it;
@@ -3029,7 +3030,7 @@ next free numbers at that time. These are proposed texts, not current authority:
   HostScope and Off/READ ONLY shape. Present invalid credentials remain uniform
   401; absent protected credentials/noncoverage remain masked 404; capability
   denial is 403. No resolution-by-endpoint, mutation or native proxy follows.”
-- **ADR-0073:** “ADR-0076 completes live execution and explicit audited edits/
+- **ADR-0073:** “ADR-0076 authorizes live execution and explicit audited edits/
   adoption outside the immutable kernel. The existing five assignable pairs,
   eight templates and v1 seed manifest remain; virtual public definitions grant
   no stored Role authority. Existing seed verification is not an upgrade writer.”
@@ -3104,3 +3105,35 @@ because they are additive.
 **Initial review limits.** No runtime test or provider was run in this preflight.
 No implementation step is complete. Two independent proposal-review rounds and
 mechanical document validation must finish before the maintainer decision.
+
+### P03-2 proposal review round 1 (2026-10-27)
+
+**Reviewed source:** `0389defd`, against merged baseline `daf03a48`. Two fresh
+independent `gpt-6-astra` reviewers at xhigh effort examine authority/execution
+and evidence/privacy/corpus respectively. Both inspect actual adjacent source;
+neither edits files or runs runtime/provider tests. The parent separately
+verifies each disposition. No implementation approval is inferred.
+
+- **Major, fixed:** define the ordinary delegation ceiling for Organization
+  templates. Orgless Tenant Admin holds Tenant pairs, not Organization pairs.
+  ADR-0076 now explicitly admits same-key Tenant-to-Organization authoring under
+  current role-admin authority, without evaluation equivalence, reverse scope,
+  other-key implication or a general self-escalation exception. Its behavioral
+  positive/negative obligations are explicit.
+- **Minor, fixed:** enrichment follows the owning row's retention, not uniformly
+  SecurityEvent. Retained metadata linkage remains outside six-column redaction;
+  P03-10's Audit participant locates/reports it, without a new UPDATE grant.
+- **Minor, fixed:** use 1,000 bytes/row for the decimal 864 MB/day illustration.
+  Acceptance-time Amendment drafts say specifies/authorizes, not implemented.
+- **Proof refinement, adopted:** the separate denial queue cannot enter the
+  normal pending MUST flush or be suppressed by the outer capture's Committed
+  state. Explicitly test an absorbed Off denial under a READ ONLY owner.
+- **Parent clarifications:** name actual grant commands/audit slugs and post-wait
+  recheck; bound the navigation-only cursor; limit the directory to current
+  Active/Suspended rows; retain unmatched routing semantics and keep new
+  claim-only assertion evidence free of raw asserted UUIDs.
+
+The authority reviewer reports no further actionable finding in its slice; the
+evidence reviewer approves its slice subject to the listed corrections. These
+are document reviews, not proof of code, PostgreSQL or provider behavior. The
+corrected proposal proceeds to a new independent second round before presentation.

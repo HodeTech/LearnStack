@@ -84,6 +84,11 @@ these are distinct classified facts, not two adapters recording the same denial.
 An Off operation yields only the denial event. Tenant overrides cannot remove
 that event. Central coordination retains it across rollback/absorbed nested
 refusal and clears its captured state after the owning execution finishes.
+The denial event has a separate central reconciliation queue: it never enters
+the normal pending-business MUST flush, and the business frame's Committed state
+cannot suppress it. This also applies to an absorbed inner Off denial under a
+physical READ ONLY outer owner; no audit INSERT is attempted on that read-only
+transaction. The owning finally drains the event through the standalone store.
 
 Earlier credential/unknown-host/malformed assertion and validation refusals keep
 their existing behavior; this is not a generic 404 audit. Preserve row-7's host
@@ -96,7 +101,9 @@ publication retains its existing row-specific evidence contract.
 Claim-only assertion attribution requires an actual successful
 ClaimAndMembership context from the production reader, not a candidate tenant,
 raw claim or asserted header. The source is fixed as membership-confirmed header
-assertion; raw assertion values are not copied into diagnostics. Host-backed
+assertion; raw assertion values are not copied into diagnostics. Its new
+evidence includes only the fixed tenant/org dimension and mismatch reason,
+confirmed scope and admitted actor, not the caller's asserted UUID. Host-backed
 rejections keep their existing budget/source contract. This new slug is neither
 refused row-14 membership evidence nor a host-tenant event.
 
@@ -115,7 +122,12 @@ No enrichment UPDATE or new Identity audit table is introduced.
 - Store these references, fixed policy/route identifiers and source kind in a
   typed versioned `metadata.authorization` object. Do not copy grants, bodies,
   query strings, raw path values, provider claims or credentials. Retained IDs
-  remain personal linkage under existing security-event retention, not anonymous.
+  remain personal linkage, not anonymous. Each row keeps its OperationType's
+  retention under [Standard 18](../standards/18-audit-coverage.md#retention):
+  denial/assertion SecurityEvent seven years, directory ReadSensitive two years.
+  Metadata is outside the existing six-column redaction privilege. P03-10's
+  Audit participant locates it through retained actor/subject attribution and
+  reports surviving references; no new metadata UPDATE privilege is implied.
 - The already admitted visitor/transport snapshot supplies the trusted effective
   address, falling back to the physical peer. Do not parse forwarded headers
   again. Existing `inet`/user-agent columns carry these redactable fields.
@@ -153,7 +165,7 @@ These new events have **no aggregate suppression budget**. Existing visitor and
 subject quotas bound individual sources, not the total durable population.
 At 600 denied acts per minute one subject can generate 864,000 denial rows/day,
 in addition to any separately classified resource attempts. An illustrative
-1 KiB/row is about 864 MB/day before indexes/WAL/replication; real size varies.
+1,000 bytes/row is about 864 MB/day before indexes/WAL/replication; real size varies.
 The existing security-event retention applies. This is an explicit operational
 cost, not a production capacity measurement. Phase 11 owns measured capacity,
 distributed admission and alert/runbook hardening; its work does not waive the
@@ -199,6 +211,9 @@ together; accepting either record alone opens no protected surface.
   absorbed refusals produce their exact distinct event/resource populations.
 - Off/SHOULD/MAY/override-Off operation cases retain the MUST denial floor;
   replay/re-execution, rollback and capture cleanup preserve exact ownership.
+  An absorbed nested Off denial under a physical READ ONLY owner still writes
+  its standalone event without joining the pending flush or losing it to the
+  outer committed-state shortcut.
 - Real app-role directory read succeeds only with committed MUST evidence;
   forced store/composer/commit failures disclose no result and preserve refusals.
 - Successful row 14 followed by tenant/org header mismatch writes only the

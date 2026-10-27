@@ -119,6 +119,9 @@ authority. Application metadata remains in SharedKernel/contracts; module code
 does not depend on ASP.NET attributes or API assemblies. HTTP policy metadata
 uses registered named ASP.NET requirements and is checked against application
 metadata. A missing-classification runtime guard supplements the census.
+Infrastructure endpoints also need an explicit classification. No matched
+endpoint means no handler to authorize; retain the existing routing 404/405
+instead of applying a fallback that changes every route miss into a challenge.
 
 Preserve early visitor/host/credential/subject/binding/assertion precedence.
 On an admitted protected surface: absent credentials or noncoverage is masked
@@ -166,9 +169,16 @@ tenant-wide read, including from a branch session with an eligible NULL-org
 Tenant Admin Membership. No Organization grant authorizes it. It returns only
 MembershipId, UserId, OrganizationId, status, contextual DisplayName and
 PreferredLocale; no provider subject, email, grant graph or global profile.
+Only current undeleted Active/Suspended Memberships appear; retired/revoked rows
+are outside this initial directory. Module-local IDs cross contracts as Guid
+under ADR-0023; UserId/TenantId/OrganizationId retain SharedKernel types.
 
 Pagination uses an opaque versioned cursor bound to actor/tenant/org, the declared
 operation and fixed ordering by MembershipId. Default limit is 20, clamped at 100.
+The cursor is bounded to 1,024 encoded/768 decoded bytes with strict canonical
+version/field validation, following the existing navigation-codec precedent.
+It supplies neither authentication nor snapshot authority: every page rechecks
+live policy and applies the actual scoped query, even for a modified anchor.
 No search, arbitrary filters/sort or mutation is admitted. Responses are no-store;
 success returns only after its MUST `ReadSensitive` row commits on the ordinary
 ReadWrite owner. It is not added to the exact physical READ ONLY catalogue.
@@ -182,13 +192,25 @@ refuses before authorization, and HostOnly never reaches this directory.
 
 Ordinary grant changes require current Tenant Admin/role-admin authority,
 orgless write scope, current delegation ceiling, concurrency and immutable kernel
-checks. They cannot grant the actor an authority it does not hold. A separately
-named release-manifest adoption act can apply only an explicitly approved finite
+checks. They cannot grant the actor an authority it does not hold. An explicit
+authoring ceiling permits an eligible Tenant Admin with Tenant
+`identity.role.admin` to add an exact registered Organization pair only when it
+currently holds that same key's Tenant pair. This is an authoring relation, not
+permission-identity equivalence or an evaluation fallback. Organization-to-Tenant,
+other-key and unregistered-pair implications are forbidden. This preserves
+Tenant Admin authorship of Organization templates from an orgless session.
+
+A separately named release-manifest adoption act can apply only an approved finite
 manifest/diff under the same admin gate and MUST audit, never a wildcard or
 automatic upgrade. P03-2 proves this mechanism with the retained v1 manifest;
 no v2 bundle or new assignable capability is selected here. Unknown manifests
 refuse. Fixed v1 seed reruns refuse legitimate differing adopted state rather
 than resetting it. Human-facing editing/adoption routes remain P03-3.
+The actual production commands are `ChangeRoleGrantsCommand` and
+`AdoptRoleGrantManifestCommand`, each with expected Role row version and one
+Role root. Current actor/target authority is rechecked after the invariant-lock
+wait and before mutation. Success and contained grant changes share their MUST
+`identity.role.change_grants` / `identity.role.adopt_manifest` audit transaction.
 
 Reopen for cached authority, atomic cross-module authorization, new read scopes,
 different nested-owner semantics, another public capability or broader HTTP/BFF
@@ -237,6 +259,9 @@ The packet record owns exact proposed edit text, call-site census and proofs.
   coverage/grants, transaction cleanup and real revocation interleavings.
 - HTTP/direct application: actual directory positive/denied, real resolution
   rows 6/7/9/10/14, retained AccountSite/public ceilings and unavailable storage.
+- Real grant changes: Tenant Admin's same-key Tenant-to-Organization delegation
+  succeeds; absent source pair, other-key, Organization-to-Tenant, self-escalation,
+  kernel removal and post-wait revocation refuse. Finite v1 adoption is separate.
 - EF/RLS: identical read widening, no cross-tenant access or org write widening,
   hostile/missing/reused witnesses, nested scope mismatch and pool cleanup.
 - Existing canonical catalogue statuses advance only after actual proof; proposed
