@@ -81,11 +81,12 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 255 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 394 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
   - [P03-2 proposal review round 2 and decision readiness (2026-10-27)](#p03-2-proposal-review-round-2-and-decision-readiness-2026-10-27) — 35 lines
+  - [P03-2 maintainer review and revised package (2026-10-27)](#p03-2-maintainer-review-and-revised-package-2026-10-27) — 139 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -3194,3 +3195,142 @@ the independent repairs already licensed by ADR-0073 are complete. After approva
 acceptance/reconciliation is Step 1, followed by the committed implementation and
 two-fresh-review-round cycle for every step. There is no approval request for an
 unspecified later redesign or extra runtime scope.
+
+### P03-2 maintainer review and revised package (2026-10-27)
+
+**Status: Proposed; acceptance withheld.** The maintainer reviews `b81ed063`
+and requests correction of nested-owner liveness, absorbed-denial durability,
+occurrence identity and retention wording. All four findings are valid against
+the current proposal/code; none is a claim of an already exposed runtime flaw.
+The previous readiness record describes its then-reviewed source, not closure
+of these subsequently identified risks. The new ADRs remain Proposed and all
+four P03-2 execution gates remain Open. No runtime implementation begins.
+
+#### Verified findings and choices
+
+| Finding | Source verification | Revised contract |
+|---|---|---|
+| F1 — nested/post-lock pool starvation | `PersistenceCompositionExtensions` supplies one app source; ordinary `NpgsqlUnitOfWork` retains its connector until disposal; fresh nested checks need another checkout | Dedicated authorization source: four owners/connectors, no admission wait queue, same app role and confined READ ONLY queries. Outer business owners cannot consume that lane. Excess work fails immediately; actual cleanup owns its slot. |
+| F2 — outer COMMIT precedes finally-only denial write | `TransactionExecutionCoordinator` commits and marks capture before `AuditExecutionCoordinator` finally reconciles; a crash/fault in between leaves committed business with only an in-memory event | Pre-success barrier: successful ReadWrite owner inserts unresolved events on its own transaction; ReadOnly/ownerless success requires acknowledged standalone evidence first. Audit failure prevents otherwise-successful commit/disclosure; actual refused callers preserve their refusal. |
+| F3 — occurrence identity/duplicate semantics undefined | Ordinary reconciliation uses a fresh time; `audit_log` key is `(id,timestamp)` and generic standalone accepts 23505 without exact row comparison | One central occurrence reference with fixed id/microsecond decision time and complete frozen draft. Confined store seams verify expected-key duplicates in a clean scoped read transaction. Exact event evidence never proves business success. No cross-restart/request deduplication is promised. |
+| F4 — retention wording implies implemented purge | Standard 18's Retention section explicitly declares the schedule a policy target with Phase 11 mechanisms absent | Describe seven-/two-year targets beside metadata and capacity cost; automatic purge/override/partition lifecycle is unimplemented, so retained data can outlive its target. |
+
+Two additional read-only design investigations verify adjacent constraints:
+an extra Npgsql pool can still share a saturated PgBouncer backend pool, and a
+new candidate UoW cannot silently claim a job's existing main-unit slot. These
+are included in F1's actual source/lifetime/capacity contract, not deferred to
+generic load testing. The parent checks the actual source and primary Npgsql,
+PostgreSQL 18 and PgBouncer documentation linked from ADR-0076.
+
+**Chosen resource layout.** Keep the ordinary business source. Add a confined
+four-slot authorization source and two-slot standalone evidence source under
+the same `learnstack_app` role, with no raw DI aliases/generic callbacks. At most
+six additional physical connectors per process are owned, including opens and
+retained cleanup. Neither auxiliary owner borrows from the other source or
+business source while held. Authorization uses only nonlocking MVCC statements;
+evidence uses only exact INSERT/verification, never business dispatch/locks.
+Track both job auxiliary lanes and join actual cleanup before source disposal;
+do not suppress trusted execution markers. The 4/2 caps are explicit bounded
+concurrency choices, not a measured production requirement or guaranteed fairness.
+
+`ConnectionStrings:IdentityAuthorization` and
+`ConnectionStrings:AuthorizationEvidence` are a coupled explicit source pair.
+Only Development may derive both from direct-PostgreSQL Default without another
+credential; each remains a physically separate bounded source. Other modes need
+both guarded strings and matching installed identity authority. PgBouncer
+transaction mode uses separate database aliases
+`learnstack_identity_authorization` / `learnstack_authorization_evidence` for
+those lanes, targeting the same actual database/app role. Cross-alias limits,
+total PostgreSQL capacity and admitted instance count must preserve headroom
+outside business capacity. Application names are not backend reservations.
+
+Small-pool progress through real PostgreSQL and a pinned transaction-pooling
+PgBouncer fixture is mandatory **in P03-2** before activation. Hold every business
+connector while admitted nested and post-lock authorization and ReadOnly
+standalone evidence complete. A shared-backend dirty topology must fail the
+same progress check. Separately prove auxiliary saturation, immediate excess
+refusal, no use of the parent's uncommitted grants, delayed/failed cleanup and
+tracked job shutdown. Phase 11 still owns actual production topology/capacity
+qualification before production activation; that does not replace these tests.
+
+**Chosen denial guarantee.** Each event has per-owner written/acknowledged/
+rollback/uncertain state independent of the business capture flag. After
+domain-event draining, the owner enforces the barrier before final commit
+admission, retaining the existing no-await commit boundary. A joiner never
+acknowledges or clears the event. An acknowledged ReadWrite commit carries it
+atomically. ReadOnly success cannot disclose before its separate acknowledgement.
+Unknown business COMMIT retains its uncertainty even if exact denied-event
+evidence exists. A crash before any applicable write commits can lose an
+uncompleted in-memory refusal; no durable recovery queue or universal replay
+ledger is introduced. Refusal-audit outage remains an explicitly signaled loss.
+
+The fixed reference is reused only for that occurrence's owned attempts. A
+new request/restarted delivery or genuine nested evaluation gets another one.
+Normalize UTC to PostgreSQL microseconds once. The new denial seams reuse the
+sole central INSERT/binder and exact captured app-role tenant/org announcement,
+but not ordinary standalone's fresh timestamp/broad-23505 behavior. Only the
+expected `audit_log_pkey` duplicate admits clean-transaction, null-safe full draft
+comparison. Missing/foreign/mismatched/unreadable evidence fails closed. A later
+legitimate redaction can prevent an exact match; no indefinite replay witness or
+extra redaction privilege is promised. Existing resource intents keep their
+ordinary different-timestamp reconciliation and plural attribution unchanged.
+
+#### Revised acceptance and six-step closure
+
+The original six steps, directory/public/BFF/grant scope and all retained P03-3/
+P03-9/P03-10 boundaries stand, with these binding additions on acceptance:
+
+- **Step 1:** canonical source/owner/lifetime/capacity census includes the 4/2
+  lanes and two guarded keys. Extend Standard 05 Connection Management/job
+  ledger, Standards 10/11/12/18/21, environment/development/Compose/Seeder setup
+  and Phase 11's actual topology qualification trigger. New keys carry no extra
+  credential into restore/build. Include exact denial-method/occurrence/barrier
+  obligations; acceptance still claims no runtime proof.
+- **Step 2:** candidate execution includes the dedicated source and complete
+  borrower/job tracking, bounded open/cleanup ownership and small-pool progress.
+  Its statements remain committed-only, physically READ ONLY and free of parent
+  lock/callback dependencies. Do not substitute an outer writer's snapshot.
+- **Step 3:** nested/post-lock policies use that same confined lane, preserving
+  invocation/read-scope lifetime. Prove saturation does not create a circular
+  checkout dependency; excess admission remains an explicit 503.
+- **Step 4:** implement the per-event barrier, fixed-reference denial store seams
+  and independent two-slot evidence lane. Prove ReadWrite commit/crash, rollback,
+  ReadOnly/ownerless disclosure, store/composer fault, exact/mismatched/unknown
+  COMMIT, stable timestamp and real distinct-versus-reentered invocation cases.
+- **Step 5:** activation waits for those actual direct/PgBouncer progress and
+  crash/fault controls, not only a successful directory HTTP request. Preserve
+  real rows 6/7/9/10/14 and all earlier host/public/BFF ceilings.
+- **Step 6:** full inventories include actual new sources/jobs/fixture images and
+  test populations with pinned receipts. Performance tuning remains distinct
+  from these correctness gates; no unrun topology or crash proof is claimed.
+
+The following exact Amendment additions supplement the original append-ready
+acceptance text; use next free numbers only after maintainer acceptance:
+
+- **ADR-0040:** “ADR-0076's candidate owner uses its confined authorization source,
+  not a nested checkout from the retained business pool. ADR-0077's evidence lane
+  completes standalone events before otherwise-successful ReadOnly/ownerless
+  publication. Each lane has bounded retained owners, exact app-role scope and
+  downstream headroom; neither adds a logical tenant setter or context writer.”
+- **ADR-0033 and ADR-0044, each:** “ADR-0077's denial occurrence has a fixed id and
+  decision timestamp across owned writes/reconciliation. Expected-key duplicate
+  evidence requires an exact scoped draft match and proves no business outcome.
+  The enclosing successful ReadWrite commit atomically carries unresolved denial
+  events; ReadOnly/ownerless success requires their standalone acknowledgement
+  first. Audit failure prevents outer success before commit/disclosure, while
+  an actual refused caller retains its refusal. Process loss before any event
+  commit can lose an uncompleted refusal; no durable invocation/replay ledger is
+  added. Ordinary plural resource reconciliation remains unchanged.”
+- **ADR-0047:** “ADR-0076/0077 add explicitly tracked authorization/evidence
+  auxiliary lanes to the application-source owner. Their separate global caps,
+  actual-cleanup retention/join and physical source lifetimes supplement the
+  existing main/auxiliary business ledger. No second main unit, ambient-marker
+  suppression, broader SystemActor permission or quiescence shortcut is admitted.”
+
+**Tradeoffs for approval.** Six auxiliary connectors per process and production
+backend reservations; immediate 503/audit-unavailable under auxiliary saturation;
+absorbed denials can prevent outer success; and no universal restart deduplication
+or recovery of an uncompleted refusal. The directory/grant/evidence volume and
+retained-linkage tradeoffs in the initial package remain. These revisions are
+Proposed; new independent review rounds and document validation precede renewed
+maintainer acceptance. No runtime, schema, grant or protection setting changes.

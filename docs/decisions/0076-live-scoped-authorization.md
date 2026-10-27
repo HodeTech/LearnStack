@@ -42,6 +42,13 @@ resolution and independent AccountSite HostScope rules remain unchanged.
 6. **Register a new directory-read key and auto-upgrade Tenant Admin** (rejected).
    The existing administrative capability suffices. Registration is not a grant;
    fixed v1 seed state remains independently verifiable.
+7. **Borrow another business-pool connection with only a timeout** (rejected).
+   Outer owners can hold every connector while awaiting their nested checks.
+   Timeout bounds waiting but does not remove that circular dependency.
+8. **Reuse the outer transaction for nested/post-lock checks** (not selected).
+   READ COMMITTED sees that transaction's own uncommitted grant/lifecycle writes;
+   a writable owner also cannot supply physical READ ONLY confinement. A clean
+   ChangeTracker cannot establish committed-only authority after SaveChanges.
 
 ## Decision
 
@@ -49,7 +56,8 @@ resolution and independent AccountSite HostScope rules remain unchanged.
   registered scoped capability. HTTP and direct application dispatch enforce
   explicit policy classification and default deny.
 - `PreContextIdentityAuthorizationReader` uses the already accepted ninth
-  logical setter in a fresh isolated, physically READ ONLY app-role owner.
+  logical setter in a fresh isolated, physically READ ONLY app-role owner on a
+  dedicated authorization source with four retained-owner slots.
   It publishes no TenantContext, directory/profile or new global User projection.
 - Successful policy evaluation mints immutable, invocation-bound read authority.
   Step 6 binds it to the actual transaction; EF and RLS consume the same scope.
@@ -80,6 +88,74 @@ candidate through a narrow UoW seam. It clears unrelated authority and closes
 before the ordinary business owner. It never replaces the parent's unit or
 installs an ambient context. Its physical owner/generation is also the one used
 by Tenancy's existing `IIdentityScopeLifecycleReader` contract.
+
+#### Physical capacity and progress
+
+The authorization source is separate from the ordinary business source. Its
+fixed cap is four owners and four physical connectors per API process, with no
+waiting admission queue. Claim a slot before creating/opening a connection;
+capacity refusal is immediate `503 dependency_unavailable`. Opening, statements,
+cancellation and retained actual cleanup all occupy that slot. A five-second
+deadline never releases capacity before confirmed disposal. Unconfirmed cleanup
+retains its slot; source shutdown joins actual owners before disposal. Tests may
+use a smaller cap; no deployment setting widens it. Four provides limited local
+concurrency; one slot already removes the circular checkout dependency. Neither
+number is a production throughput measurement or fairness guarantee.
+
+The type-confined source uses the same `learnstack_app` role/grant guard, database
+and tenant/organization RLS as ordinary work. It has no raw datasource alias in
+general DI and no caller-supplied SQL/callback API. Its owner runs only the exact
+Identity grant statement and Tenancy lifecycle statement on the same child unit.
+It never acquires the business/evidence source, dispatches a handler, writes an
+audit row, invokes a locking owner function, or takes advisory/row locks. Release
+it before audit or business continuation. A parent can therefore hold business
+connectors and invariant locks while an admitted nested/post-lock read completes.
+MVCC reads do not consume the parent's own uncommitted authority.
+
+The borrower census includes resolver, HTTP, application, nested and post-lock
+checks. Trusted seed/event/job classifications remain finite. For job callers,
+add an explicitly tracked authorization lane to the existing source owner and
+actual-cleanup join; never suppress its ambient marker or masquerade as a second
+main unit. Source lifetime and capacity ledgers include the additional four
+connectors, independently of the existing business/job-source requirements.
+
+Client-pool separation alone is insufficient through PgBouncer: both sources
+must not share a saturated downstream user/database server pool. The admitted
+transaction-pooling topology provides distinct business, authorization and
+ADR-0077 evidence database aliases targeting the same database and `learnstack_app`
+role, with independent backend lanes. Direct development PostgreSQL uses the
+three bounded client sources. Alias/backend limits, PgBouncer cross-alias user/
+database limits, PostgreSQL capacity and the deployed instance count must reserve
+the authorization/evidence headroom outside business capacity. Application-name
+differences or an extra client pool are not reservation evidence. No new database
+login or BYPASSRLS privilege follows.
+
+Composition uses `ConnectionStrings:Default` for business,
+`ConnectionStrings:IdentityAuthorization` for authorization and
+`ConnectionStrings:AuthorizationEvidence` for ADR-0077's evidence lane. The two
+new sources use explicit guarded strings together; partial input refuses.
+Development alone may derive both from the existing direct-PostgreSQL Default
+string while keeping physically distinct bounded sources. Outside Development,
+both explicit lane strings are required; no silent same-endpoint fallback is
+allowed. Through PgBouncer they use the distinct database aliases
+`learnstack_identity_authorization` and `learnstack_authorization_evidence`,
+mapped to the same actual business database. Qualification checks application
+role and the same installed identity authority for all sources; credentials
+remain environment-only. A matching authority/alias string is not proof of a
+backend reserve: topology evidence remains separately required before production
+activation. Modules never branch on deployment mode or choose these endpoints.
+
+P03-2 proves progress with small real PostgreSQL pools **and** a pinned
+transaction-pooling PgBouncer fixture: hold every business connector, then run
+admitted nested and post-lock checks before parents release anything. Hold all
+authorization slots separately to prove immediate excess refusal and recovery
+only after actual cleanup. A deliberate shared-downstream-pool dirty topology
+must fail that progress control. These are correctness/activation proofs now;
+Phase 11 owns actual production topology/instance-capacity qualification before
+deployment activation, not this packet's missing liveness test. General database
+outage/DDL blocking and excess offered load still can refuse or time out.
+
+#### Committed reads and outcomes
 
 One Identity-owned statement reads active/nondeleted Memberships, assignments,
 Roles and grants for that actor and exact tenant. NULL-org Tenant grants compose
@@ -229,6 +305,12 @@ and query evidence is not a production p95 guarantee.
 
 - Protected acts depend on fresh database reads; edge and application checks may
   require separate short transactions before the business owner.
+- Four authorization and ADR-0077's two evidence connectors add at most six
+  retained auxiliary connectors per process, with explicit downstream reserves.
+  Excess admissions can fail immediately; split pools do not guarantee capacity
+  or fairness for every concurrent request.
+- Blocked/failed cleanup can retain slots and delay joined shutdown indefinitely;
+  no elapsed timeout is evidence that its physical resource was released.
 - Lifecycle, binding and grant checks do not share one atomic snapshot; work
   admitted before a later revocation may finish.
 - The directory exposes contextual personal data to an already privileged tenant
@@ -244,12 +326,16 @@ and query evidence is not a production p95 guarantee.
 ## Implementation Notes
 
 Acceptance appends dated navigation/extension Amendments to ADR-0036/0040/0073,
+and an ADR-0047 extension for tracked job authorization/evidence lanes,
 and a bounded-supersession Amendment to ADR-0064 for the new directory surface
 and AccountSite live admission. Accepted bodies/status/dates remain historical.
 Reconcile Standards 04/05/11/19/21, Identity permission/audit contracts,
 Tenancy/Education public permission matrices, Architecture 09/13/33, glossary and
 `add-permission`'s obsolete IModule/default-grants sketch in the same first step.
 The packet record owns exact proposed edit text, call-site census and proofs.
+Update Standard 05's source/capacity ledger, Standard 12/Phase 11's production
+pool-qualification trigger, and environment/Compose/Seeder setup documentation
+for the two explicit lane keys without adding credentials to restore/build.
 
 ## Tests and Proofs
 
@@ -257,6 +343,10 @@ The packet record owns exact proposed edit text, call-site census and proofs.
   generated grant/kernel parity and planted missing/forged declarations.
 - PostgreSQL app role: exact candidate owner, physical READ ONLY, lifecycle,
   coverage/grants, transaction cleanup and real revocation interleavings.
+- Liveness: all business connectors held while nested/post-lock reads complete;
+  independent four-slot exhaustion/actual-cleanup recovery, no observation of
+  uncommitted parent grants, tracked job cleanup and downstream-PgBouncer dirty/
+  clean topologies. A timeout-only result cannot pass the progress control.
 - HTTP/direct application: actual directory positive/denied, real resolution
   rows 6/7/9/10/14, retained AccountSite/public ceilings and unavailable storage.
 - Real grant changes: Tenant Admin's same-key Tenant-to-Organization delegation
@@ -276,6 +366,8 @@ The packet record owns exact proposed edit text, call-site census and proofs.
   [ADR-0073](0073-scoped-membership-and-identity-data-foundation.md).
 - [Security](../standards/11-security.md), [Database](../standards/05-database.md),
   [Permissions](../standards/19-permissions.md), [Identity](../modules/identity/README.md).
-- [P03-2 package](../roadmap/phase-03-delivery-log.md#p03-2-proposed-decision-package-2026-10-27).
+- [Revised P03-2 package](../roadmap/phase-03-delivery-log.md#p03-2-maintainer-review-and-revised-package-2026-10-27).
 - [ASP.NET Core 10 policy selection](https://learn.microsoft.com/en-us/aspnet/core/security/authorization/policies?view=aspnetcore-10.0).
 - [PostgreSQL 18 READ COMMITTED](https://www.postgresql.org/docs/18/transaction-iso.html#XACT-READ-COMMITTED).
+- [Npgsql data sources and pools](https://www.npgsql.org/doc/basic-usage.html),
+  [PgBouncer pool and database configuration](https://www.pgbouncer.org/config.html).
