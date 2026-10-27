@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 933 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 952 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -97,6 +97,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 Step 2 review round 2 and closeout (2026-10-27)](#p03-2-step-2-review-round-2-and-closeout-2026-10-27) — 32 lines
   - [P03-2 Step 3 — Policy and operation-bound execution (2026-10-27)](#p03-2-step-3--policy-and-operation-bound-execution-2026-10-27) — 112 lines
   - [P03-2 Step 3 review round 1 and corrections (2026-10-27)](#p03-2-step-3-review-round-1-and-corrections-2026-10-27) — 31 lines
+  - [P03-2 Step 3 review round 2 and closeout (2026-10-27)](#p03-2-step-3-review-round-2-and-closeout-2026-10-27) — 19 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -3883,3 +3884,22 @@ operation-ownership rule and both lifecycle census/mutation cases pass. The firs
 architecture filter matches only the ownership rule; the two lifecycle cases are
 then selected by their actual compiled names and run separately. No broader
 rerun or second-round approval is implied.
+
+### P03-2 Step 3 review round 2 and closeout (2026-10-27)
+
+**Reviewed source: `489746d8`, against `cf9454e5`.** Three new independent
+GPT-6 Astra reviewers at xhigh effort review execution/trust, Identity/directory
+and HTTP/compiled-proof/documentation slices, including the first-round fixes.
+All three approve within those scopes with no actionable verified findings.
+They make no edits, run no tests/Docker and inspect no preexisting worktrees;
+the execution reviewer independently runs a clean diff check. Supplied runtime
+receipts remain author evidence rather than independently repeated execution.
+
+**Closeout.** Step 3 and both review rounds are complete. The policy catalogue,
+finite source adapters, fresh evaluator, operation-bound SQL/EF execution and
+internal audited directory are implemented in the staged proof composition.
+The broader live-policy/evidence rules remain Registered; production launch
+retains the previous shell/deny-all behavior pending Steps 4/5. Step 4 proceeds
+under the approved plan with central fixed-occurrence evidence, its pre-success
+barrier, trusted provenance and separate explicit Role grant acts. No new
+maintainer decision or HTTP activation is implied by this closeout.
