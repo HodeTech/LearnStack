@@ -81,13 +81,14 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 415 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 457 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
   - [P03-2 proposal review round 2 and decision readiness (2026-10-27)](#p03-2-proposal-review-round-2-and-decision-readiness-2026-10-27) — 35 lines
   - [P03-2 maintainer review and revised package (2026-10-27)](#p03-2-maintainer-review-and-revised-package-2026-10-27) — 139 lines
   - [P03-2 revised proposal review round 1 (2026-10-27)](#p03-2-revised-proposal-review-round-1-2026-10-27) — 21 lines
+  - [P03-2 revised proposal review round 2 and readiness (2026-10-27)](#p03-2-revised-proposal-review-round-2-and-readiness-2026-10-27) — 42 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -3356,3 +3357,45 @@ targets and accepted-carrier compatibility. These approvals concern the
 Proposed contracts; source implementation, runtime progress/crash proofs and
 production capacity remain unqualified. Parent edits otherwise only clarify
 already-repaired guidance and reflow prose. A fresh second round follows.
+
+### P03-2 revised proposal review round 2 and readiness (2026-10-27)
+
+**Reviewed source:** `55662b56` against maintainer-reviewed `b81ed063`. Two new
+independent `gpt-6-astra` reviewers at xhigh effort cover resource/liveness and
+durability/identity/privacy. Neither performed the revised first round or design
+investigations. Both independently inspect current adjacent source and Accepted
+constraints, and approve their review scope without a verified actionable
+decision/proof gap. No source implementation or runtime test is claimed.
+
+The resource review confirms independent four/two-slot lanes, no reverse
+business/evidence/authorization acquisition, tracked job cleanup, explicit
+configuration, downstream cross-alias/user/instance headroom and real server-
+transaction/PID dirty-control requirements. The durability review confirms all
+pre-success owner cases, event state versus capture state, stable microsecond
+occurrence identity, clean scoped full-draft duplicate matching, unknown-COMMIT
+limits, refusal preservation and truthful retention targets. It additionally
+reads the parent's narrow wording clarification: one evidence operation shares
+one five-second I/O budget across open/INSERT/COMMIT and duplicate verification;
+verification never starts a fresh budget. Actual cleanup remains retained.
+
+**Maintainer findings disposition:** F1, F2, F3 and F4 are all valid and corrected
+in the proposed contracts, acceptance carrier texts and mandatory proof plan.
+None is skipped. The implementation gates remain tests to run, not documented
+test passes. In particular, no small-pool, PgBouncer, process-crash, cancellation
+or ambiguous-COMMIT runtime result exists for this proposed source yet.
+
+**Validation:** whole-tree Markdown fragment/roadmap/index checks, seven ADR
+parser controls, both Proposed lifecycle declarations and `git diff --check`
+pass. The two revised ADRs and six-step delta remain local on `development`;
+the existing untracked worktree directory is untouched. No runtime/schema/grant,
+provider, protection or external-service change is made.
+
+**Decision requested:** jointly accept the revised ADR-0076/0077 and the revised
+package above. Added costs are bounded auxiliary sources/production headroom,
+possible immediate 503 under saturation, retained cleanup/shutdown ownership,
+and failure of otherwise-successful outer work when required denial evidence
+cannot commit. No durable restart/replay ledger or automatic purge is implied.
+The maintainer withheld acceptance in the preceding review; that decision is
+not inferred from correction completion or reviewer approval. Until explicit
+acceptance, G2 execution/G5 enforcement/G6 policy/G7 remain Open and runtime
+implementation stays held under the maintainer's new-ADR approval instruction.

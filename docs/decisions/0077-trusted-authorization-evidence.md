@@ -172,9 +172,11 @@ is created. Full capacity is a fixed audit-unavailable failure with the same
 refusal/pre-success rules above; it is not a suppression budget or permission
 to discard an event and declare success.
 
-Each standalone attempt/verification has a five-second total I/O deadline;
-actual cancellation/disposal retains its slot until confirmed cleanup. Failed
-cleanup retains capacity and shutdown joins actual owners. The source never
+One admitted standalone operation has a shared five-second total I/O deadline,
+including open, INSERT/COMMIT and any sequential duplicate verification; entering
+verification does not reset it. Actual cancellation/disposal retains its slot
+until confirmed cleanup. Failed cleanup retains capacity and shutdown joins
+actual owners. The source never
 acquires authorization/business resources, dispatches a handler or takes their
 advisory/row locks; it only announces captured audit scope, inserts or verifies
 the event, and completes. No writer retries against its own still-live transaction.
