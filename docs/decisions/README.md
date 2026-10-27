@@ -124,6 +124,8 @@ records hosted qualification. Phase 11 owns production qualification.
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
+| 0076 | [Live Scoped Authorization](0076-live-scoped-authorization.md) | Fresh candidate owner, explicit HTTP/application policy, operation-bound read scope and one administrative directory read; no runtime change before acceptance | P03-2 G2 execution / G5 enforcement / G6 policy |
+| 0077 | [Trusted Authorization Evidence](0077-trusted-authorization-evidence.md) | Central denial ownership, trusted enrichment and separately attributed successful claim-only assertion rejection; no implicit host budget | P03-2 G7 and coupled G2 activation |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
 the P02d-2 package on 2026-10-02. Their rows are now in Active ADRs; ADR-0049 remains

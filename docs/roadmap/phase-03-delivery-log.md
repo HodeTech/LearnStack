@@ -81,6 +81,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 168 lines
+  - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 166 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -2934,3 +2936,171 @@ remains P03-9; DSAR/global closure remains P03-10. Invitations, custom fields,
 provider ingress, back-channel logout, federation and phase-exit enforcement
 retain their named packets. No phase-wide criterion is marked complete by this
 foundation merge alone.
+
+## P03-2 — Live membership and authorization
+
+### P03-2 proposed decision package (2026-10-27)
+
+**Status: Proposed; runtime not started.** The maintainer requests P03-2 on
+`development`, complete document review before implementation, upfront decisions,
+and two fresh independent review rounds after each committed implementation step.
+New ADRs require maintainer approval before acceptance/implementation. This entry
+neither closes a gate nor starts P03-3. Baseline: `daf03a48`, following PR #38's
+verified merge. Preexisting untracked `.claude/worktrees/` remains untouched.
+
+**Problem.** P03-1 supplies real bindings, Membership/Role storage and finite
+seed authority. Ordinary API membership still denies everyone; application
+authorization passes through, and neither the runtime classification gate nor
+the authorized SQL/EF scope carrier exists. P03-2 makes those contracts executable
+and supplies their trusted denial/disclosure evidence without activating new-user
+entry, editing UI or Platform authority.
+
+#### Document and source review
+
+The initial review separates current facts from activation choices. Three
+independent read-only reviewers examine candidate/scope ownership, permission/
+policy execution and audit/evidence; the parent checks their findings against
+the current source. This is a preflight, not implementation qualification.
+
+| Surface reviewed | Verified baseline / disposition |
+|---|---|
+| CLAUDE, README, vision, MVP, roadmap/Decision Timing, principles and glossary | Current phase/packet ownership retained; English docs, no branch change or historical-log rewrite. |
+| Phase 03 complete plan/register; P03-1 accepted/revised package, relevant Step 3–5/merge records; completed 02a/02d/02b handoffs | G2 execution/G5 enforcement/G6 policy/G7 remain open. Their foundation acceptance does not authorize live execution. |
+| ADR-0003/0010/0017/0032/0033/0036/0040/0044/0052/0064/0065/0072–0074 and their relevant Amendments | Four-role RLS, canonical pipeline, ninth candidate-reader authority, fixed manifests, public/AccountSite ceiling and plural audit survive. New execution/HTTP/evidence choices need named vehicles. |
+| Standards 04/05/10/11/18/19/21; Architecture 03/09/13/23/31/33; Identity/Tenancy/Education/Customization/Audit module contracts/matrices | Read scope, sensitive-read transactions and denied evidence have explicit pending owners; proposed carrier changes are listed below. |
+| Actual resolver/factory/recorders, credential/binding admission, UoW/announcement/interceptor/filter, lifecycle port, contextual stores/DDL, manifest/seed source and audit coordinators/composer | Deny-all, absent carrier, Off/best-effort denial gaps and host-budget misuse after successful row 14 are verified latent activation gaps. |
+| Endpoint/runtime census, public/AccountSite tests, framework-job/source admission and real Customization initializer consumers | Exact existing classifications must be backfilled; neither Ambient nor SystemActor grants a general exception. |
+| implement-task/start-task dispatch, write-adr, add-permission, commit-and-pr | add-permission's IModule/default-grants sketch is stale against adopted Standard 19 and must be replaced on acceptance before use. |
+
+The obsolete IModule/default-grants sentence also appears in Tenancy's permission
+matrix. These mutable carriers will adopt the existing module-source/finite-
+manifest authority; no new module-loader interface follows. Existing matrix
+examples are not a declaration of every future permission in this packet.
+
+Primary-source checks: PostgreSQL 18 documents separate READ COMMITTED statement
+snapshots; ASP.NET Core 10 documents that authenticated fallback alone is not a
+missing-classification denial and that AllowAnonymous bypasses authorization
+failure. [ADR-0076](../decisions/0076-live-scoped-authorization.md) links those
+sources. No package upgrade is selected.
+
+#### Upfront decision surface
+
+| Gate | Proposed answer and vehicle | Remaining boundary |
+|---|---|---|
+| G2 execution | ADR-0076: exact verified candidate, fresh isolated READ ONLY app-role owner, ninth logical setter, per-check freshness and operation-bound tenant-read witness; ADR-0077 supplies successful claim-only assertion evidence | No new context writer, global User reader, cache, synthetic context or bypass. Lifecycle/closure transition races retain P03-3/10 ownership. |
+| G5 enforcement | ADR-0076: explicit scoped policy registry, per-act committed grant query, exact finite system/seed sources, virtual Portal Public and separate ordinary grant-edit/release-manifest adoption | No wildcard, automatic new-key grants, custom role, implicit seed upgrade or Platform permission. |
+| G6 policy ordering | ADR-0076: runtime HTTP classification plus independent step-5 application check; capability before resource lookup; one useful administrative member-directory GET moves forward from P03-3 | Native authenticated allowlist, write endpoints, editing UI and scope reissue remain P03-3. |
+| G7 | ADR-0077: one central denial-event owner, separate existing resource intents, bounded immutable trusted provenance, MUST sensitive disclosure and per-occurrence claim-context assertion event | No generic audit-every-404 policy, new suppression budget, email mirror or sentinel route. Privileged operator evidence remains G13/P03-9. |
+
+The principal maintainer tradeoffs are fresh uncached database dependence; a
+five-second candidate admission deadline; already-admitted work and separate
+cross-module snapshots; administrative cross-branch directory disclosure; and
+per-occurrence durable denial volume under existing retention. ADR-0077 gives
+illustrative storage arithmetic, not a load qualification. Both proposals must
+be accepted together with this package before code.
+
+The directory reuses Tenant `identity.membership.admin`; it needs no v2 grant or
+auto-adoption. The three virtual-public definitions are nonassignable and preserve
+existing anonymous visibility. Real grant editing/adoption uses only accepted v1
+pairs/manifest in P03-2. A newly registered assignable key would still need its
+own approved finite manifest and database registry-guard migration.
+
+#### Acceptance instruments and carrier edits
+
+The acceptance step appends the following **dated** Amendment content with the
+next free numbers at that time. These are proposed texts, not current authority:
+
+- **ADR-0036:** “ADR-0076 implements the previously admitted candidate reader and
+  live protected-act checks without changing the resolution matrix. Successful
+  ClaimAndMembership resolution followed by a conflicting header uses ADR-0077's
+  separately classified Membership-confirmed assertion event. Refused row 14,
+  row 10, host-backed evidence and public/AccountSite host ceilings are unchanged.”
+- **ADR-0040:** “ADR-0076 implements the ninth logical candidate-reader setter
+  through an isolated physically READ ONLY owner with exact candidate/generation
+  announcement. The ordinary step-6 owner additionally consumes immutable
+  operation read authority for SQL/EF scope. Same read-scope joins preserve it;
+  incompatible joins poison rather than retarget. No new logical tenant setter,
+  context writer or bypass role is admitted.”
+- **ADR-0064:** “ADR-0076 narrowly replaces the AccountSite-only authenticated
+  surface with one additional administrative GET /api/v1/identity/memberships.
+  It admits HostAndClaim or confirmed ClaimAndMembership under Tenant
+  identity.membership.admin and ordinary MUST sensitive-read durability.
+  AccountSite gains live membership/lifecycle admission but retains its separate
+  HostScope and Off/READ ONLY shape. Present invalid credentials remain uniform
+  401; absent protected credentials/noncoverage remain masked 404; capability
+  denial is 403. No resolution-by-endpoint, mutation or native proxy follows.”
+- **ADR-0073:** “ADR-0076 completes live execution and explicit audited edits/
+  adoption outside the immutable kernel. The existing five assignable pairs,
+  eight templates and v1 seed manifest remain; virtual public definitions grant
+  no stored Role authority. Existing seed verification is not an upgrade writer.”
+- **ADR-0033/0044, in each record:** “ADR-0077 adds the common typed authorization
+  denial event and trusted immutable enrichment. Its MUST security-event row is
+  distinct from each operation's existing plural resource intents and does not
+  promote their ordinary classification. HTTP and application adapters share
+  ownership; nested refused acts retain their own event. Refusal-audit failure
+  preserves refusal; successful sensitive disclosure still requires its own
+  same-transaction MUST row before response. Tenantless/validation omissions and
+  the two existing sentinel classes remain unchanged.”
+- **ADR-0065:** “ADR-0077's authorization and Membership-confirmed header events
+  do not consume this host-tenant allowance. Its independently defended host key,
+  suppression semantics, counters and scope remain unchanged.”
+
+Update decisions index/phase Status/register only after explicit acceptance.
+Standards 04/11/19 own exact policy/route/error/freshness rules; Standard 05 owns
+candidate/ordinary announcement and EF/RLS witness lifetime without a copied
+template; Standard 18 and module matrices own exact new evidence slugs/populations;
+Standard 10 owns closed diagnostics. Standard 21 updates canonical Asserts/owners
+and honest status. Architecture 09/13/23/31/33 and glossary link those sources.
+ActorEmail stays null. Include current code XML and the obsolete permission skill/
+matrix carriers; no claim that an acceptance commit implements those controls.
+
+#### Six implementation steps
+
+Every step is committed, reviewed by fresh agents in two independent rounds,
+fixed only for independently verified findings and revalidated before the next.
+Review records name the source revision, scope, actual commands and limitations.
+No invented review transcripts or count-only proof substitutes are recorded.
+
+| Step | Implementation and closure condition |
+|---|---|
+| 1 — Accept and reconcile | Accept both ADRs/package; append exact affected-record Amendments and canonical carrier updates; classify complete current production requests/endpoints/sources and register proof obligations without pretending implementation. Correct stale skill/matrix guidance. Validate whole-tree docs and exact source census; no live activation. |
+| 2 — Candidate and live authority | Implement narrow candidate announcement/UoW owner, bounded actual Identity query and Tenancy lifecycle handoff, trusted source descriptors and immutable results. Prove real app-role READ ONLY/no profile/global directory, wrong/stale/foreign candidate, lifecycle/coverage/grants, cancellation/outage/cleanup and grant-revocation races. Keep deny-all production registration until evidence is ready. |
+| 3 — Policy and scoped execution | Implement immutable policy composition, independent HTTP/application classification and step-5 capability checks, finite public/seed/event/job classes, read-witness mint/consume and exact SQL/EF scope. Prove missing/forged/reused witnesses, nested mismatch poisoning, no org write widening, real system/default-initializer positives and unrelated-command negatives. Activation remains held for Step 5. |
+| 4 — Evidence and grant acts | Implement typed central denial/event ownership and captured provenance, new assertion provenance path, contextual sensitive query/catalogue and audited grant-edit/v1-adoption commands. Preserve plural intents and kernel/last-admin/lock rules. Prove exact Off/SHOULD/MAY/override-Off and nested populations, MUST rollback, delegation/current-authority checks and hostile sink canaries. No human write route. |
+| 5 — Useful HTTP activation | Add exact administrative directory controller/DTO/pagination/OpenAPI/SDK, runtime classification and live production wiring together with evidence. Qualify actual rows 6/7/9/10/14, revoked matching-host control, real claim-only directory positive/header mismatch, AccountSite's independent host ceiling, public zero-grant-lookup behavior and storage failure outcomes. Do not enlarge native BFF operation allowlist. |
+| 6 — Complete qualification and handoff | Run relevant full backend architecture/unit/integration/contract populations, source-bound inventories and meaningful seeded/provider/native compatibility checks; regenerate SDK, shard plan/manifest as required by changed population, preserving ADR-0063/0075 bounds. Complete fresh hosted A/B where source/distribution requires it, preserve raw evidence, update catalogue/docs/packet state honestly, then open the reviewable development→main PR. |
+
+Workflow dispatch: add-permission (after its adopted-contract repair),
+add-mediatr-handler, add-ef-migration if actual schema/registry-guard changes are
+needed, standards-check/code-review, run-tests-locally and commit-and-pr. No
+destructive migration is planned. Schema updates do not gain authority merely
+because they are additive.
+
+#### Mandatory proof ownership
+
+- Extend `TenantAuthenticationReconciliationTests`, rejection/recorder/budget and
+  actual HTTP/runtime surface suites; use real Membership rows, not a substitute
+  affirmative membership reader. Use a distinct real directory subject for row 14.
+- Add Identity authorization-reader/permission/HTTP suites; retain
+  `IdentityScopeLifecycleTests`, real app-role clean/dirty controls and explicit
+  two-connection revocation synchronization. Global binding eligibility is a
+  separate earlier point, not a new generic owner function.
+- Extend `TenantQueryFilterTests`, UoW/transaction tests and
+  `Tenant_Scope_Widening_Is_Never_Set_From_Request_Input`; compare real SQL/EF and
+  pooled generation state. Catalogue statuses reflect actual tests only.
+- Complete `Permission_Definitions_DeclareScope`,
+  `Permission_Scope_Matches_Resource_Scope`, `Permission_Keys_Match_Convention`,
+  `Permission_Registry_Has_DeniedTest` and the real authorization-denied clause of
+  `MustClass_Audit_Writes_Share_The_Business_Transaction`. Public virtual and
+  confined system/seed classifications have separate negative controls.
+- Extend `AuditLogBehaviorTests` and real database/HTTP evidence tests for the
+  separate denial event/resource intents and same-transaction sensitive read.
+  Source/actor/role/IP/route spoofing and raw-value sink canaries need positive
+  event witnesses; no audit loss on cancellation is inferred from static scans.
+- Real pinned Keycloak/native compatibility covers existing four personas,
+  independent host scope and no new browser bearer/API operation. Production
+  p95/full WCAG and later UI/closure/archive behaviors are not claimed here.
+
+**Initial review limits.** No runtime test or provider was run in this preflight.
+No implementation step is complete. Two independent proposal-review rounds and
+mechanical document validation must finish before the maintainer decision.
