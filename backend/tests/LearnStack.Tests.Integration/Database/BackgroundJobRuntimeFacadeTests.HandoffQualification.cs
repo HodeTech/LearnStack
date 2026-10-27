@@ -101,7 +101,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
                 var entry = Interlocked.Increment(ref calls);
                 entered.TrySetResult();
                 (await BackgroundJobRuntimeRows.CountOrganizationAsync(database.AppConnectionString, job.Value)).Should().Be(0);
-                var written = await services.GetRequiredService<ISender>().Send(new CreateOrganizationCommand(
+                var written = await services.GetRequiredService<ISender>().Send(Fixture.OrganizationRequest(
                     OrganizationId.From(job.Value), "job-handoff-" + job.Value.ToString("N")[..12], "Job handoff"), token);
                 written.IsSuccess.Should().BeTrue();
                 return entry == 1

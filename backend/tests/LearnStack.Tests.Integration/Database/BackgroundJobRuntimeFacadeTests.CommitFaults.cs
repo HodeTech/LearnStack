@@ -291,7 +291,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
     {
         var unit = services.GetRequiredService<IUnitOfWork>();
         (await BackgroundJobRuntimeRows.ScalarInUnitAsync(unit, "SELECT current_user")).Should().Be("learnstack_app");
-        (await services.GetRequiredService<ISender>().Send(new CreateOrganizationCommand(
+        (await services.GetRequiredService<ISender>().Send(Fixture.OrganizationRequest(
             OrganizationId.From(effects.Organization), "job-native-" + effects.Organization.ToString("N")[..12], "Native job commit"),
             cancellationToken)).IsSuccess.Should().BeTrue();
         effects.Child = await Fixture.EnqueueAsync(services, dueAt: DateTimeOffset.UtcNow.AddHours(1));
@@ -314,7 +314,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
                 (SELECT count(*) FROM background_jobs WHERE id=@child),
                 (SELECT count(*) FROM outbox_messages WHERE id=@outgoing),
                 (SELECT count(*) FROM audit_log WHERE entity_id=@subject
-                    AND operation='tenancy.organization.create' AND outcome='success')
+                    AND operation='jobfixture.organization.create' AND outcome='success')
             """, connection, transaction);
         count.Parameters.AddWithValue("organization", effects.Organization);
         count.Parameters.AddWithValue("child", effects.Child!.Value.Value);

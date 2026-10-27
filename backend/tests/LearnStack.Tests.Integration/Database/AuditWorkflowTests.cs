@@ -10,6 +10,7 @@ using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Time;
 using LearnStack.Tools.Seeder;
@@ -38,10 +39,11 @@ namespace LearnStack.Tests.Integration.Database;
 /// tenant would send and reads the columns a reader would read.
 /// </para>
 /// <para>
-/// Same composition root, same role, same disposable-database discipline as
-/// <see cref="AuditPipelineTests"/>: the seeder's graph is a real one, and the rows are
-/// written by <c>learnstack_app</c> under the policies and read back as
-/// <c>learnstack_platform</c>.
+/// Production persistence registrations and the canonical pipeline run under explicit
+/// test-owned authority for seven requests. These are audit component proofs, not human
+/// permission or Seeder provenance proofs; <see cref="AuditPipelineTests"/> retains the
+/// actual Seeder entry. Rows are written by <c>learnstack_app</c> under the policies and
+/// read back as <c>learnstack_platform</c>.
 /// </para>
 /// </remarks>
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
@@ -459,6 +461,10 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
         {
             var refused = await SendAsync(provider, new PublishTenantContentTypeCommand(builtInId));
             refused.IsFailure.Should().BeTrue("the precondition: that revision is already live");
+            refused.Error!.Code.Should().Be("business_rule_violation",
+                "authorization must admit the command before its domain precondition refuses it");
+            refused.Error.Details![nameof(PublishTenantContentTypeCommand.ContentTypeId)]
+                .Should().ContainSingle().Which.Key.Should().Be("lockey_customization_not_a_draft");
         }
 
         var row = (await RowsAsync()).Single(row =>
@@ -550,12 +556,21 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
         return result.Value!.State!.Id;
     }
 
-    /// <summary>The seeder's graph, acting for the tenant as an authenticated principal would.</summary>
-    private static ServiceProvider Compose(NpgsqlDataSource dataSource) =>
-        SeedComposition.Build(
-            dataSource,
-            new ActingContext(Tenant.TenantId, Tenant.DefaultOrganization.OrganizationId),
-            NullLoggerFactory.Instance);
+    /// <summary>Exact component authority preserves the human actor being audited without claiming a human grant.</summary>
+    private static ServiceProvider Compose(NpgsqlDataSource dataSource)
+    {
+        var services = ComponentOperationRegistration.CreateDatabaseServices(dataSource,
+            new ActingContext(Tenant.TenantId, Tenant.DefaultOrganization.OrganizationId));
+        ComponentOperationRegistration.AddExactComponentAuthority(services,
+            OperationPolicy.ForTrusted<RegisterTenantContentTypeCommand>("tests.component.audit.register_content", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<PublishTenantContentTypeCommand>("tests.component.audit.publish_content", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<RegisterTenantLevelTaxonomyCommand>("tests.component.audit.register_taxonomy", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<PublishTenantLevelTaxonomyCommand>("tests.component.audit.publish_taxonomy", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<MapHostToTenantCommand>("tests.component.audit.map_host", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<GetActiveContentTypeSeedRevisionQuery>("tests.component.audit.read_content_revision", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<GetActiveTaxonomySeedRevisionQuery>("tests.component.audit.read_taxonomy_revision", AuthorizationSourceKind.Seed));
+        return services.BuildServiceProvider();
+    }
 
     /// <summary>
     /// <see cref="SeedTenantContext"/> with a principal and a trace — the two things a seed

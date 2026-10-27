@@ -269,7 +269,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
             var actualTransaction = (string)(await transactionId.ExecuteScalarAsync(cancellationToken))!;
             if (probe.Observe(new(source, unit, unit.Connection, actualTransaction, input)) != 1)
                 throw new InvalidOperationException("Unexpected second Finalize root.");
-            var written = await sender.Send(new CreateOrganizationCommand(finalized,
+            var written = await sender.Send(Fixture.OrganizationRequest(finalized,
                 "finalized-" + finalized.Value.ToString("N"), "Finalizer policy window"), cancellationToken);
             if (written.IsFailure) throw new InvalidOperationException("Actual nested write failed.");
             probe.FirstWriteReady.TrySetResult();

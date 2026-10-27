@@ -5,6 +5,7 @@ using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Results;
+using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Tenancy;
 using MediatR;
 using Microsoft.AspNetCore.Hosting;
@@ -33,7 +34,7 @@ internal sealed partial class BackgroundJobPositiveSdkFixture
     private BackgroundJobPositiveSdkFixture()
     {
         var contracts = BackgroundJobRuntimeFixture.Compile(Prefix + ".Application.Contracts", ContractsSource);
-        var application = BackgroundJobRuntimeFixture.Compile(Prefix + ".Application", ApplicationSource, contracts.Image);
+        var application = BackgroundJobRuntimeFixture.Compile(Prefix + ".Application", ApplicationSource + BackgroundJobFixtureOperations.OrganizationSource(), contracts.Image);
         var infrastructure = BackgroundJobRuntimeFixture.Compile(Prefix + ".Infrastructure", InfrastructureSource, contracts.Image);
         _application = application.Assembly;
         _parameters = contracts.Assembly.GetType(Prefix + ".Application.Contracts.Parameters", true)!;
@@ -53,19 +54,22 @@ internal sealed partial class BackgroundJobPositiveSdkFixture
         Registry = BackgroundJobDefinitionRegistry.Create(
             [new(Key, RequestType("Declarations"), _parameters, BackgroundJobScope.TenantWide, BackgroundJobDefinitionReadiness.Active,
                 "external", BackgroundJobProfileRegistration.External(RequestType("Prepare"), RequestType("Finalize"), plan, outcome, port),
-                [typeof(CreateOrganizationCommand)], Capacity)],
+                [RequestType("CreateFixtureOrganization")], Capacity)],
             BackgroundJobDefinitionRegistry.CreateEmpty().All.Concat(new[]
             {
                 new BackgroundJobRequestDescriptor(RequestType("Submit"), BackgroundJobRequestClassification.Ordinary, BackgroundJobScope.TenantWide),
                 new BackgroundJobRequestDescriptor(RequestType("Prepare"), BackgroundJobRequestClassification.Ordinary, BackgroundJobScope.TenantWide),
                 new BackgroundJobRequestDescriptor(RequestType("Finalize"), BackgroundJobRequestClassification.Ordinary, BackgroundJobScope.TenantWide),
-                new BackgroundJobRequestDescriptor(typeof(CreateOrganizationCommand), BackgroundJobRequestClassification.Ordinary, BackgroundJobScope.TenantWide),
+                new BackgroundJobRequestDescriptor(RequestType("CreateFixtureOrganization"), BackgroundJobRequestClassification.Ordinary, BackgroundJobScope.TenantWide),
             }), modules, infrastructure: topology);
     }
 
     internal Type RequestType(string name) => _application.GetType(Prefix + ".Application." + name, true)!;
     internal object Parameters(Guid resource, OrganizationId prepared, OrganizationId finalized) =>
         Activator.CreateInstance(_parameters, resource, prepared, finalized)!;
+
+    internal IRequest<Result<OrganizationDto>> OrganizationRequest(OrganizationId id, string slug, string name) =>
+        (IRequest<Result<OrganizationDto>>)Activator.CreateInstance(RequestType("CreateFixtureOrganization"), id, slug, name)!;
 
     internal async Task<Result<BackgroundJobId>> SubmitAsync(IServiceProvider services, object parameters)
     {
@@ -76,7 +80,7 @@ internal sealed partial class BackgroundJobPositiveSdkFixture
 
     internal WebApplicationFactory<Program> Host(DisposableSchemaDatabase database, BackgroundJobProviderSettings provider,
         BackgroundJobPositiveProviderConstructionProbe? construction = null, Action<IServiceCollection>? configure = null,
-        int? applicationPoolSize = null, BackgroundJobPositiveReconcileProbe? reconcileProbe = null) =>
+        int? applicationPoolSize = null, BackgroundJobPositiveReconcileProbe? reconcileProbe = null, Type[]? componentRequests = null) =>
         new ConstructionOnlyApiFactory().WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment(Environments.Development);
@@ -90,6 +94,11 @@ internal sealed partial class BackgroundJobPositiveSdkFixture
                 services.AddSingleton(Registry);
                 services.AddSingleton<ITenantContextAccessor>(new BackgroundJobFixtureAccessor(new BackgroundJobFixtureContext()));
                 services.AddSingleton<IAuditCatalogSource>(new WrapperAuditSource(this));
+                BackgroundJobFixtureOperations.AddJobs(services, RequestType("Prepare"), RequestType("Finalize"), RequestType("CreateFixtureOrganization"));
+                ComponentOperationRegistration.AddExactComponentAuthority(services,
+                    [.. new[] { RequestType("Submit") }.Concat(componentRequests ?? [])
+                        .Select(type => BackgroundJobFixtureOperations.Trusted(type, AuthorizationSourceKind.Seed))]);
+                BackgroundJobFixtureOperations.AddOrganizationAudit(services, RequestType("CreateFixtureOrganization"));
                 services.AddSingleton(provider);
                 services.AddSingleton(construction ?? new BackgroundJobPositiveProviderConstructionProbe());
                 services.AddSingleton(reconcileProbe ?? new BackgroundJobPositiveReconcileProbe());

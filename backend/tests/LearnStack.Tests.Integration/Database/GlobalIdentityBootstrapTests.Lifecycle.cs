@@ -5,6 +5,7 @@ using LearnStack.Modules.Identity.Application.Contracts.Bindings;
 using LearnStack.Modules.Identity.Application.Contracts.Seeding;
 using LearnStack.Modules.Identity.Domain;
 using LearnStack.Modules.Identity.Infrastructure.Bindings;
+using LearnStack.SharedKernel.Permissions;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
@@ -28,6 +29,7 @@ public sealed partial class GlobalIdentityBootstrapTests
     public async Task Precontext_binding_lookup_does_not_pin_common_coordinators_before_tenant_resolution()
     {
         await using var dataSource = NpgsqlDataSource.Create(_database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(_database, Registration);
         var seed = new SeedRunner(
             context => SeedComposition.Build(dataSource, context, NullLoggerFactory.Instance),
             NullLogger<SeedRunner>.Instance);
@@ -45,6 +47,12 @@ public sealed partial class GlobalIdentityBootstrapTests
             new FixtureAdmission(Subject, Actor), services =>
             {
                 services.Replace(ServiceDescriptor.Singleton<ITenantContextAccessor>(accessor));
+                // This unrouted component act proves post-binding coordinator context
+                // acquisition; it does not assert a human role or HTTP capability.
+                ComponentOperationRegistration.AddExactComponentAuthority(services,
+                    OperationPolicy.ForTrusted<CreateOrganizationCommand>(
+                        "tests.component.binding_lifecycle.create_organization", AuthorizationSourceKind.Seed));
+                evidence.AddTo(services);
                 services.AddMediatR(configuration => configuration.RegisterServicesFromAssembly(
                     typeof(LearnStack.Modules.Tenancy.Application.AssemblyMarker).Assembly));
             });

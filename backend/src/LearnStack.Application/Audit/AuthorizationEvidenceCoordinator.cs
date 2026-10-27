@@ -239,6 +239,7 @@ public sealed class AuthorizationEvidenceCoordinator(
         if (!ReferenceEquals(owner, unit) || _depth == 0 || !owner.HasActiveTransaction || owner.IsRollbackOnly)
             throw new InvalidOperationException("Authorization evidence requires its actual completion owner.");
         if (_compositionFailed) throw new AuditWriteFailedException("Trusted authorization evidence could not be composed.");
+        if (!_entries.Values.Any(entry => !entry.Acknowledged)) return null;
         if (owner.Mode == TransactionMode.ReadOnly)
         {
             await AcknowledgeStandaloneAsync(cancellationToken).ConfigureAwait(false);
@@ -285,7 +286,11 @@ public sealed class AuthorizationEvidenceCoordinator(
     public async Task BeforeSuccessAsync(CancellationToken cancellationToken)
     {
         if (_compositionFailed) throw new AuditWriteFailedException("Trusted authorization evidence could not be composed.");
-        if (!unit.HasActiveTransaction) await AcknowledgeStandaloneAsync(cancellationToken).ConfigureAwait(false);
+        // Empty or already-acknowledged evidence owes no further I/O. In particular,
+        // post-COMMIT cancellation cannot turn a positively acknowledged act into
+        // a cleanup failure merely by waiting on the standalone-write semaphore.
+        if (!unit.HasActiveTransaction && _entries.Values.Any(entry => !entry.Acknowledged))
+            await AcknowledgeStandaloneAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private async Task AcknowledgeStandaloneAsync(CancellationToken cancellationToken)

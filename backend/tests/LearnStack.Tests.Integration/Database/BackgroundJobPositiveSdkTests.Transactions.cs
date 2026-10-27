@@ -28,9 +28,9 @@ public sealed partial class BackgroundJobPositiveSdkTests
                     -- Reconciled failed attempts have their separate standalone
                     -- transaction; they are not successful business writes.
                     IF NEW.outcome<>'success' THEN RETURN NEW; END IF;
-                    IF NEW.operation='tenancy.organization.create' AND NEW.entity_id='{prepared.Value:D}' THEN
+                    IF NEW.operation='jobfixture.organization.create' AND NEW.entity_id='{prepared.Value:D}' THEN
                         label:='prepare-business-must';
-                    ELSIF NEW.operation='tenancy.organization.create' AND NEW.entity_id='{finalized.Value:D}' THEN
+                    ELSIF NEW.operation='jobfixture.organization.create' AND NEW.entity_id='{finalized.Value:D}' THEN
                         label:='finalize-business-must';
                     ELSIF NEW.operation='platform.job.dead_letter' THEN label:='finalize-terminal-must'; END IF;
                 ELSIF NEW.phase IN ('completed','terminal_pending') AND OLD.phase='finalizing' THEN

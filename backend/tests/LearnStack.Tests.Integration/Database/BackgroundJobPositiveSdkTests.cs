@@ -113,8 +113,8 @@ public sealed partial class BackgroundJobPositiveSdkTests(SchemaFixture schema, 
                 j.terminal_reason,j.business_finalization_incomplete,
                 (SELECT count(*) FROM background_job_reservations r WHERE r.job_id=j.id),
                 (SELECT bool_and(r.released_at IS NOT NULL) FROM background_job_reservations r WHERE r.job_id=j.id),
-                (SELECT count(*) FROM audit_log a WHERE a.operation='tenancy.organization.create' AND a.entity_id=@prepared),
-                (SELECT count(*) FROM audit_log a WHERE a.operation='tenancy.organization.create' AND a.entity_id=@finalized),
+                (SELECT count(*) FROM audit_log a WHERE a.operation='jobfixture.organization.create' AND a.entity_id=@prepared),
+                (SELECT count(*) FROM audit_log a WHERE a.operation='jobfixture.organization.create' AND a.entity_id=@finalized),
                 (SELECT count(*) FROM audit_log a WHERE a.operation='platform.job.dead_letter' AND a.metadata->>'job_id'=@job_text)
             FROM background_jobs j WHERE j.id=@job
             """, (NpgsqlConnection)connection, (NpgsqlTransaction)transaction);

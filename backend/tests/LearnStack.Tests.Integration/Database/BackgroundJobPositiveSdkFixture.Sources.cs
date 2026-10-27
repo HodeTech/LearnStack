@@ -40,7 +40,7 @@ internal sealed partial class BackgroundJobPositiveSdkFixture
             public async Task<Result<Plan>> Handle(Prepare request,CancellationToken token)
             {
                 var p=request.Parameters;
-                var written=await sender.Send(new CreateOrganizationCommand(p.PreparedOrganizationId,
+                var written=await sender.Send(new CreateFixtureOrganization(p.PreparedOrganizationId,
                     "prepared-"+p.PreparedOrganizationId.Value.ToString("N"),"Prepared provider fixture"),token);
                 return written.IsFailure ? Result<Plan>.Fail(written.Error)
                     : Result<Plan>.Ok(new Plan(p.ResourceId,p.FinalizedOrganizationId));
@@ -55,7 +55,7 @@ internal sealed partial class BackgroundJobPositiveSdkFixture
                 if(f.Plan.ResourceId!=p.ResourceId || f.Plan.FinalizedOrganizationId!=p.FinalizedOrganizationId
                     || f.Outcome is {} outcome && outcome.ResourceId!=p.ResourceId)
                     throw new InvalidOperationException("Finalization identifiers were substituted.");
-                var written=await sender.Send(new CreateOrganizationCommand(p.FinalizedOrganizationId,
+                var written=await sender.Send(new CreateFixtureOrganization(p.FinalizedOrganizationId,
                     "finalized-"+p.FinalizedOrganizationId.Value.ToString("N"),"Finalized provider "+f.Status),token);
                 return written.IsFailure ? Result<None>.Fail(written.Error) : Result<None>.Ok(None.Value);
             }

@@ -14,10 +14,10 @@ using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Messaging;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Time;
-using LearnStack.Tools.Seeder;
 using MediatR;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -30,7 +30,8 @@ namespace LearnStack.Tests.Integration.Database;
 
 /// <summary>
 /// ADR-0057's shared execution boundary, including real outbox receipts across
-/// direct and nested invocations. Domain save-promotion proofs live in
+/// direct and nested invocations. Nested commands use explicit test component
+/// authority; this is not a human permission proof. Domain save-promotion proofs live in
 /// <c>DomainEventProductionTests</c>.
 /// </summary>
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
@@ -455,8 +456,11 @@ public sealed class ProducerExecutionTests(SchemaFixture schema)
         await using var host = new ConstructionOnlyApiFactory().WithWebHostBuilder(builder =>
         {
             builder.UseSetting("ConnectionStrings:Default", database.AppConnectionString);
-            builder.ConfigureServices(services => services.AddSingleton<ITenantContextAccessor>(
-                new StaticTenantContextAccessor(TenantA)));
+            builder.ConfigureServices(services =>
+            {
+                services.AddSingleton<ITenantContextAccessor>(new StaticTenantContextAccessor(TenantA));
+                AddNestedComponentAuthority(services);
+            });
         });
         var root = api ? host.Services : seed;
         await using var outer = root.CreateAsyncScope();
@@ -586,8 +590,17 @@ public sealed class ProducerExecutionTests(SchemaFixture schema)
         }
     }
 
-    private static ServiceProvider Compose(NpgsqlDataSource dataSource) =>
-        SeedComposition.Build(dataSource, TenantA, NullLoggerFactory.Instance);
+    private static ServiceProvider Compose(NpgsqlDataSource dataSource)
+    {
+        var services = ComponentOperationRegistration.CreateDatabaseServices(dataSource, TenantA);
+        AddNestedComponentAuthority(services);
+        return services.BuildServiceProvider();
+    }
+
+    private static void AddNestedComponentAuthority(IServiceCollection services) =>
+        ComponentOperationRegistration.AddExactComponentAuthority(services,
+            OperationPolicy.ForTrusted<CreateOrganizationCommand>(
+                "tests.component.producer.create_organization", AuthorizationSourceKind.Seed));
 
     private static AuditExecutionCoordinator DirectAudit(IServiceProvider services, IAuditStateCapture? capture = null) =>
         new(new ProbeCatalog(services.GetRequiredService<IAuditCatalog>()),

@@ -8,6 +8,7 @@ using LearnStack.SharedKernel.Entitlements;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using MediatR;
@@ -54,6 +55,8 @@ internal sealed class BackgroundJobRuntimeFixture
     private const string Prefix = "LearnStack.Modules.JobsSubmissionFixture";
     private static readonly Lazy<BackgroundJobRuntimeFixture> Instance = new(() => new());
     private static readonly string[] RootRequests = ["TenantRoot", "OrganizationRoot", "PendingRoot", "CapacityRoot"];
+    private static readonly string[] ExecutionRequests = [.. RootRequests, "Nested", "Prepare", "Finalize", "CreateFixtureOrganization"];
+    private static readonly string[] ComponentRequests = ["Submit", "SubmitOrganization", "ComponentNested", "ComponentCreateFixtureOrganization"];
     internal static BackgroundJobRuntimeFixture Shared => Instance.Value;
     internal const string TenantKey = "jobssubmissionfixture.run.v1";
     internal const string OrganizationKey = "jobssubmissionfixture.organization.v1";
@@ -159,7 +162,8 @@ internal sealed class BackgroundJobRuntimeFixture
             {
                 Ordinary("TenantRoot"), Ordinary("OrganizationRoot", BackgroundJobScope.Organization),
                 Ordinary("PendingRoot"), Ordinary("CapacityRoot"), Ordinary("Submit"),
-                Ordinary("SubmitOrganization", BackgroundJobScope.Organization), Ordinary("Nested"), Ordinary("Prepare"), Ordinary("Finalize"),
+                Ordinary("SubmitOrganization", BackgroundJobScope.Organization), Ordinary("Nested"), Ordinary("ComponentNested"),
+                Ordinary("CreateFixtureOrganization"), Ordinary("ComponentCreateFixtureOrganization"), Ordinary("Prepare"), Ordinary("Finalize"),
                 new BackgroundJobRequestDescriptor(ForeignRequestType, BackgroundJobRequestClassification.Ordinary, BackgroundJobScope.TenantWide),
                 new BackgroundJobRequestDescriptor(typeof(CreateOrganizationCommand), BackgroundJobRequestClassification.Ordinary, BackgroundJobScope.TenantWide),
             }), modules, infrastructure: topology);
@@ -204,6 +208,12 @@ internal sealed class BackgroundJobRuntimeFixture
                 services.AddSingleton<IBackgroundJobFixtureProbe>(probe);
                 services.AddSingleton<ITenantContextAccessor>(new BackgroundJobFixtureAccessor(context ?? new BackgroundJobFixtureContext()));
                 services.AddSingleton<IAuditCatalogSource>(new FixtureAuditSource(this));
+                BackgroundJobFixtureOperations.AddJobs(services, [.. ExecutionRequests.Select(RequestType)]);
+                ComponentOperationRegistration.AddExactComponentAuthority(services,
+                    [.. ComponentRequests.Select(RequestType)
+                        .Append(ForeignRequestType).Select(type => BackgroundJobFixtureOperations.Trusted(type, AuthorizationSourceKind.Seed))]);
+                BackgroundJobFixtureOperations.AddPublic(services, RequestType("PublicSubmit"));
+                BackgroundJobFixtureOperations.AddOrganizationAudit(services, RequestType("CreateFixtureOrganization"), RequestType("ComponentCreateFixtureOrganization"));
                 foreach (var assembly in new[] { _application, _foreignApplication })
                     foreach (var type in assembly.GetTypes())
                         foreach (var contract in type.GetInterfaces().Where(candidate => candidate.IsGenericType
@@ -215,6 +225,12 @@ internal sealed class BackgroundJobRuntimeFixture
 
     internal async Task<Result<None>> SendAsync(IServiceProvider services, string request = "Submit") =>
         (Result<None>)(await services.GetRequiredService<ISender>().Send(Request(request)))!;
+
+    internal IRequest<Result<OrganizationDto>> OrganizationRequest(OrganizationId id, string slug, string name) =>
+        (IRequest<Result<OrganizationDto>>)Activator.CreateInstance(RequestType("CreateFixtureOrganization"), id, slug, name)!;
+
+    internal IRequest<Result<OrganizationDto>> ComponentOrganizationRequest(OrganizationId id, string slug, string name) =>
+        (IRequest<Result<OrganizationDto>>)Activator.CreateInstance(RequestType("ComponentCreateFixtureOrganization"), id, slug, name)!;
 
     internal Task<BackgroundJobId> EnqueueAsync(IServiceProvider services, string key = TenantKey,
         object? parameters = null, DateTimeOffset? dueAt = null)
@@ -233,7 +249,7 @@ internal sealed class BackgroundJobRuntimeFixture
         BackgroundJobDefinitionReadiness readiness = BackgroundJobDefinitionReadiness.Active, string? capacityGroup = null) =>
         new(key, RequestType("Declarations"), ParameterType, scope, readiness, "transactional",
             BackgroundJobProfileRegistration.Transactional(RequestType(root)),
-            nestedRequestTypes: scope == BackgroundJobScope.TenantWide ? [RequestType("Nested"), typeof(CreateOrganizationCommand)] : [],
+            nestedRequestTypes: scope == BackgroundJobScope.TenantWide ? [RequestType("Nested"), RequestType("CreateFixtureOrganization"), typeof(CreateOrganizationCommand)] : [],
             capacityGroup: capacityGroup);
 
     private BackgroundJobRequestDescriptor Ordinary(string name, BackgroundJobScope scope = BackgroundJobScope.TenantWide) =>
@@ -256,6 +272,7 @@ internal sealed class BackgroundJobRuntimeFixture
             public sealed record Submit : IRequest<Result<None>>;
             public sealed record SubmitOrganization : IRequest<Result<None>>;
             public sealed record Nested : IRequest<Result<None>>;
+            public sealed record ComponentNested : IRequest<Result<None>>;
             [PublicSurface] public sealed record PublicSubmit : IRequest<Result<None>>;
             public sealed record Prepare : IRequest<Result<Plan>>
             {
@@ -276,7 +293,7 @@ internal sealed class BackgroundJobRuntimeFixture
                     { Parameters = parameters; Interlocked.Increment(ref Constructions); OnConstruction?.Invoke(); }
                 }
                 """;
-        foreach (var request in new[] { "Submit", "SubmitOrganization", "Nested", "PublicSubmit", "TenantRoot", "OrganizationRoot", "PendingRoot", "CapacityRoot" })
+        foreach (var request in new[] { "Submit", "SubmitOrganization", "Nested", "ComponentNested", "PublicSubmit", "TenantRoot", "OrganizationRoot", "PendingRoot", "CapacityRoot" })
             source += $$"""
                 public sealed class {{request}}Handler : IRequestHandler<{{request}}, Result<None>>
                 {
@@ -288,7 +305,7 @@ internal sealed class BackgroundJobRuntimeFixture
                         probe.ExecuteAsync("{{request}}", services, cancellationToken);
                 }
                 """;
-        return source;
+        return source + BackgroundJobFixtureOperations.OrganizationSource() + BackgroundJobFixtureOperations.OrganizationSource(component: true);
     }
 
     private sealed class FixtureAuditSource(BackgroundJobRuntimeFixture fixture) : IAuditCatalogSource
@@ -299,7 +316,8 @@ internal sealed class BackgroundJobRuntimeFixture
             foreach (var request in fixture._application.GetTypes().Concat(fixture._foreignApplication.GetTypes())
                          .Where(type => type.GetInterfaces().Any(contract => contract.IsGenericType
                              && contract.GetGenericTypeDefinition() == typeof(IRequest<>))))
-                typeof(IAuditCatalogBuilder).GetMethod(nameof(IAuditCatalogBuilder.Off))!
+                if (request.Name is not ("CreateFixtureOrganization" or "ComponentCreateFixtureOrganization"))
+                    typeof(IAuditCatalogBuilder).GetMethod(nameof(IAuditCatalogBuilder.Off))!
                     .MakeGenericMethod(request).Invoke(builder, null);
         }
     }
@@ -340,7 +358,7 @@ internal sealed class BackgroundJobFixtureContext(Guid? organization = null, Gui
     public OrganizationId? OrganizationId { get; set; } = organization is { } value ? LearnStack.SharedKernel.Identifiers.OrganizationId.From(value) : null;
     public UserId? UserId { get; set; } = LearnStack.SharedKernel.Identifiers.UserId.From(BackgroundJobRuntimeFixture.Human);
     public UserId? CausalActorUserId { get; set; }
-    public string? CorrelationId => Activity.Current?.Id;
+    public string? CorrelationId { get; } = Activity.Current?.Id;
     public bool IsResolved => true;
     public TenantContextOrigin? Origin => TenantContextOrigin.Ambient;
     public HostScope? HostScope => null;

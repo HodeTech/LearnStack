@@ -84,7 +84,7 @@ public sealed partial class BackgroundJobSubmissionTests(SchemaFixture schema)
                 (await BackgroundJobRuntimeRows.ScalarInUnitAsync(unit, "SELECT current_user")).Should().Be("learnstack_app");
                 (await BackgroundJobRuntimeRows.ScalarInUnitAsync(unit,
                     "SELECT (rolsuper OR rolbypassrls)::text FROM pg_roles WHERE rolname=current_user")).Should().Be("false");
-                (await services.GetRequiredService<ISender>().Send(new CreateOrganizationCommand(
+                (await services.GetRequiredService<ISender>().Send(Fixture.ComponentOrganizationRequest(
                     OrganizationId.From(business), "job-proof-" + business.ToString("N")[..12], "Job proof"), CancellationToken.None)).IsSuccess.Should().BeTrue();
                 traceparent = Activity.Current!.Id;
                 // Trusted enrollment must survive mutations to this ambient object.
@@ -149,7 +149,7 @@ public sealed partial class BackgroundJobSubmissionTests(SchemaFixture schema)
         await using var scope = host.Services.CreateAsyncScope();
         probe.Body = async (_, services, _) =>
         {
-            (await services.GetRequiredService<ISender>().Send(new CreateOrganizationCommand(
+            (await services.GetRequiredService<ISender>().Send(Fixture.ComponentOrganizationRequest(
                 OrganizationId.From(business), "job-rollback-" + business.ToString("N")[..12], "Job rollback"), CancellationToken.None)).IsSuccess.Should().BeTrue();
             job = await Fixture.EnqueueAsync(services);
             (await BackgroundJobRuntimeRows.ReadInUnitAsync(services.GetRequiredService<IUnitOfWork>(), job.Value)).Should().NotBeNull();
@@ -182,7 +182,7 @@ public sealed partial class BackgroundJobSubmissionTests(SchemaFixture schema)
         await using var scope = host.Services.CreateAsyncScope();
         probe.Body = async (request, services, _) =>
         {
-            if (request == "Nested")
+            if (request == "ComponentNested")
             {
                 if (produce)
                 {
@@ -191,9 +191,9 @@ public sealed partial class BackgroundJobSubmissionTests(SchemaFixture schema)
                 }
                 return Result<None>.Fail(Refusal);
             }
-            (await services.GetRequiredService<ISender>().Send(new CreateOrganizationCommand(
+            (await services.GetRequiredService<ISender>().Send(Fixture.ComponentOrganizationRequest(
                 OrganizationId.From(business), "job-absorbed-" + business.ToString("N")[..12], "Absorbed refusal"), CancellationToken.None)).IsSuccess.Should().BeTrue();
-            (await Fixture.SendAsync(services, "Nested")).Error.Should().BeSameAs(Refusal);
+            (await Fixture.SendAsync(services, "ComponentNested")).Error.Should().BeSameAs(Refusal);
             services.GetRequiredService<IUnitOfWork>().IsRollbackOnly.Should().Be(produce);
             observed = true;
             return Result.Ok(None.Value);
@@ -313,7 +313,7 @@ public sealed partial class BackgroundJobSubmissionTests(SchemaFixture schema)
         await using var connection = await PostgresFixture.OpenAsync(connectionString);
         await using var transaction = await connection.BeginTransactionAsync();
         await EducationSchemaSeed.AnnounceAsync(connection, transaction, SchemaFixture.TenantA, organization);
-        await using var read = new NpgsqlCommand("SELECT outcome FROM audit_log WHERE entity_id = @id AND operation = 'tenancy.organization.create'",
+        await using var read = new NpgsqlCommand("SELECT outcome FROM audit_log WHERE entity_id = @id AND operation = 'jobfixture.organization.create'",
             (NpgsqlConnection)connection, (NpgsqlTransaction)transaction);
         read.Parameters.AddWithValue("id", id.ToString());
         var outcomes = new List<string>();

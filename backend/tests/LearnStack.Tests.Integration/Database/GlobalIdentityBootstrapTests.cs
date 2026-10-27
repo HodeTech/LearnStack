@@ -8,6 +8,7 @@ using LearnStack.Modules.Identity.Application.Contracts.Bindings;
 using LearnStack.Modules.Identity.Application.Contracts.Seeding;
 using LearnStack.Modules.Identity.Domain;
 using LearnStack.Modules.Identity.Infrastructure.Bindings;
+using LearnStack.Modules.Identity.Infrastructure.Authorization;
 using LearnStack.Modules.Identity.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Caching;
@@ -190,6 +191,10 @@ public sealed partial class GlobalIdentityBootstrapTests(SchemaFixture schema) :
         services.AddSingleton<IClock, SystemClock>();
         services.AddSingleton<IGuidFactory, SystemGuidFactory>();
         services.AddSingleton<ICacheService, InMemoryCacheService>();
+        // Global binding still resolves the actual common coordinator graph.
+        // Its real protected authorizer remains lazy; global binding grants no
+        // tenant operation or membership authority.
+        services.AddIdentityOperationPolicies();
         services.AddLearnStackMediatRPipeline();
         services.AddSingleton<ITenantContextAccessor>(StaticTenantContextAccessor.Unresolved);
         services.AddTransient<ITenantContext>(provider =>

@@ -11,8 +11,8 @@ using Microsoft.Extensions.Logging;
 
 namespace LearnStack.Tests.Integration;
 
-/// <summary>Explicit authorization composition for the two database-free application-dispatch probes.</summary>
-internal static class ComponentOperationRegistration
+/// <summary>Explicit, bounded authority for isolated component obligations; canonical authorization remains active.</summary>
+internal static partial class ComponentOperationRegistration
 {
     internal static void AddValidationOperation(IServiceCollection services)
     {

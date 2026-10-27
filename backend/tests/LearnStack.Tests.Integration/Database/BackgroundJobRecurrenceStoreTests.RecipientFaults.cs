@@ -2,8 +2,10 @@ using System.Reflection;
 using FluentAssertions;
 using LearnStack.Application.Jobs;
 using LearnStack.Infrastructure.Jobs;
+using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Infrastructure.Jobs;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Results;
@@ -53,11 +55,13 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
             BindingFlags.NonPublic | BindingFlags.Instance)!;
         field.Should().NotBeNull();
         field.SetValue(claim, value);
+        await using var evidence = await RecipientEvidenceSourceAsync(database);
         var ids = new RecipientIdentityCounter();
         await using var host = RecipientHost(database, new(), configure: services =>
         {
             services.RemoveAll<IGuidFactory>();
             services.AddSingleton<IGuidFactory>(ids);
+            services.Replace(ServiceDescriptor.Singleton<IAuthorizationEvidenceSessionFactory>(evidence));
         });
         var result = await host.Services.GetRequiredService<JobExecutor>().ExecuteRecipientAsync(claim,
             BackgroundJobLifecycleProjectionDeclaration.Create(), RecipientGate(), CancellationToken.None);
@@ -66,11 +70,60 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
         result.Command.ProvisionalChild.Should().BeNull();
         result.CleanupFailed.Should().BeFalse();
         result.SourceOwner.CleanupConfirmed.Should().BeTrue();
-        ids.Count.Should().Be(0, "the actual stored route is checked before minting any child identity");
+        if (mutation == "organization")
+            ids.Issued.Should().BeEmpty("the invalid announced organization fails before an attributable refusal");
+        else
+        {
+            var denialId = ids.Issued.Should().ContainSingle("the sole minted identity must belong to the durable central denial, never a child").Subject;
+            await using var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.AppConnectionString);
+            await using var readScope = await app.BeginTransactionAsync();
+            await SchemaQueries.AssertApplicationRoleAsync(app, readScope);
+            await EducationSchemaSeed.AnnounceAsync(app, readScope, claim.TenantId.Value, claim.OrganizationId?.Value);
+            await using var denial = new NpgsqlCommand("""
+                SELECT id,operation,operation_class,operation_type,outcome,actor_user_id,
+                    metadata->'authorization'->>'source',entity_id
+                FROM audit_log WHERE id=@id
+                """, app, readScope);
+            denial.Parameters.AddWithValue("id", denialId);
+            await using var rows = await denial.ExecuteReaderAsync();
+            (await rows.ReadAsync()).Should().BeTrue("a separate app-role connection must see the committed refusal");
+            rows.GetGuid(0).Should().Be(denialId);
+            rows.GetString(1).Should().Be("identity.authorization.deny");
+            rows.GetString(2).Should().Be("Must");
+            rows.GetString(3).Should().Be("SecurityEvent");
+            rows.GetString(4).Should().Be("denied");
+            rows.GetGuid(5).Should().Be(UserId.SystemActor.Value);
+            rows.GetString(6).Should().Be("job");
+            rows.IsDBNull(7).Should().BeTrue();
+            (await rows.ReadAsync()).Should().BeFalse();
+        }
+        ids.Count.Should().Be(ids.Issued.Count, "all identifier allocations are accounted for");
+        host.Services.GetRequiredService<IAuditHealth>().IsHealthy.Should().BeTrue();
         await using var dispatcher = await PostgresFixture.OpenAsync(database.OutboxConnectionString);
         (await ReadAsync<long>(dispatcher, "SELECT count(*) FROM background_jobs")).Should().Be(0);
         (await ReadAsync<bool>(dispatcher, "SELECT accepted_job_id IS NULL AND skipped_at IS NULL FROM background_job_recipients"))
             .Should().BeTrue();
+    }
+
+    private static async Task<AuthorizationEvidenceSource> RecipientEvidenceSourceAsync(DisposableSchemaDatabase database)
+    {
+        var authority = IdentityMembershipFixture.Authority;
+        await using (var migration = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.MigrationConnectionString))
+        await using (var install = new NpgsqlCommand("INSERT INTO identity_authority(id,authority_id,issuer) VALUES(1,@id,@issuer)", migration))
+        {
+            install.Parameters.AddWithValue("id", authority.AuthorityId.Value);
+            install.Parameters.AddWithValue("issuer", authority.Issuer);
+            await install.ExecuteNonQueryAsync();
+        }
+        var evidence = new AuthorizationEvidenceSource(database.AppConnectionString);
+        try
+        {
+            await using var business = ApplicationDataSource.Build(database.AppConnectionString);
+            await using var proof = await DatabaseQualificationProof.OpenAsync(business);
+            await evidence.QualifyAsync(authority.AuthorityId, authority.Issuer, proof, proof.DeadlineToken);
+            return evidence;
+        }
+        catch { await evidence.DisposeAsync(); throw; }
     }
 
     [Theory]

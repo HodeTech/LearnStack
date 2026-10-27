@@ -27,7 +27,7 @@ public sealed partial class BackgroundJobCapacityAdmissionTests
         {
             await using var owner = await PostgresFixture.OpenAsync(database.MigrationConnectionString);
             await SchemaQueries.ExecuteAsync(owner, null, ending == "audit"
-                ? "ALTER TABLE audit_log ADD CONSTRAINT reject_capacity_business_audit CHECK (operation <> 'tenancy.organization.create')"
+                ? "ALTER TABLE audit_log ADD CONSTRAINT reject_capacity_business_audit CHECK (operation <> 'jobfixture.organization.create')"
                 : "ALTER TABLE background_job_reservations ADD CONSTRAINT reject_capacity_business_release CHECK (released_at IS NULL)");
         }
         var organization = Guid.CreateVersion7();
@@ -39,7 +39,7 @@ public sealed partial class BackgroundJobCapacityAdmissionTests
             {
                 var unit = services.GetRequiredService<IUnitOfWork>();
                 await SchemaQueries.AssertApplicationRoleAsync(unit.Connection, unit.Transaction);
-                (await services.GetRequiredService<ISender>().Send(new CreateOrganizationCommand(
+                (await services.GetRequiredService<ISender>().Send(Fixture.OrganizationRequest(
                     OrganizationId.From(organization), "capacity-" + organization.ToString("N")[..12], "Capacity atomicity"), token))
                     .IsSuccess.Should().BeTrue();
                 child = await Fixture.EnqueueAsync(services, dueAt: DateTimeOffset.UtcNow.AddHours(1));
@@ -73,7 +73,7 @@ public sealed partial class BackgroundJobCapacityAdmissionTests
             SELECT (SELECT count(*) FROM organizations WHERE id=@organization),
                 (SELECT count(*) FROM outbox_messages WHERE id=@outgoing),
                 (SELECT count(*) FROM background_jobs WHERE id=@child),
-                (SELECT count(*) FROM audit_log WHERE entity_id=@subject AND operation='tenancy.organization.create' AND outcome='success'),
+                (SELECT count(*) FROM audit_log WHERE entity_id=@subject AND operation='jobfixture.organization.create' AND outcome='success'),
                 (SELECT count(*) FROM background_jobs WHERE id=@job AND phase='completed' AND processed_at IS NOT NULL),
                 (SELECT count(*) FROM background_job_reservations WHERE job_id=@job AND attempt_id=@attempt
                     AND released_at IS NOT NULL AND release_reason='completed')

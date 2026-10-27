@@ -293,7 +293,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
             probe.Attempt = new(source, unit, unit.Connection);
             var parameters = typeof(TRequest).GetProperty("Parameters")!.GetValue(request)!;
             var prepared = (OrganizationId)parameters.GetType().GetProperty("PreparedOrganizationId")!.GetValue(parameters)!;
-            var written = await sender.Send(new CreateOrganizationCommand(prepared,
+            var written = await sender.Send(Fixture.OrganizationRequest(prepared,
                 "prepared-" + prepared.Value.ToString("N"), "Prepare policy window"), cancellationToken);
             if (written.IsFailure) throw new InvalidOperationException("Actual nested Prepare write failed.");
             probe.Written.TrySetResult();

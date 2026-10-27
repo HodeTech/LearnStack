@@ -8,6 +8,7 @@ using LearnStack.Infrastructure.Jobs;
 using LearnStack.Infrastructure.Messaging;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Application.Contracts.IntegrationEvents;
+using LearnStack.Modules.Identity.Infrastructure.Authorization;
 using LearnStack.SharedKernel.Audit;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -179,7 +180,8 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         builder.AddLearnStackCrossCuttingFoundation(builder.Configuration.RequireDeploymentMode(),
             typeof(LearnStack.Modules.Tenancy.Application.AssemblyMarker).Assembly,
             typeof(LearnStack.Modules.Customization.Application.AssemblyMarker).Assembly,
-            typeof(LearnStack.Modules.Education.Application.AssemblyMarker).Assembly);
+            typeof(LearnStack.Modules.Education.Application.AssemblyMarker).Assembly,
+            typeof(LearnStack.Modules.Identity.Application.AssemblyMarker).Assembly);
         builder.Services.AddLearnStackTenancyEdge(builder.Configuration);
         // These supported test bounds alter caller waiting/poll cadence only;
         // SqlTimeout and the actual guarded source's cancellation bounds remain.
@@ -198,6 +200,11 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         // The actual persistence composition calls AddLearnStackOutboxDispatcher
         // once, preserving its three exact hosted aliases and source capture.
         builder.Services.AddLearnStackPersistence(builder.Configuration);
+        // Complete the actual authorizer graph without granting a human candidate
+        // or qualifying an unused read lane in this worker-lifetime component proof.
+        builder.Services.AddSingleton(_ => new IdentityAuthorizationReadSource(database.AppConnectionString));
+        builder.Services.AddIdentityAuthorizationReader();
+        builder.Services.AddIdentityOperationPolicies();
         // Keep the genuine audit writer and all its production dependencies.
         // Only its real terminal scope gains a synthetic async cleanup hold.
         builder.Services.AddScoped<PostgresAuditStore>();

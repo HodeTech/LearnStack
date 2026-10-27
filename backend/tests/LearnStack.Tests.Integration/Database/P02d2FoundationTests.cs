@@ -57,6 +57,9 @@ public sealed class P02d2FoundationTests(SchemaFixture schema)
         }
 
         var sender = scope.ServiceProvider.GetRequiredService<ISender>();
+        await SchemaQueries.AssertApplicationRoleAsync(unit.Connection);
+        unit.GetTenantContextAnnouncement(unit.Transaction).Should().NotBeNull(
+            "the finite seed component reaches the actual app-role SQL announcement");
         var reader = scope.ServiceProvider.GetRequiredService<IExactCustomizationDefinitionReader>();
         var first = Guid.CreateVersion7();
         var next = Guid.CreateVersion7();
@@ -292,7 +295,9 @@ public sealed class P02d2FoundationTests(SchemaFixture schema)
         public OrganizationId? OrganizationId => organizationId is { } value
             ? LearnStack.SharedKernel.Identifiers.OrganizationId.From(value) : null;
         public UserId? UserId => null;
-        public TenantContextOrigin? Origin => TenantContextOrigin.HostAndClaim;
+        // These are finite seed/exact-reader components; no HTTP host or claim
+        // admission proposition is under test here.
+        public TenantContextOrigin? Origin => TenantContextOrigin.Ambient;
         public string? CorrelationId => null;
         public string? ModuleName => null;
     }

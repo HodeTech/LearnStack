@@ -65,7 +65,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
                 entered.TrySetResult(new(owner, main.ProcessID, backend, actual));
                 await actual;
                 owner.RequireBusinessReady();
-                var written = await services.GetRequiredService<ISender>().Send(new CreateOrganizationCommand(
+                var written = await services.GetRequiredService<ISender>().Send(transactional.OrganizationRequest(
                     unrelatedOrganization, "contention-" + unrelatedOrganization.Value.ToString("N"),
                     "Independent transactional pool"), token);
                 return written.IsFailure ? Result<None>.Fail(written.Error) : Result<None>.Ok(None.Value);
@@ -85,7 +85,9 @@ public sealed partial class BackgroundJobPositiveSdkTests
             services.AddSingleton(bounds);
             services.AddSingleton<IBackgroundJobFixtureProbe>(probe);
             services.AddSingleton<IAuditCatalogSource>(new SourceContentionAuditSource(transactional));
-            foreach (var name in SourceContentionRequestNames)
+            BackgroundJobFixtureOperations.AddJobs(services, transactional.RequestType("TenantRoot"), transactional.RequestType("CreateFixtureOrganization"));
+            BackgroundJobFixtureOperations.AddOrganizationAudit(services, transactional.RequestType("CreateFixtureOrganization"));
+            foreach (var name in SourceContentionRequestNames.Append("CreateFixtureOrganization"))
             {
                 var request = transactional.RequestType(name);
                 foreach (var handler in request.Assembly.GetTypes())
@@ -94,7 +96,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
                         && candidate.GenericTypeArguments[0] == request))
                         services.AddTransient(contract, handler);
             }
-        }, applicationPoolSize: 32, reconcileProbe: reconcile);
+        }, applicationPoolSize: 32, reconcileProbe: reconcile, componentRequests: [transactional.RequestType("Submit")]);
         var lifetime = host.Services.GetRequiredService<ApplicationDataSourceLifetime>();
         var privilegedConnection = new NpgsqlConnectionStringBuilder(database.OutboxConnectionString)
         { Pooling = true, MaxPoolSize = 52 }.ConnectionString;
@@ -311,11 +313,12 @@ public sealed partial class BackgroundJobPositiveSdkTests
                 external.Readiness, external.Queue, external.ProfileRegistration, external.NestedRequestTypes, external.CapacityGroup),
             new(BackgroundJobRuntimeFixture.TenantKey, transactional.RequestType("Declarations"), transactional.ParameterType,
                 BackgroundJobScope.TenantWide, BackgroundJobDefinitionReadiness.Active, "transactional",
-                BackgroundJobProfileRegistration.Transactional(transactional.RequestType("TenantRoot")), [typeof(CreateOrganizationCommand)]),
+                BackgroundJobProfileRegistration.Transactional(transactional.RequestType("TenantRoot")), [transactional.RequestType("CreateFixtureOrganization")]),
         ], Fixture.Registry.All.Concat(new[]
         {
             new BackgroundJobRequestDescriptor(transactional.RequestType("Submit"), BackgroundJobRequestClassification.Ordinary, BackgroundJobScope.TenantWide),
             new BackgroundJobRequestDescriptor(transactional.RequestType("TenantRoot"), BackgroundJobRequestClassification.Ordinary, BackgroundJobScope.TenantWide),
+            new BackgroundJobRequestDescriptor(transactional.RequestType("CreateFixtureOrganization"), BackgroundJobRequestClassification.Ordinary, BackgroundJobScope.TenantWide),
         }), modules, infrastructure: topology);
     }
 
@@ -369,7 +372,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
         await using var inspect = new NpgsqlCommand("""
             SELECT j.phase,j.profile,j.normal_attempts,j.finalize_attempts,j.processed_at IS NOT NULL,
                 (SELECT count(*) FROM organizations WHERE id=@organization),
-                (SELECT count(*) FROM audit_log WHERE entity_id=@subject AND operation='tenancy.organization.create' AND outcome='success')
+                (SELECT count(*) FROM audit_log WHERE entity_id=@subject AND operation='jobfixture.organization.create' AND outcome='success')
             FROM background_jobs j WHERE j.id=@id
             """, (NpgsqlConnection)app, (NpgsqlTransaction)transaction) { CommandTimeout = 5 };
         inspect.Parameters.AddWithValue("id", job.Value);

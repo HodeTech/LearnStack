@@ -11,6 +11,7 @@ using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Secrets;
 using LearnStack.SharedKernel.Tenancy;
@@ -35,6 +36,8 @@ namespace LearnStack.Tests.Integration.Database;
 public sealed class TenancyWriterTests(SchemaFixture schema, ConstructionOnlyApiFactory factory)
     : IClassFixture<ConstructionOnlyApiFactory>
 {
+    private ComponentAuthorizationEvidence _evidence = null!;
+
     private const string Theme = """{"primary":"#2345aa","background":"#ffffff","foreground":"#111111","muted":"#555555"}""";
     private const string OtherTheme = """{"primary":"#663399","background":"#ffffff","foreground":"#000000","muted":"#444444"}""";
 
@@ -45,6 +48,8 @@ public sealed class TenancyWriterTests(SchemaFixture schema, ConstructionOnlyApi
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var context = await ProvisionAsync(source);
         var foreign = await ProvisionAsync(source);
         var initial = await ReadTenantAsync(source, context);
@@ -86,6 +91,8 @@ public sealed class TenancyWriterTests(SchemaFixture schema, ConstructionOnlyApi
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var context = await ProvisionAsync(source);
         var before = await ReadTenantAsync(source, context);
         var disabled = await SendAsync(source, context, new AddTenantLocaleCommand(before.Version, "fr", false, false, 0));
@@ -121,6 +128,8 @@ public sealed class TenancyWriterTests(SchemaFixture schema, ConstructionOnlyApi
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var context = await ProvisionAsync(source);
         var foreign = await ProvisionAsync(source);
         var tenantBefore = await ReadTenantAsync(source, context);
@@ -152,7 +161,7 @@ public sealed class TenancyWriterTests(SchemaFixture schema, ConstructionOnlyApi
         JsonNode.DeepEquals(JsonNode.Parse(foreignState.Value), JsonNode.Parse(OtherTheme)).Should().BeTrue();
         foreignState.Version.Should().Be(0);
 
-        await using var provider = SeedComposition.Build(source, context, NullLoggerFactory.Instance);
+        await using var provider = BuildProvider(source, context);
         await using var scope = provider.CreateAsyncScope();
         var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
         await using var frame = await unit.BeginTransactionAsync();
@@ -177,6 +186,8 @@ public sealed class TenancyWriterTests(SchemaFixture schema, ConstructionOnlyApi
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var context = await ProvisionAsync(source);
         (await ReadTenantAsync(source, context)).Status.Should().Be(nameof(TenantStatus.Trial));
         var id = Guid.CreateVersion7();
@@ -188,7 +199,7 @@ public sealed class TenancyWriterTests(SchemaFixture schema, ConstructionOnlyApi
         var auditsBefore = await CountSuccessfulWritesAsync(source, context, "tenancy.setting.write");
         if (!missingTenant)
         {
-            await using var provider = SeedComposition.Build(source, context, NullLoggerFactory.Instance);
+            await using var provider = BuildProvider(source, context);
             await using var scope = provider.CreateAsyncScope();
             var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
             await using var frame = await unit.BeginTransactionAsync();
@@ -203,6 +214,11 @@ public sealed class TenancyWriterTests(SchemaFixture schema, ConstructionOnlyApi
         var refusedContext = missingTenant ? context with { TenantId = TenantId.From(Guid.CreateVersion7()) } : context;
         await using var host = factory.WithWebHostBuilder(builder => builder
             .UseSetting("ConnectionStrings:Default", database.AppConnectionString)
+            .ConfigureServices(services =>
+            {
+                AddComponentAuthority(services);
+                _evidence.AddTo(services);
+            })
             .ConfigureServices(services => services.AddScoped<ITenantSettingWriteStore, UnexpectedSettingAccess>()));
         await using (var scope = host.Services.CreateAsyncScope())
         {
@@ -228,11 +244,13 @@ public sealed class TenancyWriterTests(SchemaFixture schema, ConstructionOnlyApi
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var context = await ProvisionAsync(source);
         var id = Guid.CreateVersion7();
         (await SendAsync(source, context, new SetTenantBrandingCommand(id, Theme, null))).IsSuccess.Should().BeTrue();
         (await SendAsync(source, context, new SetTenantBrandingCommand(id, OtherTheme, 0))).IsSuccess.Should().BeTrue();
-        await using var provider = SeedComposition.Build(source, context, NullLoggerFactory.Instance);
+        await using var provider = BuildProvider(source, context);
         await using var scope = provider.CreateAsyncScope();
         var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
         await using var frame = await unit.BeginTransactionAsync();
@@ -281,6 +299,8 @@ public sealed class TenancyWriterTests(SchemaFixture schema, ConstructionOnlyApi
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var context = await ProvisionAsync(source);
         await using (var owner = new NpgsqlConnection(database.MigrationConnectionString))
         {
@@ -301,6 +321,8 @@ public sealed class TenancyWriterTests(SchemaFixture schema, ConstructionOnlyApi
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var context = await ProvisionAsync(source);
         var initial = await ReadTenantAsync(source, context);
         var first = await SendAsync(source, context, new AddTenantLocaleCommand(initial.Version, "tr-TR", true, true, 0));
@@ -308,6 +330,11 @@ public sealed class TenancyWriterTests(SchemaFixture schema, ConstructionOnlyApi
         var before = await ReadTenantAsync(source, context);
         await using var host = factory.WithWebHostBuilder(builder => builder
             .UseSetting("ConnectionStrings:Default", database.AppConnectionString)
+            .ConfigureServices(services =>
+            {
+                AddComponentAuthority(services);
+                _evidence.AddTo(services);
+            })
             .ConfigureServices(services => services.AddScoped<ISaveChangesInterceptor, ThrowOnSecondTenancySave>()));
         await using (var scope = host.Services.CreateAsyncScope())
         {
@@ -326,12 +353,19 @@ public sealed class TenancyWriterTests(SchemaFixture schema, ConstructionOnlyApi
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var context = await ProvisionAsync(source);
         var id = Guid.CreateVersion7();
         (await SendAsync(source, context, new SetTenantBrandingCommand(id, Theme, null))).IsSuccess.Should().BeTrue();
         var barrier = new ReadBarrier();
         await using var host = factory.WithWebHostBuilder(builder => builder
             .UseSetting("ConnectionStrings:Default", database.AppConnectionString)
+            .ConfigureServices(services =>
+            {
+                AddComponentAuthority(services);
+                _evidence.AddTo(services);
+            })
             .ConfigureServices(services => services.AddScoped<ITenantSettingWriteStore>(provider =>
                 new BarrierSettingStore(new TenantSettingWriteStore(provider.GetRequiredService<TenancyDbContext>()), barrier))));
         async Task<Result<TenantBrandingDto>> Replace(string theme)
@@ -356,10 +390,17 @@ public sealed class TenancyWriterTests(SchemaFixture schema, ConstructionOnlyApi
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var context = await ProvisionAsync(source);
         var barrier = new ReadBarrier();
         await using var host = factory.WithWebHostBuilder(builder => builder
             .UseSetting("ConnectionStrings:Default", database.AppConnectionString)
+            .ConfigureServices(services =>
+            {
+                AddComponentAuthority(services);
+                _evidence.AddTo(services);
+            })
             .ConfigureServices(services => services.AddScoped<ITenantSettingWriteStore>(provider =>
                 new BarrierSettingStore(new TenantSettingWriteStore(provider.GetRequiredService<TenancyDbContext>()), barrier))));
         async Task<Result<TenantBrandingDto>> Create(string theme)
@@ -393,11 +434,13 @@ public sealed class TenancyWriterTests(SchemaFixture schema, ConstructionOnlyApi
         }
 
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var context = await ProvisionAsync(source);
         var initial = await ReadTenantAsync(source, context);
         var first = await SendAsync(source, context, new AddTenantLocaleCommand(initial.Version, "en", true, true, 0));
         var second = await SendAsync(source, context, new AddTenantLocaleCommand(first.Value!.Version, "fr", true, false, 1));
-        await using var provider = SeedComposition.Build(source, context, NullLoggerFactory.Instance);
+        await using var provider = BuildProvider(source, context);
         await using var scope = provider.CreateAsyncScope();
         var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
         await using var frame = await unit.BeginTransactionAsync();
@@ -421,10 +464,12 @@ public sealed class TenancyWriterTests(SchemaFixture schema, ConstructionOnlyApi
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var context = await ProvisionAsync(source);
         var initial = await ReadTenantAsync(source, context);
         var added = await SendAsync(source, context, new AddTenantLocaleCommand(initial.Version, "en", true, true, 0));
-        await using var provider = SeedComposition.Build(source, context, NullLoggerFactory.Instance);
+        await using var provider = BuildProvider(source, context);
         await using var scope = provider.CreateAsyncScope();
         var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
         await using var frame = await unit.BeginTransactionAsync();
@@ -449,6 +494,8 @@ public sealed class TenancyWriterTests(SchemaFixture schema, ConstructionOnlyApi
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var context = await ProvisionAsync(source);
         var initial = await ReadTenantAsync(source, context);
         var added = await SendAsync(source, context, new AddTenantLocaleCommand(initial.Version, "en", true, true, 0));
@@ -456,7 +503,7 @@ public sealed class TenancyWriterTests(SchemaFixture schema, ConstructionOnlyApi
         var settingId = Guid.CreateVersion7();
         (await SendAsync(source, context, new SetTenantBrandingCommand(settingId, Theme, null))).IsSuccess.Should().BeTrue();
         var brandingBefore = (await SendAsync(source, context, new GetSettingSeedStateQuery(settingId))).Value!.State;
-        await using (var provider = SeedComposition.Build(source, context, NullLoggerFactory.Instance))
+        await using (var provider = BuildProvider(source, context))
         await using (var scope = provider.CreateAsyncScope())
         {
             var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
@@ -470,7 +517,7 @@ public sealed class TenancyWriterTests(SchemaFixture schema, ConstructionOnlyApi
             await frame.CompleteAsync();
         }
         long version;
-        await using (var provider = SeedComposition.Build(source, context, NullLoggerFactory.Instance))
+        await using (var provider = BuildProvider(source, context))
         await using (var scope = provider.CreateAsyncScope())
         {
             var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
@@ -485,7 +532,7 @@ public sealed class TenancyWriterTests(SchemaFixture schema, ConstructionOnlyApi
             version = tenant.Version;
             await frame.CompleteAsync();
         }
-        await using (var provider = SeedComposition.Build(source, context, NullLoggerFactory.Instance))
+        await using (var provider = BuildProvider(source, context))
         await using (var scope = provider.CreateAsyncScope())
         {
             var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
@@ -510,6 +557,8 @@ public sealed class TenancyWriterTests(SchemaFixture schema, ConstructionOnlyApi
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var context = await ProvisionAsync(source);
         var foreign = await ProvisionAsync(source);
         var a = await ReadTenantAsync(source, context);
@@ -521,7 +570,7 @@ public sealed class TenancyWriterTests(SchemaFixture schema, ConstructionOnlyApi
         var added = await SendAsync(source, context, new AddTenantLocaleCommand(own.Version, "fr", true, false, 1));
         (await SendAsync(source, context, new SetDefaultTenantLocaleCommand(added.Value!.Version, "fr"))).IsSuccess.Should().BeTrue();
         (await ReadTenantAsync(source, foreign)).Should().BeEquivalentTo(foreignBefore);
-        await using var provider = SeedComposition.Build(source, context, NullLoggerFactory.Instance);
+        await using var provider = BuildProvider(source, context);
         await using var scope = provider.CreateAsyncScope();
         var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
         await using var frame = await unit.BeginTransactionAsync();
@@ -537,6 +586,8 @@ public sealed class TenancyWriterTests(SchemaFixture schema, ConstructionOnlyApi
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var context = await ProvisionAsync(source);
         var initial = await ReadTenantAsync(source, context);
         var first = await SendAsync(source, context, new AddTenantLocaleCommand(initial.Version, "en", true, true, 0));
@@ -550,6 +601,11 @@ public sealed class TenancyWriterTests(SchemaFixture schema, ConstructionOnlyApi
         var barrier = new ReadBarrier();
         await using var host = factory.WithWebHostBuilder(builder => builder
             .UseSetting("ConnectionStrings:Default", database.AppConnectionString)
+            .ConfigureServices(services =>
+            {
+                AddComponentAuthority(services);
+                _evidence.AddTo(services);
+            })
             .ConfigureServices(services => services.AddScoped<ITenantWriteStore>(provider =>
                 new BarrierTenantStore(new TenantWriteStore(provider.GetRequiredService<TenancyDbContext>()), barrier))));
         async Task<Result<TenantLocalesDto>> Change(string locale, short sort)
@@ -572,7 +628,25 @@ public sealed class TenancyWriterTests(SchemaFixture schema, ConstructionOnlyApi
         (await CountSuccessfulWritesAsync(source, context, "tenancy.locale.write")).Should().Be(audits + 1);
     }
 
-    private static async Task<Context> ProvisionAsync(NpgsqlDataSource source)
+    private ServiceProvider BuildProvider(NpgsqlDataSource source, ITenantContext? context)
+    {
+        var services = ComponentOperationRegistration.CreateDatabaseServices(source, context);
+        AddComponentAuthority(services);
+        _evidence.AddTo(services);
+        return services.BuildServiceProvider(validateScopes: true);
+    }
+
+    // Explicit admission for this component mechanism; this is not a live HTTP authorization proof.
+    private static void AddComponentAuthority(IServiceCollection services) =>
+        ComponentOperationRegistration.AddExactComponentAuthority(services,
+            OperationPolicy.ForTrusted<SetTenantBrandingCommand>("tests.component.tenancy.branding", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<AddTenantLocaleCommand>("tests.component.tenancy.add_locale", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<SetDefaultTenantLocaleCommand>("tests.component.tenancy.default_locale", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<GetSettingSeedStateQuery>("tests.component.tenancy.get_setting_seed_state", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<GetTenantSeedStateQuery>("tests.component.tenancy.get_tenant_seed_state", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<ProvisionTenantCommand>("tests.component.tenancy.provision_tenant", AuthorizationSourceKind.Seed));
+
+    private async Task<Context> ProvisionAsync(NpgsqlDataSource source)
     {
         var id = TenantId.From(Guid.CreateVersion7());
         var organization = OrganizationId.From(Guid.CreateVersion7());
@@ -582,19 +656,19 @@ public sealed class TenancyWriterTests(SchemaFixture schema, ConstructionOnlyApi
         return new Context(id, organization);
     }
 
-    private static async Task<Result<T>> SendAsync<T>(NpgsqlDataSource source, Context? context, IRequest<Result<T>> request)
+    private async Task<Result<T>> SendAsync<T>(NpgsqlDataSource source, Context? context, IRequest<Result<T>> request)
     {
-        await using var provider = SeedComposition.Build(source, context, NullLoggerFactory.Instance);
+        await using var provider = BuildProvider(source, context);
         await using var scope = provider.CreateAsyncScope();
         return await scope.ServiceProvider.GetRequiredService<ISender>().Send(request);
     }
 
-    private static async Task<TenantSeedDto> ReadTenantAsync(NpgsqlDataSource source, Context context) =>
+    private async Task<TenantSeedDto> ReadTenantAsync(NpgsqlDataSource source, Context context) =>
         (await SendAsync(source, context, new GetTenantSeedStateQuery())).Value!.State!;
 
-    private static async Task<long> CountSuccessfulWritesAsync(NpgsqlDataSource source, Context context, string operation)
+    private async Task<long> CountSuccessfulWritesAsync(NpgsqlDataSource source, Context context, string operation)
     {
-        await using var provider = SeedComposition.Build(source, context, NullLoggerFactory.Instance);
+        await using var provider = BuildProvider(source, context);
         await using var scope = provider.CreateAsyncScope();
         var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
         await using var frame = await unit.BeginTransactionAsync();
@@ -607,9 +681,9 @@ public sealed class TenancyWriterTests(SchemaFixture schema, ConstructionOnlyApi
         return count;
     }
 
-    private static async Task AssertLocaleAuditAsync(NpgsqlDataSource source, Context context)
+    private async Task AssertLocaleAuditAsync(NpgsqlDataSource source, Context context)
     {
-        await using var provider = SeedComposition.Build(source, context, NullLoggerFactory.Instance);
+        await using var provider = BuildProvider(source, context);
         await using var scope = provider.CreateAsyncScope();
         var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
         await using var frame = await unit.BeginTransactionAsync();

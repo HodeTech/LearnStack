@@ -33,9 +33,64 @@ public sealed class AuthorizationEvidenceCoordinatorTests
         proof.Active = false;
         proof.Evidence.RecordOwnerOutcome(batch, committed: true);
         proof.Evidence.RecordOwnerOutcome(batch, committed: true); // Same completion reference cannot repeat a write.
-        await proof.Evidence.BeforeSuccessAsync(CancellationToken.None);
+        using var cancelledAfterCommit = new CancellationTokenSource();
+        cancelledAfterCommit.Cancel();
+        await proof.Evidence.BeforeSuccessAsync(cancelledAfterCommit.Token);
         Assert.Empty(proof.Standalone);
         Assert.Equal(0, proof.Pending[0].Draft.Timestamp.Ticks % 10);
+    }
+
+    [Fact]
+    public async Task Empty_completion_does_not_create_a_cancelled_write_after_success()
+    {
+        using var proof = new Proof();
+        await using var execution = proof.Evidence.BeginExecution();
+        using var cancelled = new CancellationTokenSource();
+        cancelled.Cancel();
+        await proof.Evidence.BeforeSuccessAsync(cancelled.Token);
+        Assert.Empty(proof.Standalone);
+        Assert.Empty(proof.Pending);
+    }
+
+    [Fact]
+    public async Task Pending_evidence_still_blocks_cancelled_success_until_an_actual_acknowledgement()
+    {
+        using var proof = new Proof { Active = true };
+        await using var execution = proof.Evidence.BeginExecution();
+        Assert.True((await proof.AbsorbAsync()).IsSuccess);
+        proof.Active = false;
+        using var cancelled = new CancellationTokenSource();
+        cancelled.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => proof.Evidence.BeforeSuccessAsync(cancelled.Token));
+        Assert.Empty(proof.Standalone);
+        await proof.Evidence.BeforeSuccessAsync(CancellationToken.None);
+        Assert.Single(proof.Standalone);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Only_pending_evidence_requires_the_owners_tenant_announcement(bool pending)
+    {
+        using var proof = new Proof { Active = true };
+        proof.Unit.GetTenantContextAnnouncement(Arg.Any<DbTransaction>()).Returns((TenantContextAnnouncement?)null);
+        await using var execution = proof.Evidence.BeginExecution();
+        if (pending)
+        {
+            Assert.True((await proof.AbsorbAsync()).IsSuccess);
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                proof.Evidence.BeforeOwnerCompletionAsync(proof.Unit, CancellationToken.None));
+        }
+        else
+        {
+            Assert.Null(await proof.Evidence.BeforeOwnerCompletionAsync(proof.Unit, CancellationToken.None));
+            proof.Unit.DidNotReceive().GetTenantContextAnnouncement(Arg.Any<DbTransaction>());
+        }
+        Assert.Empty(proof.Pending);
+        Assert.Empty(proof.Standalone);
+        proof.Active = false;
+        await proof.Evidence.BeforeSuccessAsync(CancellationToken.None);
+        Assert.Equal(pending ? 1 : 0, proof.Standalone.Count);
     }
 
     [Theory]

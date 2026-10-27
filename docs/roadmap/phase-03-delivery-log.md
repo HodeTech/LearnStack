@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 1,468 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 1,581 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -107,6 +107,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 Step 5 review round 1 and corrections (2026-10-27)](#p03-2-step-5-review-round-1-and-corrections-2026-10-27) — 72 lines
   - [P03-2 Step 5 review round 2 and closeout (2026-10-27)](#p03-2-step-5-review-round-2-and-closeout-2026-10-27) — 29 lines
   - [P03-2 Step 6 — Complete populations and qualification (2026-10-27)](#p03-2-step-6--complete-populations-and-qualification-2026-10-27) — 51 lines
+  - [P03-2 Step 6 review round 1 and full-suite fixture diagnosis (2026-10-27)](#p03-2-step-6-review-round-1-and-full-suite-fixture-diagnosis-2026-10-27) — 43 lines
+  - [P03-2 Step 6 R1 corrections and regression verification (2026-10-27)](#p03-2-step-6-r1-corrections-and-regression-verification-2026-10-27) — 70 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -4428,3 +4430,116 @@ working-tree observations, not hosted evidence or an exact committed-head claim.
 Complete rebuilt populations, updated advisory weights and both fresh hosted
 assignments are still required. Both Step 6 review rounds precede closeout; no
 whole-obligation catalogue promotion or packet completion is claimed here.
+
+### P03-2 Step 6 review round 1 and full-suite fixture diagnosis (2026-10-27)
+
+The implementation is committed as `2e00aba9`. Three fresh independent
+`gpt-6-astra` / `xhigh` reviewers inspect `070aa676..2e00aba9`: ownership/callers
+(`p032_s6_r1_owners`), provider/native and denied-proof quality
+(`p032_s6_r1_proofs`), and CI/inventory/documentation
+(`p032_s6_r1_inventory`). Each approves the assigned source slice without a
+verified actionable finding. They edit nothing and run no build/test; the
+inventory reviewer additionally uses read-only Python census and diff checks.
+The unrefreshed timing data and pending complete-suite/hosted qualification are
+explicitly outside those approvals. Updated plan data receives separate narrow
+verification before the fresh second review round.
+
+At this clean committed source the Release build has zero warnings/errors;
+Unit **2,994/2,994**, Contract **5/5**, Docker-free Integration **322/322**, and
+complete Architecture **589/589** pass with zero skips. The Architecture run takes
+**29.0419 minutes** locally. Source/tree and all four test-assembly hashes are
+captured before execution and verified unchanged afterward. This is local
+implementation-source evidence, not a hosted job-fit claim.
+
+The following ordinary Docker diagnostic is deliberately stopped after **858
+reported passes and 314 reported failures**; it does not complete the population,
+and neither its prefix nor its exit status supplies timing/qualification data.
+The failures repeatedly hit stale test composition: dynamic job requests have
+no explicit operation policy, and human audit-workflow actors no longer qualify
+for production seed provenance. The isolated four-process test group receives
+SIGINT and exits completely. The prior complete Architecture receipt remains
+valid for its recorded source; the ordinary population still needs a complete
+passing rerun.
+
+Read-only investigation also identifies component negatives that can pass at the
+wrong early boundary. The correction therefore inventories the component roots,
+including module writer/query, producer, submission and worker fixtures. It
+retains real pipeline/audit/transaction/SQL, explicitly declares only each
+fixture's selected requests, and separates these mechanism proofs from actual
+Program/live-authorization proofs. No production seed permission, API allowlist,
+role grant, job authority or startup qualifier is relaxed. Existing seed-only
+organization administration remains refused from a job; fixture-owned aggregate
+operations exercise the real store/audit mechanism separately. Actor/context
+lifetime, intended handler/SQL/error boundaries and actual worker ownership are
+part of correction verification. Both the correction and complete ordinary
+qualification remain open at this record.
+
+### P03-2 Step 6 R1 corrections and regression verification (2026-10-27)
+
+The complete fixture audit produces explicit component admission for only the
+named mechanism requests. The shared helper preserves every unlisted production
+policy/definition, freezes the supplied list, binds scoped provenance at first
+capture to the exact context and authority fields, and revokes it on scope
+change/disposal. It retains all canonical behaviors and real persistence/audit
+registrations. A new Docker-free Fact checks these boundaries and actual unit/store
+construction without claiming a database or HTTP authorization proof. Actual
+Program/live-authorization and undeclared-HTTP controls remain separate.
+
+Audit and producer fixtures no longer give a human actor production seed
+provenance. Legitimate seed mechanisms retain the real Seeder. Module/query
+fixtures opt into exact test requests, preserving handler entry, physical READ
+ONLY, SQLSTATE, post-save/rollback and actual worker witnesses. Their 403/404 cases
+use explicitly caller-owned, real app-role evidence sources with installed matching
+authority and awaited disposal. Business Off remains separate from the central
+MUST denial row. The AccountSite app-role readback initially misses branch rows;
+the independent proof reviewer identifies its missing organization announcement.
+Exact organization GUC/predicate and matching context call sites close that finding.
+The corrected core group passes **48/48**, zero skips.
+
+Job fixtures classify only their actual dynamic requests and retain production
+job provenance. Separate fixture commands exercise the real Organization/store/
+MUST audit; a real seed-only production organization command remains explicitly
+refused from a job. Stale-authority negatives now witness the actual preflight
+SQL. The broad affected run completes **844** cases, **814 passed / 30 failed**;
+it is a diagnostic, not qualification or a timing source. Its remaining failures
+identify cross-Application fixture ownership, mandatory Identity DI registration,
+new audit UUIDs sharing a test counter, overinstalled component provisioning
+provenance, and empty evidence completion.
+
+The queued fixture corrections preserve the original strict checks: the combined
+source test uses the owning fixture's exact nested type; bare global/lifetime
+roots register the real Identity authorizer graph; delivery provenance hosts have
+no setup-only provisioning source; recipient negatives match the issued UUID to
+an independently readable committed denial and retain zero child state.
+
+**Production correction.** An empty or fully acknowledged authorization-evidence
+set owes no further I/O. The previous empty completion still demanded a tenant
+announcement, and a post-COMMIT success could wait on an already-cancelled
+standalone semaphore. This falsely marked acknowledged SDK work as cleanup
+failure. The bounded guard retains owner/depth/active/rollback and composition
+checks, then skips only the empty/fully-acknowledged path. Pending, failed,
+rolled-back and uncertain evidence still requires the existing acknowledgement,
+announcement, generation and cancellation checks. No decision/grant or durability
+floor changes. Four new unit cases and the existing exact-COMMIT control cover
+empty, acknowledged, pending/cancelled and missing-announcement outcomes.
+
+The evidence unit group passes **21/21**. The actual source-contention, positive
+COMMIT/cancellation, recipient/no-child, lifecycle, delivery and outbox regression
+group passes **43/43**, zero skips. The strict Release solution builds with zero
+warnings/errors. Existing source/corpus/permission checks additionally pass
+**10/10** before the production guard; refreshed relevant checks follow below.
+
+The original ownership reviewer independently verifies the bounded helper/job
+correction and then the production empty-evidence and final fixture corrections.
+The proof reviewer verifies module/evidence ownership, requests the exact-org
+readback correction, and closes it after re-reading the actual diff. Both edit
+nothing and run no build/test. These are R1 correction checks, not additional full
+review rounds. Complete passing ordinary partitions, current rediscovery/weights,
+fresh R2 and hosted A/B remain required before Step 6 closes.
+
+After the correction freeze, the complete Unit population passes **2,998/2,998**,
+Docker-free Integration **323/323**, and Contract **5/5**. Refreshed Identity audit,
+operation-policy, database-fixture and corpus Architecture controls pass **16/16**.
+All four raw TRX receipts report zero failures/skips. Documentation/index checks
+pass. These local receipts do not replace the remaining ordinary partitions or
+final-source hosted A/B qualification.
