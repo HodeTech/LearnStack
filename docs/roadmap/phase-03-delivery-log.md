@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 1,850 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 1,866 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -113,7 +113,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 Step 6 measured-plan review and qualification freeze (2026-10-27)](#p03-2-step-6-measured-plan-review-and-qualification-freeze-2026-10-27) — 48 lines
   - [P03-2 Step 6 failed qualification and owned cleanup correction (2026-10-28)](#p03-2-step-6-failed-qualification-and-owned-cleanup-correction-2026-10-28) — 50 lines
   - [P03-2 Step 6 Architecture timing correction (2026-10-28)](#p03-2-step-6-architecture-timing-correction-2026-10-28) — 58 lines
-  - [P03-2 Step 6 scoped census performance correction (2026-10-28)](#p03-2-step-6-scoped-census-performance-correction-2026-10-28) — 40 lines
+  - [P03-2 Step 6 scoped census performance correction (2026-10-28)](#p03-2-step-6-scoped-census-performance-correction-2026-10-28) — 39 lines
+  - [P03-2 census performance review round 1 (2026-10-28)](#p03-2-census-performance-review-round-1-2026-10-28) — 17 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -4817,3 +4818,19 @@ A/B remains required. The plan, six/twelve owner counts, two Architecture
 threads, VM and time ceilings, cleanup reserve and all production code remain
 unchanged by this correction.
 
+### P03-2 census performance review round 1 (2026-10-28)
+
+Two fresh independent reviewers (`gpt-6-astra`, xhigh) inspect
+`72d76f20..6d1a43bf` across detector semantics and proof/evidence ownership.
+Both approve without verified findings. They check exact assembly/type identity,
+async owner mapping, duplicate and opcode preservation, detached targets and
+per-evaluation cache lifetime. The proof reviewer independently recomputes the
+24 failed-run archive checks, exact three missing Facts, timing comparisons and
+both local TRX outcomes. No review-agent build, test or source edit occurs.
+
+The fresh Release solution build at `6d1a43bf` passes with zero warnings/errors.
+The other affected delivery-credential/business-owner controls and the existing
+raw/index/clean-dirty-restored cache control pass **3/3**, zero failures/skips.
+Together with the separately recorded isolated authority pass, this validates
+the focused correction; it is not a complete local or hosted qualification.
+The next fresh review round and final-source full hosted A/B remain open.
