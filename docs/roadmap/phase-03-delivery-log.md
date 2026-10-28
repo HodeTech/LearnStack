@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,371 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,382 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -134,6 +134,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 clean local managed browser proof (2026-10-28)](#p03-2-clean-local-managed-browser-proof-2026-10-28) — 21 lines
   - [P03-2 browser and recovery correction source freeze (2026-10-28)](#p03-2-browser-and-recovery-correction-source-freeze-2026-10-28) — 17 lines
   - [P03-2 zero-adopted standard census correction (2026-10-28)](#p03-2-zero-adopted-standard-census-correction-2026-10-28) — 25 lines
+  - [P03-2 zero-standard census review round 1 (2026-10-28)](#p03-2-zero-standard-census-review-round-1-2026-10-28) — 11 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -5358,3 +5359,14 @@ test-source correction invalidates its freeze. The **27**-job API record and all
 **six** available original packages are retained; no complete population or fit
 is claimed, no B starts, and cancellation is not classified as a new product
 failure. Fresh review rounds precede one new complete same-source A/B freeze.
+
+### P03-2 zero-standard census review round 1 (2026-10-28)
+
+Two fresh independent reviewers (`gpt-6.1-sol` / `gpt-6-luna`, medium) approve
+`07a0431a..fb7a8928` without verified findings. They confirm the one-line code
+delta, unchanged parser/assertions/population, both future status sentences and
+the before/after/full-preview **4+1 / 5 / 5** raw TRX results and hashes. The
+evidence reviewer independently validates all six cancelled-attempt original
+ZIP sizes, hashes and CRCs and the complete **27**-job API record. No cancelled
+attempt is promoted to fit or qualification. The second fresh review round and
+complete new-source A/B remain open.
