@@ -129,6 +129,7 @@ records hosted qualification. Phase 11 owns production qualification.
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
+| 0080 | [Fixed Seed Prerequisite Read Scope](0080-fixed-seed-prerequisite-read-scope.md) | Separate temporary seed read authority for fenced pristine-prefix verification; no human witness weakening or new physical owner | P03-3 Step 3, before this read capability is implemented |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
 the P02d-2 package on 2026-10-02. Their rows are now in Active ADRs; ADR-0049 remains

@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 921 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 1,024 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -157,6 +157,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 2 — Bounded self entry and native scope admission (2026-10-28)](#p03-3-step-2--bounded-self-entry-and-native-scope-admission-2026-10-28) — 62 lines
   - [P03-3 Step 2 review round 1 and verified corrections (2026-10-28)](#p03-3-step-2-review-round-1-and-verified-corrections-2026-10-28) — 46 lines
   - [P03-3 Step 2 review round 2 and closeout (2026-10-28)](#p03-3-step-2-review-round-2-and-closeout-2026-10-28) — 34 lines
+  - [P03-3 Step 3 — Seed prefix authority gap and proposal (2026-10-28)](#p03-3-step-3--seed-prefix-authority-gap-and-proposal-2026-10-28) — 64 lines
+  - [ADR-0080 proposal review round 1 (2026-10-28)](#adr-0080-proposal-review-round-1-2026-10-28) — 39 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -6621,3 +6623,106 @@ accepted ten-step plan with Step 3: finite policy alternatives/conjunctions,
 explicit v2 delta adoption and preserving warm seed/origin adoption. This closes
 no provider/browser, manual accessibility or final A/B obligation; G1/G4/G6 and
 the full packet remain governed by their existing qualification gates.
+
+### P03-3 Step 3 — Seed prefix authority gap and proposal (2026-10-28)
+
+Step 3 implementation is uncommitted on `development` after `23869e91`.
+Finite policy combinations, v2 Role markers/delta guards, retained seed evidence,
+per-write fencing and fixed origin-adoption consumers are under local validation.
+They are not an implemented/qualified Step 3 closeout. No temporary seed read
+capability has been added.
+
+The authoritative-prefix requirement in ADR-0079 exposes a missing read source.
+The current orgless profile writer rechecks its own Membership, referenced Role
+and Tenancy prerequisites after waiting. Its ordinary SQL scope cannot observe a
+branch Membership edited after the console's preliminary population check. Two
+independent read-only architecture/storage assessments trace this to the existing
+Protected-human read-witness and narrow-owner rules, rather than treating a
+caller Boolean or a repeated preliminary query as authority.
+
+Root runs the actual regression:
+
+```text
+CI=true dotnet test backend/tests/LearnStack.Tests.Integration/LearnStack.Tests.Integration.csproj \
+  -c Release --no-restore --verbosity quiet \
+  --filter FullyQualifiedName~IdentitySeederTests.A_branch_profile_edit_while_orgless_incomplete_seed_waits_refuses_the_next_seed_profile \
+  --logger 'console;verbosity=minimal'
+```
+
+The owned fixture uses PostgreSQL `18.4-alpine`, local image/repository digest
+`sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15`.
+The setup deliberately interrupts the first Yoga profile MUST event, after all
+four Memberships and the two English profiles have committed. It then observes
+that the orgless seed writer is blocked by a real app-role branch writer's
+Tenant fence, commits the valid branch edit and resumes it. Result: **one failed,
+zero passed/skipped**, because the seed completes and the required refusal is not
+thrown. The interruption fixture initially expected the wrong exception type;
+that setup expectation was corrected to the actual `AuditWriteFailedException`
+before this observed behavioral result. The final failure is the missing
+post-wait refusal, not a migration, setup or timeout failure.
+
+The base is `23869e91d702e9eac59dcda0490b901fee964dfa`, with uncommitted Step 3
+production/integration changes. A private diagnostic manifest hashes 74 changed
+production/integration files as
+`d703d5882cc47c2c21a117de43a382c8feb0e26d9a0bb68d6cef0f8fb00b1aba`.
+This diagnostic working-tree record is not a final source/tree A/B receipt and
+will not qualify a later commit. The test and private run log remain available
+for implementation verification; no real developer database or private `.env`
+is used.
+
+[ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md) proposes a
+separate temporary fixed-seed prerequisite-read source on the same already
+fenced ReadWrite owner. The current human witness, scoped writes, RLS template,
+roles, definers, logical Tenant setters and owner/connection counts remain
+unchanged. The physical read hatch is broader than the finite projection; the
+proposal explicitly accepts that cost and requires restoration/poisoning and
+actual misuse/race/cleanup proof. Blanket refusal of ambiguous partial installs
+is a viable alternative, but changes the accepted resume promise.
+
+The proposed continuation is confined inside Step 3: accept and reconcile the
+bounded authority, implement the private source/owner transition and finite
+whole-prefix reader, qualify every affected seed writer, then commit Step 3 and
+perform its original two fresh implementation-review rounds. Steps 4–10 retain
+their scope/order. A proposal review or lint result does not approve or implement
+this capability. The maintainer's instruction to approve new ADRs before their
+implementation remains applicable; independent already-authorized validation
+continues while this concrete package is prepared.
+
+### ADR-0080 proposal review round 1 (2026-10-28)
+
+Two new independent read-only reviewers examine the proposed authority,
+confinement, source/manifest binding, actual owner transitions, privacy/audit,
+complete writer coverage and acceptance carriers against current source and the
+recorded PostgreSQL regression. Both approve the bounded proposal with no
+verified Blocker, Major or Minor. Their verdict is neither maintainer acceptance
+nor implementation qualification.
+
+They independently confirm that the current human witness and narrow owner
+cannot supply the missing read. The target-Tenant boundary is explicit: the
+runner's preliminary examination of both Tenants remains advisory, not a global
+post-wait snapshot. The fixed metadata projection must remain separate from the
+ordinary seed reader's profile-value/current-organization query. All eight
+relevant seed writers need complete post-fence prerequisites; the failing Yoga
+profile example is not the scope limit.
+
+The reviewers retain actual competing-order, incomplete-resume, completed-state
+preservation, foreign-Tenant isolation, cross-org write guards, cancellation,
+wrong-source/generation/nesting, lost enable/clear acknowledgement, mutation/
+commit refusal and pooled-reuse controls as implementation exit obligations.
+They run no toolchain, tests, Docker or browser operations. The first-round ADR
+body SHA-256 is
+`f855affab6c8a41bfc17c7b9451d413b0d07f46f4393b3f57c28129ed189435f`.
+A second fresh independent proposal round follows before maintainer approval.
+
+Independent already-authorized Step 3 checks meanwhile pass: 32 actual
+PostgreSQL Role-release/origin-adoption/selection cases and 13 Node origin-tool
+cases, with no skips. These do not close the known prefix regression or the
+remaining Step 3 Unit/architecture/full-source obligations.
+
+After the independent fixture/current-contract adaptations, the complete backend
+Unit suite passes **3,172/3,172**, with no skips. These updates preserve actual
+coordinator ownership, exact fixture declarations, provisioning order, scope
+refusal, save poisoning and exception propagation. Superseded v1 repair adoption
+and undeclared seed promotion now assert their selected refusals; domain rules
+remain separately exercised. The known PostgreSQL prefix regression remains red
+and still requires the proposed authority before Step 3 can close.
