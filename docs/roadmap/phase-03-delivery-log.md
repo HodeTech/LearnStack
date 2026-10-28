@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 1,060 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 1,090 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -160,6 +160,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 3 — Seed prefix authority gap and proposal (2026-10-28)](#p03-3-step-3--seed-prefix-authority-gap-and-proposal-2026-10-28) — 64 lines
   - [ADR-0080 proposal review round 1 (2026-10-28)](#adr-0080-proposal-review-round-1-2026-10-28) — 39 lines
   - [ADR-0080 proposal review round 2 and approval readiness (2026-10-28)](#adr-0080-proposal-review-round-2-and-approval-readiness-2026-10-28) — 36 lines
+  - [P03-3 Step 3 independent preservation and diagnostic controls (2026-10-28)](#p03-3-step-3-independent-preservation-and-diagnostic-controls-2026-10-28) — 30 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -6763,3 +6764,33 @@ scenario, exact SQL predicates, provider failure canaries and real diagnostic
 sinks. Their subsequent results are recorded separately; the failed run is not
 reported as qualification. The known cross-branch regression still awaits the
 new authority and is not included in that 27-case run.
+
+### P03-3 Step 3 independent preservation and diagnostic controls (2026-10-28)
+
+While ADR-0080 awaits approval, the already-authorized seed/diagnostic correction
+run passes **28/28**, with no skipped cases. The corrected locale controls use
+the actual Yoga nondefault locale; the waiting profile/grant controls retain the
+English target and do not evaluate irrelevant locale parameters. Each race
+observes the real application-role advisory wait, commits the edit, then asserts
+refusal and an unchanged count of successful profile acts.
+
+The ordinary seed history projection retains its exact parameterized
+Tenant/organization predicates and retained-root semantics. Execution now uses
+the existing EF unmapped primitive-projection pattern, preserving the same
+physical owner, ten-second command timeout, provider-only translation, fixed
+failure event and actual sanitized EF trace boundary. The original diagnostic
+tests pass unchanged in substance, including stored neutral/nested/sensitive
+canaries, real provider fault witnesses, serialized logs, OpenTelemetry, local
+archive, Sentry transport and L1 response sinks.
+
+A new actual app-role fixed-origin-runner control resumes a two-Tenant partial
+upgrade, skips the already-adopted Tenant, then repeats with zero mutations,
+unchanged Tenant/mapping physical revisions and unchanged total audit counts.
+This proves the CLI runner's skip-before-MUST behavior, not only the underlying
+single-command adoption.
+
+The known cross-branch prefix regression is deliberately outside this run and
+remains unresolved pending ADR-0080. New authority, Step 3 architecture/full-source
+qualification, its implementation commit and two implementation-review rounds
+remain open. The maintainer approval question links the unchanged Proposed ADR
+and its second-round plan record; no answer is inferred from elapsed time.
