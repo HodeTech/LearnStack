@@ -742,7 +742,7 @@ except launcher.Refusal as failure:
                             and row['outcome'] == 'Failed' for row in rows))
         expected = {path.name for path in (ROOT / 'backend/tests/LearnStack.Tests.Integration/Database').glob(
             'BackgroundJobRuntimeFacadeTests*.cs')} | {
-                'OutboxProcessorTests.cs', 'BackgroundJobPositiveSdkTests.CausalRestart.cs',
+                'OutboxProcessorTests.cs', 'AuthorizationReadSourceTests.cs', 'BackgroundJobPositiveSdkTests.CausalRestart.cs',
                 'BackgroundJobPositiveSdkTests.CausalRestartObservations.cs',
                 'BackgroundJobPositiveSdkTests.NativeSettlement.cs', 'PublicAdmissionRenderingTests.cs',
                 'BackgroundJobPositiveSdkTests.NativeWait.cs', 'BackgroundJobPositiveSdkTests.NativeHistory.cs',

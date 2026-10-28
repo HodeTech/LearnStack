@@ -83,6 +83,7 @@ SHARDS = None
 STARTUP_FAILURES = {'resource_controllers_unavailable', 'work_cgroup_not_empty',
                     'cgroup_kill_unavailable', 'startup_io_refused', 'startup_internal_refusal'}
 FAILURE_SOURCES = {
+    'AuthorizationReadSourceTests.cs': 'authorization_read_source',
     'OutboxProcessorTests.cs': 'outbox_processor',
     'BffNativeDriver.cs': 'bff_native_driver',
     'TenantBffSessionTests.cs': 'bff_session',

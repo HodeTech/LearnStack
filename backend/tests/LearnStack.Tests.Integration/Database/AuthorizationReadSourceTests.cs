@@ -7,6 +7,7 @@ using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Persistence;
 using Microsoft.Extensions.Logging;
 using Npgsql;
+using NpgsqlTypes;
 using Xunit;
 
 namespace LearnStack.Tests.Integration.Database;
@@ -201,32 +202,44 @@ public sealed class AuthorizationReadSourceTests(SchemaFixture schema)
         using var trusted = new TestSource();
         await using var warm = (await source.OpenAsync(trusted.Candidate()))!;
         var backend = ((NpgsqlConnection)warm.Unit.Connection).ProcessID;
-        await warm.DisposeAsync();
         // Both clients exist before the shared catalog is locked. The source reuses its
         // qualified physical connector, so this isolates guard SQL from login cancellation.
         await using var observer = (NpgsqlConnection)await PostgresFixture.OpenAsync(schema.Postgres.AppConnectionString);
-        var heldLock = schema.Postgres.ExecuteAsSuperuserAsync("""
-            BEGIN;
-            LOCK TABLE pg_catalog.pg_authid IN ACCESS EXCLUSIVE MODE;
-            SELECT pg_sleep(8);
-            ROLLBACK;
-            """);
+        uint relation;
+        await using (var query = new NpgsqlCommand("SELECT 'pg_catalog.pg_authid'::regclass::oid", observer))
+            relation = (uint)(await query.ExecuteScalarAsync())!;
+        // A granted shared reader fooled the old holder predicate. Exercise that
+        // real state and warm the exact observer query before exclusive acquisition.
+        await ScalarAsync(warm, "SELECT count(*) FROM pg_catalog.pg_roles");
+        (await RoleCatalogLockAsync(observer, relation, backend, granted: true, CancellationToken.None)).Should().BeTrue();
+        (await RoleCatalogLockAsync(observer, relation, backend, granted: true, CancellationToken.None,
+            "AccessExclusiveLock")).Should().BeFalse("a shared reader is not the exclusive blocker");
+        (await RoleCatalogLockAsync(observer, relation, backend, granted: false, CancellationToken.None)).Should().BeFalse();
+        await warm.DisposeAsync();
+        var acquired = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var heldLock = schema.Postgres.HoldRoleCatalogLockAsync(acquired, release.Task);
         Task<AuthorizationReadOwner?>? blocked = null;
         using var cancellation = new CancellationTokenSource();
         try
         {
-            await WaitForRoleCatalogLockAsync(observer, backend: null, granted: true);
+            var holder = await acquired.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            heldLock.IsCompleted.Should().BeFalse("the acknowledged exclusive blocker awaits explicit release");
             blocked = source.OpenAsync(trusted.Candidate(), cancellation.Token);
-            await WaitForRoleCatalogLockAsync(observer, backend, granted: false);
+            await WaitForRoleCatalogWaiterAsync(observer, relation, backend);
             blocked.IsCompleted.Should().BeFalse();
             cancellation.Cancel();
             await FluentActions.Awaiting(() => blocked.WaitAsync(TimeSpan.FromSeconds(3)))
                 .Should().ThrowAsync<OperationCanceledException>();
+            using var observation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            (await RoleCatalogLockAsync(observer, relation, holder, granted: true, observation.Token,
+                "AccessExclusiveLock")).Should().BeTrue("SQL cancellation must finish while the actual blocker holds its lock");
             heldLock.IsCompleted.Should().BeFalse("the actual role-guard SQL must cancel before its blocker releases");
         }
         finally
         {
             cancellation.Cancel();
+            release.TrySetResult();
             try { await heldLock; }
             finally
             {
@@ -262,20 +275,32 @@ public sealed class AuthorizationReadSourceTests(SchemaFixture schema)
         return await command.ExecuteScalarAsync(owner.DeadlineToken);
     }
 
-    private static async Task WaitForRoleCatalogLockAsync(NpgsqlConnection observer, int? backend, bool granted)
+    private static async Task<bool> RoleCatalogLockAsync(NpgsqlConnection observer, uint relation,
+        int backend, bool granted, CancellationToken cancellationToken, string mode = "AccessShareLock")
+    {
+        await using var query = new NpgsqlCommand("""
+            SELECT EXISTS(SELECT 1 FROM pg_catalog.pg_locks
+                WHERE locktype = 'relation' AND relation = @relation
+                  AND mode = @mode AND granted = @granted AND pid = @backend)
+            """, observer);
+        query.Parameters.AddWithValue("relation", NpgsqlDbType.Oid, relation);
+        query.Parameters.AddWithValue("granted", granted);
+        query.Parameters.AddWithValue("mode", mode);
+        query.Parameters.AddWithValue("backend", backend);
+        return await query.ExecuteScalarAsync(cancellationToken) is true;
+    }
+
+    private static async Task WaitForRoleCatalogWaiterAsync(NpgsqlConnection observer, uint relation, int backend)
     {
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        while (true)
+        try
         {
-            await using var query = new NpgsqlCommand("""
-                SELECT EXISTS(SELECT 1 FROM pg_catalog.pg_locks
-                    WHERE relation = 'pg_catalog.pg_authid'::regclass
-                      AND granted = @granted AND (@backend = 0 OR pid = @backend))
-                """, observer);
-            query.Parameters.AddWithValue("granted", granted);
-            query.Parameters.AddWithValue("backend", backend ?? 0);
-            if (await query.ExecuteScalarAsync(deadline.Token) is true) return;
-            await Task.Delay(10, deadline.Token);
+            while (!await RoleCatalogLockAsync(observer, relation, backend, granted: false, deadline.Token))
+                await Task.Delay(10, deadline.Token);
+        }
+        catch (OperationCanceledException) when (deadline.IsCancellationRequested)
+        {
+            throw new TimeoutException("Role-guard waiter observation timed out.");
         }
     }
 

@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,557 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,593 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -141,6 +141,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 low-priority review corrections (2026-10-28)](#p03-2-pr-39-low-priority-review-corrections-2026-10-28) — 31 lines
   - [P03-2 PR 39 correction review round 1 (2026-10-28)](#p03-2-pr-39-correction-review-round-1-2026-10-28) — 17 lines
   - [P03-2 PR 39 correction review round 2 and handoff (2026-10-28)](#p03-2-pr-39-correction-review-round-2-and-handoff-2026-10-28) — 23 lines
+  - [P03-2 PR 39 role-guard cancellation control (2026-10-28)](#p03-2-pr-39-role-guard-cancellation-control-2026-10-28) — 36 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -5551,3 +5552,39 @@ Both fresh correction review rounds are closed. The follow-up checks qualify
 these two findings; the maintainer's remaining full-PR review limits and pending
 merge decision retain their stated scope. The original implementation A/B remains
 bound to `c39ab614`; the updated PR head receives its own protected checks.
+
+### P03-2 PR 39 role-guard cancellation control (2026-10-28)
+
+[Run 40662644606/1](https://github.com/HodeTech/LearnStack/actions/runs/40662644606)
+at head `6cf8c714`, merge source `5a2de796`, passes **25/27** jobs. Only
+ordinary-8 and its dependent integration aggregate fail. All **24** available
+original ZIPs pass API size/SHA-256/CRC verification. Twenty complete producer
+unions contain **6,927** results: **6,926 Passed / one Failed**, zero missing or
+skipped. The failed cancellation case executes for **8.088 seconds**; its closed
+exception kind is `cancellation` and no source location was registered. The
+aggregate correctly refuses `producer_not_successful`. Completion/forced-cleanup
+flags on a failed worker do not independently prove a container leak.
+
+The unchanged case passes locally. Independent source diagnosis finds a concrete
+test race: its holder predicate accepted any granted catalog lock, including a
+shared reader, before the intended exclusive blocker acquired. An eight-second
+sleep also released the blocker by elapsed time and obscured which five-second
+monitor failed. The sanitized historical evidence cannot identify that exact
+interleaving or establish a production cancellation defect.
+
+The fixture now acknowledges completion of the real exclusive `LOCK`, keeps its
+privileged connection private, and releases/joins actual rollback and disposal
+on explicit caller signal. Its existing thirty-second control bound fails closed.
+The test warms an exact PID/mode/numeric-OID observer before locking, positively
+exercises a shared reader and rejects it as an exclusive blocker. It observes the
+actual source waiter, cancels it within the unchanged three-second assertion,
+and checks that the acknowledged blocker's PID still holds its exclusive lock.
+Cleanup retains the prior join/dispose path and capacity-recovery assertion.
+Production's five-second admission deadline and all job ceilings stay unchanged.
+
+The corrected real PostgreSQL class passes **9/9**, zero skips. All **95** native
+owner controls pass, including private-value canaries and the expanded finite
+source-location census. The optional `authorization_read_source` code now retains
+bounded file/line diagnostics; waiter observation has a fixed timeout diagnostic.
+No case declaration, selector, timing weight, permission or production path
+changes. Fresh correction reviews and updated-head CI remain required.
