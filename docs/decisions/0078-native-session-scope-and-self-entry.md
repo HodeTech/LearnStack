@@ -128,11 +128,14 @@ inside the API. Native CSRF, binding and epoch ownership supply that obligation.
 
 ### Global-self operations and creation admission
 
-These are separate exact descriptors after provider validation and quota, before
-ordinary binding/tenant resolution. They require the native source, a known
-Tenant/Organization host and the verified provider subject. They install no
+The first three operations below are separate exact descriptors after provider
+validation and quota, before ordinary binding/tenant resolution. They require
+the native source, a known Tenant/Organization host and the verified provider
+subject. They install no
 TenantContext and cannot invoke the provisioning marker or generic MediatR path.
 Ordinary requests keep their route-independent lookup and never allocate.
+The fourth row is deliberately an ordinary resolved ReadWrite operation, not a
+global-self descriptor or a fourth early-branch route.
 
 | Operation | Result / authority |
 |---|---|

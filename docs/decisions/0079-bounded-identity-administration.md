@@ -250,7 +250,12 @@ Before completed response replay, separately classified MUST receipt-read querie
 recheck the current caller, capability, exact immutable
 target relation and self predicate where applicable. They may inspect a terminal
 target only to authorize its historical receipt; ordinary directories stay
-current-only. Original expected version, lifecycle transition and desired-grant
+current-only. A typed immutable target kind/id is persisted alongside the
+completed outcome, separately from its version-only wire receipt. Self-profile
+replay never reconstructs the original Membership from a later current successor.
+The protected filter validates and captures the actual result target; it cannot
+come from arbitrary request metadata. Reclamation clears it with the old outcome.
+Original expected version, lifecycle transition and desired-grant
 checks do not rerun: replay delegates nothing and mutates nothing. Fresh success
 read audit commits before stored bytes; denial uses central evidence. A failed
 replay guard/audit leaves the completed row untouched. Original mutation audit
@@ -290,7 +295,16 @@ Sensitive late responses fail publication after scope/logout/replacement.
 
 Use plain anchors/native forms and full document navigation, without SPA/TanStack
 protected caches or arbitrary Server Actions. Extend protected history, nested
-route and ingress censuses together. Protected pages start veiled and revalidate
+route and ingress censuses together. A separate snapshot admission owner reserves
+before any page-data read: at most
+128 retained snapshots globally and eight per current session/entry owner,
+including cancelled/closing work until actual request/render/body cleanup settles.
+Global saturation is no-store 503; owner saturation is 429; no waiting queue or
+live eviction. These are new bounds, not a property of the existing request
+holders. Each snapshot is at most 256 KiB, so retained serialized snapshot data
+is at most 32 MiB; runtime/rendering overhead is additional. Slow/unsettled
+responses can deny capacity and shutdown joins actual owners. A timeout does not
+prove cleanup. Protected pages start veiled and revalidate
 before history/restoration disclosure; scripts/no-script behavior needs explicit
 real browser proof. No-JavaScript recovery remains usable; script-based expiry/
 history withholding is not claimed for a browser that cannot execute it.

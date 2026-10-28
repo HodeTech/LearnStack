@@ -145,10 +145,11 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 544 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 602 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
+  - [P03-3 second proposal review and bounded snapshot correction (2026-10-28)](#p03-3-second-proposal-review-and-bounded-snapshot-correction-2026-10-28) — 58 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -6236,3 +6237,61 @@ edited local pass never substitutes for that source-bound qualification. Include
 actual rename/default/archive/locale/theme edits followed by a no-write warm rerun,
 plus interrupted-v1 and mixed-edited-partial refusal controls. This closes the
 review gap without silently narrowing the warm-demo driver.
+
+### P03-3 second proposal review and bounded snapshot correction (2026-10-28)
+
+**Status: Proposed.** Three fresh reviewers examine `076d8de6`: authority and
+storage/lifecycle (`gpt-6.1-sol`, xhigh), transport/UI (high). Each reads both full
+ADRs, the indexed initial/revised contract and relevant current source/Accepted
+rules; none edits, builds or runs an application/service. Authority and storage
+approve for maintainer review with no actionable finding. Transport finds one
+Major: existing native/public request holders use unbounded active Sets; the
+first revision incorrectly attributes aggregate snapshot capacity to them.
+Session owner limits do not bound concurrent document requests.
+
+**Selected correction.** Introduce an explicit snapshot admission owner, separate
+from the session count: at most **128 retained page snapshots globally, eight per
+current session/pre-entry owner**, including cancellation/closing until actual
+request/render/body cleanup settles. Reserve before page-data API reads. A full
+global budget returns fixed no-store 503; owner exhaustion returns 429 with a
+bounded hint. No queue, live eviction or release merely because time elapsed.
+An invalid/expired cookie cannot obtain data or a snapshot reservation.
+
+Each page snapshot remains at most 256 KiB aggregate serialized DTO/capability
+data, giving at most 32 MiB of retained serialized snapshots. JS/React/protocol
+and response overhead remain additional; this is no process-RAM or DDoS bound.
+Slow/unsettled responses can consume capacity and deny new pages. The existing
+single-process shutdown joins actual owners; cleanup faults retain credit.
+P03-3 does not silently impose this count on unrelated public requests or claim
+that their existing active Sets were bounded.
+
+Steps 8–9 require held-response/API/RSC-work controls proving exact saturation,
+per-owner isolation, no data read before reservation, no early credit on logical
+abort/timeout, recovery only after actual settlement, epoch/scope rejection of
+stale snapshots and shutdown joining retained work. Test injected smaller caps,
+then the real fixed defaults. The fixed page snapshot is not a bearer permission;
+all API acts still perform their current checks.
+
+**Precision, not a new wire field.** Persist original protected receipt target
+kind/id beside the outcome for Step 6; it is not exposed in the version receipt.
+The existing table gains nullable `replay_target_kind` and `replay_target_id`,
+constrained as a pair and populated only for completed protected success, with
+the closed Membership/Role/Organization/Tenant kinds. The actual result/invocation
+supplies it; new completed protected responses missing it fail capture/replay
+closed. Expired-slot rekey clears it. No new FK, cross-module join, principal or
+app privilege is needed. Self-profile replay reads that original Membership,
+including its terminal historical row, never a later current successor. Matching
+stored Location/target is additionally required for create receipts. Extend the
+idempotency response port internally with this optional typed metadata while
+preserving generic endpoint behavior and opaque fingerprint comparison.
+
+Also clarify ADR-0078's operation table: only its first three global-self entries
+branch early; admission POST is the separately declared ordinary ReadWrite owner.
+No fourth global descriptor is introduced. The exact native/DTO/capability matrix,
+shared-scope correction and warm Tenancy/demo preservation remain selected.
+
+**Proof boundary.** Two full fresh proposal rounds are complete. The snapshot
+correction and target-capture clarification receive focused independent readback
+before the approval request. All new catalogue extensions remain proposed, not
+Registered/Implemented; runtime, migration, real app-role and native/browser proof
+still belong to the ten implementation steps after explicit joint approval.
