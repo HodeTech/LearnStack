@@ -13,8 +13,9 @@
 > are closed. Step 3's finite policies, v2 adoption and preserving warm seed are
 > under implementation/local validation. Its real cross-branch prefix regression
 > exposes a missing seed read source; [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md)
-> is Proposed and that capability is not implemented. Independent validation
-> continues; Step 3 and its postcommit review rounds remain open.
+> is Proposed after two independent proposal-review rounds and awaits maintainer
+> approval; that capability is not implemented. Independent validation continues;
+> Step 3 and its postcommit review rounds remain open.
 > The [Step 2 record](phase-03-delivery-log.md#p03-3-step-2--bounded-self-entry-and-native-scope-admission-2026-10-28)
 > distinguishes local checks from the later provider/native/browser proofs.
 > This remains the critical-path phase after

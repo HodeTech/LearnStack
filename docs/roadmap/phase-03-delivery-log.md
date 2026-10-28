@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 1,024 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 1,060 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -159,6 +159,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 2 review round 2 and closeout (2026-10-28)](#p03-3-step-2-review-round-2-and-closeout-2026-10-28) — 34 lines
   - [P03-3 Step 3 — Seed prefix authority gap and proposal (2026-10-28)](#p03-3-step-3--seed-prefix-authority-gap-and-proposal-2026-10-28) — 64 lines
   - [ADR-0080 proposal review round 1 (2026-10-28)](#adr-0080-proposal-review-round-1-2026-10-28) — 39 lines
+  - [ADR-0080 proposal review round 2 and approval readiness (2026-10-28)](#adr-0080-proposal-review-round-2-and-approval-readiness-2026-10-28) — 36 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -6726,3 +6727,39 @@ refusal, save poisoning and exception propagation. Superseded v1 repair adoption
 and undeclared seed promotion now assert their selected refusals; domain rules
 remain separately exercised. The known PostgreSQL prefix regression remains red
 and still requires the proposed authority before Step 3 can close.
+
+### ADR-0080 proposal review round 2 and approval readiness (2026-10-28)
+
+Two fresh independent read-only reviewers examine proposal commit `a478bffc`
+against the current source and canonical contracts: an authority/privacy/audit
+lens (GPT-6 Astra, xhigh) and a physical owner/storage/confinement lens
+(GPT-6.1 Sol, xhigh). Both approve the bounded proposal for maintainer
+consideration with no verified Blocker, Major or Minor. Root independently
+rechecks the human-only minter, forbidden current owner transition and exact
+ordinary organization predicates. The ADR body remains unchanged from round 1;
+its SHA-256 is
+`f855affab6c8a41bfc17c7b9451d413b0d07f46f4393b3f57c28129ed189435f`.
+
+These are proposal reviews, not the Step 3 implementation reviews or runtime
+qualification. The existing human read authority stays unchanged. All eight
+fixed continuation writers, the same-owner metadata check, clear-before-evidence
+and mutation, sticky failure handling, exact caller census and real competing/
+cleanup/isolation controls remain mandatory. No new scope capability has been
+implemented or accepted.
+
+The proposed Step 3 delta is ready for the maintainer: accept the named bounded
+Amendments and reconcile canonical carriers, implement the closed seed witness/
+owner transition and fixed prerequisite projection, prove all affected writers,
+then finish the original Step 3 commit and two fresh implementation-review
+rounds. Steps 4–10 retain their approved order and scope. This changes no earlier
+approval and closes no provider/browser, accessibility or final-source A/B gate.
+
+Already-authorized validation also exposes independent unfinished work: a
+27-case seed-preservation/diagnostic run passes 21 and fails six, with no skips.
+Four failures are test setup selecting a nonexistent nondefault locale in the
+English fixture; two show the new raw seed projection bypassing the existing EF
+fault observer/operational signal. The fixes preserve the actual locale-removal
+scenario, exact SQL predicates, provider failure canaries and real diagnostic
+sinks. Their subsequent results are recorded separately; the failed run is not
+reported as qualification. The known cross-branch regression still awaits the
+new authority and is not included in that 27-case run.
