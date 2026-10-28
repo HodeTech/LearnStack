@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,277 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,292 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -129,6 +129,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 browser readiness review round 1 (2026-10-28)](#p03-2-browser-readiness-review-round-1-2026-10-28) — 15 lines
   - [P03-2 browser readiness review round 2 (2026-10-28)](#p03-2-browser-readiness-review-round-2-2026-10-28) — 10 lines
   - [P03-2 native recovery positive settlement scheduling (2026-10-28)](#p03-2-native-recovery-positive-settlement-scheduling-2026-10-28) — 32 lines
+  - [P03-2 recovery scheduling review round 1 (2026-10-28)](#p03-2-recovery-scheduling-review-round-1-2026-10-28) — 15 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -5259,3 +5260,18 @@ four test DLL hashes restore exactly afterward. This intentionally failing
 Native scheduling's fresh review rounds, actual browser proof and complete
 same-final-source hosted A/B remain open. No production code, selected case,
 startup/job ceiling, database guard or permitted refusal is relaxed.
+
+### P03-2 recovery scheduling review round 1 (2026-10-28)
+
+Two fresh independent reviewers (`gpt-6-astra`, xhigh / `gpt-6.1-sol`, high)
+approve `8a43eb9d..6ea5e67f` without verified findings. They verify previous-flight
+selection, real clocks, original assertions/provider counts, shared existing
+budgets and preserved conservative refusal. Lifetime review covers cancellation
+before callback entry, synchronous disposal from the callback, factory/timer
+join, selection closure, barrier disposal and first-failure preservation.
+
+The proof reviewer independently parses **4/4** clean and **2/2** refusal passes,
+both expected dirty failures and cleanup witnesses, and matches both committed
+source files and all four restored overlay DLLs. No original CI interleaving or
+hosted qualification is claimed. The second fresh review and complete final-
+source A/B remain open; the actual managed browser proof continues separately.
