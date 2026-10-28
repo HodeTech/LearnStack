@@ -55,6 +55,8 @@ Tenancy alone owns Organization/default lifecycle. Finite release adoption is
 an explicit audited act. Protected writes use durable actor/scope/precondition-
 bound idempotency, with fresh disclosure authorization and MUST audit on replay.
 Warm seed preserves valid installed authority and edits without repair or grants.
+The [first-review revision](../roadmap/phase-03-delivery-log.md#p03-3-first-proposal-review-and-revised-contract-2026-10-28)
+completes the native/DTO matrix and replaces the affected initial package clauses.
 
 ## Context
 
@@ -195,6 +197,21 @@ fresh completion, interrupted v1 resume, ordinary edited-state no-write repeat,
 revocation preservation and malformed/foreign state refusal. This replaces the
 old warm exact-v1-equality refusal rule; it is not an implicit repair mode.
 
+The same preservation applies to ordinary Tenancy seeding: Organization names/
+status/default, valid locale changes and whole-theme values. Completion is a
+read-only witness of the named immutable installed seed roots/revision pins and
+valid current graphs, not equality with their original mutable values. Missing
+never-installed facts resume only when the remaining installation is recognizable
+as untouched/incomplete v1. An edited partial installation refuses before writes;
+no missing locale/assignment is silently restored. No new installation receipt
+table is introduced. Existing Customization/Education immutable seed checks stay.
+
+Local demo readiness/printed destinations use actual live locale/scope facts.
+An intentionally archived public branch stays unavailable and is reported as
+such, while the tenant administration origin remains the recovery destination.
+Do not silently retarget its host or recreate content. Fresh CI still requires
+its complete nine public pages and audits; edited local state is not that proof.
+
 ### Durable idempotency and protected replay
 
 The first keyed routes activate PostgresIdempotencyStore under ADR-0035/0037's
@@ -203,13 +220,15 @@ not ambient business ownership or Platform credentials. Preserve five-minute
 fenced claims, 24-hour completed/unreplayable retention, mismatch precedence,
 whole-response fidelity and 256 KiB headers-inclusive capture bounds.
 
-Select **1,000 physical retained slots per tenant** as an initial durable budget;
+Select **1,000 retained key slots per tenant** as an initial durable budget;
 no global cap is inferred from an RLS tenant count. Check an existing requested key
 before new-key admission. A short distinct tenant capacity fence serializes new
 insertion/expired-slot recycling. At capacity, UPDATE/rekey/reset only a database-
 expired row; never evict a live outcome. Old key/token completion cannot overwrite
-its replacement. Existing-key service survives saturation. No app DELETE, new
-Platform purge or falsely bounded unexpired-only census is introduced. Phase 11
+its replacement. The bound counts stored key slots, not disk pages, dead MVCC
+tuples or vacuum/backup size. Existing-key service survives saturation. No app
+DELETE, new Platform purge or falsely bounded unexpired-only census is introduced.
+Phase 11
 still owns deletion maintenance; expiry reclamation supplies ongoing admission.
 
 The new protected fingerprint is versioned and binds tenant/org, actor, exact
@@ -221,9 +240,14 @@ cannot turn an unknown business outcome into asserted rollback or exactly-once.
 Business version/natural-key guards remain necessary across the COMMIT-to-outcome
 recording crash window. No automatic mutation retry is added.
 
-Mutation success bodies contain only a bounded version receipt, with ETag and
-Location for 201 creation. Before completed response replay, separately classified
-MUST receipt-read queries recheck the current caller, capability, exact immutable
+Wire versions are canonical decimal strings bounded to Int64, never lossy
+JavaScript numbers. Mutation success bodies contain only that version receipt,
+with ETag and Location for 201 creation, at most 1 KiB including retained headers.
+The protected set records only successful 2xx receipts or their unreplayable
+tombstone; non-2xx attempts release the claim instead of retaining targetless
+400/403/404 bodies. Generic endpoints retain ADR-0037's original classification.
+Before completed response replay, separately classified MUST receipt-read queries
+recheck the current caller, capability, exact immutable
 target relation and self predicate where applicable. They may inspect a terminal
 target only to authorize its historical receipt; ordinary directories stay
 current-only. Original expected version, lifecycle transition and desired-grant
@@ -233,7 +257,8 @@ replay guard/audit leaves the completed row untouched. Original mutation audit
 and exchange headers are never replayed as new evidence.
 
 This explicitly supersedes ADR-0037's accepted stale-handler-authorization replay
-for only the packet's protected set. Different actor/scope/body/precondition still
+for only the packet's protected set, including its successful-outcome-only
+recording policy. Different actor/scope/body/precondition still
 gets key reuse. Each replay has fresh evidence/correlation, with original outcome
 headers and `Idempotency-Replayed: true`. Stored responses are not permissions.
 
@@ -269,6 +294,13 @@ route and ingress censuses together. Protected pages start veiled and revalidate
 before history/restoration disclosure; scripts/no-script behavior needs explicit
 real browser proof. No-JavaScript recovery remains usable; script-based expiry/
 history withholding is not claimed for a browser that cannot execute it.
+A separate no-store, Off own-capability read returns finite advisory operation
+Booleans, never grants or another actor's data. Resource DTOs/ETags remain aggregate
+representations; action flags do not silently share that validator. The server
+combines those current flags with target scope/status when rendering controls,
+and every mutation independently rechecks authority. SessionProjection remains
+credential/identity-free.
+
 New en/tr admin/profile namespaces, safe themes and keyboard/focus/form/error/
 reflow/contrast/assistive-technology checks ship with the screens. PreferredLocale
 is an optional enabled-locale UI preference for that exact Membership, with explicit

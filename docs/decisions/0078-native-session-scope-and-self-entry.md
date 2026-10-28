@@ -3,7 +3,8 @@
 ## Status
 
 Proposed — no gate is accepted and no dependent runtime is implemented.
-Joint acceptance with the P03-3 administration decision and packet is required.
+Joint acceptance with [ADR-0079](0079-bounded-identity-administration.md) and
+the revised P03-3 packet is required.
 
 **Date:** 2026-10-28
 **Deciders:** @cemil
@@ -145,6 +146,11 @@ applicable context. Native computes the canonical digest from the independently
 validated ID-token issuer/subject and configured stable authority, then compares.
 A present compatibility actor must agree. Access-token decoding is not proof.
 API and ID-token identity must name the same subject before credentials publish.
+The admission success event uses a separately classified ordinary ReadWrite
+request/common AuditLog + Transaction owner, with its Membership resource subject.
+It is not a denial-evidence-lane write. Failed success-audit INSERT, constraint
+validation or COMMIT prevents a success witness and session publication; unknown
+COMMIT still proves neither rollback nor cookie delivery. Test each boundary.
 
 Creation is opt-in deployment configuration; absent/false refuses new allocation
 while existing bindings can continue. Enabling it explicitly accepts the configured
@@ -189,7 +195,15 @@ It returns only that Active actor's current Membership scope keys, in bounded
 cursor pages. Tenancy supplies names/destinations through its application contract,
 without cross-module joins or Organization FK. Any derived tenant read announces
 only a captured own-Membership scope through a separately enumerated, short
-physically READ ONLY owner; no synthetic TenantContext or hidden setter is allowed.
+physically READ ONLY owner on the ordinary business source; no synthetic
+TenantContext or hidden setter is allowed. The new logical setter is
+`PreContextSelfDiscoveryScopeReader`, entered only with a captured exact
+own-Membership witness from the subject-confined discovery operation. The four-slot
+authorization lane keeps its existing grant/lifecycle-only query set; it does not
+become a label directory. A label owner has one five-second I/O deadline, no
+nested transaction, no profile read and no mutation/audit work. Its fresh
+tenant/org announcement is bound to its actual transaction and cleared at actual
+disposal, including cancellation and pooled reuse.
 Global/candidate/label owners close sequentially: no outer connector is retained
 while waiting for another lane. The exact setter/function/privilege census expands
 with implementation; missing/nonadmitting subjects disclose no directory.
@@ -210,6 +224,13 @@ After subject verification, pre-session/established/closing/logout-return entrie
 share the eight-owner subject ceiling. No passive poll extends entry lifetime.
 A separate opaque host-only entry cookie and entry-bound CSRF authorize deliberate
 creation, discovery retry or selection; no tenant session cookie is published.
+Entry confirmation can show one escaped, bounded provider account label from
+validated ID-token name/preferred_username (at most 128 characters), never the raw
+profile or subject. Missing/malformed optional display data uses explicit
+reauthentication recovery rather than blocking binding or displaying an actor ID.
+The label is transient self-only personal data, retained only by the five-minute
+entry; it creates no User mirror or authorization signal. Selection is explicit
+confirmation of the destination account/context, not automatic callback publication.
 No-Membership completion renders localized recovery/sign-out/retry, not failed
 login or a fabricated empty tenant. A failed replacement preserves a live old
 session. Expiry/logout cancels publication and joins actual work before releasing
@@ -219,11 +240,20 @@ mutation retry; a deliberate retry resolves the existing binding if it committed
 ### Selection, refresh and host transition
 
 New native web issuance has no tenant/org claims and optional compatibility actor.
-Remove only the two owned web scope mappers from effective issuance; preserve
-accounts, attributes, credentials, audience, lifespan and unrelated mappings.
-This extends development reconciliation authority; it adds no runtime Admin API.
-Old native sessions may need sign-in again. Legacy API token acceptance is not
-silently disabled or represented as independent application-scope qualification.
+The existing actor/tenant/org/audience mappers actually share the
+`learnstack-tenant-api` client scope, attached to both clients. Preserve that scope
+and its API-client attachment unchanged. Replace only its web default attachment
+with one fixed `learnstack-native-session` default scope containing actor and API
+audience mappers. Do not add an optional legacy web attachment. Qualify the exact
+web baseline separately from API/direct/default/optional graphs; foreign context
+mappers or conflicting fixed-scope definitions refuse before writes.
+
+Accounts, attributes, credentials, lifespan and unrelated mappings remain. This
+extends development reconciliation authority without a runtime Admin API. New
+development web grants deliberately become tenantless; no continued issuance of
+legacy scoped web grants is promised. API acceptance of already issued scoped
+bearer profiles remains. Old native sessions may need sign-in again. Real code/
+refresh and warm no-write checks must prove the split, not a mapper count alone.
 
 Initial selection and explicit same-host switching require exact Origin and the
 current entry/session CSRF proof. The owner serializes refresh/transition work,
@@ -247,7 +277,11 @@ existing public hosts, with real mappings, TLS/native admission and exact provid
 callbacks. In particular retain Yoga's public organization host. Cross-host
 selection navigates to the independently verified destination and begins fresh
 destination-bound OIDC/state/cookies. No source cookie, bearer or refresh token
-crosses hosts; source sessions remain independent. Destination URLs come from
+crosses hosts; source sessions remain independent. It is a fresh destination
+sign-in, not proof
+of source-person continuity; destination account/context confirmation precedes
+replacement of any live destination owner. Same-host switch always retains the
+original verified subject. Destination URLs come from
 admitted deployment/host facts, never a submitted absolute return URL.
 
 The admission event records API approval for publication, not proof that a BFF

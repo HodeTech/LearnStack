@@ -19,7 +19,7 @@
 > | P03-0 | Entry preparation | Complete — [reconciliation](phase-03-delivery-log.md#entry-preparation-2026-10-25) |
 > | P03-1 | Identity authority and membership foundation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-1-merge-and-closeout-2026-10-27) |
 > | P03-2 | Live membership and authorization | Complete and merged — [closeout](phase-03-delivery-log.md#p03-2-merge-and-closeout-2026-10-28) |
-> | P03-3 | Protected Studio and membership administration | Decision pass in progress — [entry review](phase-03-delivery-log.md#p03-3-entry-review-and-provider-feasibility-2026-10-28) |
+> | P03-3 | Protected Studio and membership administration | Decision pass in progress — [proposed revised contract](phase-03-delivery-log.md#p03-3-first-proposal-review-and-revised-contract-2026-10-28) |
 > | P03-4 | Invitations and bounded delivery | Not started |
 > | P03-5 | Custom fields and privacy classification | Not started |
 > | P03-6 | Provider event ingress and audit mirror | Not started |

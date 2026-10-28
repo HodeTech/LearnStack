@@ -145,9 +145,10 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 347 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 544 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
+  - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -6038,3 +6039,200 @@ ten-step plan. No runtime consumer is authorized until that joint acceptance.
 Production first-admin/operator authority remains P03-9. No new Hub crossing,
 provider administrator, signing-ticket service, generic proxy or additional
 application module is included.
+
+### P03-3 first proposal review and revised contract (2026-10-28)
+
+**Status: Proposed.** This entry replaces the affected clauses of the initial
+P03-3 proposal; its unchanged API/step rows still apply. ADR-0078/0079 and both
+records require joint approval. Runtime and gate state remain unchanged.
+
+Three fresh reviewers examine `53a8f06e` independently: authority and persistence
+use `gpt-6.1-sol` xhigh; transport/UI uses high. All read both ADRs and the indexed
+package plus their actual source/canonical contracts. No reviewer runs a build,
+service or application test. Four Major and one Minor findings are verified:
+
+| Finding | Verified source / disposition |
+|---|---|
+| Shared provider mapper removal affects both clients | Realm scope `learnstack-tenant-api` is shared by API/web; replace only the web attachment with a fixed native scope, preserving API/shared facts. |
+| Native operation labels are not exact paths/contracts | The finite method/path/form/destination matrix below replaces those labels. |
+| UI cannot mirror removed profile-write capability | Add the exact bounded own-capability query below; no grant graph or trusted browser permission is introduced. |
+| Warm Identity preservation does not preserve Tenancy/demo | SeedVerification separately pins default/name/status/locales/theme; extend preservation and edited local readiness as below. |
+| Stored error replay can lack a successful receipt target | The protected set retains only successful 2xx receipts/tombstones; non-2xx claims release. Generic endpoint rules are unchanged. |
+
+No reviewer finds a Blocker. Request-changes verdicts remain historical; the
+following corrections require the next fresh review. Root additionally separates
+success admission audit from denial evidence, names discovery reader ownership,
+and makes string versions/slot-versus-disk bounds explicit.
+
+#### Provider, discovery and successful admission precision
+
+Preserve the existing shared scope body and its API-client default attachment.
+Remove only the web attachment; add fixed `learnstack-native-session` with actor
+and API-audience mappers as its web default. No optional legacy web attachment is
+added. New development web issuance is deliberately tenantless; only API validation
+of already-issued/scoped bearer profiles remains unchanged. Native baseline versus
+API/direct/default/optional mapper graphs are qualified separately; a foreign
+context writer or incompatible existing fixed native scope refuses before any
+write. Real code/refresh tests prove zero native tenant/org claims and unchanged
+shared/API scope facts, warm readback and completed no-write repeat. This corrects
+the initial proposal's inaccurate two-web-mapper description.
+
+Own-context discovery uses `GlobalSelfDiscovery` provenance and
+`fn_identity_self_membership_scopes(after_membership_id, limit)`. It derives the
+Active actor from current verified authority/subject announcement, returns only
+that actor's Active/nondeleted Membership IDs and tenant/org keys, and bounds
+limit to 1–100. No UserId parameter or arbitrary projection is accepted. Standard
+05 adopts exact predicates, index/query-plan, owner/ACL and captured-source tests.
+
+`PreContextSelfDiscoveryScopeReader` is a separately enumerated logical setter on
+the ordinary business source. It accepts only a captured exact own-Membership
+witness from this discovery, not raw target IDs, and reads Tenancy names/destination
+facts through its application contract. One physically READ ONLY transaction,
+five-second total I/O deadline, no nested owner/audit write and actual disposal
+confine each read. Close global/candidate owners before borrowing it; close it
+before any continuation. Do not put label/directory queries on the existing four-
+slot grant/lifecycle authorization lane. The new setter is the tenth logical
+path; no other writer is silently added. Snapshot/closure freshness and total
+page deadline are qualified, without claiming an atomic cross-module snapshot.
+
+Successful context admission is an ordinary separately classified ReadWrite
+MediatR request/common AuditLog + Transaction owner, with Membership resource
+attribution and MUST `identity.membership.admit_session_scope`. It does not use
+ADR-0077's denial/assertion lane or an Identity-private audit writer. INSERT,
+precommit-constraint and COMMIT faults must each prevent success witness/cookie
+publication. A committed event records API admission, not browser delivery.
+
+#### Exact DTO and action contract
+
+Wire properties below are camelCase. UUIDs are canonical lowercase. Versions are
+canonical decimal strings in `[0, Int64.MaxValue]`; SDK/native never coerce them
+through JavaScript number. ETag is the quoted exact version. Missing/noncanonical/
+weak/wildcard/list If-Match is 400 `validation_failed` on the protected set; a
+valid stale tag is 409 `concurrency_conflict`. Other endpoints keep their rules.
+
+| Read | Exact result addition/shape |
+|---|---|
+| GET `/identity/self` | Discriminated `state: missing` or `state: active` with server-only authorityId/subjectKey/actorId association. No profile or scope grant. |
+| GET `/identity/self/contexts` | `items` of tenantId, nullable organizationId, tenantName, nullable organizationName, verified entryOrigin and canUseCurrentHost; existing pageInfo. No Member/User/Role payload. |
+| GET `/identity/me/contexts` | Same context items/pageInfo within current tenant; tenant-wide coverage permits eligible Active branches, branch-only coverage only its own. |
+| GET `/identity/me/capabilities` | Seven Booleans: canReadTenantMembers, canReadOrganizationMembers, canWriteMemberProfiles, canManageMemberships, canManageRoles, canWriteOwnProfile, canManageOrganizations. Off own navigation, no-store, no ETag. |
+| GET member detail | membershipId, userId, organizationId, status, displayName, preferredLocale, roleIds and version. No provider/global profile or arbitrary grant expansion. |
+| GET own profile | displayName, preferredLocale and version for the exact current Membership. No admin requirement; write remains separately gated. |
+| GET Roles/detail | roleId, builtInKey, capabilityScope, version; detail adds registered grants and adopted release version/fingerprint. No custom names/Role CRUD. |
+| GET permissions | The eight exact scoped pairs, translated-label identifiers and bounded release identity/delta. No historical/all-user grants. |
+| GET Organizations | organizationId, slug, displayName, status, isDefault, version; page also carries defaultOrganizationId and tenantVersion. |
+
+Capabilities are advisory projections of current self facts, not attempted
+protected acts, permission claims or reusable authorization decisions. A false
+preview does not mint a denial event. The page combines current flags with actual
+target scope/status; commands still reauthorize. In particular a learner whose
+profile-write is removed sees read-only preferences. Resource ETags do not
+silently validate changing capability metadata. SessionProjection gains no raw
+identity or grants. Self-profile absence is scoped 404, not a reason to revoke a
+still-valid overall session.
+
+Status and scope wire enums are exact strings (`Active`, `Suspended`, `Revoked`;
+`Tenant`, `Organization`), with unknown/numeric values refused. Grant items have
+exactly `scope` and `key`; arrays are unique and drawn from the finite registry.
+Create/update Organization fields and profile names remain bounded by their
+canonical mapped limits; no hidden ReportingParentId/status field is admitted.
+
+SDK success distinguishes 200/201 and preserves typed ETag, same-API relative
+Location and Idempotency-Replayed metadata. It keeps injected transport and the
+closed error/transport/cancelled alternatives. Mutation 200 is `{version}`;
+Organization 201 is the same receipt plus exact resource Location. Protected
+retained receipts are at most 1 KiB including headers, while the generic maximum
+remains 256 KiB. Non-2xx outcomes release protected claims. A malformed oversized
+successful outcome becomes the existing unreplayable tombstone. The 1,000 limit
+counts stored key slots per tenant, not physical disk/MVCC/vacuum/backup bytes.
+
+#### Finite native method, form and destination matrix
+
+All new native POST bodies are UTF-8 `application/x-www-form-urlencoded`, at most
+16 KiB counted before Next. Fields are single-valued; unknown/duplicate fields
+refuse. Strict JSON is used only inside the named role/grant array field, with
+its own finite shape. API bodies are strict UTF-8 JSON and retain the earlier
+per-operation 512-byte/16-KiB caps. No multipart uploads or generic forwarding.
+
+| Method/path | Exact fields / operation | Successful destination |
+|---|---|---|
+| GET `/api/auth/entry` | Optional cursor; current entry cookie only; own self/context reads | Local no-session/confirmation/selection document |
+| POST `/api/auth/entry/create` | csrfToken; current entry proof; POST self/bootstrap | 303 `/api/auth/entry`; no tenant cookie just because identity exists |
+| POST `/api/auth/entry/select` | csrfToken, tenantId, optional organizationId/cursor; re-read that own-context page and match exact candidate | Same-host audited admission + AccountSite then stored canonical return path; otherwise verified destination sign-in |
+| POST `/api/auth/switch` | Same fields; current session proof; fresh own choices and context admission | Fresh handle/CSRF and 303 `/studio` or `/portal` chosen by the current shell |
+| POST `/api/studio/membership-profile` | csrfToken, membershipId, version, idempotencyKey, displayName, preferredLocale; exact profile PUT | 303 `/studio/members/{membershipId}` |
+| POST `/api/studio/membership-roles` | csrfToken, membershipId, version, idempotencyKey, roleIds (JSON UUID array, at most eight); exact assignment PUT | Same member detail |
+| POST `/api/studio/membership-status` | csrfToken, membershipId, version, idempotencyKey, status; exact status PUT | Same member detail, or member list if now terminal |
+| POST `/api/studio/role-grants` | csrfToken, roleId, version, idempotencyKey, grants (JSON finite pair array, at most eight); exact grant PUT | 303 `/studio/roles/{roleId}` |
+| POST `/api/studio/role-manifest-adoption` | csrfToken, roleId, version, idempotencyKey, manifestVersion, manifestFingerprint; exact adoption POST | Same Role detail |
+| POST `/api/account/profile` | csrfToken, version, idempotencyKey, displayName, preferredLocale; exact own-profile PUT | 303 `/portal/profile` |
+
+An empty nullable form profile value means NULL; API JSON requires both nullable
+fields. This is full replacement, not omission/partial-patch semantics. Every POST
+requires exact same Origin and current entry/session CSRF before work. Sign-in,
+sign-out and extension retain their existing exact routes; sign-in's permitted
+returnTo set expands only to the canonical screens below. Its optional context
+hint is `tenant` or one canonical organization UUID, never an absolute URL or
+source actor. GET sign-in may render that hint; POST binds it to its transaction
+as a suggestion requiring fresh post-OIDC validation.
+
+New protected GETs are exactly `/studio`, `/studio/members`,
+`/studio/members/{canonical MembershipId}`, `/studio/roles`,
+`/studio/roles/{canonical RoleId}`, `/portal` and `/portal/profile`.
+Only member-list GET accepts cursor/limit. API choice of Tenant versus Organization
+member directory follows current capability; cursor fingerprint binds that exact
+directory. No URL selector widens authority. Detail/Role/profile paths take no
+query. Existing auth/session/callback queries retain their exact contracts.
+
+Cross-host selection is explicitly an independent destination sign-in, not an
+identity/token transfer or proof of source-person continuity. It carries at most
+a nonauthorizing context hint to a verified destination; destination confirmation,
+OIDC and live association/Membership checks run anew. Source sessions are unchanged.
+No opaque cross-host credential/continuation registry is introduced by this packet.
+A changed provider SSO account must be shown/confirmed in the new entry flow; it
+cannot silently replace an already live destination session through a switch.
+
+No field accepts ReturnTo, method/path/header or tenant/org on an ordinary admin
+form. Version becomes canonical If-Match; server-generated random key stays the
+same on deliberate unknown-outcome retry. Native success never redirects to API
+Location blindly. Fixed local destinations validate resource IDs; typed Location
+is only a result field for API/SDK consumers.
+
+Common failure presentation: malformed input is 400, Origin/CSRF failure 403,
+wrong method/path 405/404 as declared, API capability/resource denial 403/404,
+precondition/in-flight/key-reuse 409, source/quota 429 and availability/unknown
+outcome 503. Return localized bounded HTML with no-store/same-origin form referrer
+policy, preserving safe submitted values for correction/retry. Provider redirects
+and logout hints retain no-referrer. None automatically retries a mutation,
+clears an unrelated cookie or revokes a session for an ordinary admin 403/404.
+
+Page response owners complete session decisions and fetch the exact page's API
+DTO/capability set before protected rendering. A request-bound immutable snapshot
+holds at most 256 KiB total, within the existing native request-holder capacity;
+RSC reads it without bearer access, provider work, idle mutation or cookie writes.
+Actual response settlement releases it; stale epoch/request/host cannot reuse it.
+Do not create an unbounded page-data cache. Manual/browser proof covers initial
+veil, restoration, no-script recovery and expiry; a disabled script does not
+magically perform revalidation. Required scripts/recovery copy remain accessible.
+
+#### Warm seed/demo correction
+
+Extend Step 3 preservation/proofs to both ordinary data and Identity seeders.
+For a completed installation, verify named immutable root identities/revision pins
+and valid present graphs before deciding there is no work. Preserve valid
+Organization name/status/default, locale removal/enablement/default, theme and
+Identity profile/status/assignment/grant/adoption state. Do not retarget old host
+mappings, restore a removed locale, reactivate an archived Organization or recreate
+a revoked Membership. Existing unrelated Customization/Education semantic checks
+stay. A missing fact resumes only an otherwise recognizable untouched/incomplete
+v1 installation; edited partial state refuses before writes, without repair.
+No durable installation marker/table or reset mode is added.
+
+Local demo derives readiness and printed links from actual live scope/locales.
+An intentionally withdrawn public branch is reported unavailable; management uses
+its independent tenant origin. Its data/host history stays intact. Fresh CI remains
+strict: nine public pages/27 audits and current complete seeded populations; an
+edited local pass never substitutes for that source-bound qualification. Include
+actual rename/default/archive/locale/theme edits followed by a no-write warm rerun,
+plus interrupted-v1 and mixed-edited-partial refusal controls. This closes the
+review gap without silently narrowing the warm-demo driver.
