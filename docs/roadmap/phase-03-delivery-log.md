@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,292 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,346 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -130,6 +130,9 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 browser readiness review round 2 (2026-10-28)](#p03-2-browser-readiness-review-round-2-2026-10-28) — 10 lines
   - [P03-2 native recovery positive settlement scheduling (2026-10-28)](#p03-2-native-recovery-positive-settlement-scheduling-2026-10-28) — 32 lines
   - [P03-2 recovery scheduling review round 1 (2026-10-28)](#p03-2-recovery-scheduling-review-round-1-2026-10-28) — 15 lines
+  - [P03-2 recovery scheduling review round 2 (2026-10-28)](#p03-2-recovery-scheduling-review-round-2-2026-10-28) — 16 lines
+  - [P03-2 clean local managed browser proof (2026-10-28)](#p03-2-clean-local-managed-browser-proof-2026-10-28) — 21 lines
+  - [P03-2 browser and recovery correction source freeze (2026-10-28)](#p03-2-browser-and-recovery-correction-source-freeze-2026-10-28) — 17 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -5275,3 +5278,57 @@ both expected dirty failures and cleanup witnesses, and matches both committed
 source files and all four restored overlay DLLs. No original CI interleaving or
 hosted qualification is claimed. The second fresh review and complete final-
 source A/B remain open; the actual managed browser proof continues separately.
+
+### P03-2 recovery scheduling review round 2 (2026-10-28)
+
+Two new independent reviewers (`gpt-6.1-sol`, high / `gpt-6-astra`, xhigh)
+approve `8a43eb9d..16614b3e` without verified findings. They confirm selection
+only after all original renewal/provider assertions and a completed SQL flight,
+unchanged real clocks and deadlines, callback-entry acknowledgement and retained
+timer disposal. Cancellation before entry, synchronous disposal inside the
+callback, factory/control joins and first-failure preservation remain covered.
+
+The proof reviewer independently reconciles **4/4** clean passes, **2/2** refusal
+passes and the two expected dirty failures with joined cleanup witnesses. Both
+source files and all four restored DLL hashes match their records. The dirty
+counterfactual covers failure after callback entry; other lifetime paths receive
+source review rather than a claimed dirty execution. Both fresh native review
+rounds close without a production change or recovered historical CI cause.
+
+### P03-2 clean local managed browser proof (2026-10-28)
+
+The clean development copy at `7dbf68f689e44a3dcfe6202ca5533cc6fc093611`, tree
+`388364446e3089ce1110b7acc582d5bc13e8030f`, completes `make demo DEMO_MODE=ci`
+with exit zero and unchanged tracked source. Its original receipt SHA-256 is
+`990b8b92af7f56c20643c2e0ffe89f71d070b6bf2409108c1ba13709da52a277`.
+All **27** original JSON/HTML pairs match their receipt hashes. Nine browser
+navigations, **24** visibility controls, two TLS refusals and the timeout
+counterfactual pass. The exact completion union is **134 HTTP 200**, with no
+429 or malformed/pending record. Proof duration is **566,466 ms**, within the
+unchanged twelve-minute bound; the whole local command takes **637.557 seconds**.
+Cleanup confirms stopped processes, empty Compose, removed private files,
+environment and lock. All nine existing LCP advisories remain warnings, not
+newly enforced performance claims.
+
+This local browser proof uses macOS, Node `22.23.1`, Playwright `1.64.0`,
+Lighthouse `13.5.0` and managed Chromium revision `1248`. It does not substitute
+for final-source hosted A/B or qualify the separate native scheduling change.
+The complete same-source hosted pair and independent original-evidence audit
+remain mandatory before packet/gate/catalogue promotion or PR handoff.
+
+### P03-2 browser and recovery correction source freeze (2026-10-28)
+
+The actual native admission/browser-fallback regression passes **1/1**, with no
+skip, after the clean managed demo releases its local build/test window. Both
+fresh review rounds for browser readiness and native positive settlement are
+closed. Release build, focused controls, clean full frontend and original local
+demo evidence precede the new source freeze. The unchanged plan `f5161ae9` and
+manifest `1fa6c70c` still select **6,927** backend cases; no case, timing weight,
+deadline, production refusal or resource limit changes in these corrections.
+
+One new complete hosted A follows this freeze; only its successful original-
+archive verification permits a complete B rerun. The final pair must share
+source, toolchain, plan and population. The prior failed attempts remain failed
+evidence, and local controls do not substitute for this qualification. Packet,
+gate and catalogue completion and PR handoff stay gated on the pair and its
+independent original-evidence audit.

@@ -18,7 +18,7 @@
 > |---|---|---|
 > | P03-0 | Entry preparation | Complete — [reconciliation](phase-03-delivery-log.md#entry-preparation-2026-10-25) |
 > | P03-1 | Identity authority and membership foundation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-1-merge-and-closeout-2026-10-27) |
-> | P03-2 | Live membership and authorization | In progress — [Step 6 recovery settlement controls](phase-03-delivery-log.md#p03-2-native-recovery-positive-settlement-scheduling-2026-10-28); browser reviews and clean full frontend pass; actual demo and native scheduling reviews are open; complete final-source hosted A/B remains required |
+> | P03-2 | Live membership and authorization | In progress — [Step 6 source freeze](phase-03-delivery-log.md#p03-2-browser-and-recovery-correction-source-freeze-2026-10-28); both fresh review rounds per correction, clean full frontend and actual demo pass; complete final-source hosted A/B remains required |
 > | P03-3 | Protected Studio and membership administration | Not started |
 > | P03-4 | Invitations and bounded delivery | Not started |
 > | P03-5 | Custom fields and privacy classification | Not started |
