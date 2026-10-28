@@ -144,6 +144,14 @@ public sealed class IdentitySelfEntryHttpTests(PublicReadFixture parent)
         next.GetProperty("items")[0].GetProperty("tenantId").GetString().Should().Be(SeedData.Yoga.TenantId.Value.ToString("D"));
         (await second.Content.ReadAsStringAsync()).Should().NotContain("displayName").And.NotContain("roleIds")
             .And.NotContain("membershipId").And.NotContain("subjectKey");
+        foreach (var limit in new[] { "100", "2147483647" })
+        {
+            using var clamped = await SendAsync(client, token, Self + "/contexts?limit=" + limit);
+            clamped.StatusCode.Should().Be(HttpStatusCode.OK);
+            var complete = await JsonAsync(clamped);
+            complete.GetProperty("items").GetArrayLength().Should().Be(2);
+            complete.GetProperty("pageInfo").GetProperty("hasNext").GetBoolean().Should().BeFalse();
+        }
         using var foreign = await SendAsync(client, issuer.Token(issuer.Without("user_id", "tenant_id", "organization_id")),
             Self + "/contexts?cursor=" + cursor);
         await TenantAuthenticationHttpTests.Problem(foreign, HttpStatusCode.BadRequest, "validation_failed");
@@ -218,7 +226,7 @@ public sealed class IdentitySelfEntryHttpTests(PublicReadFixture parent)
         foreach (var (query, field) in new (string, string?)[]
         {
             ("?limit=0", "limit"), ("?limit=-1", "limit"), ("?limit=02", "limit"),
-            ("?limit=1&limit=2", "limit"), ("?cursor=" + Canary, "cursor"),
+            ("?limit=1&limit=2", "limit"), ("?limit=2147483648", "limit"), ("?cursor=" + Canary, "cursor"),
             ("?cursor=", "cursor"), ("?unexpected=" + Canary, null),
         })
         {

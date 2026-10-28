@@ -3963,9 +3963,13 @@
           {
             "name": "limit",
             "in": "query",
-            "description": "Canonical positive ASCII decimal, default 20; above 100 clamps to 100. Leading zeros, repeats, signs and unknown query keys are refused.",
+            "description": "Canonical positive ASCII decimal Int32 (1–2147483647), default 20; accepted values above 100 clamp to 100. Leading zeros, repeats, signs, overflow and unknown query keys are refused.",
             "schema": {
-              "type": "string"
+              "type": "integer",
+              "maximum": 2147483647,
+              "minimum": 1,
+              "format": "int32",
+              "default": 20
             }
           }
         ],

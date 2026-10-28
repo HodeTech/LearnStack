@@ -109,7 +109,7 @@ internal sealed class NativeEntryDocumentTransformer : IOpenApiDocumentTransform
     private static List<IOpenApiParameter> ContextParameters() =>
     [
         new OpenApiParameter { Name = "cursor", In = ParameterLocation.Query, Required = false, Schema = new OpenApiSchema { Type = JsonSchemaType.String, MinLength = 1, MaxLength = 1024 }, Description = "Canonical base64url authority/digest-bound forward seek cursor. Foreign/malformed values are refused; no previous-page cursor." },
-        new OpenApiParameter { Name = "limit", In = ParameterLocation.Query, Required = false, Schema = new OpenApiSchema { Type = JsonSchemaType.String }, Description = "Canonical positive ASCII decimal, default 20; above 100 clamps to 100. Leading zeros, repeats, signs and unknown query keys are refused." },
+        new OpenApiParameter { Name = "limit", In = ParameterLocation.Query, Required = false, Schema = new OpenApiSchema { Type = JsonSchemaType.Integer, Format = "int32", Minimum = "1", Maximum = "2147483647", Default = JsonValue.Create(20) }, Description = "Canonical positive ASCII decimal Int32 (1–2147483647), default 20; accepted values above 100 clamp to 100. Leading zeros, repeats, signs, overflow and unknown query keys are refused." },
     ];
 
     private static void DocumentResponses(OpenApiDocument document, OpenApiOperation operation, bool bootstrap, string allow)

@@ -40,6 +40,10 @@ public sealed partial class OpenApiContractTests
         var extraBody = clean.DeepClone();
         extraBody["paths"]!["/api/v1/identity/self/bootstrap"]!["post"]!["requestBody"]!["content"]!["application/json"]!["schema"]!["additionalProperties"] = true;
         NativeContractErrors(extraBody).Should().Contain("native-body");
+        var unboundedLimit = clean.DeepClone();
+        var parameters = unboundedLimit["paths"]!["/api/v1/identity/self/contexts"]!["get"]!["parameters"]!.AsArray();
+        parameters.Single(parameter => parameter!["name"]!.GetValue<string>() == "limit")!["schema"]!.AsObject().Remove("maximum");
+        NativeContractErrors(unboundedLimit).Should().Contain("native-pagination");
     }
 
     private static List<string> NativeContractErrors(JsonNode document)
@@ -68,6 +72,13 @@ public sealed partial class OpenApiContractTests
                     errors.Add("native-body");
             }
             else if (operation.ContainsKey("requestBody")) errors.Add("native-body");
+            if (descriptor.Id == "ListIdentitySelfContexts")
+            {
+                var limit = (operation["parameters"] as JsonArray)?.SingleOrDefault(parameter => parameter?["name"]?.GetValue<string>() == "limit")?["schema"];
+                if (limit?["type"]?.GetValue<string>() != "integer" || limit["format"]?.GetValue<string>() != "int32"
+                    || limit["minimum"]?.GetValue<int>() != 1 || limit["maximum"]?.GetValue<int>() != int.MaxValue
+                    || limit["default"]?.GetValue<int>() != 20) errors.Add("native-pagination");
+            }
             if (operation["responses"] is not JsonObject responses) { errors.Add("native-responses"); continue; }
             var expected = bootstrap ? Statuses.Concat(["201", "403"]) : Statuses;
             if (!responses.Select(pair => pair.Key).ToHashSet(StringComparer.Ordinal).SetEquals(expected)) errors.Add("native-responses");

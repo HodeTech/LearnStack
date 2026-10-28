@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 887 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 921 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -156,6 +156,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 1 review round 2 and closeout (2026-10-28)](#p03-3-step-1-review-round-2-and-closeout-2026-10-28) — 27 lines
   - [P03-3 Step 2 — Bounded self entry and native scope admission (2026-10-28)](#p03-3-step-2--bounded-self-entry-and-native-scope-admission-2026-10-28) — 62 lines
   - [P03-3 Step 2 review round 1 and verified corrections (2026-10-28)](#p03-3-step-2-review-round-1-and-verified-corrections-2026-10-28) — 46 lines
+  - [P03-3 Step 2 review round 2 and closeout (2026-10-28)](#p03-3-step-2-review-round-2-and-closeout-2026-10-28) — 34 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -6586,3 +6587,37 @@ rewriting provider claims. The six policy controls use disposable databases for
 parser-only TEMP privileges; production grants remain unchanged. The earlier
 full architecture sweep is not reclassified as a full green run. A second fresh
 independent postcommit review round is still required before Step 3 begins.
+
+### P03-3 Step 2 review round 2 and closeout (2026-10-28)
+
+Three new independent read-only reviewers inspect the complete
+`7a94d6bd→476404c4` entry-core/correction range. The storage/owner and native/HTTP
+slices have no remaining verified actionable findings. The contract/census slice
+identifies one Minor mismatch: the context-limit parser accepts positive Int32
+values and clamps them, while its OpenAPI string schema omits the Int32 ceiling.
+The served schema and generated SDK now declare the existing integer range
+1–2,147,483,647. Actual HTTP controls accept/clamp the largest value, reject its
+successor with fixed `errors.limit`, and keep SQL factories lazy on that refusal.
+A planted missing-schema-bound control detects regression. Six contract cases,
+two focused PostgreSQL HTTP cases and generated SDK typecheck pass, without skips.
+
+Review coverage includes actual source/reference/rotation provenance, quota and
+binding order, host ceilings, global-self shapes and privacy, central admission
+MUST boundaries, creation/debit accounting and uncertain COMMITs, subject-confined
+READ ONLY owners, cleanup, independent applied policies, generated contracts and
+closed authority/caller/setter/definer/handler controls. Reviewers do not run the
+heavy toolchain; root owns the recorded actual checks.
+
+The new admission endpoint's held/deferred COMMIT and INSERT fault cases are not
+endpoint-specific lost/unsent acknowledgement tests. Existing common-owner
+unknown-COMMIT controls cover that transaction barrier; the selected actual
+provider/native publication qualification remains Step 8. This limitation is not
+reported as a source defect or a completed browser proof. Likewise the earlier
+full architecture sweep remains an honestly recorded corrected run, not a fresh
+full-source green result.
+
+Both Step 2 review rounds and verified corrections are closed. Continue the
+accepted ten-step plan with Step 3: finite policy alternatives/conjunctions,
+explicit v2 delta adoption and preserving warm seed/origin adoption. This closes
+no provider/browser, manual accessibility or final A/B obligation; G1/G4/G6 and
+the full packet remain governed by their existing qualification gates.

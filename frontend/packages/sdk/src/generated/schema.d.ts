@@ -1789,8 +1789,8 @@ export interface operations {
             query?: {
                 /** @description Canonical base64url authority/digest-bound forward seek cursor. Foreign/malformed values are refused; no previous-page cursor. */
                 cursor?: string;
-                /** @description Canonical positive ASCII decimal, default 20; above 100 clamps to 100. Leading zeros, repeats, signs and unknown query keys are refused. */
-                limit?: string;
+                /** @description Canonical positive ASCII decimal Int32 (1–2147483647), default 20; accepted values above 100 clamp to 100. Leading zeros, repeats, signs, overflow and unknown query keys are refused. */
+                limit?: number;
             };
             header?: never;
             path?: never;
