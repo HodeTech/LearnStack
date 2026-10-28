@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,095 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,142 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -122,6 +122,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 final-source A exhaustion and resolution profiling (2026-10-28)](#p03-2-final-source-a-exhaustion-and-resolution-profiling-2026-10-28) — 59 lines
   - [P03-2 resolution correction review round 1 (2026-10-28)](#p03-2-resolution-correction-review-round-1-2026-10-28) — 17 lines
   - [P03-2 resolution correction review round 2 and source freeze (2026-10-28)](#p03-2-resolution-correction-review-round-2-and-source-freeze-2026-10-28) — 19 lines
+  - [P03-2 failed provider startup and bounded diagnostics (2026-10-28)](#p03-2-failed-provider-startup-and-bounded-diagnostics-2026-10-28) — 47 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -5070,3 +5071,50 @@ DLL changes across the intentional optimization. Production and all other test
 binaries stay identical. The source freezes for new complete hosted A/B with the
 existing job windows/reserve; catalogue/gate/packet closeout and PR handoff remain
 open until successful qualification and independent evidence audit.
+
+### P03-2 failed provider startup and bounded diagnostics (2026-10-28)
+
+Full A [40605700294/1](https://github.com/HodeTech/LearnStack/actions/runs/40605700294)
+at `82414331e7ceea875c5c426bddb9f0e075030700`, tree
+`d7fa288a2f89a5c786d881afdd55438573868491`, completes **25/27** jobs.
+All six Architecture producers and the backend aggregate pass. Ordinary-3 and
+the integration aggregate fail. All **24** original archives retain API/size/
+SHA-256/CRC verification; the **20** producer unions reconcile **6,927** results:
+**6,921 Passed, six Failed, zero missing/skipped**. No B starts. This is failed
+qualification, despite completed Architecture and the earlier local speedup.
+
+Ordinary-3 completes all **237** assigned cases, **231 Passed / six Failed**.
+Five closed startup records show `provider_start/readiness_timeout` and cleanup
+`completed`; four share the realm collection fixture and one uses a separate
+class fixture. Historical stock's sixth failure is only `invalid_state`: its
+**121.342-second** case duration does not prove startup expiry. Two independent
+read-only assessments verify these facts and identify its omission from the
+finite diagnostic class list. The exact preceding ordinary-3 selection passes
+**237/237** with matching SDK/console/adapter hashes; its **536.139-second**
+test process and this attempt's **526.139** are not startup measurements.
+
+The failed receipt's `tests_failed` workload status explains
+`owned_completion_missing`. For failed Docker work, `forcedCleanup=true` is
+unconditional and `dockerAbsent=false` is not a retained absence census. These
+fields do not prove a resource leak. `cleanupOwnershipComplete=true` witnesses
+joined process cleanup; fixture cleanup `completed` means its disposal calls
+returned, not an independent Docker-absence proof. Startup overlap, Docker
+resource pressure and the provider cause remain unobserved; the changed runner
+image/kernel is not established as causal.
+
+A bounded diagnostic correction includes the exact stock-baseline class,
+provider `Created`/`Starting`/`Started` event milestones and startup cancellation
+state captured at failure before cleanup. The closed parser accepts only the
+finite labels and an optional literal boolean; legacy sentences leave it
+unknown. Stages remain last-reached SDK observations, not exact failed operations.
+No raw provider output, configuration, credentials, message or stack is exported;
+case streams/TRX remain sanitized. No startup/job deadline, concurrency, fixture
+sharing, selected case, assertion or successful ownership condition changes.
+
+Local Release build passes with zero warnings/errors. The **95** native-owner
+controls pass, including stock-class coverage, malformed/ambiguous/oversized
+messages, both cancellation values and private-canary/case-output controls.
+The real HTTPS provider/owned-CA/loopback smoke passes **1/1**, zero skips. These
+verify the diagnostic correction, not the unknown hosted cause or qualification.
+Fresh independent review rounds and new complete same-source hosted A/B remain
+required; no policy increase or new ADR is introduced.

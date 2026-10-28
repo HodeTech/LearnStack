@@ -861,9 +861,14 @@ except launcher.Refusal as failure:
         self.assertEqual(set(re.findall(r'\bcleanup = "([a-z_]+)";', initialize)),
                          self.owner.KEYCLOAK_FAILURE_CLEANUP)
         self.assertIn('"Keycloak fixture startup failed at " + stage + "/" + reason', initialize)
-        self.assertIn('"; owned cleanup " + cleanup + "."', initialize)
+        self.assertIn('"; owned cleanup " + cleanup', initialize)
+        capture = 'var startupCancellationRequested = startup.IsCancellationRequested;'
+        self.assertLess(initialize.index(capture), initialize.index('await DisposeAsync();'))
+        self.assertIn('"; startup cancellation requested " + (startupCancellationRequested ? "true" : "false") + "."',
+                      initialize)
         self.assertEqual({'TenantRealmApiTests', 'TenantRealmIssuanceTests', 'TenantRealmProfileProtectionTests',
-                          'TenantRealmReconciliationTests', 'TenantRealmSelfServiceTests'},
+                          'TenantRealmReconciliationTests', 'TenantRealmSelfServiceTests',
+                          'TenantRealmStockBaselineTests'},
                          self.owner.KEYCLOAK_FAILURE_CLASSES)
         for name in self.owner.KEYCLOAK_FAILURE_CLASSES:
             test = (directory / (name + '.cs')).read_text()
@@ -894,6 +899,9 @@ except launcher.Refusal as failure:
                         sentence.replace('cleanup completed', 'cleanup PRIVATE-CANARY'),
                         sentence.replace('provider_start/', 'provider_start\n/'),
                         sentence.replace('; owned cleanup ', '; owned cleanup\x00 '),
+                        sentence.replace('completed.', 'completed; startup cancellation requested TRUE.'),
+                        sentence.replace('completed.', 'completed; startup cancellation requested PRIVATE-CANARY.'),
+                        sentence.replace('completed.', 'completed; startup cancellation requested true\n.'),
                         sentence[:-1], sentence + '\n' + sentence,
                         sentence + '\n' + sentence.replace('provider_start/', 'unknown/'),
                         'The following constructor parameters did not have matching fixture data: PRIVATE-CANARY',
@@ -906,6 +914,29 @@ except launcher.Refusal as failure:
                         {**case, 'name': 'LearnStack.Tests.Integration.Database.TenantRealmIssuanceTests.Proof'}):
             self.assertIsNone(parse(changed, {'ErrorMessage': sentence}))
         self.assertIsNone(parse(case, {'ErrorMessage': 'unrelated failure', 'ErrorStackTrace': sentence}))
+
+    def test_keycloak_startup_cancellation_state_is_closed_and_never_case_output(self):
+        cases = [self.case(index + 1, 'LearnStack.Tests.Integration.TenancyIdentity.'
+                           'TenantRealmStockBaselineTests.Proof(row: ' + str(index) + ')')
+                 for index in range(2)]
+        stream, console = io.StringIO(), io.StringIO()
+        progress = self.progress(self.root / 'keycloak-cancel.diag', 'LearnStack.Tests.Integration', cases, stream)
+        results = []
+        for case, cancelled in zip(cases, (True, False)):
+            item = self.execution_result(case, outcome=2)
+            item['ErrorMessage'] = ('Keycloak fixture startup failed at provider_starting/readiness_timeout; '
+                                    'owned cleanup completed; startup cancellation requested '
+                                    + str(cancelled).lower() + '.\nPRIVATE-CANARY')
+            results.append(item)
+        with contextlib.redirect_stdout(console):
+            progress.results({'NewTestResults': results})
+        self.assertEqual([{'stage': 'provider_starting', 'reason': 'readiness_timeout', 'cleanup': 'completed',
+                           'startupCancellationRequested': value} for value in (True, False)],
+                         [row['details'] for row in progress.failure_locations])
+        self.assertEqual(['Failed', 'Failed'], [json.loads(line)['outcome'] for line in stream.getvalue().splitlines()])
+        for private in ('PRIVATE-CANARY', 'startupCancellationRequested', 'provider_starting'):
+            self.assertNotIn(private, stream.getvalue())
+            self.assertNotIn(private, console.getvalue())
 
     def test_keycloak_fixture_results_keep_only_closed_measurements_and_truthful_sanitized_failures(self):
         sentence = ('Keycloak fixture startup failed at provider_start/unsupported_operation; '

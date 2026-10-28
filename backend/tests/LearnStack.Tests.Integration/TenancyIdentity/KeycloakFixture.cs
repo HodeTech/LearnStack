@@ -111,6 +111,9 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
                     .ForPath("/realms/learnstack/.well-known/openid-configuration")
                     .ForStatusCode(HttpStatusCode.OK)))
                 .Build();
+            _keycloak.Created += (_, _) => stage = "provider_created";
+            _keycloak.Starting += (_, _) => stage = "provider_starting";
+            _keycloak.Started += (_, _) => stage = "provider_started";
             stage = "provider_start";
             await _keycloak.StartAsync(startup.Token);
             stage = "mapped_endpoint";
@@ -130,13 +133,15 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
         }
         catch (Exception exception)
         {
+            var startupCancellationRequested = startup.IsCancellationRequested;
             // Startup exceptions can include container configuration, credentials or raw provider logs.
             // Cleanup still attempts every owned resource before this closed diagnostic is emitted.
             var cleanup = "completed";
             try { await DisposeAsync(); } catch (Exception) { cleanup = "failed"; }
             var reason = KeycloakStartupFailure.Classify(exception);
             throw new InvalidOperationException("Keycloak fixture startup failed at " + stage + "/" + reason
-                + "; owned cleanup " + cleanup + ".");
+                + "; owned cleanup " + cleanup
+                + "; startup cancellation requested " + (startupCancellationRequested ? "true" : "false") + ".");
         }
     }
 

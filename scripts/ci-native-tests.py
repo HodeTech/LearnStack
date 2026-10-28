@@ -148,11 +148,13 @@ PUBLIC_DEVTOOLS_KINDS = {
 KEYCLOAK_FAILURE_CLASSES = {
     'TenantRealmApiTests', 'TenantRealmIssuanceTests', 'TenantRealmProfileProtectionTests',
     'TenantRealmReconciliationTests', 'TenantRealmSelfServiceTests',
+    'TenantRealmStockBaselineTests',
 }
 KEYCLOAK_FAILURE_STAGES = {
     'certificate', 'network', 'database', 'import_input', 'provider_start',
     'mapped_endpoint', 'loopback_bindings', 'discovery',
     'database_create_request', 'database_start', 'database_readiness', 'database_started',
+    'provider_created', 'provider_starting', 'provider_started',
 }
 KEYCLOAK_FAILURE_REASONS = {
     'container_exit', 'deadline', 'readiness_timeout', 'http_transport', 'argument',
@@ -971,10 +973,13 @@ def closed_failure_details(case, raw):
         if len(message) > 65536 or message.count(marker) != 1:
             return None
         match = re.search(re.escape(marker) + r'([a-z_]{1,32})/([a-z_]{1,32}); '
-                          r'owned cleanup ([a-z_]{1,32})\.', message)
+                          r'owned cleanup ([a-z_]{1,32})(?:; startup cancellation requested (true|false))?\.', message)
         if (match and match[1] in KEYCLOAK_FAILURE_STAGES and match[2] in KEYCLOAK_FAILURE_REASONS
                 and match[3] in KEYCLOAK_FAILURE_CLEANUP):
-            return {'stage': match[1], 'reason': match[2], 'cleanup': match[3]}
+            details = {'stage': match[1], 'reason': match[2], 'cleanup': match[3]}
+            if match[4] is not None:
+                details['startupCancellationRequested'] = match[4] == 'true'
+            return details
         return None
     message = message[:65536]
     prefix = 'LearnStack.Tests.Integration.Database.'
