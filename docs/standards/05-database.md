@@ -4907,13 +4907,16 @@ is ten attempts/UTC minute and 100/UTC day; database clock regression cannot
 reopen an old window. The public status/hint mapping belongs to Security 11.
 
 Discovery requires a narrowly named owner visibility arm in the existing single
-Membership isolation policy. It admits only `learnstack_migration` and rows whose
-User matches the announced authority/key and remains Active. The function also
+Membership isolation policy. Its added owner arm admits only
+`learnstack_migration` and Active/nondeleted Membership rows whose User matches
+the announced authority/key and remains Active; the app tenant/org arm is intact.
+The function also
 repeats this exact predicate and returns no User fields. This USING arm is row
 visibility, not a SELECT-only policy: unchanged WITH CHECK and mutation/fence
 guards still reject unscoped writes, and no definer body writes Memberships.
 There is no owner-wide tenant or Role directory. Exact body/policy/ACL/caller and
-dirty-twin controls qualify this extension before enabling the HTTP consumer.
+dirty-twin controls, including inactive/deleted Memberships, qualify this
+extension before enabling the HTTP consumer.
 
 `PreContextSelfDiscoveryScopeReader` is the tenth logical tenant setter. It
 accepts only a single-use captured own-Membership scope witness from this function,
@@ -4969,7 +4972,9 @@ The fixed `AdoptSeedAdministrationOriginCommand` installs only the declared
 mapping for its respective seeded Tenant, with NULL organization. It takes the
 exclusive tenant fence, root lock and expected version. A private, nonpersonal
 `tenants.adopted_seed_origin_version` starts at 0 and changes only 0→1 in the same
-transaction as the exact host projection INSERT and central plural MUST audit.
+transaction as installation or locked verification of the exact live host
+projection and central plural MUST audit. A marker-0 exact existing mapping needs
+no duplicate INSERT; its row witness remains locked through marker commit.
 Database guards reject reset/unknown versions or a marker change without the
 exact projection witness. A conflicting, disabled or differently mapped host
 refuses without overwriting it. A version-1 marker requires the exact live mapping;
@@ -4981,7 +4986,8 @@ act after v1 completion. Existing completed installations use the fixed
 `make seed-admin-origins` adoption, not ordinary warm preservation. Each Tenant
 commits independently, so interruption can resume the other Tenant and an exact
 repeat writes nothing. No public generic host writer, reset or repair mode is
-introduced. The marker is not a general installation-completed flag.
+introduced. Include a marker-0/exact-existing-mapping positive control. The marker
+is not a general installation-completed flag.
 
 ### Protected durable idempotency
 

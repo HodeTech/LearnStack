@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 752 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 779 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -153,6 +153,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 proposal readback and approval readiness (2026-10-28)](#p03-3-proposal-readback-and-approval-readiness-2026-10-28) — 42 lines
   - [P03-3 maintainer corrections, joint acceptance and Step 1 (2026-10-28)](#p03-3-maintainer-corrections-joint-acceptance-and-step-1-2026-10-28) — 76 lines
   - [P03-3 Step 1 review round 1 and corrections (2026-10-28)](#p03-3-step-1-review-round-1-and-corrections-2026-10-28) — 32 lines
+  - [P03-3 Step 1 review round 2 and closeout (2026-10-28)](#p03-3-step-1-review-round-2-and-closeout-2026-10-28) — 27 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -6448,3 +6449,30 @@ User/Role/Membership versions, ADR-0042 projection exception, common audit and
 matrix parser, native response ownership, snapshots and privacy. The reviewers'
 contract approvals establish no implementation or runtime qualification. All
 verified findings are corrected in a normal commit before the second fresh round.
+
+### P03-3 Step 1 review round 2 and closeout (2026-10-28)
+
+Three new independent read-only reviewers examine the complete
+`4f133477→d844143b` acceptance/correction range, against the current authority,
+storage/seed and transport sources. They approve the bounded contract with three
+Minor corrections; no Blocker or Major remains in their reviewed scopes.
+
+- The confined Membership owner-policy arm explicitly requires both an Active
+  matching User and an Active/nondeleted Membership. Ordinary app tenant/org
+  predicates remain intact; inactive/deleted Membership dirty controls join the
+  applied-policy proof.
+- Fixed origin adoption installs a missing exact mapping **or verifies/retains**
+  an already exact live mapping under its row witness. The latter needs no
+  duplicate INSERT; marker/MUST commit is still atomic. Include that positive
+  alongside missing/conflicting/deleted and repeated-adoption controls.
+- Relevant code-review/standards-check/frontend-route skills now recognize the
+  separately credentialed native exception and exact P03-3 form/snapshot
+  extension. Browser selectors and legacy assertion headers still grant no scope;
+  Accepted consumers require actual implementation qualification.
+
+Root verifies and applies these points without changing Accepted ADR bodies or
+adding another policy choice. Both Step1 review rounds and their verified fixes
+are closed by normal commits. The original ten-step plan continues automatically
+with Step2: durable creation admission, subject-confined discovery, exact
+bootstrap and native scope-source/evidence integration. No runtime completion,
+provider/browser result or manual accessibility proof is claimed here.

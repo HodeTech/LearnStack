@@ -121,7 +121,9 @@ Rules:
 - Default to Server Component. `"use client"` only when the screen needs hooks,
   browser APIs, or third-party client-only libs.
 - Public pages use admitted resource loaders backed by `@learnstack/sdk/server`.
-  The exact authenticated AccountSite caller stays in the native BFF owner;
+  Authenticated callers stay in the native BFF response owner; P03-3's Accepted
+  exact forms/page-snapshot extension is defined in
+  [Standard 07](../../../docs/standards/07-frontend-architecture.md#native-entry-and-administration).
   neither a page nor the SDK selects credentials, host or tenancy headers.
   Hand-rolled `fetch('/v1/...')` is blocked by lint.
 - Pass typed primitives across the RSC → Client boundary — no class instances, no
@@ -129,7 +131,7 @@ Rules:
 
 ### Step 4: Tenant + organization context (automatic)
 
-The API resolves tenant and organization from the host
+For the public baseline, the API resolves tenant and organization from the host
 ([ADR-0036 § Effective host and the trusted hop](../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md#effective-host-and-the-trusted-hop)).
 The frontend never calls `IHostToTenantResolver`. P02d-4's SDK is a pure injected
 transport contract and sets no hop headers. ADR-0053 replaces ADR-0036's older
@@ -158,8 +160,11 @@ no-store refusal; HEAD remains bodyless. Production upgrades close; development
 retains only validated GET HMR. The [remediation record](../../../docs/roadmap/phase-02d-delivery-log.md#remediation-step-2--native-ingress-and-url-boundary)
 owns validation and both independent review rounds. Do not add
 Server Actions/write routes or WebSocket consumers without an explicit owning
-Phase 02b/Phase 06
-admission decision. Preserve signed raw-target route/locale authority when
+owning packet's admission decision. ADR-0078/0079 supply P03-3's exact native
+entry/admin form and protected response-snapshot contract, with implementation
+qualification pending; they admit no generic Server Action/proxy. Pages consume
+the response owner's immutable snapshot, never credentials or submitted scope.
+Preserve signed raw-target route/locale authority when
 accounting for pinned Next's URL projection. Redirects retain inert query values,
 duplicates and order with equivalent percent encoding; only verified live host,
 accepted HTTPS port and local path select the destination.

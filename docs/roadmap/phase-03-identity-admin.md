@@ -8,8 +8,9 @@
 > both fresh review rounds per step and verified PR corrections are closed.
 > Phase 03 remains in progress. P03-3's ADR-0078/0079 and revised ten-step
 > package are jointly Accepted after maintainer-requested corrections. Step 1
-> adopts the canonical contracts; implementation and per-step qualification are
-> in progress. Acceptance alone establishes no runtime or browser proof.
+> canonical adoption and both fresh review rounds are closed; Step 2 storage/
+> entry/native-source implementation is in progress. Acceptance alone establishes
+> no runtime or browser proof.
 > This remains the critical-path phase after
 > [Phase 02b](phase-02b-events-auth.md). The
 > [decision register](#the-decision-register) owns gate state; dated records live

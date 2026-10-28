@@ -282,6 +282,11 @@ domain the diff doesn't touch.
   the effective host, or validated claims plus live membership on a platform host, per
   [ADR-0036](../../../docs/decisions/0036-tenant-resolution-trusted-inputs.md);
   `X-Tenant-Id` and `X-Organization-Id` are assertions, never sources.
+- [ ] ADR-0078's separately credentialed native tuple is the named additional
+  source, with immutable evidence, current API Membership/lifecycle checks and
+  actual-host ceiling. Browser fields and legacy assertion headers never supply
+  it. Follow [Security 11](../../../docs/standards/11-security.md#native-scope-and-global-self-admission)
+  and distinguish Accepted extension from qualified runtime.
 - [ ] Secrets via `ISecretProvider`; no plaintext in source / `appsettings`.
 - [ ] Secure headers set (HSTS, CSP, COOP, CORP). **Not enforced yet:** nothing sets
   them today, and the
