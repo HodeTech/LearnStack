@@ -1,6 +1,6 @@
 # 19 — Permissions Standards
 
-**Status:** Adopted
+**Status:** Active
 **Derives from:** [11-security.md](11-security.md) § Authorization,
 [ADR-0017 Tenant + Organization Hierarchy](../decisions/0017-tenant-organization-hierarchy.md),
 [ADR-0064 Tenant API Authentication Boundary](../decisions/0064-tenant-api-authentication-boundary.md)

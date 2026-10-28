@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,399 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,465 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -136,6 +136,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 zero-adopted standard census correction (2026-10-28)](#p03-2-zero-adopted-standard-census-correction-2026-10-28) — 25 lines
   - [P03-2 zero-standard census review round 1 (2026-10-28)](#p03-2-zero-standard-census-review-round-1-2026-10-28) — 11 lines
   - [P03-2 zero-standard census review round 2 and freeze (2026-10-28)](#p03-2-zero-standard-census-review-round-2-and-freeze-2026-10-28) — 17 lines
+  - [P03-2 Step 6 qualification and review handoff (2026-10-28)](#p03-2-step-6-qualification-and-review-handoff-2026-10-28) — 66 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -5388,3 +5389,69 @@ prepared documentation delta; its combined real corpus controls already pass
 in the isolated future-document copy. Only complete successful same-source
 hosted A/B and independent original-evidence audit permit that promotion and
 PR handoff. No earlier failed or cancelled attempt substitutes for the pair.
+
+### P03-2 Step 6 qualification and review handoff (2026-10-28)
+
+Qualification uses implementation source
+`c39ab614970b17c1edac25e36f5c6b7755ceec07`, tree
+`f69d45a63125066301fb2d29c86da5f7f854e323`, on `development`.
+[Full A and full B](https://github.com/HodeTech/LearnStack/actions/runs/40617050240)
+are separate complete attempts 1/2, not failed-job reruns. Each passes **27/27**
+jobs and all seven required names. Both select **6,927** backend cases and pass
+every case with zero failures/skips: **2,998** Unit, **3,331** Integration,
+**593** Architecture and **five** Contract. The selected/discovery/TRX/JSONL
+unions are complete and disjoint within each attempt and identical across them;
+A/B assignments differ. Backend **3,920** and Docker Integration **3,007**
+aggregates reconcile exactly.
+
+All **50** original ZIPs retain API artifact identity, byte size, SHA-256 and
+CRC verification. Both attempts bind plan `f5161ae9` and manifest `1fa6c70c`,
+the same .NET `10.0.403`, VSTest `18.7.0-release-26523-112` and xUnit adapter
+`2.8.2.0`, including observed toolchain binary hashes. All twenty execution
+owners prove natural ownership/disposal, no forced cleanup, and positive
+memory observations; observed VM memory is not an enforced quota. Existing job
+ceilings, the **203-second** reserve, fixture count and **20** execution-VM
+topology remain unchanged.
+Maximum producer API job walls (queue time excluded) are **983 / 1,046 seconds**
+for A's backend/Docker populations and **1,001 / 1,039** for B. Per-owner
+validation preserves native/base/Architecture twenty-minute and ordinary
+25-minute ceilings. The independent assignment replay moves **2,730** ordinary
+and **427** Architecture cases between owners; the full population stays identical.
+
+Both hosted frontend jobs pass **2,458** tests across **73** files/two packages,
+zero skips/todos, plus typecheck/lint/build and native ingress cleanup. Each
+actual hosted demo retains **27** original JSON/HTML pairs, nine browser
+navigations, **24** visibility controls, two TLS refusals, timeout refusal and
+**134 HTTP 200** completions. Proof and cleanup finish within their existing
+bounds. LCP remains advisory; raw medians and warnings remain visible in each
+receipt. OpenAPI compares the frozen source with main `012e67cc`; original
+comparison/fixture policy and secret-scan checks pass.
+
+Two independent reviewers (`gpt-6-astra` / `gpt-6.1-sol`, high) audit original
+hosted evidence rather than only summaries. The backend reviewer reconstructs
+both assignments, all case
+unions and TRX identities/durations, resource receipts, aggregate/API associations
+and cross-attempt toolchains. The web reviewer checks all required jobs,
+OpenAPI committed byte identities, secret scan, real hosted frontend logs and
+paired demo metrics/control/cleanup evidence. Both approve without verified
+findings after B and the cross-pair comparison. Earlier failed/cancelled runs
+remain retained separately and are not replaced by this pair.
+
+The final documentation delta promotes the seven qualified catalogue rules and
+Permission Standard together with their index, matrices and phase gates. The
+catalogue reports **251 Implemented = 146 Architecture + 105 elsewhere**, with
+**320** compiled test methods unchanged. The standards split is **22 Active /
+zero Adopted**. Actual post-update compiled corpus controls pass **5/5**, with
+zero skips, after a zero-warning/error Release build. Documentation lint passes
+with **2,796** resolved fragment links. Fresh documentation review remains
+required before handoff. These documentation-only commits
+follow the qualified implementation source; they are not described as that
+source's hosted execution.
+
+All six implementation steps and their two fresh review rounds are closed.
+G2 execution, G5 enforcement, G6 policy/directory and G7 runtime evidence are
+qualified only within their named slices. P03-3 retains new-user HTTP/BFF entry,
+validated scope transitions, native mutation/UI transport and delegation screens.
+P03-9 retains Platform/production recovery authority; P03-10 retains closure,
+redaction and applicable locator workflows. Phase 03 remains in progress.
+The next packet is P03-3, after this packet's PR review; it is not started here.

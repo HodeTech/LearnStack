@@ -2,11 +2,12 @@
 
 **Status:** Accepted design — 2026-09-14, with the [module spec](README.md).
 
-P02d-2 Step 3 implements six unrouted commands and contextual verification queries.
-These writers/verification queries have no HTTP endpoint or permission registration;
-their reachability boundary follows
-the [Tenancy precedent](../tenancy/permissions.md), with tenant and organization derived
-from the execution context. Database isolation is already required for every table.
+P02d-2 Step 3 implements six unrouted commands and two verification queries.
+`EducationOperationPolicySource` binds these requests to finite Seed authority
+through the [live contract](../../standards/19-permissions.md#live-permission-enforcement-contract).
+They have no HTTP endpoint or assignable permission registration. Tenant and
+organization derive from execution context; database isolation independently
+protects every table. Human-facing authoring remains Phase 05.
 
 The current resource/action matrix uses the
 [Permission Standards template](../../standards/19-permissions.md#permission-matrix-template):

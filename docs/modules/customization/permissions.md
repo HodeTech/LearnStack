@@ -58,19 +58,20 @@ same operation as MUST-audit; a matrix with no `delete` disagreed with both.
 Publication has none, because unpublishing is not deletion: the successor's
 publish is what retires a revision.
 
-**Six write commands are unrouted.** The current route set exposes none of
-them, and permission enforcement remains Phase 03. The four authoring commands
-are called by the Seeder. The two default-initialization commands are shared by
-the Seeder and the transport-owned Customization subscriptions; they take tenant
-authority only from the restored trusted context. Hub provisioning emits the
-completed-tenant event and does not directly invoke a Customization HTTP writer.
-The planned Studio editors below own human-facing authorization.
+**Six write commands are unrouted and have finite source admission.**
+`CustomizationOperationPolicySource` binds four authoring commands and four
+verification queries to Seed authority. The two default initializers admit only
+their declared Seed or transport-owned event-initializer source/request bindings
+under the [live contract](../../standards/19-permissions.md#live-permission-enforcement-contract).
+Hub provisioning emits the completed-tenant event and does not directly invoke a
+Customization HTTP writer. The planned Studio editors below own human-facing
+permission keys and admission.
 
 Every command takes its tenant from context rather than request input. RLS and
-`Write_With_Foreign_TenantId_Is_Rejected_By_WithCheck` protect the database write;
-reachability is the current authorization boundary, not a new permission grant.
-The [Step 5 record](../../roadmap/phase-02b-delivery-log.md#p02b-3-step-5--useful-defaults-and-semantic-seed-handoff-2026-10-13)
-owns implementation validation/review status.
+`Write_With_Foreign_TenantId_Is_Rejected_By_WithCheck` independently protect the
+database write. Finite source admission registers no assignable permission key.
+The [Phase 03 Status block](../../roadmap/phase-03-identity-admin.md) owns current
+source-bound qualification.
 
 **Every key in the `{module}.{resource}.{action}` form.** The resources above are
 written PascalCase as the template writes them; the keys they generate are

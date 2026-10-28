@@ -6,10 +6,10 @@
 > [merge closeout](phase-03-delivery-log.md#p03-1-merge-and-closeout-2026-10-27)
 > distinguishes implementation-source A/B qualification from the final PR head's
 > successful protected checks and records the identical squash-merge file tree.
-> Phase 03 remains in progress; P03-2 Steps 1–5 and both review rounds per step
-> are complete. Step 6 qualifies the final source, inventories and CI evidence. Live membership
-> and permission enforcement belong to P03-2; new-user HTTP/BFF activation stays
-> in P03-3. This remains the critical-path phase after
+> Phase 03 remains in progress; P03-2 implementation, both fresh review rounds per
+> step and complete hosted A/B qualification are closed. PR review remains pending.
+> Live Membership and permission enforcement are implemented; new-user HTTP/BFF
+> activation stays in P03-3. This remains the critical-path phase after
 > [Phase 02b](phase-02b-events-auth.md). The
 > [decision register](#the-decision-register) owns gate state; dated records live
 > in the [delivery log](phase-03-delivery-log.md).
@@ -18,7 +18,7 @@
 > |---|---|---|
 > | P03-0 | Entry preparation | Complete — [reconciliation](phase-03-delivery-log.md#entry-preparation-2026-10-25) |
 > | P03-1 | Identity authority and membership foundation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-1-merge-and-closeout-2026-10-27) |
-> | P03-2 | Live membership and authorization | In progress — [Step 6 reviewed source freeze](phase-03-delivery-log.md#p03-2-zero-standard-census-review-round-2-and-freeze-2026-10-28); all correction reviews, clean full frontend and actual demo pass; complete final-source hosted A/B remains required |
+> | P03-2 | Live membership and authorization | Implemented and qualified — [Step 6 closeout](phase-03-delivery-log.md#p03-2-step-6-qualification-and-review-handoff-2026-10-28); all six steps and review rounds closed; PR review pending |
 > | P03-3 | Protected Studio and membership administration | Not started |
 > | P03-4 | Invitations and bounded delivery | Not started |
 > | P03-5 | Custom fields and privacy classification | Not started |
@@ -68,14 +68,14 @@ backfill when that adapter introduces an actual SDK. Re-verify the subject
 before the first writer; direct HTTP alone does not qualify SDK coverage.
 The rule remains Awaiting backfill; the SDK exception rule remains enforced.
 
-Before replacing deny-all membership, qualify affirmative row-7 organization
-selection and row-14 claim-only resolution through real HTTP controls. Decide
-header-mismatch evidence ownership after a successful claim-only platform-host
-resolution: a confirmed claim/membership is not an independently defended tenant
-host. Do not silently reuse the host-tenant audit allowance or row-14 membership
-refusal signal for that distinct case. AccountSite retains its independent
-matching HostScope ceiling. This decision belongs to the first live-membership
-packet, before that currently unreachable path becomes exposed.
+The live membership boundary qualifies affirmative row-7 organization selection
+and row-14 claim-only resolution through real HTTP controls. Successful
+claim-only platform-host header mismatch has its own per-occurrence evidence:
+a confirmed Membership is not an independently defended tenant host, and its
+event consumes no host-tenant allowance. Row-14 Membership refusal keeps its
+distinct signal. AccountSite retains its independent matching HostScope ceiling.
+The [trusted evidence contract](../standards/18-audit-coverage.md#trusted-authorization-evidence)
+owns this separation.
 
 ## Scope
 
@@ -127,12 +127,12 @@ named part, and the register links each explicit acceptance and vehicle.
 | Gate | Question | Existing boundary / required answer | First consumer | Vehicle | Status |
 |---|---|---|---|---|---|
 | G1 | Who establishes issuer + opaque `sub` → stable `UserId` and proves actor association before an accepted login? | Preserve seeded/provider IDs, reject substitution/email merging, name trusted pre-membership admission, first User-writer audit attribution, concurrency and cross-system reconciliation; self-registration alone grants no membership/session; new-user HTTP activation also requires provider registration and durable creation budgets | P03-1 storage/seed; P03-3 activation | Identity authority ADR; bounded ADR-0064/0070 disclosures if affected; Identity spec | Accepted foundation; P03-3 activation Open |
-| G2 | How do membership and permission readers reach data before resolved tenant SQL exists, and how does authorized `app.scope` reach EF/RLS? | Decide exact principal, grants, candidate-scope read and transaction/setter ownership before schema; implement step-5/step-6 handoff later; rows 6/9 still need live authorization; qualify rows 7/10/14 and successful claim-only header-mismatch evidence separately from host-tenant budgets | P03-1 contract; P03-2 execution | ADR-0036/0040 authority; Security/Database standards and closed-set tests | Accepted — 2026-10-27, [ADR-0076/0077 and package](phase-03-delivery-log.md#p03-2-joint-acceptance-and-step-1-2026-10-27); execution proof pending |
+| G2 | How do membership and permission readers reach data before resolved tenant SQL exists, and how does authorized `app.scope` reach EF/RLS? | Exact principal, grants, candidate-scope owner and transaction/setter handoff; live authorization of rows 6/9; qualified rows 7/10/14 and distinct successful claim-only header-mismatch evidence outside host-tenant budgets | P03-1 contract; P03-2 execution | ADR-0036/0040 authority; Security/Database standards and closed-set tests | Accepted — 2026-10-27, [ADR-0076/0077 and package](phase-03-delivery-log.md#p03-2-joint-acceptance-and-step-1-2026-10-27); execution implemented and qualified in the [Step 6 closeout](phase-03-delivery-log.md#p03-2-step-6-qualification-and-review-handoff-2026-10-28) |
 | G3 | What are membership/profile/role-binding boundaries, nullable natural keys, lifecycle and global-user projections? | Decide active uniqueness, tenant/org grant composition, profile granularity, archive/reinvite and last-admin/org invariants, same-module composite FKs and Tenancy lifecycle contracts; no cross-module Organization FK/join | P03-1 | Identity module spec; ADR for aggregate/ownership changes; database class declaration | Accepted foundation and [ADR-0074 timing delta](../decisions/0074-membership-admission-under-ordered-locks.md); foundation and per-act lifecycle proofs implemented/reviewed in Step 4; archive/closure transition activation remains P03-3/10 |
 | G4 | How are active tenant/org claims issued per session, discovered and switched safely? | Current mappers use user-global attributes and ordinary BFF refresh preserves scope; decide storage implications first, then token reissue, callbacks/hosts, no-membership entry and switch/logout/refresh races | P03-1 implications; P03-3 transition | Provider/session ADR and applicable ADR-0070 disclosure; auth architecture | Accepted storage boundary; P03-3 transition Open |
-| G5 | What identifies a scoped permission, who may delegate it, and when do revocations take effect? | Reconcile disabled-default versus Tenant Admin seed expansion; decide registry shape, closed-role defaults, bootstrap/recovery, grant ceilings, last-admin concurrency, finite SystemActor permissions, anonymous Portal Public and API/UI freshness | P03-1 schema/bootstrap; P03-2 enforcement; P03-3 UI | ADR-0017/0064-derived permission contract; Standard 19 and module matrices | Accepted — 2026-10-27, [P03-2 enforcement contract](phase-03-delivery-log.md#p03-2-joint-acceptance-and-step-1-2026-10-27); implementation pending; P03-3 UI/delegation surfaces remain gated |
-| G6 | Which protected endpoint/application policies and native web/SDK operations are admitted? | Decide denial precedence/resource lookup first; then exact routes/methods, Origin/CSRF, input/deadline/no-store bounds, ETag/conflict, actor/scope-bound idempotent replay and cache cleanup; no generic proxy or Server Action implied | P03-2 policy ordering; P03-3 transport | API/BFF contract; ADR-0064/0070/0071 disclosures if affected; Standards 04/07 | Accepted — 2026-10-27, [policy/directory slice](phase-03-delivery-log.md#p03-2-joint-acceptance-and-step-1-2026-10-27); P03-3 native/mutation/UI transport remains Open |
-| G7 | Who audits HTTP/application/resource denials and supplies trusted actor/request context? | One evidence owner per refusal, MUST sensitive reads, membership/role/platform/operator/route provenance, trusted IP and bounded user-agent; preserve refusal on audit failure; no generic ADR-0065 budget | P03-2 | ADR-0033/0044; Audit spec, enrichment port and matrices | Accepted — 2026-10-27, [ADR-0077 / P03-2 evidence](phase-03-delivery-log.md#p03-2-joint-acceptance-and-step-1-2026-10-27); runtime proof pending; privileged population remains G13 |
+| G5 | What identifies a scoped permission, who may delegate it, and when do revocations take effect? | Reconcile disabled-default versus Tenant Admin seed expansion; decide registry shape, closed-role defaults, bootstrap/recovery, grant ceilings, last-admin concurrency, finite SystemActor permissions, anonymous Portal Public and API/UI freshness | P03-1 schema/bootstrap; P03-2 enforcement; P03-3 UI | ADR-0017/0064-derived permission contract; Standard 19 and module matrices | Accepted — 2026-10-27, [P03-2 enforcement contract](phase-03-delivery-log.md#p03-2-joint-acceptance-and-step-1-2026-10-27); enforcement implemented and qualified; P03-3 UI/delegation surfaces remain Open |
+| G6 | Which protected endpoint/application policies and native web/SDK operations are admitted? | Decide denial precedence/resource lookup first; then exact routes/methods, Origin/CSRF, input/deadline/no-store bounds, ETag/conflict, actor/scope-bound idempotent replay and cache cleanup; no generic proxy or Server Action implied | P03-2 policy ordering; P03-3 transport | API/BFF contract; ADR-0064/0070/0071 disclosures if affected; Standards 04/07 | Accepted — 2026-10-27, [policy/directory slice](phase-03-delivery-log.md#p03-2-joint-acceptance-and-step-1-2026-10-27); policy/directory slice implemented and qualified; P03-3 native/mutation/UI transport remains Open |
+| G7 | Who audits HTTP/application/resource denials and supplies trusted actor/request context? | One evidence owner per refusal, MUST sensitive reads, membership/role/platform/operator/route provenance, trusted IP and bounded user-agent; preserve refusal on audit failure; no generic ADR-0065 budget | P03-2 | ADR-0033/0044; Audit spec, enrichment port and matrices | Accepted — 2026-10-27, [ADR-0077 / P03-2 evidence](phase-03-delivery-log.md#p03-2-joint-acceptance-and-step-1-2026-10-27); runtime implemented and qualified; privileged population remains G13 Open |
 | G8 | What makes invitation acceptance and delivery authoritative and recoverable? | Verified current provider email, hashed single-use token, GET inspection only, explicit mutating act, current delegation, accept/revoke/expiry/resend races, aggregate atomicity and bounded delivery independent of Phase 08a | P03-1 only if shared aggregate shape changes; P03-4 writer | Invitation contract; ADR-0042 successor if an exception changes; phase package and delivery handoff | Open |
 | G9 | How do field definitions and values preserve schema/classification history? | Decide revision pins/active uniqueness, scalar-field compatibility with the existing admitted object profile, nested data, required/default/retire/reclassify/key-reuse behavior, consent and supported localized forms; no raw JSONB bypass | P03-5 before its schema | Customization/privacy contract; ADR-0043 disclosure or successor if needed; module specs | Open |
 | G10 | What authenticated durable provider ingress is selected, and how are global events attributed? | Name producer, acknowledgement, stable provider-event dedup, ordering, tenantless/multi-membership routing, privacy and retention; enqueue through outbox, never direct business publication; no invented tenant or privileged app consumer | P03-6, or an earlier mechanism needing ingress | Provider-event ADR; ADR-0046/0057 boundaries, exact grants and Audit subscription | Open |

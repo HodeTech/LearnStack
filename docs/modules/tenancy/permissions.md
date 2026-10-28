@@ -50,48 +50,48 @@ P02d-4. [The module contract](README.md#p02d-3-accepted-typed-settings-contract)
 
 **P02d-2 Step 2 writers — 2026-10-02.** The
 [locale and branding commands](README.md#p02d-2-accepted-locale-and-branding-contract)
-are implemented unrouted tenant-wide operations, with no registered permission or
-organization override. Their eventual identity-backed permission admission remains
-Phase 03. This note grants no HTTP or Hub-internal reachability for the new commands.
+are implemented unrouted tenant-wide operations, with no assignable permission or
+organization override. Their finite Seed admission is described below. Human-facing
+permissions require their owning Phase 03 decision; no HTTP or Hub-internal route
+is admitted here.
 
 **No assignable Tenancy permission keys yet.** The matrix below is a forward declaration in the
 `{module}.{resource}.{action}` form with the closed action set of
 [Permission Standards](../../standards/19-permissions.md). Its adopted module-source
 contract registers scoped definitions separately from finite grants; no `IModule`
 API is implied. Identity's foundation definitions/Role templates are implemented.
-Tenancy's assignable keys and live enforcement require their owning Phase 03
-decision; these examples register or grant nothing. The accepted virtual public
+Tenancy's assignable keys and their human/operator consumers require their owning
+Phase 03 decision; these examples register or grant nothing. The virtual public
 definition above is separate from this assignable resource matrix.
 
-**Six write handlers exist without identity-backed authorization**, for two
-different reasons. Four contextual verification queries are explicitly audit Off.
-P02d-2 adds no HTTP or Hub-internal route.
+**Six write handlers and four verification queries have finite Seed admission.**
+`TenancyOperationPolicySource` binds each request to its declared Seed source under
+the [live contract](../../standards/19-permissions.md#live-permission-enforcement-contract).
+The verification queries remain audit Off. These bindings add no HTTP or
+Hub-internal route and no assignable permission key.
 
-`ProvisionTenantCommand` has nothing for a permission check to read: it runs with
-an **unresolved** tenant context by construction — that is what lets it announce
-the tenant it is creating — and attributes the write to `UserId.SystemActor`,
-because provisioning precedes any membership in the tenant being provisioned.
+`ProvisionTenantCommand` runs with an **unresolved** tenant context so it can
+announce the tenant it creates. Provisioning precedes Membership and attributes
+the write to `UserId.SystemActor`; that value supplies no exemption from the
+finite source/request gate.
 
-`CreateOrganizationCommand`, `MapHostToTenantCommand` and the three P02d-2 writers do
-run resolved, so the first argument does not transfer to them. What stands in for
-authorization is the same thing for these writers: reachability. None of the six
-writers has an HTTP route today; the seeder is their trusted production caller.
+`CreateOrganizationCommand`, `MapHostToTenantCommand` and the three P02d-2 writers
+run resolved and derive their tenant from context, never request input. Finite
+source admission and database isolation independently constrain these writes.
+The Seeder remains their production caller.
 [Phase 02c](../../roadmap/phase-02c-hub-foundation.md) owns the planned Hub-internal
-routes: tenant creation invokes `ProvisionTenantCommand`, which also creates the default
-organization, and host mapping invokes `MapHostToTenantCommand`. It adds no direct
-`CreateOrganizationCommand` endpoint. That surface takes `learnstack-hub` realm tokens
-and no others. Resolved writers take
-their tenant from the context and never from the request, so a caller cannot name
-another tenant even without a permission check; the database refuses the write.
+routes: tenant creation invokes `ProvisionTenantCommand`, which also creates the
+default organization, and host mapping invokes `MapHostToTenantCommand`. It adds
+no direct `CreateOrganizationCommand` endpoint. That future surface accepts only
+`learnstack-hub` realm tokens and needs its own admitted operation policy.
 
-**`MapHostToTenantCommand` is the one to gate first.** It writes the row that
-decides whose data an anonymous request sees, which makes it the highest-value
-write in the module — and the reason the matrix above gives `HostMapping` its own
-resource with **no `write`**: pointing a hostname at a tenant is an admin-scope
-act, so `tenancy.hostmapping.admin` is the key that will govern it rather than any
-grant inside the everyday tenant-admin role. `tenancy.tenant.admin` governs
-provisioning and `tenancy.organization.write` the second organization. All three
-are registered with the rest in Phase 03.
+**A future host-mapping route requires its own admission decision.**
+`MapHostToTenantCommand` controls whose data an anonymous request sees. The proposed
+`tenancy.hostmapping.admin` key therefore describes an admin-scope act, outside
+ordinary tenant-admin grants; `HostMapping` has no `write` action. The proposed
+`tenancy.tenant.admin` and `tenancy.organization.write` keys describe provisioning
+and organization creation. Each requires its owning surface decision and approved
+finite registration; the matrix alone registers or grants none of them.
 
 | Resource | read | write | delete | admin | Default role grants |
 |----------|:----:|:-----:|:------:|:-----:|---------------------|
