@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,382 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,399 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -135,6 +135,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 browser and recovery correction source freeze (2026-10-28)](#p03-2-browser-and-recovery-correction-source-freeze-2026-10-28) — 17 lines
   - [P03-2 zero-adopted standard census correction (2026-10-28)](#p03-2-zero-adopted-standard-census-correction-2026-10-28) — 25 lines
   - [P03-2 zero-standard census review round 1 (2026-10-28)](#p03-2-zero-standard-census-review-round-1-2026-10-28) — 11 lines
+  - [P03-2 zero-standard census review round 2 and freeze (2026-10-28)](#p03-2-zero-standard-census-review-round-2-and-freeze-2026-10-28) — 17 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -5370,3 +5371,20 @@ evidence reviewer independently validates all six cancelled-attempt original
 ZIP sizes, hashes and CRCs and the complete **27**-job API record. No cancelled
 attempt is promoted to fit or qualification. The second fresh review round and
 complete new-source A/B remain open.
+
+### P03-2 zero-standard census review round 2 and freeze (2026-10-28)
+
+Two new independent reviewers (`gpt-6.1-sol` / `gpt-6-luna`, medium) approve
+`07a0431a..bf794047` without verified findings. They recheck the one-line
+dictionary addition, unchanged parser/assertions/discovery, identical five test
+identities, original TRX hashes and zero-warning/error builds. The evidence
+reviewer independently reconciles the cancelled run's **27** jobs and all six
+original ZIP sizes, hashes and CRCs. Both fresh census review rounds are closed.
+
+The source freezes again before one full A, original-archive verification and
+one full B. No selected case, plan/manifest digest, weight, resource bound or
+production policy changes. Final permission and catalogue promotion remains a
+prepared documentation delta; its combined real corpus controls already pass
+in the isolated future-document copy. Only complete successful same-source
+hosted A/B and independent original-evidence audit permit that promotion and
+PR handoff. No earlier failed or cancelled attempt substitutes for the pair.
