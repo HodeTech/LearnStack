@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 841 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 887 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -155,6 +155,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 1 review round 1 and corrections (2026-10-28)](#p03-3-step-1-review-round-1-and-corrections-2026-10-28) — 32 lines
   - [P03-3 Step 1 review round 2 and closeout (2026-10-28)](#p03-3-step-1-review-round-2-and-closeout-2026-10-28) — 27 lines
   - [P03-3 Step 2 — Bounded self entry and native scope admission (2026-10-28)](#p03-3-step-2--bounded-self-entry-and-native-scope-admission-2026-10-28) — 62 lines
+  - [P03-3 Step 2 review round 1 and verified corrections (2026-10-28)](#p03-3-step-2-review-round-1-and-verified-corrections-2026-10-28) — 46 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -6539,3 +6540,49 @@ rounds. Preflight feedback from implementation/test authors does not count as
 either round. The selected real provider/native HTTPS, cookie/epoch, browser and
 manual accessibility proofs remain in their named later steps. G1/G4/G6 are not
 closed by this local entry-core record, and P03-3 remains in progress.
+
+### P03-3 Step 2 review round 1 and verified corrections (2026-10-28)
+
+Three fresh independent reviewers inspect the committed `7a94d6bd→10e309e4`
+entry-core range across native provenance/HTTP, storage/owners and contracts/
+privacy. Root verifies each finding against current code before changing it.
+
+- **Major:** malformed context queries/body eagerly resolve discovery and label
+  services before validation. Pass their factories through validation instead;
+  throwing/counting factories prove zero construction on malformed input and a
+  positive invocation on an otherwise valid query. This finding establishes
+  eager service construction, not an observed physical database checkout.
+- **Minor:** pagination failures identify only the fixed `limit` or `cursor`
+  field with the existing localized invalid-value key. Unknown field names and
+  raw values are never reflected. A foreign cursor has the same bounded error.
+- **Minor:** add an independent deployed-policy oracle and five committed dirty
+  twins for the confined Membership discovery arm. Keep the original application
+  USING/WITH CHECK and full policy census; restore and recheck the nonempty clean
+  twin after each mutation. Owner-role, foreign-User correlation and Membership
+  status faults have actual behavioral controls. User-status/deleted predicate
+  omissions have exact applied-policy controls; they do not invent an admitted
+  closure writer or an impossible Active/deleted Membership state.
+- **Qualified index concern:** the real PostgreSQL plan cannot select the User
+  natural-key index when the predicate casts indexed columns to text. Convert
+  the validated announced values to UUID/bytea instead. Independent plan checks
+  now require both natural-key and partial Membership indexes, reporting only
+  index names on failure. The forced-index tiny-fixture check proves index
+  eligibility, not production latency or a measured scan-cost regression.
+- **Minor:** reconcile stale implementation-pending wording in Identity, Tenancy
+  and the database standard, and describe native provenance on the existing
+  membership-directory OpenAPI operation. Packet qualification remains solely
+  in the phase Status block; generated SDK changes follow the served contract.
+
+The suggested source-retirement/debit concern is not a separate finding:
+accepted failed/cancelled/uncertain creation attempts remain charged, and the
+post-debit qualification check still prevents creation/publication after source
+retirement. The actual held/faulted debit controls retain that contract.
+
+Validation after the corrections: 128 PostgreSQL entry/schema/bootstrap/owner
+controls, 12 actual HTTP controls, six served-contract cases and 58 targeted
+architecture controls pass with zero skips. The HTTP positives include a
+Tenant-wide Membership admitting an explicitly covered native branch without
+rewriting provider claims. The six policy controls use disposable databases for
+parser-only TEMP privileges; production grants remain unchanged. The earlier
+full architecture sweep is not reclassified as a full green run. A second fresh
+independent postcommit review round is still required before Step 3 begins.

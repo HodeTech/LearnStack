@@ -141,6 +141,7 @@ internal static class IdentityEntryStorageDdl
             selected_subject text := NULLIF(current_setting('app.identity_subject_key',true),'');
         BEGIN
             IF session_user <> 'learnstack_app' OR selected_authority IS NULL
+                OR selected_authority !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
                 OR selected_subject IS NULL OR selected_subject !~ '^[0-9a-f]{64}$'
                 OR NULLIF(current_setting('app.tenant_id',true),'') IS NOT NULL
                 OR current_setting('transaction_read_only') <> 'on'
@@ -149,7 +150,7 @@ internal static class IdentityEntryStorageDdl
             THEN RAISE EXCEPTION 'Identity self discovery refused.' USING ERRCODE='23514'; END IF;
             RETURN QUERY SELECT m.id,m.tenant_id,m.organization_id
                 FROM public.users u JOIN public.memberships m ON m.user_id=u.id
-                WHERE u.authority_id::text=selected_authority AND encode(u.subject_key,'hex')=selected_subject
+                WHERE u.authority_id=selected_authority::uuid AND u.subject_key=decode(selected_subject,'hex')
                     AND u.status='Active' AND m.status='Active' AND m.deleted_at IS NULL
                     AND (after_membership_id IS NULL OR m.id>after_membership_id)
                 ORDER BY m.id LIMIT page_limit;

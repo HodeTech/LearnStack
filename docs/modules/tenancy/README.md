@@ -6,9 +6,10 @@ isolation suite shipped in Packet 7). P02d-2 Step 1 adds contextual verification
 reads; Step 2 implements locale/branding writers, with both review rounds complete.
 The [ADR-0078](../../decisions/0078-native-session-scope-and-self-entry.md) /
 [ADR-0079](../../decisions/0079-bounded-identity-administration.md) native admission,
-administration and warm-preservation contracts are Accepted; their new consumers
-and actual proofs remain pending P03-3 implementation. The
-[phase Status block](../../roadmap/phase-03-identity-admin.md) owns packet state.
+administration and warm-preservation contracts are Accepted. The
+[phase Status block](../../roadmap/phase-03-identity-admin.md) owns implementation
+and qualification state for the native read core and subsequent administration,
+seed preservation and provider/browser consumers.
 
 The first module spec in the repository, per
 [Documentation Standards § Per-Module Specifications](../../standards/13-documentation.md).
@@ -172,10 +173,11 @@ It accepts no scope selector and returns `AccountSite`: the context's stable
 adds no permission key; Phase 03 owns membership and permissions.
 
 Before any configuration, settings or feature read, its implemented guard requires
-`HostAndClaim`, a real non-system actor and matching real resolved/host scope.
-ADR-0078's accepted extension admits independently validated
-`HostAndNativeSessionScope` with the same actual-host ceiling; that implementation
-and proof remain P03-3 work. Missing provenance and `ClaimAndMembership` return
+`HostAndClaim` or independently validated `HostAndNativeSessionScope`, a real
+non-system actor and matching real resolved/host scope. The native origin retains
+the same actual-host ceiling under ADR-0078; the
+[phase Status block](../../roadmap/phase-03-identity-admin.md) owns later native
+provider/browser qualification. Missing provenance and `ClaimAndMembership` return
 `not_found`, including future
 membership-confirmed platform contexts with an apparently matching host scope.
 Both site handlers call the same projection directly within the pipeline-owned

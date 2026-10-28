@@ -42,7 +42,7 @@ internal sealed class GlobalSelfEntryMiddleware(RequestDelegate next)
         var subject = entry.Subject;
         if (operation.Kind == IdentitySelfOperation.Contexts)
         {
-            await ContextsAsync(http, source, entry, discovery(), labels(), origins);
+            await ContextsAsync(http, source, entry, discovery, labels, origins);
             return;
         }
         if (http.Request.Query.Count != 0
@@ -83,13 +83,15 @@ internal sealed class GlobalSelfEntryMiddleware(RequestDelegate next)
     }
 
     private static async Task ContextsAsync(HttpContext http, NativeSessionSourceFeature source,
-        NativeEntrySubject entry, IIdentitySelfDiscovery discovery,
-        IOwnMembershipScopeLabels labels, NativeEntryOriginOptions origins)
+        NativeEntrySubject entry, Func<IIdentitySelfDiscovery> discovery,
+        Func<IOwnMembershipScopeLabels> labels, NativeEntryOriginOptions origins)
     {
         var subject = entry.Subject;
-        if (HasBody(http) || !TryPage(http, subject, out var after, out var limit))
+        if (HasBody(http))
         { await ProblemAsync(http, 400); return; }
-        using var page = await discovery.ReadScopesAsync(subject, entry.ClaimedActor, after, limit, http.RequestAborted);
+        if (!TryPage(http, subject, out var after, out var limit, out var invalidField))
+        { await ProblemAsync(http, 400, invalidField); return; }
+        using var page = await discovery().ReadScopesAsync(subject, entry.ClaimedActor, after, limit, http.RequestAborted);
         if (!page.Binding.IsBound) { await ProblemAsync(http, BindingStatus(page.Binding)); return; }
         var items = new List<SelfContextItem>();
         var host = http.Features.Get<HostClassification>()!;
@@ -97,7 +99,7 @@ internal sealed class GlobalSelfEntryMiddleware(RequestDelegate next)
         {
             if (!source.IsCurrent(http)) { await ProblemAsync(http, 401); return; }
             OwnMembershipScopeLabel? label;
-            try { label = await labels.ReadAsync(scope, http.RequestAborted); }
+            try { label = await labels().ReadAsync(scope, http.RequestAborted); }
             catch (InfrastructureException) when (!source.IsCurrent(http))
             { await ProblemAsync(http, 401); return; }
             if (!source.IsCurrent(http) || !scope.IsActive) { await ProblemAsync(http, 401); return; }
@@ -112,19 +114,27 @@ internal sealed class GlobalSelfEntryMiddleware(RequestDelegate next)
         await JsonAsync(http, new Page<SelfContextItem>(items, new PageInfo(cursor, null, hasNext, false)), 200);
     }
 
-    private static bool TryPage(HttpContext http, GlobalIdentitySubject subject, out Guid? after, out int limit)
+    private static bool TryPage(HttpContext http, GlobalIdentitySubject subject, out Guid? after, out int limit,
+        out string? invalidField)
     {
         after = null;
         limit = 20;
-        if (http.Request.Query.Any(pair => pair.Key is not ("limit" or "cursor") || pair.Value.Count != 1
-            || string.IsNullOrEmpty(pair.Value[0]))) return false;
+        invalidField = null;
+        foreach (var pair in http.Request.Query)
+        {
+            if (pair.Key is not ("limit" or "cursor")) return false;
+            if (pair.Value.Count != 1 || string.IsNullOrEmpty(pair.Value[0]))
+            { invalidField = pair.Key; return false; }
+        }
         if (http.Request.Query.TryGetValue("limit", out var stated))
         {
             if (!int.TryParse(stated[0], NumberStyles.None, CultureInfo.InvariantCulture, out var parsed) || parsed < 1
-                || parsed.ToString(CultureInfo.InvariantCulture) != stated[0]) return false;
+                || parsed.ToString(CultureInfo.InvariantCulture) != stated[0])
+            { invalidField = "limit"; return false; }
             limit = Math.Min(parsed, 100);
         }
         if (!http.Request.Query.TryGetValue("cursor", out var cursor)) return true;
+        invalidField = "cursor";
         if (cursor[0] is not { Length: > 0 and <= 1024 } value) return false;
         try
         {
@@ -135,6 +145,7 @@ internal sealed class GlobalSelfEntryMiddleware(RequestDelegate next)
                 || parts[1] != subject.SubjectKey.Hex || !Guid.TryParseExact(parts[2], "D", out var id)
                 || id == Guid.Empty || id.ToString("D") != parts[2]) return false;
             after = id;
+            invalidField = null;
             return true;
         }
         catch (FormatException) { return false; }
@@ -151,13 +162,15 @@ internal sealed class GlobalSelfEntryMiddleware(RequestDelegate next)
         IdentityBindingOutcome.AuthorityUnavailable or IdentityBindingOutcome.StorageUnavailable or IdentityBindingOutcome.Indeterminate
         ? 503 : 401;
 
-    private static Task ProblemAsync(HttpContext http, int status)
+    private static Task ProblemAsync(HttpContext http, int status, string? field = null)
     {
         http.Response.StatusCode = status;
         if (status != 429) http.Response.Headers.Remove("Retry-After");
         if (status == 401) http.Response.Headers.WWWAuthenticate = "Bearer";
         var problem = status == 400
-            ? ProblemDetailsFactory.For(new Error(new LocalizedMessage("lockey_validation_failed")), http)
+            ? ProblemDetailsFactory.For(new Error(new LocalizedMessage("lockey_validation_failed"), field is null ? null
+                : new Dictionary<string, IReadOnlyList<LocalizedMessage>>
+                { [field] = [new LocalizedMessage(ModelBindingProblemDetails.FieldMessageKey)] }), http)
             : ProblemDetailsFactory.ForStatus(status, http);
         return http.Response.WriteAsJsonAsync(problem, options: null,
             contentType: ProblemDetailsMediaType.Value, cancellationToken: http.RequestAborted);

@@ -8,6 +8,7 @@ using FluentAssertions;
 using LearnStack.Api.Authentication;
 using LearnStack.Api.Tenancy;
 using LearnStack.Modules.Identity.Application.Contracts.Bindings;
+using LearnStack.Modules.Identity.Application.Contracts.Entry;
 using LearnStack.Modules.Identity.Application.Abstractions;
 using LearnStack.Modules.Identity.Domain;
 using LearnStack.Modules.Identity.Infrastructure.Persistence;
@@ -146,6 +147,9 @@ public sealed class IdentitySelfEntryHttpTests(PublicReadFixture parent)
         using var foreign = await SendAsync(client, issuer.Token(issuer.Without("user_id", "tenant_id", "organization_id")),
             Self + "/contexts?cursor=" + cursor);
         await TenantAuthenticationHttpTests.Problem(foreign, HttpStatusCode.BadRequest, "validation_failed");
+        (await JsonAsync(foreign)).GetProperty("errors").GetProperty("cursor")[0]
+            .GetProperty("key").GetString().Should().Be("lockey_invalid_value");
+        (await foreign.Content.ReadAsStringAsync()).Should().NotContain(cursor!);
     }
 
     private static HttpClient Client(IdentityPublicReadFixture database, Action<IServiceCollection>? configure = null,
@@ -187,6 +191,57 @@ public sealed class IdentitySelfEntryHttpTests(PublicReadFixture parent)
             using var response = await client.SendAsync(request);
             await TenantAuthenticationHttpTests.Problem(response, HttpStatusCode.BadRequest, "validation_failed");
         }
+    }
+
+    [Fact]
+    public async Task Malformed_self_context_requests_keep_SQL_ports_lazy_and_name_only_the_invalid_known_field()
+    {
+        await using var issuer = await TenantAuthenticationIssuer.StartAsync();
+        await using var database = await IdentityPublicReadFixture.CreateAsync(parent, issuer.Issuer);
+        var discoveryFactories = 0;
+        var labelFactories = 0;
+        using var client = Client(database, services =>
+        {
+            services.Replace(ServiceDescriptor.Scoped<Func<IIdentitySelfDiscovery>>(_ => () =>
+            {
+                Interlocked.Increment(ref discoveryFactories);
+                throw new InvalidOperationException("Discovery construction probe.");
+            }));
+            services.Replace(ServiceDescriptor.Scoped<Func<IOwnMembershipScopeLabels>>(_ => () =>
+            {
+                Interlocked.Increment(ref labelFactories);
+                throw new InvalidOperationException("Label construction probe.");
+            }));
+        });
+        var token = issuer.Token(issuer.Without("user_id", "tenant_id", "organization_id"));
+        const string Canary = "private-invalid-pagination-canary";
+        foreach (var (query, field) in new (string, string?)[]
+        {
+            ("?limit=0", "limit"), ("?limit=-1", "limit"), ("?limit=02", "limit"),
+            ("?limit=1&limit=2", "limit"), ("?cursor=" + Canary, "cursor"),
+            ("?cursor=", "cursor"), ("?unexpected=" + Canary, null),
+        })
+        {
+            using var refused = await SendAsync(client, token, Self + "/contexts" + query);
+            await TenantAuthenticationHttpTests.Problem(refused, HttpStatusCode.BadRequest, "validation_failed");
+            var body = await refused.Content.ReadAsStringAsync();
+            body.Should().NotContain(Canary);
+            if (field is not null)
+            {
+                using var problem = JsonDocument.Parse(body);
+                var errors = problem.RootElement.GetProperty("errors");
+                errors.EnumerateObject().Should().ContainSingle().Which.Name.Should().Be(field);
+                errors.GetProperty(field)[0].GetProperty("key").GetString().Should().Be("lockey_invalid_value");
+            }
+        }
+        using (var body = await SendAsync(client, token, Self + "/contexts", body: "{}"))
+            await TenantAuthenticationHttpTests.Problem(body, HttpStatusCode.BadRequest, "validation_failed");
+        discoveryFactories.Should().Be(0, "all shape refusals precede SQL-port construction");
+        labelFactories.Should().Be(0);
+        using var valid = await SendAsync(client, token, Self + "/contexts?limit=1");
+        await TenantAuthenticationHttpTests.Problem(valid, HttpStatusCode.InternalServerError, "internal_error");
+        discoveryFactories.Should().Be(1, "the throwing factory is really wired into the admitted path");
+        labelFactories.Should().Be(0);
     }
 
     private sealed class UnknownLengthJson : HttpContent
@@ -327,8 +382,31 @@ public sealed class IdentitySelfEntryHttpTests(PublicReadFixture parent)
         await TenantAuthenticationHttpTests.Problem(foreign, HttpStatusCode.NotFound, "not_found");
     }
 
+    [Fact]
+    public async Task Tenant_wide_membership_can_admit_a_covered_native_branch_without_rewriting_provider_scope()
+    {
+        await using var proof = await IdentityAuthorizationHttpProof.CreateAsync(parent);
+        using var payload = JsonDocument.Parse(proof.Issuer.Without("user_id", "tenant_id", "organization_id"));
+        var claims = payload.RootElement.EnumerateObject().ToDictionary(property => property.Name, property => property.Value.Clone());
+        claims["sub"] = JsonSerializer.SerializeToElement(IdentityPublicReadFixture.FoundationSubject(IdentityAuthorizationHttpProof.EnglishAdmin));
+        var token = proof.Issuer.Token(JsonSerializer.Serialize(claims));
+        using var client = Client(proof.Database);
+        var branch = SeedData.English.DefaultOrganization.OrganizationId;
+        using var admission = await SendAsync(client, token, "/api/v1/identity/session-scope/admissions", "POST", "{}",
+            tenant: SeedData.English.TenantId.Value, organization: branch.Value);
+        admission.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await JsonAsync(admission)).GetProperty("organizationId").GetString().Should().Be(branch.Value.ToString("D"));
+        (await proof.AuditAsync(admission, SeedData.English, branch)).Should().ContainSingle().Which.Operation
+            .Should().Be("identity.membership.admit_session_scope");
+        using var account = await SendAsync(client, token, "/api/v1/account/site",
+            tenant: SeedData.English.TenantId.Value, organization: branch.Value);
+        account.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await JsonAsync(account)).GetProperty("organizationId").GetString().Should().Be(branch.Value.ToString("D"));
+    }
+
     private static async Task<HttpResponseMessage> SendAsync(HttpClient client, string token, string path = Self,
-        string method = "GET", string? body = null, string? native = "configured", Guid? tenant = null, string? assertionHeader = null)
+        string method = "GET", string? body = null, string? native = "configured", Guid? tenant = null,
+        string? assertionHeader = null, Guid? organization = null)
     {
         using var request = new HttpRequestMessage(new HttpMethod(method), path);
         request.Headers.Host = SeedData.English.Host;
@@ -338,6 +416,7 @@ public sealed class IdentitySelfEntryHttpTests(PublicReadFixture parent)
         request.Headers.Add("X-LearnStack-Visitor-Address", "198.51.100.23");
         if (native is not null) request.Headers.Add(NativeSessionSourcePolicy.SecretHeader, native == "configured" ? Native : native);
         if (tenant is { } selected) request.Headers.Add(NativeSessionSourcePolicy.TenantHeader, selected.ToString("D"));
+        if (organization is { } branch) request.Headers.Add(NativeSessionSourcePolicy.OrganizationHeader, branch.ToString("D"));
         if (assertionHeader is not null) request.Headers.Add(assertionHeader, SeedData.English.TenantId.Value.ToString("D"));
         if (body is not null) request.Content = new StringContent(body, Encoding.UTF8, "application/json");
         return await client.SendAsync(request);

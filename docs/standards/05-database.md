@@ -4863,7 +4863,7 @@ MUST failure prove rollback without reclassifying unknown physical COMMITs.
 
 **Derives from:** [ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md)
 and [ADR-0079](../decisions/0079-bounded-identity-administration.md).
-**Accepted contract; implementation/proof pending.** The existing global,
+**Accepted contract.** The existing global,
 contextual and authorization/evidence contracts remain the baseline. The
 [Phase 03 Status block](../roadmap/phase-03-identity-admin.md) owns delivery state.
 

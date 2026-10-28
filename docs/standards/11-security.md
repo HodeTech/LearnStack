@@ -1371,8 +1371,9 @@ qualified native source fails startup. Self-discovery destinations use the
 independently stored normalized host and deployment setting
 `Identity:NativeSession:HttpsPort` (443 by default, canonical decimal 1–65535).
 The local HTTPS web owner uses 3000. No submitted URL, forwarding port or query
-parameter can select this origin. Unrelated and refused traffic never resolves
-the lazy global-self SQL ports merely to traverse this middleware.
+parameter can select this origin. Unrelated traffic and early source/shape
+refusals never resolve the lazy global-self SQL ports merely to traverse this
+middleware. Binding-dependent outcomes require their confined lookup.
 
 | Order | Boundary |
 |---|---|

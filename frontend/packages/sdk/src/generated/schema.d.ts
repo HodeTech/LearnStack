@@ -28,7 +28,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Tenant administrative membership directory requiring current Tenant identity.membership.admin. Rechecks live membership, lifecycle and capability for every page; accepts HostAndClaim or confirmed ClaimAndMembership, including a platform host. Returns only membership/user/organization identifiers, status, contextual displayName and preferredLocale. Active/Suspended undeleted memberships only, ordered by membership UUID. No search, sorting, editing, provider data, grants or global profile. No-store; the MUST ReadSensitive audit row commits before any result is disclosed. This operation is not admitted by the native BFF caller. */
+        /** @description Tenant administrative membership directory requiring current Tenant identity.membership.admin. Rechecks live membership, lifecycle and capability for every page; accepts HostAndClaim, confirmed ClaimAndMembership (including a legacy platform host), or independently verified HostAndNativeSessionScope on a real Tenant/Organization host. Returns only membership/user/organization identifiers, status, contextual displayName and preferredLocale. Active/Suspended undeleted memberships only, ordered by membership UUID. No search, sorting, editing, provider data, grants or global profile. No-store; the MUST ReadSensitive audit row commits before any result is disclosed. This operation is not admitted by the native BFF caller. */
         get: operations["ListMemberships"];
         put?: never;
         post?: never;

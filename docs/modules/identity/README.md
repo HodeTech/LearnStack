@@ -16,9 +16,11 @@ in the API composition. New-user/native editing
 activation remains P03-3.
 The additional [ADR-0078](../../decisions/0078-native-session-scope-and-self-entry.md)
 and [ADR-0079](../../decisions/0079-bounded-identity-administration.md) contracts are
-Accepted; their new schema, handlers, routes and native/browser proofs remain
-pending implementation. The [bounded contract](#bounded-entry-and-administration-contract)
-below does not claim those consumers exist.
+Accepted. Their self-entry storage/HTTP and native source/context core is
+implemented; the [phase Status block](../../roadmap/phase-03-identity-admin.md)
+owns remaining administration, provider/native and browser qualification. The
+[bounded contract](#bounded-entry-and-administration-contract) separates these
+obligations without treating acceptance as runtime proof.
 The ordered admission timing/observation contract additionally derives from
 [ADR-0074](../../decisions/0074-membership-admission-under-ordered-locks.md),
 Accepted 2026-10-26. The phase Status block owns qualification and review state.
@@ -280,7 +282,9 @@ and Off/physical ReadOnly mode while gaining live membership/lifecycle admission
 
 The implemented administrative directory uses existing Tenant
 `identity.membership.admin`, without requiring the new v2 grant delta. It admits
-HostAndClaim or confirmed ClaimAndMembership, never HostOnly. Its declared
+HostAndClaim, confirmed ClaimAndMembership or independently verified
+HostAndNativeSessionScope, never HostOnly. Native evidence retains the real-host
+ceiling. Its declared
 tenant-wide read can use an eligible NULL-org Tenant Admin Membership from a
 branch session. It returns current undeleted Active/Suspended Memberships and
 only MembershipId, UserId, OrganizationId, status, contextual DisplayName and
@@ -307,7 +311,9 @@ No pool, crash, permission or disclosure proof is claimed by acceptance alone.
 
 ### Bounded entry and administration contract
 
-**Accepted under ADR-0078/0079; implementation and actual proof pending P03-3.**
+**Accepted under ADR-0078/0079.** The
+[phase Status block](../../roadmap/phase-03-identity-admin.md) records delivery and
+qualification of the entry core and later administration/native/browser work.
 Keycloak authenticates the provider subject. Native scope evidence remains a
 separate immutable source; it never rewrites provider claims. The API binds the
 User, validates actual host and live Membership/lifecycle, then applies each

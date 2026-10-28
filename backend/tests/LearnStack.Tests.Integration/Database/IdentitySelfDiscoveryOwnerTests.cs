@@ -1,3 +1,4 @@
+using System.Text.Json;
 using FluentAssertions;
 using LearnStack.Api.Composition;
 using LearnStack.Application.Pipeline;
@@ -380,7 +381,26 @@ public sealed class IdentitySelfDiscoveryOwnerTests(PublicReadFixture parent) : 
         explain.Parameters.AddWithValue("after", NpgsqlTypes.NpgsqlDbType.Uuid, SeedData.IdentityMemberships[1].MembershipId);
         explain.Parameters.AddWithValue("limit", 100);
         var plan = (string)(await explain.ExecuteScalarAsync())!;
-        plan.Should().Contain("ix_memberships_self_active_user_id_id");
+        using var parsed = JsonDocument.Parse(plan);
+        var indexes = new List<string>();
+        CollectIndexNames(parsed.RootElement, indexes);
+        // Report only schema index names on failure. A raw JSON plan contains
+        // Index Cond/Filter literals derived from private subject announcements.
+        indexes.Should().Contain("ix_memberships_self_active_user_id_id");
+        indexes.Should().Contain("ux_users_authority_id_subject_key");
+    }
+
+    private static void CollectIndexNames(JsonElement node, List<string> indexes)
+    {
+        if (node.ValueKind == JsonValueKind.Object)
+            foreach (var property in node.EnumerateObject())
+            {
+                if (property.NameEquals("Index Name") && property.Value.ValueKind == JsonValueKind.String)
+                    indexes.Add(property.Value.GetString()!);
+                else CollectIndexNames(property.Value, indexes);
+            }
+        else if (node.ValueKind == JsonValueKind.Array)
+            foreach (var child in node.EnumerateArray()) CollectIndexNames(child, indexes);
     }
 
     private async Task MutateBranchAsync(Guid member, string sql, params (string Name, object? Value)[] additional)
