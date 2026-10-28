@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { parseEnv } from 'node:util';
 import { composeProcessEnvironment, composeSelection, composeSelectionFailure, repositoryRoot } from './compose.mjs';
 import { DemoCommandError, DemoProcesses, installDemoCancellation } from './demo-process.mjs';
-import { publicSeederEnvironment, developmentSeederRuntimeEnvironment } from './demo-database.mjs';
+import { publicSeederEnvironment, developmentSeederRuntimeEnvironment, authorizationSourceEnvironment } from './demo-database.mjs';
 import { RealmError, realmFailureNotice, refuse } from './development-realm-errors.mjs';
 import { readRealmEnvironmentFile, realmEnvironment, seedAuthorityEnvironment, validateLocalDockerContext } from './development-realm-owner.mjs';
 import { reconcileDevelopmentRealm } from './reconcile-development-realm.mjs';
@@ -34,6 +34,7 @@ async function selectedConfiguration(selected) {
   for (const key of ['ConnectionStrings__Default', 'ConnectionStrings__Migration'])
     if (!values[key] || (process.env[key] !== undefined && process.env[key] !== values[key]))
       refuse('preflight', 'configuration');
+  authorizationSourceEnvironment(values);
   return values;
 }
 

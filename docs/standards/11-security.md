@@ -528,9 +528,9 @@ Memberships, Roles and scoped definitions. The
 [database read-authority contract](05-database.md#operation-bound-read-authority)
 owns SQL/EF derivation, owner generation, nesting and cleanup. Step 6 announces
 that admitted read authority inside the actual transaction; no middleware or
-ITenantContext member may manufacture it. Launch remains unable to mint the
-witness until joint live-policy/evidence activation. HostScope remains an
-independent narrowing ceiling.
+ITenantContext member may manufacture it. The
+[Phase 03 Status block](../roadmap/phase-03-identity-admin.md) owns current
+qualification and review state. HostScope remains an independent narrowing ceiling.
 
 P02b-1 Step 1 adds a read-only announcement snapshot through
 `IUnitOfWork.GetTenantContextAnnouncement(DbTransaction?)`, under

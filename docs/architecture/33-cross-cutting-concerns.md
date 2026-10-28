@@ -90,13 +90,13 @@ unhandled exception (Sentry-captured, 500 Problem Details). Per
 ## 2. MediatR Pipeline Order
 
 P02b-5's [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md)
-adds HTTP authentication/admission before this unchanged pipeline. Its delivered
-closed AccountSite GET is the current authenticated surface; its exact query is Off
+supplies HTTP authentication/admission before this unchanged pipeline. The
+closed AccountSite GET retains its separate boundary; its exact query is Off
 and uses the existing physical ReadOnly owner alongside PublicSurface reads.
 The HTTP middleware order and error precedence live in that ADR and
 [API Design](../standards/04-api-design.md#authentication); they do not add a ninth
-MediatR stage or implement Phase 03 permission checks. Independent rejected
-assertions keep the recorder's standalone audit path. Accepted
+MediatR stage. The live permission extension is described below. Independent
+rejected assertions keep the recorder's standalone audit path. Accepted
 [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md) adds a shared
 singleton host-tenant admission budget before authenticated store calls: 600
 attempts per API instance per first-request-anchored monotonic minute, including
@@ -165,7 +165,8 @@ only event durability, never unknown business COMMIT success. [Standard 18](../s
 owns these rules, typed provenance and retention targets; the source/capacity
 ledger remains [Standard 05](../standards/05-database.md#authorization-and-evidence-source-ledger).
 Runtime, fault/crash and pool-progress controls separately exercise these
-boundaries; the phase Status block owns current source-bound qualification.
+boundaries; the [Phase 03 Status block](../roadmap/phase-03-identity-admin.md)
+owns current source-bound qualification.
 
 [ADR-0032 § Sub-decision 2](../decisions/0032-exception-handling-logging-and-observability.md)
 binds the ordinary pipeline order. Reading bottom-most as innermost:

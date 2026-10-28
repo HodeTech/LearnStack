@@ -24,7 +24,9 @@ admitted operation and update its matrix. Registration grants no Role authority.
 > the retained `IdentityFoundationManifest.Version1` with actual seed consumers.
 > Jointly Accepted ADR-0076/0077 select the
 > [live contract](../../../docs/standards/19-permissions.md#live-permission-enforcement-contract);
-> enforcement/adoption runtime implementation remains P03-2. The
+> live policy/evaluator and grant-edit/adoption commands are implemented. The
+> [Phase 03 Status block](../../../docs/roadmap/phase-03-identity-admin.md) owns
+> current qualification and review state; the
 > [phase decision register](../../../docs/roadmap/phase-03-identity-admin.md#the-decision-register)
 > owns gate state. No `IModule` registration API or generated Roles facade is
 > implied. Read the current source and accepted operation contract before coding;
@@ -109,8 +111,8 @@ database registry guard/migration and approved grant contract before its writer.
 Bind the endpoint to the admitted named ASP.NET policy and exact application
 request policy from the actual composition source. Scoped pair identity is
 explicit: a same-key Tenant/Organization pair is not one permission. Do not
-infer a functioning evaluator from an attribute or invent a policy API ahead
-of P03-2 implementation. Unknown, missing or conflicting classifications deny
+infer a functioning evaluator from an attribute; use the registered evaluator
+and policy APIs. Unknown, missing or conflicting classifications deny
 at runtime. Application step 5 repeats the policy on direct/nested dispatch.
 
 Public and special AccountSite classifications retain their independent

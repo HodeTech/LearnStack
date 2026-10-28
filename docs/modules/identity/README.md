@@ -279,12 +279,13 @@ excluded. The [API contract](../../standards/04-api-design.md) owns exact route,
 DTO/cursor/no-store rules; the native BFF operation allowlist remains P03-3 work.
 
 Its MUST `identity.membership.list` row commits on the ordinary ReadWrite owner
-before disclosure; it is not a physical ReadOnly-catalogue query. Planned
+before disclosure; it is not a physical ReadOnly-catalogue query. The implemented
 `ChangeRoleGrantsCommand` and `AdoptRoleGrantManifestCommand` each mutate one Role
 with contained grants, expected version, current post-lock authority and same-
 transaction MUST audit. [Permissions](permissions.md) owns their exact bindings
 and delegation ceiling; unknown manifest, self-escalation or kernel removal
 refuses. Fixed v1 seed reruns still refuse legitimate differing adopted state.
+Human-facing grant-editing/adoption routes remain P03-3 work.
 
 [Standard 05](../../standards/05-database.md#authorization-and-evidence-source-ledger)
 owns the dedicated four/two authorization/evidence lanes, tracked job ownership,
@@ -412,8 +413,9 @@ no production capacity. The distinct
 retains its own control and scope.
 Standard 05 owns bounded lock waits,
 cancellation and metrics. Timeout yields a fixed retryable failure without
-partial grants. P03-2 measures candidate-reader/authorization costs before
-activation; a global permission cache/session grant cannot replace a fresh check.
+partial grants. Candidate-reader/authorization cost measurements belong to the
+[Phase 03 qualification](../../roadmap/phase-03-identity-admin.md); a global
+permission cache/session grant cannot replace a fresh check.
 
 ## Risks and open questions
 

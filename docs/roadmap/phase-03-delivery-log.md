@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,486 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,517 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -138,6 +138,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 zero-standard census review round 2 and freeze (2026-10-28)](#p03-2-zero-standard-census-review-round-2-and-freeze-2026-10-28) — 17 lines
   - [P03-2 Step 6 qualification and review handoff (2026-10-28)](#p03-2-step-6-qualification-and-review-handoff-2026-10-28) — 66 lines
   - [P03-2 final documentation review and PR preparation (2026-10-28)](#p03-2-final-documentation-review-and-pr-preparation-2026-10-28) — 21 lines
+  - [P03-2 PR 39 low-priority review corrections (2026-10-28)](#p03-2-pr-39-low-priority-review-corrections-2026-10-28) — 31 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -5477,3 +5478,34 @@ They perform read-only code/document checks, not another hosted execution; the
 separate original-ZIP backend/web audits supply that qualification evidence.
 All implementation and correction review rounds are closed. The review handoff
 uses `development` into `main`; no branch switch or merge occurs here.
+
+### P03-2 PR 39 low-priority review corrections (2026-10-28)
+
+Both reported findings are reproduced against `c37c3df4` and corrected within
+their existing contracts. One shared auxiliary-source selector now enforces the
+API's rule in seed and demo: both keys absent permit Development derivation;
+explicit empty, whitespace, control-character or partial pairs refuse. Complete
+selected values remain byte-exact and ambient partners supply no authority.
+Seed and demo validate before stack startup, migrations or application seed.
+Existing application-role/credential diagnostics retain their precedence.
+
+Eight shared-input controls exercise seed/API/demo projections; fifteen real
+entry-owner controls exercise empty/partial rejection across seed, local demo
+and CI demo before stateful work. The four affected frontend files pass
+**246/246** tests. Typecheck, lint and changed-test formatting pass. An initial
+new-test union-index typing error is corrected before commit; it changes no
+runtime behavior. Complete guarded frontend execution and fresh correction
+reviews follow this commit.
+
+Six mutable carriers now describe implemented operation witnesses, joint API
+policy/evidence composition, actual Role grant commands and the authenticated
+directory. The permission skill uses the registered policy/evaluator API;
+related stale introduction/performance phrases are corrected in the same scope.
+Packet state points to the Phase 03 Status block. Accepted ADRs, delivery history
+and P03-3/9/10 obligations retain their boundaries. Documentation lint and
+fragment/structure/index checks pass.
+
+Review scope remains these two findings. Earlier implementation-source A/B
+evidence stays attributed to `c39ab614`; the follow-up's local/hosted checks
+are recorded separately. The maintainer's broader review coverage limits remain
+explicit rather than becoming an unconditional merge approval.

@@ -1184,6 +1184,40 @@ DemoProcesses.prototype.dispose = async function() {
 });
 
 describe('private configuration refuses launch before commands', () => {
+  for (const [label, auxiliary] of [
+    [
+      'both empty',
+      'ConnectionStrings__IdentityAuthorization=\nConnectionStrings__AuthorizationEvidence=\n',
+    ],
+    ['authorization empty', 'ConnectionStrings__IdentityAuthorization=\n'],
+    ['evidence empty', 'ConnectionStrings__AuthorizationEvidence=\n'],
+    ['authorization only', 'ConnectionStrings__IdentityAuthorization=private-pair-canary\n'],
+    ['evidence only', 'ConnectionStrings__AuthorizationEvidence=private-pair-canary\n'],
+  ]) {
+    it.each(['seed', 'demo-local', 'demo-ci'] as const)(
+      `refuses ${label} auxiliary sources before %s starts or migrates a stack`,
+      (entry) => {
+        const f = fixture();
+        f.source += auxiliary;
+        writePrivateFileSync(join(f.root, '.env.example'), f.source);
+        if (entry === 'seed') writePrivateFileSync(join(f.root, 'selected.env'), f.source);
+        const result = execute(
+          f,
+          entry === 'seed' ? 'seed' : 'demo',
+          'success',
+          entry === 'demo-local' ? 'local' : 'ci',
+        );
+        expect(result.failure).toBe('Local demo database configuration is invalid');
+        for (const event of ['stack-up', 'migrate', 'appseed', 'realm-start', 'daemon'])
+          expect(result.events).not.toContain(event);
+        expect(
+          result.commands.some(({ args }) => args.includes('up') || args.includes('migrate')),
+        ).toBe(false);
+        expect(JSON.stringify(result)).not.toContain('private-pair-canary');
+      },
+    );
+  }
+
   it.each(['seed', 'demo'] as const)(
     'refuses a shared private file before %s commands without repairing it',
     (subject) => {

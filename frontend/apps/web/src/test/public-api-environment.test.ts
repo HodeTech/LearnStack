@@ -15,7 +15,10 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { publicSeederEnvironment } from '../../../../../scripts/demo-database.mjs';
+import {
+  developmentSeederRuntimeEnvironment,
+  publicSeederEnvironment,
+} from '../../../../../scripts/demo-database.mjs';
 import {
   publicApiEnvironment,
   publicDemoApiEnvironment,
@@ -65,6 +68,41 @@ const keys = [
 ] as const;
 
 describe('selected API auxiliary source environment', () => {
+  it.each([
+    ['absent', {}, true],
+    ['complete', pair(), true],
+    ['both empty', Object.fromEntries(keys.map((key) => [key, ''])), false],
+    ['authorization empty', { [keys[0]]: '' }, false],
+    ['evidence empty', { [keys[1]]: '' }, false],
+    ['authorization only', { [keys[0]]: pair()[keys[0]] }, false],
+    ['evidence only', { [keys[1]]: pair()[keys[1]] }, false],
+    ['both whitespace', Object.fromEntries(keys.map((key) => [key, ' \t'])), false],
+  ] as const)('uses the same %s pair rule for seed, API and demo', (_name, auxiliary, valid) => {
+    const values: Record<string, string> = {
+      ...selected(),
+      Identity__AuthorityId: '01930000-0000-7000-8000-000000009001',
+      Authentication__Tenant__Issuer: 'http://localhost:8080/realms/learnstack',
+      ...auxiliary,
+    };
+    const ambient = pair();
+    for (const make of [
+      () => developmentSeederRuntimeEnvironment(values, ambient),
+      () => publicApiEnvironment(values, configuration, ambient),
+      () => publicDemoApiEnvironment(values, configuration, temporary(), ambient),
+    ]) {
+      if (!valid) {
+        expect(make).toThrow(/configuration is invalid$/);
+        continue;
+      }
+      const environment = make();
+      expect(environment.ConnectionStrings__Default).toBe(values.ConnectionStrings__Default);
+      for (const key of keys) {
+        if (key in auxiliary) expect(environment[key]).toBe(values[key]);
+        else expect(environment).not.toHaveProperty(key);
+      }
+    }
+  });
+
   it.each(['public-api', 'demo'] as const)(
     'preserves the selected auxiliary pair byte-exactly for %s',
     (launch) => {
@@ -153,7 +191,7 @@ function launcher() {
   for (const path of ['scripts', 'frontend/apps/web/.server/auth', 'backend', 'bin'])
     mkdirSync(join(root, path), { recursive: true });
   writeFileSync(join(root, 'package.json'), '{"type":"module"}\n');
-  for (const name of ['public-local.mjs', 'public-runtime.mjs'])
+  for (const name of ['public-local.mjs', 'public-runtime.mjs', 'demo-database.mjs'])
     writeFileSync(
       join(root, 'scripts', name),
       readFileSync(new URL(`../../../../../scripts/${name}`, import.meta.url)),

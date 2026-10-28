@@ -1,5 +1,6 @@
 import { realpathSync } from 'node:fs';
 import { join } from 'node:path';
+import { authorizationSourceEnvironment } from './demo-database.mjs';
 
 /** Give the API its explicit application/dispatcher credentials and bounded configuration. */
 export function publicApiEnvironment(values, configuration, base = process.env) {
@@ -15,12 +16,10 @@ export function publicApiEnvironment(values, configuration, base = process.env) 
   environment.ConnectionStrings__OutboxDispatcher = values.ConnectionStrings__OutboxDispatcher;
   // The selected pair is atomic. The ambient prerequisite allowlist cannot
   // supply either partner; role/endpoint qualification remains the API's.
-  const auxiliaryKeys = ['ConnectionStrings__IdentityAuthorization', 'ConnectionStrings__AuthorizationEvidence'];
-  const supplied = auxiliaryKeys.filter(key => values[key] !== undefined);
-  if (supplied.length !== 0 && (supplied.length !== auxiliaryKeys.length
-      || supplied.some(key => typeof values[key] !== 'string' || !values[key].trim() || /[\r\n\0]/.test(values[key]))))
+  try { Object.assign(environment, authorizationSourceEnvironment(values)); }
+  catch {
     throw new Error('Authorization source configuration is invalid');
-  for (const key of supplied) environment[key] = values[key];
+  }
   if (values.ConnectionStrings__PlatformAdmin)
     environment.ConnectionStrings__PlatformAdmin = values.ConnectionStrings__PlatformAdmin;
   return {

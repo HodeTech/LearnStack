@@ -382,10 +382,11 @@ Rules:
   `TransactionBehavior` in the general case, and by each of the out-of-band setters on
   the transaction it opens ([Security Standards § The out-of-band setters](11-security.md)).
   `app.scope` has an implemented operation-bound carrier under Accepted ADR-0076's
-  [operation-bound read authority](#operation-bound-read-authority) replaces that
-  deferral; it derives from a live eligible Tenant capability plus a declared
-  tenant-wide operation and binds EF/SQL to the actual owner generation. Launch
-  cannot mint it until the joint policy/evidence activation. The placement rule
+  [operation-bound read authority](#operation-bound-read-authority); it derives
+  from a live eligible Tenant capability plus a declared tenant-wide operation
+  and binds EF/SQL to the actual owner generation. The
+  [Phase 03 Status block](../roadmap/phase-03-identity-admin.md) owns current
+  qualification and review state. The placement rule
   applies to that carrier unchanged. `app.resolving_host` is set by
   `CachedHostToTenantResolver` alone, in its own short read-only transaction, and is
   read by exactly one policy — see § Table classes. Always call `current_setting` with

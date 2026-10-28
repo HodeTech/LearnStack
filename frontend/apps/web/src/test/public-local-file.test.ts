@@ -38,7 +38,7 @@ function fixture() {
   mkdirSync(join(root, 'scripts'));
   mkdirSync(join(root, 'frontend/apps/web/.server'), { recursive: true });
   writeFileSync(join(root, 'package.json'), '{"type":"module"}\n');
-  for (const name of ['public-local.mjs', 'public-runtime.mjs'])
+  for (const name of ['public-local.mjs', 'public-runtime.mjs', 'demo-database.mjs'])
     writeFileSync(
       join(root, 'scripts', name),
       readFileSync(new URL(`../../../../../scripts/${name}`, import.meta.url)),

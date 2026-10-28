@@ -188,8 +188,10 @@ columns and versioned authorization metadata. No handler dictionary or enrichmen
 UPDATE exists. Standard 18 owns field/source limits and per-row retention targets;
 [Data Protection](23-data-protection.md#accepted-authorization-evidence-linkage)
 owns retained linkage and P03-10 fulfillment. The actual central owner, typed
-snapshot and confined source/store methods exist; joint production activation
-remains Step 5. The phase record distinguishes implementation, proof and review.
+snapshot and confined source/store methods are wired together with live policy
+in the API composition. The
+[Phase 03 Status block](../roadmap/phase-03-identity-admin.md) owns current
+qualification and review state.
 
 ### Confined event-terminal audit
 
