@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,235 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,277 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -127,6 +127,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 startup diagnostic review round 2 and source freeze (2026-10-28)](#p03-2-startup-diagnostic-review-round-2-and-source-freeze-2026-10-28) — 18 lines
   - [P03-2 failed browser readiness and recovery settlement controls (2026-10-28)](#p03-2-failed-browser-readiness-and-recovery-settlement-controls-2026-10-28) — 46 lines
   - [P03-2 browser readiness review round 1 (2026-10-28)](#p03-2-browser-readiness-review-round-1-2026-10-28) — 15 lines
+  - [P03-2 browser readiness review round 2 (2026-10-28)](#p03-2-browser-readiness-review-round-2-2026-10-28) — 10 lines
+  - [P03-2 native recovery positive settlement scheduling (2026-10-28)](#p03-2-native-recovery-positive-settlement-scheduling-2026-10-28) — 32 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -5215,3 +5217,45 @@ SHA-256 is `9a3ada9d1f039de8e6911190eb385340428609ae9de2d09125da1b60311ce2a5`.
 Uncommitted native-recovery work is explicitly outside this browser review.
 The second fresh browser review, actual managed-demo proof, native scheduling
 validation and complete final-source hosted A/B remain open.
+
+### P03-2 browser readiness review round 2 (2026-10-28)
+
+Two new independent reviewers (`gpt-6.1-sol` / `gpt-6-astra`, high) approve
+`9385c9e8..8a43eb9d` without verified findings. They confirm complete-line parsing,
+actual coordinator wiring, before/after lifetime checks, fixed startup/overall
+allowances, closed errors and unchanged cleanup. The controls reviewer verifies
+the independent **2,458**-case raw log and meaningful counterexamples. Both
+browser review rounds are closed; the actual managed-demo run uses the clean
+`7dbf68f6` development copy. Native scheduling and final-source A/B remain separate.
+
+### P03-2 native recovery positive settlement scheduling (2026-10-28)
+
+Source review of the ordinary-9 failure finds a permitted positive-oracle race:
+Outcome holds the job row, a concurrent `SKIP LOCKED` renewal can acknowledge
+an empty result, and conservative pre-ACK refusal can cancel that Outcome.
+The artifact proves a renewal loss and a later persisted-phase assertion failure,
+not this exact interleaving. Production refusal behavior is unchanged.
+
+The test now allows real renewals through every original expired-window,
+open-token and provider-count assertion, then holds the next actual pacing
+callback after its preceding SQL flight completes. Construction releases only
+after callback entry; Outcome settles while the same live lease remains held.
+A distinct validated **1,125 ms** pacing cadence separates this test seam from
+one-second waits. System clocks and all other timers stay real. Lease/SQL/probe/
+progress remain **15/1/30/30 seconds**; hold plus settlement share the existing
+**15 seconds**, and control/timer/factory cleanup share the existing **20**.
+All original assertions remain; stopped execution is not used as a pacing tool.
+
+Cleanup seals selection, releases every selected callback, joins the actual
+factory/timer disposal and disposes its barrier only after confirmed control
+completion. Release build passes without warnings/errors. Both recovery theory
+rows plus publication controls pass **4/4**; unchanged Outcome/Prepare/Finalize
+refusal controls pass **2/2**. An isolated development-copy dirty twin injects a
+failure after callback entry: both expected failures retain their first fault and
+emit confirmed control/generation/timer cleanup witnesses. Its source and all
+four test DLL hashes restore exactly afterward. This intentionally failing
+**two-case** counterfactual is never a passing test result or timing-weight input.
+
+Native scheduling's fresh review rounds, actual browser proof and complete
+same-final-source hosted A/B remain open. No production code, selected case,
+startup/job ceiling, database guard or permitted refusal is relaxed.

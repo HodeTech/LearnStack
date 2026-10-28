@@ -45,7 +45,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
         var bounds = new BackgroundJobRuntimeOptions
         {
             LeaseDuration = TimeSpan.FromSeconds(15),
-            RenewalInterval = TimeSpan.FromSeconds(1),
+            RenewalInterval = NativeRecoveryTimeProvider.RenewalPacing,
             SqlTimeout = TimeSpan.FromSeconds(1),
             ProbeTimeout = TimeSpan.FromSeconds(30),
             ProgressTimeout = TimeSpan.FromSeconds(30),
@@ -55,7 +55,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
             commitsToPass: loseAcquisitionAck ? 0 : int.MaxValue, lifetime: TimeSpan.FromSeconds(90));
         await using var source = new PrivilegedDataSource(() => OutboxDispatcherDataSource.Build(proxy.ConnectionString));
         var runtime = new BackgroundJobRuntimeGate(Fixture.Registry.Infrastructure);
-        var time = new NativeLeaseTimerObservation();
+        var time = new NativeRecoveryTimeProvider();
         var control = new BackgroundJobControl(source, Fixture.Registry, recoveryHost.Services.GetRequiredService<JobExecutor>(),
             runtime, bounds, new SystemGuidFactory(), time);
         var generation = new HangfireGenerationWork(Fixture.Registry.Infrastructure.Pools["external"], runtime, bounds, time);
@@ -162,10 +162,18 @@ public sealed partial class BackgroundJobPositiveSdkTests
             execution.Token.IsCancellationRequested.Should().BeFalse();
             boundary = "provider_before";
             (await provider.CountsAsync(flow.Operation)).Should().Be((1L, 0L, 1L));
-            construction.Release();
             boundary = "reconcile";
-            clean = await actual.WaitAsync(TimeSpan.FromSeconds(15));
+            using var settlement = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            // Renewal has proved both old windows. Hold its next actual pacing
+            // callback after the preceding SQL flight, so Outcome's own row lock
+            // cannot create an unrelated conservative renewal refusal.
+            await time.HoldNextCallbackAsync(settlement.Token);
+            execution.RunGate.IsClosed.Should().BeFalse();
+            execution.Token.IsCancellationRequested.Should().BeFalse();
+            construction.Release();
+            clean = await actual.WaitAsync(settlement.Token);
             clean.Should().BeTrue();
+            time.AssertHeld();
             boundary = "row_facts";
             (await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, identity.JobId))!.Phase.Should().Be("finalize_pending");
             (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, identity.JobId)).Should().Be(1);
@@ -174,17 +182,26 @@ public sealed partial class BackgroundJobPositiveSdkTests
         catch (Exception error) when (NativeWaitCatchable(error)) { Preserve(error, boundary); }
         finally
         {
+            time.ReleaseAll();
             await CleanupAsync("cleanup_actual", async () =>
             {
                 construction.Release();
                 if (actual is not null) clean = await actual;
             });
             await CleanupAsync("cleanup_work", async () => await work.CompleteAsync(await execution.JoinAsync(clean)));
+            var controlJoined = false;
+            using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(20));
             await CleanupAsync("cleanup_control", async () =>
             {
                 generation.CloseStarts();
                 control.RequestStop();
-                await control.Completion.WaitAsync(TimeSpan.FromSeconds(20));
+                await control.Completion.WaitAsync(cleanup.Token);
+                controlJoined = true;
+            });
+            await CleanupAsync("cleanup_control", async () =>
+            {
+                await time.JoinAsync(controlJoined).WaitAsync(cleanup.Token);
+                time.ThrowIfFaulted();
             });
             if (cleanupFailure is not null) Observe("cleanup", cleanupBoundary!, cleanupFailure);
         }
