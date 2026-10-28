@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,220 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,235 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -126,6 +126,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 startup diagnostic review round 1 (2026-10-28)](#p03-2-startup-diagnostic-review-round-1-2026-10-28) — 14 lines
   - [P03-2 startup diagnostic review round 2 and source freeze (2026-10-28)](#p03-2-startup-diagnostic-review-round-2-and-source-freeze-2026-10-28) — 18 lines
   - [P03-2 failed browser readiness and recovery settlement controls (2026-10-28)](#p03-2-failed-browser-readiness-and-recovery-settlement-controls-2026-10-28) — 46 lines
+  - [P03-2 browser readiness review round 1 (2026-10-28)](#p03-2-browser-readiness-review-round-1-2026-10-28) — 15 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -5199,3 +5200,18 @@ the exact CI interleaving is not recovered. Deterministic positive settlement
 scheduling is investigated separately, preserving real timers, all assertions
 and existing lease/stage bounds. Fresh reviews and complete final-source A/B
 remain required before any completion promotion.
+
+### P03-2 browser readiness review round 1 (2026-10-28)
+
+Two fresh independent reviewers (`gpt-6-astra` / `gpt-6.1-sol`, high) approve
+`9385c9e8..7dbf68f6` without verified findings. They verify actual coordinator
+wiring, shared newline-complete parsing, before/after owner/cancellation/native
+checks, existing deadlines, private diagnostics and all **26** new controls.
+The controls reviewer independently repeats the guarded workspace run in the
+clean development copy: **2,458 Passed / 73 files / two packages**, zero
+skips/todos, unchanged source and clean tracked tree before/after. The raw log
+SHA-256 is `9a3ada9d1f039de8e6911190eb385340428609ae9de2d09125da1b60311ce2a5`.
+
+Uncommitted native-recovery work is explicitly outside this browser review.
+The second fresh browser review, actual managed-demo proof, native scheduling
+validation and complete final-source hosted A/B remain open.
