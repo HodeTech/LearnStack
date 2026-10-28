@@ -36,10 +36,23 @@ public sealed partial class AuthenticationAuthorityTests
         [BindingResolver + ".ResolveExistingAsync"] = Signature(BindingResolver, "ResolveExistingAsync", TaskType + "`1<LearnStack.Modules.Identity.Application.Contracts.Bindings.IdentityBindingResult>", Verified, "System.Threading.CancellationToken"),
         [Provenance + "..ctor"] = Signature(Provenance, ".ctor", "System.Void", Verified),
         [Provenance + ".Matches"] = Signature(Provenance, "Matches", "System.Boolean", Verified),
+        [CandidateSource + ".ForValidatedScope"] = Signature(CandidateSource, "ForValidatedScope", "LearnStack.SharedKernel.Permissions.AuthorizationCandidate", "LearnStack.SharedKernel.Identifiers.TenantId", Organization),
+        [CandidateSource + ".IsEvidenceCurrent"] = Signature(CandidateSource, "IsEvidenceCurrent", "System.Boolean", "System.Object"),
+        [CandidateSource + ".MatchesIdentity"] = Signature(CandidateSource, "MatchesIdentity", "System.Boolean", Identity, Verified),
+        [TransportSource + ".Capture"] = Signature(TransportSource, "Capture", "LearnStack.SharedKernel.Audit.OperationTransportProvenance", "LearnStack.SharedKernel.Permissions.OperationInvocation"),
+        [Authentication + "OperationClassificationMiddleware.InvokeAsync"] = Signature(Authentication + "OperationClassificationMiddleware", "InvokeAsync", TaskType, Http,
+            Authentication + "OperationHttpClassifier", "System.Func`1<LearnStack.Application.Authorization.OperationAuthorizationCoordinator>", Context),
+        [Authentication + "OperationAuthorizationHandler.HandleAsync"] = Signature(Authentication + "OperationAuthorizationHandler", "HandleAsync", TaskType,
+            "Microsoft.AspNetCore.Authorization.AuthorizationHandlerContext"),
+        [CredentialWitness + "..ctor"] = Signature(CredentialWitness, ".ctor", "System.Void", Http, Host, Verified, Identity,
+            Authentication + "SubjectAdmissionDecision", Provenance),
+        [CredentialWitness + ".get_Subject"] = Signature(CredentialWitness, "get_Subject", Verified),
+        [CredentialWitness + ".get_Identity"] = Signature(CredentialWitness, "get_Identity", Identity),
         [Resolver + ".BuildAttemptAsync"] = Signature(Resolver, "BuildAttemptAsync", TaskType + "`1<" + Attempt + ">", Http, Host, ScopeValidator, Membership, Identity),
         [Resolver + ".RecordRefusalAsync"] = Signature(Resolver, "RecordRefusalAsync", TaskType, Attempt, Host, Identity, Recorder),
         [Resolver + ".InvokeAsync"] = Signature(Resolver, "InvokeAsync", TaskType, Http, ScopeValidator, Membership, Recorder),
-        ["LearnStack.Api.Tenancy.TenantAssertionMiddleware.InvokeAsync"] = Signature("LearnStack.Api.Tenancy.TenantAssertionMiddleware", "InvokeAsync", TaskType, Http, Context, Recorder),
+        ["LearnStack.Api.Tenancy.TenantAssertionMiddleware.InvokeAsync"] = Signature("LearnStack.Api.Tenancy.TenantAssertionMiddleware", "InvokeAsync", TaskType, Http, Context, Recorder,
+            "LearnStack.Api.Tenancy.IClaimContextAssertionRecorder"),
         [Authentication + "TenantSurfaceAdmissionMiddleware.InvokeAsync"] = Signature(Authentication + "TenantSurfaceAdmissionMiddleware", "InvokeAsync", TaskType, Http, Context),
         [Authentication + "TenantSurfaceAdmissionMiddleware.HasHostAuthority"] = Signature(Authentication + "TenantSurfaceAdmissionMiddleware", "HasHostAuthority", "System.Boolean", Context, Identity),
         [Authentication + "TenantSubjectAdmissionMiddleware.InvokeAsync"] = Signature(Authentication + "TenantSubjectAdmissionMiddleware", "InvokeAsync", TaskType, Http),
@@ -143,6 +156,36 @@ public sealed partial class AuthenticationAuthorityTests
         && !provenance.HasProperties && !provenance.HasEvents && !provenance.HasInterfaces
         && !provenance.HasNestedTypes && !provenance.HasGenericParameters;
 
+    private static bool HasClosedCredentialWitnessShape(TypeDefinition witness)
+    {
+        var properties = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["Http"] = Http,
+            ["Host"] = Host,
+            ["Subject"] = Verified,
+            ["Identity"] = Identity,
+            ["Decision"] = Authentication + "SubjectAdmissionDecision",
+            ["Provenance"] = Provenance
+        };
+        return witness.IsSealed && witness.IsNestedPrivate && witness.BaseType.FullName == "System.Object"
+            && !witness.HasInterfaces && !witness.HasEvents && !witness.HasNestedTypes && !witness.HasGenericParameters
+            && Same(witness.Methods.Select(method => method.FullName), properties.Select(property =>
+                    Signature(CredentialWitness, "get_" + property.Key, property.Value))
+                .Append(ApprovedSites[CredentialWitness + "..ctor"])
+                .Append(Signature(CredentialWitness, "ToString", "System.String")))
+            && Same(witness.Properties.Select(property => property.Name), properties.Keys)
+            && witness.Properties.All(property => property.SetMethod is null && property.GetMethod.IsAssembly
+                && property.PropertyType.FullName == properties[property.Name])
+            && Same(witness.Fields.Select(field => field.Name + ":" + field.FieldType.FullName), properties.Select(property =>
+                "<" + property.Key + ">k__BackingField:" + property.Value))
+            && witness.Fields.All(field => field.IsPrivate && field.IsInitOnly && !field.IsStatic)
+            && witness.Methods.Single(method => method.Name == "ToString").Body.Instructions
+                .Where(instruction => instruction.OpCode != OpCodes.Nop).Select(instruction => instruction.OpCode.Code)
+                .SequenceEqual([Code.Ldstr, Code.Ret])
+            && witness.Methods.Single(method => method.Name == "ToString").Body.Instructions
+                .Single(instruction => instruction.OpCode == OpCodes.Ldstr).Operand as string == "CredentialWitness";
+    }
+
     private static bool IsOpaqueProjectionArgument(TypeReference type, MethodReference? method = null, TypeReference? owner = null)
     {
         if (type is GenericParameter parameter)
@@ -176,7 +219,100 @@ public sealed partial class AuthenticationAuthorityTests
         instruction.OpCode.Code is Code.Box or Code.Stelem_Ref
         || instruction.OpCode.Code is Code.Stfld or Code.Stsfld && instruction.Operand is FieldReference field
             && IsOpaqueProjectionArgument(field.FieldType, owner: field.DeclaringType)
-        || instruction.Operand is MethodReference target && ExportsProjection(target));
+        || instruction.Operand is MethodReference target && ExportsProjection(target)
+            && !IsClosedWitnessForwarding(method, instruction, target)
+            && !IsClosedUserAgentFormatting(method, instruction, target)
+            && !IsClosedHttpEndpointForwarding(method, instruction, target));
+
+    private static bool IsClosedRolesAbsenceCheck(Call call)
+    {
+        if (call.Source.Site != Signature(Authentication + "OperationHttpClassifier", "Classify", Authentication + "HttpOperationClassification",
+                "Microsoft.AspNetCore.Http.Endpoint", "LearnStack.SharedKernel.Permissions.OperationPolicy&")
+            || call.Target.FullName != "System.String Microsoft.AspNetCore.Authorization.IAuthorizeData::get_Roles()")
+            return false;
+        var reads = call.Source.Definition.Body.Instructions.Where(instruction => instruction.Operand is MethodReference target
+            && target.FullName == call.Target.FullName).ToArray();
+        return reads.Length == 1 && reads[0].OpCode == OpCodes.Callvirt
+            && reads[0].Next is { OpCode.Code: Code.Call, Operand: MethodReference empty }
+            && empty.FullName == "System.Boolean System.String::IsNullOrEmpty(System.String)"
+            && reads[0].Next.Next is { OpCode.Code: Code.Brtrue or Code.Brtrue_S, Operand: Instruction admitted } branch
+            && branch.Next?.OpCode == OpCodes.Ldc_I4_1 && branch.Next.Next?.OpCode == OpCodes.Ret
+            && admitted.OpCode == OpCodes.Ldarg_2 && admitted.Next?.OpCode.Code is Code.Ldloc or Code.Ldloc_S or Code.Ldloc_0 or Code.Ldloc_1 or Code.Ldloc_2 or Code.Ldloc_3
+            && admitted.Next.Next?.OpCode == OpCodes.Stind_Ref && admitted.Next.Next.Next?.OpCode == OpCodes.Ldc_I4_2
+            && admitted.Next.Next.Next.Next?.OpCode == OpCodes.Ret;
+    }
+
+    // CheckHttp's opaque argument is exactly the selected Endpoint from the same
+    // HttpContext as its cancellation token, never a projection or caller object.
+    private static bool IsClosedHttpEndpointForwarding(Method method, Instruction instruction, MethodReference target)
+    {
+        if (method.Site != ApprovedSites[Authentication + "OperationAuthorizationHandler.HandleAsync"]
+            && method.Site != ApprovedSites[Authentication + "OperationClassificationMiddleware.InvokeAsync"]
+            || instruction.OpCode != OpCodes.Callvirt
+            || target.FullName != "System.Threading.Tasks.Task`1<LearnStack.SharedKernel.Results.Result`1<LearnStack.SharedKernel.Results.None>> LearnStack.Application.Authorization.OperationAuthorizationCoordinator::CheckHttpAsync(System.Type,System.Object,System.Threading.CancellationToken)"
+            || instruction.Previous?.Operand is not MethodReference cancellation
+            || cancellation.FullName != "System.Threading.CancellationToken Microsoft.AspNetCore.Http.HttpContext::get_RequestAborted()"
+            || instruction.Previous.Previous is not { OpCode.Code: Code.Ldfld, Operand: FieldReference http }
+            || http.FieldType.FullName != Http || instruction.Previous.Previous.Previous?.OpCode != OpCodes.Ldarg_0
+            || instruction.Previous.Previous.Previous.Previous is not { } endpoint
+            || endpoint.Operand is not MethodReference acquisition
+            || acquisition.FullName != "Microsoft.AspNetCore.Http.Endpoint Microsoft.AspNetCore.Http.EndpointHttpContextExtensions::GetEndpoint(Microsoft.AspNetCore.Http.HttpContext)"
+            || endpoint.Previous is not { OpCode.Code: Code.Ldfld, Operand: FieldReference endpointHttp }
+            || endpointHttp.FullName != http.FullName || endpoint.Previous.Previous?.OpCode != OpCodes.Ldarg_0
+            || endpoint.Previous.Previous.Previous?.Operand is not MethodReference policy)
+            return false;
+        return policy.FullName == "System.Type LearnStack.SharedKernel.Permissions.OperationPolicy::get_RequestType()";
+    }
+
+    // Release emits a constrained Object.ToString for the StringValues value.
+    // Permit only the actual User-Agent local, passed directly as ForTransport's
+    // final string argument; identity/object formatting elsewhere stays opaque.
+    private static bool IsClosedUserAgentFormatting(Method method, Instruction instruction, MethodReference target)
+    {
+        const string StringValues = "Microsoft.Extensions.Primitives.StringValues";
+        if (method.Site != ApprovedSites[TransportSource + ".Capture"]
+            || target.FullName != "System.String System.Object::ToString()"
+            || instruction.Previous is not { OpCode.Code: Code.Constrained, Operand: TypeReference constrained }
+            || constrained.FullName != StringValues
+            || instruction.Previous.Previous is not { OpCode.Code: Code.Ldloca or Code.Ldloca_S, Operand: VariableDefinition local } receiver
+            || local.VariableType.FullName != StringValues)
+            return false;
+        var stores = method.Definition.Body.Instructions.Where(candidate => StoresLocal(candidate, local)).ToArray();
+        if (stores.Length != 1
+            || stores[0].Previous?.Operand is not MethodReference header
+            || header.FullName != "Microsoft.Extensions.Primitives.StringValues Microsoft.AspNetCore.Http.IHeaderDictionary::get_UserAgent()"
+            || stores[0].Previous.Previous?.Operand is not MethodReference headers
+            || headers.FullName != "Microsoft.AspNetCore.Http.IHeaderDictionary Microsoft.AspNetCore.Http.HttpRequest::get_Headers()"
+            || stores[0].Previous.Previous.Previous?.Operand is not MethodReference request
+            || request.FullName != "Microsoft.AspNetCore.Http.HttpRequest Microsoft.AspNetCore.Http.HttpContext::get_Request()")
+            return false;
+        return receiver.Previous is { OpCode.Code: Code.Brfalse or Code.Brfalse_S, Operand: Instruction absent }
+            && receiver.Previous.Previous?.Operand is MethodReference count
+            && count.FullName == "System.Int32 Microsoft.Extensions.Primitives.StringValues::get_Count()"
+            && receiver.Previous.Previous.Previous is { OpCode.Code: Code.Ldloca or Code.Ldloca_S, Operand: VariableDefinition counted }
+            && counted == local
+            && instruction.Next is { OpCode.Code: Code.Br or Code.Br_S, Operand: Instruction transport } jump
+            && jump.Next == absent && absent.OpCode == OpCodes.Ldnull && absent.Next == transport
+            && transport.Operand is MethodReference mint
+            && mint.FullName == "LearnStack.SharedKernel.Audit.OperationTransportProvenance LearnStack.SharedKernel.Audit.OperationTransportProvenance/MintingSource::ForTransport(LearnStack.SharedKernel.Permissions.OperationInvocation,System.String,System.Net.IPAddress,System.String)"
+            && transport.Next?.OpCode == OpCodes.Ret;
+    }
+
+    private static bool StoresLocal(Instruction instruction, VariableDefinition local) => instruction.OpCode.Code switch
+    {
+        Code.Stloc or Code.Stloc_S => instruction.Operand == local,
+        Code.Stloc_0 => local.Index == 0,
+        Code.Stloc_1 => local.Index == 1,
+        Code.Stloc_2 => local.Index == 2,
+        Code.Stloc_3 => local.Index == 3,
+        _ => false
+    };
+
+    private static bool IsClosedWitnessForwarding(Method method, Instruction instruction, MethodReference target) =>
+        method.Site == ApprovedSites[CandidateSource + ".ForValidatedScope"]
+        && target.FullName == "LearnStack.SharedKernel.Permissions.AuthorizationCandidate LearnStack.SharedKernel.Permissions.AuthorizationCandidate/MintingSource::ForCandidate(LearnStack.SharedKernel.Permissions.AuthorizationSourceKind,LearnStack.SharedKernel.Identifiers.UserId,LearnStack.SharedKernel.Identifiers.TenantId,System.Nullable`1<LearnStack.SharedKernel.Identifiers.OrganizationId>,System.Object)"
+        && instruction.Previous is { OpCode.Code: Code.Newobj, Operand: MethodReference constructor }
+        && constructor.FullName == ApprovedSites[CredentialWitness + "..ctor"];
 
     private static bool ExportsProjection(MethodReference target) =>
         // At these few trust-boundary owners an untyped object/object[]

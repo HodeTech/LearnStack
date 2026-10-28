@@ -231,13 +231,13 @@ public sealed class ProductionHostFixture : ConstructionOnlyApiFactory
 }
 
 /// <summary>Host that admits exactly one probe controller, to prove a guard fires.</summary>
-public sealed class ProbeHostFixture(Type controller) : ConstructionOnlyApiFactory
+public sealed class ProbeHostFixture(Type controller) : ComponentApiFactory
 {
     protected override void ConfigureTestHost(IWebHostBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
         builder.UseEnvironment(Environments.Development);
-        builder.ConfigureTestServices(services =>
+        builder.ConfigureServices(services =>
             services.AddControllers(options =>
                     options.Conventions.Insert(0, new TestControllerFilter(controller)))
                 .AddApplicationPart(typeof(ProbeHostFixture).Assembly));

@@ -62,6 +62,9 @@ Identity foundation registration additionally derives from Accepted
 [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md),
 [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md) and
 [ADR-0074](../decisions/0074-membership-admission-under-ordered-locks.md).
+Accepted live-authorization extensions additionally derive from
+[ADR-0076](../decisions/0076-live-scoped-authorization.md) and
+[ADR-0077](../decisions/0077-trusted-authorization-evidence.md).
 The implemented Identity obligations and extensions name their actual proof
 owners below; the [phase Status block](../roadmap/phase-03-identity-admin.md) owns
 current qualification and review state.
@@ -157,7 +160,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**303 test methods run in
+**320 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -198,8 +201,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**244 rules in this catalogue are Implemented, and 140 of them are in that assembly.**
-The other 104 are no less binding, and most could not live there. The table says where
+**251 rules in this catalogue are Implemented, and 146 of them are in that assembly.**
+The other 105 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -1816,12 +1819,13 @@ catalogue as the carrier of their status — so all three are Packet 10's.
   and every `DbContext` service in it is one `AddModuleDbContext` registered —
   scoped, from an implementation factory, never a type registration EF could give
   its own connection. Under `backend/src`, the configuration/construction scan
-  admits exactly **eleven** files: six design-time factories, one per migration
+  admits exactly **thirteen** files: six design-time factories, one per migration
   chain; `ModuleDbContextRegistration`, which passes a *connection*;
   `PersistenceCompositionExtensions`, with the guarded platform-role builder;
   `ApplicationDataSource`, shared by the API and one-shot Seeder;
   ADR-0046's confined `OutboxDispatcherDataSource`; and ADR-0072's deployment-only
-  `LearnStack.Tools.IdentityAuthorityInstaller/Program.cs`. Another construction
+  `LearnStack.Tools.IdentityAuthorityInstaller/Program.cs`; and ADR-0076/0077's
+  private authorization and evidence source builders. Another construction
   site requires its owning decision and an explicit allow-list change.
   A context on its own connection never saw the announcement, so every read through
   it returns zero rows under the corrected policy — silently.
@@ -1831,13 +1835,20 @@ catalogue as the carrier of their status — so all three are Packet 10's.
   scan covers `UseNpgsql`, `AddDbContext`, data-source builders/factories and raw
   connection constructors. Connection acquisition from an already configured
   source remains governed by its named owner contract.
+  The complete compiled EF transaction-enrollment set contains the common
+  module factory, the existing global binding store and the exact contextual
+  Identity reenrollment helper. That helper requires a clean tracker, the same
+  physical connection and a current matching tenant announcement outside global
+  mode; it sets no scope and creates no connection. Missing/extra enrollment,
+  executable-alias and removed-guard controls fail.
 - **Source:** ADR-0040; ADR-0046's confined dispatcher; ADR-0072's deployment
   authority installer; [05-database.md § Forbidden](05-database.md).
-- **Type:** xUnit + DI registration inspection and a source scan. **Kind:** structural.
+- **Type:** xUnit + DI registration inspection, compiled caller census and source guards. **Kind:** structural.
 - **Status:** **Implemented** (Packet 6 step 6; the allow-list widened to five and
   keyed by directory in Packet 7 step 10, to six in Packet 8 step 3 and to seven in
   Packet 9 step 3, eight in P02d-1 step 2 and eleven with the ADR-0046/0072
-  construction sites, `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
+  construction sites, and thirteen with the independent authorization/evidence
+  sources; `LearnStack.Tests.Architecture`, `PersistenceConventionTests`).
 - **Phase:** 02a (Packet 6).
 
 #### `The_registration_marker_does_not_vouch_across_containers`
@@ -2676,10 +2687,182 @@ Implemented requires nonempty production subjects and dirty/clean controls.
   [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md);
   [Permissions Standards](19-permissions.md#identity-foundation-contract).
 - **Type:** compiled definitions/consumers with planted controls. **Kind:** structural.
-- **Test owner:** `IdentityFoundationConventionTests`.
+- **Test owners:** `IdentityFoundationConventionTests`, `OperationPermissionConventionTests`.
 - **Status:** **Implemented** (`IdentityFoundationConventionTests`) — the actual five-pair registry, command metadata,
   generated artifacts and planted definition controls are exercised.
-- **Phase:** P03-1 Step 4.
+- **Implemented P03-2 metadata extension:** ADR-0076 composes
+  actual module definition sources and three nonassignable virtual-public pairs;
+  the five-pair assignable manifest remains intact. Complete metadata/consumer
+  controls exercise actual module sources and the complete production request
+  universe, with missing/extra compiled request/source controls and conflicting
+  runtime registration cases. The
+  [Phase 03 Status block](../roadmap/phase-03-identity-admin.md)
+  owns source-bound policy/evidence qualification.
+- **Phase:** P03-1 Step 4; P03-2 Step 3 extension.
+
+### Accepted live-authorization obligations
+
+Accepted ADR-0076/0077 govern the following implemented controls. Each entry
+names its actual proof owners; the
+[Phase 03 Status block](../roadmap/phase-03-identity-admin.md)
+and delivery records own source-bound qualification. Acceptance alone never
+promotes an unrun proof.
+
+#### `Live_Authorization_Uses_Bounded_Independent_Owners`
+
+- **Asserts:** actual verified candidate checks use the confined app-role READ
+  ONLY owner, exact actor/tenant/org and generation, four-slot source and tracked
+  job authorization lane. Every business connector can remain held while admitted
+  nested/post-lock checks complete. Actual transaction-pooled backend/PID clean
+  controls and a shared-backend dirty topology prove independent capacity;
+  parent uncommitted grants never supply authority. Saturation, cancellation,
+  delayed/failed cleanup, shutdown and pool reuse preserve retained ownership.
+- **Startup qualification:** exact API/Seeder callers bind the auxiliary lanes to
+  the live business witness under [Standard 05](05-database.md#authorization-and-evidence-source-ledger);
+  closed factory/binder callers and bound-overload removal/extra-call controls
+  complement actual same-cluster/PgBouncer positives and foreign-cluster/expiry negatives.
+- **Source:** [ADR-0076](../decisions/0076-live-scoped-authorization.md);
+  [source ledger](05-database.md#authorization-and-evidence-source-ledger).
+- **Type:** source/caller/role census plus real app-role PostgreSQL/PgBouncer
+  progress and lifetime controls. **Kind:** behavioural and structural.
+- **Test owners:** `IdentityAuthorizationReaderTests`,
+  `AuthorizationReadSourceTests`, `AuthorizationPoolProgressTests`,
+  `IdentityAuthorizationConventionTests`, `TrustedOperationSourceConventionTests`,
+  `OperationPolicyOwnershipTests`, `IdentityAuditConventionTests`.
+- **Status:** **Implemented** — `IdentityAuditConventionTests`; source/caller controls
+  complement the real PostgreSQL/PgBouncer owners above.
+- **Coverage:** the confined reader/source, actual PostgreSQL/
+  PgBouncer policy progress, typed HTTP candidates and finite source ownership
+  have actual controls. The live membership adapter, HTTP candidate source and
+  private deferred evidence factory join the exact production caller/DI census.
+- **Phase:** 03 (P03-2).
+
+#### `Protected_Operations_Require_Explicit_Live_Policies`
+
+- **Asserts:** complete real HTTP/request/source composition explicitly classifies
+  public, AccountSite, permission-bound and confined seed/system operations.
+  The unchanged canonical eight-step pipeline admits application requests through
+  `AuthorizationBehavior`. The HTTP census contains exactly eight public GET/HEAD
+  actions, AccountSite GET and `GET /api/v1/identity/memberships`; exact named
+  policies and the default/fallback refusal guard own the two authenticated reads.
+  Live reader/evaluator/current-context/evidence aliases and qualification startup
+  remain explicit, with no alternate pass-through behavior.
+  Unclassified or underprivileged requests cannot dispatch at HTTP or direct
+  application entry. Fresh live Membership/capability, denial/resource ordering,
+  committed revocation, same-key scoped delegation, finite manifest adoption and
+  retained public/AccountSite ceilings have useful production positive/denied
+  controls. Ambient/SystemActor or realm-role values alone supply no exemption.
+- **Source:** [ADR-0076](../decisions/0076-live-scoped-authorization.md);
+  [Permissions](19-permissions.md#live-permission-enforcement-contract).
+- **Type:** complete compiled metadata/caller census, real direct dispatch and
+  administrative-directory HTTP/database controls. **Kind:** behavioural and structural.
+- **Test owners:** `IdentityAuthorizationConventionTests`, `OperationPermissionConventionTests`,
+  `OperationPolicyOwnershipTests`, `OperationHttpClassificationTests`,
+  `OperationAuthorizationCoordinatorTests`, `IdentityOperationAuthorizerTests`,
+  `RoleGrantCommandTests`, `RoleGrantCommandIntegrationTests`,
+  `IdentityAuthorizationHttpTests`, `UndeclaredHttpOperationTests`.
+- **Status:** **Implemented** — `OperationPolicyOwnershipTests`; actual composition and
+  caller controls complement the direct/HTTP proofs above.
+- **Phase:** 03 (P03-2).
+
+#### `Authorization_Denials_Have_PreSuccess_Durability_And_Stable_Identity`
+
+- **Asserts:** one central occurrence with fixed id/microsecond decision time
+  and complete frozen draft is distinct from plural ordinary resource intents.
+  ReadWrite outer success commits unresolved events atomically; ReadOnly or
+  ownerless success requires standalone acknowledgement first. Per-event state,
+  rollback/unknown COMMIT, expected-key full scoped duplicate matching, real
+  nested acts versus re-entry, Off/SHOULD/MAY/override-Off and process-crash controls
+  preserve the precise guarantee without claiming a persistent replay ledger.
+  The independent two-slot app-role evidence lane retains actual cleanup and
+  progresses while business owners remain held; audit fault preserves a real
+  refusal but prevents otherwise-successful outer commit/disclosure.
+- **Source:** [ADR-0077](../decisions/0077-trusted-authorization-evidence.md);
+  [Audit Coverage](18-audit-coverage.md#trusted-authorization-evidence).
+- **Type:** common-owner/source census plus real PostgreSQL/HTTP, process crash,
+  uncertainty, capacity and cleanup controls. **Kind:** behavioural and structural.
+- **Test owners:** `AuthorizationEvidenceCoordinatorTests`, `AuthorizationEvidenceStoreTests`,
+  `AuthorizationEvidenceSourceTests`, `AuthorizationEvidenceBarrierTests`,
+  `AuthorizationPoolProgressTests`, `IdentityAuditConventionTests`.
+- **Status:** **Implemented** — `AuthorizationEvidenceBarrierTests`; real transaction,
+  crash and reconciliation controls complement the source/lifetime owners above.
+- **Phase:** 03 (P03-2).
+
+#### `Authorization_Evidence_Uses_Trusted_Bounded_Provenance`
+
+- **Asserts:** frozen actor/Membership/Role/source/route and admitted address/UA
+  facts come only from enumerated trusted owners, never arbitrary handler
+  dictionaries, claims or forwarded input. Direct/nested/job scopes preserve
+  ownership and clearing. Exact successful claim-only header refusals use their
+  Membership-confirmed tenant and separate per-occurrence event without a host
+  budget debit. Typed sink canaries, source/caller dirty controls and per-row
+  retention/redaction declarations preserve personal linkage honestly.
+- **Source:** [ADR-0077](../decisions/0077-trusted-authorization-evidence.md);
+  [Audit Coverage](18-audit-coverage.md#trusted-authorization-evidence).
+- **Type:** real source/HTTP/record composition and diagnostic sink controls.
+  **Kind:** behavioural and structural.
+- **Test owners:** `AuthorizationEvidenceCoordinatorTests`,
+  `IdentityDiagnosticSinkTests`, `AuthorizationEvidenceApiSourceTests`,
+  `IdentityAuthorizationHttpTests`, `TenantAuthenticationRejectionAuditTests`,
+  `IdentityAuditConventionTests`.
+- **Status:** **Implemented** — `IdentityAuditConventionTests`; closed provenance
+  controls complement the real source/HTTP/evidence owners above.
+- **Phase:** 03 (P03-2).
+
+#### `Permission_Scope_Matches_Resource_Scope`
+
+- **Asserts:** exact registered scoped pairs match admitted target facts;
+  Organization grants apply only through the matching branch Membership.
+  Tenant grants alone remove no filter or write scope. The declared operation
+  witness alone permits accepted tenant-wide reads; independent HostScope and
+  organization write guards survive. Missing/forged/other-branch target metadata
+  and prohibited scope implications refuse.
+- **Source:** [ADR-0076](../decisions/0076-live-scoped-authorization.md);
+  [Permissions](19-permissions.md#live-permission-enforcement-contract).
+- **Type:** actual registry/consumer metadata plus scoped direct/HTTP controls.
+  **Kind:** structural and behavioural.
+- **Test owners:** `IdentityAuthorizationConventionTests`, `OperationPermissionConventionTests`,
+  `OperationReadScopeTests`, `MembershipDirectoryIntegrationTests`,
+  `IdentityOperationAuthorizerTests`.
+- **Status:** **Implemented** — `OperationPermissionConventionTests`; actual policy
+  metadata and scoped direct/HTTP controls preserve read/write boundaries.
+- **Phase:** 03 (P03-2).
+
+#### `Permission_Keys_Match_Convention`
+
+- **Asserts:** every actual module definition has the closed three-segment key,
+  module/resource/action grammar and explicit scope. Missing/inactive/duplicate
+  pairs and invalid action/name controls fail; virtual-public pairs are separate
+  from assignable grants and cannot expand the retained v1 manifest.
+- **Source:** [ADR-0076](../decisions/0076-live-scoped-authorization.md);
+  [Permissions](19-permissions.md).
+- **Type:** complete nonempty compiled source/consumer census with dirty controls.
+  **Kind:** structural.
+- **Test owners:** `IdentityAuthorizationConventionTests`, `OperationPermissionConventionTests`,
+  `OperationPolicyCatalogTests`.
+- **Status:** **Implemented** — `OperationPermissionConventionTests`; actual nonempty
+  registry and invalid-key controls enforce the closed grammar.
+- **Phase:** 03 (P03-2).
+
+#### `Permission_Registry_Has_DeniedTest`
+
+- **Asserts:** each actual scoped pair has meaningful actual production-consumer
+  denial proof. Virtual-public and confined seed/system classes have their own
+  explicit negative controls; an empty scan, matching test name or test-only
+  operation cannot establish coverage. Missing-pair and removed-test controls
+  fail the complete cross-reference.
+- **Source:** [ADR-0076](../decisions/0076-live-scoped-authorization.md);
+  [Permissions](19-permissions.md).
+- **Type:** registry/production-consumer proof map with removed/missing controls.
+  **Kind:** structural with behavioural subjects.
+- **Test owners:** `OperationPermissionConventionTests`,
+  `RoleGrantCommandIntegrationTests`, `IdentityAuthorizationHttpTests`,
+  `SeedOperationSourceTests`,
+  `DeliveryOperationSourceTests`, `TrustedJobOperationSourceTests`.
+- **Status:** **Implemented** — `OperationPermissionConventionTests`; the complete
+  scoped-pair map binds real delegation positives/denials and distinct virtual/finite
+  controls.
+- **Phase:** 03 (P03-2).
 
 <a id="pending-identity-extensions-to-implemented-rules"></a>
 
@@ -2755,16 +2938,17 @@ which decides identity, multiplicity, capture and classification;
   carrying the `denied` outcome and zero business rows, and keeps its own `403` — the 503
   is for a write that would otherwise have **succeeded**
   ([ADR-0033 Amendment 1](../decisions/0033-audit-durability-model.md)).
-- **The `denied` clause lands with Phase 03, and the rest lands in Packet 9.** Nothing in
-  the Packet 9 pipeline can produce a `403`: `AuthorizationBehavior` is still the Packet 3
-  pass-through, because the permission registry arrives with Identity in
-  [Phase 03](../roadmap/phase-03-identity-admin.md). A case written now could only reach
-  the `denied` outcome by returning `Result.Fail(forbidden)` from a **handler** — which
-  produces the right row and the right standalone path, and proves nothing about the
-  authorization step the clause is about. Splitting the rule's implementation is the
-  honest answer: Packet 9 implements the first two clauses against the real pipeline, and
-  the `denied` clause is written the day step 5 can refuse. Recording it here is what
-  stops a later reader taking the whole rule as satisfied.
+- **Implemented P03-2 extension.** ADR-0077 adds one central denial occurrence
+  beside the separately classified resource intents. Real policy refusals count
+  both populations exactly; `AuthorizationEvidenceBarrierTests` covers absorbed
+  denials, ReadWrite/ReadOnly/ownerless pre-success barriers, fixed-key
+  reconciliation and fault/crash outcomes under
+  [Audit Coverage](18-audit-coverage.md#trusted-authorization-evidence).
+  These controls extend Packet 9's success/rollback baseline. A handler-returned
+  `Result.Fail(forbidden)` alone proves neither policy admission nor the separate
+  event's pre-success barrier. The
+  [Phase 03 Status block](../roadmap/phase-03-identity-admin.md)
+  owns source-bound qualification.
 - **One row per intent, not one per request.** `IAuditStateCapture` holds an ordered list
   of intents, one per audited `(resource, operation)`, and only the **owning**
   unit-of-work frame (`IUnitOfWorkScope.IsOwner`) flushes it — draining every intent in
@@ -4105,9 +4289,6 @@ implements it.
 | `Cert_PrivateKey_NeverLeavesVault_To_Logs` | The log redaction filter strips a PEM private-key block before a line is emitted, in every deployment mode | behavioural | [Phase 02c](../roadmap/phase-02c-hub-foundation.md) on the Hub side, per ADR-0022, which applies it in every mode; on the LearnStack side [Phase 11](../roadmap/phase-11-production-hardening.md), with the TLS automation — the first LearnStack code that handles certificate material, and a Self-Hosted air-gapped deployment has no Hub | ADR-0022; [Custom Domain TLS](../architecture/27-custom-domain-tls.md) |
 | `Frontend_Has_Only_The_OperatorPortal_App` | The Hub repository ships exactly one frontend application, the operator portal | structural | [Phase 02c](../roadmap/phase-02c-hub-foundation.md), owned and run by the `learnstack-hub` repository | [ADR-0019](../decisions/0019-learnstack-hub.md) |
 | `Customization_Reference_Resolution_Is_Batched` | Resolving an entry's references costs a small constant number of queries, not one per reference | behavioural | [Phase 05](../roadmap/phase-05-education-learning-content.md), with the batched reference walk — Phase 02d's lesson body carries its fields inline and resolves no reference | [Tenant Customization Model](../architecture/32-tenant-customization-model.md); [Phase 05](../roadmap/phase-05-education-learning-content.md) |
-| `Permission_Scope_Matches_Resource_Scope` | An `Organization`-scope permission is checked only against an `[OrganizationScoped]` resource, and a `Tenant`-scope permission never gains organization filtering | structural | [Phase 03](../roadmap/phase-03-identity-admin.md) | [Permissions](19-permissions.md); `add-permission` |
-| `Permission_Keys_Match_Convention` | Every registered key parses as `{module}.{resource}.{action}` with an action from the closed set | structural | [Phase 03](../roadmap/phase-03-identity-admin.md) | [Permissions](19-permissions.md); `add-permission` |
-| `Permission_Registry_Has_DeniedTest` | Every registered key has at least one test that is denied it | structural | [Phase 03](../roadmap/phase-03-identity-admin.md) | [Permissions](19-permissions.md); `add-permission` |
 | `Search_Kinds_AreNot_Domain_Prefixed_In_Code` | No module registers a domain-prefixed search kind; every domain-shaped index arrives through a `TenantContentType` | structural | [Phase 04](../roadmap/phase-04-cms-media-pages.md), with `ITenantSearch` | [Search](../architecture/20-search.md) |
 | `Block_Schemas_Are_Immutable_After_Publish` | A published page-block schema version is never edited in place; a breaking change ships a new version | behavioural | [Phase 04](../roadmap/phase-04-cms-media-pages.md), with `TenantPageBlock` | [ADR-0013](../decisions/0013-page-block-schema-versioning.md); `add-page-block` |
 | `Scoring_Rules_Compile_Against_Sandbox` | Every `TenantScoringRule` expression compiles inside the DSL sandbox and nowhere else | behavioural | [Phase 05](../roadmap/phase-05-education-learning-content.md), with the evaluator | [Phase 05](../roadmap/phase-05-education-learning-content.md); `add-tenant-scoring-rule` |
@@ -5000,14 +5181,18 @@ structural test proves — and what it does not.
 #### `Authenticated_Http_Surface_Is_Enumerated_And_ReadOnly`
 
 - **Asserts:** the nonempty complete production route/method/transitive-request
-  census contains only the eight existing public GET/HEAD actions and exact
-  AccountSite GET, with enumerated infrastructure exclusions. Extra controller,
+  census contains only the eight existing public GET/HEAD actions, exact
+  AccountSite GET and `GET /api/v1/identity/memberships`, with enumerated
+  infrastructure exclusions. Extra controller,
   minimal-route, mutation and unregistered/nested dispatch controls fail.
   `GetAccountSiteQuery` independently requires valid HostAndClaim actor and
   matching real host provenance before any reader, rejecting future
   ClaimAndMembership too. It reads actual host-scoped public data as
   `learnstack_app`, is explicitly Off with zero normal query audit rows, and uses
   the existing exact-type physical ReadOnly owner: a planted SQL write is refused.
+  Both authenticated actions require their exact named canonical policies. The
+  administrative directory remains an ordinary ReadWrite operation with a MUST
+  ReadSensitive Membership intent; its result requires the audit commit.
   No-store covers early errors; served OpenAPI and disjoint exhaustive
   public/authenticated SDK GET ownership agree without a public AccountSite wrapper.
   The real per-action MVC filter descriptors preserve the exact framework,
@@ -5027,8 +5212,9 @@ structural test proves — and what it does not.
   `backend/tests/LearnStack.Tests.Architecture/AuthenticatedHttpSurfaceTests.cs`
   and `backend/tests/LearnStack.Tests.Integration/Database/AccountSiteHttpTests.cs`;
   SDK/OpenAPI contract controls remain with their actual contract owners.
-  The architecture owner now checks the nine real production actions, exact
-  request construction, Off classification, controller/helper persistence and
+  The architecture owner checks the ten real production actions, exact
+  request construction, existing Off declarations and the directory's exact MUST
+  declaration, controller/helper persistence and
   handler/helper nested dispatch across every production assembly, including
   direct interface/concrete handler construction, fields, constructor parameters,
   locals and `Handle` calls, custom-interface implementations and generic service
@@ -5046,6 +5232,15 @@ structural test proves — and what it does not.
   cross-contract local proof ships in Step 4; Step 5 owns full hosted qualification.
 - **Status:** **Implemented** (`AuthenticatedHttpSurfaceTests`, `AccountSiteHttpTests`,
   `AccountSiteQueryTests`, `OpenApiContractTests`).
+- **Implemented P03-2 extension:** ADR-0076 adds only the administrative
+  directory GET and explicit policy metadata/classes. AccountSite/public reads
+  retain their exact physical READ ONLY contracts. The directory uses an ordinary
+  ReadWrite owner for MUST sensitive-read evidence; the canonical rule name does
+  not imply every authenticated GET is physically READ ONLY. Exact route/policy/DI
+  controls, live adapters and real classified/unclassified/underprivileged cases
+  complement the canonical application gate. The
+  [Phase 03 Status block](../roadmap/phase-03-identity-admin.md)
+  owns source-bound qualification.
 - **Phase:** P02b-5 Step 2 query/database boundary; Step 4 route/contract
   activation; Step 5 complete transitive enforcement.
 
@@ -5076,6 +5271,11 @@ structural test proves — and what it does not.
   role/claim, header-reparse, derived-attribute, formatting, deconstruction and
   forged/clone probes use the same detectors; weakened predicates, missing real
   subjects and same-owner additional writes fail independently.
+  The HTTP classifier's single `IAuthorizeData.Roles` read is confined to an
+  immediate null/empty check that refuses nonempty metadata. Removed/reversed
+  rejection controls preserve the raw-role ban. The two HTTP policy adapters may
+  forward only the actual same-request endpoint; extra identity formatting still
+  fails inside those approved callers.
 - **Status:** **Implemented** (`AuthenticationAuthorityTests`).
 - **Phase:** P02b-5 Step 1 profile constraints; Step 5 complete production census.
 
@@ -5279,23 +5479,34 @@ structural test proves — and what it does not.
 
 #### `Tenant_Scope_Widening_Is_Never_Set_From_Request_Input`
 
-- **Asserts:** `app.scope = 'tenant'` is derived from the actor's role plus a declared tenant-wide operation, never from a header, query parameter, cookie or body, and is unreachable under `TenantContextOrigin.HostOnly`. Until Phase 03 derives it from a role, that holds as its strongest form: no production code sets the variable — no `set_config('app.scope'`, no `SET [LOCAL|SESSION] app.scope` — outside an exact-path list, empty until the Phase 03 setter adds its own path, and `ITenantContext` has no app.scope authority member for request input to reach. ADR-0052's immutable HostScope only narrows public reads.
-- **Source:** ADR-0036 § The reconciliation matrix.
-- **Type:** xUnit + source scan + reflection. **Kind:** structural.
-- **Status:** **Implemented** — `TenancyConventionTests.cs`, Packet 10. It asserts its
-  premise first — a row-security policy does read `app.scope`, so the variable guards
-  something — and its companion, `The_Scope_Setter_Scan_Can_Actually_Fail`, feeds the
-  pattern every setter spelling and a policy's read, which it must not flag.
-  Mutation-checked: a planted `set_config('app.scope', …)` in `FeatureFlags` fails it.
-- **Phase:** 02a (Packet 7 registers it; Packet 10 implements it).
-- **Note:** no `app.scope` carrier ships in Packet 7. `ITenantContext` exposes no scope
-  member and the flag derives from the actor's **role**, which lands with `Membership` /
-  `Role` in [Phase 03](../roadmap/phase-03-identity-admin.md) — after
-  [Phase 02b](../roadmap/phase-02b-events-auth.md)'s authenticated principal, which is the
-  prerequisite and not the carrier
-  ([11-security.md § Tenant Context](11-security.md)). The rule holds as a negative until
-  then — nothing sets the flag, so nothing sets it from request input — and becomes
-  non-vacuous in Phase 03.
+- **Asserts:** `app.scope = 'tenant'` requires eligible Tenant capability and an
+  explicitly declared tenant-wide read. Its immutable operation witness binds
+  the actor, tenant/org, invocation and physical owner generation; request input,
+  HostOnly and branch grants cannot mint it. SQL/EF use the same read authority;
+  nested mismatch and pooled cleanup preserve its lifetime. Restrictive
+  organization writes never widen, and `ITenantContext` has no writable scope
+  authority. ADR-0052's immutable HostScope only narrows public reads.
+- **Implemented P03-2 extension:** ADR-0076's witness-consuming announcement,
+  mint/consume caller census and real SQL/EF/read-lifetime controls replace the
+  earlier no-carrier premise. The
+  [operation-bound read contract](05-database.md#operation-bound-read-authority)
+  owns the canonical behavior.
+- **Source:** ADR-0036 § The reconciliation matrix;
+  [ADR-0076](../decisions/0076-live-scoped-authorization.md).
+- **Type:** compiled/source/reflection controls plus actual app-role SQL/EF tests.
+  **Kind:** structural and behavioural.
+- **Test owners:** `TenancyConventionTests`, `OperationPolicyOwnershipTests`,
+  `OperationReadScopeTests`, `MembershipDirectoryIntegrationTests`.
+- **Status:** **Implemented** — `TenancyConventionTests`; the exact announcement
+  scan and planted setter controls complement the witness and real scoped-read
+  owners above. `The_Scope_Setter_Scan_Can_Actually_Fail` retains its dirty controls.
+- **Phase:** 02a (Packet 7 registers it; Packet 10 implements the negative fence);
+  03 (P03-2 implements the operation-bound carrier).
+- **Note:** Packet 7 shipped without an `app.scope` carrier. ADR-0076 now supplies
+  the operation-bound witness while `ITenantContext` remains without writable
+  scope authority. The
+  [Phase 03 Status block](../roadmap/phase-03-identity-admin.md)
+  owns source-bound qualification.
 
 #### `The_Platform_Scope_Writes_No_Tenant_Context_And_Sets_No_Session_Variable`
 
@@ -5325,9 +5536,10 @@ structural test proves — and what it does not.
   elsewhere for a demo. The ordering, gate before the credential is touched, is
   behavioural and asserted in `PlatformAdminGateTests`; a structural rule cannot see it.
 
-  *Subject, vacuous:* there is no permission to hold. `AuthorizationBehavior.Handle` is
-  `return next()`. API authentication is delivered under ADR-0064; the
-  Platform-scope permission remains Identity work in
+  *Subject, vacuous:* there is no Platform permission to hold. The canonical
+  `AuthorizationBehavior` uses explicit live policies, while the retained
+  assignable manifest contains only Tenant/Organization pairs. API authentication
+  is delivered under ADR-0064; the Platform-scope permission remains Identity work in
   [Phase 03](../roadmap/phase-03-identity-admin.md). So
   nothing exercises a *permitted* entry, and the gate refusing everyone blocks nothing
   this packet ships. Packet 9 gives the scope its first real work and inherits the gate:
@@ -5440,13 +5652,15 @@ of structural detection.
 - **Asserts:** production composition and committed snapshot have the same document
   after object-key normalization, preserving array order; exactly eight public
   operations and four public GET wrappers exist, alongside the separate
-  authenticated AccountSite GET contract (nine operations and five GET contracts). Drift and policy-breaking
+  authenticated AccountSite and membership-directory GET contracts (ten operations
+  and six GET contracts). The four public wrappers and AccountSite-only native
+  authenticated transport remain closed. Drift and policy-breaking
   fixtures fail the pinned diff/generation checks.
-- **Source:** ADR-0024; ADR-0052; accepted P02d-4 G31.
+- **Source:** ADR-0024; ADR-0052; ADR-0076; accepted P02d-4 G31.
 - **Type:** xUnit + served OpenAPI + SDK/CLI fixtures. **Kind:** behavioural +
   structural.
-- **Status:** **Implemented** (`OpenApiContractTests.PublicSurface_Contract_Matches_Served_OpenApi`, P02d-4 Step 4); nine-operation, disjoint public/authenticated GET ownership, missing-operation/parameter/status and array-drift controls; generated SDK coverage and pinned CLI fixtures accompany it.
-- **Phase:** 02d (P02d-4 Step 4).
+- **Status:** **Implemented** (`OpenApiContractTests.PublicSurface_Contract_Matches_Served_OpenApi`, P02d-4 Step 4; P03-2 Step 5 extends the contract union); ten-operation, disjoint public/authenticated GET ownership, directory projection/403/pagination, missing-operation/parameter/status and array-drift controls; generated SDK coverage and pinned CLI fixtures accompany it.
+- **Phase:** 02d (P02d-4 Step 4); 03 (P03-2 Step 5 contract extension).
 
 ## P02d-5 public server rendering controls
 

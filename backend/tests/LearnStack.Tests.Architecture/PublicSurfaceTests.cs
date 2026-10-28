@@ -56,6 +56,7 @@ public sealed class PublicSurfaceTests
         MinimalBypasses(module).Should().BeEmpty("the only direct data-free MapGet admitted here is the existing healthz bootstrap");
         EndpointCompositionControls.Plant(module, (prefix, because) => MinimalBypasses(module).Should().Contain(
             prefix == "Unapproved endpoint mapping:" ? "SurfaceProbe.HiddenEndpointComposition" : "Program", because));
+        EndpointCompositionControls.PlantMetadata(module, (owner, because) => MinimalBypasses(module).Should().Contain(owner, because));
         MinimalBypasses(module).Should().BeEmpty("restoring production composition restores the clean control");
     }
 
@@ -296,7 +297,8 @@ public sealed class PublicSurfaceTests
     {
         var methods = Il.Methods(type).Where(method => method.Definition.HasBody).ToArray();
         var composition = methods.SelectMany(method => method.Definition.Body.Instructions
-                .Where(instruction => instruction.Operand is MethodReference call && EndpointComposition.IsCapability(call))
+                .Where(instruction => instruction.Operand is MethodReference call && EndpointComposition.IsCapability(call)
+                    && !EndpointComposition.IsFixedInfrastructureMetadata(method.Definition, instruction))
                 .Select(instruction => (method.Definition, Instruction: instruction, Call: (MethodReference)instruction.Operand)))
             .ToArray();
         var calls = composition.Where(site => !(site.Instruction.OpCode == OpCodes.Call

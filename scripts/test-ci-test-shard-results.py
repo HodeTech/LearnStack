@@ -338,16 +338,89 @@ class AggregateControls(unittest.TestCase):
                 self.refuses('assignment_not_distinct', RESULTS.validate_outputs,
                              paths, self.context(), self.plan, scope)
 
-    def test_prepared_images_match_the_actual_provider_and_database_fixture_sources(self):
-        provider = (ROOT / 'backend/tests/LearnStack.Tests.Integration/TenancyIdentity/KeycloakFixture.cs').read_text()
-        database = (ROOT / 'backend/tests/LearnStack.Tests.Integration/Database/PostgresFixture.cs').read_text()
+    def fixture_images(self, provider, database, pooler):
         provider_images = re.findall(r'\bconst string Image = "([^"\n]+)";', provider)
         database_images = re.findall(r'new PostgreSqlBuilder\("([^"\n]+)"\)', database)
         provider_databases = re.findall(r'new PostgreSqlBuilder\("([^"\n]+)"\)', provider)
+        pooler_images = re.findall(r'\bconst string PgBouncerImage = "([^"\n]+)";', pooler)
         self.assertEqual(1, len(provider_images))
+        self.assertEqual(1, len(re.findall(r'new ContainerBuilder\(Image\)', provider)))
         self.assertEqual(1, len(database_images))
         self.assertEqual(database_images, provider_databases)
-        self.assertEqual(tuple(provider_images + database_images), RESULTS.FIXTURE_IMAGES)
+        self.assertEqual(1, len(pooler_images))
+        self.assertEqual(1, len(re.findall(r'new ContainerBuilder\(PgBouncerImage\)', pooler)))
+        return tuple(provider_images + database_images + pooler_images)
+
+    def test_prepared_images_match_actual_provider_database_and_pooler_constructor_inputs(self):
+        provider = (ROOT / 'backend/tests/LearnStack.Tests.Integration/TenancyIdentity/KeycloakFixture.cs').read_text()
+        database = (ROOT / 'backend/tests/LearnStack.Tests.Integration/Database/PostgresFixture.cs').read_text()
+        pooler = (ROOT / 'backend/tests/LearnStack.Tests.Integration/Database/AuthorizationPoolProgressFixture.cs').read_text()
+        self.assertEqual(self.fixture_images(provider, database, pooler), RESULTS.FIXTURE_IMAGES)
+        with self.assertRaises(AssertionError):
+            self.fixture_images(provider.replace('new ContainerBuilder(Image)',
+                'new ContainerBuilder("unapproved:latest")'), database, pooler)
+        for changed in (
+                pooler.replace('const string PgBouncerImage =', 'const string UnusedImage ='),
+                pooler.replace('new ContainerBuilder(PgBouncerImage)', 'new ContainerBuilder("unapproved:latest")')):
+            with self.subTest(source='missing_const_or_actual_argument'), self.assertRaises(AssertionError):
+                self.fixture_images(provider, database, changed)
+        changed = pooler.replace('edoburu/pgbouncer:v1.26.0-p0', 'edoburu/pgbouncer:latest')
+        self.assertNotEqual(self.fixture_images(provider, database, changed), RESULTS.FIXTURE_IMAGES)
+
+    def assert_sidecar_inventory(self, solution, integration, name, directory):
+        relative = f'tests/LearnStack.Tests.{name}/LearnStack.Tests.{name}.csproj'
+        self.assertEqual(1, len([item for item in solution.iter('Project') if item.get('Path') == relative]))
+        references = [item for item in integration.iter('ProjectReference')
+                      if item.get('Include') == f'../LearnStack.Tests.{name}/LearnStack.Tests.{name}.csproj']
+        self.assertEqual(1, len(references))
+        self.assertEqual('false', references[0].get('ReferenceOutputAssembly'))
+        targets = [item for item in integration.iter('Target') if item.get('Name') == f'Stage{name}']
+        self.assertEqual(1, len(targets))
+        self.assertEqual('Build', targets[0].get('AfterTargets'))
+        items = list(targets[0].iter('_' + name + 'Files'))
+        self.assertEqual(1, len(items))
+        self.assertEqual(f'$(MSBuildThisFileDirectory)../LearnStack.Tests.{name}/bin/$(Configuration)/$(TargetFramework)/**/*',
+                         items[0].get('Include'))
+        errors = list(targets[0].iter('Error'))
+        self.assertEqual(1, len(errors))
+        self.assertEqual(f"'@(_{name}Files)' == ''", errors[0].get('Condition'))
+        copies = list(targets[0].iter('Copy'))
+        self.assertEqual(1, len(copies))
+        self.assertEqual(f'@(_{name}Files)', copies[0].get('SourceFiles'))
+        self.assertEqual(f"@(_{name}Files->'$(OutDir){directory}/%(RecursiveDir)%(Filename)%(Extension)')",
+                         copies[0].get('DestinationFiles'))
+
+    def test_actual_probe_sidecars_are_explicit_nontest_inputs_staged_with_their_linked_source(self):
+        solution = ET.parse(ROOT / 'backend/LearnStack.slnx').getroot()
+        integration = ET.parse(ROOT / 'backend/tests/LearnStack.Tests.Integration/LearnStack.Tests.Integration.csproj').getroot()
+        discovered = {name for _, name in RESULTS.OWNER.test_projects()}
+        for name, directory in (('JobLifecycleProbe', 'job-lifecycle-probe'),
+                                ('AuthorizationEvidenceProbe', 'authorization-evidence-probe')):
+            with self.subTest(sidecar=name):
+                project = ET.parse(ROOT / f'backend/tests/LearnStack.Tests.{name}/LearnStack.Tests.{name}.csproj').getroot()
+                self.assertEqual(['false'], [item.text for item in project.iter('IsTestProject')])
+                self.assertEqual(['Exe'], [item.text for item in project.iter('OutputType')])
+                self.assertEqual(['false'], [item.text for item in project.iter('UseAppHost')])
+                self.assertNotIn('LearnStack.Tests.' + name, discovered)
+                self.assert_sidecar_inventory(solution, integration, name, directory)
+        linked = '../AuthorizationEvidenceProof/AuthorizationBarrierHarness.cs'
+        child = ET.parse(ROOT / 'backend/tests/LearnStack.Tests.AuthorizationEvidenceProbe/LearnStack.Tests.AuthorizationEvidenceProbe.csproj').getroot()
+        for project in (integration, child):
+            self.assertEqual(1, len([item for item in project.iter('Compile') if item.get('Include') == linked]))
+        name = 'AuthorizationEvidenceProbe'
+        for mutation in ('reference', 'stage', 'after', 'destination'):
+            dirty = copy.deepcopy(integration)
+            if mutation == 'reference':
+                item = next(item for item in dirty.iter('ProjectReference')
+                            if name in item.get('Include', ''))
+                item.set('ReferenceOutputAssembly', 'true')
+            else:
+                target = next(item for item in dirty.iter('Target') if item.get('Name') == 'Stage' + name)
+                if mutation == 'stage': target.set('Name', 'UnscheduledProbe')
+                elif mutation == 'after': target.set('AfterTargets', 'Never')
+                else: next(target.iter('Copy')).set('DestinationFiles', 'wrong-sidecar')
+            with self.subTest(mutation=mutation), self.assertRaises(AssertionError):
+                self.assert_sidecar_inventory(solution, dirty, name, 'authorization-evidence-probe')
 
     def fixture_environment(self):
         env = {'GITHUB_ACTIONS': 'true', 'RUNNER_ENVIRONMENT': 'github-hosted',
@@ -366,7 +439,7 @@ class AggregateControls(unittest.TestCase):
         return env
 
     @contextmanager
-    def fixture_preparation(self, *, elapsed=700, environment=None, pull=None):
+    def fixture_preparation(self, *, elapsed=700, environment=None, pull=None, monotonic=None):
         def command(argv, *args, **kwargs):
             if argv[0] == RESULTS.OWNER.GIT:
                 return ('a' * 40 + '\n').encode()
@@ -374,7 +447,7 @@ class AggregateControls(unittest.TestCase):
         output = io.StringIO()
         with mock.patch.dict(os.environ, environment or self.fixture_environment(), clear=True), \
                 mock.patch.object(RESULTS.time, 'time', return_value=1000 + elapsed), \
-                mock.patch.object(RESULTS.time, 'monotonic', return_value=500), \
+                mock.patch.object(RESULTS.time, 'monotonic', side_effect=monotonic or (lambda: 500)), \
                 mock.patch.object(RESULTS.sys, 'platform', 'linux'), \
                 mock.patch.object(RESULTS.OWNER, 'command', side_effect=command) as calls, \
                 mock.patch('sys.stdout', output):
@@ -383,15 +456,18 @@ class AggregateControls(unittest.TestCase):
     def test_fixture_image_preparation_uses_fixed_images_and_preserves_cleanup_reserve(self):
         with self.fixture_preparation() as (command, output):
             self.assertEqual(0, RESULTS.prepare_fixture_images('ordinary-0'))
-        self.assertEqual(('quay.io/keycloak/keycloak:26.6.2', 'postgres:18.4-alpine'), RESULTS.FIXTURE_IMAGES)
+        self.assertEqual(('quay.io/keycloak/keycloak:26.6.2', 'postgres:18.4-alpine',
+                          'edoburu/pgbouncer:v1.26.0-p0'), RESULTS.FIXTURE_IMAGES)
         pulls = [call for call in command.call_args_list if call.args[0][0] == RESULTS.OWNER.DOCKER]
         self.assertEqual([mock.call(['/usr/bin/docker', 'pull', image], 610,
                                     'fixture_image_pull_failed_' + component, cap=55, diagnose=True)
-                          for component, image in zip(('keycloak', 'postgres'), RESULTS.FIXTURE_IMAGES)], pulls)
+                          for component, image in zip(('keycloak', 'postgres', 'pgbouncer'), RESULTS.FIXTURE_IMAGES)], pulls)
         self.assertEqual(RESULTS.OWNER.GIT, command.call_args_list[0].args[0][0])
-        self.assertEqual(list(RESULTS.FIXTURE_IMAGES), [row['image'] for row in json.loads(output.getvalue())['images']])
+        self.assertEqual({'protocol': 1, 'fixtureImagePreparationSeconds': 0,
+            'images': [{'image': image, 'pullSeconds': 0} for image in RESULTS.FIXTURE_IMAGES]},
+            json.loads(output.getvalue()))
         self.assertNotIn('PRIVATE-CANARY', output.getvalue())
-        for index, component in enumerate(('keycloak', 'postgres')):
+        for index, component in enumerate(('keycloak', 'postgres', 'pgbouncer')):
             reason = 'fixture_image_pull_failed_' + component + '_rate_limit'
             responses = iter([b'PRIVATE-CANARY'] * index + [RESULTS.OWNER.Refusal(reason)])
             def pull(*args, **kwargs):
@@ -410,17 +486,42 @@ class AggregateControls(unittest.TestCase):
             with self.fixture_preparation(elapsed=elapsed) as (command, _):
                 self.assertEqual(0, RESULTS.prepare_fixture_images('ordinary-0'))
                 pulls = [call for call in command.call_args_list if call.args[0][0] == RESULTS.OWNER.DOCKER]
-                self.assertEqual(2, len(pulls))
+                self.assertEqual(3, len(pulls))
                 self.assertTrue(all(call.args[1] == 500 + min(110,
                     RESULTS.OWNER.ORDINARY_JOB_SECONDS - RESULTS.OWNER.RESERVE_SECONDS - elapsed) for call in pulls))
                 self.assertTrue(all(call.kwargs == {'cap': 55, 'diagnose': True} for call in pulls))
-        for images in ((), ('one',), ('one', 'two', 'three')):
+        for images in ((), RESULTS.FIXTURE_IMAGES[:2], RESULTS.FIXTURE_IMAGES[1:], RESULTS.FIXTURE_IMAGES[::2],
+                tuple(reversed(RESULTS.FIXTURE_IMAGES)), RESULTS.FIXTURE_IMAGES + ('unapproved:latest',),
+                ('one', 'two', 'three'), (*RESULTS.FIXTURE_IMAGES[:2], RESULTS.FIXTURE_IMAGES[1]),
+                (*RESULTS.FIXTURE_IMAGES[:2], 'edoburu/pgbouncer:latest'), list(RESULTS.FIXTURE_IMAGES)):
             with self.fixture_preparation() as (command, _), mock.patch.object(RESULTS, 'FIXTURE_IMAGES', images):
                 self.refuses('fixture_setup_images_invalid', RESULTS.prepare_fixture_images, 'ordinary-0')
                 self.assertFalse(any(call.args[0][0] == RESULTS.OWNER.DOCKER for call in command.call_args_list))
         with self.fixture_preparation(elapsed=1297) as (command, _):
             self.refuses('fixture_setup_deadline_exhausted', RESULTS.prepare_fixture_images, 'ordinary-0')
             self.assertFalse(any(call.args[0][0] == RESULTS.OWNER.DOCKER for call in command.call_args_list))
+
+    def test_three_pull_calls_publish_exact_metadata_under_one_unchanged_total_deadline(self):
+        state = {'now': 500, 'pulls': []}
+        durations = (12.125, 0.25, 40)
+        def pull(argv, deadline, reason, **kwargs):
+            state['pulls'].append((argv, deadline, reason, kwargs))
+            state['now'] += durations[len(state['pulls']) - 1]
+            return b'PRIVATE-CANARY'
+        with self.fixture_preparation(pull=pull, monotonic=lambda: state['now']) as (_, output):
+            self.assertEqual(0, RESULTS.prepare_fixture_images('ordinary-0'))
+        self.assertEqual({'protocol': 1, 'fixtureImagePreparationSeconds': sum(durations),
+            'images': [{'image': image, 'pullSeconds': seconds}
+                       for image, seconds in zip(RESULTS.FIXTURE_IMAGES, durations)]}, json.loads(output.getvalue()))
+        self.assertEqual([610, 610, 610], [call[1] for call in state['pulls']])
+        self.assertTrue(all(call[3] == {'cap': 55, 'diagnose': True} for call in state['pulls']))
+        self.assertNotIn('PRIVATE-CANARY', output.getvalue())
+        def exhaust(*args, **kwargs):
+            state['now'] += 40
+        state['now'] = 500
+        with self.fixture_preparation(pull=exhaust, monotonic=lambda: state['now']) as (_, output):
+            self.refuses('fixture_setup_deadline_exhausted', RESULTS.prepare_fixture_images, 'ordinary-0')
+        self.assertEqual('', output.getvalue(), 'an incomplete three-image preparation publishes no success metadata')
 
     def test_fixture_preparation_verifies_closed_mode_source_and_runner_before_any_pull(self):
         for mode in ('base', 'native-shard', 'ordinary', 'ordinary-00', 'ordinary--1',

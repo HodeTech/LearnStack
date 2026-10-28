@@ -184,7 +184,8 @@ public static class ApiVersioningExtensions
         // in the one Problem Details shape.
         var documentNames = string.Join(
             "|", app.Services.GetRequiredService<OpenApiDocumentRegistry>().Names);
-        app.MapOpenApi($"/openapi/{{documentName:regex(^({documentNames})$)}}.json");
+        app.MapOpenApi($"/openapi/{{documentName:regex(^({documentNames})$)}}.json")
+            .WithMetadata(Authentication.InfrastructureOperationMetadata.OpenApi);
 
         // The console lives at /docs, not under /openapi. Scalar maps its own
         // `{documentName?}` inside the prefix it is given, so a prefix under
@@ -204,7 +205,7 @@ public static class ApiVersioningExtensions
             // SelfHostedAirGapped deployment, where nothing outside the
             // network is reachable by design ([ADR-0020]).
             options.WithProxy(string.Empty);
-        });
+        }).WithMetadata(Authentication.InfrastructureOperationMetadata.Documentation);
 
         return app;
     }

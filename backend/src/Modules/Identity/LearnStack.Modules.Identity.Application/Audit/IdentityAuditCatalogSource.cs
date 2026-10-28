@@ -1,5 +1,7 @@
 using LearnStack.Modules.Identity.Domain;
 using LearnStack.Modules.Identity.Application.Contracts.Seeding;
+using LearnStack.Modules.Identity.Application.Contracts.Memberships;
+using LearnStack.Modules.Identity.Application.Contracts.Roles;
 using LearnStack.SharedKernel.Audit;
 
 namespace LearnStack.Modules.Identity.Application.Audit;
@@ -17,6 +19,10 @@ public sealed class IdentityAuditCatalogSource : IAuditCatalogSource
         builder.MustAudit<SetSeedMembershipProfileCommand>("identity.membership_profile.set_seed_profile", OperationType.Update, typeof(Membership));
         builder.Off<GetRoleSeedStateQuery>();
         builder.Off<GetMembershipSeedStateQuery>();
+        builder.MustAudit<ListMembershipsQuery>(IdentityOperationPolicySource.MembershipDirectoryOperation, OperationType.ReadSensitive, typeof(Membership));
+        builder.MustAudit<ChangeRoleGrantsCommand>("identity.role.change_grants", OperationType.SecurityEvent, typeof(Role));
+        builder.MustAudit<AdoptRoleGrantManifestCommand>("identity.role.adopt_manifest", OperationType.SecurityEvent, typeof(Role));
         builder.DeclareOffPath("identity.user.create", OperationType.SecurityEvent, OperationClass.Must, typeof(User));
+        builder.DeclareOffPath("identity.authorization.deny", OperationType.SecurityEvent, OperationClass.Must);
     }
 }

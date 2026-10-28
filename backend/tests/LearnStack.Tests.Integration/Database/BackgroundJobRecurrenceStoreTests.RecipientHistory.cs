@@ -216,9 +216,17 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
     private sealed class RecipientIdentityCounter : IGuidFactory
     {
         private int _count;
+        internal List<Guid> Issued { get; } = [];
         internal int Count => Volatile.Read(ref _count);
         internal Action? BeforeMint { get; set; }
-        public Guid NewUuidV7() { Interlocked.Increment(ref _count); BeforeMint?.Invoke(); return Guid.CreateVersion7(); }
+        public Guid NewUuidV7()
+        {
+            Interlocked.Increment(ref _count);
+            BeforeMint?.Invoke();
+            var id = Guid.CreateVersion7();
+            Issued.Add(id);
+            return id;
+        }
         public Guid NewUuidV4() => Guid.NewGuid();
     }
 

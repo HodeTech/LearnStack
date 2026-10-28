@@ -1,4 +1,5 @@
 using LearnStack.Api.Account;
+using LearnStack.Api.Identity;
 using LearnStack.Api.Tenancy;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Tenancy;
@@ -6,10 +7,20 @@ using Microsoft.AspNetCore.Mvc.Controllers;
 
 namespace LearnStack.Api.Authentication;
 
-/// <summary>HTTP admission for the one host-backed authenticated read.</summary>
+/// <summary>Preserves the distinct authority ceilings of the two authenticated reads.</summary>
 internal sealed class TenantSurfaceAdmissionMiddleware(RequestDelegate next)
 {
     internal const string AccountSitePath = "/api/v1/account/site";
+    internal const string MembershipsPath = "/api/v1/identity/memberships";
+
+    internal static bool IsMembershipsPath(PathString path) =>
+        path.Equals(MembershipsPath, StringComparison.OrdinalIgnoreCase)
+        || path.Equals(MembershipsPath + "/", StringComparison.OrdinalIgnoreCase);
+
+    internal static bool IsMembershipsEndpoint(HttpContext context) =>
+        context.GetEndpoint()?.Metadata.GetMetadata<ControllerActionDescriptor>() is { } action
+        && action.ControllerTypeInfo.AsType() == typeof(MembershipsController)
+        && action.MethodInfo.Name == nameof(MembershipsController.List);
 
     internal static bool IsAccountSitePath(PathString path) =>
         path.Equals(AccountSitePath, StringComparison.OrdinalIgnoreCase)
@@ -24,6 +35,15 @@ internal sealed class TenantSurfaceAdmissionMiddleware(RequestDelegate next)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(tenantContext);
+        if (context.Features.Get<HostClassification>() is not null
+            && (IsMembershipsEndpoint(context) || IsMembershipsPath(context.Request.Path))
+            && (context.Features.Get<TenantCredentialFeature>()?.Identity is null
+                || !tenantContext.IsResolved
+                || tenantContext.Origin is not (TenantContextOrigin.HostAndClaim or TenantContextOrigin.ClaimAndMembership)))
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            return Task.CompletedTask;
+        }
         if (context.Features.Get<HostClassification>() is not null
             && (IsAccountSiteEndpoint(context)
                 || IsAccountSitePath(context.Request.Path))

@@ -252,6 +252,8 @@ DemoProcesses.prototype.run = async function(command, args, options = {}) {
   const isCompose = command === 'docker' && args[0] === 'compose' && args.includes('--project-name');
   const startup = command === 'make' && args.includes('dev');
   const migration = command === 'make' && args.includes('migrate');
+  const applicationSeed = command === 'dotnet' && args.length === 1
+    && args[0].endsWith('/LearnStack.Tools.Seeder.dll');
   const allowed = new Set(['PATH', 'HOME', 'DOTNET_ROOT', 'TMPDIR', 'APPDATA',
     'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY', 'http_proxy', 'https_proxy', 'all_proxy', 'no_proxy',
     'NODE_EXTRA_CA_CERTS', 'SSL_CERT_FILE', 'SSL_CERT_DIR',
@@ -262,14 +264,18 @@ DemoProcesses.prototype.run = async function(command, args, options = {}) {
     ...(migration ? ['ConnectionStrings__Migration', 'Identity__AuthorityId', 'Authentication__Tenant__Issuer'] : []),
     ...(options.label === 'Contextual seed convergence' || options.label === 'Application seed convergence' ? ['ConnectionStrings__Default'] : [])]);
   // The app seed is recognised by its real, argument-free Release DLL call too.
-  if (command === 'dotnet' && args.length === 1 && args[0].endsWith('/LearnStack.Tools.Seeder.dll')) allowed.add('ConnectionStrings__Default');
+  if (applicationSeed) for (const key of ['ConnectionStrings__Default', 'Identity__AuthorityId',
+    'Authentication__Tenant__Issuer', 'Deployment__Mode']) allowed.add(key);
+  const runtimeIdentity = !applicationSeed || (env.Identity__AuthorityId === ${JSON.stringify(f.values.Identity__AuthorityId)}
+    && env.Authentication__Tenant__Issuer === ${JSON.stringify(f.values.Authentication__Tenant__Issuer)}
+    && env.Deployment__Mode === 'Development');
   f.commands.push({ command, args, label: options.label, timeout: options.timeout,
     dockerContext: env.DOCKER_CONTEXT ?? null,
     dockerHome: env.HOME ?? null,
     prerequisitesPreserved: (command === 'docker' ? ['DOCKER_CONFIG', 'DOCKER_CONTEXT']
       : ['HTTP_PROXY', 'http_proxy', 'NUGET_PACKAGES'])
       .every(key => process.env[key] === undefined || env[key] === process.env[key]),
-    confined: isCompose || Object.keys(env).every(key => allowed.has(key)) });
+    confined: (isCompose || Object.keys(env).every(key => allowed.has(key))) && runtimeIdentity });
   if (migration) f.migrationSelection = env.LEARNSTACK_COMPOSE_PROJECT?.startsWith('learnstack-demo-')
     && env.LEARNSTACK_COMPOSE_ENV_FILE === join(${JSON.stringify(f.root)}, '.env')
     && env.LEARNSTACK_COMPOSE_MODE === 'e2e' && env.ConnectionStrings__Migration?.includes('Username=learnstack_migration');
@@ -1178,6 +1184,40 @@ DemoProcesses.prototype.dispose = async function() {
 });
 
 describe('private configuration refuses launch before commands', () => {
+  for (const [label, auxiliary] of [
+    [
+      'both empty',
+      'ConnectionStrings__IdentityAuthorization=\nConnectionStrings__AuthorizationEvidence=\n',
+    ],
+    ['authorization empty', 'ConnectionStrings__IdentityAuthorization=\n'],
+    ['evidence empty', 'ConnectionStrings__AuthorizationEvidence=\n'],
+    ['authorization only', 'ConnectionStrings__IdentityAuthorization=private-pair-canary\n'],
+    ['evidence only', 'ConnectionStrings__AuthorizationEvidence=private-pair-canary\n'],
+  ]) {
+    it.each(['seed', 'demo-local', 'demo-ci'] as const)(
+      `refuses ${label} auxiliary sources before %s starts or migrates a stack`,
+      (entry) => {
+        const f = fixture();
+        f.source += auxiliary;
+        writePrivateFileSync(join(f.root, '.env.example'), f.source);
+        if (entry === 'seed') writePrivateFileSync(join(f.root, 'selected.env'), f.source);
+        const result = execute(
+          f,
+          entry === 'seed' ? 'seed' : 'demo',
+          'success',
+          entry === 'demo-local' ? 'local' : 'ci',
+        );
+        expect(result.failure).toBe('Local demo database configuration is invalid');
+        for (const event of ['stack-up', 'migrate', 'appseed', 'realm-start', 'daemon'])
+          expect(result.events).not.toContain(event);
+        expect(
+          result.commands.some(({ args }) => args.includes('up') || args.includes('migrate')),
+        ).toBe(false);
+        expect(JSON.stringify(result)).not.toContain('private-pair-canary');
+      },
+    );
+  }
+
   it.each(['seed', 'demo'] as const)(
     'refuses a shared private file before %s commands without repairing it',
     (subject) => {

@@ -47,7 +47,12 @@ EXECUTE_STEP = 'Execute assigned cases under the bounded owner'
 UPLOAD_STEP = 'Upload immutable attempt evidence'
 BUILD_STEP = 'Build Release with warnings as errors'
 UPLOAD_ACTION = 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02'
-FIXTURE_IMAGES = ('quay.io/keycloak/keycloak:26.6.2', 'postgres:18.4-alpine')
+_FIXTURE_IMAGE_COMPONENTS = (
+    ('keycloak', 'quay.io/keycloak/keycloak:26.6.2'),
+    ('postgres', 'postgres:18.4-alpine'),
+    ('pgbouncer', 'edoburu/pgbouncer:v1.26.0-p0'),
+)
+FIXTURE_IMAGES = tuple(image for _, image in _FIXTURE_IMAGE_COMPONENTS)
 
 
 def module(name, filename):
@@ -90,8 +95,9 @@ def prepare_fixture_images(mode):
     beginning = time.monotonic()
     deadline = beginning + min(110, available)
     images = []
-    require(len(FIXTURE_IMAGES) == 2, 'fixture_setup_images_invalid')
-    for component, image in zip(('keycloak', 'postgres'), FIXTURE_IMAGES):
+    require(FIXTURE_IMAGES == tuple(image for _, image in _FIXTURE_IMAGE_COMPONENTS),
+            'fixture_setup_images_invalid')
+    for component, image in _FIXTURE_IMAGE_COMPONENTS:
         image_started = time.monotonic()
         OWNER.command([OWNER.DOCKER, 'pull', image], deadline,
                       'fixture_image_pull_failed_' + component, cap=55, diagnose=True)

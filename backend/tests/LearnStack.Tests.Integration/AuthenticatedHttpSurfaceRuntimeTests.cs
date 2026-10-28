@@ -2,8 +2,11 @@ using System.Reflection;
 using FluentAssertions;
 using LearnStack.Api.Account;
 using LearnStack.Api.PublicReads;
+using LearnStack.Api.Identity;
+using LearnStack.Api.Pagination;
 using LearnStack.Api.Tenancy;
 using LearnStack.Modules.Education.Application.Contracts.PublicReads;
+using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Tenancy.Application.Contracts.Account;
 using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
 using MediatR;
@@ -84,11 +87,23 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         AssertEndpointAuthorization(action, metadata);
         Action extra = () => AssertEndpointAuthorization(action, metadata.Append(new UnexpectedAnonymousAttribute()));
         extra.Should().Throw<Xunit.Sdk.XunitException>("custom IAllowAnonymous metadata cannot augment any approved MVC endpoint");
-        if (action.ControllerTypeInfo.AsType() != typeof(AccountController))
+        if (action.ControllerTypeInfo.AsType() != typeof(AccountController)
+            && action.ControllerTypeInfo.AsType() != typeof(MembershipsController))
         {
             Action substitute = () => AssertEndpointAuthorization(action,
                 metadata.Where(item => item is not IAllowAnonymous).Append(new UnexpectedAnonymousAttribute()));
             substitute.Should().Throw<Xunit.Sdk.XunitException>("a public endpoint requires the exact standard AllowAnonymousAttribute");
+        }
+        else
+        {
+            var authorization = metadata.OfType<IAuthorizeData>().Single();
+            foreach (var policy in new[] { null, "LearnStackOperation:unregistered.read" })
+            {
+                var changed = new AuthorizeAttribute { AuthenticationSchemes = authorization.AuthenticationSchemes, Policy = policy };
+                Action substitute = () => AssertEndpointAuthorization(action,
+                    metadata.Where(item => !ReferenceEquals(item, authorization)).Append(changed));
+                substitute.Should().Throw<Xunit.Sdk.XunitException>("the exact named live operation policy is required on the built endpoint");
+            }
         }
         AssertEndpointAuthorization(action, metadata);
     }
@@ -100,13 +115,15 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         var authorizations = items.OfType<IAuthorizeData>().ToArray();
         items.OfType<AuthorizationPolicy>().Should().BeEmpty("explicit policies are a separate framework authorization channel");
         items.OfType<IAuthorizationRequirementData>().Should().BeEmpty("requirement metadata must not augment the approved authorization contract");
-        if (action.ControllerTypeInfo.AsType() == typeof(AccountController))
+        if (action.ControllerTypeInfo.AsType() == typeof(AccountController)
+            || action.ControllerTypeInfo.AsType() == typeof(MembershipsController))
         {
-            anonymous.Should().BeEmpty("Account metadata must never bypass authorization");
+            anonymous.Should().BeEmpty("authenticated endpoint metadata must never bypass authorization");
             var authorization = authorizations.Should().ContainSingle().Which.Should().BeOfType<AuthorizeAttribute>().Subject;
             authorization.AuthenticationSchemes.Should().Be("TenantBearer");
             authorization.Roles.Should().BeNull();
-            authorization.Policy.Should().BeNull();
+            authorization.Policy.Should().Be("LearnStackOperation:" + (action.ControllerTypeInfo.AsType() == typeof(AccountController)
+                ? "tenancy.account_site.read" : "identity.membership.list"));
         }
         else
         {
@@ -206,8 +223,13 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         var context = new DefaultHttpContext();
         context.Features.Set(HostClassification.Platform("census.invalid"));
         controller.ControllerContext = new ControllerContext { HttpContext = context };
-        var arguments = action.MethodInfo.GetParameters().Select(parameter => parameter.ParameterType == typeof(CancellationToken)
-            ? (object)CancellationToken.None : "census-slug").ToArray();
+        var arguments = action.MethodInfo.GetParameters().Select(parameter => parameter.ParameterType switch
+        {
+            var type when type == typeof(CancellationToken) => (object)CancellationToken.None,
+            var type when type == typeof(CursorPaginationRequest) => new CursorPaginationRequest(),
+            var type when type == typeof(string) => "census-slug",
+            _ => throw new InvalidOperationException("Unclassified action parameter"),
+        }).ToArray();
         var execution = (Task)action.MethodInfo.Invoke(controller, arguments)!;
         Func<Task> invoke = () => execution;
         await invoke.Should().ThrowAsync<DispatchObservedException>();
@@ -227,6 +249,7 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
             Mvc("public/courses/{slug}/lessons/{lessonSlug}", "GET", typeof(PublicEducationController), "Lesson", typeof(GetPublicLessonQuery)),
             Mvc("public/courses/{slug}/lessons/{lessonSlug}", "HEAD", typeof(PublicEducationController), "HeadLesson", typeof(GetPublicLessonQuery)),
             Mvc("account/site", "GET", typeof(AccountController), "GetSite", typeof(GetAccountSiteQuery)),
+            Mvc("identity/memberships", "GET", typeof(MembershipsController), "List", typeof(ListMembershipsQuery)),
         };
         var infrastructure = new[]
         {

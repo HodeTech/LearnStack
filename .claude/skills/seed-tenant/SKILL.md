@@ -48,7 +48,7 @@ or supplies enrollment, learner identity, commerce or live-session data.
 The data set is the input; there is no `--tenants` flag. The production entry point
 uses `SeedData.All`. `SeedRunner.RunAsync` accepts alternate declarations for tests.
 Connection configuration arrives in the environment, not command-line arguments.
-Both `scripts/seed.sh` and the direct tool refuse a role other than `learnstack_app`.
+Both the owned launcher and the direct tool refuse a role other than `learnstack_app`.
 The shared application data-source guard also refuses direct or transitive access
 to a BYPASSRLS/superuser role on every physical connection.
 
@@ -69,7 +69,7 @@ make seed
 ```
 
 This target starts the selected stack and waits for PostgreSQL before migration.
-`scripts/seed.sh` then checks full Compose health and both realm issuers before
+`scripts/seed.mjs` then checks full Compose health and both realm issuers before
 running the fresh Release Seeder DLL and then the shared development-only realm
 reconciler. Both combined entries reject an incomplete selected private realm
 source before infrastructure work; older files must explicitly add the BFF
@@ -82,17 +82,40 @@ Seed preparation reports fixed stage progress and closed failure reasons rather
 than forwarding potentially sensitive child output. On cancellation/failure,
 wait for owned cleanup; follow [lock recovery](../../../infra/keycloak/README.md#lock-recovery)
 if the previous realm owner left its exclusive lock.
-The direct tool runs
-from `backend/`, where `global.json` pins the SDK:
+The owned seed/demo launchers pass only the selected application connection,
+identity authority and coupled auxiliary connection strings to runtime children,
+with `Deployment__Mode=Development` for their owned local stack. Restore/build and
+credential-free projection children receive process prerequisites without those
+runtime values. Proxy and trust prerequisites remain available; migration,
+platform, dispatcher and provider-admin credentials do not enter a Seeder child.
+
+The direct tool reads its process environment; it does not load `.env`. Supply
+`ConnectionStrings__Default`, `Identity__AuthorityId` and
+`Authentication__Tenant__Issuer` from the selected private configuration. The
+authority must already be installed: `make seed` passes the stable pair through
+`make migrate`, whose deployment installer runs before content seeding. The
+Seeder never installs, rewrites or infers that anchor. A schema-only migration
+without the pair is insufficient for application seeding.
+
+`ConnectionStrings__IdentityAuthorization` and
+`ConnectionStrings__AuthorizationEvidence` form one guarded pair. Only explicit
+`Deployment__Mode=Development` permits their omission for the supported direct
+PostgreSQL topology; another or missing mode requires both. PgBouncer requires
+the explicit pair and separately reserved backend lanes even in Development.
+[The topology contract](../../../docs/standards/12-infrastructure.md#authorization-and-evidence-topology)
+owns those requirements; matching connection strings or authority establish no
+capacity qualification.
+
+After exporting the required values without printing them, run from `backend/`,
+where `global.json` pins the SDK:
 
 ```bash
-(cd backend && ConnectionStrings__Default="<learnstack_app connection string>" \
-    dotnet run --project src/LearnStack.Tools.Seeder --configuration Release)
+(cd backend && dotnet run --project src/LearnStack.Tools.Seeder --configuration Release)
 ```
 
-Do not put a real connection string on `argv` or print it. The script reads the
-environment first and falls back to the local `.env`; the agent should not expose
-that file. There is no `make seed-tenant`, `infra/seed/`, or seed-reset command.
+Do not put a real connection string on `argv` or print it. The owned launcher
+reads its selected private source; the agent should not expose that file. There
+is no `make seed-tenant`, `infra/seed/`, or seed-reset command.
 
 ### 2. Read the declaration
 
@@ -130,6 +153,16 @@ verification reads resolved. Tenant-wide acts announce null organization. Scoped
 roots, their translations and publication announce the exact root organization.
 The runner never writes `ITenantContextAccessor.Current`, opens a private
 transaction, calls a tenant setter, mutates EF state or executes seed SQL.
+
+The canonical `AuthorizationBehavior` remains at step 5 of the unchanged eight-step
+pipeline. Module policy sources and the finite `SeedOperationSource` classify each
+act; an actor UUID alone supplies no bypass. The process owns one qualified,
+two-slot evidence source shared by every per-act provider. Startup checks the
+application role, installed authority and actual business/evidence database
+identity before dispatch. The common evidence barrier records attributable finite
+seed refusals independently of ordinary audit `Off`; no generic business-source
+fallback supplies that evidence. The process disposes the source after all acts.
+Startup qualification failure emits a fixed diagnostic without provider details.
 
 ### 4. Converge or fail safely
 
@@ -191,6 +224,12 @@ companion checks data-driven behavior. These controls do not prove the absence o
 possible computed-identity branch; the
 [Step 2 record](../../../docs/roadmap/phase-02d-delivery-log.md#p02d-7-step-2--genericity-and-exit-foundations-2026-10-11)
 owns their delivered scope and review evidence.
+
+`SeedOperationSourceTests` checks canonical registration, finite provenance,
+scope closure and explicit missing-factory evidence loss. The real-database
+`SeedAuthorizationActivationTests` exercises finite refusal durability through
+the shared qualified source. These focused subjects do not qualify production
+capacity or complete the packet; the Phase 03 Status block owns that state.
 
 ### 6. Reach the hosts
 

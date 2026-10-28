@@ -77,6 +77,27 @@ frontend/apps/web/scripts/
                                    # Phase 06 owns full Playwright Test/axe flows.
 ```
 
+### Refresh an intentional OpenAPI contract change
+
+The Contract suite serves the actual API composition through its database-free
+factory and compares it with `backend/openapi/v1.json`. For an authorized contract
+change, explicitly update that snapshot from the served document, then regenerate
+the SDK:
+
+```bash
+LEARNSTACK_UPDATE_OPENAPI=1 dotnet test --configuration Release \
+  backend/tests/LearnStack.Tests.Contract --no-restore \
+  --filter FullyQualifiedName~PublicSurface_Contract_Matches_Served_OpenApi
+make sdk
+dotnet test --configuration Release backend/tests/LearnStack.Tests.Contract --no-restore
+(cd frontend && pnpm --filter @learnstack/sdk typecheck && pnpm --filter @learnstack/sdk test)
+```
+
+Only the exact update value `1` writes the snapshot; CI refuses updates and always
+compares. Review the snapshot, generated types and explicit GET ownership maps.
+Adding a generated authenticated contract never extends the native BFF operation
+allowlist or creates a transport wrapper implicitly.
+
 ### Step 3: Run unit tests
 
 Use `--configuration Release` for repository qualification, matching CI. The

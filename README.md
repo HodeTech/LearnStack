@@ -84,8 +84,9 @@ for identity, membership and authorization work; the
 
 **Five modules contain domain implementations:** Tenancy, Customization, Audit,
 Education and Identity. Identity's [module specification](docs/modules/identity/README.md)
-distinguishes implemented global/contextual foundations and seed admission from
-remaining API activation and live authorization. Content and Media remain scaffolded.
+distinguishes implemented global/contextual foundations, seed admission and live
+authorization from remaining new-user entry and administration surfaces. Content
+and Media remain scaffolded.
 
 The subsequent product milestones are CMS and media ([04](docs/roadmap/phase-04-cms-media-pages.md)),
 the full course catalog ([05](docs/roadmap/phase-05-education-learning-content.md)),

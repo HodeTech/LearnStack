@@ -35,7 +35,7 @@ public sealed partial class TenantExistingBindingAdmissionTests
         var payload = JsonSerializer.Serialize(new { value = neutral, items = new[] { new { value = nested, token = sensitive } } });
         var canaries = new[] { neutral, nested, sensitive };
         await using var issuer = await TenantAuthenticationIssuer.StartAsync();
-        await using var database = await IdentityPublicReadFixture.CreateAsync(parent, issuer.Issuer,
+        await using var database = await IdentityPublicReadFixture.CreateWithMembershipsAsync(parent, issuer.Issuer,
             new Dictionary<LearnStack.SharedKernel.Identifiers.UserId, string> { [Actor] = payload });
         var subject = new GlobalIdentitySubject(database.Registration.AuthorityId, issuer.Issuer, payload);
         var observation = new BindingObservation();

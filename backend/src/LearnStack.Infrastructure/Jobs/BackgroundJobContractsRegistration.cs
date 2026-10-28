@@ -2,6 +2,7 @@ using LearnStack.Application.Jobs;
 using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Results;
+using LearnStack.SharedKernel.Permissions;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -21,6 +22,7 @@ public static class BackgroundJobContractsRegistration
         services.TryAddSingleton<IBackgroundJobRequestCatalog>(provider =>
             provider.GetRequiredService<BackgroundJobDefinitionRegistry>());
         services.TryAddSingleton<BackgroundJobExecutionAdmission>();
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<ITrustedOperationSource, BackgroundJobOperationSource>());
         services.TryAddSingleton<BackgroundJobRuntimeOptions>();
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<BackgroundJobObservation>();

@@ -74,7 +74,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
                     followOnStarted.TrySetResult();
                 }
                 var organization = originalJob ? firstOrganization : nextOrganization;
-                var written = await services.GetRequiredService<ISender>().Send(new CreateOrganizationCommand(
+                var written = await services.GetRequiredService<ISender>().Send(Fixture.OrganizationRequest(
                     OrganizationId.From(organization), "job-aux-" + organization.ToString("N"), "Job auxiliary"), token);
                 written.IsSuccess.Should().BeTrue();
                 if (!first) return Result.Ok(None.Value);
@@ -172,7 +172,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job)).Should().Be(1);
             await AssertAuxiliaryAuditAbsentAsync(database, firstOrganization);
             auditHealth.IsHealthy.Should().BeFalse("the real MUST standalone acquisition was refused");
-            auditHealth.FailingOperation.Should().Be("tenancy.organization.create");
+            auditHealth.FailingOperation.Should().Be("jobfixture.organization.create");
             var alert = auditLogger.Entries.Should().ContainSingle().Subject;
             alert.Level.Should().Be(LogLevel.Critical);
             alert.EventId.Should().Be(new EventId(3, "LogStandaloneWriteFailed"));
@@ -183,7 +183,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             var counted = auditFailures.Should().ContainSingle().Subject;
             counted.Count.Should().Be(1);
             counted.Tags.Should().ContainSingle().Which
-                .Should().Be(new KeyValuePair<string, object?>("operation", "tenancy.organization.create"));
+                .Should().Be(new KeyValuePair<string, object?>("operation", "jobfixture.organization.create"));
             AuxiliaryCleanupResources(owner).Should().BeSameAs(originalResources,
                 "failed reconciliation cannot replace the held auxiliary acquisition");
             AuxiliaryCleanupConnection(owner).Should().BeSameAs(borrowed);
@@ -341,7 +341,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         await SchemaQueries.AssertApplicationRoleAsync(connection, transaction);
         await using var read = new NpgsqlCommand("""
             SELECT count(*) FROM audit_log
-            WHERE operation='tenancy.organization.create' AND entity_id=@subject
+            WHERE operation='jobfixture.organization.create' AND entity_id=@subject
             """, connection, transaction);
         read.Parameters.AddWithValue("subject", organization.ToString());
         (await read.ExecuteScalarAsync()).Should().Be(0L,
@@ -351,11 +351,11 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
     private static void AssertAuxiliaryAuditDiagnostic(AuxiliaryAuditLog entry, Guid organization)
     {
         entry.Exception.Should().BeNull("trusted job diagnostics never receive raw exception details");
-        entry.Message.Should().Contain("tenancy.organization.create").And.NotContain(organization.ToString())
+        entry.Message.Should().Contain("jobfixture.organization.create").And.NotContain(organization.ToString())
             .And.NotContain(nameof(InvalidOperationException)).And.NotContain("refuses another acquisition")
             .And.NotContain("Deliberate actual auxiliary disposal failure");
         entry.Properties.Where(property => property.Key != "{OriginalFormat}").Should().ContainSingle().Which
-            .Should().Be(new KeyValuePair<string, object?>("Operation", "tenancy.organization.create"));
+            .Should().Be(new KeyValuePair<string, object?>("Operation", "jobfixture.organization.create"));
     }
 
     private sealed record AuxiliaryAuditLog(LogLevel Level, EventId EventId, string Message,

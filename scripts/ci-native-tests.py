@@ -83,6 +83,7 @@ SHARDS = None
 STARTUP_FAILURES = {'resource_controllers_unavailable', 'work_cgroup_not_empty',
                     'cgroup_kill_unavailable', 'startup_io_refused', 'startup_internal_refusal'}
 FAILURE_SOURCES = {
+    'AuthorizationReadSourceTests.cs': 'authorization_read_source',
     'OutboxProcessorTests.cs': 'outbox_processor',
     'BffNativeDriver.cs': 'bff_native_driver',
     'TenantBffSessionTests.cs': 'bff_session',
@@ -148,11 +149,13 @@ PUBLIC_DEVTOOLS_KINDS = {
 KEYCLOAK_FAILURE_CLASSES = {
     'TenantRealmApiTests', 'TenantRealmIssuanceTests', 'TenantRealmProfileProtectionTests',
     'TenantRealmReconciliationTests', 'TenantRealmSelfServiceTests',
+    'TenantRealmStockBaselineTests',
 }
 KEYCLOAK_FAILURE_STAGES = {
     'certificate', 'network', 'database', 'import_input', 'provider_start',
     'mapped_endpoint', 'loopback_bindings', 'discovery',
     'database_create_request', 'database_start', 'database_readiness', 'database_started',
+    'provider_created', 'provider_starting', 'provider_started',
 }
 KEYCLOAK_FAILURE_REASONS = {
     'container_exit', 'deadline', 'readiness_timeout', 'http_transport', 'argument',
@@ -971,10 +974,13 @@ def closed_failure_details(case, raw):
         if len(message) > 65536 or message.count(marker) != 1:
             return None
         match = re.search(re.escape(marker) + r'([a-z_]{1,32})/([a-z_]{1,32}); '
-                          r'owned cleanup ([a-z_]{1,32})\.', message)
+                          r'owned cleanup ([a-z_]{1,32})(?:; startup cancellation requested (true|false))?\.', message)
         if (match and match[1] in KEYCLOAK_FAILURE_STAGES and match[2] in KEYCLOAK_FAILURE_REASONS
                 and match[3] in KEYCLOAK_FAILURE_CLEANUP):
-            return {'stage': match[1], 'reason': match[2], 'cleanup': match[3]}
+            details = {'stage': match[1], 'reason': match[2], 'cleanup': match[3]}
+            if match[4] is not None:
+                details['startupCancellationRequested'] = match[4] == 'true'
+            return details
         return None
     message = message[:65536]
     prefix = 'LearnStack.Tests.Integration.Database.'
@@ -1594,7 +1600,10 @@ class ExecutionProgress:
         self.path, self.assembly, self.stream = path, assembly, stream
         self.expected = {key(case) for case in expected}
         require(len(self.expected) == len(expected), 'duplicate_discovery_identity')
+        self.expected_cases = {key(case): {name: case[name] for name in ('assembly', 'id', 'name')}
+                               for case in expected}
         self.seen, self.outcomes = set(), Counter()
+        self.start_observation, self.started_without_result = 'unavailable', set()
         self.offset, self.pending, self.completed = 0, b'', False
         self.backup = path.with_name(path.stem + '.bak' + path.suffix)
         require(not os.path.lexists(self.backup), 'execution_diagnostic_changed')
@@ -1628,9 +1637,40 @@ class ExecutionProgress:
         for line in lines:
             self.line(line)
 
+    def observe_starts(self, payload):
+        # VSTest 17.12 TestRunCache.SendResults clears its start buffer after
+        # each StatsChange. ActiveTests is therefore a delta, not a snapshot.
+        # xUnit's collection/class fixture setup and teardown have no case start.
+        # These observations never contribute to results, completion or ownership.
+        starts = payload.get('ActiveTests')
+        if starts is None or self.start_observation == 'invalid':
+            return
+        try:
+            require(isinstance(starts, list) and len(starts) <= len(self.expected),
+                    'execution_start_observation_invalid')
+            identities = {key(case_identity(raw, self.assembly)) for raw in starts}
+            require(identities <= self.expected, 'execution_start_observation_invalid')
+        except (Refusal, TypeError, ValueError):
+            # Optional diagnostics can become unknown, but cannot admit foreign
+            # identities/provider text or alter the authoritative result parser.
+            self.start_observation = 'invalid'
+            self.started_without_result.clear()
+            return
+        self.start_observation = 'observed'
+        self.started_without_result.update(identities - self.seen)
+
+    def execution_diagnostics(self):
+        # Bounded by the selected population; export only discovery-bound values.
+        # An empty observed list does not establish that fixtures have completed.
+        return {'status': self.start_observation,
+                'startedWithoutResult': ([self.expected_cases[identity]
+                    for identity in sorted(self.started_without_result)]
+                    if self.start_observation == 'observed' else None)}
+
     def results(self, payload):
         require(isinstance(payload, dict) and isinstance(payload.get('NewTestResults'), list),
                 'execution_protocol_invalid')
+        self.observe_starts(payload)
         for raw in payload['NewTestResults']:
             require(isinstance(raw, dict), 'execution_case_invalid')
             case = case_identity(raw.get('TestCase'), self.assembly)
@@ -1678,6 +1718,7 @@ class ExecutionProgress:
             self.stream.flush()
             print(value, flush=True)
             self.seen.add(identity)
+            self.started_without_result.discard(identity)
             self.outcomes[outcome] += 1
 
     def line(self, line):
@@ -2013,6 +2054,7 @@ def shard_workload(mode, context, private, output, deadline, work):
                     progress.close()
                     item['failureLocations'] = progress.failure_locations
                     item['successObservations'] = progress.success_observations
+                    item['executionDiagnostics'] = progress.execution_diagnostics()
                     item['testProcessSeconds'] = round(time.monotonic() - began, 3)
                     if progress.first_result_at is not None:
                         item['firstResultSeconds'] = round(progress.first_result_at - began, 3)

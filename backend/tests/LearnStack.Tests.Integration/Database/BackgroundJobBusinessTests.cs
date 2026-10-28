@@ -18,6 +18,7 @@ using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Messaging;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Time;
@@ -53,7 +54,7 @@ public sealed partial class BackgroundJobBusinessTests(SchemaFixture schema)
         {
             await using var owner = await PostgresFixture.OpenAsync(database.MigrationConnectionString);
             await SchemaQueries.ExecuteAsync(owner, null,
-                "ALTER TABLE audit_log ADD CONSTRAINT reject_job_business_audit CHECK (operation <> 'tenancy.organization.create')");
+                "ALTER TABLE audit_log ADD CONSTRAINT reject_job_business_audit CHECK (operation <> 'jobfixture.organization.create')");
         }
         var incoming = Guid.CreateVersion7();
         var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString,
@@ -88,7 +89,7 @@ public sealed partial class BackgroundJobBusinessTests(SchemaFixture schema)
             context.UserId.Should().Be(UserId.SystemActor);
             context.CausalActorUserId.Should().Be(UserId.From(BackgroundJobRuntimeFixture.Human));
             (await BackgroundJobRuntimeRows.ScalarInUnitAsync(unit, "SELECT current_user")).Should().Be("learnstack_app");
-            (await services.GetRequiredService<ISender>().Send(new CreateOrganizationCommand(
+            (await services.GetRequiredService<ISender>().Send(Fixture.OrganizationRequest(
                 OrganizationId.From(business), "job-business-" + business.ToString("N")[..12], "Job business"), cancellation))
                 .IsSuccess.Should().BeTrue();
             child = await Fixture.EnqueueAsync(services);
@@ -158,7 +159,7 @@ public sealed partial class BackgroundJobBusinessTests(SchemaFixture schema)
             count.Parameters.AddWithValue("id", outgoing);
             ((long)(await count.ExecuteScalarAsync())!).Should().Be(success ? 1 : 0);
         }
-        await using var audit = new NpgsqlCommand("SELECT outcome, actor_user_id, metadata FROM audit_log WHERE entity_id=@id AND operation='tenancy.organization.create'",
+        await using var audit = new NpgsqlCommand("SELECT outcome, actor_user_id, metadata FROM audit_log WHERE entity_id=@id AND operation='jobfixture.organization.create'",
             (NpgsqlConnection)read, (NpgsqlTransaction)tx);
         audit.Parameters.AddWithValue("id", business.ToString());
         await using var reader = await audit.ExecuteReaderAsync();
@@ -230,7 +231,9 @@ public sealed partial class BackgroundJobBusinessTests(SchemaFixture schema)
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await BackgroundJobSchemaSeed.SeedTenantsAsync(database.AppConnectionString);
-        var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString);
+        var trace = ActivityTraceId.CreateRandom();
+        var job = await BackgroundJobRuntimeRows.InsertAsync(database.AppConnectionString,
+            traceparent: $"00-{trace}-{ActivitySpanId.CreateRandom()}-01");
         var probe = new BackgroundJobFixtureProbe();
         await using var host = Fixture.Host(database, probe);
         var admission = await AdmitAsync(host.Services, job);
@@ -250,7 +253,24 @@ public sealed partial class BackgroundJobBusinessTests(SchemaFixture schema)
                         ownership_token=NULL, ownership_kind=NULL, ownership_until=NULL WHERE id=@id
                     """, ("id", job.Value));
         }
+        var preflightReads = 0;
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == "Npgsql",
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
+            ActivityStopped = activity =>
+            {
+                if (activity.TraceId == trace && activity.GetTagItem("db.query.text") is string sql
+                    && sql.StartsWith("SELECT ", StringComparison.Ordinal)
+                    && sql.Contains(" FROM background_jobs WHERE ", StringComparison.Ordinal)
+                    && sql.Contains("ownership_until > clock_timestamp()", StringComparison.Ordinal)
+                    && sql.Contains("current_attempt_id = @attempt", StringComparison.Ordinal))
+                    Interlocked.Increment(ref preflightReads);
+            },
+        };
+        ActivitySource.AddActivityListener(listener);
         var result = await host.Services.GetRequiredService<JobExecutor>().ExecuteBusinessAsync(admission.Receipt!, admission.Receipt!.Run.OpenBoundary(BackgroundJobCheckpointKind.Transactional));
+        preflightReads.Should().Be(1, "the negative must reach the actual app-role preflight SELECT, not an unclassified-request refusal");
         result.CommitAcknowledged.Should().BeFalse();
         result.KnownRollback.Should().BeTrue();
         probe.Constructions.Should().BeEmpty("the unlocked preflight precedes MediatR handler construction");
@@ -272,6 +292,16 @@ public sealed partial class BackgroundJobBusinessTests(SchemaFixture schema)
             if (request == "Nested") { nested++; return Result.Ok(None.Value); }
             var unit = services.GetRequiredService<IUnitOfWork>();
             var physical = unit.Transaction;
+            var rejectedOrganization = OrganizationId.From(Guid.CreateVersion7());
+            var catalog = services.GetRequiredService<IOperationPolicyCatalog>();
+            catalog.TryGet(typeof(CreateOrganizationCommand), out var seedPolicy).Should().BeTrue();
+            seedPolicy.AllowedSources.Should().Equal(AuthorizationSourceKind.Seed);
+            (await services.GetRequiredService<ISender>().Send(new CreateOrganizationCommand(
+                rejectedOrganization, "seed-only-job-control", "Must remain seed-only"), _)).Error!.Code.Should().Be("forbidden");
+            services.GetRequiredService<TenancyDbContext>().Organizations.Local.Should()
+                .NotContain(organization => organization.Id == rejectedOrganization);
+            (await BackgroundJobRuntimeRows.CountOrganizationAsync(database.AppConnectionString, rejectedOrganization.Value)).Should().Be(0);
+            unit.Transaction.Should().BeSameAs(physical);
             var construct = false;
             var direct = () => services.GetRequiredService<TransactionExecutionCoordinator>().ExecuteAsync(null,
                 TransactionMode.ReadWrite, "direct-borrow", () => { construct = true; return Task.FromResult(Result.Ok(None.Value)); });

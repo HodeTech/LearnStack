@@ -1,3 +1,4 @@
+using System.Text.Json;
 using FluentAssertions;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Identity.Application.Contracts.Bindings;
@@ -5,6 +6,7 @@ using LearnStack.Modules.Identity.Application.Contracts.Seeding;
 using LearnStack.Modules.Identity.Infrastructure.Bindings;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Identity;
+using LearnStack.SharedKernel.Permissions;
 using LearnStack.Tools.Seeder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
@@ -44,6 +46,58 @@ internal sealed class IdentityPublicReadFixture : PublicReadFixture
         }
     }
 
+    internal static async Task<IdentityPublicReadFixture> CreateWithMembershipsAsync(PublicReadFixture parent,
+        string issuer, IReadOnlyDictionary<UserId, string> subjects)
+    {
+        var fixture = await CreateAsync(parent, issuer, subjects);
+        try
+        {
+            await fixture.SeedHttpFoundationAsync();
+            foreach (var actor in subjects.Keys)
+                foreach (var tenant in SeedData.All)
+                    await fixture.AddMembershipAsync(tenant, actor);
+            return fixture;
+        }
+        catch { await fixture.DisposeAsync(); throw; }
+    }
+
+    internal static string FoundationSubject(UserId actor) => "http-foundation-" + actor.Value.ToString("N");
+
+    internal async Task SeedHttpFoundationAsync()
+    {
+        await using var input = new MemoryStream(JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            version = 1,
+            issuer = Registration.Issuer,
+            users = SeedData.IdentityUsers.Select(person => new
+            {
+                actorId = person.UserId.Value,
+                opaqueSub = FoundationSubject(person.UserId),
+            }),
+        }));
+        await SeedFoundationAsync(await SeedProviderWitness.ReadAsync(input, Registration));
+    }
+
+    internal async Task<Guid> AddMembershipAsync(SeedTenant tenant, UserId actor,
+        OrganizationId? organization = null, BuiltInRoleKey role = BuiltInRoleKey.Learner,
+        string? displayName = "HTTP contextual profile")
+    {
+        var membership = Guid.CreateVersion7();
+        var permissionScope = organization is null ? PermissionScope.Tenant : PermissionScope.Organization;
+        var roleId = SeedData.IdentityRoles.Single(value => value.Tenant == tenant
+            && value.BuiltInKey == role && value.Scope == permissionScope).RoleId;
+        await using var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(AppConnectionString);
+        await SchemaQueries.AssertApplicationRoleAsync(app);
+        await using var transaction = await app.BeginTransactionAsync();
+        await IdentityMembershipFixture.ScopeAsync(app, transaction, tenant.TenantId.Value, organization?.Value);
+        await IdentityMembershipFixture.LockAsync(app, transaction, tenant.TenantId.Value, actor.Value,
+            role == BuiltInRoleKey.TenantAdmin);
+        await IdentityMembershipFixture.InsertMemberAsync(app, transaction, tenant.TenantId.Value,
+            organization?.Value, membership, actor.Value, roleId, displayName);
+        await transaction.CommitAsync();
+        return membership;
+    }
+
     internal async Task SeedFoundationAsync(SeedProviderWitness witness)
     {
         await using var source = ApplicationDataSource.Build(AppConnectionString);
@@ -81,6 +135,8 @@ internal sealed class IdentityPublicReadFixture : PublicReadFixture
     protected override void ConfigureTestHost(IWebHostBuilder builder)
     {
         base.ConfigureTestHost(builder);
+        builder.UseSetting("ConnectionStrings:IdentityAuthorization", AppConnectionString);
+        builder.UseSetting("ConnectionStrings:AuthorizationEvidence", AppConnectionString);
         builder.UseSetting("Identity:AuthorityId", Registration.AuthorityId.Value.ToString("D"));
         builder.UseSetting("Authentication:Tenant:Issuer", Registration.Issuer);
     }

@@ -20,6 +20,11 @@ public sealed partial class OutboxDispatchConventionTests
     private const string LifecycleScope = "LearnStack.SharedKernel.Persistence.IUnitOfWorkScope";
     private const string LifecycleAdapter = "LearnStack.Infrastructure.Persistence.NpgsqlUnitOfWork";
     private const string LifecycleFrame = LifecycleAdapter + "/Frame";
+    private const string LifecycleAuthorizationOwner = "LearnStack.Infrastructure.Persistence.AuthorizationReadOwner";
+    private const string LifecycleAuthorizationView = LifecycleAuthorizationOwner + "/ConfinedUnit";
+    private const string LifecycleEvidenceOwner = "LearnStack.Infrastructure.Persistence.AuthorizationEvidenceSession";
+    private const string LifecycleEvidenceView = LifecycleEvidenceOwner + "/ConfinedUnit";
+    private const string LifecycleReadWitness = "LearnStack.SharedKernel.Permissions.OperationReadWitness";
     private const string LifecycleGlobalPrepared = DeliveryCoordinator + "/PreparedGlobalIdentityOwner";
     private const string LifecycleIdentityAssembly = "LearnStack.Modules.Identity.Infrastructure";
     private const string LifecycleIdentityBindings = "LearnStack.Modules.Identity.Infrastructure.Bindings.";
@@ -58,6 +63,7 @@ public sealed partial class OutboxDispatchConventionTests
             var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
             var capabilities = new[] { unit, adapter }.SelectMany(type => type.Methods.Where(method =>
                     method.Name is "BeginTransactionAsync" or "CommitAsync" or "RollbackAsync" or "SetTenantContextAsync"))
+                .Concat(adapter.Methods.Where(method => method.Name == "SetTenantContextCoreAsync"))
                 .Concat(new[] { scope, frame }.SelectMany(type => type.Methods.Where(method => method.Name is "CompleteAsync" or "FailAsync")))
                 .Concat(frame.Methods.Where(method => method.Name == "FailOwnedAsync"))
                 .Cast<MethodReference>().Concat(new[] { typeof(DbTransaction), typeof(IDbTransaction), typeof(NpgsqlTransaction),
@@ -135,6 +141,10 @@ public sealed partial class OutboxDispatchConventionTests
                              new[] { "Npgsql.NpgsqlConnection", LifecycleIdentityBindings + "IdentityAuthorityRegistration", BoundaryCancellation }, "database.CommitAsync"),
                          (LifecycleIdentityAssembly, LifecycleIdentityBindings + "IdentityAuthorityQualification", "QualifyCoreAsync",
                              new[] { BoundaryCancellation }, "database.CommitAsync"),
+                         (InfrastructureAssembly, LifecycleAuthorizationOwner, "CompleteAsync",
+                             Array.Empty<string>(), "database.CommitAsync"),
+                         (InfrastructureAssembly, LifecycleEvidenceOwner, "CompleteAsync",
+                             Array.Empty<string>(), "database.CommitAsync"),
                          (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "CommitAsync",
                              new[] { "LearnStack.Infrastructure.Jobs.BackgroundJobControlResources", BoundaryCancellation }, "database.CommitAsync"),
                          (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobTerminalStore", "CommitAsync",
@@ -166,6 +176,35 @@ public sealed partial class OutboxDispatchConventionTests
             foreach (var announcement in announcements)
                 AssertMutation(census, "a missing real tenant announcement site", () =>
                     ReplaceInstruction(announcement, OpCodes.Ldstr, "missing tenant announcement"), IntegrationLifecycleOffenders);
+            var readAnnouncements = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
+                .Where(instruction => instruction.Operand is MethodReference target
+                    && IntegrationLifecycleCapability(target, types) is "unit.announce-wide" or "owned-unit.announce").ToArray();
+            readAnnouncements.Should().HaveCount(3, "the common owner has one witness announcement and both fixed public overloads share one private core");
+            foreach (var announcement in readAnnouncements)
+            {
+                AssertMutation(census, "a missing actual operation read announcement path", () =>
+                    ReplaceInstruction(announcement, OpCodes.Nop, null!), IntegrationLifecycleOffenders);
+                AssertMutation(census, "a delegated actual operation read announcement path", () =>
+                    ReplaceInstruction(announcement, OpCodes.Ldftn, announcement.Operand), IntegrationLifecycleOffenders);
+            }
+            var defaultWitness = unit.Methods.Single(method => method.Name == "SetTenantContextAsync" && method.Parameters.Count == 3);
+            var defaultThrow = defaultWitness.Body.Instructions.Single(instruction => instruction.OpCode == OpCodes.Throw);
+            AssertMutation(census, "a witness-capable fallback on units without a physical binder", () =>
+                ReplaceInstruction(defaultThrow, OpCodes.Ret, null!), IntegrationLifecycleOffenders);
+            foreach (var view in new[] { LifecycleAuthorizationView, LifecycleEvidenceView })
+            {
+                var confined = types[(InfrastructureAssembly, view)];
+                AssertMutation(census, "a witness override on a confined child", () =>
+                {
+                    var overload = new MethodDefinition("SetTenantContextAsync", Mono.Cecil.MethodAttributes.Public, defaultWitness.ReturnType);
+                    foreach (var parameter in defaultWitness.Parameters)
+                        overload.Parameters.Add(new ParameterDefinition(parameter.ParameterType));
+                    overload.Body.Instructions.Add(Instruction.Create(OpCodes.Ldnull));
+                    overload.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+                    confined.Methods.Add(overload);
+                    return () => confined.Methods.Remove(overload);
+                }, IntegrationLifecycleOffenders);
+            }
             var clean = AddProbe(application, "CleanIntegrationLifecycleObserver");
             foreach (var method in unit.Methods.Where(method => method.IsGetter || method.Name == "MarkRollbackOnly")
                          .Concat(scope.Methods.Where(method => method.IsGetter)))
@@ -200,14 +239,22 @@ public sealed partial class OutboxDispatchConventionTests
         CheckSet(offenders, "lifecycle production assemblies", census.Modules.Select(module => module.Assembly.Name.Name), ProductionAssemblies.Names());
         var types = census.Types;
         foreach (var subject in new[] { (KernelAssembly, LifecycleUnit), (KernelAssembly, LifecycleScope),
-                     (InfrastructureAssembly, LifecycleAdapter), (InfrastructureAssembly, LifecycleFrame) })
+                     (InfrastructureAssembly, LifecycleAdapter), (InfrastructureAssembly, LifecycleFrame),
+                     (InfrastructureAssembly, LifecycleAuthorizationView), (InfrastructureAssembly, LifecycleEvidenceView) })
             if (!types.ContainsKey(subject)) offenders.Add("Missing lifecycle subject: " + subject.Item2);
         if (offenders.Count != 0) return offenders;
         var unit = types[(KernelAssembly, LifecycleUnit)];
         var scope = types[(KernelAssembly, LifecycleScope)];
         var adapter = types[(InfrastructureAssembly, LifecycleAdapter)];
         var frame = types[(InfrastructureAssembly, LifecycleFrame)];
-        CheckSet(offenders, "unit lifecycle implementations", types.Values.Where(type => !type.IsInterface && Derives(type, unit, types)).Select(TypeId), [TypeId(adapter)]);
+        var confined = types[(InfrastructureAssembly, LifecycleAuthorizationView)];
+        var evidenceView = types[(InfrastructureAssembly, LifecycleEvidenceView)];
+        CheckSet(offenders, "unit lifecycle implementations", types.Values.Where(type => !type.IsInterface && Derives(type, unit, types)).Select(TypeId),
+            [TypeId(adapter), TypeId(confined), TypeId(evidenceView)]);
+        foreach (var view in new[] { confined, evidenceView })
+            if (!view.IsSealed || !view.IsNestedPrivate
+                || view.Methods.Any(method => method.Name == "SetTenantContextAsync" && method.Parameters.Count != 2))
+                offenders.Add("The confined child retains its closed narrow-only unit view and inherits witness refusal: " + view.FullName);
         CheckSet(offenders, "frame lifecycle implementations", types.Values.Where(type => !type.IsInterface && Derives(type, scope, types)).Select(TypeId), [TypeId(frame)]);
         if (!adapter.IsSealed || !frame.IsSealed || !frame.IsNestedPrivate) offenders.Add("The unit adapter and its private frame must remain sealed");
         var ownedFailures = frame.Methods.Where(method => method.Name == "FailOwnedAsync").ToArray();
@@ -222,8 +269,27 @@ public sealed partial class OutboxDispatchConventionTests
             CheckLifecycleDeclarations(type, "CommitAsync", LifecycleTask, [[BoundaryCancellation]]);
             CheckLifecycleDeclarations(type, "RollbackAsync", LifecycleTask, [[BoundaryCancellation]]);
             CheckLifecycleDeclarations(type, "SetTenantContextAsync", LifecycleTask,
-                [["LearnStack.SharedKernel.Tenancy.ITenantContext", BoundaryCancellation]]);
+                [["LearnStack.SharedKernel.Tenancy.ITenantContext", BoundaryCancellation],
+                 ["LearnStack.SharedKernel.Tenancy.ITenantContext", LifecycleReadWitness, BoundaryCancellation]]);
         }
+        var core = adapter.Methods.Where(method => method.Name == "SetTenantContextCoreAsync").ToArray();
+        if (core.Length != 1 || !core[0].IsPrivate || core[0].IsStatic || core[0].HasGenericParameters
+            || core[0].ReturnType.FullName != LifecycleTask || !ParametersMatch(core[0],
+                ["LearnStack.SharedKernel.Tenancy.ITenantContext", LifecycleReadWitness, "System.Boolean", BoundaryCancellation]))
+            offenders.Add("The ordinary tenant setter retains one private witness-aware core");
+        var defaultWide = unit.Methods.Where(method => method.Name == "SetTenantContextAsync"
+            && ParametersMatch(method, ["LearnStack.SharedKernel.Tenancy.ITenantContext", LifecycleReadWitness, BoundaryCancellation])).ToArray();
+        if (defaultWide.Length != 1 || !defaultWide[0].HasBody
+            || !defaultWide[0].Body.Instructions.Where(instruction => instruction.OpCode != OpCodes.Nop).Select(instruction => instruction.OpCode.Code)
+                .SequenceEqual([Code.Ldstr, Code.Newobj, Code.Throw])
+            || defaultWide[0].Body.Instructions.Count(instruction => instruction.Operand is MethodReference target
+                && target.DeclaringType.FullName == "System.InvalidOperationException" && target.Name == ".ctor") != 1)
+            offenders.Add("Units without the physical read binding capability default-deny the witness overload");
+        foreach (var instruction in OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
+                     .Where(instruction => instruction.Operand is MethodReference target
+                         && IntegrationLifecycleCapability(target, types) is "unit.announce" or "unit.announce-wide" or "owned-unit.announce"))
+            if (instruction.OpCode != OpCodes.Call && instruction.OpCode != OpCodes.Callvirt)
+                offenders.Add("A tenant announcement cannot escape its actual caller as a delegate");
         foreach (var type in new[] { scope, frame })
         {
             CheckLifecycleDeclarations(type, "CompleteAsync", LifecycleTask, [[BoundaryCancellation]]);
@@ -255,6 +321,11 @@ public sealed partial class OutboxDispatchConventionTests
             ["unit.rollback"] = [],
             ["unit.announce"] = [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"),
                 Owner(DeliveryApplication, DeliveryPrepared, "CreateAsync"), Owner(InfrastructureAssembly, LifecycleAcceptance, "AcceptAsync")],
+            ["unit.announce-wide"] = [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync")],
+            ["owned-unit.announce"] = [Owner(InfrastructureAssembly, LifecycleAdapter, "SetTenantContextAsync",
+                ["LearnStack.SharedKernel.Tenancy.ITenantContext", BoundaryCancellation]),
+                Owner(InfrastructureAssembly, LifecycleAdapter, "SetTenantContextAsync",
+                ["LearnStack.SharedKernel.Tenancy.ITenantContext", LifecycleReadWitness, BoundaryCancellation])],
             ["scope.complete"] = [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"), Owner(InfrastructureAssembly, LifecycleAcceptance, "AcceptAsync"),
                 Owner(DeliveryApplication, LifecycleGlobalPrepared, "CompleteExistingAsync"),
                 Owner(LifecycleIdentityAssembly, LifecycleIdentityBindings + "GlobalIdentityBindingService", "ResolveExistingAsync")],
@@ -266,6 +337,8 @@ public sealed partial class OutboxDispatchConventionTests
             ["database.CommitAsync"] =
             [
                 Owner(InfrastructureAssembly, LifecycleAdapter, "CommitFrameAsync"),
+                Owner(InfrastructureAssembly, LifecycleAuthorizationOwner, "CompleteAsync"),
+                Owner(InfrastructureAssembly, LifecycleEvidenceOwner, "CompleteAsync"),
                 Owner(InfrastructureAssembly, Store, "AcquireAsync"), Owner(InfrastructureAssembly, Store, "TryTerminalizeAsync"),
                 Owner(InfrastructureAssembly, DeliveryStore, "AcquireAsync"), Owner(InfrastructureAssembly, DeliveryStore, "UpdateAsync"),
                 Owner(InfrastructureAssembly, DeliveryStore, "TryTerminalizeAsync"), Owner(InfrastructureAssembly, DeliveryStore, "ReplayAsync"),
@@ -336,6 +409,9 @@ public sealed partial class OutboxDispatchConventionTests
     {
         var name = target.Name[(target.Name.LastIndexOf('.') + 1)..];
         var cancellation = ParametersMatch(target, [BoundaryCancellation]);
+        if (target.DeclaringType.FullName == LifecycleAdapter && name == "SetTenantContextCoreAsync")
+            return ParametersMatch(target, ["LearnStack.SharedKernel.Tenancy.ITenantContext", LifecycleReadWitness, "System.Boolean", BoundaryCancellation])
+                && target.ReturnType.FullName == LifecycleTask ? "owned-unit.announce" : "invalid-owned-unit-announce";
         if (types.TryGetValue((InfrastructureAssembly, LifecycleFrame), out var frame)
             && SameType(target.DeclaringType, frame) && name == "FailOwnedAsync")
             return target.Parameters.Count == 0 && target.ReturnType.FullName == LifecycleTask
@@ -351,6 +427,8 @@ public sealed partial class OutboxDispatchConventionTests
                 "RollbackAsync" when cancellation && target.ReturnType.FullName == LifecycleTask => "unit.rollback",
                 "SetTenantContextAsync" when ParametersMatch(target, ["LearnStack.SharedKernel.Tenancy.ITenantContext", BoundaryCancellation])
                     && target.ReturnType.FullName == LifecycleTask => "unit.announce",
+                "SetTenantContextAsync" when ParametersMatch(target, ["LearnStack.SharedKernel.Tenancy.ITenantContext", LifecycleReadWitness, BoundaryCancellation])
+                    && target.ReturnType.FullName == LifecycleTask => "unit.announce-wide",
                 "BeginTransactionAsync" or "CommitAsync" or "RollbackAsync" or "SetTenantContextAsync" => "invalid-unit",
                 _ => null,
             };

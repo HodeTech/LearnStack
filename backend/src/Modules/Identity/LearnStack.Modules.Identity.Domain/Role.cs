@@ -43,6 +43,35 @@ public sealed class Role : AuditableEntity<RoleId>, IAggregateRoot<RoleId>, ITen
         && PermissionScope == PermissionScope.Tenant
         && IdentityFoundationManifest.Version1.TenantAdminKernel.All(definition =>
             _grants.Any(grant => grant.PermissionScope == definition.Scope && grant.PermissionKey == definition.Key));
+
+    public bool CanReplaceGrants(IReadOnlyCollection<PermissionDefinition> definitions)
+    {
+        ArgumentNullException.ThrowIfNull(definitions);
+        var manifest = IdentityFoundationManifest.Version1;
+        return !IsDeleted && manifest.FindTemplate(BuiltInKey, PermissionScope) is not null
+            && definitions.Count <= manifest.Definitions.Length
+            && definitions.All(definition => definition is { IsActive: true }
+                && definition.Scope == PermissionScope && manifest.IsActive(definition.Scope, definition.Key)
+                && (definition.Key != IdentityFoundationManifest.RoleAdmin || BuiltInKey == BuiltInRoleKey.TenantAdmin))
+            && definitions.Distinct().Count() == definitions.Count
+            && (BuiltInKey != BuiltInRoleKey.TenantAdmin || IsTenantAdministrator
+                && manifest.TenantAdminKernel.All(definition => definitions.Contains(definition)));
+    }
+
+    /// <summary>Retains unchanged grant instances so EF tracks only the actual contained additions/removals.</summary>
+    public Result<None> ReplaceGrants(IReadOnlyCollection<PermissionDefinition> definitions, DateTimeOffset at, UserId actor)
+    {
+        if (!CanReplaceGrants(definitions)) return IdentityFailures.BusinessRule();
+        if (_grants.Count == definitions.Count && definitions.All(definition => _grants.Any(grant =>
+            grant.PermissionScope == definition.Scope && grant.PermissionKey == definition.Key)))
+            return Result<None>.Ok(None.Value);
+        MarkUpdated(at, actor);
+        _grants.RemoveAll(grant => !definitions.Any(definition => definition.Scope == grant.PermissionScope && definition.Key == grant.PermissionKey));
+        foreach (var definition in definitions)
+            if (!_grants.Any(grant => grant.PermissionScope == definition.Scope && grant.PermissionKey == definition.Key))
+                _grants.Add(new RolePermissionGrant(this, definition));
+        return Result<None>.Ok(None.Value);
+    }
 }
 
 [TenantOwned]

@@ -27,6 +27,12 @@ export function publicDemoChildExited(child: {
   exitCode: number | null;
   signalCode: string | null;
 }): boolean;
+export function waitForPublicDemoBrowserPort(options: {
+  readonly assertActive: () => void;
+  readonly readPort: () => unknown;
+  readonly signal?: AbortSignal;
+  readonly timeout?: number;
+}): Promise<number>;
 export function publicDemoFailure(
   stage: unknown,
   error: unknown,

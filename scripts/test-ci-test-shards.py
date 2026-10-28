@@ -103,7 +103,20 @@ class ShardControls(unittest.TestCase):
                       self.plan['sharedFixtureClasses'])
         for name in ('LearnStack.Tests.Integration.ApiHandlerCompositionTests',
                      'LearnStack.Tests.Integration.Database.PublicSiteHttpTests',
-                     'LearnStack.Tests.Integration.Database.HangfireStorageTests'):
+                     'LearnStack.Tests.Integration.Database.HangfireStorageTests',
+                     'LearnStack.Tests.Integration.Database.AuthorizationEvidenceBarrierTests',
+                     'LearnStack.Tests.Integration.Database.AuthorizationEvidenceSourceTests',
+                     'LearnStack.Tests.Integration.Database.AuthorizationEvidenceStoreTests',
+                     'LearnStack.Tests.Integration.Database.AuthorizationPoolProgressTests',
+                     'LearnStack.Tests.Integration.Database.AuthorizationReadSourceTests',
+                     'LearnStack.Tests.Integration.Database.DatabaseQualificationProofTests',
+                     'LearnStack.Tests.Integration.Database.IdentityAuthorizationHttpTests',
+                     'LearnStack.Tests.Integration.Database.IdentityAuthorizationReaderTests',
+                     'LearnStack.Tests.Integration.Database.MembershipDirectoryIntegrationTests',
+                     'LearnStack.Tests.Integration.Database.MembershipDirectoryPipelineTests',
+                     'LearnStack.Tests.Integration.Database.OperationReadScopeTests',
+                     'LearnStack.Tests.Integration.Database.RoleGrantCommandIntegrationTests',
+                     'LearnStack.Tests.Integration.Database.SeedAuthorizationActivationTests'):
             self.assertIn(name, self.plan['sharedFixtureClasses'])
 
     def test_fixture_census_binds_qualified_collections_and_other_explicit_class_fixtures(self):
@@ -126,6 +139,8 @@ public sealed class Qualified { }
 [global::Xunit.CollectionAttribute(global::Example.Database.PublicReadTestGroup.Name)]
 public sealed class OtherCollection { }
 public sealed class OtherFixture(SchemaFixture fixture) : Xunit.IClassFixture<SchemaFixture> { }
+[Collection(Database.SharedSchema.Name)]
+public sealed partial class SplitTests(SchemaFixture fixture) { }
 [Collection(WithoutFixture.Name)]
 public sealed class NoFixtureCollection { }
 public sealed class UnrelatedAfterCollection { }
@@ -137,7 +152,14 @@ public sealed class LiteralHolder
 """;
 }
 ''')
-            self.assertEqual(['Example.OtherCollection', 'Example.OtherFixture', 'Example.Qualified'],
+            # Current HTTP/pool proofs declare their fixture once and keep other
+            # partial bodies in separate source files; those bodies neither lose
+            # the fixture-bearing declaration nor invent another observation.
+            (source / 'Tests.Continuation.cs').write_text('''namespace Example;
+public sealed partial class SplitTests { }
+''')
+            self.assertEqual(['Example.OtherCollection', 'Example.OtherFixture', 'Example.Qualified',
+                              'Example.SplitTests'],
                              OWNER.fixture_class_census(root))
 
     def test_fixture_census_refuses_unknown_unsupported_and_ambiguous_forms(self):

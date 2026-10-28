@@ -270,6 +270,25 @@ the same stable ID and exact issuer across reruns; an installed conflicting
 registration is never overwritten. Direct `make migrate` can still apply schema
 only when both values are absent; combined identity seeding requires them.
 
+Both content and identity-foundation Seeder children qualify the installed
+authority before application dispatch. The seed/demo runtime environment helper
+passes the selected Default and coupled authorization/evidence strings plus the
+authority pair; it selects the existing `Deployment__Mode=Development` for its
+owned direct-PostgreSQL local stack. Restore/build and credential-free manifest
+children retain only process prerequisites. No provider-admin, migration,
+platform or dispatcher credential is passed to either runtime child.
+
+The CLI owns one two-slot evidence source for the run, checks its actual database
+against the qualified business source and shares it across per-act providers.
+It never creates a pool per command or installs an authority anchor. Direct CLI
+use requires the authority pair and both auxiliary strings unless explicit
+Development permits the supported direct-PostgreSQL derivation; PgBouncer still
+requires the explicit pair and separate backend reservations. Follow
+[the source topology contract](../../docs/standards/12-infrastructure.md#authorization-and-evidence-topology).
+Startup configuration/qualification refusals emit fixed diagnostics without
+provider details. Finite seed authority and its denial-evidence barrier grant no
+human capability, HTTP route or production topology qualification.
+
 An older private environment must add `KEYCLOAK_WEB_CLIENT_SECRET` explicitly
 before either combined entry starts stack or database work. Do not wipe the
 provider database to upgrade. The tool reports fixed refusal reasons, keeps

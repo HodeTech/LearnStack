@@ -15,7 +15,7 @@ internal static class TenantAuthenticationPipelineProof
         "UseLearnStackRequestBodyLimit", "UseLearnStackHostClassification", "UseAuthentication",
         "UseLearnStackTenantCredentialAdmission", "UseLearnStackTenantSubjectAdmission",
         "UseLearnStackTenantIdentityBindingAdmission",
-        "UseLearnStackTenantResolution", "UseLearnStackTenantAssertions", "UseAuthorization",
+        "UseLearnStackTenantResolution", "UseLearnStackTenantAssertions", "UseLearnStackOperationClassification", "UseAuthorization",
         "UseLearnStackTenantSurfaceAdmission", "MapControllers", "Run"
     ];
 
@@ -35,6 +35,7 @@ internal static class TenantAuthenticationPipelineProof
         ["UseLearnStackTenantIdentityBindingAdmission"] = ["UseMiddleware<TenantIdentityBindingAdmissionMiddleware>"],
         ["UseLearnStackTenantResolution"] = ["UseMiddleware<TenantResolverMiddleware>"],
         ["UseLearnStackTenantAssertions"] = ["UseMiddleware<TenantAssertionMiddleware>"],
+        ["UseLearnStackOperationClassification"] = ["UseMiddleware<OperationClassificationMiddleware>"],
         ["UseLearnStackTenantSurfaceAdmission"] = ["UseMiddleware<TenantSurfaceAdmissionMiddleware>"]
     };
 
@@ -64,6 +65,8 @@ internal static class TenantAuthenticationPipelineProof
                      ("UseLearnStackTenantIdentityBindingAdmission", "UseLearnStackTenantResolution"),
                      ("UseLearnStackTenantResolution", "UseLearnStackTenantAssertions"),
                      ("UseLearnStackTenantAssertions", "UseAuthorization"),
+                     ("UseLearnStackTenantAssertions", "UseLearnStackOperationClassification"),
+                     ("UseLearnStackOperationClassification", "UseAuthorization"),
                      ("UseLearnStackTenantSurfaceAdmission", "MapControllers")
                  })
         {

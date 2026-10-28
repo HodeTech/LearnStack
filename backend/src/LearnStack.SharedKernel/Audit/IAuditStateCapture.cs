@@ -85,6 +85,10 @@ public interface IAuditStateCapture
     /// <summary>Declares an intent in the common coordinator's innermost frame.</summary>
     void DeclareIntent(AuditIntent intent);
 
+    /// <summary>Attaches only the innermost actual frame's matching trusted authorization context.</summary>
+    void AttachAuthorization(AuthorizationAuditContext context) =>
+        throw new InvalidOperationException("This capture has no authorization attachment owner.");
+
     /// <summary>
     /// The rows are on the ambient transaction. <b>Not</b> durable — the transaction has
     /// not committed. <c>IAuditStore.WritePendingAsync</c>.

@@ -11,6 +11,7 @@ using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using MediatR;
@@ -33,6 +34,7 @@ public sealed class BackgroundJobCapacityCleanupTests
         var recovery = RecoveryFixture.Create();
         var owner = JobApplicationSourceOwner.Create();
         using var binding = owner.Enter();
+        using var operationSource = new BackgroundJobOperationSource();
         var command = new RecordBackgroundJobCapacityCleanupCommand(recovery, evidence, CheckpointGate());
         var catalog = BackgroundJobDefinitionRegistry.CreateEmpty();
         var admission = new BackgroundJobExecutionAdmission(catalog, catalog, new AuditCatalog([new BackgroundJobAuditCatalogSource()]));
@@ -74,6 +76,11 @@ public sealed class BackgroundJobCapacityCleanupTests
 
         var run = () => tenant.Handle(command, () => transactionBehavior.Handle(command, () =>
         {
+            var descriptor = operationSource.Capture(typeof(RecordBackgroundJobCapacityCleanupCommand), context);
+            descriptor.Should().NotBeNull();
+            descriptor!.SourceKind.Should().Be(AuthorizationSourceKind.BackgroundJob);
+            descriptor.IsActive.Should().BeTrue();
+            operationSource.Capture(typeof(ReadBackgroundJobEnvelopeQuery), context).Should().BeNull();
             command.RequireOwner(unit);
             var borrowed = () => command.RequireOwner(Substitute.For<IUnitOfWork>());
             borrowed.Should().Throw<InvalidOperationException>();

@@ -12,12 +12,13 @@ namespace LearnStack.Infrastructure.Persistence;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>It turns a silence into a failure, and it is not the isolation boundary.</b> With
+/// <b>It checks the live owner as well as the SQL announcement.</b> With
 /// <c>app.tenant_id</c> unset every Row Level Security predicate is <c>NULL</c>, so a
-/// tenant-owned read returns zero rows and a write is refused — fail-closed already. The
-/// problem is that it is quiet: the symptom reaching an operator is missing data, not a
-/// fault, and missing data gets investigated as a bug in the feature. Removing this
-/// interceptor removes a diagnostic, never a protection.
+/// tenant-owned read returns zero rows and a write is refused. This interceptor makes
+/// that missing announcement explicit. It also rejects an expired operation-bound
+/// read witness: its transaction can still carry <c>app.scope = 'tenant'</c> until
+/// cleanup. RLS enforces SQL scope; this guard additionally prevents retained EF
+/// commands from using scope whose invocation has ended.
 /// </para>
 /// <para>
 /// <b>Keyed on the transaction, not on the table.</b> Some corpus sentences describe it
@@ -107,7 +108,7 @@ public sealed class TenantContextGuardInterceptor : DbCommandInterceptor
         return base.ScalarExecutingAsync(command, eventData, result, cancellationToken);
     }
 
-    /// <summary>Throws unless a sanctioned setter announced this command's transaction.</summary>
+    /// <summary>Throws unless this command's transaction has a current sanctioned announcement and read scope.</summary>
     private void Guard(DbCommand command, DbContext? context)
     {
         if (_unitOfWork is IGlobalIdentityUnitOfWork { IsGlobalIdentityTransaction: true } global)
@@ -122,13 +123,10 @@ public sealed class TenantContextGuardInterceptor : DbCommandInterceptor
         }
 
         throw new TenantContextMissingException(
-            "A module DbContext issued a command on a transaction no sanctioned setter "
-            + "announced app.tenant_id on. Every Row Level Security predicate is NULL "
-            + "there, so this read would have returned zero rows and this write would "
-            + "have been refused — safely, and without saying so. The announcement is "
-            + "IUnitOfWork.SetTenantContextAsync, issued by TransactionBehavior as the "
-            + "first statement inside the ambient transaction at pipeline step 6; a "
-            + "command arriving here without it is on a transaction something else "
-            + "opened. See Security Standards § Tenant Context.");
+            "A module DbContext command has no current sanctioned transaction announcement "
+            + "or operation-bound read scope. IUnitOfWork.SetTenantContextAsync announces "
+            + "the physical owner at pipeline step 6; any tenant-wide read witness must "
+            + "also remain bound to its active invocation and owner generation. "
+            + "See Security Standards § Tenant Context.");
     }
 }

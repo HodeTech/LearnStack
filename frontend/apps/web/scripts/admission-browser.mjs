@@ -137,9 +137,11 @@ export function readBrowserDevToolsPort(path) {
   } catch (error) {
     return { kind: error?.code === 'ENOENT' ? 'missing' : 'unreadable' };
   }
-  const first = value.split('\n', 1)[0];
+  const separator = value.indexOf('\n');
+  const first = separator < 0 ? value : value.slice(0, separator);
   if (first.trim() === '') return { kind: 'empty' };
-  if (!/^[1-9][0-9]{0,4}$/.test(first) || Number(first) > 65535) return { kind: 'malformed' };
+  if (separator < 0 || !/^[1-9][0-9]{0,4}$/.test(first) || Number(first) > 65535)
+    return { kind: 'malformed' };
   return { kind: 'ready', port: Number(first) };
 }
 

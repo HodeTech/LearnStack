@@ -14,6 +14,8 @@ internal sealed class TenantAuthorizationResultHandler : IAuthorizationMiddlewar
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(authorizeResult);
+        if (!authorizeResult.Succeeded && context.Features.Get<OperationHttpRefusal>() is { } refusal)
+            return OperationClassificationMiddleware.RefuseAsync(context, refusal.Error);
         if (authorizeResult.Challenged
             && context.Features.Get<TenantCredentialFeature>()?.Identity is null
             && context.Features.Get<HostClassification>() is not null

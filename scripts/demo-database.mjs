@@ -69,6 +69,7 @@ function localConnectionFields(source) {
 
 /** Reject stale local credentials in the launcher without giving them to a child process. */
 export function validateDemoDatabaseConfiguration(values) {
+  authorizationSourceEnvironment(values);
   if (
     values === null ||
     values === undefined ||
@@ -99,6 +100,16 @@ export function validateDemoDatabaseConfiguration(values) {
   }
 }
 
+/** An explicitly selected auxiliary pair is complete and nonempty, or absent. */
+export function authorizationSourceEnvironment(values) {
+  const keys = ['ConnectionStrings__IdentityAuthorization', 'ConnectionStrings__AuthorizationEvidence'];
+  const supplied = keys.filter(key => values?.[key] !== undefined);
+  if (supplied.length !== 0 && (supplied.length !== keys.length
+      || supplied.some(key => typeof values[key] !== 'string' || !values[key].trim() || /[\r\n\0]/.test(values[key]))))
+    throw invalidConfiguration();
+  return Object.fromEntries(supplied.map(key => [key, values[key]]));
+}
+
 /** Every Seeder mode receives only its own credential and process prerequisites. */
 export function publicSeederEnvironment(applicationConnectionString, base = process.env) {
   const environment = {};
@@ -111,5 +122,20 @@ export function publicSeederEnvironment(applicationConnectionString, base = proc
     if (base[key] !== undefined) environment[key] = base[key];
   if (applicationConnectionString !== undefined)
     environment.ConnectionStrings__Default = applicationConnectionString;
+  return environment;
+}
+
+/** The owned local runtime receives its selected app-role lanes and installed authority. */
+export function developmentSeederRuntimeEnvironment(values, base = process.env) {
+  const environment = publicSeederEnvironment(undefined, base);
+  for (const key of ['ConnectionStrings__Default', 'Identity__AuthorityId', 'Authentication__Tenant__Issuer']) {
+    if (typeof values?.[key] !== 'string' || !values[key].trim() || /[\r\n\0]/.test(values[key]))
+      throw invalidConfiguration();
+    environment[key] = values[key];
+  }
+  Object.assign(environment, authorizationSourceEnvironment(values));
+  // These callers own the documented direct-PostgreSQL Development stack.
+  // PgBouncer still requires its explicit pair and independent backend reserves.
+  environment.Deployment__Mode = 'Development';
   return environment;
 }

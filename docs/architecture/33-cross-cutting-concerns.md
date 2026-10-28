@@ -8,6 +8,8 @@
 [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md),
 [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md),
 [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md),
+[ADR-0076](../decisions/0076-live-scoped-authorization.md),
+[ADR-0077](../decisions/0077-trusted-authorization-evidence.md),
 [ADR-0020](../decisions/0020-triple-deployment-hybrid-license.md). For the
 day-to-day rules read [09-error-handling.md](../standards/09-error-handling.md),
 [10-observability.md](../standards/10-observability.md), and
@@ -88,13 +90,13 @@ unhandled exception (Sentry-captured, 500 Problem Details). Per
 ## 2. MediatR Pipeline Order
 
 P02b-5's [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md)
-adds HTTP authentication/admission before this unchanged pipeline. Only the
-closed AccountSite GET gains authenticated reachability; its exact query is Off
+supplies HTTP authentication/admission before this unchanged pipeline. The
+closed AccountSite GET retains its separate boundary; its exact query is Off
 and uses the existing physical ReadOnly owner alongside PublicSurface reads.
 The HTTP middleware order and error precedence live in that ADR and
 [API Design](../standards/04-api-design.md#authentication); they do not add a ninth
-MediatR stage or implement Phase 03 permission checks. Independent rejected
-assertions keep the recorder's standalone audit path. Accepted
+MediatR stage. The live permission extension is described below. Independent
+rejected assertions keep the recorder's standalone audit path. Accepted
 [ADR-0065](../decisions/0065-bounded-tenant-assertion-diagnostics.md) adds a shared
 singleton host-tenant admission budget before authenticated store calls: 600
 attempts per API instance per first-request-anchored monotonic minute, including
@@ -145,6 +147,27 @@ User/audit reciprocity and exact non-success evidence use the canonical
 This extension adds no MediatR stage or HTTP/new-user BFF route. P03-3 owns that
 activation; the current complete native profile and ordinary pipeline remain.
 
+Jointly Accepted ADR-0076/0077 define the live extension: independent
+HTTP/application live policy checks and one administrative membership directory
+GET, without changing the eight-stage order or native BFF allowlist. AccountSite
+retains Off/physical ReadOnly and its real HostScope ceiling. The current
+`AuthorizationBehavior` shown below enforces the canonical policy. Immutable
+operation read authority is bound by the actual step-6 owner; [Standard 05](../standards/05-database.md#operation-bound-read-authority)
+owns EF/RLS agreement and scope lifetime, including mixed-scope join refusal.
+
+The accepted central denial population is separate from ordinary plural resource
+intents. Its actual owner inserts unresolved events atomically with successful
+ReadWrite work, or acknowledges standalone evidence before ReadOnly/ownerless
+success. Failure prevents outer success before COMMIT/disclosure while an actual
+refused caller keeps its refusal. No outer Committed flag clears an unwritten
+inner denial. Fixed occurrence identity and exact full-row reconciliation prove
+only event durability, never unknown business COMMIT success. [Standard 18](../standards/18-audit-coverage.md#trusted-authorization-evidence)
+owns these rules, typed provenance and retention targets; the source/capacity
+ledger remains [Standard 05](../standards/05-database.md#authorization-and-evidence-source-ledger).
+Runtime, fault/crash and pool-progress controls separately exercise these
+boundaries; the [Phase 03 Status block](../roadmap/phase-03-identity-admin.md)
+owns current source-bound qualification.
+
 [ADR-0032 § Sub-decision 2](../decisions/0032-exception-handling-logging-and-observability.md)
 binds the ordinary pipeline order. Reading bottom-most as innermost:
 
@@ -167,8 +190,8 @@ Request
 [4] TenantContextBehavior    ←  assert ITenantContext.IsResolved;
                                 preserve context; public requests require host ceiling
   ▼
-[5] AuthorizationBehavior    ←  current pass-through shell;
-                                Phase 03 owns permission enforcement
+[5] AuthorizationBehavior    ←  exact classification, fresh committed capability;
+                                trusted denial and invocation-bound read authority
   ▼
 [6] TransactionBehavior      ←  IUnitOfWork.BeginTransactionAsync(); announce
                                 mode setup, then tenant announcement before data;
@@ -256,11 +279,13 @@ Why this order:
   [Security Standards § Tenant Context](../standards/11-security.md), the single
   authority for this placement.
 - **Authorization after tenant.** Phase 03's permission decision needs ambient
-  `(tenant_id, user_id, resource)`. The current behavior passes requests through;
-  the closed HTTP boundary above does not implement those permissions.
+  `(tenant_id, user_id, resource)`. The canonical coordinator and Identity
+  evaluator independently authorize each application invocation; resolver and
+  HTTP admission do not substitute for this check.
 - **Transaction after authorization.** This position lets Phase 03 refuse a
   permission-sensitive request before opening a business transaction; its
-  `denied` MUST-class row uses the standalone audit path.
+  independent denial event uses the standalone path when no business owner exists;
+  absorbed denials obey Standard 18's pre-success barrier.
 - **The MUST-class audit row is written inside the transaction, not after it.**
   `TransactionBehavior` calls `IAuditStore.WritePendingAsync` immediately before
   `COMMIT`, so the row commits with the state change it describes or not at all
@@ -597,6 +622,7 @@ Two integration points
 | Sensitive exception-message analyzer | P02b-8 | `LS0002` covers bounded sensitive-name expressions across production C#; ADR-0032 Amendment 6 |
 | MUST-class audit write path (`IAuditStore`, `IAuditStateCapture`) | Phase 02a Packet 9 | Shape fixed by ADR-0033 + ADR-0044; `audit_log` ships plain, unpartitioned |
 | Public read-only transaction mode and host ceiling | P02d-4 | ADR-0052 Accepted; P02d-4 Step 1 delivers host admission, transaction modes and app-role write-refusal proofs; Step 2 adds site endpoints and structural dispatch/Off/persistence guards; Steps 3–4 deliver Education reads and contract/SDK/CI proofs |
+| Live authorization and trusted denial evidence | P03-2 | Live reader, canonical policy/read authority, trusted denial evidence and HTTP directory implemented; source-bound qualification remains in Phase 03. Canonical rules in Standards 05/18. |
 | Outbox / background-job correlation propagation | Phase 02b | Trusted outbox/job rows and delivery/`JobExecutor` restoration; Hangfire hints remain opaque |
 | Hub HTTPS correlation middleware | Phase 02b / 02c | Cross-repo |
 | OTel Collector + Tempo + Loki + Prometheus deployment | Phase 11 | Production-side backends |

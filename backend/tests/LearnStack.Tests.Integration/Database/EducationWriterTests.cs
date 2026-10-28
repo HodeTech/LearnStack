@@ -13,6 +13,7 @@ using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Validation;
@@ -33,6 +34,8 @@ namespace LearnStack.Tests.Integration.Database;
 public sealed class EducationWriterTests(SchemaFixture schema, ConstructionOnlyApiFactory factory)
     : IClassFixture<ConstructionOnlyApiFactory>
 {
+    private ComponentAuthorizationEvidence _evidence = null!;
+
     private const string StringSchema = """{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"text":{"type":"string"}},"required":["text"],"additionalProperties":false}""";
     private const string NumberSchema = """{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"text":{"type":"number"}},"required":["text"],"additionalProperties":false}""";
     private static readonly string[] ExpectedOperations = ["education.course.create", "education.course.translation_add", "education.course.publish", "education.lesson.create", "education.lesson.translation_add", "education.lesson.publish"];
@@ -43,6 +46,8 @@ public sealed class EducationWriterTests(SchemaFixture schema, ConstructionOnlyA
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var context = await ProvisionAsync(source);
         await TypeAsync(source, context, 1, StringSchema);
         var course = await CourseAsync(source, context, "bounded");
@@ -68,6 +73,8 @@ public sealed class EducationWriterTests(SchemaFixture schema, ConstructionOnlyA
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var context = await ProvisionAsync(source);
         await TypeAsync(source, context, 1, StringSchema);
         var course = await CourseAsync(source, context, "course", "enrollment_required");
@@ -96,6 +103,8 @@ public sealed class EducationWriterTests(SchemaFixture schema, ConstructionOnlyA
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var context = await ProvisionAsync(source);
         var taxonomyId = Guid.CreateVersion7();
         (await SendAsync(source, context, new RegisterTenantLevelTaxonomyCommand(taxonomyId, "levels", 1,
@@ -139,6 +148,8 @@ public sealed class EducationWriterTests(SchemaFixture schema, ConstructionOnlyA
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var context = await ProvisionAsync(source);
         var foreign = await ProvisionAsync(source);
         await TypeAsync(source, context, 1, StringSchema);
@@ -187,6 +198,11 @@ public sealed class EducationWriterTests(SchemaFixture schema, ConstructionOnlyA
         (await CourseStateAsync(source, orgA, scoped.Id)).Version.Should().Be(0);
         (await LessonStateAsync(source, context, wideLesson.Id)).Should().BeEquivalentTo(wideLessonBefore);
         (await LessonStateAsync(source, orgA, child.Id)).Should().BeEquivalentTo(state);
+        // Each refused actual handler act has one independent durable MUST row.
+        (await ComponentAuthorizationEvidence.CountDenialsAsync(source, orgA, "tests.component.education.")).Should().Be(5);
+        (await ComponentAuthorizationEvidence.CountDenialsAsync(source, orgB, "tests.component.education.")).Should().Be(11);
+        (await ComponentAuthorizationEvidence.CountDenialsAsync(source, context, "tests.component.education.")).Should().Be(3);
+        (await ComponentAuthorizationEvidence.CountDenialsAsync(source, foreign, "tests.component.education.")).Should().Be(5);
     }
 
     [Fact]
@@ -194,6 +210,8 @@ public sealed class EducationWriterTests(SchemaFixture schema, ConstructionOnlyA
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var context = await ProvisionAsync(source);
         var foreign = await ProvisionAsync(source);
         var tenant = (await SendAsync(source, context, new GetTenantSeedStateQuery())).Value!.State!;
@@ -231,6 +249,8 @@ public sealed class EducationWriterTests(SchemaFixture schema, ConstructionOnlyA
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var context = await ProvisionAsync(source);
         await TypeAsync(source, context, 1, StringSchema);
         var course = await CourseAsync(source, context, "course");
@@ -254,6 +274,8 @@ public sealed class EducationWriterTests(SchemaFixture schema, ConstructionOnlyA
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var context = await ProvisionAsync(source);
         await TypeAsync(source, context, 1, StringSchema);
         var orgA = context with { Organization = context.FirstOrganization };
@@ -291,6 +313,8 @@ public sealed class EducationWriterTests(SchemaFixture schema, ConstructionOnlyA
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var context = await ProvisionAsync(source);
         await TypeAsync(source, context, 1, StringSchema);
         var course = await CourseAsync(source, context, "first");
@@ -316,11 +340,18 @@ public sealed class EducationWriterTests(SchemaFixture schema, ConstructionOnlyA
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var context = await ProvisionAsync(source);
         var course = await CourseAsync(source, context, "course");
         var barrier = new ReadBarrier();
         await using var host = factory.WithWebHostBuilder(builder => builder
             .UseSetting("ConnectionStrings:Default", database.AppConnectionString)
+            .ConfigureServices(services =>
+            {
+                AddComponentAuthority(services);
+                _evidence.AddTo(services);
+            })
             .ConfigureServices(services => services.AddScoped<ICourseWriteStore>(provider =>
                 new BarrierCourseStore(new CourseWriteStore(provider.GetRequiredService<EducationDbContext>()), barrier))));
         async Task<Result<CourseWriteDto>> Publish()
@@ -343,12 +374,19 @@ public sealed class EducationWriterTests(SchemaFixture schema, ConstructionOnlyA
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var context = await ProvisionAsync(source);
         var first = await CourseAsync(source, context, "first");
         var second = await CourseAsync(source, context, "second");
         var barrier = new ReadBarrier();
         await using var host = factory.WithWebHostBuilder(builder => builder
             .UseSetting("ConnectionStrings:Default", database.AppConnectionString)
+            .ConfigureServices(services =>
+            {
+                AddComponentAuthority(services);
+                _evidence.AddTo(services);
+            })
             .ConfigureServices(services => services.AddScoped<ICourseWriteStore>(provider =>
                 new BarrierCourseStore(new CourseWriteStore(provider.GetRequiredService<EducationDbContext>()), barrier))));
         async Task<Result<CourseWriteDto>> Translate(Guid id)
@@ -375,6 +413,8 @@ public sealed class EducationWriterTests(SchemaFixture schema, ConstructionOnlyA
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var context = await ProvisionAsync(source);
         var course = await CourseAsync(source, context, "course");
         await TypeAsync(source, context, 1, StringSchema);
@@ -383,6 +423,11 @@ public sealed class EducationWriterTests(SchemaFixture schema, ConstructionOnlyA
         var later = Guid.CreateVersion7();
         await using var host = factory.WithWebHostBuilder(builder => builder
             .UseSetting("ConnectionStrings:Default", database.AppConnectionString)
+            .ConfigureServices(services =>
+            {
+                AddComponentAuthority(services);
+                _evidence.AddTo(services);
+            })
             .ConfigureServices(services =>
             {
                 services.AddScoped<ICourseWriteStore>(provider => new FailAfterSaveCourseStore(
@@ -410,7 +455,36 @@ public sealed class EducationWriterTests(SchemaFixture schema, ConstructionOnlyA
         (await CountAuditsAsync(source, context, "education.course.create")).Should().Be(1);
     }
 
-    private static async Task<Context> ProvisionAsync(NpgsqlDataSource source)
+    private ServiceProvider BuildProvider(NpgsqlDataSource source, ITenantContext? context)
+    {
+        var services = ComponentOperationRegistration.CreateDatabaseServices(source, context);
+        AddComponentAuthority(services);
+        _evidence.AddTo(services);
+        return services.BuildServiceProvider(validateScopes: true);
+    }
+
+    // Explicit admission for this component mechanism; this is not a live HTTP authorization proof.
+    private static void AddComponentAuthority(IServiceCollection services) =>
+        ComponentOperationRegistration.AddExactComponentAuthority(services,
+            OperationPolicy.ForTrusted<PublishCourseCommand>("tests.component.education.publish_course", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<AddCourseTranslationCommand>("tests.component.education.translate_course", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<PublishLessonCommand>("tests.component.education.publish_lesson", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<CreateCourseCommand>("tests.component.education.create_course", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<AbsorbingOuterCommand>("tests.component.education.outer", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<AddLessonTranslationCommand>("tests.component.education.add_lesson_translation", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<CreateLessonCommand>("tests.component.education.create_lesson", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<CreateOrganizationCommand>("tests.component.education.create_organization", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<GetCourseSeedStateQuery>("tests.component.education.get_course_seed_state", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<GetLessonSeedStateQuery>("tests.component.education.get_lesson_seed_state", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<GetTenantSeedStateQuery>("tests.component.education.get_tenant_seed_state", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<ProvisionTenantCommand>("tests.component.education.provision_tenant", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<AddTenantLocaleCommand>("tests.component.education.add_tenant_locale", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<PublishTenantContentTypeCommand>("tests.component.education.publish_tenant_content_type", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<PublishTenantLevelTaxonomyCommand>("tests.component.education.publish_tenant_level_taxonomy", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<RegisterTenantContentTypeCommand>("tests.component.education.register_tenant_content_type", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<RegisterTenantLevelTaxonomyCommand>("tests.component.education.register_tenant_level_taxonomy", AuthorizationSourceKind.Seed));
+
+    private async Task<Context> ProvisionAsync(NpgsqlDataSource source)
     {
         var tenant = TenantId.From(Guid.CreateVersion7());
         var first = OrganizationId.From(Guid.CreateVersion7());
@@ -423,7 +497,7 @@ public sealed class EducationWriterTests(SchemaFixture schema, ConstructionOnlyA
         return context;
     }
 
-    private static async Task TypeAsync(NpgsqlDataSource source, Context context, int version, string json)
+    private async Task TypeAsync(NpgsqlDataSource source, Context context, int version, string json)
     {
         var id = Guid.CreateVersion7();
         (await SendAsync(source, context, new RegisterTenantContentTypeCommand(id, "shape", version,
@@ -431,35 +505,35 @@ public sealed class EducationWriterTests(SchemaFixture schema, ConstructionOnlyA
         (await SendAsync(source, context, new PublishTenantContentTypeCommand(id))).IsSuccess.Should().BeTrue();
     }
 
-    private static async Task<CourseWriteDto> CourseAsync(NpgsqlDataSource source, Context context, string slug, string access = "public")
+    private async Task<CourseWriteDto> CourseAsync(NpgsqlDataSource source, Context context, string slug, string access = "public")
     {
         var result = await SendAsync(source, context, new CreateCourseCommand(Guid.CreateVersion7(), slug, access));
         result.IsSuccess.Should().BeTrue();
         return result.Value!;
     }
 
-    private static async Task<LessonWriteDto> LessonAsync(NpgsqlDataSource source, Context context, Guid course, int version = 1)
+    private async Task<LessonWriteDto> LessonAsync(NpgsqlDataSource source, Context context, Guid course, int version = 1)
     {
         var result = await SendAsync(source, context, new CreateLessonCommand(Guid.CreateVersion7(), course, 0, "shape", version));
         result.IsSuccess.Should().BeTrue();
         return result.Value!;
     }
 
-    private static async Task<Result<T>> SendAsync<T>(NpgsqlDataSource source, Context? context, IRequest<Result<T>> command)
+    private async Task<Result<T>> SendAsync<T>(NpgsqlDataSource source, Context? context, IRequest<Result<T>> command)
     {
-        await using var provider = SeedComposition.Build(source, context, NullLoggerFactory.Instance);
+        await using var provider = BuildProvider(source, context);
         await using var scope = provider.CreateAsyncScope();
         return await scope.ServiceProvider.GetRequiredService<ISender>().Send(command);
     }
 
-    private static async Task<CourseSeedDto> CourseStateAsync(NpgsqlDataSource source, Context context, Guid id) =>
+    private async Task<CourseSeedDto> CourseStateAsync(NpgsqlDataSource source, Context context, Guid id) =>
         (await SendAsync(source, context, new GetCourseSeedStateQuery(id))).Value!.State!;
-    private static async Task<LessonSeedDto> LessonStateAsync(NpgsqlDataSource source, Context context, Guid id) =>
+    private async Task<LessonSeedDto> LessonStateAsync(NpgsqlDataSource source, Context context, Guid id) =>
         (await SendAsync(source, context, new GetLessonSeedStateQuery(id))).Value!.State!;
 
-    private static async Task<long> CountAuditsAsync(NpgsqlDataSource source, Context context, string operation, bool onlySuccessful = true)
+    private async Task<long> CountAuditsAsync(NpgsqlDataSource source, Context context, string operation, bool onlySuccessful = true)
     {
-        await using var provider = SeedComposition.Build(source, context, NullLoggerFactory.Instance);
+        await using var provider = BuildProvider(source, context);
         await using var scope = provider.CreateAsyncScope();
         var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
         await using var frame = await unit.BeginTransactionAsync();
@@ -472,9 +546,9 @@ public sealed class EducationWriterTests(SchemaFixture schema, ConstructionOnlyA
         return count;
     }
 
-    private static async Task AssertAuditAsync(NpgsqlDataSource source, Context context, Guid course, Guid lesson)
+    private async Task AssertAuditAsync(NpgsqlDataSource source, Context context, Guid course, Guid lesson)
     {
-        await using var provider = SeedComposition.Build(source, context, NullLoggerFactory.Instance);
+        await using var provider = BuildProvider(source, context);
         await using var scope = provider.CreateAsyncScope();
         var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
         await using var frame = await unit.BeginTransactionAsync();

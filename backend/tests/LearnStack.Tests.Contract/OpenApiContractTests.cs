@@ -24,6 +24,7 @@ public sealed partial class OpenApiContractTests(DevelopmentWebApplicationFactor
         ["/api/v1/public/courses/{slug}"] = ["GetPublicCourse", "HeadPublicCourse"],
         ["/api/v1/public/courses/{slug}/lessons/{lessonSlug}"] = ["GetPublicLesson", "HeadPublicLesson"],
         ["/api/v1/account/site"] = ["GetAccountSite"],
+        ["/api/v1/identity/memberships"] = ["ListMemberships"],
     };
     private static readonly Dictionary<string, (Type Type, string[] Fields)> Dtos = new(StringComparer.Ordinal)
     {
@@ -51,7 +52,15 @@ public sealed partial class OpenApiContractTests(DevelopmentWebApplicationFactor
     public async Task PublicSurface_Contract_Matches_Served_OpenApi()
     {
         var served = await Served();
-        var snapshot = JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(RepositoryRoot(), "backend/openapi/v1.json")))!;
+        var snapshotPath = Path.Combine(RepositoryRoot(), "backend/openapi/v1.json");
+        if (Environment.GetEnvironmentVariable("LEARNSTACK_UPDATE_OPENAPI") == "1")
+        {
+            if (string.Equals(Environment.GetEnvironmentVariable("CI"), "true", StringComparison.OrdinalIgnoreCase)
+                || Environment.GetEnvironmentVariable("CI") == "1")
+                throw new InvalidOperationException("OpenAPI snapshot updates are refused in CI.");
+            await File.WriteAllTextAsync(snapshotPath, served.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + "\n");
+        }
+        var snapshot = JsonNode.Parse(await File.ReadAllTextAsync(snapshotPath))!;
         JsonNode.DeepEquals(served, snapshot).Should().BeTrue("only object key order may differ from the served production composition");
         ContractErrors(served).Should().BeEmpty();
     }
@@ -107,6 +116,7 @@ public sealed partial class OpenApiContractTests(DevelopmentWebApplicationFactor
         var served = await Served();
         SchemaErrors(served).Should().BeEmpty();
         AccountSchemaErrors(served).Should().BeEmpty();
+        DirectorySchemaErrors(served).Should().BeEmpty();
         foreach (var (name, descriptor) in Dtos)
         {
             ClrFields(descriptor.Type).Should().BeEquivalentTo(descriptor.Fields.Where(field => field != "state"
@@ -162,7 +172,8 @@ public sealed partial class OpenApiContractTests(DevelopmentWebApplicationFactor
         foreach (var (path, ids) in Operations)
         {
             if (paths[path] is not JsonObject methods) { errors.Add("operations"); continue; }
-            var authenticated = path == "/api/v1/account/site";
+            var directory = path == "/api/v1/identity/memberships";
+            var authenticated = path == "/api/v1/account/site" || directory;
             var expectedMethods = authenticated ? new[] { "get" } : ["get", "head"];
             if (!methods.Select(method => method.Key).ToHashSet(StringComparer.Ordinal).SetEquals(expectedMethods)) errors.Add("operations");
             foreach (var (index, method) in expectedMethods.Index())
@@ -177,17 +188,19 @@ public sealed partial class OpenApiContractTests(DevelopmentWebApplicationFactor
                         || requirement["TenantBearer"] is not JsonArray { Count: 0 }) errors.Add("security");
                 }
                 else if (operation["security"] is JsonArray { Count: > 0 }) errors.Add("public-security");
-                var expected = path.EndsWith("/site", StringComparison.Ordinal) ? Array.Empty<string>()
+                var expected = directory ? ["cursor", "limit"]
+                    : path.EndsWith("/site", StringComparison.Ordinal) ? Array.Empty<string>()
                     : path.EndsWith("/lessons/{lessonSlug}", StringComparison.Ordinal) ? new[] { "slug", "lessonSlug", "locale" }
                     : path.EndsWith("/{slug}", StringComparison.Ordinal) ? new[] { "slug", "locale", "lessonCursor", "lessonLimit" }
                     : ["locale", "cursor", "limit"];
                 var parameters = operation["parameters"]?.AsArray() ?? new JsonArray();
                 if (!parameters.Select(parameter => parameter!["name"]!.GetValue<string>()).ToHashSet(StringComparer.Ordinal).SetEquals(expected)
                     || parameters.Count != expected.Length
-                    || parameters.Any(parameter => !ParameterMatches(parameter!))) errors.Add("parameters");
+                    || parameters.Any(parameter => !ParameterMatches(parameter!, directory))) errors.Add("parameters");
                 if (operation.ContainsKey("requestBody")) errors.Add("request-body");
                 var responses = operation["responses"]!.AsObject();
-                if (!responses.Select(response => response.Key).ToHashSet(StringComparer.Ordinal).SetEquals(Statuses)) errors.Add("responses");
+                if (!responses.Select(response => response.Key).ToHashSet(StringComparer.Ordinal)
+                    .SetEquals(directory ? Statuses.Append("403") : Statuses)) errors.Add("responses");
                 foreach (var (status, response) in responses)
                 {
                     if (response!["headers"]?["Cache-Control"]?["schema"]?["enum"]?[0]?.GetValue<string>() != "no-store") errors.Add("headers");
@@ -217,7 +230,7 @@ public sealed partial class OpenApiContractTests(DevelopmentWebApplicationFactor
                     else if (status != "200" && response["content"]?["application/problem+json"]?["schema"]?["$ref"]?.GetValue<string>() != "#/components/schemas/ProblemDetails") errors.Add("problem");
                     else if (status == "200")
                     {
-                        var root = authenticated ? "AccountSite" : path.EndsWith("/site", StringComparison.Ordinal) ? "PublicSite"
+                        var root = directory ? DirectoryPageSchema : authenticated ? "AccountSite" : path.EndsWith("/site", StringComparison.Ordinal) ? "PublicSite"
                             : path.EndsWith("/lessons/{lessonSlug}", StringComparison.Ordinal) ? "PublicLessonDetail"
                             : path.EndsWith("/{slug}", StringComparison.Ordinal) ? "PublicCourseDetail" : "PublicCourseCatalog";
                         if (response["content"]!.AsObject().Count != 1
@@ -226,7 +239,7 @@ public sealed partial class OpenApiContractTests(DevelopmentWebApplicationFactor
                 }
             }
         }
-        if (count != 9) errors.Add("operations");
+        if (count != 10) errors.Add("operations");
         if (document["security"] is JsonArray { Count: > 0 }) errors.Add("security");
         var schemes = document["components"]?["securitySchemes"]?.AsObject();
         if (schemes is not { Count: 1 } || schemes["TenantBearer"]?["type"]?.GetValue<string>() != "http"
@@ -258,7 +271,7 @@ public sealed partial class OpenApiContractTests(DevelopmentWebApplicationFactor
         return errors;
     }
 
-    private static bool ParameterMatches(JsonNode parameter)
+    private static bool ParameterMatches(JsonNode parameter, bool directory)
     {
         var name = parameter["name"]?.GetValue<string>();
         var path = name is "slug" or "lessonSlug";
@@ -268,6 +281,8 @@ public sealed partial class OpenApiContractTests(DevelopmentWebApplicationFactor
             "slug" or "lessonSlug" => new JsonObject { ["type"] = "string", ["minLength"] = 1, ["maxLength"] = 160 },
             "locale" => new JsonObject { ["type"] = "string", ["minLength"] = 2, ["maxLength"] = 35 },
             "cursor" or "lessonCursor" => new JsonObject { ["type"] = "string", ["minLength"] = 1, ["maxLength"] = 1024 },
+            "limit" when directory => new JsonObject
+            { ["type"] = "integer", ["format"] = "int32", ["minimum"] = 1, ["maximum"] = int.MaxValue, ["default"] = 20 },
             "limit" or "lessonLimit" => new JsonObject { ["type"] = "string" },
             _ => null,
         };
@@ -295,7 +310,7 @@ public sealed partial class OpenApiContractTests(DevelopmentWebApplicationFactor
                     {
                         value => value["in"] = "header",
                         value => value["required"] = !(parameter!["required"]?.GetValue<bool>() ?? false),
-                        value => value["schema"]!["type"] = "integer",
+                        value => value["schema"]!["type"] = parameter!["schema"]!["type"]!.GetValue<string>() == "integer" ? "string" : "integer",
                         value => value["schema"]!["format"] = "uuid",
                     })
                     {
@@ -331,7 +346,8 @@ public sealed partial class OpenApiContractTests(DevelopmentWebApplicationFactor
         var errors = new List<string>();
         var schemas = document["components"]!["schemas"]!.AsObject();
         var expectedNames = Dtos.Keys.Concat(["PublicCourseAccess", "PublicDisplayState", "ProblemDetails"]);
-        if (!schemas.Select(schema => schema.Key).ToHashSet(StringComparer.Ordinal).SetEquals(expectedNames.Concat(AccountSchemaNames))) errors.Add("schema-census");
+        if (!schemas.Select(schema => schema.Key).ToHashSet(StringComparer.Ordinal)
+            .SetEquals(expectedNames.Concat(AccountSchemaNames).Concat(DirectorySchemaNames))) errors.Add("schema-census");
         foreach (var (name, descriptor) in Dtos)
         {
             if (schemas[name] is not JsonObject schema) { errors.Add(name); continue; }

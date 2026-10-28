@@ -172,7 +172,7 @@ public sealed partial class TenantExistingBindingAdmissionTests(PublicReadFixtur
     }
 
     private Task<IdentityPublicReadFixture> DatabaseAsync(TenantAuthenticationIssuer issuer) =>
-        IdentityPublicReadFixture.CreateAsync(parent, issuer.Issuer, new Dictionary<UserId, string> { [Actor] = Subject });
+        IdentityPublicReadFixture.CreateWithMembershipsAsync(parent, issuer.Issuer, new Dictionary<UserId, string> { [Actor] = Subject });
 
     private static HttpClient Client(IdentityPublicReadFixture database, BindingObservation observation,
         Action<IServiceCollection>? configure = null) => database.ClientFor(SeedData.English.Host, services =>

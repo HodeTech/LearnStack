@@ -100,6 +100,9 @@ public sealed record AuditIntent(
     Type? EntityType,
     DateTimeOffset DeclaredAt)
 {
+    /// <summary>Bounded source/decision context attached by the common owner to this exact invocation's intents.</summary>
+    public AuthorizationAuditContext? Authorization { get; init; }
+
     /// <summary>Closed creation attribution minted by the common global audit entry.</summary>
     public GlobalIdentityCreationReference? GlobalIdentity { get; init; }
 

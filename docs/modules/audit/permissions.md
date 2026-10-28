@@ -6,10 +6,10 @@ Part of the [module spec](README.md).
 **No permission keys are enforced yet.** The matrix below is a forward declaration in
 the `{module}.{resource}.{action}` form with the closed action set of
 [Permission Standards](../../standards/19-permissions.md). These Audit keys await
-the separately admitted P03-2 registry/live-enforcement contract and the protected
-query API in [Phase 03](../../roadmap/phase-03-identity-admin.md). The implemented
-Identity foundation registry does not activate these forward declarations or
-introduce an `IModule` interface.
+their own admitted operation decisions and protected query API in
+[Phase 03](../../roadmap/phase-03-identity-admin.md). The implemented
+[live contract](../../standards/19-permissions.md#live-permission-enforcement-contract)
+does not activate these forward declarations or introduce an `IModule` interface.
 
 | Resource | read | write | delete | admin | Default role grants |
 |----------|:----:|:-----:|:------:|:-----:|---------------------|
@@ -36,11 +36,9 @@ Platform-scope key rather than a tenant-facing one. **That key's name is pending
 registers it with the permission registry and the erasure handler, in the closed action
 set [Permission Standards](../../standards/19-permissions.md) fixes, and Phase 11's purge
 takes the same key or a sibling Phase 03 names — so no writer of `audit_log` lands with a
-permission nobody has declared. A
-`write` on `event` would be a key a tenant admin could hold and a database grant would
-refuse: `learnstack_app` holds `SELECT, INSERT` on `audit_log` and no request path
-inserts through it. Two layers disagreeing about what is permitted is how a permission
-matrix stops being read.
+permission nobody has declared. Tenant-facing audit-row creation is not an admitted operation.
+`learnstack_app` holds `SELECT, INSERT` on `audit_log` for the central store; that
+database grant does not create an assignable `audit.event.write` capability.
 
 **Export is a sub-resource, because the action set is closed.** `export` is not one of
 `read | write | delete | admin`, and
@@ -57,29 +55,24 @@ roles hold `SELECT` on `audit_config` in this packet; the `INSERT, UPDATE, DELET
 for `learnstack_app` lands in [Phase 06](../../roadmap/phase-06-renderer-admin-studio.md)'s
 migration, beside the Studio command that needs it
 ([Database Standards § GRANT matrix](../../standards/05-database.md)). The keys are
-declared now because the matrix is what Phase 03's registry reads, and a key that
-appears at the same time as its command is a key nobody reviewed.
+proposed here for review; compiled definition sources register only the finite
+pairs approved by each owning operation decision.
 
 **What `config` write cannot do.** A tenant admin holding `audit.config.write` can
 narrow a SHOULD or a MAY and cannot remove a MUST: `ClassifyAsync` applies the override
 and then re-applies the in-process catalogue's floor
-([ADR-0033](../../decisions/0033-audit-durability-model.md)). This is the one place in
-the corpus where a permission and a database grant are both present and still do not
-add up to the capability the key's name suggests — deliberately, because an attacker who
-compromises one tenant admin must not be able to switch off the detector that would
-catch the next cross-tenant probe.
+([ADR-0033](../../decisions/0033-audit-durability-model.md)). Any future permission
+and database grant must preserve that MUST floor; neither may authorize disabling
+baseline audit coverage.
 
-**Scope.** `event_export` and `config` are **Tenant**-scope. `event.read` is registered
-Tenant-scope too, for the investigator: a tenant admin reads the trail whole, because an
-organization-scoped view would hide exactly the cross-organization act an investigation
-looks for. **It is also grantable through an organization-scoped role**, which is how
-[Security Standards](../../standards/11-security.md) and the Phase 06 audit viewer give an
-`Org Admin` their own organization's rows: per
-[Permission Standards § Scope](../../standards/19-permissions.md), an organization-scope
-binding requires the holder's organization to match the row's `organization_id`, so that
-reader sees its organization's rows and neither another organization's nor the tenant-wide
-ones. That confinement is **authorization**, decided by the binding, never a filter the
-caller chooses: an organization parameter on the query narrows what a tenant-scope reader
-asks for and widens nothing for anyone. [Phase 03](../../roadmap/phase-03-identity-admin.md)
-builds the read API and enforces both bindings; nothing reads `audit_log` from a request
-until then.
+**Scope.** The proposed `event_export` and `config` capabilities are Tenant-scope.
+The planned audit reader must distinguish tenant-wide investigation from an
+Org Admin's own-organization view. Its owning
+[Phase 03](../../roadmap/phase-03-identity-admin.md) operation decision must approve
+the exact scoped definitions, finite registrations and admission rules before the
+protected query API ships. Under
+[Permission Standards § Scope](../../standards/19-permissions.md#scope-platform--tenant--organization),
+Tenant and Organization definitions are distinct; a Tenant definition cannot be
+assigned to an Organization-capability Role. Query parameters may narrow an
+admitted read and never supply authority. This matrix registers or grants no
+Audit capability.

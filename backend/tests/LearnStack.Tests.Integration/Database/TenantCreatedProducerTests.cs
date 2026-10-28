@@ -10,6 +10,7 @@ using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Messaging;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.Tools.Seeder;
 using MediatR;
@@ -27,6 +28,8 @@ namespace LearnStack.Tests.Integration.Database;
 [Collection(SharedSchema.Name)]
 public sealed class TenantCreatedProducerTests(SchemaFixture schema)
 {
+    private ComponentAuthorizationEvidence _evidence = null!;
+
     [Theory]
     [InlineData(false, false)]
     [InlineData(true, false)]
@@ -43,10 +46,18 @@ public sealed class TenantCreatedProducerTests(SchemaFixture schema)
         }
 
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
-        await using var seed = SeedComposition.Build(source, null, NullLoggerFactory.Instance);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
+        await using var seed = SeedComposition.Build(source, null, NullLoggerFactory.Instance,
+            authorizationEvidence: evidence.Source);
         await using var host = new ConstructionOnlyApiFactory().WithWebHostBuilder(builder =>
         {
             builder.UseSetting("ConnectionStrings:Default", database.AppConnectionString);
+            builder.ConfigureServices(services =>
+            {
+                AddComponentAuthority(services);
+                _evidence.AddTo(services);
+            });
             builder.ConfigureServices(services => services.AddSingleton<ITenantContextAccessor>(
                 new StaticTenantContextAccessor(null)));
         });
@@ -137,6 +148,11 @@ public sealed class TenantCreatedProducerTests(SchemaFixture schema)
             "SELECT count(DISTINCT operation) FROM audit_log WHERE operation IN ('tenancy.tenant.create', 'tenancy.organization.create')"))
             .Should().Be(2L);
     }
+
+    // Explicit admission for this component mechanism; this is not a live HTTP authorization proof.
+    private static void AddComponentAuthority(IServiceCollection services) =>
+        ComponentOperationRegistration.AddExactComponentAuthority(services,
+            OperationPolicy.ForTrusted<ProvisionTenantCommand>("tests.component.provisioning.provision", AuthorizationSourceKind.Seed));
 
     private static async Task<object?> ScalarAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, string sql)
     {

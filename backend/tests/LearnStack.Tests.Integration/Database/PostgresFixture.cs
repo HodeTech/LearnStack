@@ -120,6 +120,9 @@ public sealed class PostgresFixture : IAsyncLifetime
     /// <summary><c>BYPASSRLS</c>; only the outbox dispatcher's equivalent.</summary>
     public string OutboxConnectionString => For("learnstack_outbox_admin", OutboxPassword);
 
+    // An owned auxiliary fixture may attach this database to its disposable Docker network.
+    internal string ContainerId => _container.Id;
+
     internal async Task<bool> PublishedPortsAreLoopbackAsync()
     {
         using var docker = TestcontainersSettings.OS.DockerEndpointAuthConfig.GetDockerClientBuilder(Guid.NewGuid()).Build();
@@ -162,6 +165,38 @@ public sealed class PostgresFixture : IAsyncLifetime
     }
 
     public async Task DisposeAsync() => await _container.DisposeAsync();
+
+    // A positive LOCK acknowledgement, followed by caller-controlled release.
+    // The superuser connection stays private and the task joins actual rollback/disposal.
+    internal async Task HoldRoleCatalogLockAsync(TaskCompletionSource<int> acquired, Task release)
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        var connectionString = new NpgsqlConnectionStringBuilder(_container.GetConnectionString())
+        {
+            Pooling = false,
+            Enlist = false,
+            Timeout = 30,
+            CommandTimeout = 30,
+            CancellationTimeout = 2000,
+        }.ConnectionString;
+        try
+        {
+            await using var connection = new NpgsqlConnection(connectionString);
+            await connection.OpenAsync(deadline.Token);
+            await using var transaction = await connection.BeginTransactionAsync(deadline.Token);
+            await using (var command = new NpgsqlCommand(
+                "LOCK TABLE pg_catalog.pg_authid IN ACCESS EXCLUSIVE MODE", connection, transaction))
+                await command.ExecuteNonQueryAsync(deadline.Token);
+            acquired.TrySetResult(connection.ProcessID);
+            await release.WaitAsync(deadline.Token);
+        }
+        catch (Exception exception) when (exception is NpgsqlException or OperationCanceledException)
+        {
+            var failure = new InvalidOperationException("Role-catalog lock control failed.");
+            acquired.TrySetException(failure);
+            throw failure;
+        }
+    }
 
     // Outage qualification creates its own local fixture. Never call these on
     // SchemaFixture.Postgres: pausing that shared container would affect other proofs.

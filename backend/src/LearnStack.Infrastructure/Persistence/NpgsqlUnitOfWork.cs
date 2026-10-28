@@ -5,6 +5,7 @@ using System.Runtime.ExceptionServices;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Identity;
 using LearnStack.SharedKernel.Jobs;
+using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Persistence;
 using Microsoft.Extensions.Logging;
 using LearnStack.SharedKernel.Tenancy;
@@ -46,7 +47,7 @@ namespace LearnStack.Infrastructure.Persistence;
 /// that a later <c>BEGIN</c> clears is not.
 /// </para>
 /// </remarks>
-public sealed class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork
+public sealed class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOperationReadScopeView
 {
     private readonly NpgsqlDataSource _dataSource;
 
@@ -96,6 +97,10 @@ public sealed class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork
 
     private bool _tenantContextIssued;
     private TenantContextAnnouncement? _tenantContextAnnouncement;
+    private readonly Dictionary<int, OperationReadWitness> _readWitnesses = [];
+    private UserId? _readActor;
+    private bool _tenantWideRead;
+    private bool _readScopeFaulted;
     private GlobalIdentityOwnerDescriptor? _globalIdentityDescriptor;
     private GlobalIdentityContextAnnouncement? _globalIdentityAnnouncement;
     private object? _globalIdentityContext;
@@ -111,6 +116,7 @@ public sealed class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork
         {
             JobApplicationSourceOwner.RefuseExternalEntry();
             ObjectDisposedException.ThrowIf(_disposed, this);
+            EnsureOperationReadScope();
 
             if (_connection is null)
             {
@@ -132,6 +138,7 @@ public sealed class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork
         get
         {
             JobApplicationSourceOwner.RefuseExternalEntry();
+            EnsureOperationReadScope();
             return _transaction;
         }
     }
@@ -139,6 +146,8 @@ public sealed class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork
     public bool HasActiveTransaction => _transaction is not null;
 
     public TransactionMode? Mode => _mode;
+
+    public bool IsTenantWideRead => _tenantWideRead && ValidateOperationReadScope();
 
     public Task<IUnitOfWorkScope> BeginTransactionAsync(CancellationToken cancellationToken = default) =>
         BeginTransactionAsync(TransactionMode.ReadWrite, cancellationToken);
@@ -361,8 +370,15 @@ public sealed class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork
             throw new InvalidOperationException("The global identity owner no longer matches its live transaction.");
     }
 
-    public async Task SetTenantContextAsync(
-        ITenantContext context, CancellationToken cancellationToken = default)
+    public Task SetTenantContextAsync(ITenantContext context, CancellationToken cancellationToken = default) =>
+        SetTenantContextCoreAsync(context, null, tenantWideRead: false, cancellationToken);
+
+    public Task SetTenantContextAsync(ITenantContext context, OperationReadWitness readWitness,
+        CancellationToken cancellationToken = default) =>
+        SetTenantContextCoreAsync(context, readWitness, tenantWideRead: true, cancellationToken);
+
+    private async Task SetTenantContextCoreAsync(ITenantContext context, OperationReadWitness? readWitness,
+        bool tenantWideRead, CancellationToken cancellationToken)
     {
         JobApplicationSourceOwner.RefuseExternalEntry();
         ArgumentNullException.ThrowIfNull(context);
@@ -382,13 +398,32 @@ public sealed class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork
                 + "protects runs. Call BeginTransactionAsync first.");
         }
 
+        if (_readScopeFaulted || (_tenantContextIssued && _tenantWideRead != tenantWideRead)
+            || (tenantWideRead && readWitness is null))
+            RefuseOperationReadScope();
+
+        if (_tenantWideRead && !ValidateOperationReadScope(requireCurrentFrame: false))
+            RefuseOperationReadScope();
+
         if (_depth > 1)
         {
             // A joiner. Re-issuing would let an inner frame retarget the outer
             // frame's tenant — the same connection, the same transaction, a
             // different tenant for every statement after it.
+            if (tenantWideRead)
+            {
+                if (_tenantContextAnnouncement is not { } announced
+                    || !MatchesReadWitness(context, readWitness!, announced.TenantId, announced.OrganizationId)
+                    || _readWitnesses.ContainsKey(_depth)
+                    || !readWitness!.TryBindTo(this, _transaction, _generation))
+                    RefuseOperationReadScope();
+                _readWitnesses.Add(_depth, readWitness!);
+            }
             return;
         }
+
+        if (tenantWideRead && _tenantContextIssued)
+            RefuseOperationReadScope();
 
         // Clear before reading or sending a new announcement. A failed or canceled
         // attempt must not retain authority from an earlier successful one (ADR-0057).
@@ -443,6 +478,11 @@ public sealed class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork
             ? normalizedOrganization.Value.ToString()
             : string.Empty;
 
+        if (tenantWideRead && (tenantId is not { } actualTenant
+            || !MatchesReadWitness(context, readWitness!, actualTenant, organizationId)
+            || !readWitness!.TryBindTo(this, _transaction, _generation)))
+            RefuseOperationReadScope();
+
         // A context that says it is resolved and yields no usable tenant is a
         // bug in whoever built it. The empty string keeps the request
         // fail-closed, but silence here is the worst possible diagnostic: every
@@ -453,13 +493,29 @@ public sealed class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork
             LogResolvedWithoutTenant(_logger, context.GetType().Name, null);
         }
 
-        await ExecuteAsync(
-            "SELECT set_config('app.tenant_id', @tenant, true), "
-            + "set_config('app.organization_id', @organization, true), "
-            + "set_config('app.identity_authority_id', '', true), set_config('app.identity_subject_key', '', true)",
-            cancellationToken,
-            ("tenant", tenant),
-            ("organization", organization));
+        try
+        {
+            await ExecuteAsync(
+                "SELECT set_config('app.tenant_id', @tenant, true), "
+                + "set_config('app.organization_id', @organization, true), set_config('app.scope', @scope, true), "
+                + "set_config('app.identity_authority_id', '', true), set_config('app.identity_subject_key', '', true)",
+                cancellationToken,
+                ("tenant", tenant),
+                ("organization", organization),
+                ("scope", tenantWideRead ? "tenant" : string.Empty));
+            cancellationToken.ThrowIfCancellationRequested();
+            if (tenantWideRead && !readWitness!.IsBoundTo(this, _transaction, _generation))
+                RefuseOperationReadScope();
+        }
+        catch
+        {
+            if (tenantWideRead)
+            {
+                _readScopeFaulted = true;
+                _rollbackOnly = true;
+            }
+            throw;
+        }
 
         // After the round trip, never before: the flag means the announcement actually
         // reached PostgreSQL, so a setter that threw leaves the transaction unmarked and
@@ -468,6 +524,12 @@ public sealed class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork
         _tenantContextAnnouncement = tenantId is { } announcedTenant
             ? new TenantContextAnnouncement(_generation, announcedTenant, organizationId)
             : null;
+        if (tenantWideRead)
+        {
+            _tenantWideRead = true;
+            _readActor = readWitness!.Actor;
+            _readWitnesses.Add(_depth, readWitness!);
+        }
     }
 
     /// <inheritdoc />
@@ -476,6 +538,8 @@ public sealed class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork
     {
         JobApplicationSourceOwner.RefuseExternalEntry();
         ObjectDisposedException.ThrowIf(_disposed, this);
+
+        if (_tenantWideRead || _readScopeFaulted) RefuseOperationReadScope();
 
         if (IsGlobalIdentityTransaction)
         {
@@ -541,6 +605,7 @@ public sealed class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork
         await ExecuteAsync(
             "SELECT set_config('app.tenant_id', @tenant, true), "
             + "set_config('app.organization_id', '', true), "
+            + "set_config('app.scope', '', true), "
             + "set_config('app.identity_authority_id', '', true), set_config('app.identity_subject_key', '', true)",
             cancellationToken,
             ("tenant", tenantId.Value.ToString()));
@@ -553,16 +618,66 @@ public sealed class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork
     public bool IsTenantContextIssuedOn(DbTransaction? transaction) =>
         transaction is not null
         && ReferenceEquals(transaction, _transaction)
-        && _tenantContextIssued;
+        && _tenantContextIssued
+        && ValidateOperationReadScope();
 
     /// <inheritdoc />
     public TenantContextAnnouncement? GetTenantContextAnnouncement(DbTransaction? transaction) =>
         IsTenantContextIssuedOn(transaction) ? _tenantContextAnnouncement : null;
 
+    private static bool MatchesReadWitness(ITenantContext context, OperationReadWitness witness,
+        TenantId tenantId, OrganizationId? organizationId) =>
+        context.IsResolved && context.UserId == witness.Actor && context.TenantId == tenantId
+        && context.OrganizationId == organizationId && witness.TenantId == tenantId
+        && witness.OrganizationId == organizationId && witness.IsActive;
+
+    private bool ValidateOperationReadScope(bool requireCurrentFrame = true)
+    {
+        if (_readScopeFaulted) return false;
+        if (!_tenantWideRead) return true;
+        var valid = !_disposed && !_rollbackOnly && _transaction is not null && _tenantContextIssued
+            && _tenantContextAnnouncement is not null && _readActor is not null && _depth > 0;
+        var expectedDepth = !requireCurrentFrame && _depth > 1 && !_readWitnesses.ContainsKey(_depth) ? _depth - 1 : _depth;
+        valid = valid && _readWitnesses.Count == expectedDepth;
+        for (var depth = 1; valid && depth <= expectedDepth; depth++)
+        {
+            valid = _readWitnesses.TryGetValue(depth, out var witness)
+                && witness.Actor == _readActor && witness.TenantId == _tenantContextAnnouncement!.TenantId
+                && witness.OrganizationId == _tenantContextAnnouncement.OrganizationId
+                && witness.IsBoundTo(this, _transaction!, _generation);
+        }
+        if (valid) return true;
+        _readScopeFaulted = true;
+        _rollbackOnly = true;
+        _tenantContextIssued = false;
+        _tenantContextAnnouncement = null;
+        return false;
+    }
+
+    private void EnsureOperationReadScope()
+    {
+        if (!ValidateOperationReadScope())
+            throw new InvalidOperationException("The operation read scope is no longer live; the unit is rollback-only.");
+    }
+
+    [DoesNotReturn]
+    private void RefuseOperationReadScope()
+    {
+        _readScopeFaulted = true;
+        _rollbackOnly = true;
+        _tenantContextIssued = false;
+        _tenantContextAnnouncement = null;
+        throw new InvalidOperationException("A mixed or invalid operation read scope is forbidden; the unit is rollback-only.");
+    }
+
     private void ClearTenantContextAnnouncement()
     {
         _tenantContextIssued = false;
         _tenantContextAnnouncement = null;
+        _tenantWideRead = false;
+        _readScopeFaulted = false;
+        _readActor = null;
+        _readWitnesses.Clear();
         _globalIdentityDescriptor = null;
         _globalIdentityAnnouncement = null;
         _globalIdentityContext = null;
@@ -690,6 +805,11 @@ public sealed class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork
 
     private async Task CommitFrameAsync(CancellationToken cancellationToken)
     {
+        if (!ValidateOperationReadScope())
+        {
+            await RollbackCoreAsync();
+            throw new InvalidOperationException("Operation read authority expired; the unit is rollback-only and was rolled back.");
+        }
         if (_globalIdentityDescriptor is not null && _mode == TransactionMode.ReadWrite && !_globalIdentitySealed)
         {
             MarkRollbackOnly();
@@ -698,6 +818,7 @@ public sealed class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork
         }
         _commitRequested = true;
 
+        _readWitnesses.Remove(_depth);
         if (--_depth > 0)
         {
             // A joiner's commit is not a commit.
@@ -780,6 +901,7 @@ public sealed class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork
 
     private async Task RollbackFrameAsync()
     {
+        _readWitnesses.Remove(_depth);
         if (--_depth > 0)
         {
             // A joiner declining its own frame. It does NOT mark the unit:

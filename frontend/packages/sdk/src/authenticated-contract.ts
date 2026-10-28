@@ -1,15 +1,22 @@
 import type { components, operations } from './generated/schema.js';
 
-/** P02b-7 owns session-based transport for this separate authenticated contract. */
+/** Authenticated wire ownership; native session transport separately admits only AccountSite. */
 export const AUTHENTICATED_GET_CONTRACTS = Object.freeze({
   '/api/v1/account/site': 'GetAccountSite',
-} as const satisfies Record<'/api/v1/account/site', 'GetAccountSite'>);
+  '/api/v1/identity/memberships': 'ListMemberships',
+} as const satisfies {
+  '/api/v1/account/site': 'GetAccountSite';
+  '/api/v1/identity/memberships': 'ListMemberships';
+});
 
 export type AuthenticatedGetOperation =
   (typeof AUTHENTICATED_GET_CONTRACTS)[keyof typeof AUTHENTICATED_GET_CONTRACTS];
 export type AccountSite = components['schemas']['AccountSite'];
 export type AccountSiteSuccess =
   operations['GetAccountSite']['responses'][200]['content']['application/json'];
+export type MembershipDirectoryItem = components['schemas']['MembershipDirectoryItem'];
+export type MembershipDirectoryPage =
+  operations['ListMemberships']['responses'][200]['content']['application/json'];
 
 type Same<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;

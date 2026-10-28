@@ -113,7 +113,7 @@ The split keeps Keycloak focused on authentication (knowing who you are) and Lea
 
 A User binding is **global**. One provider subject can have Memberships in
 multiple tenants and organizations; email never identifies or merges bindings.
-The following foundation model is implemented; live authorization remains P03-2:
+The foundation model below supports live per-act authorization:
 
 ```mermaid
 flowchart LR
@@ -165,10 +165,11 @@ P03-1 admits fixed witnessed seed creation/adoption and existing-session binding
 only. It adds no POST, SDK operation or native no-session completion. P03-3 owns
 new-user HTTP/BFF entry and independently validated orgless/branch reissue. The
 shipped complete native profile and AccountSite host ceiling remain; optional API
-actor evidence does not publish a tenantless native session. G2 execution remains
-P03-2. G4 scope transitions remain P03-3; current provider user-global attributes
-do not prove independent simultaneous session scopes. Ordinary refresh remains
-scope-preserving until that bounded transition contract ships.
+actor evidence does not publish a tenantless native session. The
+[live authorization contract](../standards/11-security.md#live-authorization-contract)
+owns G2 execution. G4 scope transitions remain P03-3; current provider user-global
+attributes do not prove independent simultaneous session scopes. Ordinary
+refresh remains scope-preserving until that bounded transition contract ships.
 
 No missing profile is repaired by email merging, a new per-login actor, a client
 tenant selector or a permissive membership default. Existing seed/provider IDs
@@ -275,10 +276,44 @@ Mechanism:
 
 The API uses opaque `sub` for verified-provider subject accounting and the
 resolved typed UserId for actor attribution, checking any supplied UUID `user_id`
-against that binding under ADR-0072. Scalar scope claims remain assertions. Email and
-realm/client roles grant no application authority. Phase 03 owns permission
-resolution; P02b-5 exposes only its closed nonsensitive read while application
-authorization is still pass-through.
+against that binding under ADR-0072. Scalar scope claims remain assertions. Email
+and realm/client roles grant no application authority.
+
+Accepted [ADR-0076](../decisions/0076-live-scoped-authorization.md) supplies the
+P03-2 authorization design: fresh committed Membership/grant and Tenancy lifecycle
+reads, then independent HTTP and application policy checks. Resolver admission
+is no reusable permission grant. A confined candidate owner reads authorization
+facts without publishing a TenantContext or profile; operation-bound read authority
+connects eligible tenant-wide reads to the same EF/RLS scope. The
+[Permission standard](../standards/19-permissions.md) owns exact capabilities,
+freshness and finite seed/system classifications. Implementation and qualification
+remain in the [Phase 03 Status block](../roadmap/phase-03-identity-admin.md).
+
+Portal Public describes only the existing anonymous reads through virtual
+definitions; it has no stored Membership, Role template or assignable grants.
+Its policy classification preserves publication, host, tenant/org and physical
+READ ONLY limits and needs no identity/grant lookup.
+
+The one additional protected HTTP surface is the administrative
+`GET /api/v1/identity/memberships`, using the existing Tenant
+`identity.membership.admin` capability. It can use HostAndClaim or confirmed
+ClaimAndMembership, including on a platform host. Public and AccountSite reads
+retain their separate HostScope ceilings; AccountSite remains nonsensitive and
+Off on success. Directory disclosure requires its own same-transaction MUST
+sensitive-read row. [API Standards](../standards/04-api-design.md) owns the exact
+route, response and pagination contract; native BFF operations, editing and UI
+remain P03-3. The authenticated native caller still permits only AccountSite.
+
+Accepted [ADR-0077](../decisions/0077-trusted-authorization-evidence.md) adds
+central, trusted evidence for denied policy acts and Membership-confirmed header
+assertion mismatches. Denial events remain distinct from ordinary plural resource
+intents, including when an outer operation absorbs a refusal. The
+[Audit coverage standard](../standards/18-audit-coverage.md#trusted-authorization-evidence)
+owns occurrence identity, provenance, pre-success durability and its crash/loss
+boundary. Authorization/evidence use separate bounded app-role sources under the
+[database source ledger](../standards/05-database.md#authorization-and-evidence-source-ledger);
+API startup qualifies those sources against the installed authority and actual
+business database. Application grants remain independent of realm grants.
 
 ## Invitations
 

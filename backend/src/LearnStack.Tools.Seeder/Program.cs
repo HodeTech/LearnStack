@@ -47,9 +47,9 @@ if (args.Length != 0 && !identityFoundation)
 // database password, and an argument is visible to every local user through `ps` for as
 // long as the process runs. `make seed` already passes it this way.
 //
-// And NOT through IConfiguration's GetConnectionString: exactly one file in the solution
-// reads credentials that way, and Platform_DataSource_Resolved_Only_By_PlatformAdminScope
-// keeps it that way so one file decides what is done with them.
+// IConfiguration's GetConnectionString remains confined to the API persistence
+// composition and its separate dispatcher composition. The global credential
+// census pins each reader/key; this console root reads only its explicit environment.
 var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Default");
 
 if (string.IsNullOrWhiteSpace(connectionString))
@@ -70,30 +70,59 @@ using var terminate = OperatingSystem.IsWindows() ? null : PosixSignalRegistrati
 using var hangup = OperatingSystem.IsWindows() ? null : PosixSignalRegistration.Create(PosixSignal.SIGHUP,
     signal => { signal.Cancel = true; cancellation.Cancel(); });
 
+var sourceStartupQualified = false;
 try
 {
+    if (!Guid.TryParseExact(Environment.GetEnvironmentVariable("Identity__AuthorityId"), "D", out var authorityId))
+        throw new InvalidOperationException("Identity authority configuration is invalid.");
+    var registration = new IdentityAuthorityRegistration(IdentityAuthorityId.From(authorityId),
+        Environment.GetEnvironmentVariable("Authentication__Tenant__Issuer") ?? "");
+    var auxiliary = AuthorizationSourceConfiguration.Resolve(connectionString,
+        Environment.GetEnvironmentVariable("ConnectionStrings__IdentityAuthorization"),
+        Environment.GetEnvironmentVariable("ConnectionStrings__AuthorizationEvidence"),
+        allowDevelopmentDerivation: string.Equals(Environment.GetEnvironmentVariable("Deployment__Mode"),
+            "Development", StringComparison.Ordinal));
     await using var dataSource = ApplicationDataSource.Build(connectionString);
+    // The process owns one bounded evidence lane across every per-act provider.
+    // Qualification only reads the installed anchor; schema-only migration must
+    // install it before running this application writer.
+    var qualification = new IdentityAuthorityQualification(new Lazy<Npgsql.NpgsqlDataSource>(() => dataSource), registration);
+    await qualification.QualifyAsync(cancellation.Token);
+    await using var evidence = new AuthorizationEvidenceSource(auxiliary.AuthorizationEvidence);
+    var proof = await qualification.OpenDatabaseQualificationProofAsync(cancellation.Token);
+    var qualificationDeadline = proof.DeadlineToken;
+    await using (proof)
+        await evidence.QualifyAsync(registration.AuthorityId, registration.Issuer, proof, qualificationDeadline);
+    qualificationDeadline.ThrowIfCancellationRequested();
+    if (!string.Equals(qualification.QualifiedDatabaseName, evidence.QualifiedDatabaseName, StringComparison.Ordinal))
+        throw new InvalidOperationException("Authorization evidence must use the qualified application database.");
+    sourceStartupQualified = true;
     if (identityFoundation)
     {
-        if (!Guid.TryParseExact(Environment.GetEnvironmentVariable("Identity__AuthorityId"), "D", out var authorityId))
-            throw new InvalidOperationException("Identity authority configuration is invalid.");
-        var registration = new IdentityAuthorityRegistration(IdentityAuthorityId.From(authorityId),
-            Environment.GetEnvironmentVariable("Authentication__Tenant__Issuer") ?? "");
         var witness = await SeedProviderWitness.ReadAsync(Console.OpenStandardInput(), registration, cancellation.Token);
         var admission = new FixedSeedIdentityFoundationAdmission(witness);
         var identityRunner = new SeedIdentityFoundationRunner(
             context => SeedComposition.Build(dataSource, context, loggerFactory,
-                identityAuthority: registration, seedAdmission: admission), admission);
+                identityAuthority: registration, seedAdmission: admission, authorizationEvidence: evidence), admission);
         await identityRunner.RunAsync(cancellation.Token);
         return 0;
     }
     var runner = new SeedRunner(
-        context => SeedComposition.Build(dataSource, context, loggerFactory),
+        context => SeedComposition.Build(dataSource, context, loggerFactory,
+            identityAuthority: registration, authorizationEvidence: evidence),
         loggerFactory.CreateLogger<SeedRunner>());
     return await runner.RunAsync(cancellation.Token);
 }
 catch (Exception failure)
 {
+    if (!sourceStartupQualified)
+    {
+        // Provider/authentication failures can contain endpoint or role details.
+        // The new startup gate owns a fixed diagnostic, including its cleanup;
+        // it never passes the provider exception into ordinary command logging.
+        Console.Error.WriteLine("seed: authorization source configuration or startup qualification was refused.");
+        return 1;
+    }
     if (identityFoundation)
     {
         Console.Error.WriteLine("seed: development identity foundation was refused.");

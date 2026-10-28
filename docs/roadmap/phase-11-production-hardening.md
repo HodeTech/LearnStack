@@ -473,7 +473,20 @@ counters continue during suppression; their volume and retention need sizing too
   standalone write — the last on exactly the requests that are already failing. A pool
   sized for one connection per request exhausts under a burst of those at half the load it
   was sized for, so the pool size and its saturation alert are set here, against that
-  count.
+  count. ADR-0076 authorization and ADR-0077 denial evidence use separately
+  confined sources; they are not additional borrowers from this business pool.
+- **Authorization/evidence production topology.** Before production activation,
+  qualify the actual deployment against
+  [Infrastructure Standards § Authorization and evidence topology](../standards/12-infrastructure.md#authorization-and-evidence-topology)
+  and the [database source ledger](../standards/05-database.md#authorization-and-evidence-source-ledger).
+  Include the coupled explicit source keys, same app role/database/installed
+  authority, fixed four/two auxiliary caps, independent PgBouncer backend lanes,
+  cross-alias limits, PostgreSQL headroom and admitted instance count. Exercise
+  saturation, retained cleanup and shutdown under that topology and set measured
+  capacity alerts/runbooks. P03-2 already owns the required small-pool direct
+  PostgreSQL and pinned PgBouncer progress/dirty controls before live activation;
+  this deployment qualification does not defer or replace them. Neither 4/2 nor
+  a local deadline is a production throughput or fairness guarantee.
 - Background job retry policy under multi-pod load. The single-process retry and
   dead-letter contract — producer-side, subscriber-side and job-side — is
   [Phase 02b](phase-02b-events-auth.md)'s; this phase verifies it holds across pods and
@@ -720,6 +733,9 @@ new erasure permission.
   partitioning, query cost ceiling, Hangfire fair-share dispatch with per-tenant
   concurrency caps, and bounded `data_source` queries.
 - Production deployment pipeline, staging environment, rollback path.
+- Deployment-specific authorization/evidence topology and admitted-instance
+  capacity qualification, with measured saturation alerts and cleanup/shutdown
+  runbooks against the accepted source ledger.
 - Qualified process supervision/restart/backoff, shutdown/termination and crash-dump
   policies, with crash-loop alerting and a recovery runbook. Record the worker-process
   topology decision against measured shared-failure/scaling triggers.
@@ -799,6 +815,11 @@ new erasure permission.
 - No module references a Dapr, Kafka, Valkey or Vault client type.
   `Modules_Do_Not_Reference_DeploymentMode` is green.
 - Production deployment is repeatable and documented.
+- The actual transaction-pooling deployment preserves authorization/evidence
+  backend headroom while business server transactions are saturated, at its
+  admitted application-instance count. Distinct aliases and backend ownership,
+  cross-alias/PostgreSQL limits and retained-cleanup behavior have source-bound
+  evidence; additional client pools or application names alone do not qualify it.
 - `GET /readyz` reads **both** registered checks — `audit` from Packet 9 and `outbox`
   from Phase 02b — and reports unhealthy when **either** is unhealthy; the orchestrator
   stops routing to that instance, and the deployment-level backstop stops serving once

@@ -21,6 +21,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/identity/memberships": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Tenant administrative membership directory requiring current Tenant identity.membership.admin. Rechecks live membership, lifecycle and capability for every page; accepts HostAndClaim or confirmed ClaimAndMembership, including a platform host. Returns only membership/user/organization identifiers, status, contextual displayName and preferredLocale. Active/Suspended undeleted memberships only, ordered by membership UUID. No search, sorting, editing, provider data, grants or global profile. No-store; the MUST ReadSensitive audit row commits before any result is disclosed. This operation is not admitted by the native BFF caller. */
+        get: operations["ListMemberships"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/courses": {
         parameters: {
             query?: never;
@@ -103,6 +120,17 @@ export interface components {
             site: components["schemas"]["PublicSite"];
             tenantId: components["schemas"]["TenantId"];
         };
+        /** @enum {string} */
+        DirectoryMembershipStatus: "Active" | "Suspended";
+        MembershipDirectoryItem: {
+            displayName: null | string;
+            /** Format: uuid */
+            membershipId: string;
+            organizationId: null | components["schemas"]["OrganizationId"];
+            preferredLocale: null | string;
+            status: components["schemas"]["DirectoryMembershipStatus"];
+            userId: components["schemas"]["UserId"];
+        };
         /** Format: uuid */
         OrganizationId: string;
         PageInfo: {
@@ -110,6 +138,10 @@ export interface components {
             hasPrevious: boolean;
             nextCursor: null | string;
             previousCursor: null | string;
+        };
+        PageOfMembershipDirectoryItem: {
+            items: components["schemas"]["MembershipDirectoryItem"][];
+            pageInfo: components["schemas"]["PageInfo"];
         };
         ProblemDetails: {
             code: string;
@@ -325,7 +357,129 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description dependency_unavailable from invalid stored public configuration or a sticky subject-registry cleanup fault. */
+            /** @description dependency_unavailable from live authorization storage, invalid public configuration or sticky subject-registry cleanup fault; refused audit writes preserve the original refusal. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested dependency retry delay in seconds; not a recovery guarantee. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ListMemberships: {
+        parameters: {
+            query?: {
+                /** @description Opaque canonical continuation bound to the actor, tenant, organization and operation; obtain it from pageInfo.nextCursor. Every page reauthorizes. */
+                cursor?: string;
+                /** @description Positive page size, default 20; values above 100 are clamped to 100. Repeated, empty or unknown query parameters are refused. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageOfMembershipDirectoryItem"];
+                };
+            };
+            /** @description validation_failed for noncanonical/replayed/oversized cursors, invalid limit or unknown/repeated/empty query parameters; malformed assertion headers are also refused. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized for present invalid or undecidable credentials on known hosts, including existing-binding failure; bare Bearer challenge without provider details. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden for confirmed coverage without the current Tenant administrative capability; no directory lookup or disclosure. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found for absent credentials, noncoverage or untrusted scope; tenant_mismatch for host/claim or header disagreement. Assertions do not select authority. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed from routing after earlier credential, resolution and surface gates; GET only. */
+            405: {
+                headers: {
+                    Allow: "GET";
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large from the existing decoded body bound; outer Kestrel framing refusals may omit application policy. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited from visitor/subject admission or subject-registry capacity. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error for unexpected failures, without exception/query details. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable for live membership/lifecycle storage, auxiliary admission or sticky subject-registry cleanup fault; audit_unavailable when the mandatory sensitive-read row cannot commit. No membership payload is disclosed. */
             503: {
                 headers: {
                     "Cache-Control": "no-store";

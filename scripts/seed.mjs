@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { parseEnv } from 'node:util';
 import { composeProcessEnvironment, composeSelection, composeSelectionFailure, repositoryRoot } from './compose.mjs';
 import { DemoCommandError, DemoProcesses, installDemoCancellation } from './demo-process.mjs';
-import { publicSeederEnvironment } from './demo-database.mjs';
+import { publicSeederEnvironment, developmentSeederRuntimeEnvironment, authorizationSourceEnvironment } from './demo-database.mjs';
 import { RealmError, realmFailureNotice, refuse } from './development-realm-errors.mjs';
 import { readRealmEnvironmentFile, realmEnvironment, seedAuthorityEnvironment, validateLocalDockerContext } from './development-realm-owner.mjs';
 import { reconcileDevelopmentRealm } from './reconcile-development-realm.mjs';
@@ -34,13 +34,13 @@ async function selectedConfiguration(selected) {
   for (const key of ['ConnectionStrings__Default', 'ConnectionStrings__Migration'])
     if (!values[key] || (process.env[key] !== undefined && process.env[key] !== values[key]))
       refuse('preflight', 'configuration');
+  authorizationSourceEnvironment(values);
   return values;
 }
 
 /** One selected stack and cancellation owner for readiness, application seed and identity. */
 export async function seedDevelopment({ selected, signal }) {
   const values = await selectedConfiguration(selected);
-  const connection = values.ConnectionStrings__Default;
   const prerequisites = { ...publicSeederEnvironment(), ...composeProcessEnvironment(selected.env) };
   const selectedPrerequisites = { ...prerequisites,
     LEARNSTACK_COMPOSE_PROJECT: selected.project, LEARNSTACK_COMPOSE_ENV_FILE: selected.file,
@@ -77,7 +77,7 @@ export async function seedDevelopment({ selected, signal }) {
       cwd: backendRoot, env: publicSeederEnvironment(), label: 'Release Seeder build', timeout: 180000,
     });
     await run('dotnet', [seederDll], {
-      cwd: backendRoot, env: publicSeederEnvironment(connection), label: 'Application seed', timeout: 180000,
+      cwd: backendRoot, env: developmentSeederRuntimeEnvironment(values), label: 'Application seed', timeout: 180000,
     });
     const result = await reconcileDevelopmentRealm({ selected, signal, seedIdentityFoundation: true });
     preparationDispatched = result.preparationDispatched === true;

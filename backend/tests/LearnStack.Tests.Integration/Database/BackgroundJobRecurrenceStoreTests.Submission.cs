@@ -242,6 +242,9 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
         {
             services.RemoveAll<BackgroundJobDefinitionRegistry>();
             services.AddSingleton(Fixture.Definitions());
+            BackgroundJobFixtureOperations.AddJobs(services,
+                Fixture.Module.Application.GetType("LearnStack.Modules.JobsRecurrenceFixture.Application.TenantRoot", true)!,
+                Fixture.Module.Application.GetType("LearnStack.Modules.JobsRecurrenceFixture.Application.OrganizationRoot", true)!);
             foreach (var type in Fixture.Module.Application.GetTypes())
                 foreach (var contract in type.GetInterfaces().Where(candidate => candidate.IsGenericType
                              && candidate.GetGenericTypeDefinition() == typeof(IRequestHandler<,>)))

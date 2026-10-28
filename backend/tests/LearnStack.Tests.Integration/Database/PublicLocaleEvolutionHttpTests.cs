@@ -14,6 +14,7 @@ using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.Tools.Seeder;
@@ -50,8 +51,9 @@ public sealed class PublicLocaleEvolutionHttpTests(SchemaFixture schema, Constru
     public async Task Third_locale_authored_through_api_commands_serves_exact_new_urls_without_changing_existing_responses_or_migrations()
     {
         await using var database = await SeededDatabaseAsync();
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
         var observation = new PublicReadObservation();
-        await using var host = ApiHost(database, observation);
+        await using var host = ApiHost(database, evidence, observation);
         using var client = Client(host, Yoga.Host);
         var context = new SeedTenantContext(Yoga.TenantId, null);
         var organizationContext = new SeedTenantContext(Yoga.TenantId, Yoga.DefaultOrganization.OrganizationId);
@@ -156,8 +158,9 @@ public sealed class PublicLocaleEvolutionHttpTests(SchemaFixture schema, Constru
     public async Task Organization_branding_writer_is_refused_with_denied_audit_and_mapped_host_keeps_tenant_palette()
     {
         await using var database = await SeededDatabaseAsync();
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
         var observation = new PublicReadObservation();
-        await using var host = ApiHost(database, observation);
+        await using var host = ApiHost(database, evidence, observation);
         using var client = Client(host, Yoga.Host);
         var context = new SeedTenantContext(Yoga.TenantId, Yoga.DefaultOrganization.OrganizationId);
         var before = await JsonAsync(client, Site);
@@ -169,6 +172,8 @@ public sealed class PublicLocaleEvolutionHttpTests(SchemaFixture schema, Constru
         JsonNode.DeepEquals(before["theme"], JsonNode.Parse(settingBefore.Value)).Should().BeTrue();
         var countsBefore = await CountsAsync(database.AppConnectionString, context);
         var deniedBefore = await BrandingDenialsAsync(database.AppConnectionString, context);
+        await using var evidenceReads = NpgsqlDataSource.Create(database.AppConnectionString);
+        var authorizationBefore = await ComponentAuthorizationEvidence.CountDenialsAsync(evidenceReads, context, "tests.component.locale.branding");
         await using (var scope = host.Services.CreateAsyncScope())
         {
             var accessor = scope.ServiceProvider.GetRequiredService<ITenantContextAccessor>();
@@ -189,8 +194,9 @@ public sealed class PublicLocaleEvolutionHttpTests(SchemaFixture schema, Constru
         var countsAfter = await CountsAsync(database.AppConnectionString, context);
         countsAfter.Settings.Should().Be(countsBefore.Settings);
         countsAfter.SuccessfulBrandingAudits.Should().Be(countsBefore.SuccessfulBrandingAudits);
-        countsAfter.Audits.Should().Be(countsBefore.Audits + 1, "the normal MUST audit pipeline retains the denied authoring attempt");
+        countsAfter.Audits.Should().Be(countsBefore.Audits + 2, "the normal resource audit and independent central MUST denial both persist");
         (await BrandingDenialsAsync(database.AppConnectionString, context)).Should().Be(deniedBefore + 1);
+        (await ComponentAuthorizationEvidence.CountDenialsAsync(evidenceReads, context, "tests.component.locale.branding")).Should().Be(authorizationBefore + 1);
         observation.Reads.Should().BeGreaterThan(0);
     }
 
@@ -198,9 +204,10 @@ public sealed class PublicLocaleEvolutionHttpTests(SchemaFixture schema, Constru
     public async Task Public_host_locale_and_organization_contracts_hold_together_with_exact_request_connection_translation_scope()
     {
         await using var database = await SeededDatabaseAsync();
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
         var observation = new PublicReadObservation();
         var scopes = new TranslationScopeObservation();
-        await using var host = ApiHost(database, observation, scopes);
+        await using var host = ApiHost(database, evidence, observation, scopes);
         using var client = Client(host, Yoga.Host);
         var context = new SeedTenantContext(Yoga.TenantId, null);
         const string tenantHost = "yoga-tenant-scope.example.test";
@@ -294,12 +301,35 @@ public sealed class PublicLocaleEvolutionHttpTests(SchemaFixture schema, Constru
         }
     }
 
-    private WebApplicationFactory<Program> ApiHost(DisposableSchemaDatabase database, PublicReadObservation observation,
+    // Explicit admission for this component mechanism; this is not a live HTTP authorization proof.
+    private static void AddComponentAuthority(IServiceCollection services) =>
+        ComponentOperationRegistration.AddExactComponentAuthority(services,
+            OperationPolicy.ForTrusted<GetTenantSeedStateQuery>("tests.component.locale.read_tenant", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<GetCourseSeedStateQuery>("tests.component.locale.read_course", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<GetLessonSeedStateQuery>("tests.component.locale.read_lesson", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<GetHostMappingSeedStateQuery>("tests.component.locale.read_host", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<GetSettingSeedStateQuery>("tests.component.locale.read_setting", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<AddTenantLocaleCommand>("tests.component.locale.add_locale", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<CreateCourseCommand>("tests.component.locale.create_course", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<AddCourseTranslationCommand>("tests.component.locale.translate_course", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<PublishCourseCommand>("tests.component.locale.publish_course", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<CreateLessonCommand>("tests.component.locale.create_lesson", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<AddLessonTranslationCommand>("tests.component.locale.translate_lesson", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<PublishLessonCommand>("tests.component.locale.publish_lesson", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<MapHostToTenantCommand>("tests.component.locale.map_host", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<SetTenantBrandingCommand>("tests.component.locale.branding", AuthorizationSourceKind.Seed));
+
+    private WebApplicationFactory<Program> ApiHost(DisposableSchemaDatabase database, ComponentAuthorizationEvidence evidence, PublicReadObservation observation,
         TranslationScopeObservation? scopes = null) =>
         factory.WithWebHostBuilder(builder => builder
             .UseEnvironment(Environments.Development)
             .UseSetting("ConnectionStrings:Default", database.AppConnectionString)
             .UseSetting("ConnectionStrings:PlatformAdmin", database.PlatformConnectionString)
+            .ConfigureTestServices(services =>
+            {
+                AddComponentAuthority(services);
+                evidence.AddTo(services);
+            })
             .ConfigureTestServices(services =>
             {
                 services.AddSingleton(observation);

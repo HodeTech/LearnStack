@@ -174,9 +174,13 @@ empty project populations remain covered by discovery. Final results reconcile
 those records with TRX, including all summary counters. A display-name-only
 progress record cannot distinguish colliding theory rows.
 
-For the five enumerated live Keycloak test classes, failed execution measurements
-retain only the fixture's existing closed startup stage, reason and cleanup
-result. Unknown, ambiguous or oversized messages supply no diagnostic fields;
+For the six enumerated live Keycloak test classes, failed execution measurements
+retain the fixture's closed startup stage, reason and cleanup result, plus the
+startup cancellation state when supplied. Stages identify the last reached SDK
+milestone, not the exact failing operation. The cancellation state is captured
+when failure is caught, before cleanup; it does not identify the provider cause.
+Older diagnostic sentences leave that state unknown.
+Unknown, ambiguous or oversized messages supply no diagnostic fields;
 raw messages, exception types and provider output remain private. These fields
 neither establish quiescence nor replace Docker absence, complete results or a
 successful execution receipt. Completed-case streams and retained TRX contain

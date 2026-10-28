@@ -4,7 +4,7 @@ using Mono.Cecil.Cil;
 namespace LearnStack.Tests.Architecture;
 
 /// <summary>Shared closed-surface capabilities and fail-closed call-argument provenance.</summary>
-internal static class EndpointComposition
+internal static partial class EndpointComposition
 {
     internal static bool IsMapping(MethodReference method) => method.Name.StartsWith("Map", StringComparison.Ordinal)
         && (method.DeclaringType.FullName.StartsWith("Microsoft.AspNetCore.", StringComparison.Ordinal)

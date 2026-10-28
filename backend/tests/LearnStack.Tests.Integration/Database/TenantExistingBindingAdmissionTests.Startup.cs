@@ -1,7 +1,9 @@
 using System.Net;
 using FluentAssertions;
+using LearnStack.Modules.Identity.Infrastructure.Bindings;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
+using Npgsql;
 using Xunit;
 
 namespace LearnStack.Tests.Integration.Database;
@@ -53,13 +55,52 @@ public sealed partial class TenantExistingBindingAdmissionTests
 
     private sealed record StartupVariant(string Name, string Connection, string Issuer, string? Authority);
 
-    private sealed class QualifiedStartupFactory(string connection, string issuer, string? authority) : ConstructionOnlyApiFactory
+    [Fact]
+    public async Task Actual_host_startup_refuses_auxiliary_role_anchor_and_actual_database_mismatch_without_repair()
+    {
+        await using var issuer = await TenantAuthenticationIssuer.StartAsync();
+        await using var database = await DatabaseAsync(issuer);
+        var authority = database.Registration.AuthorityId.Value.ToString("D");
+        await using var missing = await DisposableSchemaDatabase.CreateAsync(parent.Postgres);
+        await using var other = await DisposableSchemaDatabase.CreateAsync(parent.Postgres);
+        await using (var migration = (NpgsqlConnection)await PostgresFixture.OpenAsync(other.MigrationConnectionString))
+            await IdentityAuthorityDeploymentInstaller.InstallAsync(migration, database.Registration);
+        var before = await CountsAsync(database);
+        foreach (var (authorization, evidence) in new[]
+        {
+            (missing.AppConnectionString, database.AppConnectionString),
+            (database.AppConnectionString, missing.AppConnectionString),
+            (other.AppConnectionString, database.AppConnectionString),
+            (database.AppConnectionString, other.AppConnectionString),
+            (database.MigrationConnectionString, database.AppConnectionString),
+            (database.AppConnectionString, database.MigrationConnectionString),
+            (database.AppConnectionString, ""),
+        })
+        {
+            await using var refused = new QualifiedStartupFactory(database.AppConnectionString, issuer.Issuer,
+                authority, authorization, evidence);
+            Action start = () => { using var client = refused.CreateClient(); };
+            var failure = start.Should().Throw<InvalidOperationException>().Which;
+            failure.Message.Should().Be("Identity authorization source qualification is unavailable or does not match deployment configuration.");
+            failure.InnerException.Should().BeNull("source refusal must not expose provider or credential payloads");
+        }
+        (await CountsAsync(database)).Should().Be(before);
+        await using var restored = new QualifiedStartupFactory(database.AppConnectionString, issuer.Issuer, authority);
+        using var client = restored.CreateClient();
+        using var response = await client.GetAsync("/healthz");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    private sealed class QualifiedStartupFactory(string connection, string issuer, string? authority,
+        string? authorization = null, string? evidence = null) : ConstructionOnlyApiFactory
     {
         protected override bool RetainIdentityQualification => true;
         protected override void ConfigureTestHost(IWebHostBuilder builder)
         {
             builder.UseEnvironment(Environments.Development);
             builder.UseSetting("ConnectionStrings:Default", connection);
+            builder.UseSetting("ConnectionStrings:IdentityAuthorization", authorization ?? connection);
+            builder.UseSetting("ConnectionStrings:AuthorizationEvidence", evidence ?? connection);
             builder.UseSetting("Authentication:Tenant:Issuer", issuer);
             builder.UseSetting("Identity:AuthorityId", authority);
         }

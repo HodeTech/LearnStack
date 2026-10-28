@@ -14,6 +14,7 @@ public sealed partial class OutboxDispatchConventionTests
         ("LearnStack.Api.PublicReads.PublicSiteController", ["Get", "Head"]),
         ("LearnStack.Api.PublicReads.PublicEducationController", ["Catalog", "HeadCatalog", "Course", "HeadCourse", "Lesson", "HeadLesson"]),
         ("LearnStack.Api.Account.AccountController", ["GetSite"]),
+        ("LearnStack.Api.Identity.MembershipsController", ["List"]),
     ];
 
     /// <summary>ADR-0047: disk-discovered modules cannot hide declarations outside the live handler scan.</summary>
@@ -24,6 +25,10 @@ public sealed partial class OutboxDispatchConventionTests
         EvaluateDetector(census, JobManifestOffenders).Should().BeEmpty();
         EndpointCompositionControls.Plant(census.Modules.Single(module => module.Assembly.Name.Name == "LearnStack.Api"),
             (prefix, because) => AssertEndpointControl(EvaluateDetector(census, JobManifestOffenders), prefix, because));
+        EndpointCompositionControls.PlantMetadata(census.Modules.Single(module => module.Assembly.Name.Name == "LearnStack.Api"),
+            (owner, because) => EvaluateDetector(census, JobManifestOffenders).Should().Contain(error =>
+                error.StartsWith("Invalid infrastructure metadata attachment:", StringComparison.Ordinal)
+                && error.Contains(owner, StringComparison.Ordinal), because));
         Action unrelated = () => AssertEndpointControl(["Missing live job manifest subject: unrelated"],
             "Unexpected infrastructure path/handler/signature:", "an unrelated failure cannot satisfy the path control");
         unrelated.Should().Throw<Xunit.Sdk.XunitException>();
@@ -93,6 +98,7 @@ public sealed partial class OutboxDispatchConventionTests
             AddCallProbe(scaffold, "HiddenGenericDashboard", useDashboard, OpCodes.Call), JobManifestOffenders);
         foreach (var siteController in new[] { types[("LearnStack.Api", "LearnStack.Api.PublicReads.PublicSiteController")],
                      types[("LearnStack.Api", "LearnStack.Api.Account.AccountController")],
+                     types[("LearnStack.Api", "LearnStack.Api.Identity.MembershipsController")],
                      types[("LearnStack.Api", "LearnStack.Api.Common.ApiControllerBase")] })
             AssertMutation(census, "a new declared or inherited public action on an approved controller", () =>
         {
@@ -185,11 +191,14 @@ public sealed partial class OutboxDispatchConventionTests
         }
 
         // Scan every production body, not just the Development branch executed
-        // by the host proof. Exactly these four endpoint registration calls exist.
+        // by the host proof. Four mappings and their three fixed metadata
+        // attachments are the complete registration capability population.
         var api = census.Modules.Single(module => module.Assembly.Name.Name == "LearnStack.Api");
         var main = Method(types[("LearnStack.Api", "Program")], "<Main>$");
         var openApi = Method(types[("LearnStack.Api", "LearnStack.Api.Versioning.ApiVersioningExtensions")], "MapLearnStackOpenApi");
         var endpointBuilder = typeof(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder);
+        var attachMetadata = typeof(Microsoft.AspNetCore.Builder.RoutingEndpointConventionBuilderExtensions).GetMethods()
+            .Single(method => method.Name == "WithMetadata" && method.IsGenericMethodDefinition);
         var approvedRoutes = new[]
         {
             (main, typeof(Microsoft.AspNetCore.Builder.EndpointRouteBuilderExtensions).GetMethod("MapGet", [endpointBuilder, typeof(string), typeof(Delegate)])!),
@@ -197,14 +206,32 @@ public sealed partial class OutboxDispatchConventionTests
             (openApi, typeof(Microsoft.AspNetCore.Builder.OpenApiEndpointRouteBuilderExtensions).GetMethod("MapOpenApi", [endpointBuilder, typeof(string)])!),
             (openApi, typeof(Scalar.AspNetCore.ScalarEndpointRouteBuilderExtensions).GetMethod("MapScalarApiReference",
                 [endpointBuilder, typeof(string), typeof(Action<Scalar.AspNetCore.ScalarOptions>)])!),
+            (main, attachMetadata.MakeGenericMethod(typeof(Microsoft.AspNetCore.Builder.RouteHandlerBuilder))),
+            (openApi, attachMetadata.MakeGenericMethod(typeof(Microsoft.AspNetCore.Builder.IEndpointConventionBuilder))),
+            (openApi, attachMetadata.MakeGenericMethod(typeof(Microsoft.AspNetCore.Builder.IEndpointConventionBuilder))),
         };
         CheckSet(offenders, "exact endpoint registration capabilities", sites.Where(site => EndpointCapability(site.Target))
                 .Select(site => MethodId(site.Owner) + "|" + MethodId(site.Target) + "|" + site.Instruction.OpCode.Name),
-            approvedRoutes.Select(route => route.Item1 + "|" + MethodId(api.ImportReference(route.Item2)) + "|call"));
+            approvedRoutes.Select(route => route.Item1 + "|" + ExpectedEndpointMethod(route.Item2) + "|call"));
         foreach (var site in sites.Where(site => site.Target.Name == "MapGet" && EndpointCapability(site.Target)))
             if (!EndpointComposition.HasLiteralPath(site.Owner, site.Instruction, "/healthz"))
                 offenders.Add("Only the direct literal /healthz infrastructure mapping is admitted: " + MethodId(site.Owner));
+        foreach (var site in sites.Where(site => site.Target.Name == "WithMetadata" && EndpointCapability(site.Target)))
+            if (!EndpointComposition.IsFixedInfrastructureMetadata(site.Owner, site.Instruction))
+                offenders.Add("Invalid infrastructure metadata attachment: " + MethodId(site.Owner));
         return offenders;
+
+        string ExpectedEndpointMethod(System.Reflection.MethodInfo method)
+        {
+            var imported = api.ImportReference(method);
+            if (imported is GenericInstanceMethod { Name: "WithMetadata" } metadata)
+            {
+                // Reflection import names its method parameter TBuilder; emitted
+                // MemberRefs use !!0. Normalize only this exact known generic slot.
+                metadata.ElementMethod.GenericParameters[0].Name = "!!0";
+            }
+            return MethodId(imported);
+        }
 
         IEnumerable<MethodDefinition> ControllerActions(TypeDefinition controller)
         {

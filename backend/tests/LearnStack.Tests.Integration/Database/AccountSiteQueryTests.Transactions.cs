@@ -82,6 +82,7 @@ public sealed partial class AccountSiteQueryTests
         var transaction = unit.Transaction;
         var send = async () => await scope.ServiceProvider.GetRequiredService<ISender>().Send(new GetAccountSiteQuery());
         await send.Should().ThrowAsync<InvalidOperationException>().WithMessage("*mixed-mode*");
+        observation.HandlerEntries.Should().Be(0, "the mixed-mode barrier must refuse before the actual handler");
         observation.Reads.Should().Be(0);
         unit.Transaction.Should().BeSameAs(transaction);
         unit.Mode.Should().Be(TransactionMode.ReadWrite);

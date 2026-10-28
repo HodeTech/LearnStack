@@ -17,6 +17,8 @@ public sealed partial class OpenApiContractTests
         var clean = await Served();
         ContractErrors(clean).Should().BeEmpty();
         AccountSchemaErrors(clean).Should().BeEmpty();
+        DirectorySchemaErrors(clean).Should().BeEmpty();
+        AssertDirectoryControls(clean);
         clean["paths"]!["/api/v1/public/site"]!["get"]!["responses"]!["400"]!["description"]!.GetValue<string>()
             .Should().Contain("malformed or repeated assertion headers");
         clean["paths"]!["/api/v1/account/site"]!["get"]!["responses"]!["405"]!["description"]!.GetValue<string>()

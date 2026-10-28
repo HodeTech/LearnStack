@@ -1,4 +1,6 @@
 using LearnStack.Application.Jobs;
+using LearnStack.Application.Authorization;
+using LearnStack.Application.Audit;
 using System.Data.Common;
 using LearnStack.Application.Messaging;
 using LearnStack.SharedKernel.Audit;
@@ -24,7 +26,9 @@ public sealed partial class TransactionExecutionCoordinator(
     IAuditStateCapture capture,
     ProducerExecution producer,
     DomainEventCollector collector,
-    ILogger<TransactionExecutionCoordinator> logger)
+    ILogger<TransactionExecutionCoordinator> logger,
+    OperationAuthorizationCoordinator? authorization = null,
+    AuthorizationEvidenceCoordinator? authorizationEvidence = null)
 {
     /// <summary>
     /// Announces before dispatch, retains producer ancestry through completion,
@@ -36,7 +40,7 @@ public sealed partial class TransactionExecutionCoordinator(
         ExecuteCoreAsync(request as IProvisionsTenant, mode, typeof(TRequest).Name, next,
             typeof(TRequest), request as AdmitBackgroundJobAttemptCommand,
             request as RecordBackgroundJobCapacityCleanupCommand, BackgroundJobExternalCheckpointOwner.For(request),
-            request as SubmitBackgroundJobRecipientCommand, cancellationToken);
+            request as SubmitBackgroundJobRecipientCommand, cancellationToken, operation: request);
 
     public Task<TResponse> ExecuteAsync<TResponse>(IProvisionsTenant? provisioning, TransactionMode mode,
         string operationName, Func<Task<TResponse>> next, CancellationToken cancellationToken = default)
@@ -50,7 +54,7 @@ public sealed partial class TransactionExecutionCoordinator(
         RecordBackgroundJobCapacityCleanupCommand? capacityCleanup,
         BackgroundJobExternalCheckpointOwner? externalCheckpoint,
         SubmitBackgroundJobRecipientCommand? recipient,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, object? operation = null)
         where TResponse : IResultBase
     {
         ArgumentNullException.ThrowIfNull(next);
@@ -84,7 +88,8 @@ public sealed partial class TransactionExecutionCoordinator(
         }
 
         return await ExecuteFrameAsync(scope, provisioning, operationName, next,
-            null, null, null, operationType, admission, jobCompletion, capacityCleanup, externalCheckpoint, recipient, cancellationToken);
+            null, null, null, operationType, admission, jobCompletion, capacityCleanup, externalCheckpoint, recipient, cancellationToken,
+            operation: operation);
     }
 
     /// <summary>
@@ -139,9 +144,11 @@ public sealed partial class TransactionExecutionCoordinator(
         SubmitBackgroundJobRecipientCommand? recipient,
         CancellationToken cancellationToken,
         PreparedGlobalIdentityOwner? globalOwner = null,
-        GlobalIdentityCreationReference? creation = null)
+        GlobalIdentityCreationReference? creation = null, object? operation = null)
         where TResponse : IResultBase
     {
+        await using var evidenceScope = authorizationEvidence?.BeginExecution();
+        AuthorizationEvidenceCoordinator.CommitBatch? evidenceBatch = null;
         var committing = false;
         var failed = false;
 
@@ -168,8 +175,11 @@ public sealed partial class TransactionExecutionCoordinator(
             }
             else
             {
-                await unitOfWork.SetTenantContextAsync(
-                    BackgroundJobExecutionAdmission.AnnouncementContext(tenantContext, operationType), cancellationToken);
+                var announcementContext = BackgroundJobExecutionAdmission.AnnouncementContext(tenantContext, operationType);
+                if (authorization?.CurrentReadWitness is { } readWitness && readWitness.Policy.RequestType == operationType)
+                    await unitOfWork.SetTenantContextAsync(announcementContext, readWitness, cancellationToken);
+                else
+                    await unitOfWork.SetTenantContextAsync(announcementContext, cancellationToken);
             }
 
             // Capture causal identity at the trusted entry. Nested invocations inherit it;
@@ -189,9 +199,13 @@ public sealed partial class TransactionExecutionCoordinator(
                 incomingEventId ?? BackgroundJobExecutionAdmission.IncomingEventId,
                 BackgroundJobExecutionAdmission.ProducerOperationType(operationType),
                 BackgroundJobExecutionAdmission.ParentJobId);
+            var refusalObservation = authorizationEvidence?.CaptureRefusalObservation(evidenceScope, operationType, operation);
             var response = await next();
             if (response.IsFailure)
             {
+                // A decided refusal must survive a faulted rollback or cancellation
+                // during cleanup, before the outer policy observer regains control.
+                authorizationEvidence?.RecordRefusalResult(refusalObservation, operationType, operation, response);
                 // Joiners are not savepoints. Successful production cannot escape
                 // merely because an ancestor absorbs this refusal.
                 if (invocation.HasProducedWork) unitOfWork.MarkRollbackOnly();
@@ -228,6 +242,8 @@ public sealed partial class TransactionExecutionCoordinator(
                 {
                     await auditStore.WritePendingAsync(unitOfWork, cancellationToken);
                 }
+                if (authorizationEvidence is not null && globalOwner is null)
+                    evidenceBatch = await authorizationEvidence.BeforeOwnerCompletionAsync(unitOfWork, cancellationToken);
             }
 
             if (recipient is not null)
@@ -283,6 +299,19 @@ public sealed partial class TransactionExecutionCoordinator(
                     if (unitOfWork.IsRollbackOnly) capture.MarkRolledBack();
                     else capture.MarkIndeterminate(commitFailure);
                 }
+                authorizationEvidence?.RecordOwnerOutcome(evidenceBatch, committed: false);
+
+                // The new audited tenant-wide read discloses nothing until its
+                // evidence commits. Keep the actual completion state/cause, but
+                // report unavailable evidence rather than a generic database 500.
+                // Ordinary mutations and cancellation retain their primary failure.
+                if (scope.IsOwner && commitFailure is DbException && globalOwner is null
+                    && authorization?.CurrentReadWitness is { } readWitness
+                    && readWitness.Policy.RequestType == operationType
+                    && !invocation.HasProducedWork && capture.Changes.Count == 0
+                    && capture.Intents.Count != 0 && capture.Intents.All(intent =>
+                        intent.OperationClass == OperationClass.Must && intent.OperationType == OperationType.ReadSensitive))
+                    throw new AuditWriteFailedException("The sensitive read's MUST evidence could not be committed.", commitFailure);
 
                 throw;
             }
@@ -296,6 +325,7 @@ public sealed partial class TransactionExecutionCoordinator(
                 recipient?.Completion.RecordCommitted(unitOfWork);
                 completion?.Gate.RecordCommitted();
                 capture.MarkCommitted();
+                authorizationEvidence?.RecordOwnerOutcome(evidenceBatch, committed: true);
             }
             return response;
         }
@@ -336,6 +366,8 @@ public sealed partial class TransactionExecutionCoordinator(
         }
         finally
         {
+            if (evidenceBatch is not null && capture.State != AuditIntentState.Committed)
+                authorizationEvidence?.RecordOwnerOutcome(evidenceBatch, committed: false);
             globalOwner?.RecordOutcome(capture.State);
             await CleanupFrameAsync(scope, failed);
         }

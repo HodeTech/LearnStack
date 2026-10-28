@@ -25,7 +25,7 @@ namespace LearnStack.Tests.Integration.TenancyIdentity;
 /// <summary>Real warm provider → native BFF → real application-role API; browser proof is separate.</summary>
 [Collection(PublicReadTestGroup.Name)]
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
-public sealed class TenantBffSessionTests(PublicReadFixture publicDatabase, ITestOutputHelper output)
+public sealed partial class TenantBffSessionTests(PublicReadFixture publicDatabase, ITestOutputHelper output)
 {
     [Fact]
     public async Task Parent_EOF_during_held_build_joins_acquisition_and_removes_its_private_tree()
@@ -396,6 +396,9 @@ public sealed class TenantBffSessionTests(PublicReadFixture publicDatabase, ITes
                     .Should().BeTrue("every BFF witness uses actual JWT actor and independently resolved host/organization");
                 database.Observation.Reads.Should().BeGreaterThan(readsBefore,
                     "the retained physical ReadOnly application-role observer actually ran");
+                var learner = SeedData.IdentityMemberships.Single(member => member.Identity.Tenant == tenant && !member.IsFirstAdmin);
+                await AssertLearnerMembershipRevocationAsync(database, provider, admin, native, api, learner,
+                    passwords.GetValueOrDefault(learner.Identity.Username) ?? KeycloakFixture.DemoPassword);
                 await native.CompleteAsync();
                 output.WriteLine("Real warm BFF host completed: locale={0}; authenticated witnesses={1}; native lifecycle={2:F3}s.",
                     tenant.Curriculum!.Locales.Single(locale => locale.IsDefault).Locale, authenticatedReads.Length, started.Elapsed.TotalSeconds);
@@ -406,9 +409,10 @@ public sealed class TenantBffSessionTests(PublicReadFixture publicDatabase, ITes
                 stored.EnumerateArray().Count(row => row.GetProperty("type").GetString() == type).Should().BeGreaterThan(0,
                     "the actual BFF journey persists provider event type {0}", type);
             }
-            (await AuditCountsAsync(database)).Should().Equal(auditBefore.Select(count => count + 1),
-                "only the one deliberately mismatched persona per host adds a security audit; query Off and provider-event ownership add none");
-            output.WriteLine("Real warm BFF proof: hosts=2; real refresh/maximum/logout/error/events=true; zero-write rerun=true; fixture={0:F3}s; journey={1:F3}s.",
+            (await AuditCountsAsync(database)).Should().Equal(SeedData.All.Select((site, index) =>
+                auditBefore[index] + 1 + (site.MapHostToDefaultOrganization ? 0 : 1)),
+                "each host mismatch is tenant scoped; the additional learner denial follows its exact scope, so the organization denial is proved separately by correlation");
+            output.WriteLine("Real warm BFF proof: hosts=2; real refresh/maximum/logout/error/events/membership-revocation=true; zero-write rerun=true; fixture={0:F3}s; journey={1:F3}s.",
                 provider.StartupElapsed.TotalSeconds, journey.Elapsed.TotalSeconds);
         }
         finally
@@ -421,7 +425,8 @@ public sealed class TenantBffSessionTests(PublicReadFixture publicDatabase, ITes
     }
 
     private static async Task<JsonElement> LoginAsync(BffNativeDriver native, KeycloakBrowserFlow browser,
-        SeedIdentity identity, string password, BffWireCookies cookies, TenantRealmApiObservation observation)
+        SeedIdentity identity, string password, BffWireCookies cookies, TenantRealmApiObservation observation,
+        string returnPath = "/studio")
     {
         var before = observation.Reads.Count(row => row.Actor is not null);
         var host = Host(identity.Tenant);
@@ -429,7 +434,7 @@ public sealed class TenantBffSessionTests(PublicReadFixture publicDatabase, ITes
         csrf.Status.Should().Be(200);
         cookies.Apply(csrf);
         var begin = await native.RequestAsync(host, "/api/auth/signin/keycloak", cookies.Header, "POST",
-            Form("csrfToken", csrf.Data.GetProperty("csrfToken").GetString()!) + "&returnTo=%2Fstudio");
+            Form("csrfToken", csrf.Data.GetProperty("csrfToken").GetString()!) + "&" + Form("returnTo", returnPath));
         begin.Status.Should().Be(303);
         cookies.Apply(begin);
         var callback = await browser.CompleteBffLoginAsync(PrivateLocation(begin), identity.Username, password);
@@ -482,6 +487,7 @@ public sealed class TenantBffSessionTests(PublicReadFixture publicDatabase, ITes
     private static ApiHost StartApi(IdentityPublicReadFixture database, string secret, KeycloakFixture provider)
     {
         var observation = new TenantRealmApiObservation();
+        var accountResponses = new AccountResponseObservation();
         var factory = database.WithWebHostBuilder(builder =>
         {
             builder.UseSetting("Tenancy:TrustedHop:Networks:0", "127.0.0.1/32");
@@ -489,6 +495,7 @@ public sealed class TenantBffSessionTests(PublicReadFixture publicDatabase, ITes
             builder.UseSetting(TenantAuthenticationOptions.IssuerConfigurationKey, provider.Issuer);
             builder.ConfigureTestServices(services =>
             {
+                services.AddSingleton<IStartupFilter>(accountResponses);
                 services.Replace(ServiceDescriptor.Singleton(_ => new TenantAuthenticationBackchannel(KeycloakHttp.CreateHandler(provider.RootCertificate))));
                 services.AddScoped<ObservedPublicConfigurationReader>();
                 services.AddScoped<IPublicTenantConfigurationReader>(scope => new TenantRealmContextReader(
@@ -499,7 +506,7 @@ public sealed class TenantBffSessionTests(PublicReadFixture publicDatabase, ITes
         factory.UseKestrel(options => options.Listen(IPAddress.Loopback, 0));
         var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
         var address = factory.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
-        return new(factory, client, address, observation);
+        return new(factory, client, address, observation, accountResponses);
     }
 
     private static async Task<long[]> AuditCountsAsync(PublicReadFixture database) => [await database.AuditCountAsync(SeedData.English), await database.AuditCountAsync(SeedData.Yoga)];
@@ -530,7 +537,7 @@ public sealed class TenantBffSessionTests(PublicReadFixture publicDatabase, ITes
         throw new InvalidOperationException("Cannot find BFF session fixture source.");
     }
     private sealed record ApiHost(WebApplicationFactory<Program> Factory, HttpClient Client, string Origin,
-        TenantRealmApiObservation Observed) : IAsyncDisposable
+        TenantRealmApiObservation Observed, AccountResponseObservation AccountResponses) : IAsyncDisposable
     {
         public async ValueTask DisposeAsync() { Client.Dispose(); await Factory.DisposeAsync(); }
     }

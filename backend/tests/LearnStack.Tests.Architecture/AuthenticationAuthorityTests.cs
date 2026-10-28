@@ -20,6 +20,9 @@ public sealed partial class AuthenticationAuthorityTests
     private const string BindingAdmission = Authentication + nameof(TenantIdentityBindingAdmissionMiddleware);
     private const string BindingResolver = Authentication + nameof(TenantIdentityBindingResolver);
     private const string Provenance = Authentication + nameof(TenantSubjectAdmissionProvenance);
+    private const string CandidateSource = Authentication + nameof(TenantAuthorizationCandidateSource);
+    private const string TransportSource = Authentication + nameof(HttpAuthorizationTransportSource);
+    private const string CredentialWitness = CandidateSource + "/CredentialWitness";
     private const string Resolver = "LearnStack.Api.Tenancy.TenantResolverMiddleware";
     private static readonly string[] IdentityProperties = ["ActorUserId", "Issuer", "OrganizationId", "Subject", "TenantId"];
     private static readonly Dictionary<string, Type> IdentityTypes = new(StringComparer.Ordinal)
@@ -66,7 +69,8 @@ public sealed partial class AuthenticationAuthorityTests
 
         foreach (var call in calls.Where(call => (rawReader ?? IsRawAuthorityRead)(call.Target)
                      && !(call.Source.Site == ExpectedSite(Events + ".TokenValidated")
-                         && call.Target.FullName == "System.String Microsoft.IdentityModel.JsonWebTokens.JsonWebToken::get_EncodedToken()")))
+                         && call.Target.FullName == "System.String Microsoft.IdentityModel.JsonWebTokens.JsonWebToken::get_EncodedToken()")
+                     && !IsClosedRolesAbsenceCheck(call)))
             errors.Add("Raw claim/role authority: " + call.Source.Site + " -> " + call.Target.FullName);
         // Object virtual dispatch and generic formatting can export a positional
         // record without an identity-declared call. Close acquisition, holders
@@ -111,19 +115,22 @@ public sealed partial class AuthenticationAuthorityTests
 
         // Issuer/sub may select a private accounting partition, never permission.
         // Scope/actor consumption remains explicit even inside the API assembly.
-        Consumers("Issuer");
-        Consumers("Subject");
-        VerifiedConsumers("Issuer", Limiter + ".AttemptAcquire", BindingResolver + ".ResolveExistingAsync", BindingAdmission + ".InvokeAsync");
-        VerifiedConsumers("Subject", Limiter + ".AttemptAcquire", BindingResolver + ".ResolveExistingAsync", BindingAdmission + ".InvokeAsync");
-        VerifiedConsumers("ClaimedActor", BindingResolver + ".ResolveExistingAsync");
-        VerifiedConsumers("TenantId", BindingAdmission + ".InvokeAsync");
-        VerifiedConsumers("OrganizationId", BindingAdmission + ".InvokeAsync");
+        Consumers("Issuer", CandidateSource + ".MatchesIdentity");
+        Consumers("Subject", CandidateSource + ".MatchesIdentity");
+        VerifiedConsumers("Issuer", Limiter + ".AttemptAcquire", BindingResolver + ".ResolveExistingAsync", BindingAdmission + ".InvokeAsync", CandidateSource + ".MatchesIdentity");
+        VerifiedConsumers("Subject", Limiter + ".AttemptAcquire", BindingResolver + ".ResolveExistingAsync", BindingAdmission + ".InvokeAsync", CandidateSource + ".MatchesIdentity");
+        VerifiedConsumers("ClaimedActor", BindingResolver + ".ResolveExistingAsync", CandidateSource + ".MatchesIdentity");
+        VerifiedConsumers("TenantId", BindingAdmission + ".InvokeAsync", CandidateSource + ".MatchesIdentity");
+        VerifiedConsumers("OrganizationId", BindingAdmission + ".InvokeAsync", CandidateSource + ".MatchesIdentity");
         Consumers("ActorUserId", Resolver + ".BuildAttemptAsync", Resolver + ".RecordRefusalAsync",
             "LearnStack.Api.Tenancy.TenantAssertionMiddleware.InvokeAsync",
-            Authentication + "TenantSurfaceAdmissionMiddleware.HasHostAuthority");
+            Authentication + "TenantSurfaceAdmissionMiddleware.HasHostAuthority", CandidateSource + ".ForValidatedScope", CandidateSource + ".MatchesIdentity",
+            TransportSource + ".Capture");
         Consumers("TenantId", Resolver + ".BuildAttemptAsync", Resolver + ".InvokeAsync",
-            Authentication + "TenantSurfaceAdmissionMiddleware.HasHostAuthority");
-        Consumers("OrganizationId", Resolver + ".BuildAttemptAsync", Authentication + "TenantSurfaceAdmissionMiddleware.HasHostAuthority");
+            Authentication + "TenantSurfaceAdmissionMiddleware.HasHostAuthority", CandidateSource + ".ForValidatedScope", CandidateSource + ".MatchesIdentity",
+            TransportSource + ".Capture");
+        Consumers("OrganizationId", Resolver + ".BuildAttemptAsync", Authentication + "TenantSurfaceAdmissionMiddleware.HasHostAuthority",
+            CandidateSource + ".ForValidatedScope", CandidateSource + ".MatchesIdentity");
 
         foreach (var method in methods)
             foreach (var instruction in method.Definition.Body.Instructions)
@@ -168,6 +175,9 @@ public sealed partial class AuthenticationAuthorityTests
         var provenance = types.Where(type => Is(type, Provenance)).ToArray();
         if (provenance.Length != 1 || !HasClosedProvenanceShape(provenance[0]))
             errors.Add("Subject admission provenance must retain its closed immutable request-local shape.");
+        var witnesses = types.Where(type => Is(type, CredentialWitness)).ToArray();
+        if (witnesses.Length != 1 || !HasClosedCredentialWitnessShape(witnesses[0]))
+            errors.Add("Candidate credential witness must retain its private immutable nonformatting shape.");
         return errors;
 
         void Require(Func<MethodReference, bool> target, params string[] owners)

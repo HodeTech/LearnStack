@@ -38,7 +38,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
     {
         using var compiled = ModuleDefinition.ReadModule(typeof(SurfaceAttachedMetadataProbe).Assembly.Location);
         var probe = compiled.GetType(typeof(SurfaceAttachedMetadataProbe).FullName);
-        foreach (var controller in map.Values.Where(type => type.FullName is Account or PublicSite or PublicEducation).ToArray())
+        foreach (var controller in map.Values.Where(type => type.FullName is Account or Directory or PublicSite or PublicEducation).ToArray())
         {
             var action = controller.Methods.First(IsAction);
             AssertClean();

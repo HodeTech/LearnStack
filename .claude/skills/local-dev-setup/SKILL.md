@@ -132,12 +132,39 @@ installed deployment authority, following
 [Identity deployment](../../../docs/modules/identity/README.md#global-implementation-and-deployment).
 Authority qualification is mandatory before the API accepts requests.
 The dispatcher credential belongs only to the API; every Seeder invocation uses
-an explicit application-only environment, and the web launcher receives neither
+an explicit application-role runtime environment, and the web launcher receives no
 database credential. Both empty hop lists remain
 valid in every mode; a network-only or secret-only configuration is refused.
 The application connection must name `learnstack_app`; the data-source guard also
 refuses direct or transitive BYPASSRLS/superuser access. Migration credentials
 never enter either application launch recipe.
+
+**P03-2 source configuration.** The confined authorization/
+evidence sources use the same application role, not new credentials or roles.
+[Standard 05's source ledger](../../../docs/standards/05-database.md#authorization-and-evidence-source-ledger)
+owns the coupled backend configuration pair, Development-only direct-PostgreSQL
+derivation and explicit non-Development requirement;
+[Standard 12](../../../docs/standards/12-infrastructure.md#authorization-and-evidence-topology)
+owns operational topology. Startup qualifies the installed authority and actual
+database identity before admitting source use. Owned seed/demo runtime children
+receive the selected authority and connection pair, with the existing
+`Deployment__Mode=Development` for their direct local stack; their restore/build
+and manifest children receive no runtime authority or database credentials.
+The Seeder shares one process-owned evidence source across per-act providers.
+Direct CLI use must supply the authority pair and explicit auxiliary pair unless
+explicit Development permits supported direct-PostgreSQL derivation; the tool
+does not load `.env`. Follow [seed-tenant](../seed-tenant/SKILL.md) for its exact
+startup contract. Do not expose these values to the web, silently accept a
+partial pair, or mistake extra client pools for PgBouncer backend reservation.
+The local API configuration loader selects a complete explicit process
+authorization/evidence pair atomically over the selected root-file pair.
+When both process keys are absent, the root-file pair is used. Partial, empty or
+whitespace process values refuse before the API child starts; sources never fill
+one another's missing partner. The constructed runtime preserves selected strings
+exactly and imports neither partner from its ambient prerequisite environment.
+The owned demo separately retains its selected-stack conflict check: explicit
+process values cannot disagree with values present in its selected private file.
+The phase Status block owns current qualification and review state.
 
 **`make migrate` runs as `learnstack_migration`, not as the API's role.** From
 Phase 02a Packet 6 the stack provisions four database roles on the first boot of
@@ -145,8 +172,9 @@ a fresh `postgres-data` volume
 ([ADR-0003 Amendment 3](../../../docs/decisions/0003-tenant-isolation-defense-in-depth.md)):
 `learnstack_migration` owns every table, `learnstack_app` is what the API
 connects as, and `learnstack_platform` / `learnstack_outbox_admin` hold audited
-bypasses. Four roles, four passwords, four connection strings — all in
-`.env.example`, and none of them interchangeable. Running migrations as the
+bypasses. The four roles/passwords and baseline connection strings are in
+`.env.example`, and their privileges are not interchangeable. The accepted
+P03-2 application-role sources do not expand this role set. Running migrations as the
 runtime role would make it the table owner, which is the arrangement
 `FORCE ROW LEVEL SECURITY` exists to defeat.
 

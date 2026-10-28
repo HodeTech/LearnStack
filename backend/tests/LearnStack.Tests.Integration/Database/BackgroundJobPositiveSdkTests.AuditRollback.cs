@@ -38,7 +38,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
             BEGIN
                 IF {(terminalAudit
                     ? $"NEW.operation='platform.job.dead_letter' AND NEW.metadata->>'job_id'='{job.Value:D}'"
-                    : $"NEW.operation='tenancy.organization.create' AND NEW.entity_id='{finalized.Value:D}'")} THEN
+                    : $"NEW.operation='jobfixture.organization.create' AND NEW.entity_id='{finalized.Value:D}'")} THEN
                     RAISE EXCEPTION 'fixture rejects the exact MUST audit' USING ERRCODE='23514';
                 END IF;
                 RETURN NEW;
@@ -68,12 +68,12 @@ public sealed partial class BackgroundJobPositiveSdkTests
         await EducationSchemaSeed.AnnounceAsync(connection, transaction, SchemaFixture.TenantA, null);
         await using var command = new NpgsqlCommand("""
             SELECT j.phase,j.terminal_reason,j.dead_lettered_at,j.final_outcome_attempt_id,
-                (SELECT count(*) FROM audit_log WHERE operation='tenancy.organization.create' AND entity_id=@prepared),
-                (SELECT count(*) FROM audit_log WHERE operation='tenancy.organization.create' AND entity_id=@finalized AND outcome='success'),
+                (SELECT count(*) FROM audit_log WHERE operation='jobfixture.organization.create' AND entity_id=@prepared),
+                (SELECT count(*) FROM audit_log WHERE operation='jobfixture.organization.create' AND entity_id=@finalized AND outcome='success'),
                 (SELECT count(*) FROM audit_log WHERE operation='platform.job.dead_letter' AND metadata->>'job_id'=@job_text),
                 (SELECT count(*) FROM sdk_transaction_observations WHERE label LIKE 'finalize-%'),
                 (SELECT count(*) FROM sdk_transaction_observations WHERE label LIKE 'prepare-%'),
-                (SELECT count(*) FROM audit_log WHERE operation='tenancy.organization.create' AND entity_id=@finalized AND outcome='failed')
+                (SELECT count(*) FROM audit_log WHERE operation='jobfixture.organization.create' AND entity_id=@finalized AND outcome='failed')
             FROM background_jobs j WHERE id=@job
             """, (NpgsqlConnection)connection, (NpgsqlTransaction)transaction) { CommandTimeout = 5 };
         command.Parameters.AddWithValue("prepared", prepared.Value.ToString("D"));

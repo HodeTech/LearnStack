@@ -1,4 +1,5 @@
 using LearnStack.Api.Common;
+using LearnStack.Api.Authentication;
 using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -12,11 +13,13 @@ namespace LearnStack.Api.PublicReads;
 public sealed class PublicSiteController(ISender sender) : ApiControllerBase
 {
     [HttpGet(Name = "GetPublicSite")]
+    [OperationPolicy(typeof(GetPublicSiteQuery))]
     [ProducesResponseType<PublicSite>(StatusCodes.Status200OK)]
     public async Task<IActionResult> Get(CancellationToken cancellationToken) =>
         (await sender.Send(new GetPublicSiteQuery(Request.Query.Count != 0), cancellationToken)).ToActionResult();
 
     [HttpHead(Name = "HeadPublicSite")]
+    [OperationPolicy(typeof(GetPublicSiteQuery))]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> Head(CancellationToken cancellationToken) =>
         (await sender.Send(new GetPublicSiteQuery(Request.Query.Count != 0), cancellationToken)).ToActionResult();

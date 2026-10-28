@@ -6,7 +6,9 @@ using LearnStack.Modules.Identity.Application.Contracts.Seeding;
 using LearnStack.Modules.Identity.Domain;
 using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Errors;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql;
 
 namespace LearnStack.Modules.Identity.Infrastructure.Persistence;
@@ -21,9 +23,28 @@ public sealed class ContextualIdentityStorageControl(IdentityDbContext db, IUnit
     {
         if (_validated || db.ChangeTracker.Entries().Any(entry => entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted))
             throw new InvalidOperationException("An Identity graph cannot be reread after mutation or validation.");
+        EnrollCurrentTenantOwner(db, unit);
         // Pre/post-wait reads must materialize fresh facts; a cached tracked entity
         // would retain the earlier classification even after SQL returned new values.
         db.ChangeTracker.Clear();
+    }
+
+    internal static void EnrollCurrentTenantOwner(IdentityDbContext context, IUnitOfWork owner)
+    {
+        // Binding lookup may have created this scoped model on an earlier global
+        // owner. Re-enroll only the same connection's already-announced tenant
+        // transaction; this supplies no context-setting or read-scope authority.
+        if (!owner.HasActiveTransaction || owner.IsRollbackOnly
+            || owner is IGlobalIdentityUnitOfWork { IsGlobalIdentityTransaction: true }
+            || !owner.IsTenantContextIssuedOn(owner.Transaction)
+            || owner.GetTenantContextAnnouncement(owner.Transaction) is not { Generation: > 0 } announcement
+            || announcement.TenantId != context.CurrentTenantId || announcement.OrganizationId != context.CurrentOrganizationId
+            || !ReferenceEquals(context.Database.GetDbConnection(), owner.Connection)
+            || context.ChangeTracker.Entries().Any(entry => entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted))
+            throw new TenantContextMissingException("Identity storage requires its clean announced tenant owner.");
+        if (context.Database.CurrentTransaction is not { } current
+            || !ReferenceEquals(current.GetDbTransaction(), owner.Transaction))
+            context.Database.UseTransaction(owner.Transaction);
     }
 
     internal static async Task<T> ReadAsync<T>(Func<Task<T>> read)
@@ -164,7 +185,20 @@ public sealed class RoleWriteStore(IdentityDbContext db, ContextualIdentityStora
     }
     public Task UpdateAsync(Role aggregate, CancellationToken cancellationToken = default)
     {
-        WriteStoreTracking.EnsureTracked(db, aggregate);
+        // The database keeps its restrictive parent FK. Explicitly mark only
+        // removed tracked children before EF detects the severed required link;
+        // retained instances stay tracked and new children are discovered at save.
+        var detectChanges = db.ChangeTracker.AutoDetectChangesEnabled;
+        try
+        {
+            db.ChangeTracker.AutoDetectChangesEnabled = false;
+            WriteStoreTracking.EnsureTracked(db, aggregate);
+            foreach (var grant in db.ChangeTracker.Entries<RolePermissionGrant>().Where(entry =>
+                entry.Entity.TenantId == aggregate.TenantId && entry.Entity.RoleId == aggregate.Id
+                && !aggregate.Grants.Contains(entry.Entity)).ToArray())
+                grant.State = EntityState.Deleted;
+        }
+        finally { db.ChangeTracker.AutoDetectChangesEnabled = detectChanges; }
         return control.SaveAsync(cancellationToken);
     }
 }

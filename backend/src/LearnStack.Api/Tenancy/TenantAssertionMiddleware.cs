@@ -40,11 +40,13 @@ public sealed class TenantAssertionMiddleware(RequestDelegate next)
     public async Task InvokeAsync(
         HttpContext context,
         ITenantContext tenantContext,
-        ITenantAssertionRecorder recorder)
+        ITenantAssertionRecorder recorder,
+        IClaimContextAssertionRecorder claimRecorder)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(tenantContext);
         ArgumentNullException.ThrowIfNull(recorder);
+        ArgumentNullException.ThrowIfNull(claimRecorder);
 
         if (!HostClassificationMiddleware.ClassifiesPath(context.Request.Path))
         {
@@ -108,12 +110,15 @@ public sealed class TenantAssertionMiddleware(RequestDelegate next)
         if (mismatch is not null)
         {
             var identity = context.Features.Get<TenantCredentialFeature>()?.Identity;
-            await recorder.RecordRejectionAsync(new TenantAssertionRejection(
-                tenantContext.TenantId.Value, mismatch.Value.Dimension, mismatch.Value.Asserted,
-                IsAuthenticated: identity is not null, TenantAssertionSource.Header,
-                identity?.ActorUserId, tenantContext.CorrelationId,
-                tenantContext.OrganizationId is { } organization && StronglyTypedId.IsAssigned(organization)
-                    ? organization : null));
+            if (tenantContext.Origin == TenantContextOrigin.ClaimAndMembership)
+                await claimRecorder.RecordAsync(tenantContext, mismatch.Value.Dimension);
+            else
+                await recorder.RecordRejectionAsync(new TenantAssertionRejection(
+                    tenantContext.TenantId.Value, mismatch.Value.Dimension, mismatch.Value.Asserted,
+                    IsAuthenticated: identity is not null, TenantAssertionSource.Header,
+                    identity?.ActorUserId, tenantContext.CorrelationId,
+                    tenantContext.OrganizationId is { } organization && StronglyTypedId.IsAssigned(organization)
+                        ? organization : null));
 
             if (identity is not null)
             {

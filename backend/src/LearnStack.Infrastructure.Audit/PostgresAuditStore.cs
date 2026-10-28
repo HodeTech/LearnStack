@@ -80,6 +80,7 @@ public sealed partial class PostgresAuditStore : IAuditStore
     private readonly IAuditCatalog _catalog;
     private readonly ITenantContextAccessor _tenantAccessor;
     private readonly IGlobalIdentityEnrollment _globalEnrollment;
+    private readonly IAuthorizationEvidenceSessionFactory? _authorizationEvidence;
     private readonly Counter<long> _durableDuplicates;
     private readonly Counter<long> _standaloneWriteFailures;
 
@@ -91,7 +92,8 @@ public sealed partial class PostgresAuditStore : IAuditStore
         IAuditHealth health,
         IAuditCatalog catalog,
         ITenantContextAccessor tenantAccessor,
-        IGlobalIdentityEnrollment globalEnrollment)
+        IGlobalIdentityEnrollment globalEnrollment,
+        IAuthorizationEvidenceSessionFactory? authorizationEvidence = null)
     {
         ArgumentNullException.ThrowIfNull(meterFactory);
 
@@ -104,6 +106,7 @@ public sealed partial class PostgresAuditStore : IAuditStore
         // from the caller's classified draft/intent, including unresolved provisioning.
         _tenantAccessor = tenantAccessor ?? throw new ArgumentNullException(nameof(tenantAccessor));
         _globalEnrollment = globalEnrollment ?? throw new ArgumentNullException(nameof(globalEnrollment));
+        _authorizationEvidence = authorizationEvidence;
 
         var meter = meterFactory.Create(MeterName);
         _durableDuplicates = meter.CreateCounter<long>(DurableDuplicateCounterName);

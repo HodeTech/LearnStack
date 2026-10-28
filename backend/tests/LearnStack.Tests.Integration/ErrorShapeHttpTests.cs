@@ -345,13 +345,13 @@ public sealed class ErrorShapeHttpTests(ErrorShapeFixture fixture)
     }
 }
 
-public sealed class ErrorShapeFixture : ConstructionOnlyApiFactory
+public sealed class ErrorShapeFixture : ComponentApiFactory
 {
     protected override void ConfigureTestHost(IWebHostBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
         builder.UseEnvironment(Environments.Development);
-        builder.ConfigureTestServices(services =>
+        builder.ConfigureServices(services =>
             services.AddControllers(options =>
                     options.Conventions.Insert(0, new TestControllerFilter(
                         typeof(PaginationProbeController),

@@ -33,7 +33,7 @@ using Xunit;
 namespace LearnStack.Tests.Integration;
 
 /// <summary>
-/// HTTP-level integration coverage for ADR-0032's L1 boundary +
+/// Component HTTP coverage for ADR-0032's L1 boundary +
 /// ValidationBehavior. Backs the Standards 21 catalogue rows
 /// <c>IExceptionHandler_Registered_AtStartup</c> and
 /// <c>ValidationBehavior_DoesNotThrow_ValidationException</c> with the
@@ -143,13 +143,13 @@ public sealed class CrossCuttingFoundationHttpTests(CrossCuttingHttpFixture fixt
 }
 
 /// <summary>
-/// The foundation sockets resolve from the real composition root.
+/// The foundation sockets resolve from the production component registrations.
 /// </summary>
 /// <remarks>
 /// A registration compiles whether or not it can be satisfied, so "it builds" is
-/// not evidence that a caller can get one. These resolve through the host the
-/// application actually starts, which is the only place the lifetimes and the
-/// dependency graph are the real ones — <c>InProcessEventBus</c> takes an
+/// not evidence that a caller can get one. These resolve through the isolated
+/// component host using production registrations and their actual lifetimes —
+/// <c>InProcessEventBus</c> takes an
 /// <c>IServiceScopeFactory</c>, an <c>ITenantContextAccessor</c> and an
 /// <c>IPartitionSerializer</c>, and a singleton depending on a scoped service is
 /// a startup failure rather than a compile error.
@@ -284,19 +284,20 @@ public sealed class FoundationPortResolutionTests(CrossCuttingHttpFixture fixtur
     }
 }
 
-/// Shared <see cref="WebApplicationFactory{TEntryPoint}"/> that wires the
-/// integration test's controllers + MediatR handler + validator into the
-/// real <c>LearnStack.Api</c> host. Reuses the host's
-/// <c>AddLearnStackCrossCuttingFoundation</c> wiring so the L1 handler +
+/// <summary>
+/// Wires the test controllers, MediatR handler and validator into an isolated
+/// component host. It does not exercise Program's live HTTP authorization boundary.
+/// Reuses the production
+/// <c>AddLearnStackCrossCuttingFoundation</c> wiring so the L1 handler and
 /// ValidationBehavior tested here is the same code production runs.
 /// </summary>
-public sealed class CrossCuttingHttpFixture : ConstructionOnlyApiFactory
+public sealed class CrossCuttingHttpFixture : ComponentApiFactory
 {
     protected override void ConfigureTestHost(IWebHostBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
         builder.UseEnvironment(Environments.Development);
-        builder.ConfigureTestServices(services =>
+        builder.ConfigureServices(services =>
         {
             // The enforcement probes in VersionedRouteEnforcementTests are
             // deliberately broken; without this filter each one aborts this
@@ -319,6 +320,7 @@ public sealed class CrossCuttingHttpFixture : ConstructionOnlyApiFactory
             // catalogue does not know — silence included. Appended to the catalogue's
             // sources rather than replacing them, so the shipped modules' entries stay.
             services.AddSingleton<IAuditCatalogSource, TestAuditCatalogSource>();
+            ComponentOperationRegistration.AddValidationOperation(services);
 
             // TenantContextBehavior short-circuits when ITenantContext is not
             // resolved, and again when the resolved context's origin does not reach

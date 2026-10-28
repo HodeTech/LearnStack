@@ -218,12 +218,14 @@ class OwnerControls(unittest.TestCase):
         fixture = fixtures.ShardControls(); fixture.plan = self.owner.shard_owner().load_plan()
         return fixture
 
-    def run_workload(self, manifest, status, name):
+    def run_workload(self, manifest, status, name, execution=None):
         private, output = self.root / ('private-' + name), self.root / ('output-' + name)
         private.mkdir(); output.mkdir(); (output / 'results').mkdir()
         plan = self.owner.shard_owner().load_plan()
         expected = self.owner.shard_owner().assign(manifest, plan, '1')['owners']['ordinary-0']
         def completed(argv, deadline, work, consume, progress):
+            if execution is not None:
+                return execution(progress, expected)
             self.trx(private / 'trx', expected, raw_canary=True)
             progress.line(self.execution_complete(expected, tail=expected).encode())
             return status
@@ -740,7 +742,7 @@ except launcher.Refusal as failure:
                             and row['outcome'] == 'Failed' for row in rows))
         expected = {path.name for path in (ROOT / 'backend/tests/LearnStack.Tests.Integration/Database').glob(
             'BackgroundJobRuntimeFacadeTests*.cs')} | {
-                'OutboxProcessorTests.cs', 'BackgroundJobPositiveSdkTests.CausalRestart.cs',
+                'OutboxProcessorTests.cs', 'AuthorizationReadSourceTests.cs', 'BackgroundJobPositiveSdkTests.CausalRestart.cs',
                 'BackgroundJobPositiveSdkTests.CausalRestartObservations.cs',
                 'BackgroundJobPositiveSdkTests.NativeSettlement.cs', 'PublicAdmissionRenderingTests.cs',
                 'BackgroundJobPositiveSdkTests.NativeWait.cs', 'BackgroundJobPositiveSdkTests.NativeHistory.cs',
@@ -859,9 +861,14 @@ except launcher.Refusal as failure:
         self.assertEqual(set(re.findall(r'\bcleanup = "([a-z_]+)";', initialize)),
                          self.owner.KEYCLOAK_FAILURE_CLEANUP)
         self.assertIn('"Keycloak fixture startup failed at " + stage + "/" + reason', initialize)
-        self.assertIn('"; owned cleanup " + cleanup + "."', initialize)
+        self.assertIn('"; owned cleanup " + cleanup', initialize)
+        capture = 'var startupCancellationRequested = startup.IsCancellationRequested;'
+        self.assertLess(initialize.index(capture), initialize.index('await DisposeAsync();'))
+        self.assertIn('"; startup cancellation requested " + (startupCancellationRequested ? "true" : "false") + "."',
+                      initialize)
         self.assertEqual({'TenantRealmApiTests', 'TenantRealmIssuanceTests', 'TenantRealmProfileProtectionTests',
-                          'TenantRealmReconciliationTests', 'TenantRealmSelfServiceTests'},
+                          'TenantRealmReconciliationTests', 'TenantRealmSelfServiceTests',
+                          'TenantRealmStockBaselineTests'},
                          self.owner.KEYCLOAK_FAILURE_CLASSES)
         for name in self.owner.KEYCLOAK_FAILURE_CLASSES:
             test = (directory / (name + '.cs')).read_text()
@@ -892,6 +899,9 @@ except launcher.Refusal as failure:
                         sentence.replace('cleanup completed', 'cleanup PRIVATE-CANARY'),
                         sentence.replace('provider_start/', 'provider_start\n/'),
                         sentence.replace('; owned cleanup ', '; owned cleanup\x00 '),
+                        sentence.replace('completed.', 'completed; startup cancellation requested TRUE.'),
+                        sentence.replace('completed.', 'completed; startup cancellation requested PRIVATE-CANARY.'),
+                        sentence.replace('completed.', 'completed; startup cancellation requested true\n.'),
                         sentence[:-1], sentence + '\n' + sentence,
                         sentence + '\n' + sentence.replace('provider_start/', 'unknown/'),
                         'The following constructor parameters did not have matching fixture data: PRIVATE-CANARY',
@@ -904,6 +914,29 @@ except launcher.Refusal as failure:
                         {**case, 'name': 'LearnStack.Tests.Integration.Database.TenantRealmIssuanceTests.Proof'}):
             self.assertIsNone(parse(changed, {'ErrorMessage': sentence}))
         self.assertIsNone(parse(case, {'ErrorMessage': 'unrelated failure', 'ErrorStackTrace': sentence}))
+
+    def test_keycloak_startup_cancellation_state_is_closed_and_never_case_output(self):
+        cases = [self.case(index + 1, 'LearnStack.Tests.Integration.TenancyIdentity.'
+                           'TenantRealmStockBaselineTests.Proof(row: ' + str(index) + ')')
+                 for index in range(2)]
+        stream, console = io.StringIO(), io.StringIO()
+        progress = self.progress(self.root / 'keycloak-cancel.diag', 'LearnStack.Tests.Integration', cases, stream)
+        results = []
+        for case, cancelled in zip(cases, (True, False)):
+            item = self.execution_result(case, outcome=2)
+            item['ErrorMessage'] = ('Keycloak fixture startup failed at provider_starting/readiness_timeout; '
+                                    'owned cleanup completed; startup cancellation requested '
+                                    + str(cancelled).lower() + '.\nPRIVATE-CANARY')
+            results.append(item)
+        with contextlib.redirect_stdout(console):
+            progress.results({'NewTestResults': results})
+        self.assertEqual([{'stage': 'provider_starting', 'reason': 'readiness_timeout', 'cleanup': 'completed',
+                           'startupCancellationRequested': value} for value in (True, False)],
+                         [row['details'] for row in progress.failure_locations])
+        self.assertEqual(['Failed', 'Failed'], [json.loads(line)['outcome'] for line in stream.getvalue().splitlines()])
+        for private in ('PRIVATE-CANARY', 'startupCancellationRequested', 'provider_starting'):
+            self.assertNotIn(private, stream.getvalue())
+            self.assertNotIn(private, console.getvalue())
 
     def test_keycloak_fixture_results_keep_only_closed_measurements_and_truthful_sanitized_failures(self):
         sentence = ('Keycloak fixture startup failed at provider_start/unsupported_operation; '
@@ -1963,6 +1996,106 @@ except launcher.Refusal as failure:
         self.assertEqual([], nonwire['pools'], 'Internal record members are not part of the actual ToString wire shape')
         self.assertIsNone(parse(self.case(2), {'ErrorMessage': message}))
 
+    def test_start_only_protocol_is_diagnostic_and_does_not_complete_a_case(self):
+        case = self.case(1)
+        stream = io.StringIO()
+        progress = self.progress(self.root / 'start-only.diag', 'LearnStack.Tests.Integration', [case], stream)
+        raw = self.execution_result(case)['TestCase']
+        raw['Properties'] = [{'Key': 'PRIVATE-CANARY', 'Value': 'PRIVATE-CANARY'}]
+        progress.line(self.execution_message('TestExecution.StatsChange',
+            {'NewTestResults': [], 'ActiveTests': [raw]}).encode())
+        self.assertEqual({'status': 'observed', 'startedWithoutResult': [case]}, progress.execution_diagnostics())
+        self.assertEqual('', stream.getvalue())
+        self.assertEqual(set(), progress.seen)
+        self.assertEqual(Counter(), progress.outcomes)
+        self.assertFalse(progress.completed)
+        self.assertNotIn('PRIVATE-CANARY', json.dumps(progress.execution_diagnostics()))
+        self.refuses('execution_incomplete', progress.poll, final=True)
+
+    def test_start_deltas_accumulate_and_actual_results_remove_only_their_case(self):
+        cases = [self.case(1), self.case(2), self.case(3)]
+        progress = self.progress(self.root / 'start-deltas.diag', 'LearnStack.Tests.Integration', cases, io.StringIO())
+        def starts(rows):
+            progress.line(self.execution_message('TestExecution.StatsChange',
+                {'NewTestResults': [], 'ActiveTests': [self.execution_result(case)['TestCase'] for case in rows]}).encode())
+        starts(cases[:1]); starts(cases[1:2]); starts([])
+        self.assertEqual(cases[:2], progress.execution_diagnostics()['startedWithoutResult'])
+        with contextlib.redirect_stdout(io.StringIO()):
+            progress.line(self.execution_event(cases[:1]).encode())
+        self.assertEqual(cases[1:2], progress.execution_diagnostics()['startedWithoutResult'])
+        # Repeated and late starts cannot resurrect an already completed case.
+        starts(cases[:2]); starts(cases[1:2])
+        self.assertEqual(cases[1:2], progress.execution_diagnostics()['startedWithoutResult'])
+        with contextlib.redirect_stdout(io.StringIO()):
+            progress.line(self.execution_message('TestExecution.StatsChange', {
+                'ActiveTests': [self.execution_result(cases[2])['TestCase']],
+                'NewTestResults': [self.execution_result(cases[2])]}).encode())
+            progress.line(self.execution_complete(cases, tail=cases[1:2]).encode())
+        self.assertEqual({'status': 'observed', 'startedWithoutResult': []}, progress.execution_diagnostics())
+        self.assertTrue(progress.completed)
+        self.assertEqual(progress.expected, progress.seen)
+
+    def test_absent_or_null_starts_remain_unknown_without_erasing_observed_starts(self):
+        case = self.case(1)
+        progress = self.progress(self.root / 'start-unavailable.diag', 'LearnStack.Tests.Integration', [case], io.StringIO())
+        for payload in ({'NewTestResults': []}, {'NewTestResults': [], 'ActiveTests': None}):
+            progress.line(self.execution_message('TestExecution.StatsChange', payload).encode())
+            self.assertEqual({'status': 'unavailable', 'startedWithoutResult': None}, progress.execution_diagnostics())
+        progress.line(self.execution_message('TestExecution.StatsChange',
+            {'NewTestResults': [], 'ActiveTests': [self.execution_result(case)['TestCase']]}).encode())
+        progress.line(self.execution_message('TestExecution.StatsChange',
+            {'NewTestResults': [], 'ActiveTests': None}).encode())
+        self.assertEqual({'status': 'observed', 'startedWithoutResult': [case]}, progress.execution_diagnostics())
+        self.assertFalse(progress.completed)
+
+    def test_malformed_or_unselected_starts_are_unknown_and_never_exported_or_authoritative(self):
+        case = self.case(1)
+        raw = self.execution_result(case)['TestCase']
+        invalid = ('PRIVATE-CANARY', {}, 1, [None], [raw, raw],
+                   [{**raw, 'Id': 'PRIVATE-CANARY'}], [{**raw, 'DisplayName': 'PRIVATE-CANARY'}],
+                   [{**raw, 'Source': None}], [{**raw, 'Source': '/private/Foreign.dll'}],
+                   [self.execution_result(self.case(99))['TestCase']])
+        for index, value in enumerate(invalid):
+            with self.subTest(value=value):
+                stream = io.StringIO()
+                progress = self.progress(self.root / f'start-invalid-{index}.diag',
+                                         'LearnStack.Tests.Integration', [case], stream)
+                progress.line(self.execution_message('TestExecution.StatsChange',
+                    {'NewTestResults': [], 'ActiveTests': [raw]}).encode())
+                progress.line(self.execution_message('TestExecution.StatsChange',
+                    {'NewTestResults': [], 'ActiveTests': value}).encode())
+                progress.line(self.execution_message('TestExecution.StatsChange',
+                    {'NewTestResults': [], 'ActiveTests': [raw]}).encode())
+                self.assertEqual({'status': 'invalid', 'startedWithoutResult': None}, progress.execution_diagnostics())
+                self.assertEqual('', stream.getvalue())
+                self.assertEqual(set(), progress.seen)
+                self.assertFalse(progress.completed)
+                self.refuses('execution_incomplete', progress.poll, final=True)
+                with contextlib.redirect_stdout(io.StringIO()):
+                    progress.line(self.execution_complete([case], tail=[case]).encode())
+                self.assertTrue(progress.completed, 'Optional starts do not replace or alter actual completion validation')
+                self.assertEqual(progress.expected, progress.seen)
+                self.assertNotIn('PRIVATE-CANARY', stream.getvalue() + json.dumps(progress.execution_diagnostics()))
+
+    def test_deadline_retains_start_diagnostics_in_measurements_without_completion_evidence(self):
+        manifest = self.selector_fixture().manifest()
+        started = []
+        def interrupted(progress, expected):
+            started.append({name: expected[0][name] for name in ('assembly', 'id', 'name')})
+            progress.line(self.execution_message('TestExecution.StatsChange',
+                {'NewTestResults': [], 'ActiveTests': [self.execution_result(started[0])['TestCase']]}).encode())
+            raise self.owner.Refusal('deadline_exhausted')
+        self.refuses('deadline_exhausted', self.run_workload, manifest, 0, 'start-deadline', interrupted)
+        output = self.root / 'output-start-deadline'
+        private = self.root / 'private-start-deadline'
+        measured = self.owner.read_json(output / 'measurements.json')
+        self.assertEqual({'status': 'observed', 'startedWithoutResult': started},
+                         measured['projects'][0]['executionDiagnostics'])
+        self.assertEqual('', (output / 'completed-cases.jsonl').read_text())
+        self.assertFalse((private / 'workload.json').exists())
+        self.refuses('trx_missing', self.owner.validate_results, output, started)
+        self.assertEqual([], list(private.glob('*-execution*')), 'The private raw protocol remains unexported')
+
     def test_execution_protocol_requires_unique_expected_ids_and_finite_non_skip_outcomes(self):
         case = self.case(1)
         for mutation in ('missing', 'wrong', 'duplicate', 'skip', 'none', 'notfound', 'unknown', 'boolean'):
@@ -2590,6 +2723,16 @@ except launcher.Refusal as failure:
         solution.write_text('<Solution><Project Path="tests/LearnStack.Tests.Example.csproj" /></Solution>')
         self.assertEqual([('tests/LearnStack.Tests.Example.csproj', 'LearnStack.Tests.Example')],
                          list(self.owner.test_projects()))
+        probe = tests / 'LearnStack.Tests.AuthorizationEvidenceProbe.csproj'
+        probe.write_text('<Project><PropertyGroup><IsTestProject>false</IsTestProject></PropertyGroup></Project>')
+        solution.write_text('<Solution><Project Path="tests/LearnStack.Tests.Example.csproj" />'
+                            '<Project Path="tests/LearnStack.Tests.AuthorizationEvidenceProbe.csproj" /></Solution>')
+        self.assertEqual([('tests/LearnStack.Tests.Example.csproj', 'LearnStack.Tests.Example')],
+                         list(self.owner.test_projects()), 'explicit false sidecars are built inputs, not xUnit test assemblies')
+        solution.write_text('<Solution><Project Path="tests/LearnStack.Tests.Example.csproj" /></Solution>')
+        self.refuses('test_project_missing_from_solution', lambda: list(self.owner.test_projects()))
+        solution.write_text('<Solution><Project Path="tests/LearnStack.Tests.Example.csproj" />'
+                            '<Project Path="tests/LearnStack.Tests.AuthorizationEvidenceProbe.csproj" /></Solution>')
         project.write_text('<Project />')
         with self.assertRaises(self.owner.Refusal) as caught:
             list(self.owner.test_projects())

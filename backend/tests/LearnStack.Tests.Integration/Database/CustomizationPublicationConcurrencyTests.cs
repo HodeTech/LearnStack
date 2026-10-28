@@ -11,6 +11,7 @@ using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.Tools.Seeder;
@@ -29,6 +30,8 @@ namespace LearnStack.Tests.Integration.Database;
 public sealed class CustomizationPublicationConcurrencyTests(SchemaFixture schema, ConstructionOnlyApiFactory factory)
     : IClassFixture<ConstructionOnlyApiFactory>
 {
+    private ComponentAuthorizationEvidence _evidence = null!;
+
     [Theory]
     [InlineData(false, false)]
     [InlineData(false, true)]
@@ -38,6 +41,8 @@ public sealed class CustomizationPublicationConcurrencyTests(SchemaFixture schem
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var context = await ProvisionAsync(source);
         var id = Guid.CreateVersion7();
         await RegisterAsync(source, context, id, taxonomy, "race-definition");
@@ -45,6 +50,11 @@ public sealed class CustomizationPublicationConcurrencyTests(SchemaFixture schem
         var gate = new ActiveReadGate();
         await using var host = factory.WithWebHostBuilder(builder => builder
             .UseSetting("ConnectionStrings:Default", database.AppConnectionString)
+            .ConfigureServices(services =>
+            {
+                AddComponentAuthority(services);
+                _evidence.AddTo(services);
+            })
             .ConfigureServices(services =>
             {
                 services.AddScoped<ITenantContentTypeStore>(provider => new ControlledContentStore(
@@ -98,6 +108,8 @@ public sealed class CustomizationPublicationConcurrencyTests(SchemaFixture schem
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var context = await ProvisionAsync(source);
         var id = Guid.CreateVersion7();
         var later = Guid.CreateVersion7();
@@ -106,6 +118,11 @@ public sealed class CustomizationPublicationConcurrencyTests(SchemaFixture schem
         await using var cache = new CustomizationProjectionTests.CacheProbe();
         await using var host = factory.WithWebHostBuilder(builder => builder
             .UseSetting("ConnectionStrings:Default", database.AppConnectionString)
+            .ConfigureServices(services =>
+            {
+                AddComponentAuthority(services);
+                _evidence.AddTo(services);
+            })
             .ConfigureServices(services =>
             {
                 services.AddScoped<ITenantContentTypeStore>(provider => new ControlledContentStore(
@@ -139,6 +156,8 @@ public sealed class CustomizationPublicationConcurrencyTests(SchemaFixture schem
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var context = await ProvisionAsync(source);
         var incumbent = Guid.CreateVersion7();
         var successor = Guid.CreateVersion7();
@@ -170,20 +189,40 @@ public sealed class CustomizationPublicationConcurrencyTests(SchemaFixture schem
         ((long)(await audit.ExecuteScalarAsync())!).Should().Be(1, "only the earlier registration committed, not publication");
     }
 
-    private static async Task<SeedTenantContext> ProvisionAsync(NpgsqlDataSource source)
+    private ServiceProvider BuildProvider(NpgsqlDataSource source, ITenantContext? context)
+    {
+        var services = ComponentOperationRegistration.CreateDatabaseServices(source, context);
+        AddComponentAuthority(services);
+        _evidence.AddTo(services);
+        return services.BuildServiceProvider(validateScopes: true);
+    }
+
+    // Explicit admission for this component mechanism; this is not a live HTTP authorization proof.
+    private static void AddComponentAuthority(IServiceCollection services) =>
+        ComponentOperationRegistration.AddExactComponentAuthority(services,
+            OperationPolicy.ForTrusted<PublishTenantContentTypeCommand>("tests.component.publication.publish_content", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<PublishTenantLevelTaxonomyCommand>("tests.component.publication.publish_taxonomy", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<RegisterTenantContentTypeCommand>("tests.component.publication.register_content", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<RegisterTenantLevelTaxonomyCommand>("tests.component.publication.register_taxonomy", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<AbsorbingPublicationCommand>("tests.component.publication.outer", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<GetContentTypeSeedStateQuery>("tests.component.publication.get_content_type_seed_state", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<GetTaxonomySeedStateQuery>("tests.component.publication.get_taxonomy_seed_state", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<ProvisionTenantCommand>("tests.component.publication.provision_tenant", AuthorizationSourceKind.Seed));
+
+    private async Task<SeedTenantContext> ProvisionAsync(NpgsqlDataSource source)
     {
         var tenant = TenantId.From(Guid.CreateVersion7());
         (await SendAsync(source, null, new ProvisionTenantCommand(tenant, "publication-proof", "Publication proof",
             OrganizationId.From(Guid.CreateVersion7()), "main", "Main"))).IsSuccess.Should().BeTrue();
         return new(tenant, null);
     }
-    private static async Task<Result<T>> SendAsync<T>(NpgsqlDataSource source, ITenantContext? context, IRequest<Result<T>> command)
+    private async Task<Result<T>> SendAsync<T>(NpgsqlDataSource source, ITenantContext? context, IRequest<Result<T>> command)
     {
-        await using var provider = SeedComposition.Build(source, context, NullLoggerFactory.Instance);
+        await using var provider = BuildProvider(source, context);
         await using var scope = provider.CreateAsyncScope();
         return await scope.ServiceProvider.GetRequiredService<ISender>().Send(command);
     }
-    private static async Task RegisterAsync(NpgsqlDataSource source, ITenantContext context, Guid id, bool taxonomy, string key, int version = 1)
+    private async Task RegisterAsync(NpgsqlDataSource source, ITenantContext context, Guid id, bool taxonomy, string key, int version = 1)
     {
         if (taxonomy) (await SendAsync(source, context, Taxonomy(id, key, version))).IsSuccess.Should().BeTrue();
         else (await SendAsync(source, context, ContentType(id, key, version))).IsSuccess.Should().BeTrue();
@@ -192,15 +231,15 @@ public sealed class CustomizationPublicationConcurrencyTests(SchemaFixture schem
         new Dictionary<string, string> { ["en"] = "Definition" }, BuiltInCustomizations.Card.JsonSchema, BuiltInCustomizations.Card.RendererKey);
     private static RegisterTenantLevelTaxonomyCommand Taxonomy(Guid id, string key, int version = 1) => new(id, key, version,
         new Dictionary<string, string> { ["en"] = "Definition" }, [new("basic", new Dictionary<string, string> { ["en"] = "Basic" }, 0)]);
-    private static async Task AssertStateAsync(NpgsqlDataSource source, ITenantContext context, Guid id, bool taxonomy, string status, long version)
+    private async Task AssertStateAsync(NpgsqlDataSource source, ITenantContext context, Guid id, bool taxonomy, string status, long version)
     {
         if (taxonomy) (await SendAsync(source, context, new GetTaxonomySeedStateQuery(id))).Value!.State!.Status.Should().Be(status);
         else (await SendAsync(source, context, new GetContentTypeSeedStateQuery(id))).Value!.State!.Status.Should().Be(status);
         (await VersionAsync(source, context, id, taxonomy)).Should().Be(version);
     }
-    private static async Task<long> VersionAsync(NpgsqlDataSource source, ITenantContext context, Guid id, bool taxonomy)
+    private async Task<long> VersionAsync(NpgsqlDataSource source, ITenantContext context, Guid id, bool taxonomy)
     {
-        await using var provider = SeedComposition.Build(source, context, NullLoggerFactory.Instance);
+        await using var provider = BuildProvider(source, context);
         await using var scope = provider.CreateAsyncScope();
         var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
         await using var frame = await unit.BeginTransactionAsync();

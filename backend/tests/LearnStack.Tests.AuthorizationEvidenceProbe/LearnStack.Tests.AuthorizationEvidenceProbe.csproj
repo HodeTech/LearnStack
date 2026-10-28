@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <IsTestProject>false</IsTestProject>
+        <IsPackable>false</IsPackable>
+        <UseAppHost>false</UseAppHost>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="../../src/LearnStack.Infrastructure/LearnStack.Infrastructure.csproj" />
+        <ProjectReference Include="../../src/LearnStack.Infrastructure.Audit/LearnStack.Infrastructure.Audit.csproj" />
+        <ProjectReference Include="../../src/Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/LearnStack.Modules.Tenancy.Infrastructure.csproj" />
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+        <Compile Include="../AuthorizationEvidenceProof/AuthorizationBarrierHarness.cs" Link="AuthorizationBarrierHarness.cs" />
+    </ItemGroup>
+</Project>

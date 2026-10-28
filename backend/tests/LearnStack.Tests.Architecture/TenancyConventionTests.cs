@@ -263,7 +263,8 @@ public sealed partial class TenancyConventionTests
     /// must write.
     /// </summary>
     private static readonly string[] WritingSetters =
-        ["LearnStack.Infrastructure.Audit/PostgresAuditStore.cs", "LearnStack.Infrastructure.Audit/PostgresAuditStore.GlobalIdentity.cs"];
+        ["LearnStack.Infrastructure.Audit/PostgresAuditStore.cs", "LearnStack.Infrastructure.Audit/PostgresAuditStore.GlobalIdentity.cs",
+         "LearnStack.Infrastructure/Persistence/AuthorizationEvidenceSession.cs"];
 
     /// <summary>
     /// The readers, each in a short read-only transaction of its own: the host resolver, the
@@ -275,6 +276,7 @@ public sealed partial class TenancyConventionTests
         "LearnStack.Infrastructure/MultiTenancy/OrganizationScopeValidator.cs",
         "LearnStack.Infrastructure.Audit/AuditConfigService.cs",
         "Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/FeatureFlags.cs",
+        "LearnStack.Infrastructure/Persistence/AuthorizationReadOwner.cs",
     ];
 
     /// <summary>
@@ -395,6 +397,8 @@ public sealed partial class TenancyConventionTests
             "LearnStack.Infrastructure.Audit.AuditConfigService",
         "Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/FeatureFlags.cs" =>
             "LearnStack.Modules.Tenancy.Infrastructure.FeatureFlags",
+        "LearnStack.Infrastructure/Persistence/AuthorizationReadOwner.cs" =>
+            "LearnStack.Infrastructure.Persistence.AuthorizationReadOwner",
         _ => throw new InvalidOperationException($"{reader} has no type mapped for the IL leg."),
     };
 
@@ -402,12 +406,9 @@ public sealed partial class TenancyConventionTests
     public void Tenant_Scope_Widening_Is_Never_Set_From_Request_Input()
     {
         // app.scope = 'tenant' widens an organization-scoped read to the whole tenant, and
-        // ADR-0036 § The reconciliation matrix derives it from the actor's role plus a
-        // declared tenant-wide operation — never from a header, a query parameter, a cookie
-        // or a body. The role arrives in Phase 03; until then nothing sets the variable at
-        // all, and "nothing sets it" is the strongest form of "nothing sets it from request
-        // input". The setter Phase 03 writes adds its own path to ScopeSetterSites, which is
-        // where the role derivation gets reviewed.
+        // ADR-0076 admits only the operation-bound witness overload of the existing logical
+        // setter. Its private core is recognized by exact signature, fixed forwarding flags
+        // and the one scope parameter expression; every other statement is still scanned.
         //
         // The premise first, or the rule guards a variable nothing reads: the policies do
         // read it.
@@ -418,16 +419,16 @@ public sealed partial class TenancyConventionTests
             .Where(member => member.Name.Contains("Scope", StringComparison.OrdinalIgnoreCase))
             .Where(member => member.Name is not (nameof(ITenantContext.HostScope) or "get_HostScope"))
             .Should().BeEmpty(
-                "Fix: no app.scope authority carrier is permitted; ADR-0052's immutable HostScope only narrows reads");
+                "Fix: ITenantContext carries no writable read-scope authority; the operation witness and physical owner own it");
 
         Directory.EnumerateFiles(SourceScan.SourceRoot, "*.cs", SearchOption.AllDirectories)
             .Where(file => !file.Split(Path.DirectorySeparatorChar).Any(segment => segment is "bin" or "obj"))
-            .Where(file => ScopeSetter().IsMatch(WithoutGlobalAuthorityClears(file, "app.scope")))
-            .Select(file => Path.GetRelativePath(SourceScan.SourceRoot, file).Replace('\\', '/'))
-            .Where(file => !ScopeSetterSites.Contains(file))
+            .Select(file => (Relative: Path.GetRelativePath(SourceScan.SourceRoot, file).Replace('\\', '/'),
+                Source: WithoutGlobalAuthorityClears(file, "app.scope")))
+            .Where(file => ScopeSetter().IsMatch(WithoutOperationReadAnnouncement(file.Relative, file.Source)))
+            .Select(file => file.Relative)
             .Should().BeEmpty(
-                "nothing sets app.scope until Phase 03 derives it from a role "
-                + "(ADR-0036 § The reconciliation matrix)");
+                "only the exact witness-consuming ordinary announcement sets app.scope (ADR-0076)");
     }
 
     [Fact]
@@ -448,10 +449,14 @@ public sealed partial class TenancyConventionTests
         ScopeSetter().IsMatch(WithoutGlobalAuthorityClears(GlobalUnit,
             "SELECT set_config('app.scope', 'tenant', true)", "app.scope")).Should().BeTrue();
         ScopeSetter().IsMatch(WithoutGlobalAuthorityClears("Unlisted.cs", Empty, "app.scope")).Should().BeTrue();
+        const string AuthorizationOwner = "LearnStack.Infrastructure/Persistence/AuthorizationReadOwner.cs";
+        ScopeSetter().IsMatch(WithoutGlobalAuthorityClears(AuthorizationOwner, Empty, "app.scope")).Should().BeFalse();
+        ScopeSetter().IsMatch(WithoutGlobalAuthorityClears(AuthorizationOwner,
+            "SELECT set_config('app.scope', @scope, true)", "app.scope")).Should().BeTrue();
+        ScopeSetter().IsMatch(WithoutGlobalAuthorityClears(AuthorizationOwner,
+            "SELECT set_config('app.scope', 'tenant', true)", "app.scope")).Should().BeTrue();
+        AssertOperationScopeCarrierControls();
     }
-
-    /// <summary>Files allowed to set <c>app.scope</c>, by path under <c>backend/src</c>. Empty until Phase 03.</summary>
-    private static readonly HashSet<string> ScopeSetterSites = new(StringComparer.Ordinal);
 
     private static string WithoutGlobalAuthorityClears(string file, string variable)
     {
@@ -466,6 +471,8 @@ public sealed partial class TenancyConventionTests
         // tenant scope or host-lookup provenance. Nonempty/parameterized setters still fail.
         return relative is "LearnStack.Infrastructure/Persistence/NpgsqlUnitOfWork.cs"
             or "LearnStack.Infrastructure.Audit/PostgresAuditStore.GlobalIdentity.cs"
+            or "LearnStack.Infrastructure/Persistence/AuthorizationReadOwner.cs"
+            or "LearnStack.Infrastructure/Persistence/AuthorizationEvidenceSession.cs"
             ? source.Replace("set_config('" + variable + "', '', true)", string.Empty, StringComparison.Ordinal)
             : source;
     }

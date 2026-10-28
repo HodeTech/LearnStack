@@ -1,4 +1,9 @@
 using LearnStack.Infrastructure.Jobs;
+using LearnStack.Application.Authorization;
+using LearnStack.Modules.Identity.Infrastructure.Authorization;
+using LearnStack.Modules.Tenancy.Application.Authorization;
+using LearnStack.Modules.Customization.Application.Authorization;
+using LearnStack.Modules.Education.Application.Authorization;
 using LearnStack.Modules.Identity.Application.Contracts.Seeding;
 using LearnStack.Modules.Identity.Infrastructure.Bindings;
 using LearnStack.Modules.Customization.Infrastructure;
@@ -28,6 +33,7 @@ using LearnStack.SharedKernel.Entitlements;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Caching;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Messaging;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Validation;
@@ -78,7 +84,8 @@ public static class SeedComposition
         ILoggerFactory loggerFactory,
         IReservedHostRegistry? reservedHosts = null,
         IdentityAuthorityRegistration? identityAuthority = null,
-        ISeedIdentityFoundationAdmission? seedAdmission = null)
+        ISeedIdentityFoundationAdmission? seedAdmission = null,
+        IAuthorizationEvidenceSessionFactory? authorizationEvidence = null)
     {
         ArgumentNullException.ThrowIfNull(dataSource);
         ArgumentNullException.ThrowIfNull(loggerFactory);
@@ -87,6 +94,9 @@ public static class SeedComposition
 
         services.AddSingleton(dataSource);
         services.AddSingleton(loggerFactory);
+        // Caller-owned process lifetime: every per-act provider borrows the same
+        // bounded, startup-qualified lane; instance registration never disposes it.
+        if (authorizationEvidence is not null) services.AddSingleton(authorizationEvidence);
         services.AddLogging();
         services.AddSingleton<IClock, SystemClock>();
 
@@ -98,6 +108,8 @@ public static class SeedComposition
         services.AddTransient<ITenantContext>(provider =>
             provider.GetRequiredService<ITenantContextAccessor>().Current
             ?? UnresolvedTenantContext.Instance);
+        services.AddScoped<ITrustedOperationSource>(provider =>
+            new SeedOperationSource(provider.GetRequiredService<ITenantContext>()));
 
         services.TryAddScoped<GlobalIdentityEnrollment>();
         services.TryAddScoped<LearnStack.SharedKernel.Identity.IGlobalIdentityEnrollment>(provider =>
@@ -248,6 +260,12 @@ public static class SeedComposition
         if (seedAdmission is not null) services.AddSingleton(seedAdmission);
         services.AddIdentityGlobalFoundation(identityAuthority);
         services.AddIdentityContextualFoundation();
+        services.AddIdentityOperationPolicies();
+        services.TryAddEnumerable([
+            ServiceDescriptor.Singleton<IOperationPolicySource, TenancyOperationPolicySource>(),
+            ServiceDescriptor.Singleton<IOperationPolicySource, CustomizationOperationPolicySource>(),
+            ServiceDescriptor.Singleton<IOperationPolicySource, EducationOperationPolicySource>(),
+        ]);
 
         // Fronts no cache: a one-shot process has nothing in memory to go stale, and the
         // default answers truthfully for that host rather than approximating the API's.

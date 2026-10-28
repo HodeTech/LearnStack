@@ -9,6 +9,7 @@ using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Time;
@@ -30,6 +31,8 @@ namespace LearnStack.Tests.Integration.Database;
 public sealed class CustomizationDefaultInitializationTests(SchemaFixture schema, ConstructionOnlyApiFactory factory)
     : IClassFixture<ConstructionOnlyApiFactory>
 {
+    private ComponentAuthorizationEvidence _evidence = null!;
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -37,6 +40,8 @@ public sealed class CustomizationDefaultInitializationTests(SchemaFixture schema
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var tenant = await ProvisionAsync(source);
         var saves = new SaveProbe();
         await using var host = Host(database, saves);
@@ -110,6 +115,8 @@ public sealed class CustomizationDefaultInitializationTests(SchemaFixture schema
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var tenant = await ProvisionAsync(source);
         await ArrangeHistoryAsync(source, tenant, taxonomy, history);
         var before = await StateAsync(source, tenant, taxonomy);
@@ -139,6 +146,8 @@ public sealed class CustomizationDefaultInitializationTests(SchemaFixture schema
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var tenant = await ProvisionAsync(source);
         await using (var owner = await PostgresFixture.OpenAsync(database.MigrationConnectionString))
         {
@@ -170,6 +179,8 @@ public sealed class CustomizationDefaultInitializationTests(SchemaFixture schema
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var tenant = await ProvisionAsync(source);
         var gate = new ConceptGate();
         await using var host = Host(database, gate: gate);
@@ -222,6 +233,8 @@ public sealed class CustomizationDefaultInitializationTests(SchemaFixture schema
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var first = await ProvisionAsync(source);
         var second = await ProvisionAsync(source);
         await ArrangeHistoryAsync(source, first, taxonomy, "Deleted");
@@ -232,9 +245,31 @@ public sealed class CustomizationDefaultInitializationTests(SchemaFixture schema
         (await StateAsync(source, first, taxonomy)).Roots.Should().Equal(before.Roots);
     }
 
+    private ServiceProvider BuildProvider(NpgsqlDataSource source, ITenantContext? context)
+    {
+        var services = ComponentOperationRegistration.CreateDatabaseServices(source, context);
+        AddComponentAuthority(services);
+        _evidence.AddTo(services);
+        return services.BuildServiceProvider(validateScopes: true);
+    }
+
+    // Explicit admission for this component mechanism; this is not a live HTTP authorization proof.
+    private static void AddComponentAuthority(IServiceCollection services) =>
+        ComponentOperationRegistration.AddExactComponentAuthority(services,
+            OperationPolicy.ForTrusted<InitializeTenantContentTypeDefaultCommand>("tests.component.defaults.initialize_content", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<InitializeTenantLevelTaxonomyDefaultCommand>("tests.component.defaults.initialize_taxonomy", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<RegisterTenantContentTypeCommand>("tests.component.defaults.register_content", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<RegisterTenantLevelTaxonomyCommand>("tests.component.defaults.register_taxonomy", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<ProvisionTenantCommand>("tests.component.defaults.provision_tenant", AuthorizationSourceKind.Seed));
+
     private WebApplicationFactory<Program> Host(DisposableSchemaDatabase database, SaveProbe? saves = null, ConceptGate? gate = null) =>
         factory.WithWebHostBuilder(builder => builder
             .UseSetting("ConnectionStrings:Default", database.AppConnectionString)
+            .ConfigureServices(services =>
+            {
+                AddComponentAuthority(services);
+                _evidence.AddTo(services);
+            })
             .ConfigureServices(services =>
             {
                 if (saves is not null) services.AddSingleton<ISaveChangesInterceptor>(saves);
@@ -247,10 +282,10 @@ public sealed class CustomizationDefaultInitializationTests(SchemaFixture schema
                     provider.GetRequiredService<IUnitOfWork>(), gate));
             }));
 
-    private static async Task<Context> ProvisionAsync(NpgsqlDataSource source)
+    private async Task<Context> ProvisionAsync(NpgsqlDataSource source)
     {
         var tenant = TenantId.From(Guid.CreateVersion7());
-        await using var provider = SeedComposition.Build(source, null, NullLoggerFactory.Instance);
+        await using var provider = BuildProvider(source, null);
         (await SendAsync(provider, null, new ProvisionTenantCommand(tenant, "default-" + tenant.Value.ToString("N"), "Default proof",
             OrganizationId.From(Guid.CreateVersion7()), "main", "Main"))).IsSuccess.Should().BeTrue();
         return new(tenant);
@@ -274,10 +309,10 @@ public sealed class CustomizationDefaultInitializationTests(SchemaFixture schema
         : await SendAsync(services, tenant, new RegisterTenantContentTypeCommand(id, "card", version,
             new Dictionary<string, string> { ["en"] = "Authored content" }, BuiltInCustomizations.Card.JsonSchema, BuiltInCustomizations.Card.RendererKey));
 
-    private static async Task ArrangeHistoryAsync(NpgsqlDataSource source, Context tenant, bool taxonomy, string history)
+    private async Task ArrangeHistoryAsync(NpgsqlDataSource source, Context tenant, bool taxonomy, string history)
     {
         var id = Guid.CreateVersion7();
-        await using var provider = SeedComposition.Build(source, tenant, NullLoggerFactory.Instance);
+        await using var provider = BuildProvider(source, tenant);
         // This composition fixes its tenant; no accessor write or privileged setup is needed.
         (await RegisterAsync(provider, null, taxonomy, id, history == "Successor" ? 2 : 1)).IsSuccess.Should().BeTrue();
         if (history is "Draft" or "Successor") return;

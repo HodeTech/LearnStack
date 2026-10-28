@@ -85,8 +85,8 @@ public sealed class PlatformAdminScopeConventionTests
         File.ReadAllText(Path.Combine(SourceScan.SourceRoot, JobRuntimeRegistrationFile))
             .Should().NotContain("PlatformAdmin");
 
-        // Leg 2 — IConfiguration.GetConnectionString is called in exactly one file under
-        // backend/src. Not "every credential is read in one file": the two design-time
+        // Leg 2 — IConfiguration.GetConnectionString is confined to the two enumerated
+        // API composition files. Not "every credential is read here": the design-time
         // DbContext factories read ConnectionStrings__Migration straight from the
         // environment, deliberately, because dotnet ef builds no host. What this pins is
         // that a second reader of ConnectionStrings:PlatformAdmin would be a second data

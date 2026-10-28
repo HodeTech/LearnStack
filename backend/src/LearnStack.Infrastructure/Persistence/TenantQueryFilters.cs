@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using System.Reflection;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.EntityFrameworkCore;
@@ -68,6 +69,9 @@ public interface ITenantScopedDbContext
     /// as the Row Level Security policy does with <c>app.organization_id</c> unset.
     /// </summary>
     OrganizationId? CurrentOrganizationId { get; }
+
+    /// <summary>True only while this context's actual owner has live tenant-wide read authority.</summary>
+    bool CurrentTenantWideRead { get; }
 }
 
 /// <summary>
@@ -201,22 +205,21 @@ public static class TenantQueryFilters
             var rowOrganization = Expression.Property(
                 entity, nameof(IOrganizationScoped.OrganizationId));
 
-            // Tenant-wide OR the caller's own, mirroring the policy's organization
-            // term. The app.scope = 'tenant' hatch is deliberately absent: it has
-            // no carrier (see Security Standards § Tenant Context), and a filter
-            // that widened where the policy does not would return rows the
-            // database then refuses — the confusing direction of disagreement.
+            // The owner-bound instance member is re-evaluated for each query and mirrors
+            // only the policy's read hatch. The tenant predicate above remains mandatory.
             predicate = Expression.AndAlso(
                 predicate,
                 Expression.OrElse(
-                    Expression.Equal(
-                        rowOrganization,
-                        Expression.Constant(null, typeof(OrganizationId?))),
-                    Expression.Equal(
-                        rowOrganization,
-                        Expression.Property(
-                            contextConstant,
-                            nameof(ITenantScopedDbContext.CurrentOrganizationId)))));
+                    Expression.Property(contextConstant, nameof(ITenantScopedDbContext.CurrentTenantWideRead)),
+                    Expression.OrElse(
+                        Expression.Equal(
+                            rowOrganization,
+                            Expression.Constant(null, typeof(OrganizationId?))),
+                        Expression.Equal(
+                            rowOrganization,
+                            Expression.Property(
+                                contextConstant,
+                                nameof(ITenantScopedDbContext.CurrentOrganizationId))))));
         }
 
         return Expression.Lambda(predicate, entity);
@@ -224,7 +227,7 @@ public static class TenantQueryFilters
 }
 
 /// <summary>
-/// The base every module <c>DbContext</c> derives from: it owns the two members
+/// The base every module <c>DbContext</c> derives from: it owns the scope members
 /// the filters close over and applies them.
 /// </summary>
 /// <remarks>
@@ -238,6 +241,18 @@ public abstract class TenantScopedDbContext(
     : DbContext(options), ITenantScopedDbContext
 {
     private static readonly TenantId NoTenant = TenantId.From(Guid.Empty);
+    private IOperationReadScopeView? _operationReadScope;
+
+    internal void AttachOperationReadScope(IOperationReadScopeView scope)
+    {
+        ArgumentNullException.ThrowIfNull(scope);
+        if (_operationReadScope is not null)
+            throw new InvalidOperationException("The context's operation read owner is already attached.");
+        _operationReadScope = scope;
+    }
+
+    /// <inheritdoc />
+    public bool CurrentTenantWideRead => _operationReadScope?.IsTenantWideRead == true;
 
     /// <summary>
     /// The ambient context, read fresh on every access.

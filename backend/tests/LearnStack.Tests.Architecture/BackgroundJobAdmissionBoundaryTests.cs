@@ -6,6 +6,7 @@ using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Jobs;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
+using Xunit;
 
 namespace LearnStack.Tests.Architecture;
 
@@ -467,73 +468,191 @@ public sealed partial class OutboxDispatchConventionTests
                 accesses);
     }
 
-    private static void AssertJobStepThreeControls(ProductionCensus census)
+    public sealed partial class JobAuthorityCensusMutationTests
+    {
+        [Fact]
+        public void Background_job_routing_credentials_reject_store_and_holder_escapes()
+        {
+            using var census = ProductionCensus.Read();
+            var types = census.Types;
+            var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
+            var routing = types[(InfrastructureAssembly, JobRoutingStore)];
+            foreach (var capability in routing.Methods.Where(method => method.Name is ".ctor" or "TryClaimAsync" or "TryClaimOwnedAsync"))
+                foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
+                    AssertMutation(census, "a confined routing-store escape", () =>
+                        AddCallProbe(application, "ExtraRoutingStoreConsumer", capability, opcode), CredentialOffenders);
+            AssertMutation(census, "a routing-source forwarding overload", () =>
+                AddBoundaryFieldGetter(routing, "TryClaimAsync", "_source"), CredentialOffenders);
+            foreach (var holder in new[] { JobClosedActivator, JobBoundInvocation })
+                AssertMutation(census, "a closed activator routing-capability forwarding helper", () =>
+                    AddBoundaryFieldGetter(types[(InfrastructureAssembly, holder)], "UnexpectedRoutingAccessor", "<routing>P"), CredentialOffenders);
+        }
+
+        [Fact]
+        public void Background_job_generation_binding_rejects_extra_capabilities_and_missing_sites()
+        {
+            using var census = ProductionCensus.Read();
+            var types = census.Types;
+            var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
+            var activator = types[(InfrastructureAssembly, JobClosedActivator)];
+            var bound = types[(InfrastructureAssembly, JobBoundInvocation)];
+            var binding = types[(InfrastructureAssembly, JobInvocationContract)].Methods.Single(method => method.Name == "BindGeneration");
+            var bindingCapabilities = new[] { activator.Methods.Single(method => method.Name == ".ctor"),
+                activator.Methods.Single(method => method.Name == "Bind"), bound.Methods.Single(method => method.Name == ".ctor"), binding }
+                .Concat(types[(InfrastructureAssembly, JobInvocationContract)].Methods.Where(method => method.Name == "CreateActivator")).ToArray();
+            bindingCapabilities.Should().HaveCount(6, "both exact activator factory declarations join the actual binding capability chain");
+            foreach (var capability in bindingCapabilities)
+            {
+                foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn, OpCodes.Newobj })
+                    AssertMutation(census, "an extra generation-bound activator capability through " + opcode, () =>
+                        AddCallProbe(application, "ExtraBoundActivatorCapability", capability, opcode), CredentialOffenders);
+                AssertMutation(census, "an asynchronous generation-bound activator capability", () =>
+                    AddAsyncCallProbe(application, "AsyncBoundActivatorCapability", capability), CredentialOffenders);
+                AssertMutation(census, "an activator capability overload borrowing the approved name", () =>
+                {
+                    var method = AddCall(capability.DeclaringType, capability.Name, capability, OpCodes.Call);
+                    return () => capability.DeclaringType.Methods.Remove(method);
+                }, CredentialOffenders);
+            }
+            var bindingSites = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
+                .Where(instruction => instruction.Operand is MethodReference target && bindingCapabilities.Any(capability =>
+                    SameType(target.DeclaringType, capability.DeclaringType) && target.Name == capability.Name)).ToArray();
+            bindingSites.Should().HaveCount(7, "both controlled factory calls, two activator constructors, bound invocation and both binding seams must be live");
+            foreach (var instruction in bindingSites)
+            {
+                AssertMutation(census, "a missing actual generation-bound construction or binding site", () =>
+                    ReplaceInstruction(instruction, OpCodes.Nop, null!), CredentialOffenders);
+                AssertMutation(census, "a delegate escape inside an approved binding caller", () =>
+                    ReplaceInstruction(instruction, OpCodes.Ldftn, instruction.Operand), CredentialOffenders);
+            }
+            var cleanActivator = AddProbe(application, "CleanBoundInvocationIdentityObserver");
+            AddCall(cleanActivator, "ObserveIdentity", bound.Methods.Single(method => method.Name == "get_Type"), OpCodes.Callvirt);
+            try { EvaluateDetector(census, CredentialOffenders).Should().BeEmpty("immutable invocation identity does not forward routing authority"); }
+            finally { application.Types.Remove(cleanActivator); }
+        }
+
+        [Fact]
+        public void Background_job_framework_capabilities_reject_extra_dispatch_and_issuance()
+        {
+            using var census = ProductionCensus.Read();
+            var types = census.Types;
+            var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
+            var executor = types[(InfrastructureAssembly, JobExecutorType)];
+            AssertMutation(census, "dynamic business construction in the framework executor", () =>
+            {
+                var method = AddCall(executor, "UnexpectedBusinessActivation", executor.Module.ImportReference(
+                    typeof(Activator).GetMethod(nameof(Activator.CreateInstance), [typeof(Type)])!), OpCodes.Call);
+                return () => executor.Methods.Remove(method);
+            }, JobStepThreeOffenders);
+            var send = OwnedBodies(census).Where(item => item.Owner.DeclaringType == executor)
+                .SelectMany(item => MethodOperands(item.Body)).First(target => target.Name == "Send" && target.DeclaringType.FullName == "MediatR.ISender");
+            AssertMutation(census, "an extra executor helper dispatching a request", () =>
+            {
+                var method = AddCall(executor, "UnexpectedFrameworkSend", send, OpCodes.Callvirt);
+                return () => executor.Methods.Remove(method);
+            }, JobStepThreeOffenders);
+            foreach (var field in new[] { "_run", "_admissionRun" })
+                AssertMutation(census, "a receipt forwarding its original or bound run", () =>
+                    AddBoundaryFieldGetter(types[(DeliveryApplication, JobStartReceipt)], "ForwardReceiptRun", field), JobStepThreeOffenders);
+            var capabilities = JobAdmissionCapabilities(census);
+            capabilities.Should().NotBeEmpty("the dirty controls must start from live production authority");
+            foreach (var capability in capabilities)
+            {
+                foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
+                    AssertMutation(census, "an extra job capability through " + opcode, () =>
+                        AddCallProbe(application, "ExtraJobCapability", capability, opcode), JobStepThreeOffenders);
+                AssertMutation(census, "an asynchronous job capability", () =>
+                    AddAsyncCallProbe(application, "AsyncJobCapability", capability), JobStepThreeOffenders);
+                AssertMutation(census, "an overload borrowing an admitted job capability name", () =>
+                {
+                    var method = AddCall(capability.DeclaringType, capability.Name, capability, OpCodes.Call);
+                    return () => capability.DeclaringType.Methods.Remove(method);
+                }, JobStepThreeOffenders);
+            }
+        }
+
+        [Fact]
+        public void Background_job_authority_provenance_rejects_forgery_and_missing_publication_gates()
+        {
+            using var census = ProductionCensus.Read();
+            var types = census.Types;
+            var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
+            var capabilities = JobAdmissionCapabilities(census);
+            foreach (var typeName in new[] { JobRoutingClaim, JobStartReceipt, JobOrigin })
+            {
+                var type = types[(DeliveryApplication, typeName)];
+                var constructor = type.Methods.Single(method => method.IsConstructor && !method.IsStatic);
+                AssertMutation(census, "an extra opaque-token constructor call", () =>
+                    AddCallProbe(application, "OpaqueJobTokenConstructor", constructor, OpCodes.Newobj), JobStepThreeOffenders);
+                AssertMutation(census, "an asynchronous opaque-token constructor call", () =>
+                    AddAsyncCallProbe(application, "AsyncOpaqueJobTokenConstructor", constructor), JobStepThreeOffenders);
+                AssertMutation(census, "a public opaque-token constructor", () =>
+                    ChangeAttributes(() => constructor.Attributes, value => constructor.Attributes = value,
+                        (constructor.Attributes & ~MethodAttributes.MemberAccessMask) | MethodAttributes.Public), JobStepThreeOffenders);
+            }
+            AssertMutation(census, "a second routing minting implementation", () =>
+            {
+                var probe = AddProbe(application, "AdditionalJobClaimSource");
+                probe.BaseType = application.ImportReference(types[(DeliveryApplication, JobClaimSource)]);
+                return () => application.Types.Remove(probe);
+            }, JobStepThreeOffenders);
+            foreach (var typeName in new[] { JobRoutingClaim, JobClaimSource, JobStartReceipt, JobOrigin, JobStartRequest, JobReadRequest })
+                AssertMutation(census, "a missing live opaque job subject", () =>
+                {
+                    var type = types[(DeliveryApplication, typeName)];
+                    var collection = type.DeclaringType?.NestedTypes ?? type.Module.Types;
+                    collection.Remove(type);
+                    return () => collection.Add(type);
+                }, JobStepThreeOffenders);
+            var deliveryTypeSite = census.Types.Values.SelectMany(type => type.Methods).Where(method => method.HasBody && method.Name != "MoveNext"
+                    && MethodOperands(method).Any(target => target.Name == "ExecutePreparedDeliveryAsync"
+                        && target.DeclaringType.FullName == DeliveryCoordinator)
+                    && MethodOperands(method).Any(target => target.Name == "get_HandlerType"
+                        && target.DeclaringType.FullName == "LearnStack.Infrastructure.Messaging.IntegrationEventSubscription"))
+                .SelectMany(method => method.Body.Instructions).Single(instruction => instruction.Operand is MethodReference target
+                    && target.Name == "get_HandlerType" && target.DeclaringType.FullName == "LearnStack.Infrastructure.Messaging.IntegrationEventSubscription");
+            AssertMutation(census, "a missing actual subscription handler identity", () =>
+                ReplaceInstruction(deliveryTypeSite, OpCodes.Ldstr, "missing subscription handler identity"), JobStepThreeOffenders);
+            var committedBody = OwnedBodies(census).Single(item => item.Owner.DeclaringType.FullName == DeliveryCoordinator
+                && item.Owner.Name == "ExecuteFrameAsync" && item.Body.Name == "MoveNext").Body.Body;
+            var committed = committedBody.Instructions.Single(instruction => instruction.Operand is MethodReference target
+                && target.DeclaringType.FullName == JobStartRequest && target.Name == "RecordCommitted");
+            AssertMutation(census, "a start receipt minted before the owner acknowledgement", () =>
+            {
+                var index = committedBody.Instructions.IndexOf(committed);
+                committedBody.Instructions.Remove(committed);
+                committedBody.Instructions.Insert(0, committed);
+                return () => { committedBody.Instructions.Remove(committed); committedBody.Instructions.Insert(index, committed); };
+            }, JobStepThreeOffenders);
+            var frameworkTokens = types[(DeliveryApplication, "LearnStack.Application.Jobs.BackgroundJobFrameworkRequests")].Methods
+                .Concat(types[(DeliveryApplication, JobAdmission)].Methods.Where(method => method.Name is "IsFramework" or "ModeFor" or "PermitsUnresolvedRead" or "AnnouncementContext"))
+                .Concat(types[(DeliveryApplication, DeliveryCoordinator)].Methods.Where(method => method.Name == "ExecuteRequestAsync"))
+                .Where(method => method.HasBody).SelectMany(method => method.Body.Instructions)
+                .Where(instruction => instruction.OpCode == OpCodes.Ldtoken && instruction.Operand is TypeReference).ToArray();
+            frameworkTokens.Should().NotBeEmpty("the exact framework and producer type identities must exist in real production IL");
+            foreach (var instruction in frameworkTokens)
+                AssertMutation(census, "a removed exact framework or trusted operation type", () =>
+                    ReplaceInstruction(instruction, OpCodes.Ldstr, "missing exact type identity"), JobStepThreeOffenders);
+            var realSites = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
+                .Where(instruction => instruction.Operand is MethodReference target && capabilities.Any(capability => SameType(target.DeclaringType, capability.DeclaringType)
+                    && target.Name == capability.Name)).ToArray();
+            realSites.Should().NotBeEmpty("the construction/install/use census must inspect actual production sites");
+            foreach (var instruction in realSites)
+                AssertMutation(census, "a deleted actual job authority site", () =>
+                    ReplaceInstruction(instruction, OpCodes.Ldstr, "missing job authority site"), JobStepThreeOffenders);
+            var clean = AddProbe(application, "CleanJobIdentityObserver");
+            foreach (var typeName in new[] { JobRoutingClaim, JobStartReceipt, JobOrigin })
+                foreach (var getter in types[(DeliveryApplication, typeName)].Methods.Where(method => method.IsGetter && method.IsPublic))
+                    AddCall(clean, "Observe" + typeName.Split('/').Last().Split('.').Last() + getter.Name, getter, OpCodes.Callvirt);
+            try { EvaluateDetector(census, JobStepThreeOffenders).Should().BeEmpty("reading immutable identity does not install authority"); }
+            finally { application.Types.Remove(clean); }
+        }
+    }
+
+    private static MethodDefinition[] JobAdmissionCapabilities(ProductionCensus census)
     {
         var types = census.Types;
-        var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
-        var routing = types[(InfrastructureAssembly, JobRoutingStore)];
-        foreach (var capability in routing.Methods.Where(method => method.Name is ".ctor" or "TryClaimAsync" or "TryClaimOwnedAsync"))
-            foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
-                AssertMutation(census, "a confined routing-store escape", () =>
-                    AddCallProbe(application, "ExtraRoutingStoreConsumer", capability, opcode), CredentialOffenders);
-        AssertMutation(census, "a routing-source forwarding overload", () =>
-            AddBoundaryFieldGetter(routing, "TryClaimAsync", "_source"), CredentialOffenders);
-        foreach (var holder in new[] { JobClosedActivator, JobBoundInvocation })
-            AssertMutation(census, "a closed activator routing-capability forwarding helper", () =>
-                AddBoundaryFieldGetter(types[(InfrastructureAssembly, holder)], "UnexpectedRoutingAccessor", "<routing>P"), CredentialOffenders);
-        var activator = types[(InfrastructureAssembly, JobClosedActivator)];
-        var bound = types[(InfrastructureAssembly, JobBoundInvocation)];
-        var binding = types[(InfrastructureAssembly, JobInvocationContract)].Methods.Single(method => method.Name == "BindGeneration");
-        var bindingCapabilities = new[] { activator.Methods.Single(method => method.Name == ".ctor"),
-            activator.Methods.Single(method => method.Name == "Bind"), bound.Methods.Single(method => method.Name == ".ctor"), binding }
-            .Concat(types[(InfrastructureAssembly, JobInvocationContract)].Methods.Where(method => method.Name == "CreateActivator")).ToArray();
-        bindingCapabilities.Should().HaveCount(6, "both exact activator factory declarations join the actual binding capability chain");
-        foreach (var capability in bindingCapabilities)
-        {
-            foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn, OpCodes.Newobj })
-                AssertMutation(census, "an extra generation-bound activator capability through " + opcode, () =>
-                    AddCallProbe(application, "ExtraBoundActivatorCapability", capability, opcode), CredentialOffenders);
-            AssertMutation(census, "an asynchronous generation-bound activator capability", () =>
-                AddAsyncCallProbe(application, "AsyncBoundActivatorCapability", capability), CredentialOffenders);
-            AssertMutation(census, "an activator capability overload borrowing the approved name", () =>
-            {
-                var method = AddCall(capability.DeclaringType, capability.Name, capability, OpCodes.Call);
-                return () => capability.DeclaringType.Methods.Remove(method);
-            }, CredentialOffenders);
-        }
-        var bindingSites = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
-            .Where(instruction => instruction.Operand is MethodReference target && bindingCapabilities.Any(capability =>
-                SameType(target.DeclaringType, capability.DeclaringType) && target.Name == capability.Name)).ToArray();
-        bindingSites.Should().HaveCount(7, "both controlled factory calls, two activator constructors, bound invocation and both binding seams must be live");
-        foreach (var instruction in bindingSites)
-        {
-            AssertMutation(census, "a missing actual generation-bound construction or binding site", () =>
-                ReplaceInstruction(instruction, OpCodes.Nop, null!), CredentialOffenders);
-            AssertMutation(census, "a delegate escape inside an approved binding caller", () =>
-                ReplaceInstruction(instruction, OpCodes.Ldftn, instruction.Operand), CredentialOffenders);
-        }
-        var cleanActivator = AddProbe(application, "CleanBoundInvocationIdentityObserver");
-        AddCall(cleanActivator, "ObserveIdentity", bound.Methods.Single(method => method.Name == "get_Type"), OpCodes.Callvirt);
-        try { EvaluateDetector(census, CredentialOffenders).Should().BeEmpty("immutable invocation identity does not forward routing authority"); }
-        finally { application.Types.Remove(cleanActivator); }
-        var executor = types[(InfrastructureAssembly, JobExecutorType)];
-        AssertMutation(census, "dynamic business construction in the framework executor", () =>
-        {
-            var method = AddCall(executor, "UnexpectedBusinessActivation", executor.Module.ImportReference(
-                typeof(Activator).GetMethod(nameof(Activator.CreateInstance), [typeof(Type)])!), OpCodes.Call);
-            return () => executor.Methods.Remove(method);
-        }, JobStepThreeOffenders);
-        var send = OwnedBodies(census).Where(item => item.Owner.DeclaringType == executor)
-            .SelectMany(item => MethodOperands(item.Body)).First(target => target.Name == "Send" && target.DeclaringType.FullName == "MediatR.ISender");
-        AssertMutation(census, "an extra executor helper dispatching a request", () =>
-        {
-            var method = AddCall(executor, "UnexpectedFrameworkSend", send, OpCodes.Callvirt);
-            return () => executor.Methods.Remove(method);
-        }, JobStepThreeOffenders);
-        foreach (var field in new[] { "_run", "_admissionRun" })
-            AssertMutation(census, "a receipt forwarding its original or bound run", () =>
-                AddBoundaryFieldGetter(types[(DeliveryApplication, JobStartReceipt)], "ForwardReceiptRun", field), JobStepThreeOffenders);
-        var capabilities = new[]
+        return new[]
         {
             (JobAdmission, "EnterFramework"), (JobAdmission, "InstallValidatedEnvelope"), (JobRoutingClaim, "EnterOnce"),
             (JobAdmission, "PermitsUnresolvedRead"), (JobAdmission, "RequireRead"), (JobAdmission, "RequireStart"),
@@ -545,87 +664,5 @@ public sealed partial class OutboxDispatchConventionTests
             (DeliveryProducer, "CaptureJobOrigin"), (DeliveryProducer, "RequireJobOrigin"), (DeliveryCoordinator, "ExecuteRequestAsync"),
         }.Select(subject => types[(DeliveryApplication, subject.Item1)].Methods.Single(method => method.Name == subject.Item2))
             .Append(AdmissionRevalidationMethod(census, new SortedSet<string>(StringComparer.Ordinal))!).ToArray();
-        capabilities.Should().NotBeEmpty("the dirty controls must start from live production authority");
-        foreach (var capability in capabilities)
-        {
-            foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
-                AssertMutation(census, "an extra job capability through " + opcode, () =>
-                    AddCallProbe(application, "ExtraJobCapability", capability, opcode), JobStepThreeOffenders);
-            AssertMutation(census, "an asynchronous job capability", () =>
-                AddAsyncCallProbe(application, "AsyncJobCapability", capability), JobStepThreeOffenders);
-            AssertMutation(census, "an overload borrowing an admitted job capability name", () =>
-            {
-                var method = AddCall(capability.DeclaringType, capability.Name, capability, OpCodes.Call);
-                return () => capability.DeclaringType.Methods.Remove(method);
-            }, JobStepThreeOffenders);
-        }
-        foreach (var typeName in new[] { JobRoutingClaim, JobStartReceipt, JobOrigin })
-        {
-            var type = types[(DeliveryApplication, typeName)];
-            var constructor = type.Methods.Single(method => method.IsConstructor && !method.IsStatic);
-            AssertMutation(census, "an extra opaque-token constructor call", () =>
-                AddCallProbe(application, "OpaqueJobTokenConstructor", constructor, OpCodes.Newobj), JobStepThreeOffenders);
-            AssertMutation(census, "an asynchronous opaque-token constructor call", () =>
-                AddAsyncCallProbe(application, "AsyncOpaqueJobTokenConstructor", constructor), JobStepThreeOffenders);
-            AssertMutation(census, "a public opaque-token constructor", () =>
-                ChangeAttributes(() => constructor.Attributes, value => constructor.Attributes = value,
-                    (constructor.Attributes & ~MethodAttributes.MemberAccessMask) | MethodAttributes.Public), JobStepThreeOffenders);
-        }
-        AssertMutation(census, "a second routing minting implementation", () =>
-        {
-            var probe = AddProbe(application, "AdditionalJobClaimSource");
-            probe.BaseType = application.ImportReference(types[(DeliveryApplication, JobClaimSource)]);
-            return () => application.Types.Remove(probe);
-        }, JobStepThreeOffenders);
-        foreach (var typeName in new[] { JobRoutingClaim, JobClaimSource, JobStartReceipt, JobOrigin, JobStartRequest, JobReadRequest })
-            AssertMutation(census, "a missing live opaque job subject", () =>
-            {
-                var type = types[(DeliveryApplication, typeName)];
-                var collection = type.DeclaringType?.NestedTypes ?? type.Module.Types;
-                collection.Remove(type);
-                return () => collection.Add(type);
-            }, JobStepThreeOffenders);
-        var deliveryTypeSite = census.Types.Values.SelectMany(type => type.Methods).Where(method => method.HasBody && method.Name != "MoveNext"
-                && MethodOperands(method).Any(target => target.Name == "ExecutePreparedDeliveryAsync"
-                    && target.DeclaringType.FullName == DeliveryCoordinator)
-                && MethodOperands(method).Any(target => target.Name == "get_HandlerType"
-                    && target.DeclaringType.FullName == "LearnStack.Infrastructure.Messaging.IntegrationEventSubscription"))
-            .SelectMany(method => method.Body.Instructions).Single(instruction => instruction.Operand is MethodReference target
-                && target.Name == "get_HandlerType" && target.DeclaringType.FullName == "LearnStack.Infrastructure.Messaging.IntegrationEventSubscription");
-        AssertMutation(census, "a missing actual subscription handler identity", () =>
-            ReplaceInstruction(deliveryTypeSite, OpCodes.Ldstr, "missing subscription handler identity"), JobStepThreeOffenders);
-        var committedBody = OwnedBodies(census).Single(item => item.Owner.DeclaringType.FullName == DeliveryCoordinator
-            && item.Owner.Name == "ExecuteFrameAsync" && item.Body.Name == "MoveNext").Body.Body;
-        var committed = committedBody.Instructions.Single(instruction => instruction.Operand is MethodReference target
-            && target.DeclaringType.FullName == JobStartRequest && target.Name == "RecordCommitted");
-        AssertMutation(census, "a start receipt minted before the owner acknowledgement", () =>
-        {
-            var index = committedBody.Instructions.IndexOf(committed);
-            committedBody.Instructions.Remove(committed);
-            committedBody.Instructions.Insert(0, committed);
-            return () => { committedBody.Instructions.Remove(committed); committedBody.Instructions.Insert(index, committed); };
-        }, JobStepThreeOffenders);
-        var frameworkTokens = types[(DeliveryApplication, "LearnStack.Application.Jobs.BackgroundJobFrameworkRequests")].Methods
-            .Concat(types[(DeliveryApplication, JobAdmission)].Methods.Where(method => method.Name is "IsFramework" or "ModeFor" or "PermitsUnresolvedRead" or "AnnouncementContext"))
-            .Concat(types[(DeliveryApplication, DeliveryCoordinator)].Methods.Where(method => method.Name == "ExecuteRequestAsync"))
-            .Where(method => method.HasBody).SelectMany(method => method.Body.Instructions)
-            .Where(instruction => instruction.OpCode == OpCodes.Ldtoken && instruction.Operand is TypeReference).ToArray();
-        frameworkTokens.Should().NotBeEmpty("the exact framework and producer type identities must exist in real production IL");
-        foreach (var instruction in frameworkTokens)
-            AssertMutation(census, "a removed exact framework or trusted operation type", () =>
-                ReplaceInstruction(instruction, OpCodes.Ldstr, "missing exact type identity"), JobStepThreeOffenders);
-        var realSites = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
-            .Where(instruction => instruction.Operand is MethodReference target && capabilities.Any(capability => SameType(target.DeclaringType, capability.DeclaringType)
-                && target.Name == capability.Name)).ToArray();
-        realSites.Should().NotBeEmpty("the construction/install/use census must inspect actual production sites");
-        foreach (var instruction in realSites)
-            AssertMutation(census, "a deleted actual job authority site", () =>
-                ReplaceInstruction(instruction, OpCodes.Ldstr, "missing job authority site"), JobStepThreeOffenders);
-        var clean = AddProbe(application, "CleanJobIdentityObserver");
-        foreach (var typeName in new[] { JobRoutingClaim, JobStartReceipt, JobOrigin })
-            foreach (var getter in types[(DeliveryApplication, typeName)].Methods.Where(method => method.IsGetter && method.IsPublic))
-                AddCall(clean, "Observe" + typeName.Split('/').Last().Split('.').Last() + getter.Name, getter, OpCodes.Callvirt);
-        try { EvaluateDetector(census, JobStepThreeOffenders).Should().BeEmpty("reading immutable identity does not install authority"); }
-        finally { application.Types.Remove(clean); }
     }
 }

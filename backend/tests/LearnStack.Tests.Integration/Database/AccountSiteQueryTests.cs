@@ -2,6 +2,11 @@ using System.Text.Json;
 using FluentAssertions;
 using LearnStack.Modules.Education.Application.Contracts.PublicReads;
 using LearnStack.Modules.Tenancy.Application.Contracts.Account;
+using LearnStack.Modules.Tenancy.Application.Account;
+using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Permissions;
+using Npgsql;
+using NpgsqlTypes;
 using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
@@ -16,18 +21,28 @@ using Xunit;
 
 namespace LearnStack.Tests.Integration.Database;
 
-/// <summary>The actual unrouted account request on the production API service graph and application role.</summary>
+/// <summary>Unrouted account-handler and physical transaction component proofs on real app-role data.
+/// Exact fixture admission is separate from the live HTTP binding/capability proofs.</summary>
 [Collection(PublicReadTestGroup.Name)]
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
-public sealed partial class AccountSiteQueryTests(PublicReadFixture fixture)
+public sealed partial class AccountSiteQueryTests(PublicReadFixture fixture) : IAsyncLifetime
 {
+    private ComponentAuthorizationEvidence _evidence = null!;
+    public async Task InitializeAsync() => _evidence = await ComponentAuthorizationEvidence.CreateAsync(
+        fixture.AppConnectionString, fixture.MigrationConnectionString);
+    public Task DisposeAsync() => _evidence.DisposeAsync().AsTask();
+
     private static readonly UserId Actor = UserId.From(Guid.Parse("8c9fac35-0386-4a1c-9086-38b0d9d34139"));
 
     [Fact]
     public async Task Actual_account_query_reads_contrasting_tenants_and_mapped_organization_without_query_audits()
     {
-        var beforeEnglish = await fixture.AuditCountAsync(SeedData.English);
-        var beforeYoga = await fixture.AuditCountAsync(SeedData.Yoga);
+        var englishContext = Context(SeedData.English, mappedOrganization: false);
+        var yogaContext = Context(SeedData.Yoga, mappedOrganization: false);
+        var yogaMappedContext = Context(SeedData.Yoga, mappedOrganization: true);
+        var beforeEnglish = await AuditCountsAsync(englishContext);
+        var beforeYoga = await AuditCountsAsync(yogaContext);
+        var beforeYogaMapped = await AuditCountsAsync(yogaMappedContext);
         var readsBefore = fixture.Observation.Reads;
         var english = await ReadSite(SeedData.English, mappedOrganization: false);
         var yoga = await ReadSite(SeedData.Yoga, mappedOrganization: true);
@@ -59,8 +74,9 @@ public sealed partial class AccountSiteQueryTests(PublicReadFixture fixture)
         }
         fixture.Observation.Reads.Should().Be(readsBefore + 3,
             "the production reader verifies the actual enlisted ReadOnly transaction and app role");
-        (await fixture.AuditCountAsync(SeedData.English)).Should().Be(beforeEnglish);
-        (await fixture.AuditCountAsync(SeedData.Yoga)).Should().Be(beforeYoga);
+        (await AuditCountsAsync(englishContext)).Should().Be(beforeEnglish);
+        (await AuditCountsAsync(yogaContext)).Should().Be(beforeYoga);
+        (await AuditCountsAsync(yogaMappedContext)).Should().Be(beforeYogaMapped);
         typeof(GetAccountSiteQuery).IsDefined(typeof(PublicSurfaceAttribute), false).Should().BeFalse();
     }
 
@@ -90,7 +106,7 @@ public sealed partial class AccountSiteQueryTests(PublicReadFixture fixture)
         await using var host = CreateHost(context);
         (await Send(host)).IsSuccess.Should().BeTrue("the same stored scope is visible before its lifecycle changes");
         if (claimSelected) await AssertPublicConfigurationLiveness(host, visible: true);
-        var before = await fixture.AuditCountAsync(tenant);
+        var before = await AuditCountsAsync(context);
         var table = organization ? "organizations" : "tenants";
         var predicate = organization ? "tenant_id=@tenant AND id=@organization" : "id=@tenant";
         await fixture.ExecuteAsync(tenant, state == "deleted"
@@ -100,7 +116,7 @@ public sealed partial class AccountSiteQueryTests(PublicReadFixture fixture)
         {
             Hidden(await Send(host));
             if (claimSelected) await AssertPublicConfigurationLiveness(host, visible: false);
-            (await fixture.AuditCountAsync(tenant)).Should().Be(before);
+            (await AuditCountsAsync(context)).Should().Be((before.Business, before.Denials + 1));
         }
         finally
         {
@@ -109,7 +125,7 @@ public sealed partial class AccountSiteQueryTests(PublicReadFixture fixture)
         }
         (await Send(host)).IsSuccess.Should().BeTrue("restoring the exact scope restores the live read");
         if (claimSelected) await AssertPublicConfigurationLiveness(host, visible: true);
-        (await fixture.AuditCountAsync(tenant)).Should().Be(before);
+        (await AuditCountsAsync(context)).Should().Be((before.Business, before.Denials + 1));
     }
 
     [Theory]
@@ -118,16 +134,17 @@ public sealed partial class AccountSiteQueryTests(PublicReadFixture fixture)
     public async Task Actual_account_query_hides_valid_empty_or_all_disabled_locale_configuration(bool delete)
     {
         var tenant = SeedData.English;
-        await using var host = CreateHost(Context(tenant, false));
+        var context = Context(tenant, false);
+        await using var host = CreateHost(context);
         (await Send(host)).IsSuccess.Should().BeTrue();
-        var before = await fixture.AuditCountAsync(tenant);
+        var before = await AuditCountsAsync(context);
         await fixture.ExecuteAsync(tenant, delete
             ? "DELETE FROM tenant_locales WHERE tenant_id=@tenant"
             : "UPDATE tenant_locales SET is_default=false,is_enabled=false WHERE tenant_id=@tenant");
         try
         {
             Hidden(await Send(host));
-            (await fixture.AuditCountAsync(tenant)).Should().Be(before);
+            (await AuditCountsAsync(context)).Should().Be((before.Business, before.Denials + 1));
         }
         finally
         {
@@ -161,10 +178,11 @@ public sealed partial class AccountSiteQueryTests(PublicReadFixture fixture)
             services.AddSingleton(reads);
             services.AddScoped<IPublicTenantConfigurationReader, ForbiddenConfigurationReader>();
         });
-        var before = await fixture.AuditCountAsync(tenant);
+        var before = await AuditCountsAsync(actual);
         Hidden(await Send(host));
+        reads.HandlerEntries.Should().Be(1, "the actual query must reach its independent provenance guard");
         reads.Reads.Should().Be(0, "the independent query guard must precede configuration access");
-        (await fixture.AuditCountAsync(tenant)).Should().Be(before);
+        (await AuditCountsAsync(actual)).Should().Be((before.Business, before.Denials + 1));
     }
 
     private static async Task AssertPublicConfigurationLiveness(WebApplicationFactory<Program> host, bool visible)
@@ -207,6 +225,14 @@ public sealed partial class AccountSiteQueryTests(PublicReadFixture fixture)
     private WebApplicationFactory<Program> CreateHost(ITenantContext context, Action<IServiceCollection>? configure = null) =>
         fixture.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
         {
+            // Admit only this unrouted component request; keep the canonical slot 5
+            // and the actual ExplicitReadOnlyRequest/handler/EF/app-role adapters.
+            ComponentOperationRegistration.AddExactComponentAuthority(services,
+                OperationPolicy.ForTrusted<GetAccountSiteQuery>("tests.component.account.read", AuthorizationSourceKind.Seed));
+            _evidence.AddTo(services);
+            services.AddSingleton<RefusedReadObservation>();
+            services.AddScoped<GetAccountSiteQueryHandler>();
+            services.AddScoped<IRequestHandler<GetAccountSiteQuery, Result<AccountSite>>, ObservedAccountHandler>();
             services.AddSingleton<ITenantContext>(context);
             services.AddSingleton<ITenantContextAccessor>(new StaticTenantContextAccessor(context));
             configure?.Invoke(services);
@@ -235,9 +261,53 @@ public sealed partial class AccountSiteQueryTests(PublicReadFixture fixture)
         result.Error!.Code.Should().Be("not_found");
     }
 
+    private async Task<(long Business, long Denials)> AuditCountsAsync(TenantContext context)
+    {
+        await using var connection = new NpgsqlConnection(fixture.AppConnectionString);
+        await connection.OpenAsync();
+        await using var transaction = await connection.BeginTransactionAsync();
+        await SchemaQueries.SetTenantAsync(connection, transaction, context.TenantId.Value);
+        await SchemaQueries.SetSettingAsync(connection, transaction, "app.organization_id",
+            context.OrganizationId?.Value.ToString("D") ?? "");
+        await SchemaQueries.AssertApplicationRoleAsync(connection, transaction);
+        await using var command = new NpgsqlCommand("""
+            SELECT count(*) FILTER (WHERE operation <> 'identity.authorization.deny'),
+                   count(*) FILTER (WHERE operation = 'identity.authorization.deny'
+                     AND operation_class = 'Must' AND outcome = 'denied'
+                     AND metadata->'authorization'->>'policy' = 'tests.component.account.read'
+                     AND metadata->'authorization'->>'source' = 'seed')
+            FROM audit_log WHERE tenant_id = @tenant
+              AND organization_id IS NOT DISTINCT FROM @organization
+            """, connection, transaction);
+        command.Parameters.AddWithValue("tenant", context.TenantId.Value);
+        command.Parameters.Add(new NpgsqlParameter("organization", NpgsqlDbType.Uuid)
+        { Value = context.OrganizationId is { } organization ? organization.Value : DBNull.Value });
+        await using var row = await command.ExecuteReaderAsync();
+        (await row.ReadAsync()).Should().BeTrue();
+        return (row.GetInt64(0), row.GetInt64(1));
+    }
+
+    private sealed class ObservedAccountHandler(GetAccountSiteQueryHandler inner,
+        IUnitOfWork unit, RefusedReadObservation observation)
+        : IRequestHandler<GetAccountSiteQuery, Result<AccountSite>>
+    {
+        public async Task<Result<AccountSite>> Handle(GetAccountSiteQuery request, CancellationToken cancellationToken)
+        {
+            observation.HandlerEntries++;
+            unit.Mode.Should().Be(TransactionMode.ReadOnly);
+            unit.GetTenantContextAnnouncement(unit.Transaction).Should().NotBeNull();
+            await SchemaQueries.AssertApplicationRoleAsync(unit.Connection, unit.Transaction);
+            await using var physical = new NpgsqlCommand("SHOW transaction_read_only",
+                (NpgsqlConnection)unit.Connection, (NpgsqlTransaction?)unit.Transaction);
+            (await physical.ExecuteScalarAsync(cancellationToken)).Should().Be("on");
+            return await inner.Handle(request, cancellationToken);
+        }
+    }
+
     private sealed class RefusedReadObservation
     {
         public int Reads { get; set; }
+        public int HandlerEntries { get; set; }
     }
 
     private sealed class ForbiddenConfigurationReader(RefusedReadObservation observation) : IPublicTenantConfigurationReader

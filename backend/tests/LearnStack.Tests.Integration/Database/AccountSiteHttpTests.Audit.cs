@@ -124,11 +124,13 @@ public sealed partial class AccountSiteHttpTests
 /// <summary>Every observed audit read runs as learnstack_app with the defended tenant announced.</summary>
 internal static class AccountHttpAudit
 {
-    internal static async Task<List<AccountHttpAuditRow>> Read(PublicReadFixture fixture, SeedTenant tenant, string correlation)
+    internal static async Task<List<AccountHttpAuditRow>> Read(PublicReadFixture fixture, SeedTenant tenant, string correlation, OrganizationId? organization = null)
     {
         await using var connection = await PostgresFixture.OpenAsync(fixture.AppConnectionString);
         await using var transaction = await connection.BeginTransactionAsync();
         await SchemaQueries.SetTenantAsync(connection, transaction, tenant.TenantId.Value);
+        if (organization is { } scope)
+            await SchemaQueries.SetSettingAsync(connection, transaction, "app.organization_id", scope.Value.ToString("D"));
         await SchemaQueries.AssertApplicationRoleAsync(connection, transaction);
         await using var command = new NpgsqlCommand("""
             SELECT tenant_id, organization_id, actor_user_id, operation, outcome, correlation_id, metadata::text

@@ -56,7 +56,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
                 if (entries > 1)
                     (await BackgroundJobRuntimeRows.CountOrganizationAsync(database.AppConnectionString, organization)).Should().Be(0,
                         "a new attempt must not see its predecessor's rolled-back business write");
-                var written = await services.GetRequiredService<ISender>().Send(new CreateOrganizationCommand(
+                var written = await services.GetRequiredService<ISender>().Send(Fixture.OrganizationRequest(
                     OrganizationId.From(organization), "job-fair-" + organization.ToString("N")[..12], "Job fairness"), token);
                 written.IsSuccess.Should().BeTrue();
                 // The real nested write succeeds before this one controlled refusal.
@@ -136,7 +136,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         await EducationSchemaSeed.AnnounceAsync(connection, transaction, SchemaFixture.TenantA, null);
         await using var command = new NpgsqlCommand("""
             SELECT count(*) FROM audit_log
-            WHERE entity_id=@id AND operation='tenancy.organization.create' AND operation_class='Must'
+            WHERE entity_id=@id AND operation='jobfixture.organization.create' AND operation_class='Must'
                 AND outcome='success' AND metadata->>'job_id'=@id
             """, connection, transaction);
         command.Parameters.AddWithValue("id", job.Value.ToString());
@@ -155,7 +155,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         {
             Body = async (_, services, token) =>
             {
-                var written = await services.GetRequiredService<ISender>().Send(new CreateOrganizationCommand(
+                var written = await services.GetRequiredService<ISender>().Send(Fixture.OrganizationRequest(
                     OrganizationId.From(organization), "job-renew-" + organization.ToString("N")[..12], "Job renewal"), token);
                 written.IsSuccess.Should().BeTrue();
                 entered.TrySetResult();
@@ -234,7 +234,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         {
             Body = async (_, services, token) =>
             {
-                var written = await services.GetRequiredService<ISender>().Send(new CreateOrganizationCommand(
+                var written = await services.GetRequiredService<ISender>().Send(Fixture.OrganizationRequest(
                     OrganizationId.From(organization), "job-stop-" + organization.ToString("N")[..12], "Job stop"), token);
                 written.IsSuccess.Should().BeTrue();
                 using var registration = token.Register(() =>

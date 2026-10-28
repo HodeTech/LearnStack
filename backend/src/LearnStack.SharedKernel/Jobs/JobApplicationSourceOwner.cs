@@ -9,7 +9,8 @@ namespace LearnStack.SharedKernel.Jobs;
 /// <remarks>
 /// The executor retains one owner across framework and business scopes. A cache
 /// wait ending does not release its actual loader. No provider or work callback is
-/// accepted here; the four named database helpers retain their concrete resources.
+/// accepted here; the four business helpers and the confined authorization/evidence
+/// lanes retain their concrete resources.
 /// </remarks>
 [SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable",
     Justification = "Only the actual unit/helper cleanup can release retained resources; caller disposal supplies no witness.")]
@@ -19,6 +20,8 @@ public sealed class JobApplicationSourceOwner
     private static readonly AsyncLocal<object?> External = new();
     private readonly object _sync = new();
     private JobApplicationAuxiliaryResources? _auxiliary;
+    private JobApplicationAuxiliaryResources? _authorization;
+    private JobApplicationAuxiliaryResources? _evidence;
     private IUnitOfWork? _mainUnit;
     private DbConnection? _mainConnection;
     private DbTransaction? _mainTransaction;
@@ -37,6 +40,17 @@ public sealed class JobApplicationSourceOwner
 
     /// <summary>A stale inherited binding remains visible and refuses new work.</summary>
     public static JobApplicationSourceOwner? Current => Ambient.Value?.Owner;
+
+    /// <summary>Current execution lifetime, independent of temporary auxiliary-lane readiness.</summary>
+    public bool IsCurrentBinding
+    {
+        get
+        {
+            lock (_sync)
+                return !IsExternal && !_closed && !_cleanupFailed
+                    && Ambient.Value is { IsOpen: true } binding && ReferenceEquals(binding.Owner, this);
+        }
+    }
 
     /// <summary>Denial remains visible in inherited tasks after their parent's scope restores.</summary>
     public static bool IsExternal => External.Value is not null;
@@ -77,7 +91,9 @@ public sealed class JobApplicationSourceOwner
             lock (_sync)
             {
                 _auxiliary?.TryRelease();
-                return !_cleanupFailed && _auxiliary is null && _mainUnit is null
+                _authorization?.TryRelease();
+                _evidence?.TryRelease();
+                return !_cleanupFailed && _auxiliary is null && _authorization is null && _evidence is null && _mainUnit is null
                     && _mainConnection is null && _mainTransaction is null;
             }
         }
@@ -91,7 +107,9 @@ public sealed class JobApplicationSourceOwner
         {
             RequireBinding();
             _auxiliary?.TryRelease();
-            if (_closed || _cleanupFailed || _auxiliary is not null) throw Refused();
+            _authorization?.TryRelease();
+            _evidence?.TryRelease();
+            if (_closed || _cleanupFailed || _auxiliary is not null || _authorization is not null || _evidence is not null) throw Refused();
         }
     }
 
@@ -186,8 +204,12 @@ public sealed class JobApplicationSourceOwner
     public async Task<bool> JoinAuxiliaryCleanupAsync()
     {
         JobApplicationAuxiliaryResources? auxiliary;
-        lock (_sync) auxiliary = _auxiliary;
+        JobApplicationAuxiliaryResources? authorization;
+        JobApplicationAuxiliaryResources? evidence;
+        lock (_sync) { auxiliary = _auxiliary; authorization = _authorization; evidence = _evidence; }
         if (auxiliary is not null) await auxiliary.JoinActualTaskAsync().ConfigureAwait(false);
+        if (authorization is not null) await authorization.JoinActualTaskAsync().ConfigureAwait(false);
+        if (evidence is not null) await evidence.JoinActualTaskAsync().ConfigureAwait(false);
         return CleanupConfirmed;
     }
 
@@ -195,6 +217,12 @@ public sealed class JobApplicationSourceOwner
     public JobApplicationAuxiliaryResources BeginStandaloneAudit() => BeginAuxiliary();
     public JobApplicationAuxiliaryResources BeginTenantFlagsLoad() => BeginAuxiliary();
     public JobApplicationAuxiliaryResources BeginKillswitchLoad() => BeginAuxiliary();
+
+    /// <summary>The globally bounded authorization source retains this independent lane; the main owner may stay open.</summary>
+    public JobApplicationAuxiliaryResources BeginAuthorizationRead() => BeginConfinedLane(authorization: true);
+
+    /// <summary>The globally bounded evidence source retains this independent lane until actual completion.</summary>
+    public JobApplicationAuxiliaryResources BeginAuthorizationEvidence() => BeginConfinedLane(authorization: false);
 
     /// <summary>Marks one genuinely new source before recovery's first physical read.</summary>
     public void BindExternalRecovery()
@@ -214,9 +242,30 @@ public sealed class JobApplicationSourceOwner
         {
             RequireBinding();
             _auxiliary?.TryRelease();
-            if (_closed || _cleanupFailed || _auxiliary is not null) throw Refused();
+            _authorization?.TryRelease();
+            _evidence?.TryRelease();
+            if (_closed || _cleanupFailed || _auxiliary is not null || _authorization is not null || _evidence is not null) throw Refused();
             _used = true;
             return _auxiliary = new JobApplicationAuxiliaryResources(this);
+        }
+    }
+
+    private JobApplicationAuxiliaryResources BeginConfinedLane(bool authorization)
+    {
+        RefuseExternalEntry();
+        lock (_sync)
+        {
+            RequireBinding();
+            _auxiliary?.TryRelease();
+            _authorization?.TryRelease();
+            _evidence?.TryRelease();
+            if (_closed || _cleanupFailed || _auxiliary is not null || _authorization is not null || _evidence is not null)
+                throw Refused();
+            _used = true;
+            var resources = new JobApplicationAuxiliaryResources(this);
+            if (authorization) _authorization = resources;
+            else _evidence = resources;
+            return resources;
         }
     }
 
@@ -224,7 +273,7 @@ public sealed class JobApplicationSourceOwner
     {
         lock (_sync)
         {
-            if (!ReferenceEquals(_auxiliary, auxiliary)) throw Refused();
+            if (!OwnsAuxiliary(auxiliary)) throw Refused();
             _cleanupFailed = true;
         }
     }
@@ -234,11 +283,16 @@ public sealed class JobApplicationSourceOwner
         lock (_sync)
         {
             if (auxiliary.IsReleased) return;
-            if (!ReferenceEquals(_auxiliary, auxiliary)) throw Refused();
-            _auxiliary = null;
+            if (!OwnsAuxiliary(auxiliary)) throw Refused();
+            if (ReferenceEquals(_auxiliary, auxiliary)) _auxiliary = null;
+            else if (ReferenceEquals(_authorization, auxiliary)) _authorization = null;
+            else _evidence = null;
             auxiliary.MarkReleased();
         }
     }
+
+    private bool OwnsAuxiliary(JobApplicationAuxiliaryResources resources) =>
+        ReferenceEquals(_auxiliary, resources) || ReferenceEquals(_authorization, resources) || ReferenceEquals(_evidence, resources);
 
     private void RequireBinding()
     {
@@ -271,7 +325,7 @@ public sealed class JobApplicationSourceOwner
     }
 }
 
-/// <summary>The concrete resources of one of the four closed job-origin helpers.</summary>
+/// <summary>The concrete resources of a closed business helper or confined authorization/evidence lane.</summary>
 [SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable",
     Justification = "Actual cleanup is explicit and one-shot; disposing a returned caller handle cannot prove task completion.")]
 public sealed class JobApplicationAuxiliaryResources
@@ -331,6 +385,13 @@ public sealed class JobApplicationAuxiliaryResources
         _ = actualTask.ContinueWith(static (_, state) =>
             ((JobApplicationAuxiliaryResources)state!).TryRelease(), this,
             CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+    }
+
+    /// <summary>Concrete caller-owned command/reader cleanup failed; later disposal cannot replace that witness.</summary>
+    public void MarkCleanupFailed()
+    {
+        _readerCleanupFailed = true;
+        _owner.ReportCleanupFailure(this);
     }
 
     /// <summary>A reader must finish before its helper issues COMMIT.</summary>

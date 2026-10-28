@@ -792,3 +792,34 @@ registration. [Security Standards](../standards/11-security.md) owns that census
 
 Joint approval accepts the authority. P03-1 Steps 3/5 retain the global owner and
 existing-binding runtime proofs; P03-2 retains the ninth setter's live proofs.
+
+### Amendment 15 — Confined live authorization owners (2026-10-27)
+
+Accepted [ADR-0076](0076-live-scoped-authorization.md) implements the contract
+for the already enumerated ninth logical candidate-reader setter: a fresh,
+physically READ ONLY app-role owner announces its verified actor/candidate scope
+and generation without installing an ambient TenantContext. Its dedicated
+four-slot authorization source cannot borrow a retained business connector or
+consume the parent's uncommitted grant state. It executes only its confined
+nonlocking Identity/Tenancy statements, releasing before business/audit work.
+
+The ordinary step-6 owner consumes immutable invocation-bound read authority
+for SQL/EF scope. Same-scope joins preserve it; incompatible wider or narrower
+read-scope joins poison rather than retarget. Existing transaction mode and
+owner/connection rules remain. Neither this source nor the read witness creates
+a context writer or tenth logical setter.
+
+[ADR-0077](0077-trusted-authorization-evidence.md)'s independent two-slot evidence
+source establishes standalone events before otherwise-successful ReadOnly or
+ownerless publication. Successful ReadWrite owners carry unresolved events on
+their own transaction before final commit admission. Slots include opening and
+actual cleanup, not merely timeout-delimited tasks. Job sources track both named
+lanes without a second main unit or suppressed ambient ownership. PgBouncer
+backend lanes/headroom are independently qualified, not inferred from two
+Npgsql objects or application names.
+
+[Standard 05](../standards/05-database.md#authorization-and-evidence-source-ledger)
+owns the exact source/capacity/configuration ledger and
+[Security](../standards/11-security.md) owns placement. Acceptance is not runtime
+implementation; P03-2 proves scope, progress and cleanup before activation.
+Other decisions and historical Accepted body/status/date remain unchanged.

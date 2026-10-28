@@ -7,8 +7,13 @@ and [ADR-0073](../../decisions/0073-scoped-membership-and-identity-data-foundati
 2026-10-25. The global User/authority model, internal binding/adoption consumers
 and central creation owner exist. Contextual tables/commands/manifests below
 are implemented; the [Phase 03 Status block](../../roadmap/phase-03-identity-admin.md)
-owns current qualification and review state. New
-HTTP/native-user activation remains P03-3.
+owns current qualification and review state. Jointly Accepted
+[ADR-0076](../../decisions/0076-live-scoped-authorization.md) /
+[ADR-0077](../../decisions/0077-trusted-authorization-evidence.md) define P03-2 live
+authorization and one administrative directory GET. Its confined reader,
+canonical policy/evaluator, central denial evidence and HTTP directory are wired
+in the API composition. New-user/native editing
+activation remains P03-3.
 The ordered admission timing/observation contract additionally derives from
 [ADR-0074](../../decisions/0074-membership-admission-under-ordered-locks.md),
 Accepted 2026-10-26. The phase Status block owns qualification and review state.
@@ -57,8 +62,8 @@ The internal binding service uses explicit startup qualification and fresh,
 physically read-only existing-binding transactions; it never creates a missing
 binding. Fixed seed adoption separately requires its confined admission port.
 Real provider/app-role, schema/body/ACL/caller and physical outcome controls are
-implemented. Closure, directory access,
-production first-admin and issuer rebind remain their named later owners.
+implemented. The directory contract appears below; closure,
+production first-admin and issuer rebind retain their named later owners.
 
 ### Aggregate and storage contract
 
@@ -232,11 +237,63 @@ Yoga admin `b001` keeps its existing provider claim for default studio `b1`.
 Its seed Membership declaration independently selects NULL organization, and
 the seed transaction derives NULL SQL organization scope from that trusted
 target; the authentication manifest does not choose the Membership write scope.
-After live authorization ships, a branch session may consume eligible Tenant
-grants for branch operations only. Tenant-wide Membership/Profile/template
+A branch session may consume eligible Tenant grants for branch operations and
+explicitly declared tenant-wide reads. Tenant-wide Membership/Profile/template
 writes require an explicitly selected orgless context through P03-3's validated
 reissue transition. Neither the existing branch claim nor `app.scope` promotes
 writes; no extra branch-admin Membership or provider-claim rewrite is required.
+
+### Accepted live authorization and directory contract
+
+**Live policy, central evidence and the administrative directory are implemented.**
+The policy/evaluator consumes the confined reader/source through the shared
+decision port; common Application gains no Identity module dependency. The
+directory uses the real EF read adapter and common MUST write path. API and
+application checks each read fresh committed authority before dispatch.
+`CommittedIdentityAuthorizationReader` coordinates the module statements from
+Application; its Infrastructure session factory retains the exact Identity SQL
+and physical child owner. The reader consumes an
+exact verified actor/tenant/optional-organization candidate in an isolated child
+owner. It returns bounded current Membership/Role/grant facts and consumes
+Tenancy's lifecycle contract, without a profile/global directory, synthetic
+TenantContext or parent transaction reuse. The grant and lifecycle statements
+have separate committed snapshots; revocation committed before the grant query
+affects that admission, while already-admitted work can finish. Binding remains
+the earlier global User eligibility check.
+
+HTTP and direct application dispatch independently classify and authorize each
+protected act. Explicit public, AccountSite, protected and finite seed/system
+policies default deny unknown/missing declarations. Resolver membership confirms
+scope but does not authorize a later protected act. Public requests remain free
+of identity/grant lookups; AccountSite keeps its separate real HostScope ceiling
+and Off/physical ReadOnly mode while gaining live membership/lifecycle admission.
+
+The accepted administrative directory uses existing Tenant
+`identity.membership.admin`, with no new grant or v2 seed bundle. It admits
+HostAndClaim or confirmed ClaimAndMembership, never HostOnly. Its declared
+tenant-wide read can use an eligible NULL-org Tenant Admin Membership from a
+branch session. It returns current undeleted Active/Suspended Memberships and
+only MembershipId, UserId, OrganizationId, status, contextual DisplayName and
+PreferredLocale. Provider subject, email, global profile and grant graph are
+excluded. The [API contract](../../standards/04-api-design.md) owns exact route,
+DTO/cursor/no-store rules; the native BFF operation allowlist remains P03-3 work.
+
+Its MUST `identity.membership.list` row commits on the ordinary ReadWrite owner
+before disclosure; it is not a physical ReadOnly-catalogue query. The implemented
+`ChangeRoleGrantsCommand` and `AdoptRoleGrantManifestCommand` each mutate one Role
+with contained grants, expected version, current post-lock authority and same-
+transaction MUST audit. [Permissions](permissions.md) owns their exact bindings
+and delegation ceiling; unknown manifest, self-escalation or kernel removal
+refuses. Fixed v1 seed reruns still refuse legitimate differing adopted state.
+Human-facing grant-editing/adoption routes remain P03-3 work.
+
+[Standard 05](../../standards/05-database.md#authorization-and-evidence-source-ledger)
+owns the dedicated four/two authorization/evidence lanes, tracked job ownership,
+retained cleanup and required direct/PgBouncer progress proofs. Its
+[read authority contract](../../standards/05-database.md#operation-bound-read-authority)
+owns invocation/transaction lifetime and EF/RLS agreement. [Standard 18](../../standards/18-audit-coverage.md#trusted-authorization-evidence)
+owns denial occurrences, immutable provenance and all pre-success barriers.
+No pool, crash, permission or disclosure proof is claimed by acceptance alone.
 
 ## Entity-relationship diagram
 
@@ -334,13 +391,15 @@ framework domain-event dispatch does not imply a published contract.
 
 [Identity permissions](permissions.md) binds production seed commands to
 the exact [accepted Standard 19 manifest](../../standards/19-permissions.md#proposed-identity-foundation-contract).
-They are implemented in Step 4. Capability metadata activates
-neither live permission behavior nor HTTP routes.
+The seed commands are implemented in P03-1 Step 4; the separately marked P03-2
+bindings are implemented. Capability metadata alone grants neither permission
+nor a route; canonical admission and exact endpoint declarations enforce both.
 
 ## Audit coverage matrix
 
 [Identity audit](audit.md) declares implemented root/child classifications and
-personal/reference paths. The central writer owns durability; Identity has no
+personal/reference paths and the implemented authorization event/read/grant rows.
+The central writer owns durability; Identity has no
 audit table/direct audit SQL. Global mutation audit follows ADR-0072 alone.
 
 ## Performance budget
@@ -354,13 +413,15 @@ no production capacity. The distinct
 retains its own control and scope.
 Standard 05 owns bounded lock waits,
 cancellation and metrics. Timeout yields a fixed retryable failure without
-partial grants. P03-2 measures candidate-reader/authorization costs before
-activation; a global permission cache/session grant cannot replace a fresh check.
+partial grants. Candidate-reader/authorization cost measurements belong to the
+[Phase 03 qualification](../../roadmap/phase-03-identity-admin.md); a global
+permission cache/session grant cannot replace a fresh check.
 
 ## Risks and open questions
 
-Branch-specific Role configuration reopens ADR-0073. P03-2 owns live delegation,
-default deny/revocation and reader handoff; P03-3 scope transitions/DTOs; P03-4
+Branch-specific Role configuration reopens ADR-0073. Accepted ADR-0076/0077 own
+live delegation, default deny/revocation, reader handoff and trusted evidence;
+P03-2 implements/proves them; P03-3 scope transitions/DTOs; P03-4
 invitations; P03-5 dynamic values; P03-9 production first-admin/recovery; P03-10
 closure/locators. These are named later writers, not implicit foundation authority.
 

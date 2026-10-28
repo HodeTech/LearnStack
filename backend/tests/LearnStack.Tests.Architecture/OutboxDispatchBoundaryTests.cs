@@ -178,6 +178,7 @@ public sealed partial class OutboxDispatchConventionTests
         public void Credential_census_rejects_crossed_keys_changed_closures_and_missing_subjects()
         {
             using var census = ProductionCensus.Read();
+            AssertAuthorizationCredentialMutations(census);
             foreach (var subject in new[] { (BoundaryApi, BoundaryWorker), (InfrastructureAssembly, BoundaryPlatform) })
             {
                 var parameter = census.Types[subject].Methods.Single(method => method.IsConstructor && !method.IsStatic)
@@ -459,7 +460,9 @@ public sealed partial class OutboxDispatchConventionTests
     {
         var services = new ServiceCollection();
         // Real composition, no provider build, pool construction or connection.
-        services.AddLearnStackPersistence(new ConfigurationBuilder().Build());
+        var configuration = new ConfigurationBuilder().Build();
+        services.AddLearnStackPersistence(configuration);
+        services.AddLearnStackAuthorizationSourceConfiguration(configuration, allowDevelopmentDerivation: false);
         return services;
     }
 
@@ -495,6 +498,7 @@ public sealed partial class OutboxDispatchConventionTests
 
         var outboxRoot = types[(BoundaryApi, BoundaryComposition)].Methods.Single(method => method.Name == "AddLearnStackOutboxDispatcher");
         var platformRoot = types[(BoundaryApi, BoundaryPersistence)].Methods.Single(method => method.Name == "AddLearnStackPersistence");
+        var authorizationRoot = CheckAuthorizationCredentialRegistration(offenders, census, services);
         var runtimeRoot = types[(InfrastructureAssembly, JobRuntimeRegistration)].Methods.Single(method => method.Name == "AddLearnStackBackgroundJobRuntime");
         var roots = new[] { (Root: outboxRoot, Key: OutboxDispatcherDataSource.Key),
             (Root: platformRoot, Key: PlatformAdminScope.PlatformDataSourceKey) };
@@ -590,8 +594,10 @@ public sealed partial class OutboxDispatchConventionTests
             && site.Target.Name == "Build").Select(site => site.Owner), outboxBuildFactory is null ? [] : [MethodId(outboxBuildFactory)]);
         CheckSet(offenders, "outbox configuration validation", sites.Where(site => site.Target.DeclaringType.FullName == BoundarySource
             && site.Target.Name == "Validate").Select(site => site.Owner), [MethodId(outboxRoot)]);
+        var credentialReaders = new List<string> { MethodId(outboxRoot), MethodId(platformRoot), MethodId(platformRoot) };
+        if (authorizationRoot is not null) credentialReaders.AddRange(Enumerable.Repeat(MethodId(authorizationRoot), 3));
         CheckSet(offenders, "connection-string reader census", sites.Where(site => IsConnectionStringRead(site.Target))
-            .Select(site => site.Owner), [MethodId(outboxRoot), MethodId(platformRoot), MethodId(platformRoot)]);
+            .Select(site => site.Owner), credentialReaders);
 
         var injections = new List<string>();
         foreach (var method in types.Values.SelectMany(type => type.Methods))
@@ -603,7 +609,7 @@ public sealed partial class OutboxDispatchConventionTests
                         + BoundaryAttributeValue(attribute.ConstructorArguments.FirstOrDefault()));
             if (!method.HasBody) continue;
             // GetConnectionString is the sole admitted credential-read member at
-            // the two roots above. Its indexer equivalent can compose the name,
+            // the enumerated roots above. Its indexer equivalent can compose the name,
             // leaving no complete dispatcher literal in IL. Conservatively refuse
             // a connection-string prefix alongside an explicit configuration indexer;
             // this does not classify arbitrary key dataflow or unrelated indexers.
@@ -617,7 +623,8 @@ public sealed partial class OutboxDispatchConventionTests
                 {
                     var key = instruction.Previous?.Operand as string;
                     var expected = method == outboxRoot ? new[] { "OutboxDispatcher" }
-                        : method == platformRoot ? ["Default", "PlatformAdmin"] : [];
+                        : method == platformRoot ? ["Default", "PlatformAdmin"]
+                        : method == authorizationRoot ? ["Default", "IdentityAuthorization", "AuthorizationEvidence"] : [];
                     if (key is null || !expected.Contains(key, StringComparer.Ordinal))
                         offenders.Add(MethodId(method) + ": unauthorized connection-string read");
                 }
@@ -741,10 +748,9 @@ public sealed partial class OutboxDispatchConventionTests
         { offenders.Add(TypeId(type) + ": requires its private readonly lazy source"); return; }
         // Close forwarding of an already injected capability as well as fresh keyed
         // resolution. Exact access counts also catch another use in an allowed method.
-        var actual = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions
-            .Where(instruction => instruction.Operand is FieldReference field && SameType(field.DeclaringType, type)
-                && field.Name == fields[0].Name)
-            .Select(instruction => MethodId(item.Owner) + ":" + instruction.OpCode.Name));
+        var actual = census.FieldInstructions(fields[0].Name)
+            .Where(item => SameType(item.Target.DeclaringType, type))
+            .Select(item => item.OwnerId + ":" + item.Instruction.OpCode.Name);
         var expected = new[] { constructor + ":stfld" }.Concat(readers.Select(reader => reader + ":ldfld"));
         CheckSet(offenders, TypeId(type) + " privileged source field access", actual, expected);
     }

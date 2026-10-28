@@ -4,6 +4,8 @@ using System.Net;
 using FluentAssertions;
 using LearnStack.Api.Authentication;
 using LearnStack.Api.Tenancy;
+using LearnStack.Modules.Identity.Application.Contracts.Authorization;
+using LearnStack.SharedKernel.Permissions;
 using LearnStack.Tests.Integration.Database;
 using LearnStack.Tools.Seeder;
 using Microsoft.AspNetCore.Builder;
@@ -128,11 +130,32 @@ public sealed partial class AuthenticatedRateLimitTests(PublicReadFixture fixtur
         fixture.Observation.Reads.Should().Be(reads + RateLimitingExtensions.AnonymousPermitPerWindow);
     }
 
-    private static void AddQuotaBindings(IServiceCollection services, TenantAuthenticationIssuer issuer) =>
+    private static void AddQuotaBindings(IServiceCollection services, TenantAuthenticationIssuer issuer)
+    {
         services.AddSingleton<ITenantIdentityBindingResolver>(new FixtureTenantIdentityBindingResolver(issuer.Issuer,
             ["opaque-keycloak-subject", "independent-subject-B", "fresh-subject", "admission-subject-A",
                 "admission-subject-B", "admission-subject-C", "blocked-retiring-subject",
                 "blocked-retained-subject", "blocked-competing-subject"]));
+        // These admission proofs own fixture bindings outside Identity. Substitute
+        // only their bounded live-coverage read; actual HTTP authority is exercised
+        // separately against committed Membership rows in IdentityAuthorizationHttpTests.
+        services.AddSingleton<IIdentityAuthorizationReader, AdmissionAuthorizationReader>();
+    }
+
+    private sealed class AdmissionAuthorizationReader : IIdentityAuthorizationReader
+    {
+        public Task<IdentityAuthorizationResult> ReadAsync(AuthorizationCandidate candidate,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var covered = candidate.IsActive && candidate.Actor.Value == TenantAuthenticationIssuer.Actor
+                && candidate.OrganizationId is null
+                && (candidate.TenantId == SeedData.English.TenantId || candidate.TenantId == SeedData.Yoga.TenantId);
+            return Task.FromResult(new IdentityAuthorizationResult(covered ? IdentityAuthorizationOutcome.Covered
+                    : IdentityAuthorizationOutcome.NotCovered, candidate.Actor, candidate.TenantId, candidate.OrganizationId,
+                covered ? [new AuthorizationMembershipFacts(Guid.Parse("019b24b6-0cf0-7000-8000-0000000000a1"), null, [])] : []));
+        }
+    }
 
     private sealed class SubjectQuotaObservation : IStartupFilter, ILogEventSink
     {

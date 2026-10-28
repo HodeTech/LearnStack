@@ -21,7 +21,7 @@ using Xunit;
 namespace LearnStack.Tests.Integration;
 
 /// <summary>
-/// The authority ceiling through the real pipeline, and the property that makes it
+/// The authority ceiling through the canonical application pipeline in an isolated component host, and the property that makes it
 /// safe to have one: its refusal is indistinguishable from an unresolvable host's.
 /// </summary>
 /// <remarks>
@@ -55,6 +55,8 @@ public sealed class AuthorityCeilingHttpTests(AuthorityCeilingFixture fixture)
         var body = await response.Content.ReadAsStringAsync();
         response.StatusCode.Should().Be(HttpStatusCode.OK, body);
         body.Should().Contain("reached");
+        fixture.Policies.PublicLookups.Should().BeGreaterThan(0,
+            "the positive reaches the real canonical authorization stage with its exact public policy");
     }
 
     [Fact]
@@ -64,6 +66,8 @@ public sealed class AuthorityCeilingHttpTests(AuthorityCeilingFixture fixture)
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound,
             "a host-only context reaches only [PublicSurface] request types");
+        fixture.Policies.GuardedLookups.Should().Be(0,
+            "the actual TenantContextBehavior refuses before canonical authorization consults any policy");
     }
 
     [Fact]
@@ -175,17 +179,19 @@ public sealed class HostClassificationMeter : ICollectionFixture<HostClassificat
 }
 
 /// <summary>A host whose resolver maps one tenant host and nothing else.</summary>
-public sealed class AuthorityCeilingFixture : ConstructionOnlyApiFactory
+public sealed class AuthorityCeilingFixture : ComponentApiFactory
 {
     public const string TenantHost = "school.example.com";
 
     public static readonly Guid Tenant = Guid.Parse("018f4d40-0000-7000-8000-0000000000d1");
 
+    internal CeilingPolicyCatalog Policies { get; } = new();
+
     protected override void ConfigureTestHost(IWebHostBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
         builder.UseEnvironment(Environments.Development);
-        builder.ConfigureTestServices(services =>
+        builder.ConfigureServices(services =>
         {
             services.AddControllers(options =>
                     options.Conventions.Insert(0, new TestControllerFilter(
@@ -206,6 +212,7 @@ public sealed class AuthorityCeilingFixture : ConstructionOnlyApiFactory
             // Registered as audited-nothing: the pipeline refuses a request the catalogue
             // does not know, and these two exist only to exercise the authority ceiling.
             services.AddSingleton<IAuditCatalogSource, TestAuditCatalogSource>();
+            ComponentOperationRegistration.AddCeilingOperations(services, Policies);
 
             // TransactionBehavior opens a real transaction on every request that
             // reaches step 6, and this host has no database — the ceiling refusal

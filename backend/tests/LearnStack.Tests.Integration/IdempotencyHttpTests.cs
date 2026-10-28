@@ -508,7 +508,7 @@ public sealed class IdempotencyHttpTests(IdempotencyFixture fixture)
 /// which made every test in the class depend on the order the others ran in —
 /// Standards 06 § Forbidden bars exactly that.
 /// </remarks>
-public sealed class IdempotencyFixture : ConstructionOnlyApiFactory
+public sealed class IdempotencyFixture : ComponentApiFactory
 {
     public static readonly Guid TenantA = Guid.Parse("018f4d40-0000-7000-8000-00000000000a");
     public static readonly Guid TenantB = Guid.Parse("018f4d40-0000-7000-8000-00000000000b");
@@ -522,7 +522,7 @@ public sealed class IdempotencyFixture : ConstructionOnlyApiFactory
     {
         ArgumentNullException.ThrowIfNull(builder);
         builder.UseEnvironment(Environments.Development);
-        builder.ConfigureTestServices(services =>
+        builder.ConfigureServices(services =>
         {
             services.AddControllers(options =>
                     options.Conventions.Insert(0, new TestControllerFilter(

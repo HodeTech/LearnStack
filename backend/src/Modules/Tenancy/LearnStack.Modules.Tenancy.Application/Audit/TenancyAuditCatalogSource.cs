@@ -39,6 +39,7 @@ public sealed class TenancyAuditCatalogSource : IAuditCatalogSource
     /// <inheritdoc />
     public void Describe(IAuditCatalogBuilder builder)
     {
+        builder.DeclareOffPath("tenancy.assertion.reject_claim_context", OperationType.SecurityEvent, OperationClass.Must, entityType: null);
         ArgumentNullException.ThrowIfNull(builder);
 
         builder.Off<GetTenantSeedStateQuery>();

@@ -10,7 +10,7 @@ using LearnStack.SharedKernel.Tenancy;
 namespace LearnStack.Application.Jobs;
 
 /// <summary>Independent, immutable ordinary-job authority retained through actual cleanup.</summary>
-public sealed class BackgroundJobExecutionAdmission(
+public sealed partial class BackgroundJobExecutionAdmission(
     IBackgroundJobDefinitionCatalog definitions,
     IBackgroundJobRequestCatalog requests,
     IAuditCatalog audit)

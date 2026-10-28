@@ -20,7 +20,7 @@ import { demoRequest, vacant } from './demo-http.mjs';
 import { defaultServices, waitCompose } from './wait-compose.mjs';
 import { publicDemoApiEnvironment, publicWebEnvironment } from './public-runtime.mjs';
 import { apiCompletionObserver } from './demo-observation.mjs';
-import { publicSeederEnvironment, validateDemoDatabaseConfiguration } from './demo-database.mjs';
+import { publicSeederEnvironment, developmentSeederRuntimeEnvironment, validateDemoDatabaseConfiguration } from './demo-database.mjs';
 import { demoSource } from './demo-source.mjs';
 import { RealmError, realmFailureNotice } from './development-realm-errors.mjs';
 import { readRealmEnvironmentFile, realmEnvironment, seedAuthorityEnvironment, validateLocalDockerContext } from './development-realm-owner.mjs';
@@ -442,7 +442,7 @@ export async function startDemo(mode) {
     await waitCompose(selected, processes, controller.signal);
     await run('dotnet', [seederDll], 'Contextual seed convergence', {
       cwd: backendRoot,
-      env: publicSeederEnvironment(rawValues.ConnectionStrings__Default),
+      env: developmentSeederRuntimeEnvironment(rawValues),
       timeout: 180000,
     });
     await reconcileDevelopmentRealm({ selected, signal: controller.signal, seedIdentityFoundation: true });

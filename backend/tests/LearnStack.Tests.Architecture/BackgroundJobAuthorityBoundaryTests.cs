@@ -25,12 +25,12 @@ public sealed partial class OutboxDispatchConventionTests
         CheckJobFrameworkMetadata();
     }
 
-    public sealed class JobAuthorityCensusMutationTests
+    public sealed partial class JobAuthorityCensusMutationTests
     {
 
         /// <summary>ADR-0047: prove the same production predicate detects removal and additional activation.</summary>
         [Fact]
-        public void Background_job_authority_census_detects_extra_activation_and_removed_live_guards()
+        public void Background_job_admission_rejects_extra_activators_and_removed_privileged_guards()
         {
             using var census = ProductionCensus.Read();
             var admission = census.Types[(DeliveryApplication, JobAdmission)];
@@ -71,7 +71,6 @@ public sealed partial class OutboxDispatchConventionTests
             foreach (var guard in guards)
                 AssertMutation(census, "a missing actual job authority gate", () =>
                     ReplaceInstruction(guard, OpCodes.Ldstr, "missing job authority gate"), JobAuthorityOffenders);
-            AssertJobStepThreeControls(census);
         }
 
     }
@@ -119,6 +118,7 @@ public sealed partial class OutboxDispatchConventionTests
             [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteCoreAsync"), Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"),
              Owner(DeliveryApplication, JobAdmission, "RequireOwnerEntry"), Owner(DeliveryApplication, JobAdmission, "RequireOwnerEntry"),
              Owner(DeliveryApplication, JobAdmission, "RequireOwnerEntry"),
+             Owner(DeliveryApplication, JobAdmission, "IsOperationEvidenceCurrent"),
              Owner(DeliveryApplication, JobAdmission, "RequireOwnerEntry"),
              Owner(InfrastructureAssembly, JobExecutorType, "ExecuteBusinessAsync"), Owner(InfrastructureAssembly, JobExecutorType, "ExecuteBusinessAsync"),
              Owner(InfrastructureAssembly, JobExecutorType, "ExecuteCapacityCleanupAsync"),

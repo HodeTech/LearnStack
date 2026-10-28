@@ -1,4 +1,5 @@
 using LearnStack.Api.Common;
+using LearnStack.Api.Authentication;
 using LearnStack.Modules.Education.Application.Contracts.PublicReads;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -12,26 +13,32 @@ namespace LearnStack.Api.PublicReads;
 public sealed class PublicEducationController(ISender sender) : ApiControllerBase
 {
     [HttpGet(Name = "GetPublicCourses")]
+    [OperationPolicy(typeof(GetPublicCoursesQuery))]
     [ProducesResponseType<PublicCourseCatalog>(StatusCodes.Status200OK)]
     public async Task<IActionResult> Catalog(CancellationToken cancellationToken) =>
         (await sender.Send(new GetPublicCoursesQuery(PublicReadTransport.Input(HttpContext, false, false)), cancellationToken)).ToActionResult();
     [HttpHead(Name = "HeadPublicCourses")]
+    [OperationPolicy(typeof(GetPublicCoursesQuery))]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> HeadCatalog(CancellationToken cancellationToken) =>
         (await sender.Send(new GetPublicCoursesQuery(PublicReadTransport.Input(HttpContext, false, false)), cancellationToken)).ToActionResult();
     [HttpGet("{slug}", Name = "GetPublicCourse")]
+    [OperationPolicy(typeof(GetPublicCourseQuery))]
     [ProducesResponseType<PublicCourseDetail>(StatusCodes.Status200OK)]
     public async Task<IActionResult> Course(string slug, CancellationToken cancellationToken) =>
         (await sender.Send(new GetPublicCourseQuery(slug, PublicReadTransport.Input(HttpContext, true, false)), cancellationToken)).ToActionResult();
     [HttpHead("{slug}", Name = "HeadPublicCourse")]
+    [OperationPolicy(typeof(GetPublicCourseQuery))]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> HeadCourse(string slug, CancellationToken cancellationToken) =>
         (await sender.Send(new GetPublicCourseQuery(slug, PublicReadTransport.Input(HttpContext, true, false)), cancellationToken)).ToActionResult();
     [HttpGet("{slug}/lessons/{lessonSlug}", Name = "GetPublicLesson")]
+    [OperationPolicy(typeof(GetPublicLessonQuery))]
     [ProducesResponseType<PublicLessonDetail>(StatusCodes.Status200OK)]
     public async Task<IActionResult> Lesson(string slug, string lessonSlug, CancellationToken cancellationToken) =>
         (await sender.Send(new GetPublicLessonQuery(slug, lessonSlug, PublicReadTransport.Input(HttpContext, false, true)), cancellationToken)).ToActionResult();
     [HttpHead("{slug}/lessons/{lessonSlug}", Name = "HeadPublicLesson")]
+    [OperationPolicy(typeof(GetPublicLessonQuery))]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> HeadLesson(string slug, string lessonSlug, CancellationToken cancellationToken) =>
         (await sender.Send(new GetPublicLessonQuery(slug, lessonSlug, PublicReadTransport.Input(HttpContext, false, true)), cancellationToken)).ToActionResult();

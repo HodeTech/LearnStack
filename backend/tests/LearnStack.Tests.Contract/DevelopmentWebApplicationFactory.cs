@@ -46,6 +46,7 @@ public sealed class DevelopmentWebApplicationFactory : WebApplicationFactory<Pro
         var implementation = descriptor.ImplementationType ?? descriptor.ImplementationFactory?.Method.ReturnType;
         return implementation == typeof(OutboxProcessor) || implementation == typeof(DeliveryProcessor)
             || implementation == typeof(BackgroundJobHostedService)
-            || implementation == typeof(TenantIdentityAuthorityStartupService);
+            || implementation == typeof(TenantIdentityAuthorityStartupService)
+            || implementation == typeof(TenantAuthorizationSourcesStartupService);
     }
 }

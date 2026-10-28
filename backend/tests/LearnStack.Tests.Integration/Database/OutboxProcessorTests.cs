@@ -11,6 +11,7 @@ using LearnStack.Modules.Tenancy.Application.Contracts.IntegrationEvents;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Messaging;
+using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Tenancy;
 using MediatR;
 using Microsoft.AspNetCore.Hosting;
@@ -831,6 +832,11 @@ public sealed class OutboxProcessorTests(SchemaFixture schema, Xunit.Abstraction
         }
     }
 
+    // Explicit admission for this component mechanism; this is not a live HTTP authorization proof.
+    private static void AddComponentAuthority(IServiceCollection services) =>
+        ComponentOperationRegistration.AddExactComponentAuthority(services,
+            OperationPolicy.ForTrusted<ProvisionTenantCommand>("tests.component.outbox_setup.provision", AuthorizationSourceKind.Seed));
+
     private sealed class WorkerApiFactory(WorkerDatabase database, string? credential,
         OutboxDispatchOptions? bounds = null, TimeProvider? time = null,
         bool controlPublication = true) : WebApplicationFactory<Program>
@@ -845,11 +851,14 @@ public sealed class OutboxProcessorTests(SchemaFixture schema, Xunit.Abstraction
             builder.UseSetting("ConnectionStrings:OutboxDispatcher", credential);
             builder.ConfigureTestServices(services =>
             {
+                AddComponentAuthority(services);
+                database.Evidence.AddTo(services);
                 // This fixture owns real producer acceptance, but no business delivery or Identity authority.
                 foreach (var descriptor in services.Where(descriptor => descriptor.ServiceType == typeof(IHostedService)
                              && (descriptor.ImplementationType ?? descriptor.ImplementationFactory?.Method.ReturnType) is { } implementation
                              && (implementation == typeof(DeliveryProcessor) || implementation == typeof(BackgroundJobHostedService)
-                                 || implementation == typeof(TenantIdentityAuthorityStartupService))).ToArray())
+                                 || implementation == typeof(TenantIdentityAuthorityStartupService)
+                                 || implementation == typeof(TenantAuthorizationSourcesStartupService))).ToArray())
                     services.Remove(descriptor);
                 services.RemoveAll<OutboxDispatchOptions>();
                 services.AddSingleton(bounds ?? Bounds);
@@ -896,6 +905,7 @@ public sealed class OutboxProcessorTests(SchemaFixture schema, Xunit.Abstraction
         private readonly DisposableSchemaDatabase _database;
         private readonly NpgsqlDataSource _appSource;
         private readonly NpgsqlDataSource _dispatchSource;
+        internal ComponentAuthorizationEvidence Evidence { get; private set; } = null!;
         private WorkerApiFactory? _factory;
         private HttpClient? _client;
         private int _insertSequence;
@@ -921,6 +931,7 @@ public sealed class OutboxProcessorTests(SchemaFixture schema, Xunit.Abstraction
             var test = new WorkerDatabase(await DisposableSchemaDatabase.CreateAsync(postgres));
             try
             {
+                test.Evidence = await ComponentAuthorizationEvidence.CreateAsync(test._database);
                 if (seedTenant) await test.SeedTenantAsync();
                 return test;
             }
@@ -1110,6 +1121,7 @@ public sealed class OutboxProcessorTests(SchemaFixture schema, Xunit.Abstraction
                 _client?.Dispose();
                 await _factory.DisposeAsync();
             }
+            if (Evidence is not null) await Evidence.DisposeAsync();
             await _dispatchSource.DisposeAsync();
             await _appSource.DisposeAsync();
             await _database.DisposeAsync();

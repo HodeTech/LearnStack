@@ -87,6 +87,7 @@ internal sealed class TenantAuthenticationReconciliationHost : IAsyncDisposable
             recorder?.Invoke(services) ?? services.GetRequiredService<LoggingTenantAssertionRecorder>()));
         builder.Services.AddSingleton<ITenantAssertionRecorder>(services =>
             services.GetRequiredService<ReconciliationRecorder>());
+        builder.Services.AddSingleton<IClaimContextAssertionRecorder, ResolutionOnlyClaimAssertionRecorder>();
         builder.Services.AddLearnStackRateLimiting();
         builder.Services.AddLearnStackTenantAuthentication(
             TenantAuthenticationOptions.Create(issuer.Issuer, DeploymentMode.Development));
@@ -186,6 +187,14 @@ internal sealed class TenantAuthenticationReconciliationHost : IAsyncDisposable
     {
         Client.Dispose();
         await _app.DisposeAsync();
+    }
+
+    // CoversAsync deliberately refuses every claim-only scope in this host.
+    // An admitted-context evidence path would exceed its resolution-only proof.
+    private sealed class ResolutionOnlyClaimAssertionRecorder : IClaimContextAssertionRecorder
+    {
+        public Task RecordAsync(ITenantContext context, TenantAssertionDimension dimension) =>
+            throw new InvalidOperationException("This resolution-only host does not admit claim-context assertions.");
     }
 }
 

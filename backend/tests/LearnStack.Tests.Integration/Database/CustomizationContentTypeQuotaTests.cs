@@ -9,6 +9,7 @@ using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Entitlements;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.Tools.Seeder;
@@ -27,11 +28,15 @@ namespace LearnStack.Tests.Integration.Database;
 public sealed class CustomizationContentTypeQuotaTests(SchemaFixture schema, ConstructionOnlyApiFactory factory)
     : IClassFixture<ConstructionOnlyApiFactory>
 {
+    private ComponentAuthorizationEvidence _evidence = null!;
+
     [Fact]
     public async Task The_real_feature_resolver_uses_its_five_key_catalog_floor_beside_the_builtin_then_refuses_the_sixth()
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var tenant = await ProvisionAsync(source);
         await using var host = Host(database, new Plan());
         (await SendAsync(host.Services, tenant, new InitializeTenantContentTypeDefaultCommand())).IsSuccess.Should().BeTrue();
@@ -47,6 +52,7 @@ public sealed class CustomizationContentTypeQuotaTests(SchemaFixture schema, Con
         System.Text.Json.JsonSerializer.Serialize(problem.Extensions["errors"]).Should()
             .Contain("limits.max_custom_content_types").And.Contain("\"limit\":\"5\"");
         (await UsageAsync(source, tenant)).Should().Be((5L, 6L, 6L));
+        (await ComponentAuthorizationEvidence.CountDenialsAsync(source, tenant, "tests.component.quota.")).Should().Be(1);
     }
 
     [Fact]
@@ -54,6 +60,8 @@ public sealed class CustomizationContentTypeQuotaTests(SchemaFixture schema, Con
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var tenant = await ProvisionAsync(source);
         await using var host = Host(database);
         foreach (var key in new[] { "first", "second", "third", "fourth", "fifth", "sixth" })
@@ -66,6 +74,8 @@ public sealed class CustomizationContentTypeQuotaTests(SchemaFixture schema, Con
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var tenant = await ProvisionAsync(source);
         await using var host = Host(database, new Plan(1));
         var first = Register("first");
@@ -95,6 +105,8 @@ public sealed class CustomizationContentTypeQuotaTests(SchemaFixture schema, Con
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var tenant = await ProvisionAsync(source);
         await using var host = Host(database, new Plan(limit, unlimited));
         foreach (var key in new[] { "first", "second", "third" })
@@ -107,6 +119,8 @@ public sealed class CustomizationContentTypeQuotaTests(SchemaFixture schema, Con
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var tenant = await ProvisionAsync(source);
         await using (var allowed = Host(database, new Plan(1)))
             (await SendAsync(allowed.Services, tenant, Register("existing"))).IsSuccess.Should().BeTrue();
@@ -123,6 +137,8 @@ public sealed class CustomizationContentTypeQuotaTests(SchemaFixture schema, Con
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var source = NpgsqlDataSource.Create(database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
+        _evidence = evidence;
         var firstTenant = await ProvisionAsync(source);
         var otherTenant = await ProvisionAsync(source);
         var gate = new QuotaGate();
@@ -154,8 +170,29 @@ public sealed class CustomizationContentTypeQuotaTests(SchemaFixture schema, Con
         (await UsageAsync(source, otherTenant)).Should().Be((1L, 1L, 1L));
     }
 
+    private ServiceProvider BuildProvider(NpgsqlDataSource source, ITenantContext? context)
+    {
+        var services = ComponentOperationRegistration.CreateDatabaseServices(source, context);
+        AddComponentAuthority(services);
+        _evidence.AddTo(services);
+        return services.BuildServiceProvider(validateScopes: true);
+    }
+
+    // Explicit admission for this component mechanism; this is not a live HTTP authorization proof.
+    private static void AddComponentAuthority(IServiceCollection services) =>
+        ComponentOperationRegistration.AddExactComponentAuthority(services,
+            OperationPolicy.ForTrusted<InitializeTenantContentTypeDefaultCommand>("tests.component.quota.initialize", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<RegisterTenantContentTypeCommand>("tests.component.quota.register", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<PublishTenantContentTypeCommand>("tests.component.quota.publish", AuthorizationSourceKind.Seed),
+            OperationPolicy.ForTrusted<ProvisionTenantCommand>("tests.component.quota.provision_tenant", AuthorizationSourceKind.Seed));
+
     private WebApplicationFactory<Program> Host(DisposableSchemaDatabase database, Plan? plan = null, QuotaGate? gate = null) =>
         factory.WithWebHostBuilder(builder => builder.UseSetting("ConnectionStrings:Default", database.AppConnectionString)
+            .ConfigureServices(services =>
+            {
+                AddComponentAuthority(services);
+                _evidence.AddTo(services);
+            })
             .ConfigureServices(services =>
             {
                 // Keep the real context-resolved FeatureFlags implementation;
@@ -169,10 +206,10 @@ public sealed class CustomizationContentTypeQuotaTests(SchemaFixture schema, Con
     private static RegisterTenantContentTypeCommand Register(string key, int version = 1) => new(Guid.CreateVersion7(), key, version,
         new Dictionary<string, string> { ["en"] = "Quota proof" }, BuiltInCustomizations.Card.JsonSchema, BuiltInCustomizations.Card.RendererKey);
 
-    private static async Task<Context> ProvisionAsync(NpgsqlDataSource source)
+    private async Task<Context> ProvisionAsync(NpgsqlDataSource source)
     {
         var id = TenantId.From(Guid.CreateVersion7());
-        await using var provider = SeedComposition.Build(source, null, NullLoggerFactory.Instance);
+        await using var provider = BuildProvider(source, null);
         (await SendAsync(provider, null, new ProvisionTenantCommand(id, "quota-" + id.Value.ToString("N"), "Quota proof",
             OrganizationId.From(Guid.CreateVersion7()), "main", "Main"))).IsSuccess.Should().BeTrue();
         return new(id);

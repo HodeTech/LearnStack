@@ -55,7 +55,7 @@ builder.Services.AddLearnStackTenantAuthentication(
     TenantAuthenticationOptions.FromConfiguration(builder.Configuration, deploymentMode));
 builder.Services.AddLearnStackTenantSubjectAdmission();
 builder.Services.AddLearnStackTenantIdentityBindingAdmission();
-builder.Services.AddAuthorization();
+builder.Services.AddLearnStackLiveAuthorization(builder.Configuration, deploymentMode);
 builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, TenantAuthorizationResultHandler>();
 
 // The outer half of the body bound, and deliberately NOT the same number.
@@ -141,11 +141,13 @@ app.UseLearnStackTenantResolution();
 // and before the endpoints so no handler runs on a request that lost it.
 app.UseLearnStackTenantAssertions();
 
+app.UseLearnStackOperationClassification();
 app.UseAuthorization();
 app.UseLearnStackTenantSurfaceAdmission();
 
 app.MapGet("/healthz", () => Results.Ok(new { status = "healthy" }))
-    .WithName("HealthCheck");
+    .WithName("HealthCheck")
+    .WithMetadata(InfrastructureOperationMetadata.Health);
 
 app.MapControllers();
 

@@ -12,7 +12,7 @@ using Xunit;
 
 namespace LearnStack.Tests.Architecture;
 
-public sealed class IdentityAuditConventionTests
+public sealed partial class IdentityAuditConventionTests
 {
     private const string BindingService = "LearnStack.Modules.Identity.Infrastructure.Bindings.GlobalIdentityBindingService";
     private const string InitialMigration = "LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations.create_identity_schema";

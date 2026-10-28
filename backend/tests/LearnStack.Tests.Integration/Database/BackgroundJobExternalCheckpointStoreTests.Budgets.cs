@@ -39,6 +39,7 @@ public sealed partial class BackgroundJobExternalCheckpointStoreTests
             services.Insert(0, ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(FixtureDiagnosticsBehavior<,>)));
             services.RemoveAll<BackgroundJobDefinitionRegistry>();
             services.AddSingleton(registry);
+            BackgroundJobFixtureOperations.AddJobs(services, definition.ProfileRegistration.RootRequestType, definition.ProfileRegistration.FinalizeRequestType!);
             services.AddSingleton<IAuditCatalogSource>(budget.AuditSource(oversizedOutcome));
             services.AddSingleton(new PreparedArtifact(artifact));
             services.AddTransient(typeof(IRequestHandler<,>).MakeGenericType(definition.ProfileRegistration.RootRequestType,

@@ -22,27 +22,6 @@
       "runId": null,
       "note": "Historical combined Docker receipt includes failures; ordinary row sums scaled by 2.271245 completed-prefix ratio; advisory only. Source not embedded in artifact."
     },
-    "local-architecture": {
-      "kind": "local_trx",
-      "artifactSha256": "ede6e3df77289dac5cdd5db887120c03477bbc68bb542cf03b7b8f36f6f52ac1",
-      "sourceSha": null,
-      "runId": null,
-      "note": "Complete local Architecture row sums; overlapping durations are not wall bounds. Source not embedded in artifact."
-    },
-    "hosted-architecture-predecessor": {
-      "kind": "hosted_console",
-      "artifactSha256": "d1ac4a6dda51b2ae593f36635bc588aaa9d10141bf08f8cf7cdca1f3fdcdba6c",
-      "sourceSha": null,
-      "runId": "39131069558",
-      "note": "Completed-only, rounded Architecture console prefix; maps only exact unambiguous TRX test names to actual TestMethod metadata. Advisory, censored remainder unknown."
-    },
-    "hosted-architecture-first": {
-      "kind": "hosted_console",
-      "artifactSha256": "808cdbf102a7bceb5eb3b94dc5c78351b532d99e666e116d8fd9a0ce63d41168",
-      "sourceSha": "6daa9a1c4263bfc427f538013bd6f8673e4de9c7",
-      "runId": "39140874785",
-      "note": "Completed-only, rounded Architecture console prefix; maps only exact unambiguous TRX test names to actual TestMethod metadata. Advisory, censored remainder unknown."
-    },
     "hosted-architecture-current": {
       "kind": "hosted_console",
       "artifactSha256": "0c464e7c1b8a197b2ada04487d2109d378e80968695fa4a0aca86f1fe18fb859",
@@ -99,20 +78,6 @@
       "runId": null,
       "note": "Complete corrected P02b-6 Step 4 local provider receipt, zero failures/skips. Source commit not embedded in TRX. Exact row durations summed per selector and scaled by historical ordinary ratio 2.271245 (ceil ms, minimum 1); advisory, not a wall bound. Fixture startup/discovery costs are not inferred from case durations; actual hosted fit remains required."
     },
-    "p02b6-local-profile": {
-      "kind": "local_trx",
-      "artifactSha256": "f470c252cbbfc908e1d4996278cf116ba2b78eb514755d729c57a6ae6f8a2aa7",
-      "sourceSha": null,
-      "runId": null,
-      "note": "Complete corrected P02b-6 Step 4 local provider receipt, zero failures/skips. Source commit not embedded in TRX. Exact row durations summed per selector and scaled by historical ordinary ratio 2.271245 (ceil ms, minimum 1); advisory, not a wall bound. Fixture startup/discovery costs are not inferred from case durations; actual hosted fit remains required."
-    },
-    "adr68-local-preparation": {
-      "kind": "local_trx",
-      "artifactSha256": "b701d3166e5266dab904ae7e921a08034db5d2f6683d17c605bc625c8fa5dc83",
-      "sourceSha": null,
-      "runId": null,
-      "note": "Complete local provider receipt, all rows Passed/zero skips. Source commit absent from TRX; observed planner SHA256 8ef1d58c2774b531d88170ff6e04939bdd631a77d749527764744fdc832e94ed; other source hashes retained separately. Actual TestMethod groups sum case ms, scale 2.271245, ceil/min1; advisory, not wall bounds or final-head qualification."
-    },
     "adr68-local-mapper-correction": {
       "kind": "local_trx",
       "artifactSha256": "4497a991aab51936afb923cbd60aa6d01d9480a700211580f6a9fe0b183a1db8",
@@ -120,54 +85,12 @@
       "runId": null,
       "note": "Complete local provider receipt, all rows Passed/zero skips. Source commit absent from TRX; observed account policy SHA256 3cc2c01bdfbb64e2343bed2c757434ed6c81f25b93001860c1a34238d9b39dd4; other source hashes retained separately. Actual TestMethod groups sum case ms, scale 2.271245, ceil/min1; advisory, not wall bounds or final-head qualification."
     },
-    "adr68-hosted-baseline-ordinary-1": {
-      "kind": "hosted_trx",
-      "artifactSha256": "515636cb1318709236b068f05bc984385ae651c79a0fd5236aec36c62b51d5f4",
-      "sourceSha": "d55ae6fc37b794e482c42ebbdd49d3e59a9c3f0a",
-      "runId": "39699380813",
-      "note": "Run attempt 1; owner ordinary-1; PR head f714a5af96363d880e7e3d72a24ee2642a29cf47; artifact ID 12393016518; API archive SHA256 98c6174c249fa80ad3b53356a2efe0c764f500454de74dc429698766137a14a7. Sanitized TRX IDs bind actual discovery FullyQualifiedName metadata; complete passing owner. Exact summed row ms, ceil/min1; advisory, not wall bounds."
-    },
-    "adr68-hosted-baseline-ordinary-4": {
-      "kind": "hosted_trx",
-      "artifactSha256": "7fcf4e254a1f35a96b59c187affdf345aa6400e60a13fc1b16712c3778717159",
-      "sourceSha": "d55ae6fc37b794e482c42ebbdd49d3e59a9c3f0a",
-      "runId": "39699380813",
-      "note": "Run attempt 1; owner ordinary-4; PR head f714a5af96363d880e7e3d72a24ee2642a29cf47; artifact ID 12392133270; API archive SHA256 d02f5a7ac79d62ce023ffde59d2989b7059be142925128f71cb6d129ebf714d6. Sanitized TRX IDs bind actual discovery FullyQualifiedName metadata; complete passing owner. Exact summed row ms, ceil/min1; advisory, not wall bounds."
-    },
     "adr68-local-warm-journey": {
       "kind": "local_trx",
       "artifactSha256": "3487a4510af4444908eaef908365e8cc4334b0dfc6a531b0af25276f49e657c9",
       "sourceSha": null,
       "runId": null,
       "note": "Complete final refresh-presence-guard local journey Fact, 1/1 Passed and zero skips. Commit is not embedded in TRX. Separate seven-file source hash manifest SHA256 92cde32454dfb23f0421ce4e2d92ffe3c054281138cfe2d8a2ebe8c734960da3. Actual TestMethod row is 40205.7204 ms; local scale 2.271245, ceil/min1. Advisory, not a hosted wall bound or final-source CI qualification."
-    },
-    "local-bff-lifecycle-20261024": {
-      "kind": "local_trx",
-      "artifactSha256": "e7e98d28870397f11c8e0962dafc0c7fa2473cd9f25d9113098ba292e1df7d78",
-      "sourceSha": null,
-      "runId": null,
-      "note": "Passing Step 5 local BFF lifecycle/browser/startup method durations. Local uncommitted source is not embedded in TRX. Advisory body sums exclude shared collection startup; hosted fit remains unqualified."
-    },
-    "local-bff-lifecycle-r1-20261024": {
-      "kind": "local_trx",
-      "artifactSha256": "a8aed7b2684219ebec622a931c85640c8a59fcfa40407aabe9f0be95a1208fb5",
-      "sourceSha": null,
-      "runId": null,
-      "note": "Passing Step 5 R1 native/browser/early-disposal/nonzero-stop controls. Local source not embedded in TRX; advisory method body costs exclude collection startup and do not establish hosted wall fit."
-    },
-    "local-bff-lifecycle-r2-20261024": {
-      "kind": "local_trx",
-      "artifactSha256": "eb29f34d707a87e2ddcdc9c0c269cd011c983cce4a79d8592ffaf9c95aa2ccf0",
-      "sourceSha": null,
-      "runId": null,
-      "note": "Passing Step 5 R2 six-case real BFF/browser and acquisition EOF/shutdown controls. Local source not embedded in TRX. Advisory method body costs exclude shared fixture startup; hosted fit remains unqualified."
-    },
-    "p02b7-local-causal-retry": {
-      "kind": "local_trx",
-      "artifactSha256": "8f004ff7e3631179620ed3ca5cc8873402520ec147f537cca224eb2a6b3d242d",
-      "sourceSha": null,
-      "runId": null,
-      "note": "Three passing local causal-restart variants, including the additional genuine-handler post-write conflict/retry journey. Exact case durations summed per actual selector and scaled by the existing historical ordinary ratio 2.271245 (ceil ms); advisory only, not a wall bound. Immutable source is not embedded in the local TRX."
     },
     "p031-hosted-architecture-0": {
       "kind": "hosted_trx",
@@ -400,33 +323,12 @@
       "runId": "40318359878",
       "note": "Attempt 2, ordinary-8, artifact ID 12649532186, head c14ec6a78891591b52c0156b97197f9e29cfee7b, merge 5e02e3cc26da696aaed43d7557127b8ca8164a9c. Complete passing original TRX; ceil summed case ms/minimum 1; advisory, not a wall bound."
     },
-    "pr38-df-1-architecture-1": {
-      "kind": "hosted_trx",
-      "artifactSha256": "810581e38845581eb1b96afd5551b3da6a3d136af5443cfa7f6582ee50096e69",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Attempt 1, architecture-1, artifact ID 12653685003, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
-    },
-    "pr38-df-1-architecture-2": {
-      "kind": "hosted_trx",
-      "artifactSha256": "97893f76633c41b6046d90bf2ec35c3bbc02d6249b28fd849d916f7e7f5dcdb5",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Attempt 1, architecture-2, artifact ID 12652606232, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
-    },
     "pr38-df-1-architecture-3": {
       "kind": "hosted_trx",
       "artifactSha256": "113518ba341dcd597c26a6ed8ba6c8215a58b5107981a8869f582681f15532b6",
       "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
       "runId": "40326601181",
       "note": "Attempt 1, architecture-3, artifact ID 12652816720, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
-    },
-    "pr38-df-1-architecture-4": {
-      "kind": "hosted_trx",
-      "artifactSha256": "77251e81bee71b3c63337be660df235e93de35421616b083ebf11fd35ba732b4",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Attempt 1, architecture-4, artifact ID 12653460765, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
     },
     "pr38-df-1-architecture-5": {
       "kind": "hosted_trx",
@@ -484,26 +386,12 @@
       "runId": "40326601181",
       "note": "Attempt 1, ordinary-8, artifact ID 12652516461, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
     },
-    "pr38-df-2-architecture-1": {
-      "kind": "hosted_trx",
-      "artifactSha256": "d0f7f75b02851e9ad2375a575053925d9601ccbe11aef33d919d3996989c8457",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Attempt 2, architecture-1, artifact ID 12653084289, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
-    },
     "pr38-df-2-architecture-3": {
       "kind": "hosted_trx",
       "artifactSha256": "46d6ade56095884f79b05d6371224332c54be1c3db92825149553cc025c1cc8e",
       "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
       "runId": "40326601181",
       "note": "Attempt 2, architecture-3, artifact ID 12655345633, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
-    },
-    "pr38-df-2-architecture-5": {
-      "kind": "hosted_trx",
-      "artifactSha256": "62975572f9d8aaa8ba479063ccc7b4cbea759b547edaf6c963043c9e92fec99b",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Attempt 2, architecture-5, artifact ID 12653768947, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; complete passing original TRX; ceil summed case ms/minimum 1; advisory, not wall time."
     },
     "pr38-df-2-ordinary-0": {
       "kind": "hosted_console",
@@ -603,13 +491,6 @@
       "runId": "40326601181",
       "note": "Alias OutboxDispatchConventionTests->CleanupOwnerMutationTests, method Cleanup_owner_census_rejects_extra_acquisition_disposal_capture_and_observation_paths; unchanged dedented Fact body SHA256 74043e6354b36489a5f5e16686d445660ca4cbf1bf725b7711a03a9603518e23; inherits pr38-df-2-architecture-5. Advisory scalar; new selector not executed hosted."
     },
-    "pr38-class-alias-delivery-lifecycle-4abc441d": {
-      "kind": "hosted_trx",
-      "artifactSha256": "62975572f9d8aaa8ba479063ccc7b4cbea759b547edaf6c963043c9e92fec99b",
-      "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
-      "runId": "40326601181",
-      "note": "Alias OutboxDispatchConventionTests->DeliveryLifecycleMutationTests, method Integration_delivery_lifecycle_census_rejects_typed_helper_async_delegate_and_missing_paths; unchanged dedented Fact body SHA256 aadc5f058bab1e61d4c0b8c32ba7e42fe170d6dd3191ac472d34b5ec9596e772; inherits pr38-df-2-architecture-5. Advisory scalar; new selector not executed hosted."
-    },
     "pr38-class-alias-bridge-credential-8d40b87a": {
       "kind": "hosted_trx",
       "artifactSha256": "26837faa8779817aab5f299d42c19b0d8cae668f6bdf2143ff3c4d3b303457dc",
@@ -679,6 +560,76 @@
       "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358",
       "runId": "40326601181",
       "note": "Alias OutboxDispatchConventionTests+JobAuthorityMutationTests->JobAuthorityCensusMutationTests, method Background_job_authority_census_detects_extra_activation_and_removed_live_guards; unchanged dedented Fact body SHA256 7665f56665cd4acbc8ae85f135e0e41bd19c7e4499d17cb2a0cb6b8a1c8fd499; inherits pr38-df-1-architecture-1. Advisory scalar; new selector not executed hosted."
+    },
+    "p032-local-architecture": {
+      "kind": "local_trx",
+      "artifactSha256": "3a787fa53ad878fd2b340fd0d7a1a6150704d5a4f52d64fd9e89d9706fe4dd78",
+      "sourceSha": "309e6d253c8e972fe62c9ad14a676b6d59eff0d5",
+      "runId": null,
+      "note": "Local architecture TRX at clean predecessor 309e6d25: 589 passed, 0 skips; 0 offline cases excluded. Exact-ID current-selector sums, ceil ms/max historical. Own source/tree/DLL before/after observers, not TRX-embedded SHA. IDs do not prove unchanged implementation. Shared-host concurrent no-build advisory; no mixed-head qualification or hosted-fit claim."
+    },
+    "p032-local-ordinary-broad": {
+      "kind": "local_trx",
+      "artifactSha256": "54d943c9aa99d0b22055b0cb22ec7906f3c86f84838aaa2b9cdbbae17441ecbf",
+      "sourceSha": "309e6d253c8e972fe62c9ad14a676b6d59eff0d5",
+      "runId": null,
+      "note": "Local ordinary-broad TRX at clean predecessor 309e6d25: 844 passed, 0 skips; 1 offline cases excluded. Exact-ID current-selector sums, ceil ms/max historical. Own source/tree/DLL before/after observers, not TRX-embedded SHA. IDs do not prove unchanged implementation. Shared-host concurrent no-build advisory; no mixed-head qualification or hosted-fit claim."
+    },
+    "p032-local-ordinary-complement": {
+      "kind": "local_trx",
+      "artifactSha256": "eaf728e7c81e35dbfb28624bfdfcb8a5e40c2528e9a0da7c4df3cd02a5c15347",
+      "sourceSha": "f3b8d764c6c3cb9e8d4666ec7cf7f12a5ce04422",
+      "runId": null,
+      "note": "Local ordinary-complement TRX at clean current f3b8d764: 2133 passed, 0 skips; 0 offline cases excluded. Exact-ID current-selector sums, ceil ms/max historical. Own source/tree/DLL before/after observers, not TRX-embedded SHA. IDs do not prove unchanged implementation. Shared-host concurrent no-build advisory; no mixed-head qualification or hosted-fit claim."
+    },
+    "p032-hosted-architecture-40577851910-1-0": {
+      "kind": "hosted_trx",
+      "artifactSha256": "a09d12c9edc5b7f920bd53444ea8f9fb2ccd60885fd10c5ab93eea418196a7e3",
+      "sourceSha": "696671b5a13202df87b2a8903d8da550a3067c96",
+      "runId": "40577851910",
+      "note": "Complete passing architecture-0 producer: 56 cases, 52 whole selectors. Summed milliseconds, historical maxima retained; failed overall run is not whole-run qualification."
+    },
+    "p032-hosted-architecture-40577851910-1-1": {
+      "kind": "hosted_trx",
+      "artifactSha256": "a7c412f576727b3b5bece115a8245a0c3177f4e4c513a5da0c65a41d4fc7a019",
+      "sourceSha": "696671b5a13202df87b2a8903d8da550a3067c96",
+      "runId": "40577851910",
+      "note": "Complete passing architecture-1 producer: 60 cases, 53 whole selectors. Summed milliseconds, historical maxima retained; failed overall run is not whole-run qualification."
+    },
+    "p032-hosted-architecture-40577851910-1-2": {
+      "kind": "hosted_trx",
+      "artifactSha256": "59653e21b8814ad5f2da5f31229fce245987c5dade0b3aa4f8870506ec47a114",
+      "sourceSha": "696671b5a13202df87b2a8903d8da550a3067c96",
+      "runId": "40577851910",
+      "note": "Complete passing architecture-2 producer: 84 cases, 53 whole selectors. Summed milliseconds, historical maxima retained; failed overall run is not whole-run qualification."
+    },
+    "p032-hosted-architecture-40577851910-1-3": {
+      "kind": "hosted_trx",
+      "artifactSha256": "9a006e3f58a6d694555456c00ed99cd13e585b327ba3d1461a8f40f028fea82f",
+      "sourceSha": "696671b5a13202df87b2a8903d8da550a3067c96",
+      "runId": "40577851910",
+      "note": "Complete passing architecture-3 producer: 111 cases, 53 whole selectors. Summed milliseconds, historical maxima retained; failed overall run is not whole-run qualification."
+    },
+    "p032-hosted-architecture-40577851910-1-4": {
+      "kind": "hosted_trx",
+      "artifactSha256": "f46283d8dce4cf5373a837a55612850259ce4c34bdd137c006fbe2f0acf7eca8",
+      "sourceSha": "696671b5a13202df87b2a8903d8da550a3067c96",
+      "runId": "40577851910",
+      "note": "Complete passing architecture-4 producer: 103 cases, 52 whole selectors. Summed milliseconds, historical maxima retained; failed overall run is not whole-run qualification."
+    },
+    "p032-hosted-architecture-40577851910-1-5": {
+      "kind": "hosted_trx",
+      "artifactSha256": "19e0bf8a2c34690502299801d28b3130fbf44cc4c68dfc87bb75f9ae40f93af1",
+      "sourceSha": "696671b5a13202df87b2a8903d8da550a3067c96",
+      "runId": "40577851910",
+      "note": "Complete passing architecture-5 producer: 175 cases, 53 whole selectors. Summed milliseconds, historical maxima retained; failed overall run is not whole-run qualification."
+    },
+    "p032-authority-decomposed-local": {
+      "kind": "local_trx",
+      "artifactSha256": "d944c6abf53848f6e9ae7f425e4397a712d885e4d91634cb2efae239976ca8bc",
+      "sourceSha": "23262e95a02f93c7c3c77b458e87d92b7567f74f",
+      "runId": null,
+      "note": "Clean 23262e95 whole-Fact TRX: 7 Passed/0 skips; five decomposed authority Facts weighted, two catalogue controls excluded. Actual source/tree/four DLLs stable before/after. Exact summed ms/ceil; retired selector weight retained. Local advisory, not hosted fit or aggregate qualification."
     }
   },
   "weights": [
@@ -709,14 +660,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AggregateWriteTests.Write_Port_Census_Distinguishes_Typed_Read_Keys_From_Wrapped_Domain_Writes",
-      "milliseconds": 9,
-      "source": "p031-hosted-architecture-0"
+      "milliseconds": 28,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AnalyzerWiringTests.Production_Analyzer_Reference_Is_Unconditional_And_Cannot_Be_Silenced_By_Build_Settings",
-      "milliseconds": 18,
-      "source": "p031-hosted-architecture-0"
+      "milliseconds": 28,
+      "source": "p032-local-architecture"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -733,8 +684,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AnalyzerWiringTests.The_EditorConfig_Control_Rejects_LS0002_Suppression",
-      "milliseconds": 1,
-      "source": "p031-hosted-architecture-2"
+      "milliseconds": 2,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -757,8 +708,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.ApiConventionTests.Deployment_Mode_Is_Required_Configuration",
-      "milliseconds": 3,
-      "source": "p031-hosted-architecture-0"
+      "milliseconds": 4,
+      "source": "p032-local-architecture"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -787,14 +738,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AsyncStoreInventoryTests.Inventory_coverage_rejects_added_removed_and_reclassified_storage",
-      "milliseconds": 1834,
-      "source": "p031-hosted-architecture-4"
+      "milliseconds": 1976,
+      "source": "p032-hosted-architecture-40577851910-1-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AsyncStoreInventoryTests.Inventory_coverage_rejects_every_removed_row_and_blank_vendor_classification",
-      "milliseconds": 4487,
-      "source": "p031-hosted-architecture-2"
+      "milliseconds": 6288,
+      "source": "p032-hosted-architecture-40577851910-1-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -805,8 +756,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AsyncStoreInventoryTests.Migration_census_detects_select_into_after_escape_literals",
-      "milliseconds": 8,
-      "source": "p031-hosted-architecture-0"
+      "milliseconds": 26,
+      "source": "p032-hosted-architecture-40577851910-1-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -817,32 +768,32 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AsyncStoreInventoryTests.Migration_census_preserves_literal_boundaries_before_table_declarations",
-      "milliseconds": 9,
-      "source": "p031-hosted-architecture-3"
+      "milliseconds": 17,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AsyncStoreInventoryTests.Migration_census_refuses_unsupported_ddl_for_the_expected_reason",
-      "milliseconds": 24,
-      "source": "p031-hosted-architecture-4"
+      "milliseconds": 48,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AsyncStoreInventoryTests.Migration_census_tracks_ordered_literal_and_typed_table_lifecycle",
-      "milliseconds": 8,
-      "source": "p031-hosted-architecture-2"
+      "milliseconds": 17,
+      "source": "p032-hosted-architecture-40577851910-1-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AsyncStoreInventoryTests.Typed_migration_operations_cannot_hide_non_public_storage_or_schema_removal",
-      "milliseconds": 8,
-      "source": "p031-hosted-architecture-5"
+      "milliseconds": 17,
+      "source": "p032-hosted-architecture-40577851910-1-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuditConventionTests.AuditEntry_Inherits_Entity_Not_AuditableEntity",
-      "milliseconds": 1,
-      "source": "p031-hosted-architecture-0"
+      "milliseconds": 2,
+      "source": "p032-hosted-architecture-40577851910-1-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -871,20 +822,20 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuditConventionTests.Modules_Do_Not_Write_AuditLog_Directly",
-      "milliseconds": 679,
-      "source": "hosted-architecture-39417319998-2-5"
+      "milliseconds": 1022,
+      "source": "p032-hosted-architecture-40577851910-1-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuditConventionTests.No_Set_Based_Write_Bypasses_The_Audit_Capture",
-      "milliseconds": 356,
-      "source": "hosted-architecture-39417319998-2-5"
+      "milliseconds": 438,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuditConventionTests.OperationType_Enum_Matches_Catalog",
-      "milliseconds": 7,
-      "source": "hosted-architecture-39417319998-2-1"
+      "milliseconds": 8,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -913,8 +864,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuditCoverageTests.A_slug_classified_twice_fails_whichever_row_comes_first",
-      "milliseconds": 13,
-      "source": "hosted-architecture-39417319998-2-0"
+      "milliseconds": 77,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -931,14 +882,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuditCoverageTests.Every_Module_With_An_Aggregate_Or_A_Request_Has_A_Matrix",
-      "milliseconds": 18,
-      "source": "hosted-architecture-39417319998-2-1"
+      "milliseconds": 22,
+      "source": "p032-local-architecture"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuditCoverageTests.Every_Shipped_Request_Is_Registered",
-      "milliseconds": 28,
-      "source": "hosted-architecture-39417319998-2-0"
+      "milliseconds": 41,
+      "source": "p032-local-architecture"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -967,14 +918,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuditCoverageTests.Integration_Only_Module_Requires_An_Audit_Matrix",
-      "milliseconds": 4,
-      "source": "hosted-architecture-39417319998-2-4"
+      "milliseconds": 23,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuditCoverageTests.The_Forward_Sweep_Reads_Only_The_Registering_Module_s_Matrix",
-      "milliseconds": 8,
-      "source": "hosted-architecture-39417319998-2-2"
+      "milliseconds": 13,
+      "source": "p032-hosted-architecture-40577851910-1-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1009,20 +960,20 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuthenticatedHttpSurfaceTests.Authenticated_http_census_detects_extra_routes_mutations_and_missing_subjects",
-      "milliseconds": 24010,
-      "source": "hosted-architecture-39417319998-2-1"
+      "milliseconds": 61999,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuthenticatedHttpSurfaceTests.Authenticated_http_census_follows_production_helpers_and_nested_dispatch",
-      "milliseconds": 53305,
-      "source": "pr38-df-1-architecture-4"
+      "milliseconds": 118912,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuthenticationAuthorityTests.Authority_census_closes_shape_and_approved_owner_exports",
-      "milliseconds": 53887,
-      "source": "pr38-df-1-architecture-5"
+      "milliseconds": 62101,
+      "source": "p032-hosted-architecture-40577851910-1-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1033,14 +984,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuthenticationAuthorityTests.Authority_census_rejects_actual_identity_forwarding_through_opaque_storage",
-      "milliseconds": 7210,
-      "source": "p031-hosted-architecture-4"
+      "milliseconds": 11157,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuthenticationAuthorityTests.Authority_census_rejects_actual_identity_forwarding_to_opaque_helpers",
-      "milliseconds": 7942,
-      "source": "p031-hosted-architecture-1"
+      "milliseconds": 11177,
+      "source": "p032-hosted-architecture-40577851910-1-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1069,8 +1020,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.CorpusConsistencyTests.Standard_Status_Headers_Match_The_Index",
-      "milliseconds": 19,
-      "source": "p031-hosted-architecture-0"
+      "milliseconds": 40,
+      "source": "p032-local-architecture"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1081,8 +1032,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.CorpusConsistencyTests.The_Corpus_Guards_Can_Actually_Fail",
-      "milliseconds": 20,
-      "source": "hosted-architecture-39417319998-2-2"
+      "milliseconds": 38,
+      "source": "p032-hosted-architecture-40577851910-1-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1099,8 +1050,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.CrossCuttingFoundationTests.Handlers_Return_Result",
-      "milliseconds": 44,
-      "source": "hosted-architecture-39417319998-2-0"
+      "milliseconds": 56,
+      "source": "p032-local-architecture"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1111,8 +1062,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.CrossCuttingFoundationTests.IExceptionHandler_Registered_AtStartup",
-      "milliseconds": 16,
-      "source": "p031-hosted-architecture-5"
+      "milliseconds": 145,
+      "source": "p032-hosted-architecture-40577851910-1-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1129,8 +1080,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.CrossCuttingFoundationTests.LearnStack_Modules_DoNotReference_Hub",
-      "milliseconds": 294,
-      "source": "p031-hosted-architecture-3"
+      "milliseconds": 743,
+      "source": "p032-hosted-architecture-40577851910-1-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1147,8 +1098,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.CrossCuttingFoundationTests.Modules_Do_Not_Inject_IEventBus_Directly",
-      "milliseconds": 714,
-      "source": "hosted-architecture-39417319998-2-4"
+      "milliseconds": 716,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1165,8 +1116,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.CrossCuttingFoundationTests.Modules_Do_Not_Reference_Sentry_SDK_Directly",
-      "milliseconds": 202,
-      "source": "hosted-architecture-39417319998-2-0"
+      "milliseconds": 203,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1207,20 +1158,20 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.CustomizationProjectionTests.Projection_validator_guard_follows_domain_contracts_and_external_production_helpers",
-      "milliseconds": 125,
-      "source": "p031-hosted-architecture-3"
+      "milliseconds": 160,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.CustomizationRegistryTests.Composite_Renderer_Keys_Match_The_Frontend_Registry",
-      "milliseconds": 6,
-      "source": "p031-hosted-architecture-2"
+      "milliseconds": 7,
+      "source": "p032-local-architecture"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.CustomizationRegistryTests.Generic_Primitives_Only_In_Renderer",
-      "milliseconds": 8,
-      "source": "hosted-architecture-39417319998-2-2"
+      "milliseconds": 47,
+      "source": "p032-hosted-architecture-40577851910-1-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1249,14 +1200,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.DataProtectionConventionTests.Mapped_Properties_Have_Explicit_Personal_Data_Classification",
-      "milliseconds": 16,
-      "source": "p031-hosted-architecture-2"
+      "milliseconds": 234,
+      "source": "p032-hosted-architecture-40577851910-1-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.DataProtectionConventionTests.Production_model_accepts_the_same_neutral_property_with_an_explicit_declaration",
-      "milliseconds": 111,
-      "source": "p031-hosted-architecture-5"
+      "milliseconds": 667,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1273,8 +1224,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.DomainEventHandlerTests.Domain_Event_Handlers_Are_Outbox_Only",
-      "milliseconds": 62,
-      "source": "local-architecture"
+      "milliseconds": 70,
+      "source": "p032-local-architecture"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1297,14 +1248,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.DomainEventHandlerTests.Domain_handler_guard_reaches_planted_roots_and_helpers_in_every_production_assembly",
-      "milliseconds": 736,
-      "source": "hosted-architecture-39417319998-2-0"
+      "milliseconds": 855,
+      "source": "p032-hosted-architecture-40577851910-1-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.DomainEventHandlerTests.Domain_handler_guard_rejects_each_forbidden_dependency",
-      "milliseconds": 899,
-      "source": "hosted-architecture-39417319998-2-2"
+      "milliseconds": 1574,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1315,8 +1266,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.DomainGenericityTests.Core_Modules_HaveNo_DomainSpecific_Names",
-      "milliseconds": 1181,
-      "source": "hosted-architecture-39417319998-2-2"
+      "milliseconds": 1603,
+      "source": "p032-local-architecture"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1339,20 +1290,20 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.DomainGenericityTests.Production_Projects_Do_Not_Reference_The_Seeder",
-      "milliseconds": 31,
-      "source": "hosted-architecture-39417319998-2-1"
+      "milliseconds": 53,
+      "source": "p032-local-architecture"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.DomainGenericityTests.Seeder_Reference_Fence_Detects_Compiled_And_Restored_Edges",
-      "milliseconds": 4,
-      "source": "hosted-architecture-39417319998-2-2"
+      "milliseconds": 12,
+      "source": "p032-hosted-architecture-40577851910-1-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.DomainGenericityTests.The_Domain_Term_Scan_Can_Actually_Fail",
-      "milliseconds": 90,
-      "source": "p031-hosted-architecture-2"
+      "milliseconds": 188,
+      "source": "p032-hosted-architecture-40577851910-1-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1363,8 +1314,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.DomainModelTests.Aggregates_Do_Not_Redeclare_Entity_Equality",
-      "milliseconds": 20,
-      "source": "hosted-architecture-39417319998-2-1"
+      "milliseconds": 45,
+      "source": "p032-hosted-architecture-40577851910-1-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1405,14 +1356,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.GlobalIdentityModelTests.Generated_snapshot_matches_the_current_Identity_model",
-      "milliseconds": 123,
-      "source": "p031-hosted-architecture-3"
+      "milliseconds": 704,
+      "source": "p032-hosted-architecture-40577851910-1-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.GlobalIdentityModelTests.Historical_Identity_migrations_retain_their_ordered_SQL_operations",
-      "milliseconds": 37,
-      "source": "pr38-df-1-architecture-3"
+      "milliseconds": 46,
+      "source": "p032-hosted-architecture-40577851910-1-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1423,14 +1374,20 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.GlobalIdentityModelTests.User_binding_has_permanent_unique_key_creation_pair_and_sensitive_raw_subject",
-      "milliseconds": 460,
-      "source": "p031-hosted-architecture-2"
+      "milliseconds": 709,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.IdentityAuditConventionTests.A_new_minter_or_a_borrowed_core_edge_is_rejected",
       "milliseconds": 13,
       "source": "p031-hosted-architecture-5"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.IdentityAuditConventionTests.Authorization_Evidence_Uses_Trusted_Bounded_Provenance",
+      "milliseconds": 357261,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1441,8 +1398,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.IdentityAuditConventionTests.Identity_infrastructure_core_edges_are_confined_to_exact_types_and_members",
-      "milliseconds": 627,
-      "source": "p031-hosted-architecture-1"
+      "milliseconds": 1378,
+      "source": "p032-hosted-architecture-40577851910-1-2"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.IdentityAuditConventionTests.Live_Authorization_Uses_Bounded_Independent_Owners",
+      "milliseconds": 35760,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1452,15 +1415,45 @@
     },
     {
       "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.IdentityAuthorizationConventionTests.Authorization_borrowers_and_lifecycle_callers_are_exact_and_publish_no_raw_source_or_callback",
+      "milliseconds": 14130,
+      "source": "p032-hosted-architecture-40577851910-1-2"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.IdentityAuthorizationConventionTests.Authorization_candidates_have_one_verified_minter_and_closed_lifetime_evidence",
+      "milliseconds": 18384,
+      "source": "p032-hosted-architecture-40577851910-1-0"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.IdentityAuthorizationConventionTests.Authorization_checkout_awaits_the_shared_role_guard_with_its_deadline_before_begin",
+      "milliseconds": 1162,
+      "source": "p032-hosted-architecture-40577851910-1-1"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.IdentityAuthorizationConventionTests.Authorization_owner_awaits_the_real_mode_statement_before_exact_candidate_announcement",
+      "milliseconds": 55,
+      "source": "p032-local-architecture"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.IdentityAuthorizationConventionTests.Authorization_reader_executes_only_bounded_nonlocking_identity_and_same_child_lifecycle_statements",
+      "milliseconds": 933,
+      "source": "p032-hosted-architecture-40577851910-1-4"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.IdentityFoundationConventionTests.Identity_Membership_Invariants_Use_Fresh_Ordered_Locks",
-      "milliseconds": 1006,
-      "source": "p031-hosted-architecture-4"
+      "milliseconds": 1179,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.IdentityFoundationConventionTests.Identity_Seed_Uses_Finite_Adopted_Manifests",
-      "milliseconds": 19,
-      "source": "p031-hosted-architecture-2"
+      "milliseconds": 113,
+      "source": "p032-hosted-architecture-40577851910-1-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1501,8 +1494,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.ModuleDependencyTests.CoreApplication_DoesNotDependOn_Any_Infrastructure_Or_Module",
-      "milliseconds": 3,
-      "source": "p031-hosted-architecture-4"
+      "milliseconds": 4,
+      "source": "p032-local-architecture"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1513,20 +1506,20 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.ModuleDependencyTests.Domain_Does_Not_Depend_On_Microsoft_EntityFrameworkCore_Except_Vogen_Emitted_Converters",
-      "milliseconds": 108,
-      "source": "hosted-architecture-39417319998-2-2"
+      "milliseconds": 212,
+      "source": "p032-hosted-architecture-40577851910-1-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.ModuleDependencyTests.Meta_NetArchTest_DetectsAPlantedViolation",
-      "milliseconds": 421,
-      "source": "hosted-architecture-39417319998-2-2"
+      "milliseconds": 463,
+      "source": "p032-hosted-architecture-40577851910-1-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.ModuleDependencyTests.ModuleApplication_References_Only_Its_Own_Layers_And_Other_Contracts",
-      "milliseconds": 9,
-      "source": "hosted-architecture-39417319998-2-0"
+      "milliseconds": 14,
+      "source": "p032-local-architecture"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1572,6 +1565,36 @@
     },
     {
       "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.OperationPermissionConventionTests.Permission_Definitions_DeclareScope",
+      "milliseconds": 85,
+      "source": "p032-hosted-architecture-40577851910-1-2"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.OperationPermissionConventionTests.Permission_Keys_Match_Convention",
+      "milliseconds": 33,
+      "source": "p032-hosted-architecture-40577851910-1-4"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.OperationPermissionConventionTests.Permission_Registry_Has_DeniedTest",
+      "milliseconds": 1497,
+      "source": "p032-hosted-architecture-40577851910-1-0"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.OperationPermissionConventionTests.Permission_Scope_Matches_Resource_Scope",
+      "milliseconds": 36,
+      "source": "p032-hosted-architecture-40577851910-1-5"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.OperationPolicyOwnershipTests.Protected_Operations_Require_Explicit_Live_Policies",
+      "milliseconds": 53949,
+      "source": "p032-hosted-architecture-40577851910-1-2"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+BridgeCredentialMutationTests.Bridge_credential_census_rejects_changed_signatures_captures_and_missing_subjects",
       "milliseconds": 157058,
       "source": "pr38-class-alias-bridge-credential-c6cb9e31"
@@ -1591,14 +1614,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+CredentialBindingMutationTests.Credential_census_rejects_compiled_connection_string_indexers_and_composed_keys",
-      "milliseconds": 42130,
-      "source": "pr38-class-alias-credential-binding-1805dd42"
+      "milliseconds": 48105,
+      "source": "p032-hosted-architecture-40577851910-1-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+CredentialBindingMutationTests.Credential_census_rejects_crossed_keys_changed_closures_and_missing_subjects",
-      "milliseconds": 154403,
-      "source": "pr38-class-alias-credential-binding-f900f146"
+      "milliseconds": 236652,
+      "source": "p032-hosted-architecture-40577851910-1-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1609,8 +1632,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+DeliveryLifecycleMutationTests.Integration_delivery_lifecycle_census_rejects_typed_helper_async_delegate_and_missing_paths",
-      "milliseconds": 172694,
-      "source": "pr38-class-alias-delivery-lifecycle-4abc441d"
+      "milliseconds": 276909,
+      "source": "p032-hosted-architecture-40577851910-1-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1626,21 +1649,51 @@
     },
     {
       "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobAuthorityCensusMutationTests.Background_job_admission_rejects_extra_activators_and_removed_privileged_guards",
+      "milliseconds": 8967,
+      "source": "p032-authority-decomposed-local"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobAuthorityCensusMutationTests.Background_job_authority_census_detects_extra_activation_and_removed_live_guards",
       "milliseconds": 603500,
       "source": "pr38-class-alias-job-authority-census-ef981129"
     },
     {
       "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobAuthorityCensusMutationTests.Background_job_authority_provenance_rejects_forgery_and_missing_publication_gates",
+      "milliseconds": 37824,
+      "source": "p032-authority-decomposed-local"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobAuthorityCensusMutationTests.Background_job_framework_capabilities_reject_extra_dispatch_and_issuance",
+      "milliseconds": 45128,
+      "source": "p032-authority-decomposed-local"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobAuthorityCensusMutationTests.Background_job_generation_binding_rejects_extra_capabilities_and_missing_sites",
+      "milliseconds": 80941,
+      "source": "p032-authority-decomposed-local"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobAuthorityCensusMutationTests.Background_job_routing_credentials_reject_store_and_holder_escapes",
+      "milliseconds": 22619,
+      "source": "p032-authority-decomposed-local"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobAuthorityMutationTests.Background_job_application_source_ownership_has_exact_nonempty_callers_and_rejects_escapes",
-      "milliseconds": 101387,
-      "source": "pr38-df-2-architecture-1"
+      "milliseconds": 292856,
+      "source": "p032-hosted-architecture-40577851910-1-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobAuthorityMutationTests.Credential_census_rejects_generic_direct_delegate_async_and_extra_helper_resolution",
-      "milliseconds": 469168,
-      "source": "p031-hosted-architecture-3"
+      "milliseconds": 474452,
+      "source": "p032-hosted-architecture-40577851910-1-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1657,8 +1710,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobMetricMutationTests.Background_job_metric_census_rejects_bait_callbacks_hidden_registration_and_skipped_binding",
-      "milliseconds": 34392,
-      "source": "pr38-class-alias-job-metric-a826fef6"
+      "milliseconds": 43382,
+      "source": "p032-hosted-architecture-40577851910-1-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1681,8 +1734,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobRecipientMutationTests.Background_job_recipient_census_detects_extra_authority_and_missing_real_fences",
-      "milliseconds": 206098,
-      "source": "pr38-class-alias-job-recipient"
+      "milliseconds": 218224,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1693,8 +1746,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+ResolutionMutationTests.Resolution_walk_detects_loading_construction_async_and_polymorphic_helpers",
-      "milliseconds": 277724,
-      "source": "pr38-class-alias-resolution"
+      "milliseconds": 321649,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1705,14 +1758,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.BackgroundJob_Completion_Is_Owner_Atomic_And_Fenced",
-      "milliseconds": 599,
-      "source": "p031-hosted-architecture-2"
+      "milliseconds": 786,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.BackgroundJob_Definitions_Stay_In_Their_Owning_Module",
-      "milliseconds": 16261,
-      "source": "p031-hosted-architecture-0"
+      "milliseconds": 16927,
+      "source": "p032-hosted-architecture-40577851910-1-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1723,20 +1776,20 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.BackgroundJob_Fanout_Uses_Recipient_Bound_Tenant_Admission",
-      "milliseconds": 682,
-      "source": "p031-hosted-architecture-3"
+      "milliseconds": 737,
+      "source": "p032-hosted-architecture-40577851910-1-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.BackgroundJob_Ordinary_Execution_Has_No_Platform_Authority",
-      "milliseconds": 927,
-      "source": "p031-hosted-architecture-0"
+      "milliseconds": 947,
+      "source": "p032-hosted-architecture-40577851910-1-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.BackgroundJob_Storage_And_Credentials_Are_Confined",
-      "milliseconds": 68217,
-      "source": "pr38-df-1-architecture-3"
+      "milliseconds": 82175,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1747,8 +1800,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.BackgroundJob_Worker_Pools_Reserve_Independent_Capacity",
-      "milliseconds": 298416,
-      "source": "p031-hosted-architecture-4"
+      "milliseconds": 332332,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1765,14 +1818,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Background_job_recipient_history_controls_reject_detached_cleanup_and_unfenced_status",
-      "milliseconds": 3776,
-      "source": "hosted-architecture-39417319998-2-2"
+      "milliseconds": 5573,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Background_job_recipient_shared_insert_controls_preserve_successful_production",
-      "milliseconds": 12443,
-      "source": "p031-hosted-architecture-2"
+      "milliseconds": 13162,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1801,8 +1854,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Delivery_SQL_census_rejects_quoted_CTE_helper_overload_missing_and_payload_paths",
-      "milliseconds": 5809,
-      "source": "p031-hosted-architecture-5"
+      "milliseconds": 8136,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1813,8 +1866,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Delivery_Terminal_Audit_Identity_Is_Row_Bound",
-      "milliseconds": 586,
-      "source": "p031-hosted-architecture-5"
+      "milliseconds": 597,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1843,8 +1896,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Delivery_registration_census_rejects_missing_duplicate_replaced_and_detached_subjects",
-      "milliseconds": 27,
-      "source": "p031-hosted-architecture-3"
+      "milliseconds": 365,
+      "source": "p032-local-architecture"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1855,8 +1908,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Integration_Event_Handlers_Use_InboxGuard",
-      "milliseconds": 1405,
-      "source": "hosted-architecture-39417319998-2-2"
+      "milliseconds": 1893,
+      "source": "p032-local-architecture"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1867,14 +1920,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Integration_handler_census_rejects_missing_assemblies_layers_and_production_subjects",
-      "milliseconds": 2741,
-      "source": "p031-hosted-architecture-5"
+      "milliseconds": 6769,
+      "source": "p032-local-architecture"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Integration_handler_discovery_sees_inherited_generic_and_explicit_contracts",
-      "milliseconds": 30,
-      "source": "p031-hosted-architecture-0"
+      "milliseconds": 57,
+      "source": "p032-local-architecture"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1885,20 +1938,20 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Integration_manifest_census_rejects_missing_rebound_duplicate_and_unscoped_bindings",
-      "milliseconds": 328,
-      "source": "p031-hosted-architecture-1"
+      "milliseconds": 678,
+      "source": "p032-local-architecture"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Job_terminal_census_detects_missing_subjects_extra_subtypes_factories_and_all_caller_escape_shapes",
-      "milliseconds": 25195,
-      "source": "hosted-architecture-39417319998-2-4"
+      "milliseconds": 27728,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Job_trace_source_and_actual_Activity_ownership_refuse_chained_Start_and_hidden_source_creation",
-      "milliseconds": 7525,
-      "source": "p031-hosted-architecture-1"
+      "milliseconds": 8712,
+      "source": "p032-hosted-architecture-40577851910-1-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1909,8 +1962,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Observation_registration_control_detects_missing_duplicate_or_replaced_worker_and_check",
-      "milliseconds": 94,
-      "source": "p031-hosted-architecture-2"
+      "milliseconds": 585,
+      "source": "p032-local-architecture"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1921,14 +1974,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Observation_walk_keeps_clean_memory_helpers_and_checks_real_gauge_callbacks",
-      "milliseconds": 2056,
-      "source": "p031-hosted-architecture-3"
+      "milliseconds": 2663,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Outbox_Health_And_Metrics_Are_Bounded",
-      "milliseconds": 213,
-      "source": "p031-hosted-architecture-0"
+      "milliseconds": 218,
+      "source": "p032-hosted-architecture-40577851910-1-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1945,8 +1998,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Outbox_SQL_census_preserves_reads_and_unrelated_table_writes",
-      "milliseconds": 598,
-      "source": "hosted-architecture-39417319998-2-2"
+      "milliseconds": 705,
+      "source": "p032-hosted-architecture-40577851910-1-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1957,26 +2010,26 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Outbox_Type_Resolution_Is_Declared_And_Bounded",
-      "milliseconds": 4281,
-      "source": "p031-hosted-architecture-5"
+      "milliseconds": 6214,
+      "source": "p032-hosted-architecture-40577851910-1-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Publication_census_rejects_interface_concrete_delegate_async_and_unowned_attempt_paths",
-      "milliseconds": 9171,
-      "source": "hosted-architecture-39417319998-2-4"
+      "milliseconds": 10822,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Resolution_walk_preserves_declared_type_metadata_and_clean_helpers",
-      "milliseconds": 5232,
-      "source": "hosted-architecture-39417319998-2-1"
+      "milliseconds": 7539,
+      "source": "p032-local-architecture"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Subscriber_terminal_census_rejects_extra_mint_paths_crossed_owners_and_missing_subjects",
-      "milliseconds": 2114,
-      "source": "hosted-architecture-39417319998-2-4"
+      "milliseconds": 2412,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1987,8 +2040,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Terminal_census_detects_interface_concrete_delegate_async_and_extra_writer_paths",
-      "milliseconds": 2834,
-      "source": "p031-hosted-architecture-3"
+      "milliseconds": 2982,
+      "source": "p032-hosted-architecture-40577851910-1-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2005,8 +2058,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxProducerConventionTests.Outbox_Enqueue_Uses_The_Announced_Transaction",
-      "milliseconds": 413,
-      "source": "p031-hosted-architecture-0"
+      "milliseconds": 505,
+      "source": "p032-hosted-architecture-40577851910-1-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2017,8 +2070,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxProducerConventionTests.Producer_walk_reaches_helpers_in_other_production_assemblies",
-      "milliseconds": 4000,
-      "source": "hosted-architecture-current"
+      "milliseconds": 7230,
+      "source": "p032-hosted-architecture-40577851910-1-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2035,50 +2088,50 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PersistenceConventionTests.Migrate_Target_Applies_The_Tenancy_Chain_First",
-      "milliseconds": 17,
-      "source": "hosted-architecture-39417319998-2-4"
+      "milliseconds": 23,
+      "source": "p032-local-architecture"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PersistenceConventionTests.Migrate_Target_Covers_Every_Migration_Chain",
-      "milliseconds": 13,
-      "source": "hosted-architecture-39417319998-2-0"
+      "milliseconds": 23,
+      "source": "p032-local-architecture"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PersistenceConventionTests.Migrate_Target_Reads_The_Role_Through_A_Quoted_Value",
-      "milliseconds": 31,
-      "source": "hosted-architecture-39417319998-2-2"
+      "milliseconds": 255,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PersistenceConventionTests.Migrate_Target_Redacts_A_Quoted_Value_Whole",
-      "milliseconds": 107,
-      "source": "hosted-architecture-39417319998-2-4"
+      "milliseconds": 2540,
+      "source": "p032-hosted-architecture-40577851910-1-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PersistenceConventionTests.Migrate_Target_Refuses_A_Uri_Without_Echoing_Its_Userinfo",
-      "milliseconds": 31,
-      "source": "hosted-architecture-39417319998-2-2"
+      "milliseconds": 207,
+      "source": "p032-hosted-architecture-40577851910-1-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PersistenceConventionTests.Migrate_Target_Refuses_An_Aliased_Runtime_Credential",
-      "milliseconds": 67,
-      "source": "p031-hosted-architecture-3"
+      "milliseconds": 763,
+      "source": "p032-hosted-architecture-40577851910-1-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PersistenceConventionTests.Migration_Startup_Project_References_EntityFrameworkCore_Design",
-      "milliseconds": 2,
-      "source": "p031-hosted-architecture-2"
+      "milliseconds": 4,
+      "source": "p032-local-architecture"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PersistenceConventionTests.Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork",
-      "milliseconds": 587,
-      "source": "hosted-architecture-predecessor"
+      "milliseconds": 1894,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2095,14 +2148,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PersistenceConventionTests.The_Docker_Trait_Sweep_Can_Actually_Fail",
-      "milliseconds": 284,
-      "source": "hosted-architecture-39417319998-2-0"
+      "milliseconds": 1479,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PersistenceConventionTests.The_Migration_Order_Guard_Rejects_Each_Dependent_Chain_First",
-      "milliseconds": 49,
-      "source": "p031-hosted-architecture-0"
+      "milliseconds": 121,
+      "source": "p032-local-architecture"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2119,8 +2172,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PersistenceConventionTests.The_parallelism_census_reaches_shared_code_and_bounds_its_singleton_exceptions",
-      "milliseconds": 141,
-      "source": "hosted-architecture-39417319998-2-0"
+      "milliseconds": 391,
+      "source": "p032-hosted-architecture-40577851910-1-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2149,14 +2202,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PlatformAdminScopeConventionTests.PlatformAdminScope_Entry_Requires_Platform_Permission",
-      "milliseconds": 139,
-      "source": "p031-hosted-architecture-1"
+      "milliseconds": 285,
+      "source": "p032-hosted-architecture-40577851910-1-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PlatformAdminScopeConventionTests.Platform_DataSource_Resolved_Only_By_PlatformAdminScope",
-      "milliseconds": 624,
-      "source": "hosted-architecture-39417319998-2-2"
+      "milliseconds": 817,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2167,8 +2220,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.ProductionAssembliesTests.Project_census_includes_every_project_name_and_excludes_generated_projects",
-      "milliseconds": 6,
-      "source": "hosted-architecture-39417319998-2-4"
+      "milliseconds": 8,
+      "source": "p032-hosted-architecture-40577851910-1-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2197,8 +2250,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PublicSurfaceTests.PublicSurface_Endpoints_Dispatch_Through_The_Pipeline",
-      "milliseconds": 157,
-      "source": "hosted-architecture-current"
+      "milliseconds": 302,
+      "source": "p032-hosted-architecture-40577851910-1-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2209,8 +2262,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PublicSurfaceTests.PublicSurface_Requests_Are_Registered_Off",
-      "milliseconds": 29,
-      "source": "p031-hosted-architecture-5"
+      "milliseconds": 44,
+      "source": "p032-local-architecture"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2227,26 +2280,26 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.RepositoryLayoutTests.Commit_Subject_Grammar_Is_Stated_Once",
-      "milliseconds": 3536,
-      "source": "hosted-architecture-39417319998-2-2"
+      "milliseconds": 8720,
+      "source": "p032-local-architecture"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.RepositoryLayoutTests.Frontend_Has_Only_The_Web_App",
-      "milliseconds": 3,
-      "source": "hosted-architecture-39417319998-2-1"
+      "milliseconds": 4,
+      "source": "p032-local-architecture"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.RepositoryLayoutTests.No_Source_Folder_Named_Verticals",
-      "milliseconds": 8,
-      "source": "hosted-architecture-39417319998-2-0"
+      "milliseconds": 28,
+      "source": "p032-local-architecture"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.RequestSurfaceTests.AllowsUnresolvedTenantContext_Only_On_Provisioning_Commands",
-      "milliseconds": 18,
-      "source": "hosted-architecture-39417319998-2-4"
+      "milliseconds": 25,
+      "source": "p032-local-architecture"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2257,20 +2310,20 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.RequestSurfaceTests.PublicSurface_Requests_Are_Never_ReadSensitive",
-      "milliseconds": 30,
-      "source": "p031-hosted-architecture-5"
+      "milliseconds": 53,
+      "source": "p032-hosted-architecture-40577851910-1-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.RequestSurfaceTests.Requests_Are_Never_Streamed",
-      "milliseconds": 14,
-      "source": "hosted-architecture-39417319998-2-2"
+      "milliseconds": 25,
+      "source": "p032-local-architecture"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.RequestSurfaceTests.The_PublicSurface_Cross_Check_Can_Actually_Fail",
-      "milliseconds": 5,
-      "source": "p031-hosted-architecture-5"
+      "milliseconds": 8,
+      "source": "p032-hosted-architecture-40577851910-1-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2281,14 +2334,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.RequestSurfaceTests.The_Sweep_Covers_Every_Production_Assembly",
-      "milliseconds": 16,
-      "source": "hosted-architecture-39417319998-2-2"
+      "milliseconds": 23,
+      "source": "p032-local-architecture"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.SeederConventionTests.Seed_Literal_Source_Is_Complete_And_Readable",
-      "milliseconds": 184,
-      "source": "hosted-architecture-39417319998-2-2"
+      "milliseconds": 260,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2347,26 +2400,26 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenancyConventionTests.Effective_Host_Computed_In_One_Place",
-      "milliseconds": 47,
-      "source": "hosted-architecture-39417319998-2-2"
+      "milliseconds": 110,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenancyConventionTests.Host_Resolution_Makes_No_Outbound_Calls",
-      "milliseconds": 66,
-      "source": "hosted-architecture-39417319998-2-4"
+      "milliseconds": 132,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenancyConventionTests.Organization_Aggregate_Declared_In_Tenancy_Domain",
-      "milliseconds": 4,
-      "source": "hosted-architecture-39417319998-2-1"
+      "milliseconds": 5,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenancyConventionTests.Out_Of_Band_Setters_Open_Read_Only_Transactions",
-      "milliseconds": 109,
-      "source": "hosted-architecture-39417319998-2-4"
+      "milliseconds": 167,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2383,8 +2436,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenancyConventionTests.Tenant_Scope_Widening_Is_Never_Set_From_Request_Input",
-      "milliseconds": 169,
-      "source": "hosted-architecture-39417319998-2-1"
+      "milliseconds": 629,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2401,26 +2454,26 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenancyConventionTests.The_Scope_Setter_Scan_Can_Actually_Fail",
-      "milliseconds": 6,
-      "source": "p031-hosted-architecture-0"
+      "milliseconds": 64,
+      "source": "p032-hosted-architecture-40577851910-1-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenancyConventionTests.The_Setter_Scan_Can_Actually_Fail",
-      "milliseconds": 76,
-      "source": "p031-hosted-architecture-3"
+      "milliseconds": 78,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenancyConventionTests.The_Slug_Scan_Finds_The_Files_It_Exempts",
-      "milliseconds": 911,
-      "source": "p031-hosted-architecture-0"
+      "milliseconds": 1165,
+      "source": "p032-hosted-architecture-40577851910-1-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenantContextConstructionTests.HostScope_Is_Constructed_Only_By_The_Factory",
-      "milliseconds": 20,
-      "source": "hosted-architecture-39417319998-2-0"
+      "milliseconds": 40,
+      "source": "p032-hosted-architecture-40577851910-1-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2431,8 +2484,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenantContextConstructionTests.Organization_reader_census_rejects_missing_keys_extra_readers_and_unbounded_pages",
-      "milliseconds": 6359,
-      "source": "hosted-architecture-39417319998-2-1"
+      "milliseconds": 9372,
+      "source": "p032-hosted-architecture-40577851910-1-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2455,8 +2508,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenantContextConstructionTests.TenantContext_Is_Instantiated_In_One_File",
-      "milliseconds": 23,
-      "source": "hosted-architecture-39417319998-2-2"
+      "milliseconds": 34,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2479,8 +2532,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenantScopingTests.Every_Scoping_Interface_Carries_Its_Marker",
-      "milliseconds": 2,
-      "source": "p031-hosted-architecture-4"
+      "milliseconds": 3,
+      "source": "p032-hosted-architecture-40577851910-1-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2499,6 +2552,12 @@
       "method": "LearnStack.Tests.Architecture.TenantScopingTests.The_Tenant_Term_Check_Can_Actually_Fail",
       "milliseconds": 2,
       "source": "p031-hosted-architecture-5"
+    },
+    {
+      "assembly": "learnstack.tests.architecture",
+      "method": "LearnStack.Tests.Architecture.TrustedOperationSourceConventionTests.Finite_operation_descriptors_have_exact_minters_private_construction_and_revocable_evidence",
+      "milliseconds": 10755,
+      "source": "p032-hosted-architecture-40577851910-1-2"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -2598,6 +2657,12 @@
     },
     {
       "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AccountSiteHttpTests.Real_platform_membership_success_still_masks_AccountSite_before_configuration_access",
+      "milliseconds": 3194,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.AccountSiteQueryTests.Actual_account_query_cannot_join_a_writable_outer_owner_or_reach_its_reader",
       "milliseconds": 118,
       "source": "p031-hosted-ordinary-7"
@@ -2611,20 +2676,20 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.AccountSiteQueryTests.Actual_account_query_physically_refuses_SQL_and_EF_writes_with_writable_controls",
-      "milliseconds": 187,
-      "source": "p031-hosted-ordinary-6"
+      "milliseconds": 190,
+      "source": "p032-local-ordinary-broad"
     },
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.AccountSiteQueryTests.Actual_account_query_reads_contrasting_tenants_and_mapped_organization_without_query_audits",
-      "milliseconds": 246,
-      "source": "p031-hosted-ordinary-5"
+      "milliseconds": 251,
+      "source": "p032-local-ordinary-broad"
     },
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.AccountSiteQueryTests.Actual_account_query_rechecks_live_tenant_mapped_and_claim_selected_organization",
-      "milliseconds": 1442,
-      "source": "p031-hosted-ordinary-2"
+      "milliseconds": 1660,
+      "source": "p032-local-ordinary-broad"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -2635,8 +2700,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.AccountSiteQueryTests.Real_configuration_reader_independently_refuses_invalid_host_provenance_with_same_frame_control",
-      "milliseconds": 276,
-      "source": "p031-hosted-ordinary-0"
+      "milliseconds": 394,
+      "source": "p032-local-ordinary-broad"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -2647,14 +2712,14 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.AccountSiteQueryTests.Real_configuration_reader_refuses_missing_or_foreign_EF_transaction_with_same_role_controls",
-      "milliseconds": 122,
-      "source": "p031-hosted-ordinary-10"
+      "milliseconds": 156,
+      "source": "p032-local-ordinary-broad"
     },
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.AccountSiteQueryTests.Real_configuration_reader_refuses_unannounced_transaction_then_reads_after_announcement",
-      "milliseconds": 69,
-      "source": "pr38-b-ordinary-0"
+      "milliseconds": 79,
+      "source": "p032-local-ordinary-broad"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -3129,6 +3194,222 @@
       "method": "LearnStack.Tests.Integration.Database.AuditWorkflowTests.The_bands_a_tenant_authors_are_in_the_row_that_records_the_taxonomy",
       "milliseconds": 860,
       "source": "p031-hosted-ordinary-7"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationEvidenceBarrierTests.A_lost_evidence_COMMIT_acknowledgement_refuses_otherwise_successful_RO_or_ownerless_disclosure",
+      "milliseconds": 73,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationEvidenceBarrierTests.A_real_denial_INSERT_failure_rolls_back_the_actual_module_write_and_refuses_outer_success",
+      "milliseconds": 49,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationEvidenceBarrierTests.Already_refused_403_or_404_survives_evidence_acknowledgement_failure_without_dispatch",
+      "milliseconds": 43,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationEvidenceBarrierTests.An_absorbed_admitted_inner_refusal_survives_its_independent_token_cancellation_before_observation",
+      "milliseconds": 124,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationEvidenceBarrierTests.Authorization_Denials_Have_PreSuccess_Durability_And_Stable_Identity",
+      "milliseconds": 245,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationEvidenceBarrierTests.Exact_event_reconciliation_does_not_promote_an_unknown_business_COMMIT_to_success",
+      "milliseconds": 50,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationEvidenceBarrierTests.Physical_RO_and_ownerless_success_wait_for_standalone_COMMIT_acknowledgement_before_disclosure",
+      "milliseconds": 77,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationEvidenceBarrierTests.SIGKILL_before_or_immediately_after_physical_COMMIT_proves_atomic_denial_durability_without_finally",
+      "milliseconds": 1440,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationEvidenceBarrierTests.Trusted_composition_failure_prevents_an_absorbing_RW_owner_from_committing_any_business_state",
+      "milliseconds": 39,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationEvidenceSourceTests.Actual_connection_cleanup_spans_both_transactions_and_controls_source_and_job_shutdown",
+      "milliseconds": 29,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationEvidenceSourceTests.Reported_statement_cleanup_fault_prevents_verification_and_retains_the_slot_after_other_cleanup",
+      "milliseconds": 12,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationEvidenceSourceTests.Startup_qualification_refuses_another_authority_without_enabling_evidence_issuance",
+      "milliseconds": 11,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationEvidenceSourceTests.Two_retained_evidence_connectors_refuse_excess_without_waiting_and_release_only_after_actual_cleanup",
+      "milliseconds": 22,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationEvidenceSourceTests.Verification_disposes_the_aborted_INSERT_transaction_before_fresh_physical_READ_ONLY_on_the_same_connector",
+      "milliseconds": 35,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationEvidenceSourceTests.Verification_reuses_the_original_deadline_and_expiry_retains_capacity_until_cleanup",
+      "milliseconds": 5021,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationEvidenceStoreTests.A_primary_key_collision_with_any_other_persisted_field_changed_is_not_durable_evidence",
+      "milliseconds": 531,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationEvidenceStoreTests.Exact_duplicate_evidence_uses_one_connector_and_fresh_RO_verification_with_JSONB_value_equality",
+      "milliseconds": 85,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationEvidenceStoreTests.Lost_commit_acknowledgement_can_reconcile_the_same_event_without_claiming_a_business_outcome",
+      "milliseconds": 26,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationEvidenceStoreTests.Missing_row_or_another_unique_constraint_never_turns_23505_into_durability",
+      "milliseconds": 80,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationEvidenceStoreTests.Pending_evidence_is_atomic_with_its_actual_RW_owner_and_reconciliation_reuses_the_fixed_microsecond_draft",
+      "milliseconds": 77,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationEvidenceStoreTests.Pending_evidence_refuses_foreign_or_unannounced_scope_and_physical_read_only_owners",
+      "milliseconds": 59,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationPoolProgressTests.A_separate_client_pool_on_the_saturated_business_alias_fails_the_same_progress_control",
+      "milliseconds": 4174,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationPoolProgressTests.Actual_denial_is_durable_before_readonly_or_ownerless_success_while_all_business_backends_are_held",
+      "milliseconds": 344,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationPoolProgressTests.Actual_directory_policy_admission_completes_while_every_business_server_transaction_is_held",
+      "milliseconds": 275,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationPoolProgressTests.Admitted_real_authorization_completes_while_every_business_server_transaction_is_held",
+      "milliseconds": 222,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationPoolProgressTests.Evidence_on_the_saturated_business_server_alias_blocks_success_and_the_same_source_recovers_after_release",
+      "milliseconds": 4089,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationPoolProgressTests.Live_business_database_marker_qualifies_both_independent_lanes_through_direct_and_transaction_pooler_aliases",
+      "milliseconds": 87,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationPoolProgressTests.Transaction_pooler_reserves_two_four_two_distinct_backends_for_the_same_database_and_app_role",
+      "milliseconds": 82,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationReadSourceTests.Actual_connection_disposal_retains_source_and_job_ownership_until_its_positive_completion",
+      "milliseconds": 38,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationReadSourceTests.Cancellation_bounds_the_actual_role_guard_statement_before_any_candidate_owner_can_be_published",
+      "milliseconds": 8037,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationReadSourceTests.Cancellation_during_actual_setup_keeps_capacity_and_shutdown_join_until_the_operation_really_finishes",
+      "milliseconds": 28,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationReadSourceTests.Candidate_owner_is_physically_read_only_exactly_announced_and_cannot_join_or_retarget",
+      "milliseconds": 24,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationReadSourceTests.Four_retained_physical_owners_refuse_excess_immediately_and_recover_only_after_disposal",
+      "milliseconds": 61,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationReadSourceTests.One_deadline_covers_statements_and_completion_without_a_fresh_commit_budget",
+      "milliseconds": 5026,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationReadSourceTests.Qualification_refuses_another_installed_authority_and_never_enables_candidate_issuance",
+      "milliseconds": 16,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.AuthorizationReadSourceTests.Reported_command_cleanup_failure_retains_capacity_even_after_transaction_and_connection_disposal",
+      "milliseconds": 14,
+      "source": "p032-local-ordinary-complement"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -5394,6 +5675,12 @@
     },
     {
       "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.CustomizationDefaultDeliveryTests.Both_real_initializers_capture_only_their_validated_delivery_and_revoke_evidence_after_completion",
+      "milliseconds": 799,
+      "source": "p032-local-ordinary-broad"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.CustomizationDefaultDeliveryTests.Reaccepting_the_exact_provisioning_fact_does_not_repeat_inbox_effect_or_audit",
       "milliseconds": 3053,
       "source": "p031-hosted-ordinary-8"
@@ -5595,6 +5882,36 @@
       "method": "LearnStack.Tests.Integration.Database.CustomizationSchemaTests.TheJsonbGuardAgreesWithTheColumn",
       "milliseconds": 38,
       "source": "p031-hosted-ordinary-3"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.DatabaseQualificationProofTests.Closed_or_expired_proof_cannot_qualify_either_lane",
+      "milliseconds": 5032,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.DatabaseQualificationProofTests.One_live_business_proof_qualifies_both_lanes_and_disposal_releases_its_actual_marker",
+      "milliseconds": 38,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.DatabaseQualificationProofTests.Proof_factory_itself_refuses_raw_migration_and_platform_sources_without_a_builder_guard",
+      "milliseconds": 47,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.DatabaseQualificationProofTests.Proof_from_another_database_cannot_qualify_either_lane_even_with_the_same_authority",
+      "milliseconds": 464,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.DatabaseQualificationProofTests.Qualification_cannot_upgrade_an_unbound_result_or_retarget_an_existing_proof",
+      "milliseconds": 104,
+      "source": "p032-local-ordinary-complement"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -5929,8 +6246,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.DeliveryProcessorTests.Failed_timeout_transition_still_closes_gate_and_ignored_token_cannot_commit_late",
-      "milliseconds": 3172,
-      "source": "p031-hosted-ordinary-3"
+      "milliseconds": 3230,
+      "source": "p032-local-ordinary-complement"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -6961,8 +7278,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.GlobalIdentitySchemaTests.Non_success_evidence_needs_no_User_and_cannot_satisfy_success",
-      "milliseconds": 93,
-      "source": "p031-hosted-ordinary-3"
+      "milliseconds": 106,
+      "source": "p032-local-ordinary-complement"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -7332,6 +7649,204 @@
     },
     {
       "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityAuthorizationHttpTests.Actual_directory_resolves_rows_6_7_9_10_14_with_real_memberships_and_committed_sensitive_evidence",
+      "milliseconds": 3761,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityAuthorizationHttpTests.An_audit_outage_preserves_actual_HTTP_capability_and_coverage_refusals",
+      "milliseconds": 3078,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityAuthorizationHttpTests.Anonymous_public_read_reaches_application_SQL_without_identity_authorization_queries",
+      "milliseconds": 3486,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityAuthorizationHttpTests.Confirmed_claim_header_rejections_write_exact_private_evidence_without_spending_the_host_budget",
+      "milliseconds": 3300,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityAuthorizationHttpTests.Coverage_capability_and_store_failure_are_distinct_and_never_dispatch_the_directory",
+      "milliseconds": 3871,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityAuthorizationHttpTests.Directory_exposes_only_contextual_fields_with_live_tenant_wide_pagination_and_scope_bound_cursors",
+      "milliseconds": 3894,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityAuthorizationHttpTests.Directory_wrong_methods_retain_routing_semantics_without_handler_dispatch",
+      "milliseconds": 3068,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityAuthorizationHttpTests.HTTP_success_waits_for_physical_sensitive_audit_COMMIT",
+      "milliseconds": 3367,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityAuthorizationHttpTests.Matching_host_revocation_is_observed_by_directory_and_AccountSite_after_committed_membership_change",
+      "milliseconds": 3420,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityAuthorizationHttpTests.Resolver_noncoverage_preserves_row_7_host_evidence_row_10_silence_and_row_14_diagnostic_only",
+      "milliseconds": 3195,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityAuthorizationHttpTests.Sensitive_HTTP_result_is_withheld_on_MUST_insert_or_deferred_COMMIT_failure",
+      "milliseconds": 6573,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityAuthorizationReaderTests.Actual_committed_revocation_is_seen_while_parent_uncommitted_grant_and_locks_remain_open",
+      "milliseconds": 96,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityAuthorizationReaderTests.Actual_connection_disposal_fault_withholds_prepared_facts_and_retains_capacity",
+      "milliseconds": 70,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityAuthorizationReaderTests.Actual_tenant_lifecycle_is_fresh_and_independent_of_membership",
+      "milliseconds": 193,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityAuthorizationReaderTests.Candidate_lifetime_ending_during_actual_cleanup_withholds_already_prepared_facts",
+      "milliseconds": 37,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityAuthorizationReaderTests.Child_is_physically_read_only_and_its_exact_generation_is_the_lifecycle_generation",
+      "milliseconds": 26,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityAuthorizationReaderTests.Duplicate_eligible_role_template_below_eight_refuses_without_publishing_facts",
+      "milliseconds": 86,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityAuthorizationReaderTests.Entire_finite_eight_role_population_is_returned_without_implicit_grants",
+      "milliseconds": 218,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityAuthorizationReaderTests.Exact_tenant_and_branch_compose_only_their_active_registered_facts_without_personal_projection",
+      "milliseconds": 359,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityAuthorizationReaderTests.Excess_or_ambiguous_committed_memberships_fail_closed_instead_of_truncating_the_graph",
+      "milliseconds": 76,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityAuthorizationReaderTests.Foreign_actor_tenant_or_organization_never_supplies_coverage",
+      "milliseconds": 74,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityAuthorizationReaderTests.Fresh_committed_suspended_or_revoked_membership_has_no_coverage",
+      "milliseconds": 177,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityAuthorizationReaderTests.Internal_deadline_is_unavailable_with_no_authority_payload",
+      "milliseconds": 5020,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityAuthorizationReaderTests.Lifecycle_authorization_port_refuses_foreign_announcement_and_stale_physical_transaction",
+      "milliseconds": 22,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityAuthorizationReaderTests.Lifecycle_storage_or_reported_actual_cleanup_failure_never_publishes_prepared_facts",
+      "milliseconds": 136,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityAuthorizationReaderTests.Membership_without_any_role_or_grant_still_confirms_coverage",
+      "milliseconds": 63,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityAuthorizationReaderTests.Nine_eligible_roles_with_a_duplicate_template_refuse_without_truncating_facts",
+      "milliseconds": 249,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityAuthorizationReaderTests.Request_cancellation_propagates_after_owned_cleanup_and_the_slot_recovers",
+      "milliseconds": 37,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityAuthorizationReaderTests.Requested_organization_must_currently_allow_work",
+      "milliseconds": 113,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityAuthorizationReaderTests.Retired_role_and_removed_assignment_grant_nothing_while_membership_coverage_remains",
+      "milliseconds": 65,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityAuthorizationReaderTests.Separate_lifecycle_statement_observes_a_commit_after_the_grant_statement",
+      "milliseconds": 31,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityAuthorizationReaderTests.Stale_candidate_before_or_during_io_never_returns_facts",
+      "milliseconds": 23,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentityAuthorizationReaderTests.Unknown_and_virtual_public_stored_grants_never_become_assignable_authority",
+      "milliseconds": 46,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.IdentityCommandQualificationTests.Actual_seed_commands_measure_local_observation_cost_and_pool_occupancy_with_a_real_membership_wait",
       "milliseconds": 7272,
       "source": "p031-hosted-ordinary-3"
@@ -7363,8 +7878,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.IdentityDiagnosticSinkTests.Overlapping_compositions_protect_every_Identity_span_without_changing_actual_callers",
-      "milliseconds": 136,
-      "source": "p031-hosted-ordinary-0"
+      "milliseconds": 349,
+      "source": "p032-local-ordinary-complement"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -7662,6 +8177,12 @@
     },
     {
       "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.IdentitySeederTests.Legitimate_audited_grant_change_makes_fixed_v1_seed_refuse_without_repair_or_additional_audit",
+      "milliseconds": 3632,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.InboxGuardTests.A_committed_claim_is_false_on_duplicate_but_distinct_tuples_are_independent",
       "milliseconds": 798,
       "source": "p031-hosted-ordinary-10"
@@ -7740,6 +8261,72 @@
     },
     {
       "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.MembershipDirectoryIntegrationTests.Actual_branch_admin_directory_pages_across_its_tenant_with_only_contextual_fields_on_ReadWrite",
+      "milliseconds": 84,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.MembershipDirectoryIntegrationTests.Actual_coverage_without_Tenant_admin_and_foreign_actor_refuse_before_business_checkout",
+      "milliseconds": 62,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.MembershipDirectoryIntegrationTests.Adapter_refuses_narrow_owner_even_if_SQL_scope_is_tampered_and_real_EF_filter_stays_narrow",
+      "milliseconds": 65,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.MembershipDirectoryIntegrationTests.Directory_includes_suspended_members_and_excludes_committed_revoked_rows",
+      "milliseconds": 95,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.MembershipDirectoryIntegrationTests.Modified_anchor_remains_a_seek_only_and_other_branch_cursor_is_validation_failure",
+      "milliseconds": 82,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.MembershipDirectoryIntegrationTests.Tenant_reenrollment_refuses_a_foreign_physical_connection_without_retargeting_either_owner",
+      "milliseconds": 47,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.MembershipDirectoryIntegrationTests.Tenant_reenrollment_refuses_pending_tracked_mutation_without_clearing_or_saving_it",
+      "milliseconds": 79,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.MembershipDirectoryPipelineTests.Actual_MUST_insert_failure_withholds_the_materialized_directory_result",
+      "milliseconds": 72,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.MembershipDirectoryPipelineTests.Actual_deferred_COMMIT_failure_answers_audit_unavailable_and_withholds_the_directory_result",
+      "milliseconds": 67,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.MembershipDirectoryPipelineTests.Actual_directory_result_waits_for_its_MUST_row_to_commit_before_disclosure",
+      "milliseconds": 140,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.MembershipDirectoryPipelineTests.Ordinary_owner_preserves_its_primary_COMMIT_failure_even_with_a_sensitive_read_intent",
+      "milliseconds": 70,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.MigrationChainCoverageTests.Every_Migration_Chain_On_Disk_Is_Applied_By_The_Fixtures",
       "milliseconds": 61,
       "source": "p031-hosted-ordinary-8"
@@ -7749,6 +8336,66 @@
       "method": "LearnStack.Tests.Integration.Database.MigrationRollbackTests.EveryChainReversesToAnEmptySchema",
       "milliseconds": 2792,
       "source": "p031-hosted-ordinary-0"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.OperationReadScopeTests.A_consumed_witness_cannot_rebind_to_another_unit_or_recycled_transaction_generation",
+      "milliseconds": 21,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.OperationReadScopeTests.A_context_without_the_common_owner_attachment_remains_narrow_even_when_SQL_is_wide",
+      "milliseconds": 10,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.OperationReadScopeTests.A_missing_expired_or_mismatched_witness_poison_the_actual_owner",
+      "milliseconds": 38,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.OperationReadScopeTests.A_tenant_read_hatch_does_not_widen_sibling_organization_updates_or_deletes",
+      "milliseconds": 12,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.OperationReadScopeTests.Actual_completion_and_rollback_clear_read_authority_on_the_same_unreset_pooled_connector",
+      "milliseconds": 20,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.OperationReadScopeTests.An_unbound_inner_frame_cannot_borrow_the_wide_outer_frames_read_authority",
+      "milliseconds": 9,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.OperationReadScopeTests.Both_mixed_read_scope_joins_poison_outer_commit_even_after_inner_failure_is_absorbed",
+      "milliseconds": 19,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.OperationReadScopeTests.Compatible_wide_join_consumes_its_own_witness_and_restores_the_live_outer_frame",
+      "milliseconds": 10,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.OperationReadScopeTests.Expired_or_canceled_invocation_invalidates_raw_unit_access_EF_and_commit_before_cleanup",
+      "milliseconds": 25,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.OperationReadScopeTests.SQL_and_parameterized_EF_filters_share_the_exact_live_owner_read_scope",
+      "milliseconds": 27,
+      "source": "p032-local-ordinary-complement"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -8575,8 +9222,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.PublicEducationHttpTests.Detail_validation_does_not_enter_read_transaction",
-      "milliseconds": 1086,
-      "source": "local-ordinary-scaled"
+      "milliseconds": 5816,
+      "source": "p032-local-ordinary-complement"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -8587,8 +9234,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.PublicEducationHttpTests.Enabled_untranslated_locale_returns_empty_catalog_and_hidden_details_without_fallback",
-      "milliseconds": 151,
-      "source": "p031-hosted-ordinary-8"
+      "milliseconds": 152,
+      "source": "p032-local-ordinary-complement"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -8641,8 +9288,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.PublicEducationHttpTests.Query_shape_refusals_happen_before_configuration_or_data_read",
-      "milliseconds": 766,
-      "source": "p031-hosted-ordinary-0"
+      "milliseconds": 860,
+      "source": "p032-local-ordinary-complement"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -8815,8 +9462,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.PublicSiteHttpTests.Live_mapping_does_not_serve_an_inactive_tenant",
-      "milliseconds": 487,
-      "source": "p031-hosted-ordinary-1"
+      "milliseconds": 562,
+      "source": "p032-local-ordinary-complement"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -8865,6 +9512,60 @@
       "method": "LearnStack.Tests.Integration.Database.PublicSiteHttpTests.Valid_empty_or_all_disabled_configuration_hides_site",
       "milliseconds": 309,
       "source": "p031-hosted-ordinary-5"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.RoleGrantCommandIntegrationTests.Actual_MUST_failure_rolls_back_the_Role_version_and_contained_grant_without_a_result",
+      "milliseconds": 96,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.RoleGrantCommandIntegrationTests.Actual_committed_admin_suspension_during_the_exclusive_lock_wait_refuses_the_postwait_act",
+      "milliseconds": 171,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.RoleGrantCommandIntegrationTests.Actual_orgless_admin_authors_Organization_template_under_Tenant_ceiling_with_one_MUST_Role_diff",
+      "milliseconds": 85,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.RoleGrantCommandIntegrationTests.Every_assignable_pair_requires_a_legal_delegation_target_with_committed_denial_and_no_refused_mutation",
+      "milliseconds": 895,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.RoleGrantCommandIntegrationTests.Finite_v1_adoption_is_a_separate_audited_act_and_unknown_manifest_never_repairs_the_target",
+      "milliseconds": 619,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.RoleGrantCommandIntegrationTests.Foreign_target_and_wrong_expected_version_are_refused_without_changes",
+      "milliseconds": 153,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.RoleGrantCommandIntegrationTests.Organization_actor_and_orgless_reissue_never_promote_Organization_grants_to_Tenant_role_administration",
+      "milliseconds": 134,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.RoleGrantCommandIntegrationTests.Removed_profile_authority_cannot_self_restore_through_change_or_v1_adoption_and_kernel_cannot_be_removed",
+      "milliseconds": 316,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.SeedAuthorizationActivationTests.Canonical_finite_seed_refusal_uses_one_shared_qualified_evidence_lane_across_per_act_providers",
+      "milliseconds": 30,
+      "source": "p032-local-ordinary-complement"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -9348,6 +10049,18 @@
     },
     {
       "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.TenantExistingBindingAdmissionTests.Actual_host_refuses_either_auxiliary_lane_on_another_cluster_with_the_same_database_name_and_authority",
+      "milliseconds": 7330,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
+      "method": "LearnStack.Tests.Integration.Database.TenantExistingBindingAdmissionTests.Actual_host_startup_refuses_auxiliary_role_anchor_and_actual_database_mismatch_without_repair",
+      "milliseconds": 4557,
+      "source": "p032-local-ordinary-complement"
+    },
+    {
+      "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.TenantExistingBindingAdmissionTests.Actual_host_startup_requires_the_installed_authority_exact_configuration_and_application_role",
       "milliseconds": 5769,
       "source": "p031-hosted-ordinary-0"
@@ -9601,8 +10314,8 @@
     {
       "assembly": "learnstack.tests.integration",
       "method": "LearnStack.Tests.Integration.Database.TrustedVisitorHttpTests.Bad_authenticated_metadata_spends_fallback_quota_and_never_reaches_lookup",
-      "milliseconds": 1025,
-      "source": "p031-hosted-ordinary-5"
+      "milliseconds": 1720,
+      "source": "p032-local-ordinary-complement"
     },
     {
       "assembly": "learnstack.tests.integration",
@@ -10270,6 +10983,11 @@
     "LearnStack.Tests.Integration.Database.AuditSchemaTests",
     "LearnStack.Tests.Integration.Database.AuditStoreTests",
     "LearnStack.Tests.Integration.Database.AuditWorkflowTests",
+    "LearnStack.Tests.Integration.Database.AuthorizationEvidenceBarrierTests",
+    "LearnStack.Tests.Integration.Database.AuthorizationEvidenceSourceTests",
+    "LearnStack.Tests.Integration.Database.AuthorizationEvidenceStoreTests",
+    "LearnStack.Tests.Integration.Database.AuthorizationPoolProgressTests",
+    "LearnStack.Tests.Integration.Database.AuthorizationReadSourceTests",
     "LearnStack.Tests.Integration.Database.BackgroundJobAdmissionTests",
     "LearnStack.Tests.Integration.Database.BackgroundJobApplicationSourceTests",
     "LearnStack.Tests.Integration.Database.BackgroundJobBridgeFaultTests",
@@ -10294,6 +11012,7 @@
     "LearnStack.Tests.Integration.Database.CustomizationProjectionTests",
     "LearnStack.Tests.Integration.Database.CustomizationPublicationConcurrencyTests",
     "LearnStack.Tests.Integration.Database.CustomizationSchemaTests",
+    "LearnStack.Tests.Integration.Database.DatabaseQualificationProofTests",
     "LearnStack.Tests.Integration.Database.DatabaseRoleTests",
     "LearnStack.Tests.Integration.Database.DeliveryDispatchStoreTests",
     "LearnStack.Tests.Integration.Database.DeliveryExecutionTests",
@@ -10317,6 +11036,8 @@
     "LearnStack.Tests.Integration.Database.HangfirePoolOwnerTests",
     "LearnStack.Tests.Integration.Database.HangfireStorageTests",
     "LearnStack.Tests.Integration.Database.HostResolutionTests",
+    "LearnStack.Tests.Integration.Database.IdentityAuthorizationHttpTests",
+    "LearnStack.Tests.Integration.Database.IdentityAuthorizationReaderTests",
     "LearnStack.Tests.Integration.Database.IdentityCommandQualificationTests",
     "LearnStack.Tests.Integration.Database.IdentityDiagnosticSinkTests",
     "LearnStack.Tests.Integration.Database.IdentityMembershipTests",
@@ -10326,7 +11047,10 @@
     "LearnStack.Tests.Integration.Database.IdentitySeederTests",
     "LearnStack.Tests.Integration.Database.InboxGuardTests",
     "LearnStack.Tests.Integration.Database.KillswitchOverlayTests",
+    "LearnStack.Tests.Integration.Database.MembershipDirectoryIntegrationTests",
+    "LearnStack.Tests.Integration.Database.MembershipDirectoryPipelineTests",
     "LearnStack.Tests.Integration.Database.MigrationRollbackTests",
+    "LearnStack.Tests.Integration.Database.OperationReadScopeTests",
     "LearnStack.Tests.Integration.Database.OrgScopeMigrationTests",
     "LearnStack.Tests.Integration.Database.OrgScopeSchemaTests",
     "LearnStack.Tests.Integration.Database.OrganizationScopeValidatorTests",
@@ -10348,6 +11072,8 @@
     "LearnStack.Tests.Integration.Database.PublicReadTransactionTests",
     "LearnStack.Tests.Integration.Database.PublicServerRenderingTests",
     "LearnStack.Tests.Integration.Database.PublicSiteHttpTests",
+    "LearnStack.Tests.Integration.Database.RoleGrantCommandIntegrationTests",
+    "LearnStack.Tests.Integration.Database.SeedAuthorizationActivationTests",
     "LearnStack.Tests.Integration.Database.SeederTests",
     "LearnStack.Tests.Integration.Database.StorageRelationCensusTests",
     "LearnStack.Tests.Integration.Database.TenancySchemaTests",

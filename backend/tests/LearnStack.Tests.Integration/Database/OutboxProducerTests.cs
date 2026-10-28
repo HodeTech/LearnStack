@@ -16,10 +16,10 @@ using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Messaging;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Time;
-using LearnStack.Tools.Seeder;
 using MediatR;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -31,7 +31,8 @@ using Xunit;
 namespace LearnStack.Tests.Integration.Database;
 
 /// <summary>
-/// Immediate production through the real application role and production DI roots.
+/// Immediate production through the real application role and persistence registrations.
+/// The one nested command has exact component authority, not a human permission grant.
 /// Committing or deliberately breaking a database control uses an isolated database;
 /// shared-schema cases roll back every successful INSERT.
 /// </summary>
@@ -751,8 +752,14 @@ public sealed partial class OutboxProducerTests(SchemaFixture schema)
         AssertClean(services);
     }
 
-    private static ServiceProvider Compose(NpgsqlDataSource dataSource, ITenantContext? context = null) =>
-        SeedComposition.Build(dataSource, context ?? new ActingContext(), NullLoggerFactory.Instance);
+    private static ServiceProvider Compose(NpgsqlDataSource dataSource, ITenantContext? context = null)
+    {
+        var services = ComponentOperationRegistration.CreateDatabaseServices(dataSource, context ?? new ActingContext());
+        ComponentOperationRegistration.AddExactComponentAuthority(services,
+            OperationPolicy.ForTrusted<CreateOrganizationCommand>(
+                "tests.component.outbox.create_organization", AuthorizationSourceKind.Seed));
+        return services.BuildServiceProvider();
+    }
 
     private static Task<Result<None>> RunAsync(
         IServiceProvider services, Func<Task<Result<None>>> body, bool audited = false,

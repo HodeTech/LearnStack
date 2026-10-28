@@ -1,7 +1,7 @@
 namespace LearnStack.SharedKernel.Audit;
 
 /// <summary>
-/// Turns one intent plus its request's captured changes into the row to insert.
+/// Turns one ordinary resource intent plus its request's captured changes into the row to insert.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -155,8 +155,8 @@ public static class AuditDraftComposer
             Changes = Diff(subject.OfType),
 
             CorrelationId = intent.CorrelationId,
-            IpAddress = null,
-            UserAgent = null,
+            IpAddress = intent.Authorization?.Address,
+            UserAgent = intent.Authorization?.UserAgent,
             Timestamp = timestamp,
             Metadata = ComposeMetadata(intent),
         };
@@ -172,7 +172,7 @@ public static class AuditDraftComposer
         }
 
         if (intent.CausationId is null && intent.CausalActorUserId is null
-            && intent.JobId is null && intent.ParentJobId is null) return null;
+            && intent.JobId is null && intent.ParentJobId is null && intent.Authorization is null) return null;
         if (intent.CausationId == Guid.Empty
             || (intent.CausalActorUserId is { } actor
                 && (!actor.IsInitialized() || actor.Value == Guid.Empty))
@@ -186,6 +186,13 @@ public static class AuditDraftComposer
         // This closed identifier-only shape is shared by both writing paths; it
         // grants no arbitrary metadata channel to an intent or business handler.
         var fields = new List<string>(4);
+        if (intent.Authorization is { } authorization)
+        {
+            if (intent.TenantId != authorization.TenantId || intent.OrganizationId != authorization.OrganizationId
+                || intent.ActorUserId != authorization.Actor)
+                throw new ArgumentException("Resource audit authorization attribution is invalid.", nameof(intent));
+            fields.Add("\"authorization\":" + authorization.ToJson());
+        }
         if (intent.CausationId is { } causation)
         {
             fields.Add("\"causation_id\":" + AuditJson.Quote(causation.ToString("D")));

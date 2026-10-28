@@ -268,7 +268,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
                 probe.SecondEntered.TrySetResult();
                 await probe.AllowSecondWrite.Task.WaitAsync(TimeSpan.FromSeconds(45), cancellationToken);
             }
-            var written = await sender.Send(new CreateOrganizationCommand(finalized,
+            var written = await sender.Send(Fixture.OrganizationRequest(finalized,
                 "finalized-" + finalized.Value.ToString("N"), "Finalized provider " + input.Status), cancellationToken);
             if (written.IsFailure) throw new InvalidOperationException("The actual nested organization write was refused.");
             if (ordinal == 1)

@@ -84,6 +84,78 @@ public sealed partial class AuthenticationAuthorityTests
         verifiedField.IsInitOnly = false;
         Offenders(modules).Should().NotBeEmpty("verified evidence must remain immutable for cached quota provenance");
         verifiedField.IsInitOnly = true;
+        var witness = api.GetType(CandidateSource).NestedTypes.Single(type => type.FullName == CredentialWitness);
+        var witnessField = witness.Fields.Single(candidate => Is(candidate.FieldType, Identity));
+        witnessField.IsInitOnly = false;
+        Offenders(modules).Should().Contain("Candidate credential witness must retain its private immutable nonformatting shape.");
+        witnessField.IsInitOnly = true;
+        var witnessText = witness.Methods.Single(method => method.Name == "ToString").Body.Instructions
+            .Single(instruction => instruction.OpCode == OpCodes.Ldstr);
+        var fixedText = witnessText.Operand;
+        witnessText.Operand = "Unexpected credential text";
+        Offenders(modules).Should().Contain("Candidate credential witness must retain its private immutable nonformatting shape.");
+        witnessText.Operand = fixedText;
+        var transport = api.GetType(TransportSource).Methods.Single(method => method.Name == "Capture");
+        var formatting = transport.Body.Instructions.Single(instruction => instruction.Operand is MethodReference target
+            && target.FullName == "System.String System.Object::ToString()");
+        var constrained = formatting.Previous;
+        var headerType = constrained.Operand;
+        constrained.Operand = identity;
+        Offenders(modules).Should().Contain("Opaque typed identity/feature export: " + transport.FullName,
+            "only the constrained User-Agent value can use the transport formatting exception");
+        constrained.Operand = headerType;
+        var headerRead = transport.Body.Instructions.Single(instruction => instruction.Operand is MethodReference target
+            && target.FullName == "Microsoft.Extensions.Primitives.StringValues Microsoft.AspNetCore.Http.IHeaderDictionary::get_UserAgent()");
+        var headerGetter = headerRead.Operand;
+        headerRead.OpCode = OpCodes.Nop;
+        headerRead.Operand = null;
+        Offenders(modules).Should().Contain("Opaque typed identity/feature export: " + transport.FullName,
+            "the formatter must retain the actual User-Agent acquisition, not just a StringValues local");
+        headerRead.OpCode = OpCodes.Callvirt;
+        headerRead.Operand = headerGetter;
+        Offenders(modules).Should().BeEmpty("restoring actual header acquisition and formatting restores the clean graph");
+        var classifier = api.GetType(Authentication + "OperationHttpClassifier").Methods.Single(method => method.Name == "Classify");
+        var rolesRead = classifier.Body.Instructions.Single(instruction => instruction.Operand is MethodReference target
+            && target.FullName == "System.String Microsoft.AspNetCore.Authorization.IAuthorizeData::get_Roles()");
+        var emptyCheck = rolesRead.Next;
+        var predicate = emptyCheck.Operand;
+        emptyCheck.OpCode = OpCodes.Nop;
+        emptyCheck.Operand = null;
+        Offenders(modules).Should().Contain(value => value.StartsWith("Raw claim/role authority:", StringComparison.Ordinal),
+            "a role read is allowed only to refuse nonempty metadata immediately");
+        emptyCheck.OpCode = OpCodes.Call;
+        emptyCheck.Operand = predicate;
+        var emptyBranch = emptyCheck.Next;
+        var admittedWhenEmpty = emptyBranch.OpCode;
+        emptyBranch.OpCode = OpCodes.Brfalse_S;
+        Offenders(modules).Should().Contain(value => value.StartsWith("Raw claim/role authority:", StringComparison.Ordinal),
+            "nonempty role metadata cannot enter the admitted branch");
+        emptyBranch.OpCode = admittedWhenEmpty;
+        foreach (var type in new[] { Authentication + "OperationAuthorizationHandler", Authentication + "OperationClassificationMiddleware" })
+        {
+            var operation = Methods([api.GetType(type)]).Single(method => method.Definition.Body.Instructions.Any(instruction =>
+                instruction.Operand is MethodReference target && target.Name == "CheckHttpAsync"));
+            var check = operation.Definition.Body.Instructions.Single(instruction => instruction.Operand is MethodReference target && target.Name == "CheckHttpAsync");
+            var endpoint = check.Previous.Previous.Previous.Previous;
+            var acquisition = endpoint.Operand;
+            endpoint.OpCode = OpCodes.Ldnull;
+            endpoint.Operand = null;
+            Offenders(modules).Should().Contain("Opaque typed identity/feature export: " + operation.Site,
+                "the opaque operation argument must be the actual same-request endpoint");
+            endpoint.OpCode = OpCodes.Call;
+            endpoint.Operand = acquisition;
+            var identityRead = operation.Definition.Body.Instructions.Single(instruction => instruction.Operand is MethodReference target
+                && Is(target.DeclaringType, Feature) && target.Name == "get_Identity");
+            var format = new[] { Instruction.Create(OpCodes.Dup), Instruction.Create(OpCodes.Callvirt,
+                api.ImportReference(typeof(object).GetMethod(nameof(ToString), Type.EmptyTypes)!)), Instruction.Create(OpCodes.Pop) };
+            var processor = operation.Definition.Body.GetILProcessor();
+            var previous = identityRead;
+            foreach (var instruction in format) { processor.InsertAfter(previous, instruction); previous = instruction; }
+            Offenders(modules).Should().Contain("Opaque typed identity/feature export: " + operation.Site,
+                "an approved endpoint forwarding site must still reject extra formatting of its actual identity");
+            foreach (var instruction in format) processor.Remove(instruction);
+            Offenders(modules).Should().BeEmpty("restoring endpoint acquisition and removing identity formatting restores the exact owner");
+        }
         var actor = identity.Properties.Single(property => property.Name == "ActorUserId").SetMethod;
         var init = actor.ReturnType;
         actor.ReturnType = api.TypeSystem.Void;
@@ -178,6 +250,11 @@ public sealed partial class AuthenticationAuthorityTests
     [InlineData("feature-property")]
     [InlineData("feature-field")]
     [InlineData("feature-constructor")]
+    [InlineData("witness-method")]
+    [InlineData("witness-property")]
+    [InlineData("witness-field")]
+    [InlineData("witness-constructor")]
+    [InlineData("candidate-opaque-forwarding")]
     [InlineData("generic-export")]
     [InlineData("object-export")]
     [InlineData("identity-constraint")]
@@ -186,9 +263,27 @@ public sealed partial class AuthenticationAuthorityTests
     {
         Offenders(modules).Should().BeEmpty();
         var api = modules.Single(module => module.Assembly.Name.Name == "LearnStack.Api");
-        var owner = api.GetType(mutation.StartsWith("feature-", StringComparison.Ordinal) ? Feature
-            : mutation.StartsWith("verified-", StringComparison.Ordinal) ? Verified : Identity);
+        var owner = mutation.StartsWith("witness-", StringComparison.Ordinal)
+            ? api.GetType(CandidateSource).NestedTypes.Single(type => type.FullName == CredentialWitness)
+            : api.GetType(mutation.StartsWith("feature-", StringComparison.Ordinal) ? Feature
+                : mutation.StartsWith("verified-", StringComparison.Ordinal) ? Verified : Identity);
         var factory = api.GetType(Profile).Methods.Single(method => method.Name == "TryReadValidated");
+        if (mutation == "candidate-opaque-forwarding")
+        {
+            var minter = api.GetType(CandidateSource).Methods.Single(method => method.Name == "ForValidatedScope");
+            var forwarding = minter.Body.Instructions.Single(instruction => instruction.Operand is MethodReference target
+                && target.DeclaringType.FullName == "LearnStack.SharedKernel.Permissions.AuthorizationCandidate/MintingSource"
+                && target.Name == "ForCandidate");
+            // Erasing any other object here must not inherit the one closed
+            // private witness constructor's exemption.
+            var construction = forwarding.Previous;
+            var original = construction.Operand;
+            construction.Operand = api.ImportReference(typeof(object).GetConstructor(Type.EmptyTypes)!);
+            Offenders(modules).Should().Contain(value => value.StartsWith("Opaque typed identity/feature export:", StringComparison.Ordinal));
+            construction.Operand = original;
+            Offenders(modules).Should().BeEmpty("restoring the exact witness construction restores the clean graph");
+            return;
+        }
         if (mutation.EndsWith("-property", StringComparison.Ordinal))
             owner.Properties.Add(new PropertyDefinition("Extra", PropertyAttributes.None, api.TypeSystem.String));
         else if (mutation.EndsWith("-field", StringComparison.Ordinal))
@@ -273,24 +368,31 @@ public sealed partial class AuthenticationAuthorityTests
             var setter = validated.Body.Instructions.Single(instruction => instruction.Operand is MethodReference target
                 && Is(target.DeclaringType, Feature) && target.Name == "set_VerifiedSubject");
             var identity = validated.Body.Variables.Single(variable => Is(variable.VariableType, Verified));
-            var forwarding = new List<Instruction>();
-            if (array)
-                forwarding.AddRange([Instruction.Create(OpCodes.Ldc_I4_1), Instruction.Create(OpCodes.Newarr, api.TypeSystem.Object),
-                    Instruction.Create(OpCodes.Dup), Instruction.Create(OpCodes.Ldc_I4_0)]);
-            forwarding.Add(Instruction.Create(OpCodes.Ldloc, identity));
-            if (array) forwarding.Add(Instruction.Create(OpCodes.Stelem_Ref));
-            forwarding.Add(Instruction.Create(OpCodes.Call, helper));
-            var processor = validated.Body.GetILProcessor();
-            var previous = setter;
-            foreach (var instruction in forwarding)
+            var transport = api.GetType(TransportSource).Methods.Single(method => method.Name == "Capture");
+            var transportIdentity = transport.Body.Variables.Single(variable => Is(variable.VariableType, Identity));
+            var identityStore = transport.Body.Instructions.Single(instruction => StoresLocal(instruction, transportIdentity));
+            foreach (var (owner, insertion, projection) in new[]
+                     { (validated, setter, identity), (transport, identityStore, transportIdentity) })
             {
-                processor.InsertAfter(previous, instruction);
-                previous = instruction;
+                var forwarding = new List<Instruction>();
+                if (array)
+                    forwarding.AddRange([Instruction.Create(OpCodes.Ldc_I4_1), Instruction.Create(OpCodes.Newarr, api.TypeSystem.Object),
+                        Instruction.Create(OpCodes.Dup), Instruction.Create(OpCodes.Ldc_I4_0)]);
+                forwarding.Add(Instruction.Create(OpCodes.Ldloc, projection));
+                if (array) forwarding.Add(Instruction.Create(OpCodes.Stelem_Ref));
+                forwarding.Add(Instruction.Create(OpCodes.Call, helper));
+                var processor = owner.Body.GetILProcessor();
+                var previous = insertion;
+                foreach (var instruction in forwarding)
+                {
+                    processor.InsertAfter(previous, instruction);
+                    previous = instruction;
+                }
+                Offenders(modules).Should().Contain("Opaque typed identity/feature export: " + owner.FullName,
+                    "the real approved caller forwarded its actual validated identity into " + (array ? "object[]" : "object"));
+                foreach (var instruction in forwarding) processor.Remove(instruction);
+                Offenders(modules).Should().BeEmpty("removing the forwarding restores the clean graph while retaining the helper");
             }
-            Offenders(modules).Should().Contain(value => value.StartsWith("Opaque typed identity/feature export:", StringComparison.Ordinal),
-                "the real approved TokenValidated caller forwarded its actual validated identity into " + (array ? "object[]" : "object"));
-            foreach (var instruction in forwarding) processor.Remove(instruction);
-            Offenders(modules).Should().BeEmpty("removing the forwarding restores the clean graph while retaining the helper");
         });
 
     /// <summary>ADR-0064: erasing an identity through storage is an export even with a parameterless reader.</summary>

@@ -9,7 +9,9 @@
 [ADR-0020 Triple Deployment + Hybrid License](../decisions/0020-triple-deployment-hybrid-license.md),
 [ADR-0029 Object Storage — SeaweedFS](../decisions/0029-object-storage-seaweedfs.md),
 [ADR-0030 Redis-Compatible Store — Valkey](../decisions/0030-redis-compatible-store-valkey.md),
-[ADR-0031 PostgreSQL — Start on 18.x](../decisions/0031-postgresql-major-version.md).
+[ADR-0031 PostgreSQL — Start on 18.x](../decisions/0031-postgresql-major-version.md),
+[ADR-0076 Live Scoped Authorization](../decisions/0076-live-scoped-authorization.md),
+[ADR-0077 Trusted Authorization Evidence](../decisions/0077-trusted-authorization-evidence.md).
 
 How LearnStack is built, packaged, deployed, configured, and observed at the
 infrastructure level. The application-code rules for the foundation building blocks
@@ -220,6 +222,38 @@ Rules:
 - Restore drills quarterly. A drill counts only if integration tests pass against a restored instance.
 - Replication: read replicas optional from Phase 11.
 - PgBouncer in transaction pooling mode in production.
+
+### Authorization and evidence topology
+
+Accepted ADR-0076/0077 require three physically separate bounded application
+sources. The [database source ledger](05-database.md#authorization-and-evidence-source-ledger)
+owns their borrower census, fixed four authorization/two evidence retained-owner
+caps, role/authority guards and actual-cleanup lifetime. These are local capacity
+bounds, not measured production sizing. Acceptance does not supply runtime
+wiring or deployment proof.
+
+- Business uses `ConnectionStrings:Default`; the coupled auxiliary pair is
+  `ConnectionStrings:IdentityAuthorization` and
+  `ConnectionStrings:AuthorizationEvidence`. Partial explicit configuration
+  refuses. Only `Development` may derive both from a direct-PostgreSQL Default
+  endpoint, retaining separate bounded sources. Outside `Development`, both
+  explicit guarded strings are mandatory. Modules never select endpoints.
+- Credentials stay in the environment/private configuration source and do not
+  enter restore/build inputs. All sources use `learnstack_app`, the same actual
+  database and matching installed identity authority; no new login or bypass
+  privilege is introduced.
+- PgBouncer transaction pooling uses distinct database aliases
+  `learnstack_identity_authorization` and `learnstack_authorization_evidence`
+  targeting that same database/app role, with independent backend lanes outside
+  business capacity. Reserve downstream headroom across alias pools, cross-alias
+  user/database limits, PostgreSQL capacity and the admitted application-instance
+  count. Application names and additional client pools prove no backend reserve.
+- P03-2 owns small real-PostgreSQL and pinned transaction-pooling PgBouncer
+  progress proofs before live activation, including held business server
+  transactions, admitted nested/post-lock authorization and standalone evidence,
+  plus the shared-downstream dirty topology. Phase 11 owns qualification of the
+  actual production topology, total instance capacity and operational controls
+  before production activation; it cannot replace those P03-2 correctness proofs.
 
 ## Object Storage Operations
 

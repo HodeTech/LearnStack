@@ -97,6 +97,20 @@ public static class PersistenceCompositionExtensions
     /// <summary>The role required by the application data source.</summary>
     internal const string RuntimeRole = ApplicationDataSource.RuntimeRole;
 
+    /// <summary>Captures the coupled app-role source configuration at the existing credential boundary.</summary>
+    internal static IServiceCollection AddLearnStackAuthorizationSourceConfiguration(
+        this IServiceCollection services, IConfiguration configuration, bool allowDevelopmentDerivation)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+        var business = configuration.GetConnectionString("Default");
+        var authorization = configuration.GetConnectionString("IdentityAuthorization");
+        var evidence = configuration.GetConnectionString("AuthorizationEvidence");
+        services.TryAddSingleton(_ => AuthorizationSourceConfiguration.Resolve(
+            business, authorization, evidence, allowDevelopmentDerivation));
+        return services;
+    }
+
     public static IServiceCollection AddLearnStackPersistence(
         this IServiceCollection services, IConfiguration configuration)
     {

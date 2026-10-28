@@ -828,3 +828,36 @@ Existing MUST durability, refusal posture and independently owned cleanup remain
 Joint ADR-0072/0073 acceptance grants this bounded authority. P03-1 Step 3 still
 must prove same-transaction success, precommit refusal, unknown COMMIT and exact
 evidence under the actual app role.
+
+## Amendment 12 — Pre-success authorization evidence (2026-10-27)
+
+Accepted [ADR-0077](0077-trusted-authorization-evidence.md) adds the common typed
+MUST `identity.authorization.deny` occurrence, separately from each operation's
+existing plural resource intents. Normal Off/SHOULD/MAY classifications are not
+promoted, and tenant overrides cannot remove the denial-event floor. HTTP and
+application/resource adapters share a central occurrence owner; actual nested
+acts remain distinct.
+
+An otherwise-successful ReadWrite owner carries unresolved events atomically
+on its business transaction before final commit admission. ReadOnly or ownerless
+success requires their acknowledged standalone write before completion/disclosure.
+Failure prevents that outer success with `audit_unavailable`; an actually refused
+caller retains its 403/404 with the existing Critical/counter/health posture.
+A joiner neither acknowledges nor clears this population. A global business
+Committed flag cannot suppress an event that owner never wrote.
+
+Each occurrence freezes one id, one microsecond-normalized decision timestamp
+and complete draft. Its admitted pending/standalone/reconciliation attempts reuse
+that exact key. Expected-primary-key duplicate verification requires a clean
+captured-scope full-draft match and proves only event durability, never business
+success. Ordinary resource reconciliation deliberately retains its different-
+timestamp semantics. Unknown business COMMIT stays unknown. A crash before any
+applicable event write commits can lose an uncompleted refusal; no durable
+invocation/restart replay ledger is introduced.
+
+[Audit Coverage](../standards/18-audit-coverage.md#trusted-authorization-evidence)
+owns the canonical populations, barrier and provenance contract. ADR-0077 also
+adds the separately attributed per-occurrence claim-context assertion record;
+ADR-0065's host allowance does not apply. P03-2 implements/proves this accepted
+extension before activation. Other durability rules and historical Accepted
+body/status/date remain unchanged.

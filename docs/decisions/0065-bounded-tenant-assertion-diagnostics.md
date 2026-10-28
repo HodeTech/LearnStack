@@ -378,3 +378,17 @@ failed-attempt accounting and refusal behavior in this ADR remain unchanged.
 P03-1 Step 3 owns the new global audit proofs and Step 5 its admission integration;
 joint authority acceptance supplies neither runtime evidence nor an expanded
 mismatch budget.
+
+### Amendment 5 — Separate live-authorization evidence populations (2026-10-27)
+
+Accepted [ADR-0077](0077-trusted-authorization-evidence.md) adds authorization
+denial and Membership-confirmed header-assertion events. Neither consumes this
+record's independently defended host-tenant allowance. A successful claim-only
+context followed by a conflicting header is separately classified and attributed;
+it is neither a defended-host event nor a refused row-14 membership event.
+
+The host budget's key, suppression, counters, source population and evidence-loss
+tradeoff remain unchanged. No general authorization budget is inferred here.
+[Audit Coverage](../standards/18-audit-coverage.md#trusted-authorization-evidence)
+owns the new populations; P03-2 must qualify their distinct paths before live
+membership activation. Historical Accepted body/status/date remain unchanged.

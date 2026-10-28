@@ -329,6 +329,25 @@ data. Existing SecurityEvent retention applies, and metadata stays outside the
 six-column UPDATE grant. P03-10 locates and reports retained linkage under the
 same inventory boundary.
 
+### Accepted authorization evidence linkage
+
+Jointly Accepted [ADR-0076](../decisions/0076-live-scoped-authorization.md) /
+[ADR-0077](../decisions/0077-trusted-authorization-evidence.md) add trusted bounded
+provenance to the existing `audit_log` custody boundary. Membership/Role IDs in `metadata.authorization` remain personal linkage,
+not anonymous facts or a new durable store. The [Standard 18 contract](../standards/18-audit-coverage.md#trusted-authorization-evidence)
+owns exact source/field bounds, fixed occurrence identity, reconciliation and
+redactable transport columns. No profile/email mirror or additional metadata
+UPDATE privilege is admitted.
+
+Each row keeps its own [retention target](../standards/18-audit-coverage.md#retention):
+denial/assertion SecurityEvent seven years; directory ReadSensitive two years.
+Automatic purge, retention columns and tenant retention overrides are not
+implemented today; Phase 11 owns that machinery, so data can outlive these targets.
+P03-10's Audit participant locates authorization references through retained
+actor/subject attribution and reports surviving metadata under the fulfillment
+contract below. Removing a Membership or redacting the six permitted columns
+does not establish removal of these references.
+
 ### Erasure authority and first-writer prerequisites
 
 - [Phase 03](../roadmap/phase-03-identity-admin.md#tenant-data-ownership-dsar-boundary-and-pii-classification)
@@ -364,11 +383,11 @@ same inventory boundary.
 P03-10's Identity closure coordinator owns the authorized lifecycle transition
 and raw-subject removal. The Audit redaction participant uses
 `IUserReferenceLocator` to locate exact global failed-attempt paths by subject key
-even when no User was committed, together with successful actor references. Its
+even when no User was committed, together with successful actor references and ADR-0077 authorization linkage. Its
 request/result contract reports retained immutable linkage and the applicable
 retention truthfully; it does not call the tombstone or subject key anonymous.
 The key/actor tombstone serves indefinite anti-recreation, while audit copies
-follow the SecurityEvent period in [Audit Coverage](../standards/18-audit-coverage.md#retention).
+follow their per-row policy targets in [Audit Coverage](../standards/18-audit-coverage.md#retention).
 This foundation contract does not widen metadata UPDATE grants. P03-10 settles exact
 principal, minimum grants and participant completion before its first writer;
 Phase 11 owns later purge, backup and retained-copy reconciliation operations.

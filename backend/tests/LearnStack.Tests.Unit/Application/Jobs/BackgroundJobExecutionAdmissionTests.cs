@@ -7,6 +7,7 @@ using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using MediatR;
@@ -18,6 +19,89 @@ namespace LearnStack.Tests.Unit.Application.Jobs;
 
 public sealed class BackgroundJobExecutionAdmissionTests
 {
+    [Fact]
+    public async Task Policy_source_captures_the_admitted_frame_without_reclaiming_the_root_and_retains_only_live_ancestors()
+    {
+        var fixture = new Fixture();
+        var receipt = JobAdmissionFixtureReceipt.Create(Fixture.Key, fixture.Context.TenantId, null,
+            BackgroundJobExecutionStage.Transactional);
+        using var binding = receipt.SourceOwner.Enter();
+        using var execution = fixture.EnterReceipt(receipt);
+        using var source = new BackgroundJobOperationSource();
+        source.Capture(typeof(Root), fixture.Context).Should().BeNull("execution alone has no admitted request frame");
+        BackgroundJobExecutionAdmission.TryEnterRequest(typeof(Root), fixture.Context, out var root).Should().BeTrue();
+        using (root)
+        {
+            var parent = source.Capture(typeof(Root), fixture.Context);
+            parent.Should().NotBeNull();
+            parent!.SourceKind.Should().Be(AuthorizationSourceKind.BackgroundJob);
+            parent.Matches(typeof(Root), fixture.Context).Should().BeTrue();
+            parent.Matches(typeof(Nested), fixture.Context).Should().BeFalse();
+            var auxiliary = receipt.SourceOwner.BeginAuthorizationRead();
+            auxiliary.HoldActualTask(Task.CompletedTask);
+            parent.IsActive.Should().BeTrue("owner lifetime is distinct from temporary auxiliary-lane readiness");
+            await auxiliary.CleanupAsync();
+            source.Capture(typeof(Unlisted), fixture.Context).Should().BeNull();
+            source.Capture(typeof(Root), ((JobContext)fixture.Context) with { }).Should().BeNull();
+            BackgroundJobExecutionAdmission.PermitsRequest(typeof(Root), fixture.Context).Should().BeFalse(
+                "capturing slot-5 evidence must not attempt slot-4 root admission again");
+            BackgroundJobExecutionAdmission.TryEnterRequest(typeof(Nested), fixture.Context, out var nested).Should().BeTrue();
+            TrustedOperationDescriptor? child;
+            using (nested)
+            {
+                parent.IsActive.Should().BeTrue("an open ancestor retains its own lifetime during a legitimate nested act");
+                child = source.Capture(typeof(Nested), fixture.Context);
+                child.Should().NotBeNull();
+                child!.IsActive.Should().BeTrue();
+            }
+            child!.IsActive.Should().BeFalse();
+            parent.IsActive.Should().BeTrue();
+            root!.Dispose();
+            parent.IsActive.Should().BeFalse();
+            source.Capture(typeof(Root), fixture.Context).Should().BeNull();
+        }
+    }
+
+    [Theory]
+    [InlineData("source")]
+    [InlineData("binding")]
+    [InlineData("execution")]
+    [InlineData("context")]
+    [InlineData("owner-fault")]
+    public async Task Policy_source_revokes_retained_descriptors_when_their_actual_owner_closes(string closing)
+    {
+        var fixture = new Fixture();
+        var receipt = JobAdmissionFixtureReceipt.Create(Fixture.Key, fixture.Context.TenantId, null,
+            BackgroundJobExecutionStage.Transactional);
+        using var binding = receipt.SourceOwner.Enter();
+        using var execution = fixture.EnterReceipt(receipt);
+        using var source = new BackgroundJobOperationSource();
+        BackgroundJobExecutionAdmission.TryEnterRequest(typeof(Root), fixture.Context, out var request).Should().BeTrue();
+        using var requestScope = request;
+        var descriptor = source.Capture(typeof(Root), fixture.Context);
+        descriptor.Should().NotBeNull();
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var inherited = Task.Run(async () =>
+        {
+            await release.Task;
+            descriptor!.IsActive.Should().BeFalse();
+            source.Capture(typeof(Root), fixture.Context).Should().BeNull();
+        });
+        if (closing == "source") source.Dispose();
+        else if (closing == "binding") binding.Dispose();
+        else if (closing == "execution") execution.Dispose();
+        else if (closing == "context") fixture.Context = ((JobContext)fixture.Context) with { };
+        else
+        {
+            var lane = receipt.SourceOwner.BeginAuthorizationEvidence();
+            lane.HoldActualTask(Task.CompletedTask);
+            lane.MarkCleanupFailed();
+            await lane.CleanupAsync();
+        }
+        release.SetResult();
+        await inherited.WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
     [Fact]
     public async Task External_scope_refuses_sender_and_direct_owner_entry_after_accessor_replacement_and_inherited_cleanup()
     {
@@ -402,7 +486,6 @@ public sealed class BackgroundJobExecutionAdmissionTests
             {
                 configuration.RegisterServicesFromAssembly(typeof(ITenantContext).Assembly);
                 configuration.AddOpenBehavior(typeof(TenantContextBehavior<,>));
-                configuration.AddOpenBehavior(typeof(AuthorizationBehavior<,>));
             });
             services.AddTransient<IRequestHandler<Root, Result<string>>, RootHandler>();
             foreach (var type in Catalog.Types.Append(typeof(Unlisted)))

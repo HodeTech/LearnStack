@@ -51,7 +51,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
                 request.Should().Be("TenantRoot");
                 AssertCombinedHolds(outboxHold, deliveryHold, expiration, observedSource);
                 bodyObserved.TrySetResult(PoolStatistics(observedSource!).Busy);
-                var result = await services.GetRequiredService<ISender>().Send(new CreateOrganizationCommand(
+                var result = await services.GetRequiredService<ISender>().Send(Fixture.OrganizationRequest(
                     OrganizationId.From(organization), "combined-" + organization.ToString("N")[..12], "Combined capacity"), token);
                 result.IsSuccess.Should().BeTrue();
                 return Result.Ok(None.Value);
@@ -231,7 +231,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         await using var command = new NpgsqlCommand("""
             SELECT (SELECT count(*) FROM organizations WHERE tenant_id=@tenant AND id=@organization)=1
                 AND (SELECT count(*) FROM audit_log WHERE tenant_id=@tenant
-                    AND operation='tenancy.organization.create' AND operation_class='Must'
+                    AND operation='jobfixture.organization.create' AND operation_class='Must'
                     AND entity_id=@organization::text)=1
             """, connection, transaction);
         command.Parameters.AddWithValue("tenant", SchemaFixture.TenantB);
