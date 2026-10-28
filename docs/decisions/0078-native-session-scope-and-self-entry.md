@@ -502,3 +502,15 @@ the stock-scope feasibility probe substitutes for none of these controls.
 - [Pinned provider scope permission](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/services/resources/admin/fgap/ClientPermissionsV2.java#L57-L122),
   [code-grant scopes](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/protocol/oidc/grants/AuthorizationCodeGrantType.java#L179-L180),
   [refresh scope source](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java#L303-L314).
+
+## Amendments
+
+### Amendment 1 — Explicit isolation carrier navigation (2026-10-28)
+
+Step1 review identifies a missing announcement site for this decision's confined
+Membership owner-read arm and eight-function census. The corresponding bounded
+extension is now explicit in
+[ADR-0003 Amendment10](0003-tenant-isolation-defense-in-depth.md#amendment-10--confined-own-membership-discovery-2026-10-28).
+Standard05 remains the sole canonical policy/function owner. No additional
+function, projection, caller or grant is selected, and this ADR's Accepted body,
+Date and Deciders remain unchanged. Actual isolation proof remains pending.

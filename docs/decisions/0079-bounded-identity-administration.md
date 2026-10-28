@@ -545,3 +545,16 @@ no new subject qualifies by declaration or a skipped/empty test population.
   [Audit](../standards/18-audit-coverage.md),
   [Frontend](../standards/07-frontend-architecture.md),
   [Accessibility](../standards/16-accessibility.md).
+
+## Amendments
+
+### Amendment 1 — Tenant-bound seed fence scope (2026-10-28)
+
+The Warm installation section's per-write tenant-fence recheck applies to
+**tenant-bound** seed root/child writes. Global User seed adoption retains
+ADR-0072's separate serialized subject-key prepared owner, which commits and
+actually disposes outside tenant ownership. It takes no tenant fence or synthetic
+TenantContext. This clarification preserves the original global/tenant owner
+separation; it adds no new writer or lock. The canonical wording is explicit in
+[Database Standards](../standards/05-database.md#warm-seed-evidence-and-origin-adoption).
+Accepted body, Date and Deciders remain unchanged.

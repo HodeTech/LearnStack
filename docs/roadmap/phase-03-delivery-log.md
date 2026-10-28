@@ -145,13 +145,14 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 720 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 752 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
   - [P03-3 second proposal review and bounded snapshot correction (2026-10-28)](#p03-3-second-proposal-review-and-bounded-snapshot-correction-2026-10-28) — 58 lines
   - [P03-3 proposal readback and approval readiness (2026-10-28)](#p03-3-proposal-readback-and-approval-readiness-2026-10-28) — 42 lines
   - [P03-3 maintainer corrections, joint acceptance and Step 1 (2026-10-28)](#p03-3-maintainer-corrections-joint-acceptance-and-step-1-2026-10-28) — 76 lines
+  - [P03-3 Step 1 review round 1 and corrections (2026-10-28)](#p03-3-step-1-review-round-1-and-corrections-2026-10-28) — 32 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -6415,3 +6416,35 @@ ADR-0069 structure and all three generated indexes current;
 prefixes and the shipped delivery-log body remains a prefix after its generated
 index. No application/database/provider/browser test is claimed for this
 Markdown-only acceptance. Two fresh post-commit review rounds follow.
+
+### P03-3 Step 1 review round 1 and corrections (2026-10-28)
+
+Three fresh independent read-only reviewers inspect `4f133477→d267c8d2` across
+native authority/association, storage/seed/replay and API/transport/corpus. They
+report one Major carrier omission and three Minor consistency/scope findings;
+no authority-design Blocker is verified. Root verifies each against current text
+and code before applying the following corrections.
+
+- **Major, isolation announcement:** the new own-actor Membership visibility arm
+  also changes ADR-0003's earlier owner-policy boundary. Append actual Amendment10
+  naming that confined relation exception and eight-function census, with no
+  widening of app tenant/org predicates or reusable template. ADR-0078's dated
+  Amendment1 adds the missing navigation; its Accepted body remains unchanged.
+- **Minor, active idempotency prose:** the older Standard05 section still refers
+  to unexpired count and accumulating rows until purge. Its active capacity/purge
+  paragraphs now reference the selected1,000 retained-slot/rekey contract and
+  explicitly separate row count from MVCC/disk/backup size.
+- **Minor, seed scope:** per-write tenant fencing applies to tenant-bound seed
+  roots/children. Global User adoption remains its separate subject-key owner,
+  outside tenant ownership. Standard05 is narrowed; ADR-0079 Amendment1 clarifies
+  the existing separation without rewriting its Accepted body.
+- **Minor, current phase criteria:** replace old required provider-actor/reissue
+  and paging/search wording with stored-actor association, native scope/owner
+  transfer, bounded paging without search and refresh without admission events.
+  Historical delivery entries remain unchanged.
+
+Review coverage includes actual baseline factory/feature/source minters,
+User/Role/Membership versions, ADR-0042 projection exception, common audit and
+matrix parser, native response ownership, snapshots and privacy. The reviewers'
+contract approvals establish no implementation or runtime qualification. All
+verified findings are corrected in a normal commit before the second fresh round.

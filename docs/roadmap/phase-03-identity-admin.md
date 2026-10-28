@@ -412,11 +412,11 @@ wires LearnStack into that flow:
   from [Phase 02b](phase-02b-events-auth.md), including opaque HttpOnly cookies,
   on-demand refresh and local-first provider logout. Extend its membership and
   permission integration here rather than implementing session custody again.
-- Post-login membership lookup: resolve memberships for the authenticated user and
-  surface the active tenant via a host + claim cross-check.
-- G1 establishes required actor claims before the accepted callback needs them;
-  no first-login mirror relaxes the API profile. G4 decides discovery for zero or
-  multiple memberships and session-specific scope issuance. Editing a shared
+- Post-login membership lookup: resolve the verified person's current memberships
+  and admit native application scope against the real host under ADR-0078.
+- G1 associates verified issuer/sub with the stored actor; a provider actor claim
+  is optional consistency evidence. G4's Accepted native transition supplies
+  zero/multiple-membership discovery and independent session scope. Editing a shared
   provider user attribute is not evidence of independent A/B sessions: both must
   keep their own scope through real refresh. Switching preserves host-only cookie,
   callback/return allowlists and late-publication fences.
@@ -800,13 +800,13 @@ Test-only endpoints, fake grants or empty scans do not establish shipped behavio
 
 | ID | Observable proof | Packet evidence |
 |---|---|---|
-| C01 | A real nonseed invitee obtains required actor claims and completes the permitted flow; concurrent first login and provider/DB retries preserve one mapping. Same-email/different-sub and conflicting/reserved actor values refuse; the four seed identities/credentials survive. | P03-1 internal foundation; P03-3 HTTP/native entry; P03-4 invitation path |
+| C01 | A real nonseed invitee obtains a stored actor association for its verified issuer/sub and completes the permitted flow without requiring a provider actor claim; concurrent first login and provider/DB retries preserve one mapping. Email-based merging and conflicting/reserved supplied actor values refuse; the four seed identities/credentials survive. | P03-1 internal foundation; P03-3 HTTP/native entry; P03-4 invitation path |
 | C02 | Tenant/org directory and profile reads expose only authorized members/fields, including a guessed foreign global UserId. NULL-org uniqueness, archive/revoke/reinvite and profile granularity follow G3 with database race controls. | P03-1–3, P03-5 |
 | C03 | Org/self/invite grant escalation fails; legitimate delegation and bootstrap work. Concurrent last-admin changes preserve the decided invariant; registry upgrades grant only the accepted defaults. API revocation meets its declared boundary and stale UI cannot mutate; SystemActor has finite permissions. | P03-1–3 |
 | C04 | Actual HTTP rejects an unclassified protected endpoint and an underprivileged valid principal before handler dispatch. Direct MediatR dispatch independently refuses; expected denials return `Result.Fail(forbidden)`. Explicit public reads remain anonymous. | P03-2 |
 | C05 | Real rows 7/10/14 succeed only with active membership. Protected rows 6/9 also enforce revocation. Successful claim-only header mismatch has its separately decided evidence. The role-derived tenant read hatch affects EF/RLS consistently and cannot widen org UPDATE/DELETE or be set from request input. | P03-2 |
-| C06 | Actual native/SDK member read/edit works with no browser bearer/raw profile. Wrong Origin/CSRF/provenance, forged scope, stale ETag and late old-session response refuse safely. Another actor or revoked actor cannot replay a sensitive idempotent response; paging/search and error states remain scoped. | P03-3 |
-| C07 | One person's simultaneous A/B provider/BFF sessions retain independent scope across refresh; tenant/org switching works only through the accepted reissue transition. Held old refresh, wrong destination or revoked target cannot publish; zero-membership entry has usable recovery. | P03-3 |
+| C06 | Actual native/SDK member read/edit works with no browser bearer/provider profile. Wrong Origin/CSRF/provenance, forged scope, stale ETag and late old-session response refuse safely. Another actor or revoked actor cannot replay a sensitive idempotent response; bounded cursor paging without search and error states remain scoped. | P03-3 |
+| C07 | One person's simultaneous A/B native sessions retain independent API-admitted application scope through real provider refresh; tenant/org switching uses only the Accepted native admission/owner-transfer transition. Held old refresh, wrong destination or revoked target cannot publish; zero-membership entry has usable recovery. Ordinary refresh adds no admission event; a different-subject live destination uses explicit recovery. | P03-3 |
 | C08 | New/existing invitee acceptance checks current trusted verified email and delegation. Wrong/unverified/changed email, wrong org, revoked/expired offer and accept/revoke/expiry/resend races produce one reconciled outcome. GET cannot grant; delivery failure is visible/recoverable, without duplicate grants or unsupported external exactly-once claims. | P03-4 |
 | C09 | Definition/value writes use actual admitted schemas and permitted targets; missing/invalid PII category and `Payment` refuse. Required/default/null, successor/retirement/reclassification/key reuse and sensitive-consent cases retain historical interpretation/exportability without orphaned values or raw write bypass. | P03-5 |
 | C10 | The actual `users` model has no tenant-authored/custom-fields column. The PII census has a planted missing subject; sensitive value/token/link canaries remain absent from logs, validation errors, Sentry/local archives and audit snapshots, with positive redaction controls for nested custom values. | P03-1, P03-5 |

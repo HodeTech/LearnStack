@@ -1908,6 +1908,10 @@ is forced by the shipped port
 outcome, `claim_token` by the fence on `Complete` and `Abandon`, `state` by the
 tombstone ADR-0037 says is explicitly **not** a release, and the four response
 columns by `IdempotentResponse`.
+ADR-0079 selects that trigger for P03-3. Its Accepted
+[protected durable extension](#protected-durable-idempotency) replaces the old
+unexpired-count admission shape with retained-slot recycling and adds original
+replay-target metadata; implementation/proof remains pending.
 
 ```sql
 -- Tenant-owned, tenant-wide. Addressed by its natural key, so it generates no id.
@@ -1982,9 +1986,10 @@ Two properties are contract rather than implementation:
   — one of the sanctioned out-of-band setters in
   [ADR-0040](../decisions/0040-ambient-unit-of-work.md). A store reaching for
   `learnstack_platform` would be invisible to the isolation suite.
-- **Capacity is admission, not eviction.** When a tenant's unexpired-record
-  count is at its ceiling the store answers `CapacityExhausted`; it never drops
-  a live record to make room.
+- **Capacity is admission, not live eviction.** The P03-3 adapter admits at most
+  1,000 retained slots per tenant, checking the requested existing key first and
+  recycling only a database-expired row. With no reusable slot it answers
+  `CapacityExhausted`; it never drops a live record to make room.
 
 **Packet 6 ships the table; `PostgresIdempotencyStore` ships on its trigger** —
 the first endpoint carrying `[Idempotent]`, or the first deployment running more
@@ -1995,9 +2000,9 @@ remains the registered default until then.
 
 The retention sweep that deletes rows past `expires_at` is owned by
 [Phase 11](../roadmap/phase-11-production-hardening.md), alongside the other
-recurring maintenance jobs. Until it runs, rows accumulate and the admission
-ceiling is what bounds the table — which is the correct failure, not a silent
-one.
+recurring maintenance jobs. P03-3's expired-slot UPDATE/rekey supplies ongoing
+admission without waiting for that deletion job. This bounds retained physical
+slots, not dead MVCC tuples, disk pages, backup size or global tenant count.
 
 ## Raw SQL
 
@@ -4945,8 +4950,8 @@ No new installation-receipt table is introduced.
 | Assignments | Initial graph is one witnessed Membership act. Existing missing assignments are never treated as never installed. |
 | Other roots | Require exact never-installed absence and a recognized pristine predecessor; a retained/deleted conflicting identity is not absence. |
 
-Before **each** possible seed write, acquire its complete User-before-Tenant
-plan, with an exclusive tenant fence, then the target root lock and expected
+Before **each tenant-bound** seed root/child write, acquire its complete
+User-before-Tenant plan, with an exclusive tenant fence, then the target root lock and expected
 version. Re-read the authoritative installation/pristine-prefix evidence through
 the owning module contracts on that owner. An earlier planner snapshot is not
 authority to write. Competing human writers take at least the same tenant
@@ -4955,6 +4960,9 @@ wait for its commit. No cross-module write transaction or global connector joins
 the tenant owner. Edited partial state refuses before the remaining act; a typed
 race may receive one fresh verification, never blind repair. Real held-seed
 locale-removal/profile-edit/grant-removal competitors prove this boundary.
+Global User seed adoption retains its separate subject-key prepared owner and
+commits/disposes outside every tenant-bound owner. It takes no tenant fence or
+synthetic tenant context; this per-write recheck rule does not join those modes.
 
 The fixed `AdoptSeedAdministrationOriginCommand` installs only the declared
 `manage.demo-english.learnstack.local` / `manage.demo-yoga.learnstack.local`
