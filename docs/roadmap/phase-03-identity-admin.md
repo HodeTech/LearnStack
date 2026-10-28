@@ -6,8 +6,9 @@
 > below distinguish implementation-source A/B qualification from final PR checks
 > and record identical squash-merge file trees. P03-2's six implementation steps,
 > both fresh review rounds per step and verified PR corrections are closed.
-> Phase 03 remains in progress. P03-3 is next and not started: protected Studio,
-> membership administration, new-user HTTP/BFF entry and validated scope switching.
+> Phase 03 remains in progress. P03-3's decision pass is in progress: protected
+> Studio, membership administration, new-user HTTP/BFF entry and validated scope
+> switching. Preparation adds no runtime authority or accepted gate answer.
 > This remains the critical-path phase after
 > [Phase 02b](phase-02b-events-auth.md). The
 > [decision register](#the-decision-register) owns gate state; dated records live
@@ -18,7 +19,7 @@
 > | P03-0 | Entry preparation | Complete — [reconciliation](phase-03-delivery-log.md#entry-preparation-2026-10-25) |
 > | P03-1 | Identity authority and membership foundation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-1-merge-and-closeout-2026-10-27) |
 > | P03-2 | Live membership and authorization | Complete and merged — [closeout](phase-03-delivery-log.md#p03-2-merge-and-closeout-2026-10-28) |
-> | P03-3 | Protected Studio and membership administration | Not started |
+> | P03-3 | Protected Studio and membership administration | Decision pass in progress — [entry review](phase-03-delivery-log.md#p03-3-entry-review-and-provider-feasibility-2026-10-28) |
 > | P03-4 | Invitations and bounded delivery | Not started |
 > | P03-5 | Custom fields and privacy classification | Not started |
 > | P03-6 | Provider event ingress and audit mirror | Not started |
@@ -469,11 +470,10 @@ and provider token refresh alone cannot establish application permission freshne
   [Permissions Standards § Built-in Roles](../standards/19-permissions.md#built-in-roles).
   G5 supplies that anonymous capability model without requiring a stored membership
   or promoting `HostOnly` to protected authority.
-- **Lights up the [Phase 02a Packet 3](phase-02a-kernel-tenancy.md)
-  `AuthorizationBehavior` shell** — resolves each command's `[Authorize(Policy)]`,
-  calls `IAuthorizationService.AuthorizeAsync` against the tenant +
-  organization-scoped resource, and returns `Result.FailFor<TResponse>(forbidden)` on
-  deny, per
+- **Uses the live `AuthorizationBehavior`** — common Application evaluates each
+  exact request's operation-policy declaration through the module-owned
+  authorizer, with no ASP.NET dependency. HTTP policy and application/resource
+  checks independently default deny; expected denials return failed results, per
   [ADR-0032 § Sub-decision 2](../decisions/0032-exception-handling-logging-and-observability.md).
 
 - **Owns the `app.scope` carrier**, parked here by Phase 02a Packet 7. The

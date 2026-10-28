@@ -145,6 +145,9 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 347 lines
+  - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
+  - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -5688,3 +5691,350 @@ event ingress, back-channel logout, federation, DSAR/global closure and exit
 enforcement retain their named packets. No remaining phase-wide criterion is
 marked complete by this merge, and no new ADR, permission or runtime is introduced
 by this documentation closeout.
+
+## P03-3 — Protected Studio and membership administration
+
+### P03-3 entry review and provider feasibility (2026-10-28)
+
+**Baseline.** `575d8e3282db5a88c2606688332a921dd3a7e0ed`, on
+`development`, after PR #39 merge closeout. The maintainer requests the
+`implement-task` workflow, a complete prerequisite review, explicit approval
+before new ADR implementation, and two fresh independent review rounds per
+implementation step. Preparation changes no runtime or Accepted decision.
+
+**Review partition.** Three independent read-only analyses examine provider/
+session scope (`gpt-6.1-sol`, xhigh), native transport/UI (`gpt-6.1-sol`, high),
+and backend lifecycle/delegation (`gpt-6.1-sol`, xhigh). Root verifies the common
+bootstrap/audit owner, activation gates and idempotency prerequisites. Their
+reports identify design work; they are not approval of an unwritten proposal or
+complete line-by-line qualification of a future implementation.
+
+The phase plan and G1/G4/G5/G6 are rechecked against Identity/Tenancy contracts,
+ADRs 0036/0037/0042/0064/0070–0077, applicable API/database/security/permission
+standards, and actual API, native, SDK, Identity and Tenancy sources. The review
+confirms these first-writer dependencies:
+
+- Current native identity/publication needs complete actor/scope and AccountSite;
+  bootstrap has only the internal prepared owner and fixed seed consumer.
+- Global provider user attributes cannot establish independent A/B scope.
+  Discovery additionally needs explicit subject-confined enumeration authority.
+- Yoga's public host resolves its default organization. An orgless token alone
+  cannot establish an orgless session there; administration destinations must be
+  reconciled with the unchanged independent HostScope ceiling.
+- Protected writes need exact native admission, response-owned credential use,
+  SDK success/header carriers, resource authorization and durable replay evidence.
+  ADR-0037 explicitly accepts stale in-handler authorization on ordinary replay;
+  changing it for sensitive administration requires a named decision.
+- The first keyed endpoint triggers the PostgreSQL idempotency adapter now.
+  Unexpired-row admission alone does not bound physical retained-row growth;
+  expiration reclamation or another explicit capacity policy must be selected.
+- New Tenancy grants need finite first-adoption authority. Current delegation
+  cannot mint a key no administrator holds. Existing v1 seed verification also
+  intentionally refuses later edits/adoption; warm lifecycle needs a decision.
+- Organization archive/default transitions need real shared-fence concurrency
+  with Identity. No cross-module Organization join/FK or extra multi-root
+  provisioning exception is implied.
+
+**Provider experiment.** Two disposable Keycloak 26.6.2 probes use cached image
+`sha256:f9ba7b2af90db8dc749a57ca9aedca51e840cb9224441ab546a968da941da900`,
+random loopback ports, generated private credentials, Playwright 1.64.0 and
+headless Chromium 156.0.8078.48. The strengthened repeat verifies both access and
+ID signatures/issuer, equal subject/client and nonempty equal provider `sid`.
+It redeems B before a held A code, then performs nine interleaved A/B/orgless
+refreshes. Every selected static optional scope remains independent. Intentionally
+incorrect global tenant/org attributes do not affect those claims.
+
+Missing context yields tenantless tokens; unknown context returns `invalid_scope`.
+Two linked contexts are accepted and yield two scope names with overwritten
+scalar claims: application singleton/context checks remain necessary. Any linked
+scope can be requested without application Membership; issuance is not permission.
+Both owned containers, browsers and private credential files are cleaned up;
+existing stack/configuration is untouched. This is provider feasibility on
+loopback HTTP, not native HTTPS, application API or BFF activation proof.
+
+The sanitized repeat receipt SHA-256 is
+`16300b68da0dac909c6300dfac7c8cb5b144d3bd7913c293212ce2ac529c9225`;
+the private research script SHA-256 is
+`d6a1bb8cc0859776d2b4700ed43b31cdd38fd7e4d2b4cc9f382ce35512444911`.
+Local copies are retained under `artifacts/p033-preparation/`, without tokens or
+credential files. Primary source comparison confirms static grant scopes come
+from [authorization-code state](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/protocol/oidc/grants/AuthorizationCodeGrantType.java#L179-L180)
+and [refresh-token scope](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/protocol/oidc/TokenManager.java#L303-L314).
+Dynamic scopes are not substituted for this tested static behavior.
+
+**Unresolved choice.** Creating arbitrary static scopes requires realm-wide
+client-management authority in this pin. It includes unrelated client secrets
+and configuration; an adapter allowlist is not a provider ACL. The
+[V2 permission evaluator](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/services/resources/admin/fgap/ClientPermissionsV2.java#L57-L122)
+confirms the type-wide requirement. A separate projection process would require
+new ownership/delivery qualification; an in-process consumer does not isolate
+its secret from the API process. An application scope-evidence boundary and a
+proper per-grant provider extension remain viable alternatives to compare before
+proposing a decision. No provider writer, signing authority or new trusted scope
+source is selected by this entry.
+
+**Immediate factual reconciliation.** The phase no longer describes the shipped
+AuthorizationBehavior as an ASP.NET policy shell. Standard 04's snapshot text
+names the distinct public/authenticated censuses instead of implying eight total
+operations; the current served snapshot contains eight public and two
+independently classified authenticated reads. Historical records remain intact.
+
+**Next.** Complete the coupled authority/transport choice and exact operation,
+creation-budget, adoption, retention and proof contracts. Draft the necessary
+ADR/package, review it independently twice, and obtain the maintainer's explicit
+approval before dependent code. P03-9 production onboarding/operator authority,
+P03-4 invitation creation and Phase 06 full Studio remain their named owners.
+
+### P03-3 proposed decision package (2026-10-28)
+
+**Status: Proposed.** Joint approval of
+[ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md),
+[ADR-0079](../decisions/0079-bounded-identity-administration.md) and this package
+is required before dependent code. The entry review records the source and actual
+provider experiment. Neither its successful static-scope probe nor this design
+qualifies the selected application-source implementation.
+
+**Problem.** Deliver usable own-context entry/switching and member/Role/profile
+administration over the existing live policy/audit/isolation foundation, with
+Tenancy Organization endpoints. Keep credentials inside the native response
+owner and do not import broad provider-management authority merely to choose scope.
+This is Phase 03, not full Phase 06 Studio or production P03-9 onboarding.
+
+**Decision summary.** G1 activation selects deliberate opt-in creation, durable
+10/minute + 100/day attempts and 10,000 retained Users per authority. G4 replaces
+provider reissue with authenticated native application candidates and live API
+confirmation; real provider identity/refresh stay unchanged in purpose. G5 selects
+finite scoped/self/admin requirements, three new Tenancy pairs and exact first v2
+adoption. G6 selects the closed route matrix, durable reauthorized replay and native
+forms. G3's archive/default transition part closes with the shared tenant-fence
+contract. These are proposed answers, not Accepted gate state.
+
+#### Entry, source and lifetime contract
+
+The separate source secret is 32 random bytes, encoded as canonical 43-character
+base64url. The API accepts at most current plus previous; previous requires a UTC
+retirement instant at most 15 minutes after configuration qualification. Restart
+never extends that absolute instant. Native sends current only. Identical public
+hop/native keys, placeholders, malformed values and incomplete overlap refuse.
+Configuration/secret-provider acquisition is qualified once, with no Keycloak
+startup call. Public-only operation needs no native key. Retirement/rollout may
+require sign-in again; zero-downtime key rotation is not promised.
+
+Exact native headers have one value each: the separate session secret plus
+canonical lowercase nonreserved UUID tenant and optional organization. Global-self
+entries accept the secret alone and forbid both selectors. Scoped operations
+require tenant; an absent organization means orgless. Invalid header families
+never fall back to ordinary provider selection. Native owns construction from the
+current server session. Public wrappers and browser UI cannot supply them.
+
+The existing verified-subject quota still runs before identity SQL. Only the exact
+three global-self descriptors branch before ordinary binding/resolution. They use
+no unresolved MediatR marker. Known host is required. Missing bearer/source is
+masked 404; a present invalid provider/source credential is fixed 401. Wrong
+method with admitted credentials is 405 with its exact Allow value. Malformed
+body/query/header is 400. Bootstrap creation-disabled is 403; spent attempt windows
+429; permanent capacity and storage/unknown result are 503. No invalid-present
+credential falls back to public. A 503 bootstrap result is treated as potentially
+committed, without automatic retry or asserted rollback. Lifetime-capacity 503 has
+no misleading time-based Retry-After; window refusal hints are at most 86,400s.
+
+GET self/contexts are no-store Off self navigation; no other person's data or
+permission graph appears. Bootstrap returns 201 on acknowledged new binding,
+200 on matching existing binding, with an association witness and exact self
+Location for 201. Its natural serialized subject key provides convergence; it is
+not a tenant-keyed Idempotent endpoint. Empty JSON only, 512 bytes maximum.
+Discovery defaults to 20 and clamps at 100, with a 1,024-character cursor bound;
+it accepts no UserId/email or free-form filter. Own current scope keys derive
+from the verified subject, never a supplied UUID. Scope names/destinations come
+from Tenancy/deployment facts through declared readers, not a global SQL join.
+No active global User projection or general organization enumerator is admitted.
+
+The ordinary resolved admission POST accepts empty JSON, at most 512 bytes, and
+commits MUST `identity.membership.admit_session_scope` before returning its
+server-only association witness. It records API admission, not cookie delivery.
+Its declared native AccountRead-like policy requires current membership/lifecycle,
+not an administration permission. AccountSite then repeats its own actual-host
+witness. Plain AccountSite stays Off; ordinary per-act policy checks remain live.
+
+The global control relation is platform-scoped, nonpersonal and authority-keyed;
+it adds no eighth database class or login. Migration/deployment initializes and
+qualifies it from retained User count. App receives no generic counter reset/read.
+The closed definer set gains exactly the subject-derived self-discovery function,
+attempt admission function and User-INSERT capacity trigger function, under the
+existing fixed-owner/search-path/no-PUBLIC discipline. Total User counter and
+User/audit commit together; attempt debit commits earlier and is not refunded.
+Their exact signatures, RLS/body/ACL/caller census and new own-discovery setter
+belong in Standard 05 before implementation. If implementation needs another
+capability, return to this decision rather than hide it in a migration.
+
+Native pre-entry retains the original five-minute pending deadline and existing
+capacity/subject limits. Creation requires a person-confirmed CSRF POST; provider
+callback alone does not create permanent identity. An existing binding bypasses
+new allocation quota but not subject admission. Zero Membership renders truthful
+localized recovery without a tenant cookie. Entry expiry/polling cannot extend
+credential retention. Association compares the canonical subject digest computed
+from validated ID identity and the API witness. No email snapshot is introduced.
+
+Seed administration origins are proposed as
+`manage.demo-english.learnstack.local` and
+`manage.demo-yoga.learnstack.local`, mapping to their tenants with NULL org.
+Existing public hosts retain their mappings and nine-page demo population.
+Their certificates/native admission and four exact HTTPS callbacks must agree.
+Manual workstation hosts/CA trust remain explicit prerequisites; no script edits
+the hosts file or installs trust. Cross-host entry uses destination cookies and
+fresh OIDC, without source token/cookie transfer. Same-host switch is a fresh API
+application-context admission and credential-owner transfer, not provider reissue.
+The phase G4/C07 wording is reconciled to this explicit replacement at acceptance.
+
+#### Exact administration operation matrix
+
+All routes below are proposed additions except the existing directory. Inputs
+reject unknown/duplicate fields. UUID selectors are resource identifiers only.
+Admin bodies are at most 16 KiB, responses 256 KiB. Every mutation requiring a
+version uses one canonical strong numeric If-Match and required idempotency key;
+creation has no version precondition. Version receipts contain no profile/grants.
+
+| Method / `/api/v1` route | Input / success | Capability and audit |
+|---|---|---|
+| GET `/identity/memberships` | Existing cursor/limit and six-field page; no search | Existing Tenant membership-admin, MUST sensitive read |
+| GET `/identity/organization-memberships` | Current-branch cursor/limit; same six-field page, no search | Organization membership-admin; scoped SQL/EF, MUST sensitive read |
+| GET `/identity/memberships/{id}` | Contextual detail, assignments and version/ETag | Membership-admin at declared target read scope; MUST sensitive read |
+| PUT `/identity/memberships/{id}/profile` | Exactly nullable DisplayName (128) and enabled PreferredLocale (35); 200 version/ETag | Applicable profile-write AND membership-admin; MUST update |
+| PUT `/identity/memberships/{id}/role-assignments` | Distinct compatible RoleId set, at most eight; 200 version/ETag | Membership-admin and whole-Role delegation; MUST security event |
+| PUT `/identity/memberships/{id}/status` | Active/Suspended/Revoked; 200 version/ETag | Membership-admin, exact target scope/last-admin/User fences; MUST security event |
+| GET/PUT `/identity/me/profile` | Own exact contextual two-field profile/version; PUT 200 version/ETag | Self read Off; write requires applicable profile-write and own-person predicate, MUST update |
+| GET `/identity/me/contexts` | Bounded eligible context names/IDs for current tenant | Self-only current coverage/lifecycle; Off navigation, no profile/Role disclosure |
+| GET `/identity/roles` | Eight template summaries/scope/version | Tenant role-admin; MUST sensitive configuration read |
+| GET `/identity/roles/{id}` | Finite template and grants/version/ETag | Tenant role-admin; MUST sensitive configuration read |
+| GET `/identity/permissions` | Exact eight registered assignable pairs and bounded authoring/adoption choices | Tenant role-admin; MUST sensitive configuration read |
+| PUT `/identity/roles/{id}/grants` | Distinct registered scoped pairs; 200 version/ETag | Existing ceiling plus exact orgless target; MUST security event |
+| POST `/identity/roles/{id}/manifest-adoptions` | Known version/fingerprint; 200 version/ETag | Explicit v2 first-adoption exception only; MUST security event |
+| GET `/tenancy/organizations` | Cursor page, names/status/default plus Tenant default-version metadata | Tenant organization-admin; explicitly MUST configuration read |
+| GET `/tenancy/organizations/{id}` | Scope-owned detail/version/ETag | Same |
+| POST `/tenancy/organizations` | Slug/name; server ID, 201 version/ETag/Location | Tenant organization-admin, orgless; MUST create |
+| PUT `/tenancy/organizations/{id}` | DisplayName only; 200 version/ETag | Same, orgless; existing SHOULD rename |
+| POST `/tenancy/organizations/{id}/archive` | Empty JSON; 200 version/ETag | Same, orgless; MUST archive, default/last-Active guards |
+| PUT `/tenancy/default-organization` | OrganizationId; Tenant If-Match, 200 Tenant version/ETag | Same, orgless; one Tenant root, MUST default selection |
+
+Branch member mutations need a validated session in that exact branch; NULL-org
+mutations, templates/settings/default/Organization writes require orgless.
+The admin directory/detail may use the explicitly declared Tenant read scope;
+it never turns into an UPDATE/DELETE hatch. Org Admin reads/mutates only its own
+branch; the existing Tenant directory route is not silently changed into an Org
+route. The separately classified organization directory stays current-branch.
+Member-detail successful Tenant-admin read clauses may mint tenant-wide read
+authority; successful Org clauses retain scoped SQL/EF. No generic query parameter
+or Org clause selects wider scope.
+
+The accepted five Identity pairs plus three new Tenant Tenancy pairs make eight.
+Initial v1 seed grants remain. Explicit first v2 adoption changes only the new
+three-key Tenant Admin delta and durable adoption marker; it preserves prior
+profile-write removal and cannot repeat after removal of adopted keys.
+Human locale/theme wrappers admit the named existing effects without changing
+Seed request policies. Include nondefault locale removal/enablement application
+acts now, under Tenant locale-write, root version and exclusive tenant fence;
+default removal/disable refuses, translations remain and read eligibility is live.
+Their full editors/HTTP transport and first reporting-parent authoring belong to
+Phase 06's Organization/settings editors. Reporting is additive and unused by the
+P03-3 scope/lifecycle flow; reconcile its current Phase 03 promise explicitly at
+acceptance. It enters none of these DTOs.
+
+Successful completed receipt replay reauthorizes current disclosure, not original
+mutation eligibility. Separate ordinary MUST read queries for Membership/Role/
+Organization/Tenant receipts commit before output. Allow terminal target facts
+only for its historical receipt. Never rerun the original write, stale If-Match
+comparison or grant addition. Failed guard/audit retains the stored completion.
+The durable store bounds 1,000 physical rows/tenant, atomically recycles only
+expired slots through existing UPDATE privilege, and protects old token/key
+completion. Two-process/restart, saturation and interrupted-COMMIT proofs are
+mandatory. No global row bound or exactly-once outcome is claimed.
+
+#### Native screens and response ownership
+
+Admit only exact native POSTs for membership-profile, membership-roles,
+membership-status, role-grants, role-manifest-adoption and self-profile, plus
+closed entry/create/context-select/switch operations under the existing auth
+namespace. Add exact GET screens `/studio`, `/studio/members`, member detail,
+`/studio/roles`, Role detail and `/portal/profile`. Every new nested path joins
+native ingress, public-entry, middleware and protected-history censuses.
+Organization CRUD remains API/SDK-only here; its full screens are Phase 06.
+
+Plain forms and fixed 303 destinations perform pessimistic writes and fresh
+reads. Native validates hidden version/key/resource fields and constructs API
+headers inside the current credential owner. It does not accept raw path/method,
+Authorization, tenant/org or arbitrary return URL. Session/epoch/credential
+revision checks fence each await and late body. Ordinary admin 403/404 does not
+revoke a legitimate broader session; AccountSite/publication retains its separate
+status policy. One ten-second lifetime includes refresh/API/body consumption;
+actual cleanup retains owner capacity. Existing smaller auth limits are not
+raised by the admin 16 KiB ceiling.
+
+PreferredLocale chooses that exact Membership's enabled UI locale, otherwise the
+site default; content locale remains separately admitted. New en/tr namespaces
+have equal key/argument/call-site coverage. Recovery includes empty/loading,
+unknown outcome, conflict, 403/404/429/503 and expiry. Scope/destructive effect,
+unsaved edits and permission adoption are explicit. No internal IDs/tokens or
+policy debugging becomes product copy. Real no-script/history behavior must be
+qualified; static headers/DOM tests alone prove neither restoration nor WCAG.
+
+#### Ten implementation steps
+
+Every step commits implementation, receives two fresh independent review rounds,
+fixes verified findings in normal commits and closes before the next step.
+Review prompts name exact source/tree/surface and resource ownership. Heavy .NET
+and browser qualification are serialized; review agents remain read-only unless
+explicitly assigned a separate file set. There is no branch switch.
+
+| Step | Reviewable result | Required local/real proof |
+|---|---|---|
+| 1 | Joint acceptance; canonical contract/matrix/catalogue/glossary adoption and dated carrier Amendments | Document/corpus/authority/link checks; no runtime qualification claimed |
+| 2 | Global creation budgets, exact bootstrap/discovery and native source/context admission core | App-role ACL/body/caller/counter/race/restart/association, quota order, real self routes, legacy/public controls |
+| 3 | Finite policy combinations, v2 adoption guards and preserving warm seed | Actual first-key adoption, no-repeat/self-escalation, removed-profile preservation, fresh/interrupted/warm no-write/foreign controls |
+| 4 | Membership detail/self/admin profile, lifecycle and assignments | Real direct-handler scope/delegation/User/Role/last-admin races and MUST rollback; no new-user membership addition |
+| 5 | Tenancy Organization/default transitions and human locale/theme admission | App-role default/archive winners, last Active, shared-fence lifecycle, no reverse module dependency/extra root exception |
+| 6 | PostgreSQL idempotency and typed protected replay disclosure | Two owners/restart/capacity/recycling/fences/crash window, fresh denial and committed replay-read audit |
+| 7 | Exact HTTP/OpenAPI/generated SDK operations and success/header carriers | Actual HTTP/direct parity, body/query/precondition/error/source census; SDK regeneration and injected transport tests |
+| 8 | Native entry/no-session, context switch/refresh and credential-preserving operation owner | Pinned real provider + API/native HTTPS A/B, actorless/tenantless, held work, key lifecycle, unknown creation, host/cookie/epoch proofs |
+| 9 | Usable member/Role/self-profile/scope screens | Real browser forms, scoped paging/edit/adoption/conflict, en/tr, history/no-script and actual manual accessibility |
+| 10 | Complete qualification, docs and reviewable PR | Full discovered zero-skip suites, public demo preserved, actual source-bound A/B artifacts/resource cleanup, final scoped reviews and PR |
+
+Implementation skills: add-permission, add-mediatr-handler,
+add-tenant-owned-entity/add-ef-migration where applicable, add-frontend-route and
+add-integration-test, with standards-check/run-tests-locally/commit-and-pr through
+implement-task. Relevant standards are 01–07, 09–21 according to each surface;
+no blanket claim that an unrelated standard was reread or exercised.
+
+#### Acceptance carriers and invariants
+
+New ADRs use named bounded supersession, not disclosure as a substitute for a
+changed decision. Append actual next-free dated Amendments at acceptance:
+
+| Carrier | Exact change / retained boundary |
+|---|---|
+| ADR-0036 | Add authenticated native candidate signal and HostAndNativeSessionScope; own-context discovery/global-self descriptors; ordinary claims/assertions and actual-host ceiling unchanged |
+| ADR-0040 | Enumerate own-discovery derived-scope reader and physical owner/setter lifetime; global/tenant owners stay separate and candidate/evidence pools stay independent |
+| ADR-0037 | Protected-set fresh replay disclosure, precondition fingerprint and expired physical-slot recycling; generic behavior stays historical |
+| ADR-0053/0054 | Only named native credentials/callers/methods; public caller/visitor/provenance ceilings unchanged |
+| ADR-0064 | Exact global-self early branch and native application-scope evidence; legacy token profile, quotas and ordinary route-independent path retained |
+| ADR-0068 / accepted development package | Exact owned web tenant/org mapper removal; accounts/attributes/secrets/audience/TTL/unrelated state preserved |
+| ADR-0070 | Optional pre-session identity, own entry, positive API association/context, no-session, application switching and original-context refresh; volatile custody/limits retained |
+| ADR-0072 | Creation activation, permanent capacity/attempt budget and exact new confined functions; no provider allocator or Membership authority |
+| ADR-0073/0076 | Finite first release adoption, policy combinations and warm invariant-preserving seed; ordinary ceiling/kernel/source separation retained |
+| ADR-0042/0074/0077 and ADR-0071 | Navigation to new consumers only where needed; root exception, ordered admission, evidence durability and uncertain ordinary-read policy unchanged |
+
+Reconcile current canonical Standards 03/04/05/07/10/11/12/16/18/19/20/21,
+Architecture 09/13/14/23/25/31/33, Identity/Tenancy specifications/matrices,
+glossary, environment/setup and relevant skills. Add exact new catalogue subjects
+with Registered status until real implementations/proofs ship. Existing rules
+retain Implemented status while their bounded extensions are separately tracked.
+Source/function/setter/caller and PII inventories must name each new control store,
+copied response and permanent linkage; no hash is declared anonymous.
+
+**Approval surface.** The maintainer accepts the new native scope trust source and
+separate secret, Off self-navigation disclosure, durable shared creation budgets,
+explicit first Tenancy grant adoption, warm seed preservation, strict keyed
+preconditions/current replay disclosure/expired recycling, new admin origins and
+ten-step plan. No runtime consumer is authorized until that joint acceptance.
+Production first-admin/operator authority remains P03-9. No new Hub crossing,
+provider administrator, signing-ticket service, generic proxy or additional
+application module is included.

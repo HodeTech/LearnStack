@@ -559,9 +559,10 @@ SDK has no branch for.
   API read-back, in [the packet delivery record](../roadmap/phase-02d-delivery-log.md#p02d-4-step-4-contract-sdk-and-ci).
 
 **G31 delivered by Step 4.** `backend/openapi/v1.json` is the sole v1 snapshot,
-compared against the production served document. Non-empty eight-operation and
-recursive public DTO controls accompany it. Required frontend CI regenerates the
-SDK and refuses scoped drift. Pinned CLI fixtures and explicit type/enum policy
+compared against the production served document. Exact nonempty public and
+authenticated operation censuses and recursive public DTO controls accompany it.
+Required frontend CI regenerates the SDK and refuses scoped drift. Pinned CLI
+fixtures and explicit type/enum policy
 companions implement representable ADR-0024 rules; runtime tests own validator and
 status meaning absent from the document. Bootstrap builds and serves the verified
 base composition; only a base without a snapshot and without v1 operations
