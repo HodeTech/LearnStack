@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,517 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,534 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -139,6 +139,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 Step 6 qualification and review handoff (2026-10-28)](#p03-2-step-6-qualification-and-review-handoff-2026-10-28) — 66 lines
   - [P03-2 final documentation review and PR preparation (2026-10-28)](#p03-2-final-documentation-review-and-pr-preparation-2026-10-28) — 21 lines
   - [P03-2 PR 39 low-priority review corrections (2026-10-28)](#p03-2-pr-39-low-priority-review-corrections-2026-10-28) — 31 lines
+  - [P03-2 PR 39 correction review round 1 (2026-10-28)](#p03-2-pr-39-correction-review-round-1-2026-10-28) — 17 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -5509,3 +5510,20 @@ Review scope remains these two findings. Earlier implementation-source A/B
 evidence stays attributed to `c39ab614`; the follow-up's local/hosted checks
 are recorded separately. The maintainer's broader review coverage limits remain
 explicit rather than becoming an unconditional merge approval.
+
+### P03-2 PR 39 correction review round 1 (2026-10-28)
+
+Two fresh independent reviewers (`gpt-6.1-sol` / `gpt-6-luna`, high) approve
+`c37c3df4..74254c8b` without verified findings. Tooling review checks the shared
+pair, preserved role/credential precedence and API diagnostics, early real
+entry-owner refusals and fixture dependency copies. The existing control-byte
+predicate remains specifically CR/LF/NUL; this correction adds no broader
+connection-string grammar. Documentation review verifies all six carriers
+against actual composition and Accepted ADR-0076/0077, preserving later packet
+ownership and the maintainer's review scope limits.
+
+Guarded full frontend execution in a clean development copy at `74254c8b`
+passes **2,481** tests across **73** files/two packages, zero skips/todos and
+unchanged source. The **23** new controls complement the prior population.
+Typecheck, lint, format, targeted **246/246** tests and documentation checks
+also pass. The second fresh review round remains required before PR update.
