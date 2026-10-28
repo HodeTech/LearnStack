@@ -1,3 +1,5 @@
+import { setTimeout as pause } from 'node:timers/promises';
+
 import { DemoCommandError } from '../../../../scripts/demo-process.mjs';
 
 const stages = new Set([
@@ -59,6 +61,43 @@ export const publicDemoWorkerStage = (stage) => (workerStages.has(stage) ? stage
 /** Node records signal termination separately from a numeric exit code. */
 export const publicDemoChildExited = (child) =>
   child.exitCode !== null || child.signalCode !== null;
+
+/** Port publication may be incomplete; every observation keeps the original owner and clock. */
+export async function waitForPublicDemoBrowserPort({
+  assertActive,
+  readPort,
+  signal,
+  timeout = 10_000,
+}) {
+  if (!Number.isSafeInteger(timeout) || timeout <= 0 || timeout > 10_000)
+    throw new PublicDemoFailure('deadline');
+  const deadline = Date.now() + timeout;
+  while (true) {
+    signal?.throwIfAborted();
+    assertActive();
+    let observation;
+    try {
+      observation = readPort();
+    } catch {
+      throw new PublicDemoFailure('port-invalid');
+    }
+    signal?.throwIfAborted();
+    assertActive();
+    const remaining = deadline - Date.now();
+    if (remaining <= 0)
+      throw new PublicDemoFailure(observation?.kind === 'malformed' ? 'port-invalid' : 'deadline');
+    if (
+      observation?.kind === 'ready' &&
+      Number.isInteger(observation.port) &&
+      observation.port > 0 &&
+      observation.port <= 65535
+    )
+      return observation.port;
+    if (!['missing', 'empty', 'malformed'].includes(observation?.kind))
+      throw new PublicDemoFailure('port-invalid');
+    await pause(Math.min(50, remaining), undefined, { signal });
+  }
+}
 
 /** Only closed phase/context and native process status may enter public artifacts. */
 export function publicDemoFailure(stage, error, input = {}, child, signal) {

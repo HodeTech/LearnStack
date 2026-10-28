@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 import { chromium } from 'playwright';
 
+import { readBrowserDevToolsPort } from './admission-browser.mjs';
 import {
   digest,
   reportAdvisories,
@@ -21,6 +22,7 @@ import {
   publicDemoOperation,
   publicDemoWorkerStage,
   publicDemoWorkerOutput,
+  waitForPublicDemoBrowserPort,
 } from './public-demo-diagnostics.mjs';
 import { stopTestChild } from './stop-test-child.mjs';
 import { demoRequest } from '../../../../scripts/demo-http.mjs';
@@ -142,24 +144,23 @@ export async function verifyPublicDemo(runtime) {
         );
         stage('startup-port');
         const portFile = join(profile, 'DevToolsActivePort');
-        const startupDeadline = Date.now() + remaining(10000);
-        while (!existsSync(portFile)) {
-          remaining(10000);
-          if (browser.result().failed)
-            throw new DemoCommandError(
-              'Owned managed Chromium',
-              browser.result().failed,
-              undefined,
-              {
-                reason: browser.result().failureReason,
-              },
-            );
-          if (publicDemoChildExited(browser.child)) throw new PublicDemoFailure('chromium-exited');
-          if (Date.now() >= startupDeadline) throw new PublicDemoFailure('deadline');
-          await pause(50, undefined, { signal: runtime.signal });
-        }
-        const port = Number(readFileSync(portFile, 'utf8').split('\n')[0]);
-        if (!(port > 0 && port <= 65535)) throw new PublicDemoFailure('port-invalid');
+        const port = await waitForPublicDemoBrowserPort({
+          signal: runtime.signal,
+          timeout: remaining(10000),
+          readPort: () => readBrowserDevToolsPort(portFile),
+          assertActive: () => {
+            remaining(10000);
+            if (browser.result().failed)
+              throw new DemoCommandError(
+                'Owned managed Chromium',
+                browser.result().failed,
+                undefined,
+                { reason: browser.result().failureReason },
+              );
+            if (publicDemoChildExited(browser.child))
+              throw new PublicDemoFailure('chromium-exited');
+          },
+        });
         writeFileSync(
           inputFile,
           JSON.stringify({

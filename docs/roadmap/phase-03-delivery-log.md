@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,174 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,220 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -125,6 +125,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 failed provider startup and bounded diagnostics (2026-10-28)](#p03-2-failed-provider-startup-and-bounded-diagnostics-2026-10-28) — 47 lines
   - [P03-2 startup diagnostic review round 1 (2026-10-28)](#p03-2-startup-diagnostic-review-round-1-2026-10-28) — 14 lines
   - [P03-2 startup diagnostic review round 2 and source freeze (2026-10-28)](#p03-2-startup-diagnostic-review-round-2-and-source-freeze-2026-10-28) — 18 lines
+  - [P03-2 failed browser readiness and recovery settlement controls (2026-10-28)](#p03-2-failed-browser-readiness-and-recovery-settlement-controls-2026-10-28) — 46 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -5152,3 +5153,49 @@ not inferred. Expected population remains **6,927** with the unchanged plan
 `f5161ae9`; actual hosted discovery and both exact unions must re-establish it.
 No packet/gate/catalogue promotion or PR handoff precedes successful complete
 same-source A/B and independent evidence audit.
+
+### P03-2 failed browser readiness and recovery settlement controls (2026-10-28)
+
+Full A [40609744140/1](https://github.com/HodeTech/LearnStack/actions/runs/40609744140)
+at `9385c9e8c59f2496e760e08d4f539b992ece8981`, tree
+`e50ef647890fd27c531992f9a5a05c2454b0ceca`, finishes **23/27** jobs successfully.
+All six Architecture producers and the backend aggregate pass. Public demo,
+ordinary-4/9 and the integration aggregate fail. All **24** original packages
+retain API/size/SHA-256/CRC verification. Twenty producer unions reconcile
+**6,927** results: **6,925 Passed / two Failed**, zero missing/skipped. The
+preceding provider-startup failures do not recur; their cause remains unknown.
+No B starts and this remains failed qualification.
+
+The demo receipt fails at `startup-port/port-invalid`, audit lane 2/catalog/run 1,
+before the worker starts. Nine earlier audits, nine browser screenshots and
+**62** HTTP-200 API completions survive; cleanup removes private profiles. The
+original port bytes are unavailable. A read-only source/artifact assessment
+finds an actual readiness gap: existence is followed by one numeric read, so an
+existing empty file immediately refuses instead of using the remaining startup
+allowance. Numeric prefixes without a completed first line and noncanonical
+number forms can also be admitted. This is a verified control weakness, not a
+recovered account of the original browser failure.
+
+The bounded correction reuses the direct-read parser and waits for a newline-
+complete decimal port in `1..65535`. Missing/empty/incomplete publication stays
+within the original **10-second** startup and **12-minute** total bounds. Every
+observation checks owner/cancellation/native child status, including before
+publishing a ready port. Invalid/unreadable files, deadline and cancellation
+retain closed diagnostics; no private endpoint bytes enter artifacts. The shared
+admission/BFF proof parser also rejects incomplete numeric prefixes. No product
+route, browser trust, API traffic allowance or worker assertion changes.
+
+Twenty-six new readiness controls cover actual-file publication, canonical/range
+checks, deadline, owner death, cancellation and private errors. Focused frontend
+controls pass **110/110**, with typecheck/lint/format clean. The first full local
+workspace run refuses an existing Python bytecode cache as unclassified source;
+no census exemption or local-file deletion is used to hide it. Guarded full
+frontend and real managed-demo proof move to a clean development copy.
+
+The two backend failures are browser discovery and a native-recovery persisted-
+phase assertion. Their closed evidence is retained independently. The recovery
+source permits a conservative renewal refusal before Outcome acknowledgement;
+the exact CI interleaving is not recovered. Deterministic positive settlement
+scheduling is investigated separately, preserving real timers, all assertions
+and existing lease/stage bounds. Fresh reviews and complete final-source A/B
+remain required before any completion promotion.
