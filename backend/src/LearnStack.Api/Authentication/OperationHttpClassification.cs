@@ -3,6 +3,7 @@ using LearnStack.Api.Identity;
 using LearnStack.Api.PublicReads;
 using LearnStack.Modules.Education.Application.Contracts.PublicReads;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
+using LearnStack.Modules.Identity.Application.Contracts.Entry;
 using LearnStack.Modules.Tenancy.Application.Contracts.Account;
 using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
 using LearnStack.SharedKernel.Permissions;
@@ -75,7 +76,7 @@ internal sealed class OperationHttpClassifier(IOperationPolicyCatalog catalog)
         {
             if (anonymous.Count != 1 || authorization.Count != 0) return HttpOperationClassification.Refused;
         }
-        else if (found.Kind is OperationPolicyKind.AccountRead or OperationPolicyKind.Protected)
+        else if (found.Kind is OperationPolicyKind.AccountRead or OperationPolicyKind.Protected or OperationPolicyKind.NativeSessionAdmission)
         {
             if (anonymous.Count != 0 || authorization.Count != 1
                 || authorization[0].AuthenticationSchemes != TenantAuthenticationRegistration.Scheme
@@ -106,6 +107,8 @@ internal sealed class OperationHttpClassifier(IOperationPolicyCatalog catalog)
         var pair when pair == (typeof(PublicEducationController), nameof(PublicEducationController.HeadLesson)) => (typeof(GetPublicLessonQuery), "HeadPublicLesson", "HEAD"),
         var pair when pair == (typeof(AccountController), nameof(AccountController.GetSite)) => (typeof(GetAccountSiteQuery), "GetAccountSite", "GET"),
         var pair when pair == (typeof(MembershipsController), nameof(MembershipsController.List)) => (typeof(ListMembershipsQuery), "ListMemberships", "GET"),
+        var pair when pair == (typeof(NativeSessionAdmissionController), nameof(NativeSessionAdmissionController.Admit)) =>
+            (typeof(AdmitNativeSessionScopeCommand), "AdmitNativeSessionScope", "POST"),
         _ => null,
     };
 }

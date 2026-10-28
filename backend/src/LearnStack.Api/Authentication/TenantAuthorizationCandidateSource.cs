@@ -14,19 +14,24 @@ internal sealed class TenantAuthorizationCandidateSource(IHttpContextAccessor ac
     internal AuthorizationCandidate? ForValidatedScope(TenantId tenant, OrganizationId? organization)
     {
         var http = accessor.HttpContext;
+        var native = http?.Features.Get<NativeScopeEvidence>();
         if (http is null || http.RequestAborted.IsCancellationRequested
             || http.Features.Get<HostClassification>() is not { } host
             || http.Features.Get<TenantCredentialFeature>() is not { VerifiedSubject: { } subject, Identity: { } identity }
             || http.Features.Get<SubjectAdmissionDecision>() is not { IsAcquired: true } decision
             || http.Features.Get<TenantSubjectAdmissionProvenance>() is not { } provenance
             || !provenance.Matches(subject) || !MatchesIdentity(identity, subject)
-            || identity.TenantId != tenant || organization != (identity.OrganizationId ?? host.OrganizationId)
+            || (http.Features.Get<NativeSessionSourceFeature>() is not null
+                && (native is null || !native.IsCurrent(http)))
+            || (native is null
+                ? identity.TenantId != tenant || organization != (identity.OrganizationId ?? host.OrganizationId)
+                : native.Tenant != tenant || native.Organization != organization)
             || (host.TenantId is { } hostTenant && hostTenant != tenant)
             || (host.OrganizationId is { } hostOrganization && hostOrganization != organization))
             return null;
 
         return ForCandidate(AuthorizationSourceKind.Http, identity.ActorUserId, tenant, organization,
-            new CredentialWitness(http, host, subject, identity, decision, provenance));
+            new CredentialWitness(http, host, subject, identity, decision, provenance, native));
     }
 
     protected override bool IsEvidenceCurrent(object? evidence) => evidence is CredentialWitness witness
@@ -38,7 +43,12 @@ internal sealed class TenantAuthorizationCandidateSource(IHttpContextAccessor ac
         && ReferenceEquals(feature.VerifiedSubject, witness.Subject)
         && ReferenceEquals(witness.Http.Features.Get<SubjectAdmissionDecision>(), witness.Decision)
         && ReferenceEquals(witness.Http.Features.Get<TenantSubjectAdmissionProvenance>(), witness.Provenance)
-        && witness.Provenance.Matches(witness.Subject);
+        && witness.Provenance.Matches(witness.Subject)
+        && (witness.Native is null
+            ? witness.Http.Features.Get<NativeSessionSourceFeature>() is null
+                && witness.Http.Features.Get<NativeScopeEvidence>() is null
+            : ReferenceEquals(witness.Http.Features.Get<NativeScopeEvidence>(), witness.Native)
+                && witness.Native.IsCurrent(witness.Http));
 
     private static bool MatchesIdentity(ValidatedTenantIdentity identity, VerifiedProviderSubject subject) =>
         identity.Issuer == subject.Issuer && identity.Subject == subject.Subject
@@ -48,7 +58,7 @@ internal sealed class TenantAuthorizationCandidateSource(IHttpContextAccessor ac
 
     private sealed class CredentialWitness(HttpContext http, HostClassification host, VerifiedProviderSubject subject,
         ValidatedTenantIdentity identity, SubjectAdmissionDecision decision,
-        TenantSubjectAdmissionProvenance provenance)
+        TenantSubjectAdmissionProvenance provenance, NativeScopeEvidence? native)
     {
         internal HttpContext Http { get; } = http;
         internal HostClassification Host { get; } = host;
@@ -56,6 +66,7 @@ internal sealed class TenantAuthorizationCandidateSource(IHttpContextAccessor ac
         internal ValidatedTenantIdentity Identity { get; } = identity;
         internal SubjectAdmissionDecision Decision { get; } = decision;
         internal TenantSubjectAdmissionProvenance Provenance { get; } = provenance;
+        internal NativeScopeEvidence? Native { get; } = native;
 
         public override string ToString() => nameof(CredentialWitness);
     }

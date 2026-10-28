@@ -15,7 +15,8 @@ public sealed class IdentityOperationAuthorizer(Func<IIdentityAuthorizationReade
         ArgumentNullException.ThrowIfNull(policy);
         ArgumentNullException.ThrowIfNull(candidate);
         cancellationToken.ThrowIfCancellationRequested();
-        if (invocation.Candidate is not { } original || invocation.Policy.Kind is not (OperationPolicyKind.AccountRead or OperationPolicyKind.Protected))
+        if (invocation.Candidate is not { } original || invocation.Policy.Kind is not
+            (OperationPolicyKind.AccountRead or OperationPolicyKind.Protected or OperationPolicyKind.NativeSessionAdmission))
             throw new ArgumentException("Protected operation invocation provenance is invalid.", nameof(invocation));
         if (!ReferenceEquals(original, candidate))
             return ForDecision(invocation, original, ProtectedOperationOutcome.NotCovered);
@@ -37,7 +38,7 @@ public sealed class IdentityOperationAuthorizer(Func<IIdentityAuthorizationReade
         var members = facts.Memberships.Where(member => member.OrganizationId is null || member.OrganizationId == candidate.OrganizationId).ToArray();
         if (members.Length != facts.Memberships.Length)
             return ForDecision(invocation, candidate, ProtectedOperationOutcome.Unavailable);
-        if (policy.Kind == OperationPolicyKind.AccountRead)
+        if (policy.Kind is OperationPolicyKind.AccountRead or OperationPolicyKind.NativeSessionAdmission)
             return ForDecision(invocation, candidate, ProtectedOperationOutcome.Allowed,
                 members.Select(member => member.MembershipId), members.SelectMany(member => member.Roles).Select(role => role.RoleId).Distinct());
         var permission = policy.RequiredPermission!;
@@ -63,7 +64,7 @@ public sealed class IdentityOperationAuthorizer(Func<IIdentityAuthorizationReade
         && (invocation.EntryKind == OperationEntryKind.Http
             || invocation.EntryKind == OperationEntryKind.Application && invocation.Operation.GetType() == policy.RequestType)
         && catalog.TryGet(policy.RequestType, out var registered) && ReferenceEquals(registered, policy)
-        && policy.Kind is OperationPolicyKind.AccountRead or OperationPolicyKind.Protected
+        && policy.Kind is OperationPolicyKind.AccountRead or OperationPolicyKind.Protected or OperationPolicyKind.NativeSessionAdmission
         && invocation.Context.IsResolved && invocation.Context.UserId == candidate.Actor
         && candidate.Actor != UserId.SystemActor && candidate.TenantId != TenantId.PlatformSentinel
         && invocation.Actor == candidate.Actor && invocation.TenantId == candidate.TenantId

@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 779 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 841 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -154,6 +154,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 maintainer corrections, joint acceptance and Step 1 (2026-10-28)](#p03-3-maintainer-corrections-joint-acceptance-and-step-1-2026-10-28) — 76 lines
   - [P03-3 Step 1 review round 1 and corrections (2026-10-28)](#p03-3-step-1-review-round-1-and-corrections-2026-10-28) — 32 lines
   - [P03-3 Step 1 review round 2 and closeout (2026-10-28)](#p03-3-step-1-review-round-2-and-closeout-2026-10-28) — 27 lines
+  - [P03-3 Step 2 — Bounded self entry and native scope admission (2026-10-28)](#p03-3-step-2--bounded-self-entry-and-native-scope-admission-2026-10-28) — 62 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -6476,3 +6477,65 @@ are closed by normal commits. The original ten-step plan continues automatically
 with Step2: durable creation admission, subject-confined discovery, exact
 bootstrap and native scope-source/evidence integration. No runtime completion,
 provider/browser result or manual accessibility proof is claimed here.
+
+### P03-3 Step 2 — Bounded self entry and native scope admission (2026-10-28)
+
+The accepted entry core now uses separate native-purpose source evidence without
+rewriting verified provider claims. Only the three exact global-self descriptors
+terminate before ordinary binding/context resolution; their SQL ports are lazy,
+so unrelated or refused traffic does not instantiate a database owner. Ordinary
+native calls normalize the stored actor, enforce the actual host ceiling and
+retain independent live Membership/lifecycle and HTTP/application checks.
+
+The forward Identity migration adds the nonpersonal creation control and the
+three selected confined functions, bringing the definer census to eight. Attempt
+debits commit and close before prepared creation. Allocation uses a BEFORE check
+and AFTER actual-insert count under the same lock: duplicate/no-insert and rolled
+back User writes consume no permanent allocation. Actual missing-subject creation
+still uses the common atomic User/central MUST owner; uncertain debit or creation
+acknowledgements never publish an actor or imply rollback/refund.
+
+Own discovery captures only Active self-Membership keys, then closes the global
+owner before sequential physically READ ONLY Tenancy label owners. The tenth
+setter consumes an exact witness once and clears unrelated announcements. Foreign
+actor/cursor, lifecycle, pooled-connector, cancellation and partial-index controls
+exercise actual PostgreSQL. The index proof establishes eligibility on fixture
+data, not a production latency claim. Forward pagination uses a real one-key
+lookahead and never invents a previous page.
+
+Explicit native scope admission is an ordinary resolved ReadWrite command. Its
+central MUST event names the actual admitted Membership and commits before the
+association response. Off self/AccountSite reads do not repeat that event. The
+served OpenAPI and generated SDK describe the exact added operations without
+adding public or native browser transport. Later transport/page steps consume
+these contracts; no generic proxy is introduced.
+
+Precommit controls reproduced and corrected allocation on conflict, accepted-key
+retargeting, missing-source masking, HTTP/2 body detection, source retirement
+during reads/refusals, cursor lookahead, audit resource attribution and eager SQL
+construction on unrelated traffic. Actual hosting logs exposed raw cursor query
+text; the central query-field redactor now removes it before formatting. The
+composed hosting sink and sampled ASP.NET activities both pass the cursor canary.
+
+| Local validation | Observed result |
+|---|---|
+| Backend unit suite | 3,055 passed, no skips |
+| Guarded frontend suite | 2,481 passed in two packages, no skips/todos |
+| Served OpenAPI/contract suite | Six passed; generated SDK typecheck/lint passed |
+| Broad entry/global-schema/bootstrap/authorization/legacy HTTP regression | 175/176 passed; the remaining exact middleware-order census was updated for the two accepted insertions and its planted reorders |
+| Final self HTTP and middleware-order controls | Eleven passed, including the new retirement/refusal case and global-self assertion rejection |
+| Full architecture sweep | 582/596 passed, 14 failed, no skips; 22m57s. Failures identify closed caller/reader/controller lists and catalogue/storage inventory counts requiring the selected extension |
+| Architecture correction groups | 102/103 passed; the remaining nested background-job controller census was corrected with the exact native action and then passed independently. Existing planted capability/escape controls remain |
+
+The broad regression includes actual lost/unsent debit and creation COMMITs,
+retained-count migration upgrade, committed function/ACL/trigger dirty twins,
+17 own-discovery cases and held/failing native admission audit boundaries.
+An arbitrary fixture-only deferred COMMIT fault retains the ordinary mutation's
+`500 internal_error`; an INSERT audit failure is `503 audit_unavailable`. Both
+withhold the association. The global-self storage status contract is unchanged.
+
+This implementation is ready for the two fresh independent postcommit review
+rounds. Preflight feedback from implementation/test authors does not count as
+either round. The selected real provider/native HTTPS, cookie/epoch, browser and
+manual accessibility proofs remain in their named later steps. G1/G4/G6 are not
+closed by this local entry-core record, and P03-3 remains in progress.

@@ -18,7 +18,7 @@ internal sealed class OperationAuthorizationPolicyProvider(IOptions<Authorizatio
         if (!policyName.StartsWith(OperationPolicyRequirement.Prefix, StringComparison.Ordinal))
             return base.GetPolicyAsync(policyName);
         var policy = catalog.All.SingleOrDefault(policy => OperationPolicyRequirement.Prefix + policy.Id == policyName);
-        return Task.FromResult(policy is { Kind: OperationPolicyKind.Protected or OperationPolicyKind.AccountRead }
+        return Task.FromResult(policy is { Kind: OperationPolicyKind.Protected or OperationPolicyKind.AccountRead or OperationPolicyKind.NativeSessionAdmission }
             ? new AuthorizationPolicy([new OperationPolicyRequirement(policy)], [TenantAuthenticationRegistration.Scheme]) : null);
     }
 }

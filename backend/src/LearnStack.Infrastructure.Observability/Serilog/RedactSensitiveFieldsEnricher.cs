@@ -66,7 +66,11 @@ public sealed class RedactSensitiveFieldsEnricher : ILogEventEnricher
 
         foreach (var (name, value) in logEvent.Properties)
         {
-            if (SensitiveTokenCatalog.IsSensitive(name))
+            // ASP.NET hosting logs interpolate the raw query independently of
+            // route handling, before admission can inspect it. Even malformed
+            // cursor/receipt input must not reach rendered console/OTLP text.
+            if (SensitiveTokenCatalog.IsSensitive(name)
+                || string.Equals(name, "QueryString", StringComparison.OrdinalIgnoreCase))
             {
                 (rewrites ??= []).Add(new LogEventProperty(name, RedactedScalar));
                 continue;

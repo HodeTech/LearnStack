@@ -2,6 +2,7 @@ using FluentAssertions;
 using LearnStack.Infrastructure.Audit;
 using LearnStack.Modules.Education.Application.Contracts.PublicReads;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
+using LearnStack.Modules.Identity.Application.Contracts.Entry;
 using LearnStack.Modules.Identity.Domain;
 using LearnStack.Modules.Tenancy.Application.Contracts.Account;
 using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
@@ -23,6 +24,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
     private const string PublicEducation = "LearnStack.Api.PublicReads.PublicEducationController";
     private const string Account = "LearnStack.Api.Account.AccountController";
     private const string Directory = "LearnStack.Api.Identity.MembershipsController";
+    private const string Admission = "LearnStack.Api.Identity.NativeSessionAdmissionController";
     private const string Versioning = "LearnStack.Api.Versioning.ApiVersioningExtensions";
     private const string Route = "Microsoft.AspNetCore.Mvc.RouteAttribute";
 
@@ -40,7 +42,8 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         new(PublicEducation, "Lesson", "GET", "public/courses", "{slug}/lessons/{lessonSlug}", "GetPublicLesson", typeof(GetPublicLessonQuery)),
         new(PublicEducation, "HeadLesson", "HEAD", "public/courses", "{slug}/lessons/{lessonSlug}", "HeadPublicLesson", typeof(GetPublicLessonQuery)),
         new(Account, "GetSite", "GET", "account", "site", "GetAccountSite", typeof(GetAccountSiteQuery)),
-        new(Directory, "List", "GET", "identity/memberships", null, "ListMemberships", typeof(ListMembershipsQuery))
+        new(Directory, "List", "GET", "identity/memberships", null, "ListMemberships", typeof(ListMembershipsQuery)),
+        new(Admission, "Admit", "POST", "identity/session-scope/admissions", null, "AdmitNativeSessionScope", typeof(AdmitNativeSessionScopeCommand))
     ];
 
     // These are mapping call sites, not a path-wide exception. A second health
@@ -56,8 +59,11 @@ public sealed partial class AuthenticatedHttpSurfaceTests
     /// <summary><see href="../../../docs/decisions/0064-tenant-api-authentication-boundary.md">ADR-0064</see> § Closed authenticated read.</summary>
     [Fact]
     public void Authenticated_Http_Surface_Is_Enumerated_And_ReadOnly() => WithProduction((modules, facts) =>
-        Violations(modules, facts).Should().BeEmpty(
-            "Fix: retain only the eight approved public GET/HEAD actions, exact AccountSite and membership-directory GETs, and enumerated infrastructure mappings; dispatch each exact read through the canonical pipeline"));
+    {
+        var errors = Violations(modules, facts);
+        errors.Should().BeEmpty(
+            "Fix: retain the exact historical reads and ADR-0078 native admission POST; all findings: {0}", string.Join("\n", errors));
+    });
 
     /// <summary><see href="../../../docs/decisions/0064-tenant-api-authentication-boundary.md">ADR-0064</see>'s controls mutate the same production route census.</summary>
     [Fact]
@@ -207,7 +213,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         var map = Types(modules).ToDictionary(Key, StringComparer.Ordinal);
         var account = map.Values.Single(type => type.FullName == Account);
         var handlers = HandlerRoots(map).ToArray();
-        handlers.Should().HaveCount(6, "the four public queries and two authenticated queries have real production handlers");
+        handlers.Should().HaveCount(7, "the four public queries, two authenticated queries and native admission have real production handlers");
         Violations(modules, facts).Should().BeEmpty();
         AssertPolicyMetadataControls(modules, facts);
         AssertControllerMetadataControls(modules, facts);
@@ -349,7 +355,8 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                 var selectors = action.CustomAttributes.Where(attribute => IsRouteAttribute(attribute.AttributeType, map)).ToArray();
                 if (resource.Length != 1 || StringArgument(resource[0]) != entry.Resource
                     || selectors.Length != 1
-                    || selectors[0].AttributeType.FullName != "Microsoft.AspNetCore.Mvc.Http" + (entry.Verb == "GET" ? "Get" : "Head") + "Attribute"
+                    || selectors[0].AttributeType.FullName != "Microsoft.AspNetCore.Mvc.Http" + (entry.Verb switch
+                    { "GET" => "Get", "HEAD" => "Head", "POST" => "Post", _ => "Unapproved" }) + "Attribute"
                     || StringArgument(selectors[0]) != entry.Suffix
                     || selectors[0].Properties.SingleOrDefault(property => property.Name == "Name").Argument.Value as string != entry.Operation)
                     errors.Add("Unexpected method/route/operation: " + type.FullName + "." + action.Name);
@@ -369,20 +376,23 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         var catalogue = facts.Catalogue;
         foreach (var request in requests)
         {
-            if (request == typeof(ListMembershipsQuery))
+            if (request == typeof(ListMembershipsQuery) || request == typeof(AdmitNativeSessionScopeCommand))
             {
+                var admission = request == typeof(AdmitNativeSessionScopeCommand);
                 if (!catalogue.TryGet(request, out var directory) || directory.WritesNoRow || directory.Entries.Count != 1
                     || directory.Entries[0] is not
                     {
-                        Operation: "identity.membership.list", OperationType: OperationType.ReadSensitive,
                         OperationClass: OperationClass.Must, EntityType: { } entity
-                    } || entity != typeof(Membership))
-                    errors.Add("Membership directory must retain its exact MUST ReadSensitive Membership declaration: " + request.FullName);
+                    } || entity != typeof(Membership)
+                    || directory.Entries[0].Operation != (admission ? "identity.membership.admit_session_scope" : "identity.membership.list")
+                    || directory.Entries[0].OperationType != (admission ? OperationType.SecurityEvent : OperationType.ReadSensitive))
+                    errors.Add("Membership HTTP act must retain its exact MUST resource/type declaration: " + request.FullName);
             }
             else if (!catalogue.TryGet(request, out var registration) || !registration.WritesNoRow || registration.Entries.Count != 0)
                 errors.Add("Existing public/account HTTP request must be explicitly Off: " + request.FullName);
             if (request.IsDefined(typeof(PublicSurfaceAttribute), false)
-                != (request != typeof(GetAccountSiteQuery) && request != typeof(ListMembershipsQuery)))
+                != (request != typeof(GetAccountSiteQuery) && request != typeof(ListMembershipsQuery)
+                    && request != typeof(AdmitNativeSessionScopeCommand)))
                 errors.Add("Only the existing four public queries carry PublicSurface: " + request.FullName);
         }
         var handlers = HandlerRoots(map).ToArray();
@@ -409,7 +419,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         if (attributes.Any(attribute => AuthenticationMetadata.IsRequirementData(attribute.AttributeType, map))) return false;
         var authorizations = attributes.Where(attribute => (predicate ?? (type => AuthenticationMetadata.IsData(type, map)))(attribute.AttributeType)).ToArray();
         var anonymous = attributes.Where(attribute => AuthenticationMetadata.IsAnonymous(attribute.AttributeType, map)).ToArray();
-        if (controller.FullName is not (Account or Directory)) return anonymous.Length == 1 && authorizations.Length == 0
+        if (controller.FullName is not (Account or Directory or Admission)) return anonymous.Length == 1 && authorizations.Length == 0
             && anonymous[0].AttributeType.FullName == typeof(AllowAnonymousAttribute).FullName
             && anonymous[0].ConstructorArguments.Count == 0 && anonymous[0].Properties.Count == 0 && anonymous[0].Fields.Count == 0;
         return anonymous.Length == 0 && authorizations.Length == 1 && authorizations[0].ConstructorArguments.Count == 0
@@ -418,8 +428,13 @@ public sealed partial class AuthenticatedHttpSurfaceTests
             && authorizations[0].Properties.Count(property => property.Name == nameof(AuthorizeAttribute.AuthenticationSchemes)
                 && property.Argument.Value as string == "TenantBearer") == 1
             && authorizations[0].Properties.Count(property => property.Name == nameof(AuthorizeAttribute.Policy)
-                && property.Argument.Value as string == "LearnStackOperation:" + (controller.FullName == Account
-                    ? "tenancy.account_site.read" : "identity.membership.list")) == 1;
+                && property.Argument.Value as string == "LearnStackOperation:" + (controller.FullName switch
+                {
+                    Account => "tenancy.account_site.read",
+                    Directory => "identity.membership.list",
+                    Admission => "identity.membership.admit_session_scope",
+                    _ => "unapproved"
+                })) == 1;
     }
 
     private static IEnumerable<string> AuthorizationOffenders(TypeDefinition controller, MethodDefinition action,

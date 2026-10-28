@@ -44,6 +44,17 @@ public sealed class RedactSensitiveFieldsEnricherTests
     }
 
     [Fact]
+    public void Hosting_query_text_is_private_even_when_its_parameter_name_is_not_a_secret_token()
+    {
+        var logEvent = CreateEvent(
+            new LogEventProperty("QueryString", new ScalarValue("?cursor=own-relationship-canary")),
+            new LogEventProperty("Path", new ScalarValue("/api/v1/identity/self/contexts")));
+        Enrich(logEvent);
+        Scalar(logEvent, "QueryString").Should().Be(Redacted);
+        Scalar(logEvent, "Path").Should().Be("/api/v1/identity/self/contexts");
+    }
+
+    [Fact]
     public void Redacts_Nested_Sensitive_Property_In_Destructured_Object()
     {
         var user = new StructureValue(

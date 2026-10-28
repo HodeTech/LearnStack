@@ -47,7 +47,8 @@ namespace LearnStack.Infrastructure.Persistence;
 /// that a later <c>BEGIN</c> clears is not.
 /// </para>
 /// </remarks>
-public sealed class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOperationReadScopeView
+public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOperationReadScopeView,
+    IPreContextSelfDiscoveryUnitOfWork
 {
     private readonly NpgsqlDataSource _dataSource;
 
@@ -162,6 +163,9 @@ public sealed class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOperationRead
         JobApplicationSourceOwner.RefuseExternalEntry();
         ObjectDisposedException.ThrowIf(_disposed, this);
 
+        if (_selfDiscoveryWitness is not null)
+            throw new InvalidOperationException("A transaction cannot join a self-discovery label owner.");
+
         if (!globalIdentity && IsGlobalIdentityTransaction)
         {
             MarkRollbackOnly();
@@ -253,7 +257,7 @@ public sealed class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOperationRead
         }
 
         return new Frame(this, ++_depth, _generation,
-            releaseConnection: globalIdentity && mode == TransactionMode.ReadOnly);
+            releaseConnection: (globalIdentity || _openingSelfDiscovery) && mode == TransactionMode.ReadOnly);
     }
 
     public bool IsGlobalIdentityTransaction => _openingGlobalIdentity || _resolvingGlobalIdentity
@@ -265,9 +269,10 @@ public sealed class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOperationRead
         ArgumentNullException.ThrowIfNull(descriptor);
         JobApplicationSourceOwner.RefuseExternalEntry();
         ObjectDisposedException.ThrowIf(_disposed, this);
-        if (HasActiveTransaction || IsGlobalIdentityTransaction || _jobSourceOwner is not null
+        if (HasActiveTransaction || IsGlobalIdentityTransaction || _openingSelfDiscovery
+            || _selfDiscoveryWitness is not null || _jobSourceOwner is not null
             || JobApplicationSourceOwner.Current is not null
-            || (descriptor.Kind == GlobalIdentityOwnerKind.Lookup
+            || (descriptor.Kind is GlobalIdentityOwnerKind.Lookup or GlobalIdentityOwnerKind.SelfDiscovery
                 ? mode != TransactionMode.ReadOnly : mode != TransactionMode.ReadWrite))
         {
             if (HasActiveTransaction) MarkRollbackOnly();
@@ -384,7 +389,7 @@ public sealed class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOperationRead
         ArgumentNullException.ThrowIfNull(context);
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        if (IsGlobalIdentityTransaction)
+        if (IsGlobalIdentityTransaction || _selfDiscoveryWitness is not null)
         {
             MarkRollbackOnly();
             throw new InvalidOperationException("A tenant setter cannot announce a global identity transaction.");
@@ -633,6 +638,13 @@ public sealed class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOperationRead
 
     private bool ValidateOperationReadScope(bool requireCurrentFrame = true)
     {
+        if (_selfDiscoveryWitness is { } own && !own.IsBoundTo(this))
+        {
+            _rollbackOnly = true;
+            _tenantContextIssued = false;
+            _tenantContextAnnouncement = null;
+            return false;
+        }
         if (_readScopeFaulted) return false;
         if (!_tenantWideRead) return true;
         var valid = !_disposed && !_rollbackOnly && _transaction is not null && _tenantContextIssued
@@ -683,6 +695,7 @@ public sealed class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOperationRead
         _globalIdentityContext = null;
         _globalIdentityLocked = false;
         _globalIdentitySealed = false;
+        _selfDiscoveryWitness = null;
     }
 
     private static readonly Action<ILogger, string, Exception?> LogResolvedWithoutTenant =

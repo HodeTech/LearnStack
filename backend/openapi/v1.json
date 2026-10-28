@@ -606,6 +606,162 @@
       "UserId": {
         "format": "uuid",
         "type": "string"
+      },
+      "IdentitySelfActive": {
+        "required": [
+          "state",
+          "authorityId",
+          "subjectKey",
+          "actorId"
+        ],
+        "type": "object",
+        "properties": {
+          "state": {
+            "enum": [
+              "active"
+            ],
+            "type": "string"
+          },
+          "authorityId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "subjectKey": {
+            "maxLength": 64,
+            "minLength": 64,
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false
+      },
+      "IdentitySelfMissing": {
+        "required": [
+          "state"
+        ],
+        "type": "object",
+        "properties": {
+          "state": {
+            "enum": [
+              "missing"
+            ],
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "IdentitySelfState": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/IdentitySelfMissing"
+          },
+          {
+            "$ref": "#/components/schemas/IdentitySelfActive"
+          }
+        ]
+      },
+      "NativeSessionScopeAdmission": {
+        "required": [
+          "actorId",
+          "tenantId",
+          "organizationId",
+          "authorityId",
+          "subjectKey"
+        ],
+        "type": "object",
+        "properties": {
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "organizationId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "authorityId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "subjectKey": {
+            "maxLength": 64,
+            "minLength": 64,
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SelfContextItem": {
+        "required": [
+          "tenantId",
+          "organizationId",
+          "tenantName",
+          "organizationName",
+          "entryOrigin",
+          "canUseCurrentHost"
+        ],
+        "type": "object",
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "organizationId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "tenantName": {
+            "type": "string"
+          },
+          "organizationName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "entryOrigin": {
+            "type": "string",
+            "format": "uri"
+          },
+          "canUseCurrentHost": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SelfContextPage": {
+        "required": [
+          "items",
+          "pageInfo"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SelfContextItem"
+            }
+          },
+          "pageInfo": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "additionalProperties": false
       }
     },
     "securitySchemes": {
@@ -614,6 +770,12 @@
         "description": "The configured learnstack realm's signed RS256 access token for learnstack-api, issued to learnstack-web. Authentication grants no membership or application permission.",
         "scheme": "bearer",
         "type": "http"
+      },
+      "NativeSessionSource": {
+        "type": "apiKey",
+        "description": "Separate server-to-server native-session credential. Never expose it to browser code or reuse the public forwarding secret. Bearer identity and trusted real-host provenance are also required.",
+        "name": "X-LearnStack-Native-Session-Secret",
+        "in": "header"
       }
     }
   },
@@ -2987,6 +3149,1050 @@
         ],
         "x-version-introduced": "v1"
       }
+    },
+    "/api/v1/identity/session-scope/admissions": {
+      "post": {
+        "tags": [
+          "NativeSessionAdmission"
+        ],
+        "description": "Explicit initial selection or scope switch only. Requires a current native source, real host ceiling and live stored-actor membership/lifecycle. The central MUST security event names the admitted Membership and commits before an association witness is returned. This proves API admission, never cookie delivery. Ordinary refresh uses Off self/AccountSite reads and does not invoke this POST. No query or Idempotency-Key; empty JSON object only.",
+        "operationId": "AdmitNativeSessionScope",
+        "parameters": [
+          {
+            "name": "X-LearnStack-Native-Tenant-Id",
+            "in": "header",
+            "description": "Canonical lower-case nonempty tenant UUID candidate, verified against the real host and live membership.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-LearnStack-Native-Organization-Id",
+            "in": "header",
+            "description": "Optional canonical lower-case nonempty organization UUID candidate. Provider scope and legacy assertions, when present, must agree exactly.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "maxProperties": 0,
+                "type": "object",
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful bounded projection.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NativeSessionScopeAdmission"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "validation_failed for malformed or repeated native selectors/assertions, unexpected query/body or Idempotency-Key.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized for invalid/expired native source, undecidable bearer or terminal/conflicting self binding; bare Bearer challenge.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "Bearer"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found for missing native source/credentials, unknown/platform host, noncoverage or host/scope disagreement.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "method_not_allowed after earlier host, credential and native-source gates.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Allow": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "POST"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "payload_too_large from the existing decoded body bound; outer Kestrel refusals may omit application headers.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited from visitor/subject admission; bootstrap can also exhaust the shared authority creation-attempt windows.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission.",
+                "required": true,
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error without provider, query or credential details.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "dependency_unavailable for binding/lifecycle/audit storage, unknown COMMIT, permanent creation capacity or cleanup fault. No association/result payload is disclosed.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TenantBearer": [],
+            "NativeSessionSource": []
+          }
+        ],
+        "x-version-introduced": "v1"
+      }
+    },
+    "/api/v1/identity/self": {
+      "get": {
+        "tags": [
+          "Identity"
+        ],
+        "description": "Off self-only binding read. Missing is distinct from Active; Closing/Closed/conflicting bindings return 401 and never look missing. No request body, query or assertion/scope selectors.",
+        "operationId": "GetIdentitySelf",
+        "responses": {
+          "400": {
+            "description": "validation_failed for malformed or repeated native selectors/assertions, unexpected query/body or Idempotency-Key.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized for invalid/expired native source, undecidable bearer or terminal/conflicting self binding; bare Bearer challenge.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "Bearer"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found for missing native source/credentials, unknown/platform host, noncoverage or host/scope disagreement.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "method_not_allowed after earlier host, credential and native-source gates.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Allow": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "GET"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "payload_too_large from the existing decoded body bound; outer Kestrel refusals may omit application headers.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited from visitor/subject admission; bootstrap can also exhaust the shared authority creation-attempt windows.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission.",
+                "required": true,
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error without provider, query or credential details.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "dependency_unavailable for binding/lifecycle/audit storage, unknown COMMIT, permanent creation capacity or cleanup fault. No association/result payload is disclosed.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Successful bounded projection.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentitySelfState"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TenantBearer": [],
+            "NativeSessionSource": []
+          }
+        ],
+        "x-version-introduced": "v1"
+      }
+    },
+    "/api/v1/identity/self/bootstrap": {
+      "post": {
+        "tags": [
+          "Identity"
+        ],
+        "description": "Opt-in tenantless natural-key convergent create. New binding returns 201, existing/racing winner returns 200; unknown COMMIT returns 503 and a deliberate retry resolves the actual stored binding. Real creation alone writes the central MUST event. No membership, scoped session or browser cookie is created. Idempotency-Key and scope/assertion selectors are refused. Empty JSON object only, at most 512 bytes.",
+        "operationId": "BootstrapIdentitySelf",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "maxProperties": 0,
+                "type": "object",
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "400": {
+            "description": "validation_failed for malformed or repeated native selectors/assertions, unexpected query/body or Idempotency-Key.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized for invalid/expired native source, undecidable bearer or terminal/conflicting self binding; bare Bearer challenge.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "Bearer"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found for missing native source/credentials, unknown/platform host, noncoverage or host/scope disagreement.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "method_not_allowed after earlier host, credential and native-source gates.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Allow": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "POST"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "payload_too_large from the existing decoded body bound; outer Kestrel refusals may omit application headers.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited from visitor/subject admission; bootstrap can also exhaust the shared authority creation-attempt windows.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission.",
+                "required": true,
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error without provider, query or credential details.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "dependency_unavailable for binding/lifecycle/audit storage, unknown COMMIT, permanent creation capacity or cleanup fault. No association/result payload is disclosed.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden; creation is disabled for a genuinely missing binding. Existing bindings remain readable.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Successful bounded projection.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentitySelfActive"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "New actor binding and central MUST audit committed; no tenant session.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Location": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "/api/v1/identity/self"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentitySelfActive"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TenantBearer": [],
+            "NativeSessionSource": []
+          }
+        ],
+        "x-version-introduced": "v1"
+      }
+    },
+    "/api/v1/identity/self/contexts": {
+      "get": {
+        "tags": [
+          "Identity"
+        ],
+        "description": "Off self-only navigation read. Returns only Active self membership scopes with live tenant/organization labels and configured HTTPS entry origins. No profiles, role grants or arbitrary actor selection. Forward-only subject-bound seek cursor, not authority or a snapshot. No request body or assertion/scope selectors.",
+        "operationId": "ListIdentitySelfContexts",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Canonical base64url authority/digest-bound forward seek cursor. Foreign/malformed values are refused; no previous-page cursor.",
+            "schema": {
+              "maxLength": 1024,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Canonical positive ASCII decimal, default 20; above 100 clamps to 100. Leading zeros, repeats, signs and unknown query keys are refused.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "validation_failed for malformed or repeated native selectors/assertions, unexpected query/body or Idempotency-Key.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized for invalid/expired native source, undecidable bearer or terminal/conflicting self binding; bare Bearer challenge.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "Bearer"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found for missing native source/credentials, unknown/platform host, noncoverage or host/scope disagreement.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "method_not_allowed after earlier host, credential and native-source gates.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Allow": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "GET"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "payload_too_large from the existing decoded body bound; outer Kestrel refusals may omit application headers.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited from visitor/subject admission; bootstrap can also exhaust the shared authority creation-attempt windows.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission.",
+                "required": true,
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error without provider, query or credential details.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "dependency_unavailable for binding/lifecycle/audit storage, unknown COMMIT, permanent creation capacity or cleanup fault. No association/result payload is disclosed.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Successful bounded projection.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SelfContextPage"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TenantBearer": [],
+            "NativeSessionSource": []
+          }
+        ],
+        "x-version-introduced": "v1"
+      }
     }
   },
   "tags": [
@@ -2998,6 +4204,9 @@
     },
     {
       "name": "Memberships"
+    },
+    {
+      "name": "NativeSessionAdmission"
     },
     {
       "name": "Account"

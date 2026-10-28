@@ -15,6 +15,7 @@ public sealed partial class OutboxDispatchConventionTests
         ("LearnStack.Api.PublicReads.PublicEducationController", ["Catalog", "HeadCatalog", "Course", "HeadCourse", "Lesson", "HeadLesson"]),
         ("LearnStack.Api.Account.AccountController", ["GetSite"]),
         ("LearnStack.Api.Identity.MembershipsController", ["List"]),
+        ("LearnStack.Api.Identity.NativeSessionAdmissionController", ["Admit"]),
     ];
 
     /// <summary>ADR-0047: disk-discovered modules cannot hide declarations outside the live handler scan.</summary>
@@ -99,6 +100,7 @@ public sealed partial class OutboxDispatchConventionTests
         foreach (var siteController in new[] { types[("LearnStack.Api", "LearnStack.Api.PublicReads.PublicSiteController")],
                      types[("LearnStack.Api", "LearnStack.Api.Account.AccountController")],
                      types[("LearnStack.Api", "LearnStack.Api.Identity.MembershipsController")],
+                     types[("LearnStack.Api", "LearnStack.Api.Identity.NativeSessionAdmissionController")],
                      types[("LearnStack.Api", "LearnStack.Api.Common.ApiControllerBase")] })
             AssertMutation(census, "a new declared or inherited public action on an approved controller", () =>
         {

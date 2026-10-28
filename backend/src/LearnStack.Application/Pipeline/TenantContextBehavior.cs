@@ -157,6 +157,7 @@ public sealed class TenantContextBehavior<TRequest, TResponse>(
         TenantContextOrigin.HostAndClaim => true,
         TenantContextOrigin.ClaimAndMembership => true,
         TenantContextOrigin.Ambient => true,
+        TenantContextOrigin.HostAndNativeSessionScope => !IsPublicSurface,
 
         // null — an implementation that states no origin — and any member added later
         // without deciding its ceiling. Fail-closed, which is the whole reason this is

@@ -160,7 +160,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**320 test methods run in
+**323 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -2934,7 +2934,10 @@ qualify a new runtime population. The phase Status block owns delivery state.
 - **Type:** actual app-role PostgreSQL/HTTP/provider/native controls plus exact
   function/policy/privilege/source census. **Kind:** behavioural and structural.
 - **Planned test owners:** `GlobalIdentityBootstrapTests`,
-  `IdentitySelfEntryTests`, `IdentitySelfDiscoveryTests`, `TenantBffSessionTests`.
+  `IdentitySelfEntryHttpTests`, `IdentitySelfDiscoveryOwnerTests`,
+  `NativeScopeAdmissionDurabilityHttpTests`, `NativeScopeAdmissionTests` and
+  `TenantBffSessionTests`. The source/global/HTTP/READ ONLY core has local controls;
+  the later provider/native/browser obligations still require qualification.
 - **Status:** **Registered.**
 - **Phase:** P03-3 Steps 2/7/8.
 

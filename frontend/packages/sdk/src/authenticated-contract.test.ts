@@ -28,7 +28,9 @@ type Ownership = GetContractOwnership<paths, operations, Public, Authenticated>;
 function ownershipErrors(
   publicContracts: Readonly<Record<string, string>>,
   authenticatedContracts: Readonly<Record<string, string>>,
-  generated: { paths: Record<string, { get?: { operationId: string } }> } = snapshot,
+  generated: {
+    paths: Record<string, { get?: { operationId: string }; post?: unknown }>;
+  } = snapshot,
 ): string[] {
   const errors: string[] = [];
   const owners = [...Object.entries(publicContracts), ...Object.entries(authenticatedContracts)];
@@ -56,6 +58,8 @@ describe('generated GET contract ownership', () => {
     expect(AUTHENTICATED_GET_CONTRACTS).toEqual({
       '/api/v1/account/site': 'GetAccountSite',
       '/api/v1/identity/memberships': 'ListMemberships',
+      '/api/v1/identity/self': 'GetIdentitySelf',
+      '/api/v1/identity/self/contexts': 'ListIdentitySelfContexts',
     });
     expect(PUBLIC_GET_CONTRACTS).toEqual({
       '/api/v1/public/site': 'GetPublicSite',
@@ -66,7 +70,9 @@ describe('generated GET contract ownership', () => {
     expect(GET_CONTRACT_OWNERSHIP).toBe(true);
     expect(ownershipErrors(PUBLIC_GET_CONTRACTS, AUTHENTICATED_GET_CONTRACTS)).toEqual([]);
     expectTypeOf<Ownership>().toEqualTypeOf<true>();
-    expectTypeOf<AuthenticatedGetOperation>().toEqualTypeOf<'GetAccountSite' | 'ListMemberships'>();
+    expectTypeOf<AuthenticatedGetOperation>().toEqualTypeOf<
+      'GetAccountSite' | 'ListMemberships' | 'GetIdentitySelf' | 'ListIdentitySelfContexts'
+    >();
     expect(RootContracts).toBe(AUTHENTICATED_GET_CONTRACTS);
     expectTypeOf<RootAccountSite>().toEqualTypeOf<AccountSite>();
     expectTypeOf<RootAccountSiteSuccess>().toEqualTypeOf<AccountSiteSuccess>();

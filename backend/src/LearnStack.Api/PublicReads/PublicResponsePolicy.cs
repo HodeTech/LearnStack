@@ -12,6 +12,9 @@ public static class PublicResponsePolicy
         return app.Use(async (context, next) =>
         {
             if (!TenantSurfaceAdmissionMiddleware.IsAccountSitePath(context.Request.Path)
+                && GlobalSelfOperation.ForPath(context.Request.Path) is null
+                && !TenantSurfaceAdmissionMiddleware.IsNativeSessionAdmissionPath(context.Request.Path)
+                && !TenantSurfaceAdmissionMiddleware.IsNativeSessionAdmissionEndpoint(context)
                 && !TenantSurfaceAdmissionMiddleware.IsAccountSiteEndpoint(context)
                 && !TenantSurfaceAdmissionMiddleware.IsMembershipsPath(context.Request.Path)
                 && !TenantSurfaceAdmissionMiddleware.IsMembershipsEndpoint(context)

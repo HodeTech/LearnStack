@@ -82,9 +82,10 @@ public sealed partial class PersistenceConventionTests
                 && target.DeclaringType.FullName == ContextualEnrollment && target.Name == "EnrollCurrentTenantOwner")
             .Select(instruction => (Method: method, Instruction: instruction))).ToArray();
         if (!reenrollments.Select(site => census.Owner(site.Method)).Order(StringComparer.Ordinal).SequenceEqual(new[]
-            { ContextualEnrollment + "::PrepareFreshRead", "LearnStack.Modules.Identity.Infrastructure.Persistence.MembershipDirectoryReader::Admit" }.Order(StringComparer.Ordinal), StringComparer.Ordinal)
+            { ContextualEnrollment + "::PrepareFreshRead", "LearnStack.Modules.Identity.Infrastructure.Persistence.MembershipDirectoryReader::Admit",
+                "LearnStack.Modules.Identity.Infrastructure.Persistence.MembershipAdmissionReader::ReadCurrentAsync" }.Order(StringComparer.Ordinal), StringComparer.Ordinal)
             || reenrollments.Any(site => site.Instruction.OpCode != OpCodes.Call))
-            errors.Add("Only fresh contextual graph reads and the guarded directory may reenroll the same tenant owner");
+            errors.Add("Only fresh contextual graph reads, the guarded directory and native Membership admission may reenroll the same tenant owner");
         return errors;
     }
 

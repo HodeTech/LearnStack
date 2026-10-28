@@ -40,12 +40,29 @@ public sealed partial class AuthenticationAuthorityTests
         [CandidateSource + ".IsEvidenceCurrent"] = Signature(CandidateSource, "IsEvidenceCurrent", "System.Boolean", "System.Object"),
         [CandidateSource + ".MatchesIdentity"] = Signature(CandidateSource, "MatchesIdentity", "System.Boolean", Identity, Verified),
         [TransportSource + ".Capture"] = Signature(TransportSource, "Capture", "LearnStack.SharedKernel.Audit.OperationTransportProvenance", "LearnStack.SharedKernel.Permissions.OperationInvocation"),
+        [TransportSource + ".MatchesScope"] = Signature(TransportSource, "MatchesScope", "System.Boolean", Http, Identity, "LearnStack.SharedKernel.Permissions.OperationInvocation"),
+        [Native + "..ctor"] = Signature(Native, ".ctor", "System.Void", Http, NativeSource, Verified, Identity),
+        [Native + ".TryMint"] = Signature(Native, "TryMint", Native, Http, Identity),
+        [Native + ".IsCurrent"] = Signature(Native, "IsCurrent", "System.Boolean", Http),
+        [Native + ".get_Actor"] = Signature(Native, "get_Actor", User),
+        [NativeSource + "..ctor"] = Signature(NativeSource, ".ctor", "System.Void", Http, Host, Verified,
+            Authentication + "SubjectAdmissionDecision", Provenance, Tenant, Organization, Authentication + "GlobalSelfOperation",
+            "LearnStack.Api.Tenancy.EffectiveHostAccessor", Authentication + "NativeSessionSourcePolicy", "LearnStack.SharedKernel.Time.IClock"),
+        [NativeSource + ".IsCurrent"] = Signature(NativeSource, "IsCurrent", "System.Boolean", Http),
+        [NativeMiddleware + ".InvokeAsync"] = Signature(NativeMiddleware, "InvokeAsync", TaskType, Http,
+            "LearnStack.Api.Tenancy.EffectiveHostAccessor", Authentication + "NativeSessionSourcePolicy", "LearnStack.SharedKernel.Time.IClock"),
+        [SelfAdmission + ".Allows"] = Signature(SelfAdmission, "Allows", "System.Boolean", "LearnStack.SharedKernel.Identity.GlobalIdentitySubject",
+            "LearnStack.Modules.Identity.Application.Contracts.Entry.IdentitySelfOperation", OptionalUser),
+        [SelfAdmission + ".CurrentSubject"] = Signature(SelfAdmission, "CurrentSubject", Authentication + "NativeEntrySubject",
+            Http, "LearnStack.Modules.Identity.Application.Contracts.Entry.IdentitySelfOperation"),
+        [SelfAdmission + ".Capture"] = Signature(SelfAdmission, "Capture", "LearnStack.Modules.Identity.Application.Contracts.Entry.NativeSessionAssociation",
+            User, "LearnStack.SharedKernel.Identifiers.TenantId", Organization),
         [Authentication + "OperationClassificationMiddleware.InvokeAsync"] = Signature(Authentication + "OperationClassificationMiddleware", "InvokeAsync", TaskType, Http,
             Authentication + "OperationHttpClassifier", "System.Func`1<LearnStack.Application.Authorization.OperationAuthorizationCoordinator>", Context),
         [Authentication + "OperationAuthorizationHandler.HandleAsync"] = Signature(Authentication + "OperationAuthorizationHandler", "HandleAsync", TaskType,
             "Microsoft.AspNetCore.Authorization.AuthorizationHandlerContext"),
         [CredentialWitness + "..ctor"] = Signature(CredentialWitness, ".ctor", "System.Void", Http, Host, Verified, Identity,
-            Authentication + "SubjectAdmissionDecision", Provenance),
+            Authentication + "SubjectAdmissionDecision", Provenance, Native),
         [CredentialWitness + ".get_Subject"] = Signature(CredentialWitness, "get_Subject", Verified),
         [CredentialWitness + ".get_Identity"] = Signature(CredentialWitness, "get_Identity", Identity),
         [Resolver + ".BuildAttemptAsync"] = Signature(Resolver, "BuildAttemptAsync", TaskType + "`1<" + Attempt + ">", Http, Host, ScopeValidator, Membership, Identity),
@@ -54,7 +71,7 @@ public sealed partial class AuthenticationAuthorityTests
         ["LearnStack.Api.Tenancy.TenantAssertionMiddleware.InvokeAsync"] = Signature("LearnStack.Api.Tenancy.TenantAssertionMiddleware", "InvokeAsync", TaskType, Http, Context, Recorder,
             "LearnStack.Api.Tenancy.IClaimContextAssertionRecorder"),
         [Authentication + "TenantSurfaceAdmissionMiddleware.InvokeAsync"] = Signature(Authentication + "TenantSurfaceAdmissionMiddleware", "InvokeAsync", TaskType, Http, Context),
-        [Authentication + "TenantSurfaceAdmissionMiddleware.HasHostAuthority"] = Signature(Authentication + "TenantSurfaceAdmissionMiddleware", "HasHostAuthority", "System.Boolean", Context, Identity),
+        [Authentication + "TenantSurfaceAdmissionMiddleware.HasHostAuthority"] = Signature(Authentication + "TenantSurfaceAdmissionMiddleware", "HasHostAuthority", "System.Boolean", Http, Context, Identity),
         [Authentication + "TenantSubjectAdmissionMiddleware.InvokeAsync"] = Signature(Authentication + "TenantSubjectAdmissionMiddleware", "InvokeAsync", TaskType, Http),
         [Authentication + "TenantCredentialAdmissionMiddleware.InvokeAsync"] = Signature(Authentication + "TenantCredentialAdmissionMiddleware", "InvokeAsync", TaskType, Http),
         [Authentication + "TenantAuthorizationResultHandler.HandleAsync"] = Signature(Authentication + "TenantAuthorizationResultHandler", "HandleAsync", TaskType, "Microsoft.AspNetCore.Http.RequestDelegate", Http, "Microsoft.AspNetCore.Authorization.AuthorizationPolicy", "Microsoft.AspNetCore.Authorization.Policy.PolicyAuthorizationResult")
@@ -165,7 +182,8 @@ public sealed partial class AuthenticationAuthorityTests
             ["Subject"] = Verified,
             ["Identity"] = Identity,
             ["Decision"] = Authentication + "SubjectAdmissionDecision",
-            ["Provenance"] = Provenance
+            ["Provenance"] = Provenance,
+            ["Native"] = Native
         };
         return witness.IsSealed && witness.IsNestedPrivate && witness.BaseType.FullName == "System.Object"
             && !witness.HasInterfaces && !witness.HasEvents && !witness.HasNestedTypes && !witness.HasGenericParameters
@@ -213,7 +231,9 @@ public sealed partial class AuthenticationAuthorityTests
         _ => false
     };
 
-    private static bool ExportsProjection(Method method) => method.Definition.Body.Instructions.Any(instruction =>
+    private static bool ExportsProjection(Method method) => ProjectionExports(method).Any();
+
+    private static IEnumerable<Instruction> ProjectionExports(Method method) => method.Definition.Body.Instructions.Where(instruction =>
         // These owners keep typed projection state; erasing it into object
         // storage, a boxed value or a reference array creates another channel.
         instruction.OpCode.Code is Code.Box or Code.Stelem_Ref

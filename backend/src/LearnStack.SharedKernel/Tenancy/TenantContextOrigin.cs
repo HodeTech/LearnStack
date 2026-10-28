@@ -28,9 +28,9 @@ namespace LearnStack.SharedKernel.Tenancy;
 /// There is deliberately <b>no member for the matrix rows whose Origin is "—"</b>.
 /// Those rows resolve nothing: either the request is refused, or it legitimately
 /// carries no tenant and runs under <see cref="UnresolvedTenantContext"/>, whose
-/// <c>IsResolved</c> is <c>false</c>. A fifth member would be a resolved-looking
-/// context with no authority behind it, which is the partially populated context
-/// ADR-0036 § Rules forbids the factory from ever returning.
+/// <c>IsResolved</c> is <c>false</c>. ADR-0078's separate native member names actual
+/// independently credentialed signals; it is not an unresolved row made to look
+/// resolved. Every future member requires its own explicit authority ceiling.
 /// </para>
 /// </remarks>
 public enum TenantContextOrigin
@@ -60,4 +60,11 @@ public enum TenantContextOrigin
     /// reconcile, so the enqueuing side is where a missing tenant fails.
     /// </summary>
     Ambient,
+
+    /// <summary>
+    /// The real tenant/organization host agrees with an independently credentialed
+    /// native tuple, normalized stored actor and current Membership/lifecycle.
+    /// It admits classified protected operations, never PublicSurface or Platform.
+    /// </summary>
+    HostAndNativeSessionScope,
 }

@@ -188,7 +188,8 @@ public sealed partial class IdentityAuditConventionTests
         EvidenceCallers(census, errors, "LearnStack.SharedKernel.Audit.IAuditStateCapture", "AttachAuthorization",
             [(CentralEvidence, "Observe", 1), (CentralEvidence, "RecordObservedDenial", 1)]);
         EvidenceCallers(census, errors, InvocationContext, "get_CurrentInvocation", [(CentralEvidence, "Snapshot", 1), (RoleAuthorization, "Matches", 1), (RoleHandler, "ExecuteAsync", 1)]);
-        EvidenceCallers(census, errors, InvocationContext, "get_CurrentDecision", [(RoleAuthorization, "Matches", 1), (RoleHandler, "ExecuteAsync", 1)]);
+        EvidenceCallers(census, errors, InvocationContext, "get_CurrentDecision", [(RoleAuthorization, "Matches", 1), (RoleHandler, "ExecuteAsync", 1),
+            ("LearnStack.Modules.Identity.Application.Bindings.AdmitNativeSessionScopeCommandHandler", "Handle", 1)]);
         EvidenceCallers(census, errors, "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportRecheck", [(RoleAuthorization, "ReportRecheck", 1)]);
         EvidenceCallers(census, errors, "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportResourceRefusal", [(RoleAuthorization, "ReportRefusal", 1)]);
         foreach (var (type, method, target, name) in new[]

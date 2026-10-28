@@ -149,6 +149,10 @@ namespace LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations
                     b.HasIndex("TenantId", "OrganizationId")
                         .HasDatabaseName("ix_memberships_tenant_id_organization_id");
 
+                    b.HasIndex("UserId", "Id")
+                        .HasDatabaseName("ix_memberships_self_active_user_id_id")
+                        .HasFilter("status = 'Active' AND deleted_at IS NULL");
+
                     b.HasIndex("TenantId", "UserId", "OrganizationId")
                         .IsUnique()
                         .HasDatabaseName("ux_memberships_current_scope")

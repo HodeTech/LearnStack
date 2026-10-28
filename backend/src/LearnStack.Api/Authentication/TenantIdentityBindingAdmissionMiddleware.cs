@@ -40,6 +40,7 @@ internal sealed class TenantIdentityBindingAdmissionMiddleware(RequestDelegate n
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(resolver);
         var feature = context.Features.Get<TenantCredentialFeature>();
+        context.Features.Set<NativeScopeEvidence>(null);
         if (feature is not null) feature.Identity = null;
         if (context.Features.Get<HostClassification>() is null)
         {
@@ -90,6 +91,16 @@ internal sealed class TenantIdentityBindingAdmissionMiddleware(RequestDelegate n
 
         feature.Identity = new ValidatedTenantIdentity(subject.Issuer, subject.Subject, actor,
             subject.TenantId, subject.OrganizationId);
+        if (context.Features.Get<NativeSessionSourceFeature>() is not null)
+        {
+            var native = NativeScopeEvidence.TryMint(context, feature.Identity);
+            if (native is null)
+            {
+                Refuse(context);
+                return;
+            }
+            context.Features.Set(native);
+        }
         await next(context);
     }
 
@@ -103,6 +114,7 @@ internal sealed class TenantIdentityBindingAdmissionMiddleware(RequestDelegate n
     internal static void Refuse(HttpContext context)
     {
         if (context.Features.Get<TenantCredentialFeature>() is { } feature) feature.Identity = null;
+        context.Features.Set<NativeScopeEvidence>(null);
         PublicResponsePolicy.Apply(context.Response);
         context.Response.Headers.WWWAuthenticate = "Bearer";
         context.Response.StatusCode = StatusCodes.Status401Unauthorized;

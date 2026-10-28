@@ -23,6 +23,10 @@ public sealed partial class AuthenticationAuthorityTests
     private const string CandidateSource = Authentication + nameof(TenantAuthorizationCandidateSource);
     private const string TransportSource = Authentication + nameof(HttpAuthorizationTransportSource);
     private const string CredentialWitness = CandidateSource + "/CredentialWitness";
+    private const string Native = Authentication + "NativeScopeEvidence";
+    private const string NativeSource = Authentication + "NativeSessionSourceFeature";
+    private const string NativeMiddleware = Authentication + "NativeSessionSourceMiddleware";
+    private const string SelfAdmission = Authentication + "HttpIdentitySelfEntryAdmission";
     private const string Resolver = "LearnStack.Api.Tenancy.TenantResolverMiddleware";
     private static readonly string[] IdentityProperties = ["ActorUserId", "Issuer", "OrganizationId", "Subject", "TenantId"];
     private static readonly Dictionary<string, Type> IdentityTypes = new(StringComparer.Ordinal)
@@ -48,8 +52,15 @@ public sealed partial class AuthenticationAuthorityTests
     /// <summary>ADR-0064 § Access-token profile and § Resolution and attribution.</summary>
     [Fact]
     public void Keycloak_Roles_Are_Not_Application_Authority() => WithProduction(modules =>
-        Offenders(modules).Should().BeEmpty(
-            "Fix: consume only the validated typed projection at its enumerated boundaries; Phase 03 owns application permissions, never realm roles or free claim text"));
+    {
+        var errors = Offenders(modules);
+        var exports = errors.Count == 0 ? [] : Methods(modules.SelectMany(module => module.Types.SelectMany(Flatten)))
+            .Where(TouchesProjection).SelectMany(method => ProjectionExports(method)
+                .Select(instruction => method.Site + " -> " + instruction.OpCode.Name + " " + instruction.Operand)).ToArray();
+        errors.Should().BeEmpty(
+            "Fix: consume only the validated typed projection at its enumerated boundaries; all findings: {0}; export sites: {1}",
+            string.Join("\n", errors), string.Join("\n", exports));
+    });
 
     private static SortedSet<string> Offenders(ModuleDefinition[] modules,
         IEnumerable<Method>? planted = null, Func<MethodReference, bool>? rawReader = null,
@@ -115,22 +126,27 @@ public sealed partial class AuthenticationAuthorityTests
 
         // Issuer/sub may select a private accounting partition, never permission.
         // Scope/actor consumption remains explicit even inside the API assembly.
-        Consumers("Issuer", CandidateSource + ".MatchesIdentity");
-        Consumers("Subject", CandidateSource + ".MatchesIdentity");
-        VerifiedConsumers("Issuer", Limiter + ".AttemptAcquire", BindingResolver + ".ResolveExistingAsync", BindingAdmission + ".InvokeAsync", CandidateSource + ".MatchesIdentity");
-        VerifiedConsumers("Subject", Limiter + ".AttemptAcquire", BindingResolver + ".ResolveExistingAsync", BindingAdmission + ".InvokeAsync", CandidateSource + ".MatchesIdentity");
-        VerifiedConsumers("ClaimedActor", BindingResolver + ".ResolveExistingAsync", CandidateSource + ".MatchesIdentity");
-        VerifiedConsumers("TenantId", BindingAdmission + ".InvokeAsync", CandidateSource + ".MatchesIdentity");
-        VerifiedConsumers("OrganizationId", BindingAdmission + ".InvokeAsync", CandidateSource + ".MatchesIdentity");
+        Consumers("Issuer", CandidateSource + ".MatchesIdentity", Native + ".TryMint");
+        Consumers("Subject", CandidateSource + ".MatchesIdentity", Native + ".TryMint");
+        VerifiedConsumers("Issuer", Limiter + ".AttemptAcquire", BindingResolver + ".ResolveExistingAsync", BindingAdmission + ".InvokeAsync",
+            CandidateSource + ".MatchesIdentity", Native + ".TryMint", SelfAdmission + ".Allows", SelfAdmission + ".CurrentSubject", SelfAdmission + ".Capture");
+        VerifiedConsumers("Subject", Limiter + ".AttemptAcquire", BindingResolver + ".ResolveExistingAsync", BindingAdmission + ".InvokeAsync",
+            CandidateSource + ".MatchesIdentity", Native + ".TryMint", SelfAdmission + ".Allows", SelfAdmission + ".CurrentSubject", SelfAdmission + ".Capture");
+        VerifiedConsumers("ClaimedActor", BindingResolver + ".ResolveExistingAsync", CandidateSource + ".MatchesIdentity",
+            Native + ".TryMint", SelfAdmission + ".Allows", SelfAdmission + ".CurrentSubject");
+        VerifiedConsumers("TenantId", BindingAdmission + ".InvokeAsync", CandidateSource + ".MatchesIdentity",
+            Native + ".TryMint", NativeMiddleware + ".InvokeAsync");
+        VerifiedConsumers("OrganizationId", BindingAdmission + ".InvokeAsync", CandidateSource + ".MatchesIdentity",
+            Native + ".TryMint", NativeMiddleware + ".InvokeAsync");
         Consumers("ActorUserId", Resolver + ".BuildAttemptAsync", Resolver + ".RecordRefusalAsync",
             "LearnStack.Api.Tenancy.TenantAssertionMiddleware.InvokeAsync",
             Authentication + "TenantSurfaceAdmissionMiddleware.HasHostAuthority", CandidateSource + ".ForValidatedScope", CandidateSource + ".MatchesIdentity",
-            TransportSource + ".Capture");
+            TransportSource + ".Capture", Native + ".TryMint", Native + ".get_Actor");
         Consumers("TenantId", Resolver + ".BuildAttemptAsync", Resolver + ".InvokeAsync",
             Authentication + "TenantSurfaceAdmissionMiddleware.HasHostAuthority", CandidateSource + ".ForValidatedScope", CandidateSource + ".MatchesIdentity",
-            TransportSource + ".Capture");
+            TransportSource + ".MatchesScope", Native + ".TryMint");
         Consumers("OrganizationId", Resolver + ".BuildAttemptAsync", Authentication + "TenantSurfaceAdmissionMiddleware.HasHostAuthority",
-            CandidateSource + ".ForValidatedScope", CandidateSource + ".MatchesIdentity");
+            CandidateSource + ".ForValidatedScope", CandidateSource + ".MatchesIdentity", Native + ".TryMint");
 
         foreach (var method in methods)
             foreach (var instruction in method.Definition.Body.Instructions)

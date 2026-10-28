@@ -4,6 +4,7 @@ using LearnStack.Modules.Customization.Application.Authorization;
 using LearnStack.Modules.Education.Application.Authorization;
 using LearnStack.Modules.Identity.Application;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
+using LearnStack.Modules.Identity.Application.Contracts.Entry;
 using LearnStack.Modules.Tenancy.Application.Authorization;
 using LearnStack.SharedKernel.Permissions;
 using MediatR;
@@ -29,11 +30,15 @@ public sealed class OperationPolicyCatalogTests
             && type.GetInterfaces().Any(contract => contract.IsGenericType && contract.GetGenericTypeDefinition() == typeof(IRequest<>)))
             .OrderBy(type => type.FullName, StringComparer.Ordinal).ToArray();
         Assert.Equal(actual, catalog.All.Select(policy => policy.RequestType));
-        Assert.Equal(49, actual.Length);
+        Assert.Equal(50, actual.Length);
         Assert.Equal(4, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.PublicRead));
         Assert.Single(catalog.All, policy => policy.Kind == OperationPolicyKind.AccountRead);
         Assert.Equal(3, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.Protected));
         Assert.Equal(41, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.FiniteTrusted));
+        var admission = Assert.Single(catalog.All, policy => policy.Kind == OperationPolicyKind.NativeSessionAdmission);
+        Assert.Equal(typeof(AdmitNativeSessionScopeCommand), admission.RequestType);
+        Assert.Null(admission.RequiredPermission);
+        Assert.Equal(OperationReadScope.Scoped, admission.ReadScope);
         Assert.Equal(5, catalog.Definitions.Count(definition => definition.Assignable));
         Assert.Equal(3, catalog.Definitions.Count(definition => !definition.Assignable));
         Assert.DoesNotContain(catalog.Definitions, definition => definition.Definition.Scope == PermissionScope.Platform);

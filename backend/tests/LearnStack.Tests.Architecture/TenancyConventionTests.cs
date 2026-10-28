@@ -256,7 +256,8 @@ public sealed partial class TenancyConventionTests
 
     /// <summary>The ambient unit of work, which sets the variables on the request's transaction.</summary>
     private static readonly string[] AmbientSetters =
-        ["LearnStack.Infrastructure/Persistence/NpgsqlUnitOfWork.cs"];
+        ["LearnStack.Infrastructure/Persistence/NpgsqlUnitOfWork.cs",
+         "LearnStack.Infrastructure/Persistence/NpgsqlUnitOfWork.SelfDiscovery.cs"];
 
     /// <summary>
     /// The audit store: its standalone and best-effort writes own a short transaction that
@@ -470,6 +471,7 @@ public sealed partial class TenancyConventionTests
         // These exact empty resets remove authority; neither site may acquire
         // tenant scope or host-lookup provenance. Nonempty/parameterized setters still fail.
         return relative is "LearnStack.Infrastructure/Persistence/NpgsqlUnitOfWork.cs"
+            or "LearnStack.Infrastructure/Persistence/NpgsqlUnitOfWork.SelfDiscovery.cs"
             or "LearnStack.Infrastructure.Audit/PostgresAuditStore.GlobalIdentity.cs"
             or "LearnStack.Infrastructure/Persistence/AuthorizationReadOwner.cs"
             or "LearnStack.Infrastructure/Persistence/AuthorizationEvidenceSession.cs"

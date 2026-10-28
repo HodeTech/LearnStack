@@ -14,6 +14,7 @@ public sealed partial class TenantContextConstructionTests
     private const string OrganizationCompletion = "LearnStack.Infrastructure/Jobs/PostgresBackgroundJobRecipientCompletion.cs";
     private const string OrganizationOccurrences = "LearnStack.Infrastructure/Jobs/PostgresBackgroundJobControlStore.Occurrences.cs";
     private const string OrganizationIdentityLifecycle = "Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/Persistence/IdentityScopeLifecycleReader.cs";
+    private const string OrganizationSelfDiscovery = "Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/Persistence/PreContextSelfDiscoveryScopeReader.cs";
     private const string OrganizationPointSql = "SELECT status,deleted_at FROM organizations WHERE tenant_id=@tenant AND id=@organization";
     private const string OrganizationPageSql = """
         SELECT tenant_id,id,status,deleted_at FROM organizations
@@ -35,6 +36,26 @@ public sealed partial class TenantContextConstructionTests
         LEFT JOIN public.organizations AS o
           ON o.tenant_id = t.id AND o.id = @organization
         """;
+    private const string OrganizationSelfDiscoverySql = """
+        SELECT t.display_name,o.display_name,h.host,
+            current_user='learnstack_app'
+                AND current_setting('transaction_read_only')='on'
+                AND current_setting('transaction_isolation')='read committed'
+                AND NULLIF(current_setting('app.tenant_id',true),'')::uuid=@tenant
+                AND NULLIF(current_setting('app.organization_id',true),'')::uuid IS NOT DISTINCT FROM @organization
+                AND NULLIF(current_setting('app.scope',true),'') IS NULL
+                AND NULLIF(current_setting('app.resolving_host',true),'') IS NULL
+                AND NULLIF(current_setting('app.identity_authority_id',true),'') IS NULL
+                AND NULLIF(current_setting('app.identity_subject_key',true),'') IS NULL
+        FROM public.tenants t
+        LEFT JOIN public.organizations o ON o.tenant_id=t.id AND o.id=@organization
+        JOIN public.platform_host_to_tenant h ON h.tenant_id=t.id AND h.is_active
+            AND (h.organization_id IS NULL OR h.organization_id=@organization)
+        WHERE t.id=@tenant AND t.deleted_at IS NULL AND t.status IN ('Trial','Active')
+            AND (@organization IS NULL OR (o.id IS NOT NULL AND o.deleted_at IS NULL AND o.status='Active'))
+        ORDER BY (h.organization_id IS NOT NULL) DESC,h.host
+        LIMIT 1
+        """;
 
     private sealed record OrganizationSqlSubject(string Path, string Type, string Member, string Sql);
 
@@ -49,6 +70,8 @@ public sealed partial class TenantContextConstructionTests
             "SELECT tenant_id,id FROM organizations ORDER BY tenant_id DESC,id DESC LIMIT 1"),
         new(OrganizationIdentityLifecycle, "LearnStack.Modules.Tenancy.Infrastructure.Persistence.IdentityScopeLifecycleReader",
             "LifecycleSql", OrganizationIdentityLifecycleSql),
+        new(OrganizationSelfDiscovery, "LearnStack.Modules.Tenancy.Infrastructure.Persistence.PreContextSelfDiscoveryScopeReader",
+            "LabelsSql", OrganizationSelfDiscoverySql),
     ];
 
     private static (string Path, string Code)[] OrganizationSources() =>
@@ -122,10 +145,22 @@ public sealed partial class TenantContextConstructionTests
             "command.Parameters.AddWithValue(\"tenant\", candidate.TenantId.Value)",
             "command.Parameters.AddWithValue(\"organization\", NpgsqlDbType.Uuid, candidate.OrganizationId is { } organization ? organization.Value : DBNull.Value)",
             "command.ExecuteReaderAsync(cancellationToken)");
+        Require(OrganizationSelfDiscovery, "PreContextSelfDiscoveryScopeReader", "ReadAsync",
+            "deadline.CancelAfter(TimeSpan.FromSeconds(5))",
+            "self.BeginSelfDiscoveryTransactionAsync(witness, deadline.Token)",
+            "command.Parameters.AddWithValue(\"tenant\", witness.TenantId.Value)",
+            "command.Parameters.AddWithValue(\"organization\", NpgsqlDbType.Uuid, witness.OrganizationId is { } org ? org.Value : DBNull.Value)",
+            "command.ExecuteReaderAsync(deadline.Token)",
+            "self.IsSelfDiscoveryOwner(witness)",
+            "frame.CompleteAsync(deadline.Token)");
         if (roots.TryGetValue(OrganizationIdentityLifecycle, out var lifecycleRoot)
             && lifecycleRoot.DescendantTokens().Count(token => token.IsKind(SyntaxKind.IdentifierToken)
                 && token.ValueText == "LifecycleSql") != 3)
             offenders.Add(OrganizationIdentityLifecycle + ": the SQL constant must have exactly its declaration and two executed argument uses");
+        if (roots.TryGetValue(OrganizationSelfDiscovery, out var selfRoot)
+            && selfRoot.DescendantTokens().Count(token => token.IsKind(SyntaxKind.IdentifierToken)
+                && token.ValueText == "LabelsSql") != 2)
+            offenders.Add(OrganizationSelfDiscovery + ": the SQL constant must have exactly its declaration and one executed argument use");
         return offenders.Distinct(StringComparer.Ordinal).ToArray();
 
         void Require(string path, string type, string method, params string[] calls)
@@ -133,7 +168,7 @@ public sealed partial class TenantContextConstructionTests
             var expectedNamespace = path switch
             {
                 OrganizationValidator => "LearnStack.Infrastructure.MultiTenancy.",
-                OrganizationIdentityLifecycle => "LearnStack.Modules.Tenancy.Infrastructure.Persistence.",
+                OrganizationIdentityLifecycle or OrganizationSelfDiscovery => "LearnStack.Modules.Tenancy.Infrastructure.Persistence.",
                 _ => "LearnStack.Infrastructure.Jobs.",
             };
             var methods = roots.TryGetValue(path, out var root)
@@ -147,6 +182,7 @@ public sealed partial class TenantContextConstructionTests
                 "RecipientHistoryCommand" => ("BackgroundJobControlResources resources, BackgroundJobRecipientClaim claim, string sql", "NpgsqlCommand", SyntaxKind.PrivateKeyword, false),
                 "CreateCommand" => ("string sql", "NpgsqlCommand", SyntaxKind.PrivateKeyword, false),
                 "ReadLifecyclePageAsync" => ("BackgroundJobControlResources resources, OccurrenceCursor cursor, CancellationToken token", "Task<IReadOnlyList<BackgroundJobLifecycleRoute>>", SyntaxKind.PrivateKeyword, true),
+                "ReadAsync" when path == OrganizationSelfDiscovery => ("OwnMembershipScopeWitness witness, CancellationToken cancellationToken = default", "Task<OwnMembershipScopeLabel?>", SyntaxKind.PublicKeyword, true),
                 "ReadAsync" => ("TenantId tenantId, OrganizationId? organizationId, CancellationToken cancellationToken = default", "Task<IdentityScopeLifecycle>", SyntaxKind.PublicKeyword, true),
                 "ReadAuthorizationAsync" => ("IUnitOfWork child, AuthorizationCandidate candidate, CancellationToken cancellationToken = default", "Task<IdentityScopeLifecycle>", SyntaxKind.PublicKeyword, true),
                 _ => throw new InvalidOperationException("Unknown organization binding owner."),
@@ -172,6 +208,22 @@ public sealed partial class TenantContextConstructionTests
                     || !SyntaxFactory.AreEquivalent(creations[0].Ancestors().OfType<StatementSyntax>().FirstOrDefault(), statement)
                     || !ExecutedBinding(creations[0], ownerMethod))
                     offenders.Add(path + ": the shared SQL must be the exact executed command argument in " + method);
+            }
+            if (path == OrganizationSelfDiscovery)
+            {
+                const string Construction = "new NpgsqlCommand(LabelsSql, (NpgsqlConnection)unit.Connection, (NpgsqlTransaction)unit.Transaction!) { CommandTimeout = 5 }";
+                var creations = ownerMethod.DescendantNodes().OfType<ObjectCreationExpressionSyntax>()
+                    .Where(item => SyntaxFactory.AreEquivalent(item.Type, SyntaxFactory.ParseTypeName("NpgsqlCommand"))).ToArray();
+                if (creations.Length != 1 || !SyntaxFactory.AreEquivalent(creations[0], SyntaxFactory.ParseExpression(Construction))
+                    || creations[0].Parent is not EqualsValueClauseSyntax
+                    {
+                        Parent: VariableDeclaratorSyntax { Identifier.ValueText: "command", Parent: VariableDeclarationSyntax declaration }
+                    }
+                    || declaration.Variables.Count != 1
+                    || declaration.Parent is not UsingStatementSyntax commandOwner
+                    || !commandOwner.AwaitKeyword.IsKind(SyntaxKind.AwaitKeyword)
+                    || !ExecutedBinding(creations[0], ownerMethod))
+                    offenders.Add(path + ": LabelsSql must be the one executed await-using common-owner command");
             }
             var actual = ownerMethod.DescendantNodes().OfType<InvocationExpressionSyntax>().ToArray();
             foreach (var call in calls)
@@ -214,9 +266,20 @@ public sealed partial class TenantContextConstructionTests
         // command. Its bindings execute in that root try body, never its catch,
         // a nested conditional or a deferred helper.
         if (owner.Identifier.ValueText is "ReadAsync" or "ReadAuthorizationAsync" && owner.Parent is TypeDeclarationSyntax lifecycle
-            && OrganizationTypeIdentity(lifecycle) == "LearnStack.Modules.Tenancy.Infrastructure.Persistence.IdentityScopeLifecycleReader"
+            && OrganizationTypeIdentity(lifecycle) is "LearnStack.Modules.Tenancy.Infrastructure.Persistence.IdentityScopeLifecycleReader"
+                or "LearnStack.Modules.Tenancy.Infrastructure.Persistence.PreContextSelfDiscoveryScopeReader"
             && statement?.Parent is BlockSyntax { Parent: TryStatementSyntax guarded } tryBody
             && guarded.Parent == owner.Body && ReferenceEquals(guarded.Block, tryBody)) return true;
+        // The single captured-scope label command owns an await-using block
+        // inside that root try. No conditional/local helper can justify a key.
+        if (owner.Identifier.ValueText == "ReadAsync" && owner.Parent is TypeDeclarationSyntax labels
+            && OrganizationTypeIdentity(labels) == "LearnStack.Modules.Tenancy.Infrastructure.Persistence.PreContextSelfDiscoveryScopeReader"
+            && statement?.Parent is BlockSyntax { Parent: UsingStatementSyntax commandOwner } commandBody
+            && ReferenceEquals(commandOwner.Statement, commandBody)
+            && commandOwner.AwaitKeyword.IsKind(SyntaxKind.AwaitKeyword)
+            && commandOwner.Parent is BlockSyntax { Parent: TryStatementSyntax commandTry } outerTry
+            && ReferenceEquals(commandTry.Block, outerTry) && commandTry.Parent == owner.Body)
+            return true;
         // Only these two cursor values are conditional; they are bound on the
         // exact branch that selected the organization page, never a local function.
         return owner.Identifier.ValueText == "ReadLifecyclePageAsync"
@@ -244,12 +307,14 @@ public sealed partial class TenantContextConstructionTests
     {
         if (path == OrganizationOccurrences && member == "OrganizationLifecyclePageSql")
             return literal.Parent is EqualsValueClauseSyntax;
-        if (path == OrganizationIdentityLifecycle && member == "LifecycleSql")
+        if (path == OrganizationIdentityLifecycle && member == "LifecycleSql"
+            || path == OrganizationSelfDiscovery && member == "LabelsSql")
             return literal.Parent is EqualsValueClauseSyntax
             {
                 Parent: VariableDeclaratorSyntax
-                { Identifier.ValueText: "LifecycleSql", Parent: VariableDeclarationSyntax declaration }
+                { Parent: VariableDeclarationSyntax declaration } variable
             }
+                && variable.Identifier.ValueText == member
                 && declaration.Variables.Count == 1
                 && SyntaxFactory.AreEquivalent(declaration.Type, SyntaxFactory.ParseTypeName("string"))
                 && declaration.Parent is FieldDeclarationSyntax field
@@ -279,7 +344,7 @@ public sealed partial class TenantContextConstructionTests
     public void Organization_reader_census_rejects_missing_keys_extra_readers_and_unbounded_pages()
     {
         var production = OrganizationSources();
-        OrganizationReadOffenders(production).Should().BeEmpty("all six real SQL subjects and their bound keys must exist");
+        OrganizationReadOffenders(production).Should().BeEmpty("all seven real SQL subjects and their bound keys must exist");
         foreach (var subject in OrganizationSqlSubjects)
         {
             var source = production.Single(file => file.Path == subject.Path);
@@ -395,6 +460,59 @@ public sealed partial class TenantContextConstructionTests
             + " command.Parameters[\"tenant\"].Value = Guid.Empty;", StringComparison.Ordinal));
         Dirty(identity.Path, identity.Code.Replace(IdentityTenantBinding,
             "var rebound = command.Parameters.AddWithValue(\"tenant\", tenantId.Value); rebound.Value = Guid.Empty;", StringComparison.Ordinal));
+        var self = production.Single(file => file.Path == OrganizationSelfDiscovery);
+        var selfRoot = CSharpSyntaxTree.ParseText(self.Code).GetRoot();
+        var labelsField = selfRoot.DescendantNodes().OfType<FieldDeclarationSyntax>()
+            .Single(field => field.Declaration.Variables.Any(variable => variable.Identifier.ValueText == "LabelsSql"));
+        Dirty(self.Path, self.Code.Remove(labelsField.SpanStart, labelsField.Span.Length));
+        Dirty(self.Path, self.Code.Remove(labelsField.SpanStart, labelsField.Span.Length)
+            + "\ninternal static class UnusedLabelsSql { " + labelsField + " }");
+        Dirty(self.Path, self.Code.Replace("private const string LabelsSql", "public const string LabelsSql", StringComparison.Ordinal));
+        Dirty(self.Path, self.Code.Replace("private const string LabelsSql", "private readonly string LabelsSql", StringComparison.Ordinal));
+        var labelMethod = selfRoot.DescendantNodes().OfType<MethodDeclarationSyntax>()
+            .Single(method => method.Identifier.ValueText == "ReadAsync");
+        foreach (var binding in labelMethod.DescendantNodes().OfType<InvocationExpressionSyntax>()
+                     .Where(call => call.Expression is MemberAccessExpressionSyntax { Name.Identifier.ValueText: "AddWithValue" }))
+        {
+            var bindingStatement = binding.Ancestors().OfType<StatementSyntax>().First();
+            Dirty(self.Path, selfRoot.RemoveNode(bindingStatement, SyntaxRemoveOptions.KeepNoTrivia)!.ToFullString());
+            Dirty(self.Path, selfRoot.ReplaceNode(bindingStatement,
+                SyntaxFactory.ParseStatement("void UnusedBinding() { " + bindingStatement + " } ")).ToFullString());
+            Dirty(self.Path, selfRoot.ReplaceNode(bindingStatement,
+                SyntaxFactory.ParseStatement("if (false) { " + bindingStatement + " } ")).ToFullString());
+        }
+        var labelConstruction = labelMethod.DescendantNodes().OfType<ObjectCreationExpressionSyntax>()
+            .Single(item => item.Type.ToString() == "NpgsqlCommand");
+        var labelStatement = labelConstruction.Ancestors().OfType<StatementSyntax>().First();
+        Dirty(self.Path, selfRoot.ReplaceNode(labelStatement,
+            SyntaxFactory.ParseStatement("void UnusedCommand() { " + labelStatement + " } ")).ToFullString());
+        var wrongLabelsArgument = selfRoot.ReplaceNode(labelConstruction, SyntaxFactory.ParseExpression(
+            labelConstruction.ToString().Replace("LabelsSql", "string.Empty", StringComparison.Ordinal)));
+        var wrongLabelMethod = wrongLabelsArgument.DescendantNodes().OfType<MethodDeclarationSyntax>()
+            .Single(method => method.Identifier.ValueText == "ReadAsync");
+        Dirty(self.Path, wrongLabelsArgument.ReplaceNode(wrongLabelMethod, wrongLabelMethod.WithBody(wrongLabelMethod.Body!
+            .AddStatements(SyntaxFactory.ParseStatement("void UnusedSql() { _ = LabelsSql; }")))).ToFullString());
+        foreach (var (from, to) in new[]
+                 {
+                     ("o.tenant_id=t.id AND ", ""), ("WHERE t.id=@tenant", "WHERE t.id IS NOT NULL"),
+                     ("\"tenant\", witness.TenantId.Value", "\"tenant\", Guid.Empty"),
+                     ("? org.Value : DBNull.Value", "? Guid.Empty : DBNull.Value"),
+                     ("OwnMembershipScopeWitness witness", "TenantId witness"),
+                     ("Task<OwnMembershipScopeLabel?>", "Task<object>"),
+                     ("(NpgsqlConnection)unit.Connection", "unit.Connection"),
+                     ("(NpgsqlTransaction)unit.Transaction!", "unit.Transaction"),
+                     ("CommandTimeout = 5", "CommandTimeout = 20"),
+                     ("deadline.CancelAfter(TimeSpan.FromSeconds(5))", "deadline.CancelAfter(TimeSpan.FromSeconds(20))"),
+                     ("self.BeginSelfDiscoveryTransactionAsync(witness, deadline.Token)", "unit.BeginTransactionAsync(TransactionMode.ReadWrite, deadline.Token)"),
+                     ("self.IsSelfDiscoveryOwner(witness)", "self.IsSelfDiscoveryOwner(null!)"),
+                     ("command.ExecuteReaderAsync(deadline.Token)", "command.ExecuteReaderAsync(CancellationToken.None)"),
+                     ("frame.CompleteAsync(deadline.Token)", "frame.CompleteAsync(CancellationToken.None)"),
+                 }) Dirty(self.Path, self.Code.Replace(from, to, StringComparison.Ordinal));
+        const string SelfTenantBinding = "command.Parameters.AddWithValue(\"tenant\", witness.TenantId.Value);";
+        Dirty(self.Path, self.Code.Replace(SelfTenantBinding, SelfTenantBinding
+            + " command.Parameters[\"tenant\"].Value = Guid.Empty;", StringComparison.Ordinal));
+        Dirty(self.Path, self.Code.Replace(SelfTenantBinding,
+            "var rebound = command.Parameters.AddWithValue(\"tenant\", witness.TenantId.Value); rebound.Value = Guid.Empty;", StringComparison.Ordinal));
         OrganizationReadOffenders(production.Select(file => (file.Path, "// FROM organizations is a harmless comment\n" + file.Code)))
             .Should().BeEmpty("comments and source formatting cannot create or authorize SQL subjects");
         OrganizationReadOffenders(production).Should().BeEmpty("the actual source is restored after every planted copy");

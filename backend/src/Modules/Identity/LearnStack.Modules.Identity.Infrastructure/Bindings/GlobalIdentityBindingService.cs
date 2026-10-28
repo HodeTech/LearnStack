@@ -3,6 +3,7 @@ using LearnStack.Application.Persistence;
 using LearnStack.Modules.Identity.Application.Abstractions;
 using LearnStack.Modules.Identity.Application.Bindings;
 using LearnStack.Modules.Identity.Application.Contracts.Bindings;
+using LearnStack.Modules.Identity.Application.Contracts.Entry;
 using LearnStack.Modules.Identity.Application.Contracts.Seeding;
 using LearnStack.Modules.Identity.Domain;
 using LearnStack.Modules.Identity.Infrastructure.Persistence;
@@ -18,7 +19,7 @@ using Npgsql;
 namespace LearnStack.Modules.Identity.Infrastructure.Bindings;
 
 /// <summary>The sole production descriptor minter; facts alone never admit seed adoption.</summary>
-public sealed class GlobalIdentityBindingService(
+public sealed partial class GlobalIdentityBindingService(
     IGlobalIdentityUnitOfWork unit,
     IAuditStateCapture capture,
     ITenantContextAccessor tenantAccessor,
@@ -26,10 +27,12 @@ public sealed class GlobalIdentityBindingService(
     Func<TransactionExecutionCoordinator> transaction,
     IdentityAuthorityQualification qualification,
     ISeedIdentityFoundationAdmission seedAdmission,
+    IIdentitySelfEntryAdmission selfAdmission,
     Func<IUserBindingStore> store,
     Func<CreateUserBindingHandler> handler,
     ILogger<GlobalIdentityBindingService> logger)
-    : GlobalIdentityOwnerDescriptor.MintingSource, IIdentityBindingReader, ISeedIdentityBindingAdopter
+    : GlobalIdentityOwnerDescriptor.MintingSource, IIdentityBindingReader, ISeedIdentityBindingAdopter, IIdentitySelfBootstrapper,
+    IIdentitySelfStateReader, IIdentitySelfDiscovery
 {
     public async Task<IdentityBindingResult> ResolveExistingAsync(GlobalIdentitySubject subject, UserId? claimedActor = null,
         CancellationToken cancellationToken = default)
@@ -64,7 +67,13 @@ public sealed class GlobalIdentityBindingService(
         if (!await seedAdmission.AllowsAsync(subject, declaredActor, cancellationToken))
             return Refused(IdentityBindingOutcome.AdmissionDenied);
         if (qualification.Current?.Matches(subject) is not true) return Refused(IdentityBindingOutcome.AuthorityUnavailable);
-        var descriptor = ForSeedAdoption(subject, declaredActor, typeof(IdentityDbContext), typeof(User));
+        return await CreateAsync(subject, ForSeedAdoption(subject, declaredActor, typeof(IdentityDbContext), typeof(User)),
+            declaredActor, cancellationToken);
+    }
+
+    private async Task<IdentityBindingResult> CreateAsync(GlobalIdentitySubject subject,
+        GlobalIdentityOwnerDescriptor descriptor, UserId? claimedActor, CancellationToken cancellationToken)
+    {
         TransactionExecutionCoordinator.PreparedGlobalIdentityOwner? owner = null;
         IdentityBindingResult result;
         bool cleanupSucceeded;
@@ -75,7 +84,18 @@ public sealed class GlobalIdentityBindingService(
             var current = await store().FindExactAsync(subject, cancellationToken);
             if (current is not null)
             {
-                result = Resolve(current, subject, declaredActor);
+                result = Resolve(current, subject, claimedActor);
+                await owner.CompleteExistingAsync(cancellationToken);
+            }
+            else if (descriptor.Kind == GlobalIdentityOwnerKind.Bootstrap
+                && !selfAdmission.Allows(subject, IdentitySelfOperation.Bootstrap, claimedActor))
+            {
+                result = Refused(IdentityBindingOutcome.AdmissionDenied);
+                await owner.CompleteExistingAsync(cancellationToken);
+            }
+            else if (descriptor.Kind == GlobalIdentityOwnerKind.Bootstrap && claimedActor is not null)
+            {
+                result = Refused(IdentityBindingOutcome.Conflict);
                 await owner.CompleteExistingAsync(cancellationToken);
             }
             else

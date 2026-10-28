@@ -42,6 +42,9 @@ internal sealed class MembershipConfiguration : IEntityTypeConfiguration<Members
         builder.Property(entity => entity.Status).HasEnumAsText();
         builder.HasOne<User>().WithMany().HasForeignKey(entity => entity.UserId).OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_memberships_user");
         builder.HasIndex(entity => entity.UserId).HasDatabaseName("ix_memberships_user_id");
+        builder.HasIndex(entity => new { entity.UserId, entity.Id })
+            .HasFilter("status = 'Active' AND deleted_at IS NULL")
+            .HasDatabaseName("ix_memberships_self_active_user_id_id");
         builder.HasIndex(entity => new { entity.TenantId, entity.UserId, entity.OrganizationId }).IsUnique()
             .AreNullsDistinct(false).HasFilter("deleted_at IS NULL").HasDatabaseName("ux_memberships_current_scope");
         builder.HasOne(entity => entity.Profile).WithOne(entity => entity.Membership)

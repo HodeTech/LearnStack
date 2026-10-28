@@ -20,7 +20,7 @@ public sealed class GlobalIdentityCreationReference
     {
         if (!targetUserId.IsInitialized() || targetUserId.Value.Version != 7 || targetUserId == UserId.SystemActor
             || !auditId.IsInitialized() || auditId.Value.Version != 7
-            || announcement.Descriptor.Kind == GlobalIdentityOwnerKind.Lookup
+            || announcement.Descriptor.Kind is not (GlobalIdentityOwnerKind.Bootstrap or GlobalIdentityOwnerKind.SeedAdoption)
             || (announcement.Descriptor.SeedActor is { } seed && seed != targetUserId)
             || timestamp <= DateTimeOffset.MinValue || timestamp >= DateTimeOffset.MaxValue)
             throw new ArgumentException("Global identity creation attribution is invalid.");

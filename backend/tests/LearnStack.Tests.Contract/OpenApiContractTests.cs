@@ -10,6 +10,9 @@ using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Pagination;
 using LearnStack.SharedKernel.Results;
 using Xunit;
+using Microsoft.AspNetCore.OpenApi;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.OpenApi;
 
 namespace LearnStack.Tests.Contract;
 
@@ -159,6 +162,16 @@ public sealed partial class OpenApiContractTests(DevelopmentWebApplicationFactor
     {
         using var client = factory.CreateClient();
         using var response = await client.GetAsync(new Uri("/openapi/v1.json", UriKind.Relative));
+        if (response.StatusCode == HttpStatusCode.InternalServerError)
+        {
+            if (factory.LastError is { } error) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(error).Throw();
+            // Preserve the generator's actual exception in the local test failure;
+            // the public HTTP response correctly keeps it behind fixed Problem Details.
+            await using var scope = factory.Services.CreateAsyncScope();
+            var generated = await scope.ServiceProvider.GetRequiredKeyedService<IOpenApiDocumentProvider>("v1")
+                .GetOpenApiDocumentAsync();
+            await generated.SerializeAsJsonAsync(OpenApiSpecVersion.OpenApi3_1);
+        }
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         return JsonNode.Parse(await response.Content.ReadAsStringAsync())!;
     }
@@ -167,7 +180,8 @@ public sealed partial class OpenApiContractTests(DevelopmentWebApplicationFactor
     {
         var errors = new List<string>();
         var paths = document["paths"]!.AsObject();
-        if (!paths.Select(path => path.Key).ToHashSet(StringComparer.Ordinal).SetEquals(Operations.Keys)) errors.Add("operations");
+        if (!paths.Select(path => path.Key).ToHashSet(StringComparer.Ordinal).SetEquals(Operations.Keys.Concat(NativeOperations.Keys))) errors.Add("operations");
+        errors.AddRange(NativeContractErrors(document));
         var count = 0;
         foreach (var (path, ids) in Operations)
         {
@@ -242,7 +256,7 @@ public sealed partial class OpenApiContractTests(DevelopmentWebApplicationFactor
         if (count != 10) errors.Add("operations");
         if (document["security"] is JsonArray { Count: > 0 }) errors.Add("security");
         var schemes = document["components"]?["securitySchemes"]?.AsObject();
-        if (schemes is not { Count: 1 } || schemes["TenantBearer"]?["type"]?.GetValue<string>() != "http"
+        if (schemes is not { Count: 2 } || schemes["TenantBearer"]?["type"]?.GetValue<string>() != "http"
             || schemes["TenantBearer"]?["scheme"]?.GetValue<string>() != "bearer"
             || schemes["TenantBearer"]?["bearerFormat"]?.GetValue<string>() != "JWT") errors.Add("security");
         if (document["servers"] is JsonArray { Count: > 0 }) errors.Add("servers");
@@ -347,7 +361,8 @@ public sealed partial class OpenApiContractTests(DevelopmentWebApplicationFactor
         var schemas = document["components"]!["schemas"]!.AsObject();
         var expectedNames = Dtos.Keys.Concat(["PublicCourseAccess", "PublicDisplayState", "ProblemDetails"]);
         if (!schemas.Select(schema => schema.Key).ToHashSet(StringComparer.Ordinal)
-            .SetEquals(expectedNames.Concat(AccountSchemaNames).Concat(DirectorySchemaNames))) errors.Add("schema-census");
+            .SetEquals(expectedNames.Concat(AccountSchemaNames).Concat(DirectorySchemaNames)
+                .Concat(["IdentitySelfActive", "IdentitySelfMissing", "IdentitySelfState", "NativeSessionScopeAdmission", "SelfContextItem", "SelfContextPage"]))) errors.Add("schema-census");
         foreach (var (name, descriptor) in Dtos)
         {
             if (schemas[name] is not JsonObject schema) { errors.Add(name); continue; }

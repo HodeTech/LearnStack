@@ -1,12 +1,16 @@
 import type { components, operations } from './generated/schema.js';
 
-/** Authenticated wire ownership; native session transport separately admits only AccountSite. */
+/** Authenticated wire ownership; transport admission is separately closed per caller. */
 export const AUTHENTICATED_GET_CONTRACTS = Object.freeze({
   '/api/v1/account/site': 'GetAccountSite',
   '/api/v1/identity/memberships': 'ListMemberships',
+  '/api/v1/identity/self': 'GetIdentitySelf',
+  '/api/v1/identity/self/contexts': 'ListIdentitySelfContexts',
 } as const satisfies {
   '/api/v1/account/site': 'GetAccountSite';
   '/api/v1/identity/memberships': 'ListMemberships';
+  '/api/v1/identity/self': 'GetIdentitySelf';
+  '/api/v1/identity/self/contexts': 'ListIdentitySelfContexts';
 });
 
 export type AuthenticatedGetOperation =

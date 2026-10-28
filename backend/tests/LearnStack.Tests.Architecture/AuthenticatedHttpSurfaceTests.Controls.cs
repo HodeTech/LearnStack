@@ -13,7 +13,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
 {
     private static void AssertProtectedPolicyControls(Dictionary<string, TypeDefinition> map)
     {
-        foreach (var controller in map.Values.Where(type => type.FullName is Account or Directory))
+        foreach (var controller in map.Values.Where(type => type.FullName is Account or Directory or Admission))
         {
             var action = controller.Methods.Single(IsAction);
             var authorization = controller.CustomAttributes.Single(attribute => attribute.AttributeType.FullName == typeof(AuthorizeAttribute).FullName);
@@ -67,7 +67,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
 
     private static void AssertAnonymousMetadataControls(Dictionary<string, TypeDefinition> map)
     {
-        foreach (var controller in map.Values.Where(type => type.FullName is Account or Directory or PublicSite or PublicEducation).ToArray())
+        foreach (var controller in map.Values.Where(type => type.FullName is Account or Directory or Admission or PublicSite or PublicEducation).ToArray())
         {
             var action = controller.Methods.First(IsAction);
             AuthorizationOffenders(controller, action, map, null).Should().BeEmpty();
@@ -82,7 +82,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                         AuthenticationMetadata.IsAnonymous(metadata.AttributeType, map).Should().BeTrue(
                             "direct and inherited custom anonymous contracts must be recognized");
                         AssertRejected();
-                        if (controller.FullName is not (Account or Directory))
+                        if (controller.FullName is not (Account or Directory or Admission))
                         {
                             var standard = controller.CustomAttributes.Single(attribute =>
                                 attribute.AttributeType.FullName == typeof(AllowAnonymousAttribute).FullName);

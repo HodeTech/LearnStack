@@ -110,6 +110,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/identity/session-scope/admissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Explicit initial selection or scope switch only. Requires a current native source, real host ceiling and live stored-actor membership/lifecycle. The central MUST security event names the admitted Membership and commits before an association witness is returned. This proves API admission, never cookie delivery. Ordinary refresh uses Off self/AccountSite reads and does not invoke this POST. No query or Idempotency-Key; empty JSON object only. */
+        post: operations["AdmitNativeSessionScope"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/identity/self": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Off self-only binding read. Missing is distinct from Active; Closing/Closed/conflicting bindings return 401 and never look missing. No request body, query or assertion/scope selectors. */
+        get: operations["GetIdentitySelf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/identity/self/bootstrap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Opt-in tenantless natural-key convergent create. New binding returns 201, existing/racing winner returns 200; unknown COMMIT returns 503 and a deliberate retry resolves the actual stored binding. Real creation alone writes the central MUST event. No membership, scoped session or browser cookie is created. Idempotency-Key and scope/assertion selectors are refused. Empty JSON object only, at most 512 bytes. */
+        post: operations["BootstrapIdentitySelf"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/identity/self/contexts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Off self-only navigation read. Returns only Active self membership scopes with live tenant/organization labels and configured HTTPS entry origins. No profiles, role grants or arbitrary actor selection. Forward-only subject-bound seek cursor, not authority or a snapshot. No request body or assertion/scope selectors. */
+        get: operations["ListIdentitySelfContexts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -255,6 +323,46 @@ export interface components {
         TenantId: string;
         /** Format: uuid */
         UserId: string;
+        IdentitySelfActive: {
+            /** @enum {string} */
+            state: "active";
+            /** Format: uuid */
+            authorityId: string;
+            subjectKey: string;
+            /** Format: uuid */
+            actorId: string;
+        };
+        IdentitySelfMissing: {
+            /** @enum {string} */
+            state: "missing";
+        };
+        IdentitySelfState: components["schemas"]["IdentitySelfMissing"] | components["schemas"]["IdentitySelfActive"];
+        NativeSessionScopeAdmission: {
+            /** Format: uuid */
+            actorId: string;
+            /** Format: uuid */
+            tenantId: string;
+            /** Format: uuid */
+            organizationId: null | string;
+            /** Format: uuid */
+            authorityId: string;
+            subjectKey: string;
+        };
+        SelfContextItem: {
+            /** Format: uuid */
+            tenantId: string;
+            /** Format: uuid */
+            organizationId: null | string;
+            tenantName: string;
+            organizationName: null | string;
+            /** Format: uri */
+            entryOrigin: string;
+            canUseCurrentHost: boolean;
+        };
+        SelfContextPage: {
+            items: components["schemas"]["SelfContextItem"][];
+            pageInfo: components["schemas"]["PageInfo"];
+        };
     };
     responses: never;
     parameters: never;
@@ -1324,6 +1432,465 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    AdmitNativeSessionScope: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Canonical lower-case nonempty tenant UUID candidate, verified against the real host and live membership. */
+                "X-LearnStack-Native-Tenant-Id": string;
+                /** @description Optional canonical lower-case nonempty organization UUID candidate. Provider scope and legacy assertions, when present, must agree exactly. */
+                "X-LearnStack-Native-Organization-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Successful bounded projection. */
+            200: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NativeSessionScopeAdmission"];
+                };
+            };
+            /** @description validation_failed for malformed or repeated native selectors/assertions, unexpected query/body or Idempotency-Key. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized for invalid/expired native source, undecidable bearer or terminal/conflicting self binding; bare Bearer challenge. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found for missing native source/credentials, unknown/platform host, noncoverage or host/scope disagreement. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier host, credential and native-source gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "POST";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large from the existing decoded body bound; outer Kestrel refusals may omit application headers. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited from visitor/subject admission; bootstrap can also exhaust the shared authority creation-attempt windows. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error without provider, query or credential details. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable for binding/lifecycle/audit storage, unknown COMMIT, permanent creation capacity or cleanup fault. No association/result payload is disclosed. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetIdentitySelf: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful bounded projection. */
+            200: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdentitySelfState"];
+                };
+            };
+            /** @description validation_failed for malformed or repeated native selectors/assertions, unexpected query/body or Idempotency-Key. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized for invalid/expired native source, undecidable bearer or terminal/conflicting self binding; bare Bearer challenge. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found for missing native source/credentials, unknown/platform host, noncoverage or host/scope disagreement. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier host, credential and native-source gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "GET";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large from the existing decoded body bound; outer Kestrel refusals may omit application headers. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited from visitor/subject admission; bootstrap can also exhaust the shared authority creation-attempt windows. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error without provider, query or credential details. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable for binding/lifecycle/audit storage, unknown COMMIT, permanent creation capacity or cleanup fault. No association/result payload is disclosed. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    BootstrapIdentitySelf: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Successful bounded projection. */
+            200: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdentitySelfActive"];
+                };
+            };
+            /** @description New actor binding and central MUST audit committed; no tenant session. */
+            201: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Location: "/api/v1/identity/self";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdentitySelfActive"];
+                };
+            };
+            /** @description validation_failed for malformed or repeated native selectors/assertions, unexpected query/body or Idempotency-Key. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized for invalid/expired native source, undecidable bearer or terminal/conflicting self binding; bare Bearer challenge. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description forbidden; creation is disabled for a genuinely missing binding. Existing bindings remain readable. */
+            403: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found for missing native source/credentials, unknown/platform host, noncoverage or host/scope disagreement. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier host, credential and native-source gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "POST";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large from the existing decoded body bound; outer Kestrel refusals may omit application headers. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited from visitor/subject admission; bootstrap can also exhaust the shared authority creation-attempt windows. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error without provider, query or credential details. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable for binding/lifecycle/audit storage, unknown COMMIT, permanent creation capacity or cleanup fault. No association/result payload is disclosed. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ListIdentitySelfContexts: {
+        parameters: {
+            query?: {
+                /** @description Canonical base64url authority/digest-bound forward seek cursor. Foreign/malformed values are refused; no previous-page cursor. */
+                cursor?: string;
+                /** @description Canonical positive ASCII decimal, default 20; above 100 clamps to 100. Leading zeros, repeats, signs and unknown query keys are refused. */
+                limit?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful bounded projection. */
+            200: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SelfContextPage"];
+                };
+            };
+            /** @description validation_failed for malformed or repeated native selectors/assertions, unexpected query/body or Idempotency-Key. */
+            400: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description unauthorized for invalid/expired native source, undecidable bearer or terminal/conflicting self binding; bare Bearer challenge. */
+            401: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    "WWW-Authenticate": "Bearer";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description not_found for missing native source/credentials, unknown/platform host, noncoverage or host/scope disagreement. */
+            404: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description method_not_allowed after earlier host, credential and native-source gates. */
+            405: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    Allow: "GET";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description payload_too_large from the existing decoded body bound; outer Kestrel refusals may omit application headers. */
+            413: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description rate_limited from visitor/subject admission; bootstrap can also exhaust the shared authority creation-attempt windows. */
+            429: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    /** @description Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission. */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description internal_error without provider, query or credential details. */
+            500: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description dependency_unavailable for binding/lifecycle/audit storage, unknown COMMIT, permanent creation capacity or cleanup fault. No association/result payload is disclosed. */
+            503: {
+                headers: {
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
             };
         };
     };

@@ -27,6 +27,14 @@ public sealed partial class GlobalIdentitySchemaTests
         await InstallAuthorityAsync(database.MigrationConnectionString);
         var own = NewSubject();
         await InsertPairAsync(database.AppConnectionString, own);
+        // Isolate WITH CHECK from the earlier INSERT capacity fence. This
+        // disposable fixture removes only that fence; observed writes still
+        // connect as learnstack_app and must fail the actual self policy.
+        await using (var setup = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.MigrationConnectionString))
+            await ExecuteAsync(setup, null, """
+                DROP TRIGGER tg_users_creation_capacity ON public.users;
+                DROP TRIGGER tg_users_creation_capacity_record ON public.users;
+                """);
         foreach (var missing in new[] { false, true })
         {
             await using var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.AppConnectionString);
@@ -228,7 +236,9 @@ public sealed partial class GlobalIdentitySchemaTests
             {
                 if (!await reader.ReadAsync()) { issues.Add(function.Name + ":missing-signature"); continue; }
                 if (reader.GetString(0).Trim() != function.Body.Trim()) issues.Add(function.Name + ":body");
-                if (reader.GetString(1) != function.ReturnType || reader.GetBoolean(3)) issues.Add(function.Name + ":return-type");
+                if (NormalizeReturn(reader.GetString(1)) != NormalizeReturn(function.ReturnType)
+                    || reader.GetBoolean(3) != function.ReturnType.StartsWith("table", StringComparison.OrdinalIgnoreCase))
+                    issues.Add(function.Name + ":return-type");
                 if (reader.GetBoolean(2) != function.Definer || reader.GetString(4) != function.Language
                     || reader.GetString(5) != "learnstack_migration" || reader.GetBoolean(6)) issues.Add(function.Name + ":execution-owner");
                 if (reader.GetString(7) != function.Volatility || !reader.GetFieldValue<string[]>(8).SequenceEqual(["search_path=pg_catalog"]))
@@ -294,15 +304,17 @@ public sealed partial class GlobalIdentitySchemaTests
                     : attributes.Contains("STABLE", StringComparison.Ordinal) ? "s" : "v",
                 attributes.Contains("STRICT", StringComparison.Ordinal));
         }).OrderBy(function => function.Name, StringComparer.Ordinal).ToArray();
-        functions.Should().HaveCount(12, "all applied Identity migrations retain the complete global/contextual function set");
-        functions.Count(function => function.Definer).Should().Be(5);
-        functions.SelectMany(function => function.Triggers).Should().HaveCount(18);
+        functions.Should().HaveCount(15, "all applied Identity migrations retain the complete global/contextual/self-entry function set");
+        functions.Count(function => function.Definer).Should().Be(8);
+        functions.SelectMany(function => function.Triggers).Should().HaveCount(20);
         var globalNames = EffectiveFunctionDeclarations(migrationSql[0])
             .Select(match => match.Groups["name"].Value.ToLowerInvariant()).ToHashSet(StringComparer.Ordinal);
         globalNames.Should().NotBeEmpty("the first Identity migration installs its confined global functions");
         foreach (var function in functions)
         {
-            var forbidden = globalNames.Contains(function.Name) ? ForbiddenFunctionBody() : ContextualForbiddenFunctionBody();
+            var forbidden = function.Name is "fn_identity_creation_attempt_admission" or "fn_identity_self_membership_scopes"
+                ? EntryForbiddenFunctionBody()
+                : globalNames.Contains(function.Name) ? ForbiddenFunctionBody() : ContextualForbiddenFunctionBody();
             forbidden.IsMatch(function.Body).Should().BeFalse(
                 "the canonical body admits no dynamic SQL, authority setters, or row-returning reader");
         }
@@ -316,6 +328,10 @@ public sealed partial class GlobalIdentitySchemaTests
         insert.Parameters.AddWithValue("authority", GlobalIdentitySchemaFixture.Authority.Value);
         insert.Parameters.AddWithValue("issuer", GlobalIdentitySchemaFixture.Issuer);
         await insert.ExecuteNonQueryAsync();
+        await ExecuteAsync(owner, null, """
+            INSERT INTO public.identity_creation_capacity(authority_id,minute_window,day_window,allocated_users)
+            SELECT authority_id,clock_timestamp(),clock_timestamp(),0 FROM public.identity_authority
+            """);
     }
 
     private static async Task<bool> MissingEvidenceAsync(string connectionString, GlobalIdentitySubject subject)
@@ -340,7 +356,9 @@ public sealed partial class GlobalIdentitySchemaTests
         bool Definer, bool AppCallable, string Body, string Definition, TriggerContract[] Triggers, string Language, string Volatility, bool Strict);
     private sealed record TriggerContract(string Name, string Table, int Type, bool Deferrable, bool InitiallyDeferred, string Enabled);
 
-    [GeneratedRegex(@"\bCREATE\s+(?<replace>OR\s+REPLACE\s+)?FUNCTION\s+public\.(?<name>[a-z0-9_]+)\s*\((?<parameters>[^)]*)\)\s+RETURNS\s+(?<returns>[a-z]+)\s+(?<attributes>.*?)\bAS\s+(?<delimiter>\$[a-z0-9_]*\$)(?<body>.*?)\k<delimiter>\s*;", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    private static string NormalizeReturn(string value) => Regex.Replace(value, @"\s+", "").ToLowerInvariant();
+
+    [GeneratedRegex(@"\bCREATE\s+(?<replace>OR\s+REPLACE\s+)?FUNCTION\s+public\.(?<name>[a-z0-9_]+)\s*\((?<parameters>[^)]*)\)\s+RETURNS\s+(?<returns>TABLE\s*\([^)]*\)|[a-z]+)\s+(?<attributes>.*?)\bAS\s+(?<delimiter>\$[a-z0-9_]*\$)(?<body>.*?)\k<delimiter>\s*;", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
     private static partial Regex FunctionDeclaration();
     [GeneratedRegex(@"LANGUAGE\s+(\w+)", RegexOptions.IgnoreCase)]
     private static partial Regex FunctionLanguage();
@@ -350,4 +368,6 @@ public sealed partial class GlobalIdentitySchemaTests
     private static partial Regex ForbiddenFunctionBody();
     [GeneratedRegex(@"\bEXECUTE\b|\bset_config\s*\(|\bRETURN\s+QUERY\b|\bpg_(?:try_)?advisory_(?:xact_)?lock(?:_shared)?\s*\(", RegexOptions.IgnoreCase)]
     private static partial Regex ContextualForbiddenFunctionBody();
+    [GeneratedRegex(@"\bEXECUTE\b|\bset_config\s*\(|\bpg_(?:try_)?advisory_(?:xact_)?lock(?:_shared)?\s*\(", RegexOptions.IgnoreCase)]
+    private static partial Regex EntryForbiddenFunctionBody();
 }

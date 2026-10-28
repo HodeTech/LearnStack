@@ -50,7 +50,9 @@ Accepted [ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md) /
 exclusion to native-purpose credentials, association witnesses/subject digests,
 self-context relationships/cursors, transient account labels, page snapshots and
 idempotency keys/receipts. Use closed failure descriptors, never those values as
-diagnostic payloads or labels. Explicit admission audit is not cookie-delivery
+diagnostic payloads or labels. The Serilog boundary replaces the hosting
+`QueryString` property before rendering, including malformed/rejected input;
+handler-side parsing cannot protect a RequestStarting event. Explicit admission audit is not cookie-delivery
 proof; ordinary refresh emits no new admission event. The canonical
 [Security contract](11-security.md#native-scope-and-global-self-admission) and
 [privacy inventory](../architecture/23-data-protection.md#accepted-native-entry-and-protected-receipt-inventory)

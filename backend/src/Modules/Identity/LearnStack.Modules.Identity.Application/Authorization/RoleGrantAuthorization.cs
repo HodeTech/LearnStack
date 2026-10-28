@@ -24,6 +24,7 @@ public sealed class RoleGrantAuthorization(IIdentityAuthorizationReader reader, 
         && context.IsResolved && context.OrganizationId is null && context.TenantId != TenantId.PlatformSentinel
         && context.UserId is { } actor && StronglyTypedId.IsAssigned(actor) && actor != UserId.SystemActor
         && context.Origin is TenantContextOrigin.HostAndClaim or TenantContextOrigin.ClaimAndMembership
+            or TenantContextOrigin.HostAndNativeSessionScope
         && candidate.Actor == actor && candidate.TenantId == context.TenantId && candidate.OrganizationId is null
         && invocation.Actor == actor && invocation.TenantId == context.TenantId && invocation.OrganizationId is null
         && invocations.CurrentDecision is { Outcome: ProtectedOperationOutcome.Allowed, IsActive: true } admitted

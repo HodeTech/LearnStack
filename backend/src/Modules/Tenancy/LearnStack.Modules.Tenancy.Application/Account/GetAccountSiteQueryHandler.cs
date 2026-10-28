@@ -18,7 +18,7 @@ public sealed class GetAccountSiteQueryHandler(
     public async Task<Result<AccountSite>> Handle(GetAccountSiteQuery request, CancellationToken cancellationToken)
     {
         // Authentication alone cannot supply the independent institution-host ceiling.
-        if (!context.IsResolved || context.Origin != TenantContextOrigin.HostAndClaim
+        if (!context.IsResolved || context.Origin is not (TenantContextOrigin.HostAndClaim or TenantContextOrigin.HostAndNativeSessionScope)
             || context.UserId is not { } actor || !StronglyTypedId.IsAssigned(actor)
             || actor == UserId.SystemActor || context.HostScope is not { } host)
             return Result<AccountSite>.Fail(TenantContextFactory.Refused);

@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using LearnStack.SharedKernel.Observability;
 
 namespace LearnStack.Tests.Contract;
 
@@ -27,6 +29,7 @@ namespace LearnStack.Tests.Contract;
 /// </remarks>
 public sealed class DevelopmentWebApplicationFactory : WebApplicationFactory<Program>
 {
+    internal Exception? LastError { get; private set; }
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(Environments.Development);
@@ -34,11 +37,21 @@ public sealed class DevelopmentWebApplicationFactory : WebApplicationFactory<Pro
         // startup workers; production startup tests retain mandatory registration.
         builder.ConfigureTestServices(services =>
         {
+            services.Replace(ServiceDescriptor.Singleton<IErrorTrackingProvider>(new ContractErrorTracker(this)));
             foreach (var descriptor in services.Where(descriptor =>
                          descriptor.ServiceType == typeof(IHostedService)
                          && IsDatabaseStartupWorker(descriptor)).ToArray())
                 services.Remove(descriptor);
         });
+    }
+
+    private sealed class ContractErrorTracker(DevelopmentWebApplicationFactory owner) : IErrorTrackingProvider
+    {
+        public ValueTask CaptureAsync(Exception exception, CapturedContext context, CancellationToken cancellationToken = default)
+        {
+            owner.LastError = exception;
+            return ValueTask.CompletedTask;
+        }
     }
 
     private static bool IsDatabaseStartupWorker(ServiceDescriptor descriptor)

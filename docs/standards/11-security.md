@@ -1363,6 +1363,17 @@ native values and incomplete rotation. Public-only mode needs no native key.
 Secrets remain behind the existing secret-provider boundary, outside logs,
 artifacts, DTOs, cookies and client code.
 
+The API reads current/previous credentials from secret-provider keys
+`Identity:NativeSession:CurrentSecret` and `Identity:NativeSession:PreviousSecret`;
+`Identity:NativeSession:PreviousRetiresAt` supplies the absolute retirement time.
+`Identity:SelfBootstrap:Enabled` defaults to false. Enabling creation without a
+qualified native source fails startup. Self-discovery destinations use the
+independently stored normalized host and deployment setting
+`Identity:NativeSession:HttpsPort` (443 by default, canonical decimal 1–65535).
+The local HTTPS web owner uses 3000. No submitted URL, forwarding port or query
+parameter can select this origin. Unrelated and refused traffic never resolves
+the lazy global-self SQL ports merely to traverse this middleware.
+
 | Order | Boundary |
 |---|---|
 | 1 | Existing peer/visitor/body admission and independent real-host classification. Unknown-host precedence remains. |

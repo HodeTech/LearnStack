@@ -1,6 +1,7 @@
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Application.Contracts.Seeding;
 using LearnStack.Modules.Identity.Application.Contracts.Roles;
+using LearnStack.Modules.Identity.Application.Contracts.Entry;
 using LearnStack.Modules.Identity.Domain;
 using LearnStack.SharedKernel.Permissions;
 
@@ -10,6 +11,7 @@ namespace LearnStack.Modules.Identity.Application;
 public sealed class IdentityOperationPolicySource : IOperationPolicySource
 {
     public const string MembershipDirectoryOperation = "identity.membership.list";
+    public const string NativeSessionAdmissionOperation = "identity.membership.admit_session_scope";
     public static PermissionDefinition MembershipAdministration { get; } = new(PermissionScope.Tenant, IdentityFoundationManifest.MembershipAdmin);
     public static PermissionDefinition RoleAdministration { get; } = new(PermissionScope.Tenant, IdentityFoundationManifest.RoleAdmin);
 
@@ -18,6 +20,7 @@ public sealed class IdentityOperationPolicySource : IOperationPolicySource
 
     public IEnumerable<OperationPolicy> Policies =>
     [
+        OperationPolicy.ForNativeSessionAdmission<AdmitNativeSessionScopeCommand>(NativeSessionAdmissionOperation),
         OperationPolicy.ForProtected<ListMembershipsQuery>(MembershipDirectoryOperation, MembershipAdministration, OperationReadScope.Tenant),
         OperationPolicy.ForProtected<ChangeRoleGrantsCommand>("identity.role.change_grants", RoleAdministration, requiresOrglessWrite: true),
         OperationPolicy.ForProtected<AdoptRoleGrantManifestCommand>("identity.role.adopt_manifest", RoleAdministration, requiresOrglessWrite: true),

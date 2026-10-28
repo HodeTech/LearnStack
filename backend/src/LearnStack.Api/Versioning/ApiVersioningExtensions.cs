@@ -127,6 +127,7 @@ public static class ApiVersioningExtensions
             options.AddSchemaTransformer(new StronglyTypedIdSchemaTransformer());
             options.AddDocumentTransformer(new PublicReads.PublicReadDocumentTransformer());
             options.AddDocumentTransformer(new Authentication.TenantAuthenticationDocumentTransformer());
+            options.AddDocumentTransformer(new Authentication.NativeEntryDocumentTransformer());
 
             options.AddDocumentTransformer((document, _, _) =>
             {

@@ -1,5 +1,6 @@
 using LearnStack.Modules.Tenancy.Application.Contracts.Account;
 using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
+using LearnStack.Modules.Tenancy.Application.Contracts.IdentityLifecycle;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Persistence;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,6 +16,7 @@ public static class TenantSiteRegistration
         ArgumentNullException.ThrowIfNull(services);
         services.AddSingleton(new ExplicitReadOnlyRequest(typeof(GetAccountSiteQuery)));
         services.TryAddScoped<IPublicTenantConfigurationReader, PublicTenantConfigurationReader>();
+        services.TryAddScoped<IOwnMembershipScopeLabels, PreContextSelfDiscoveryScopeReader>();
         return services;
     }
 }

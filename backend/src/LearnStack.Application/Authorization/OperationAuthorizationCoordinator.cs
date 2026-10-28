@@ -84,15 +84,22 @@ public sealed class OperationAuthorizationCoordinator(
                 else trusted = captured[0];
                 break;
             case OperationPolicyKind.AccountRead:
+            case OperationPolicyKind.NativeSessionAdmission:
             case OperationPolicyKind.Protected:
-                if (!HasProtectedContext() || (policy.Kind == OperationPolicyKind.AccountRead && !HasMatchingHostScope(allowAnonymous: false)))
+                if (!HasProtectedContext()
+                    || (policy.Kind is OperationPolicyKind.AccountRead or OperationPolicyKind.NativeSessionAdmission
+                        && !HasMatchingHostScope(allowAnonymous: false))
+                    || (policy.Kind == OperationPolicyKind.NativeSessionAdmission
+                        && context.Origin != TenantContextOrigin.HostAndNativeSessionScope))
                 {
                     sourceFailure = TenantContextFactory.Refused;
                     break;
                 }
                 var candidates = _candidateSources.Select(source => source.ForValidatedScope(context.TenantId, context.OrganizationId))
                     .Where(value => value is not null).Cast<AuthorizationCandidate>().Take(2).ToArray();
-                if (candidates.Length != 1 || !Matches(candidates[0])) sourceFailure = TenantContextFactory.Refused;
+                if (candidates.Length != 1 || !Matches(candidates[0])
+                    || (policy.Kind == OperationPolicyKind.NativeSessionAdmission
+                        && candidates[0].SourceKind != AuthorizationSourceKind.Http)) sourceFailure = TenantContextFactory.Refused;
                 else candidate = candidates[0];
                 break;
             default:
@@ -189,11 +196,12 @@ public sealed class OperationAuthorizationCoordinator(
     private bool HasProtectedContext() => context.IsResolved && StronglyTypedId.IsAssigned(context.TenantId)
         && context.TenantId != TenantId.PlatformSentinel && context.UserId is { } actor
         && StronglyTypedId.IsAssigned(actor) && actor != UserId.SystemActor
-        && context.Origin is TenantContextOrigin.HostAndClaim or TenantContextOrigin.ClaimAndMembership;
+        && context.Origin is TenantContextOrigin.HostAndClaim or TenantContextOrigin.ClaimAndMembership
+            or TenantContextOrigin.HostAndNativeSessionScope;
 
     private bool HasMatchingHostScope(bool allowAnonymous) => context.IsResolved
         && (allowAnonymous ? context.Origin is TenantContextOrigin.HostOnly or TenantContextOrigin.HostAndClaim
-            : context.Origin == TenantContextOrigin.HostAndClaim)
+            : context.Origin is TenantContextOrigin.HostAndClaim or TenantContextOrigin.HostAndNativeSessionScope)
         && context.HostScope is { } host && StronglyTypedId.IsAssigned(host.TenantId)
         && host.TenantId != TenantId.PlatformSentinel && host.TenantId == context.TenantId
         && (host.OrganizationId is null || (StronglyTypedId.IsAssigned(host.OrganizationId.Value)
