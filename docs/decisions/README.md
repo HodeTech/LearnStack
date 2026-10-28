@@ -131,6 +131,7 @@ records hosted qualification. Phase 11 owns production qualification.
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
+| 0081 | [Fixed Seed Completion Before Origin Adoption](0081-fixed-seed-completion-before-origin-adoption.md) | Separate completion-purpose read on the existing owner; qualified marker 2, retained local foundation and explicit global/provider boundary; no implementation authority | P03-3 Step 3 — explicit approval before extending the fixed seed read census |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
 the P02d-2 package on 2026-10-02. Their rows are now in Active ADRs; ADR-0049 remains

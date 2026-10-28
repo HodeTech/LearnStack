@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 1,145 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 1,304 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -162,6 +162,9 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0080 proposal review round 2 and approval readiness (2026-10-28)](#adr-0080-proposal-review-round-2-and-approval-readiness-2026-10-28) — 36 lines
   - [P03-3 Step 3 independent preservation and diagnostic controls (2026-10-28)](#p03-3-step-3-independent-preservation-and-diagnostic-controls-2026-10-28) — 30 lines
   - [ADR-0080 maintainer corrections and acceptance (2026-10-29)](#adr-0080-maintainer-corrections-and-acceptance-2026-10-29) — 55 lines
+  - [P03-3 Step 3 — Origin completion authority gap (2026-10-29)](#p03-3-step-3--origin-completion-authority-gap-2026-10-29) — 62 lines
+  - [ADR-0081 proposal review round 1 and revised package (2026-10-29)](#adr-0081-proposal-review-round-1-and-revised-package-2026-10-29) — 58 lines
+  - [ADR-0081 proposal review round 2 and approval readiness (2026-10-29)](#adr-0081-proposal-review-round-2-and-approval-readiness-2026-10-29) — 39 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -6850,3 +6853,162 @@ final-source A/B obligations. The remaining approved Steps 4–10 keep their ord
 Phase Status/G5, four dated amendments and canonical carriers are reconciled in
 the acceptance commit before capability implementation. New controls remain
 Registered. No repeated approval is required for this corrected authorized scope.
+
+### P03-3 Step 3 — Origin completion authority gap (2026-10-29)
+
+The complete writer census required by the maintainer's ADR-0080 review includes
+the separate fixed administration-origin writer. Source inspection finds that
+its handler checks the declared Tenant, current default Organization and mapping,
+but does not establish ADR-0079's completed foundation. The existing legacy
+fixtures initialize content without the complete Identity foundation; their
+mapping/marker/audit positives do not establish that stronger condition.
+
+Root adds and runs the actual application-role regression
+`SeedAdministrationOriginTests.Origin_adoption_refuses_a_retained_Tenant_without_a_completed_v1_installation`.
+It provisions only the declared Tenant/default Organization, observes origin
+marker 0 and Tenant version 1, and sends the genuine fixed command through
+`SeedComposition`. The required refusal assertion fails: `IsFailure` is false.
+This is the missing completion check, not a timeout, migration or fixture failure.
+
+The regression is included in this diagnostic command:
+
+```text
+CI=true dotnet test backend/tests/LearnStack.Tests.Integration/LearnStack.Tests.Integration.csproj \
+  -c Release --no-restore \
+  --filter 'FullyQualifiedName~SeedContentContinuationTests|FullyQualifiedName~Origin_adoption_refuses_a_retained_Tenant_without_a_completed_v1_installation' \
+  --logger 'console;verbosity=normal'
+```
+
+The run completes 43 cases: 26 passed, 17 failed, zero skipped. One failure is
+the origin regression above. The other sixteen are independently investigated
+content-control setup failures; this mixed diagnostic run does not qualify the
+content implementation. Four Education writes are SHOULD-class, so faulting
+their audit append does not interrupt business setup; a premature Role lifecycle
+change is rejected by the existing database guard. Those controls need corrected
+setup and a fresh run, rather than weaker production admission or audit rules.
+
+The fixture uses PostgreSQL `18.4-alpine`, local image/repository digest
+`sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15`.
+Base `421aa7d63ba37c0f91214bc5dd4f7df1b8e04c2a` contains Accepted ADR-0080;
+Step 3 source/tests remain uncommitted. A private diagnostic pin set for the
+origin handler, runner and regression hashes to
+`da2e06556eb0b1d09caabb9fc8294a88b15e3150d2284271837d70061a0939c4`.
+It is not a final source/tree qualification receipt. No developer database,
+private environment configuration or deployment participates.
+
+[Proposed ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md)
+separates the missing completion-purpose authority from ADR-0080's eight
+pristine consumers. Its source/projection/lifetime and origin-only global/provider
+boundary require their own concrete approval. No ninth temporary consumer is
+authorized or implemented by accepting ADR-0080. The original Step 3 order is
+retained: resolve this decision before its dependent capability, qualify the
+complete writer population, commit implementation, then complete both fresh
+postcommit review rounds. Independent already-authorized validation continues.
+
+ADR-0080's implemented local controls are narrower than a Step 3 closeout: the
+original cross-branch profile regression passes; a separate sixteen-case run
+passes all eight temporary consumers in both held-Tenant competing-commit orders
+(zero skipped); the new canonical fixed-source/projection/owner architecture
+rule and both existing scope-carrier controls pass (three cases, zero skipped).
+The earlier sixty-case core run passed its source/owner/misuse controls but
+had eight completed-transaction cleanup errors in the new race fixture. Root
+corrects those fixture cleanup calls and reruns all sixteen races successfully.
+These results do not establish full Architecture/Integration qualification,
+provider/browser behavior or final-source A/B fit.
+
+### ADR-0081 proposal review round 1 and revised package (2026-10-29)
+
+Two fresh independent read-only reviewers examine the concrete proposal against
+Accepted ADR-0073/0079/0080/0040/0076/0077, the canonical standards and actual
+source. Both request changes. Root verifies the three Major findings and the
+additional narrow-read improvement before revising Proposed ADR-0081. No new
+completion-purpose capability or marker transition is implemented.
+
+| Verified finding | Revised selected proposal |
+|---|---|
+| Marker 1 can come from the currently unqualified path and the runner skips its completion check | Reserve marker 2 for the qualified path. Fully fenced `0→2` permits absent/exact mapping; `1→2` requires exact existing live mapping without repair. Both carry the existing plural MUST evidence. Only 2 qualifies a write-free exact-mapping repeat. A forward migration changes range/invoker guards, rejects fresh `0→1`, decrements and jumps, and retains old history. Incomplete old marker 1 refuses unchanged. Unknown COMMIT remains indeterminate until an authoritative observation; it never implies rollback. |
+| “Administrator invariants” claims global eligibility that the proposed owner cannot read | Select the explicit origin-only local predicate: Active undeleted NULL-org Membership, live Tenant-scoped TenantAdmin Role, both kernel pairs and valid local graph. Global eligibility/provider state is not freshly attested. Add ADR-0073 Amendment 5 as a bounded origin-only carrier; retain its full invariant and guards for original Membership/Role writers. |
+| “Completed profile” suggests original initializer provenance not present in metadata | Select the current valid retained disposition: required Membership/profile exists, valid stamps/current graph and positive aggregate version, including lawful nonprofile progress. Version zero refuses. No original seed-profile-act history is claimed; a lawful nonadmin status-before-initialization positive is an explicit proof. |
+| Customization tables are already Tenant-wide | Run Tenancy and Customization checks narrow. Only Education/Identity branch projections run within the temporary scope. |
+
+The revised plan remains inside Step 3 and keeps the original ten-step order:
+
+1. Obtain explicit approval for ADR-0081's separate completion source, qualified
+   marker and origin-only local/current-state boundary; reconcile its named
+   amendments/canonical carriers before capability code. ADR-0080 is already
+   Accepted and requires no repeated approval.
+2. Implement one distinct completion-purpose witness/operation for the fixed
+   origin command on the already-fenced ordinary owner. Share the existing
+   private transition and two exact scope-only SQL sites; preserve separate
+   eight-pristine/one-completion minters, readers and consumers. Add the forward
+   marker-2 guard migration and update the fixed runner's repeat/reconciliation.
+3. Qualify completed legacy/fresh and valid edited foundations, every incomplete
+   stage, old marker 1, local/global non-attestation, both competing orders,
+   plural audit rollback, unknown COMMIT, no repair, cleanup/isolation and zero-write
+   marker-2 repeat. Complete the other twenty-one writer proofs, then commit
+   Step 3 and run both fresh postcommit implementation-review rounds.
+
+The origin-only current-state/global boundary is a maintainer approval surface,
+not an assertion that the temporary Tenant read proves an eligible global User
+or the original profile initializer. The full existing identity admission and
+closure guards remain unchanged. A marker revision requires no new table/column,
+role, definer, physical owner/connector, logical Tenant setter or context writer.
+
+The following are proposed append-ready amendment texts for acceptance, not
+changes to Accepted bodies today. Standard 05 alone carries the detailed ongoing
+source/state/projection/guard ledger; the other carriers point to that ledger.
+
+| Accepted carrier / new dated amendment | Proposed text |
+|---|---|
+| ADR-0080 Amendment 1 — Separate fixed origin completion purpose | ADR-0081 adds one distinct completion-purpose source/consumer for the fixed administration-origin command on the existing owner. Its eight pristine consumers and their original predicates remain unchanged. Canonical Standard 05 owns the separate witness, fixed owning-module projections and shared scope-only state/barrier ledger. |
+| ADR-0079 Amendment 3 — Fenced origin completion and global boundary | For fixed origin adoption only, ADR-0081 defines retained Tenant-local current completion, without fresh global User/provider eligibility or original profile-initializer provenance. Qualified `0→2` and `1→2` replace this record's `0→1` contract; marker 1 requires exact existing live mapping and complete fresh qualification, while only 2 permits the exact-mapping write-free repeat. No missing/disabled/conflicting mapping is repaired; both qualified transitions retain plural MUST atomicity and genuine unknown-COMMIT reconciliation. |
+| ADR-0073 Amendment 5 — Origin-only retained completion boundary | ADR-0081's topology-only completion uses its named Tenant-local administrator and current profile disposition. It does not assert this record's globally eligible administrator or original profile-initializer history. The full invariant, admission fences and database guards for Membership/Role writers remain unchanged. |
+| ADR-0040 Amendment 18 — Fixed completion operation on the existing owner | ADR-0081 adds the separate closed completion witness/entry on the same ordinary ReadWrite owner. It shares ADR-0080's two exact scope-only SQL sites, typed private state transition and write/cleanup barriers, without adding a Tenant setter, context writer, physical owner or connector. Canonical Standard 05 owns its exact lifetime/caller/projection census. |
+| ADR-0076 Amendment 3 — Separate fixed completion read source | ADR-0081 extends only the closed Seed-purpose exception with fixed origin completion. The Protected-human witness source and grant ceiling remain unchanged; the distinct eight-pristine/one-completion purposes cannot substitute for one another. |
+
+The remaining named acceptance carriers are Standard 05/11/18/19/21, all four
+module specifications, Architecture 23, the decision index and Phase Status.
+Acceptance registers the proposed architecture/behavior owners
+`Fixed_Seed_Origin_Adoption_Requires_Completed_Foundation` with
+`SeedOriginCompletionConventionTests` / `SeedOriginCompletionTests`. Registration
+and proposal review are not implementation proof. A fresh second proposal round
+reviews the revised complete text before the maintainer approval request.
+
+### ADR-0081 proposal review round 2 and approval readiness (2026-10-29)
+
+A new independent reviewer examines the revised complete proposal and append-ready
+carrier/plan table. The review reports no remaining verified Blocker/Major/Minor
+within its read-only source/document scope after two Minor corrections and readback:
+refusal controls preserve successful-audit counts while asserting normal failure
+evidence separately; acceptance registers the proposed architecture/behavior owners
+rather than claiming those controls are already Registered. No runtime proof is
+inferred from the proposal verdict.
+
+The concrete approval surface is the separate closed completion-purpose authority
+on the same ordinary owner, the qualified marker-2 transitions and the origin-only
+local/current-state semantics. Tenant-local administrator checks do not freshly
+attest global User/provider eligibility. Positive valid profile disposition does
+not prove the original profile initializer ran. The admitted-writer/forged-history
+residual, physical scope exposure and longer exclusive fence are explicit costs.
+Marker-1 history is retained and must be qualified before `1→2`; it cannot use a
+write-free shortcut. No new table/column, role, definer, physical owner/connector,
+logical Tenant setter or context writer is selected.
+
+Independent authorized ADR-0080 validation progresses while this new proposal is
+prepared. The corrected content-control run passes **42/42**, zero skipped, in
+about one minute: twelve writers in both held-Tenant orders, twelve pristine
+interrupted-act resume/write-free completed repeats, four retained Role-history
+controls (including rejected premature tombstoning) and two noncanonical request
+refusals before the fence. The initial sixteen setup failures are not counted as
+passing proof; the corrected run uses business-DML interruption for SHOULD-class
+Education writes and preserves the actual Role lifecycle guard. This proves no
+fictional tombstone-only prefix. Full Unit passes **3,175/3,175**, zero skipped.
+The three fixed-source/scope architecture controls and sixteen eight-consumer
+races remain separately reported local checks, not full-suite qualification.
+
+The missing origin-completion refusal remains a known red implementation control
+until its separate authority is approved and implemented. Step 3 is uncommitted,
+not closed; its original two postcommit implementation-review rounds, remaining
+full-source suites and later provider/browser/final A/B proofs remain required.
+The maintainer's earlier request to approve each new ADR is why this proposal,
+rather than ADR-0080, needs an explicit acceptance answer.

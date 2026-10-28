@@ -14,8 +14,11 @@
 > under implementation/local validation. [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md)
 > is Accepted after maintainer review corrections on 2026-10-29. Its separate
 > seed read source, owner/write barriers and complete tenant-bound writer checks
-> are Step 3 implementation/proof obligations; its known cross-branch regression
-> and two postcommit review rounds remain open.
+> are Step 3 implementation/proof obligations. The original cross-branch regression,
+> all eight consumers in both competing-commit orders and exact authority controls
+> pass locally; full Step 3 qualification and two postcommit reviews remain open.
+> [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md) is
+> Proposed for the separate origin-completion gap; ADR-0080 approves no ninth consumer.
 > The [Step 2 record](phase-03-delivery-log.md#p03-3-step-2--bounded-self-entry-and-native-scope-admission-2026-10-28)
 > distinguishes local checks from the later provider/native/browser proofs.
 > This remains the critical-path phase after
