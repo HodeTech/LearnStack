@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,465 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,486 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -137,6 +137,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 zero-standard census review round 1 (2026-10-28)](#p03-2-zero-standard-census-review-round-1-2026-10-28) — 11 lines
   - [P03-2 zero-standard census review round 2 and freeze (2026-10-28)](#p03-2-zero-standard-census-review-round-2-and-freeze-2026-10-28) — 17 lines
   - [P03-2 Step 6 qualification and review handoff (2026-10-28)](#p03-2-step-6-qualification-and-review-handoff-2026-10-28) — 66 lines
+  - [P03-2 final documentation review and PR preparation (2026-10-28)](#p03-2-final-documentation-review-and-pr-preparation-2026-10-28) — 21 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -5455,3 +5456,24 @@ validated scope transitions, native mutation/UI transport and delegation screens
 P03-9 retains Platform/production recovery authority; P03-10 retains closure,
 redaction and applicable locator workflows. Phase 03 remains in progress.
 The next packet is P03-3, after this packet's PR review; it is not started here.
+
+### P03-2 final documentation review and PR preparation (2026-10-28)
+
+Two fresh independent reviewers (`gpt-6-astra` / `gpt-6.1-sol`, high) approve
+the actual nine-file `c39ab614..6c6747ec` documentation delta without verified
+findings. Earlier conditional carrier reviews are now complemented by review of
+the committed updates. Permission review checks finite source counts, actual
+HTTP/application enforcement and exact Role scope; Audit definitions remain
+future declarations. Catalogue review checks all seven promoted canonical
+methods, **28** named proof-owner classes, **251 / 146 / 105** totals and the
+unchanged **320** compiled method population. Both preserve P03-3/9/10 ownership,
+Phase 03 in-progress and PR review pending, without claiming a merge.
+
+Reviewers distinguish the qualified implementation source from later
+documentation commits. The actual final build and **5/5** corpus TRX are retained;
+the latter's SHA-256 is
+`85025f9f9b7d167103b9251e34bf15a855130be24f5aa75c63d8ac5c334fde52`.
+They perform read-only code/document checks, not another hosted execution; the
+separate original-ZIP backend/web audits supply that qualification evidence.
+All implementation and correction review rounds are closed. The review handoff
+uses `development` into `main`; no branch switch or merge occurs here.
