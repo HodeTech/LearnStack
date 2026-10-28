@@ -50,6 +50,7 @@ public sealed class PublicLocalLaunchTests(PublicReadFixture parent)
             File.WriteAllText(Path.Combine(temporary, "package.json"), "{\"type\":\"module\"}");
             File.Copy(Path.Combine(repository, "scripts/public-local.mjs"), Path.Combine(temporary, "scripts/public-local.mjs"));
             File.Copy(Path.Combine(repository, "scripts/public-runtime.mjs"), Path.Combine(temporary, "scripts/public-runtime.mjs"));
+            File.Copy(Path.Combine(repository, "scripts/demo-database.mjs"), Path.Combine(temporary, "scripts/demo-database.mjs"));
             if (!isolateProfile)
             {
                 // Deliberately remove only the profile boundary in the owned copy.

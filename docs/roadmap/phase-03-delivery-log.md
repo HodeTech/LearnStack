@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,534 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,557 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -140,6 +140,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 final documentation review and PR preparation (2026-10-28)](#p03-2-final-documentation-review-and-pr-preparation-2026-10-28) — 21 lines
   - [P03-2 PR 39 low-priority review corrections (2026-10-28)](#p03-2-pr-39-low-priority-review-corrections-2026-10-28) — 31 lines
   - [P03-2 PR 39 correction review round 1 (2026-10-28)](#p03-2-pr-39-correction-review-round-1-2026-10-28) — 17 lines
+  - [P03-2 PR 39 correction review round 2 and handoff (2026-10-28)](#p03-2-pr-39-correction-review-round-2-and-handoff-2026-10-28) — 23 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -5527,3 +5528,26 @@ passes **2,481** tests across **73** files/two packages, zero skips/todos and
 unchanged source. The **23** new controls complement the prior population.
 Typecheck, lint, format, targeted **246/246** tests and documentation checks
 also pass. The second fresh review round remains required before PR update.
+
+### P03-2 PR 39 correction review round 2 and handoff (2026-10-28)
+
+Two new independent reviewers (`gpt-6.1-sol` / `gpt-6-luna`, high) approve
+`c37c3df4..39c98e4f` without verified findings within the correction scope.
+They verify the common selected-pair rule, actual preflight ordering, fixed
+diagnostics and six current documentation carriers. Tooling review independently
+matches the full frontend log SHA-256
+`e08534d67c1a1cc17a9dff4113de671462161dd2780345eb64807f0e086603a4`:
+**2,481** passes, **73** files/two packages, zero skips/todos.
+
+The final dependency census additionally finds the real .NET launcher's isolated
+copy of `public-runtime.mjs`. One `File.Copy` supplies `demo-database.mjs` beside
+it, matching the two frontend fixture updates. The tooling reviewer independently
+checks all tracked consumers and this one-line follow-up; no test declaration or
+assertion changes. The actual PostgreSQL/API launcher cases pass **3/3**, including
+the foreign-user-secret dirty control. Native seed environment controls pass
+**6/6**. All changed frontend sources still match the fully tested `74254c8b` copy.
+
+Both fresh correction review rounds are closed. The follow-up checks qualify
+these two findings; the maintainer's remaining full-PR review limits and pending
+merge decision retain their stated scope. The original implementation A/B remains
+bound to `c39ab614`; the updated PR head receives its own protected checks.
