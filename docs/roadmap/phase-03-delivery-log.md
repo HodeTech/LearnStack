@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,156 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,174 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -124,6 +124,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 resolution correction review round 2 and source freeze (2026-10-28)](#p03-2-resolution-correction-review-round-2-and-source-freeze-2026-10-28) — 19 lines
   - [P03-2 failed provider startup and bounded diagnostics (2026-10-28)](#p03-2-failed-provider-startup-and-bounded-diagnostics-2026-10-28) — 47 lines
   - [P03-2 startup diagnostic review round 1 (2026-10-28)](#p03-2-startup-diagnostic-review-round-1-2026-10-28) — 14 lines
+  - [P03-2 startup diagnostic review round 2 and source freeze (2026-10-28)](#p03-2-startup-diagnostic-review-round-2-and-source-freeze-2026-10-28) — 18 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -5133,3 +5134,21 @@ checks raw smoke TRX/hash, all **24** archive hashes/CRCs and the complete
 The second fresh review round and complete final-source hosted A/B remain open.
 No readiness, startup/job bound, concurrency, sharing or acceptance condition
 changes; a diagnostic observation is not a lifecycle correction or hosted fit.
+
+### P03-2 startup diagnostic review round 2 and source freeze (2026-10-28)
+
+Two new independent reviewers (`gpt-6.1-sol` / `gpt-6-astra`, high) approve
+`82414331..01d8234b` without verified findings. They confirm event-only milestones,
+pre-cleanup cancellation capture, exact bounded projection and unchanged lifecycle/
+completion authority. The protocol reviewer independently passes **95/95**
+controls and reconciles raw smoke evidence, all **24** archived packages and
+all **6,927** completed results. Both fresh diagnostic review rounds are closed.
+
+The source freezes for one new full A; B follows only after successful A and
+original-archive verification. If provider startup fails again, the new milestone
+and cancellation observations guide diagnosis before a lifecycle correction is
+selected. Timeout increases, fixture serialization and a provider root cause are
+not inferred. Expected population remains **6,927** with the unchanged plan
+`f5161ae9`; actual hosted discovery and both exact unions must re-establish it.
+No packet/gate/catalogue promotion or PR handoff precedes successful complete
+same-source A/B and independent evidence audit.
