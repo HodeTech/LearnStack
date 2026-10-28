@@ -289,17 +289,15 @@ See [add-permission](../add-permission/SKILL.md).
 
 ### Step 6: Idempotency (if applicable)
 
-If the command triggers external side effects (LiveKit room creation, Stripe
-charge, email send), the controller layer adds the `Idempotency-Key` header
-requirement, and the handler:
-
-1. Reads the idempotency key from the request context.
-2. Checks the per-module `idempotency_keys` table for a prior result; returns it
-   if found.
-3. Otherwise runs the handler, writes the (key → result) row in the same
-   transaction.
-
-The pattern is detailed in [04-api-design.md § Idempotency](../../../docs/standards/04-api-design.md).
+Use the canonical controller/filter and `IIdempotencyStore` ownership from
+[API Standards § Idempotency](../../../docs/standards/04-api-design.md#idempotency).
+Do not add handler-owned replay or a per-module receipt table. The store claims
+before business dispatch and records the outcome after actual business-owner
+disposal; this is not atomic exactly-once execution. ADR-0079's protected set adds
+its exact precondition fingerprint and fresh original-target receipt-read gate.
+Tenantless bootstrap uses ADR-0078's natural-key convergence and rejects a
+tenant-keyed Idempotency-Key. Check current implementation/qualification before
+using a newly Accepted adapter or protected consumer.
 
 ### Step 7: Endpoint shell
 

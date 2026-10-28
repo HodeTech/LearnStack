@@ -21,6 +21,10 @@ Live policy and sensitive-directory contracts derive from Accepted
 [ADR-0077](../decisions/0077-trusted-authorization-evidence.md). The API composition
 activates live policy and the administrative directory; the
 [phase Status block](../roadmap/phase-03-identity-admin.md) owns qualification.
+The Accepted P03-3 extension derives from
+[ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md) and
+[ADR-0079](../decisions/0079-bounded-identity-administration.md); acceptance
+defines its contract without claiming runtime activation.
 
 REST conventions for LearnStack public and admin APIs.
 
@@ -97,7 +101,7 @@ shape, and per-deployment-mode behaviour — see ADR-0024 directly.
 | 422 | Semantic validation failure (rarely needed; prefer 400) |
 | 429 | Rate limited; `Retry-After` set |
 | 500 | Server bug; correlation id in body |
-| 503 | Dependency unavailable; `Retry-After` set |
+| 503 | Dependency unavailable; bounded `Retry-After` where the surface defines a truthful hint |
 
 ## Error Responses
 
@@ -159,8 +163,9 @@ unavailable bindings return uniform 401 without allocation. Ordinary resolution
 remains route-independent. Credential-free public reads and AccountSite's existing
 absent-bearer 404/admitted-wrong-method 405 remain. That P03-1 handoff admits no
 POST or SDK operation. ADR-0076 separately accepts
-the [administrative directory](#administrative-membership-directory) below;
-P03-3/G1/G6 retains new-user transport and native BFF extension decisions.
+the [administrative directory](#administrative-membership-directory) below.
+The [Accepted P03-3 extension](#accepted-p03-3-self-entry-and-administration)
+below defines new-user transport and native BFF admission separately.
 
 ## Tenant Context
 
@@ -175,9 +180,12 @@ The two rules an API author needs at the point of writing an endpoint:
   request — the host lookup result, the validated JWT claims, live membership — is
   resolved independently, and the request proceeds only on their intersection. Two
   authoritative signals that disagree do not produce a winner; they produce a 404.
-- **No request input selects a tenant.** Not a body field, not a query param, not a
-  cookie, and not a header. `X-Tenant-Id` and `X-Organization-Id` are *assertions*: they
-  are compared against the resolved value and can only cause the request to be rejected.
+- **No untrusted request input selects a tenant.** A body field, query parameter,
+  browser cookie or assertion header supplies no scope authority. `X-Tenant-Id`
+  and `X-Organization-Id` can only reject. ADR-0078's separately authenticated
+  server-owned native candidate is the bounded additional source; its API
+  confirmation and exact host ceiling follow
+  [Security's native admission contract](11-security.md#native-scope-and-global-self-admission).
 
 A request that cannot resolve a tenant returns **404** (not 403, to avoid disclosure).
 
@@ -296,6 +304,9 @@ reader, the query requires `HostAndClaim`, a real non-system actor and matching
 real resolved/host scope; `ClaimAndMembership` remains ineligible even after live
 membership arrives. The exact query receives physical ReadOnly through the
 existing owner; it gains no public marker or general authenticated-read exemption.
+ADR-0078's Accepted extension additionally permits the confirmed
+`HostAndNativeSessionScope` origin with the same real-host/context agreement.
+It does not admit a platform-host AccountSite read.
 
 Step 4 adds this GET to the eight public GET/HEAD actions in the closed production
 census, with explicit infrastructure exclusions, bearer OpenAPI security and
@@ -329,14 +340,43 @@ PublicSurface and AccountSite keep their separate real-HostScope ceilings.
   owner. This GET is not added to the physical READ ONLY catalogue. Audit failure
   returns `503 audit_unavailable` without a result payload.
 - Served OpenAPI and the generated SDK carry the exact directory contract.
-  The native authenticated transport allowlist still contains only AccountSite;
-  its extension, editing routes and UI remain P03-3.
+  The delivered P03-2 native transport still permits only AccountSite;
+  ADR-0078/0079 define its separately qualified extension below.
 
 [Security's live policy boundary](11-security.md#live-authorization-contract)
 owns early-gate precedence, runtime default deny, independent application checks
 and 403/404/503 outcomes. [Database read authority](05-database.md#operation-bound-read-authority)
 owns the invocation witness shared by EF and SQL. Runtime and source-bound
 controls separately verify routing, schema, grants and pre-disclosure audit.
+
+### Accepted P03-3 self entry and administration
+
+ADR-0078 adds three exact global-self descriptors on known Tenant/Organization
+hosts: `GET /api/v1/identity/self`,
+`POST /api/v1/identity/self/bootstrap` and
+`GET /api/v1/identity/self/contexts`. They authenticate the verified provider
+subject and separate native source before any ordinary contextual binding path;
+they do not create an unresolved-context exemption for other endpoints. Self and
+context discovery are Off, own-person, no-store navigation reads. Bootstrap
+creates a binding only, with opt-in allocation and central MUST audit; it grants
+neither Membership nor a tenant session. Nonadmitting bindings never look missing.
+The [Security contract](11-security.md#native-scope-and-global-self-admission)
+owns exact ordering, source consistency, terminal outcomes and creation budgets.
+
+Initial selection and explicit switching use the separately audited
+`POST /api/v1/identity/session-scope/admissions`. Ordinary refresh instead uses
+the unchanged-scope Off self/AccountSite validation defined by ADR-0078; it does
+not emit another admission event. A successful API event proves its own committed
+admission, not delivery of a browser cookie.
+
+ADR-0079 defines the finite member/profile/Role and Organization administration
+surface, its explicit v2 grant adoption and exact native operation allowlist.
+Protected resource reads, own-capability previews and mutation receipts retain
+their separately declared audit classes and no-store behavior. Advisory capability
+flags are not permission grants. The exact descriptor/policy, OpenAPI and SDK
+censuses must activate together; no catch-all BFF proxy follows. The
+[phase Status block](../roadmap/phase-03-identity-admin.md) records implementation
+and qualification, separately from these Accepted contracts.
 
 ## Pagination
 
@@ -487,6 +527,33 @@ side effects is knowledge the endpoint has and the pipeline does not. The
 attribute publishes its own OpenAPI contract — the required header and the
 statuses it can answer before the action runs.
 
+### Protected administration receipts
+
+**Derives from:** ADR-0079. Its bounded protected set activates the PostgreSQL
+adapter. Generic endpoints retain the rules above. Protected fingerprints also
+bind the exact canonical If-Match precondition where applicable. Only successful
+2xx outcomes or their unreplayable tombstones are retained; non-2xx attempts
+release the claim. A success receipt contains only the canonical decimal-string
+version, ETag and creation Location where applicable, at most 1 KiB including
+retained headers. The general response-capture ceiling remains 256 KiB including
+headers.
+
+A completed protected response requires fresh disclosure authorization and its
+own MUST read audit before bytes are replayed. Its persisted typed target kind/ID
+identifies the original resource independently of the wire receipt or a later
+Membership successor. Replay does not repeat the original mutation or its audit,
+and a failed disclosure/audit check leaves the stored outcome intact. The
+[Database contract](05-database.md#p03-3-storage-and-replay-contract) owns claim,
+capacity, expiry/reclamation, target binding and completion fences. A crash after
+business COMMIT and before outcome recording still permits at-least-once work;
+no exactly-once or safe automatic mutation retry is claimed.
+
+Global-self bootstrap is a separate tenantless, naturally convergent create on
+the serialized subject binding. It rejects Idempotency-Key rather than creating
+an unscoped key space. Acknowledged creation is 201; a matching existing or racing
+winner is 200. Unknown COMMIT is 503: deliberate retry can find the committed
+binding or make a newly admitted creation, without assuming rollback.
+
 
 ## Optimistic Concurrency
 
@@ -517,6 +584,14 @@ SDK has no branch for.
   absent. Reading "I could not parse your precondition" as "you did not send
   one" turns a conditional write into an unconditional one — exactly the
   overwrite the client was preventing.
+
+**Protected administration exception — ADR-0079.** For this bounded set only,
+absent, malformed, noncanonical, weak, wildcard or list If-Match is **400
+validation_failed**. A syntactically valid stale tag remains **409
+concurrency_conflict**. `If-Match: *` is rejected, never treated as absent;
+Organization creation has no version precondition. Versions are canonical
+decimal strings bounded to Int64, never JavaScript numbers. Other endpoints retain
+the generic behavior above.
 
 ## OpenAPI
 

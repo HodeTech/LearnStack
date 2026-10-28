@@ -2884,6 +2884,95 @@ own current qualification and review state.
 | [`Tenant_Authentication_Profile_Is_Closed`](#tenant_authentication_profile_is_closed), [`Keycloak_Roles_Are_Not_Application_Authority`](#keycloak_roles_are_not_application_authority), [`Authenticated_Rate_Limits_Use_Validated_Subject`](#authenticated_rate_limits_use_validated_subject), [`Authentication_Middleware_Order_Is_Enforced`](#authentication_middleware_order_is_enforced) | Step 5: verified subject before quota/binding SQL, optional actor evidence, normalized existing binding, uniform 401 and immutable feature/caller census. Numeric quota/fault/once-per-request semantics remain. |
 | [`Authenticated_Http_Surface_Is_Enumerated_And_ReadOnly`](#authenticated_http_surface_is_enumerated_and_readonly) | Step 5: existing-binding read, unchanged endpoint/SDK union, AccountSite404/405 and native publication. No POST or tenantless completion; P03-3 owns transport activation. |
 
+### Accepted P03-3 extensions and new obligations
+
+Source: [ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md) and
+[ADR-0079](../decisions/0079-bounded-identity-administration.md). These are
+Accepted, **pending** extensions; the shipped populations above remain
+Implemented. A source census, proposed test name or document check does not
+qualify a new runtime population. The phase Status block owns delivery state.
+
+| Existing canonical rule | P03-3 extension / planned proof owner |
+|---|---|
+| `Global_Identity_Storage_Is_Subject_Confined` and `Global_Identity_Creation_Uses_The_Common_Audit_Owner` | Extend the exact applied function/body/ACL/caller census from five to eight; qualify actual attempt/capacity/discovery owners, no counter reset or general User projection. Existing central success/reconciliation seams remain sole writers. |
+| `Identity_Seed_Uses_Finite_Adopted_Manifests` | `IdentitySeederTests` and Tenancy seed controls: pristine-prefix versions, edited completed-state preservation, terminal/tombstone refusal, no individual grant restoration, per-write fence/version recheck and real held-seed locale/profile/grant competitors. Fixed admin-origin adoption atomically writes one Tenant root, its monotonic marker and exact projection/MUST evidence; legacy complete/partial/conflict/repeat-zero-write and marker-with-deleted-mapping refuse controls. |
+| `Permission_Definitions_DeclareScope` and `Permission_Registry_Has_DeniedTest` | `OperationPermissionConventionTests` and actual command controls: exact v1 five Identity pairs plus v2 three Tenant Tenancy pairs; finite Any/All alternatives, disabled default, explicit additive adoption and independent denied coverage. No blanket key/scope implication. |
+| `Identity_Membership_Invariants_Use_Fresh_Ordered_Locks` | Actual member profile/status/assignment commands, retained Role-root grant locks and fresh post-wait delegation; no extra User fence for profile/removal. Existing deferred/MUST rollback and last-admin guarantees remain. |
+| `Authenticated_Http_Surface_Is_Enumerated_And_ReadOnly` and `Authentication_Middleware_Order_Is_Enforced` | Exact protected write/global-self descriptors supplement the historical read-only union. Source admission follows verified-subject quota, separate native evidence never rewrites provider facts, and both HTTP/direct application entry retain independent policy checks. Wrong-method/masking, legacy/public and OpenAPI/SDK caller controls cover the complete union. |
+| `Bff_Session_Refresh_And_Revocation_Have_One_Owner` | Actual entry/selection/switch owners, unchanged-context refresh with zero new admission-event delta, original absolute deadline, exact-subject live-destination replacement and actual cancellation/cleanup. |
+| `Bff_Auth_Admission_And_Csrf_Are_Closed` and `Bff_Host_Cookies_And_History_Are_Isolated` | Exact native form/path/field census, nine advisory flags, no capability in aggregate ETag, bounded snapshot admission 128 global/eight per owner and 32 MiB serialized ceiling. Actual native HTTPS/browser same-label/truncation/Unicode different-subject recovery, four-origin cookies, late publication, history/no-script, en/tr and manual accessibility. |
+
+#### `Native_Scope_Evidence_Is_Separate_And_Host_Bound`
+
+- **Asserts:** verified provider subject, normalized stored actor and native scope
+  are separate immutable evidence. Current/previous purpose-secret qualification,
+  expiry, exact header/source/request binding and real host ceiling refuse
+  foreign/stale/partial/retargeted evidence. Provider/native tuple disagreement
+  and legacy assertion mismatch never select a winner. Native Tenant/Organization
+  scope cannot admit Platform/public/provisioning authority or a SQL write hatch.
+- **Source:** ADR-0078; [Security contract](11-security.md#native-scope-and-global-self-admission).
+- **Type:** compiled caller/source/pipeline census and actual HTTP/app-role
+  candidate/AccountSite controls. **Kind:** structural and behavioural.
+- **Planned test owners:** `NativeScopeAdmissionTests`,
+  `IdentityAuthorizationHttpTests`, `IdentityAuthorizationConventionTests`.
+- **Status:** **Registered.**
+- **Phase:** P03-3 Steps 2/7/8.
+
+#### `Global_Self_Entry_Is_Bounded_And_Subject_Confined`
+
+- **Asserts:** only the exact three subject/quota/native-host descriptors branch
+  before ordinary resolution. Genuine absence differs from terminal/conflicting
+  binding. Own discovery derives actor from subject and leaks no foreign cursor,
+  profile, Role or cross-module SQL data. The tenth captured-scope setter uses
+  sequential physically READ ONLY owners and retains cleanup. Real PostgreSQL
+  concurrent creation, failed/unknown commit, restart, UTC regression, selected
+  attempt/permanent bounds and seed-inclusive counters preserve central atomic
+  MUST creation and natural-key convergence. Real tenantless/actorless provider
+  entry creates no Membership or fabricated session; existing bindings consume
+  no new creation attempt.
+- **Source:** ADR-0078; [Storage contract](05-database.md#p03-3-storage-and-replay-contract).
+- **Type:** actual app-role PostgreSQL/HTTP/provider/native controls plus exact
+  function/policy/privilege/source census. **Kind:** behavioural and structural.
+- **Planned test owners:** `GlobalIdentityBootstrapTests`,
+  `IdentitySelfEntryTests`, `IdentitySelfDiscoveryTests`, `TenantBffSessionTests`.
+- **Status:** **Registered.**
+- **Phase:** P03-3 Steps 2/7/8.
+
+#### `Protected_Idempotent_Replay_Reauthorizes_Original_Target`
+
+- **Asserts:** actual Postgres adapter survives two owners/restart and enforces
+  1,000 retained tenant slots, existing-key precedence, expired-row recycling and
+  old-fence refusal. Capacity/claim owners close before business User/Tenant locks;
+  completion follows actual business disposal. Protected version fingerprints,
+  successful-only bounded receipts and original typed targets survive uncertainty
+  without an exactly-once claim. Fresh target/self/current-authority MUST receipt
+  read commits before replay; revoked caller, successor Membership and failed
+  replay-audit controls preserve the stored completion without disclosure.
+- **Source:** ADR-0079; [Storage contract](05-database.md#p03-3-storage-and-replay-contract).
+- **Type:** actual PostgreSQL/process-restart/HTTP and source/target census.
+  **Kind:** behavioural and structural.
+- **Planned test owners:** `PostgresIdempotencyStoreTests`,
+  `ProtectedReceiptReplayTests`, `IdempotencyConventionTests`.
+- **Status:** **Registered.**
+- **Phase:** P03-3 Steps 6/7/8.
+
+#### `Tenancy_Default_And_Archive_Use_Fresh_Ordered_Fences`
+
+- **Asserts:** actual default/archive transactions and invoker guards preserve
+  an Active own default and at least one Active Organization. Independent default
+  selection and archive write their single declared root, require orgless current
+  Tenant capability and fresh post-wait lifecycle/authorization. Held competing
+  branch mutations/default changes/archives prove both winner orders, timeouts,
+  direct app-role refusal and central MUST rollback. Locale/default/theme human
+  wrappers cannot manufacture Seed provenance or bypass root versions.
+- **Source:** ADR-0079; [Tenancy specification](../modules/tenancy/README.md).
+- **Type:** actual app-role races/guard/fault controls and finite policy/source
+  census. **Kind:** behavioural and structural.
+- **Planned test owners:** `OrganizationAdministrationTests`,
+  `TenantAdministrationTests`, `TenancySchemaTests`.
+- **Status:** **Registered.**
+- **Phase:** P03-3 Steps 3/5/7.
+
 #### `Every_TenantCustomFieldDef_Declares_PiiCategory`
 
 - **Asserts:** every `TenantCustomFieldDef` carries a PII category — enforced on the

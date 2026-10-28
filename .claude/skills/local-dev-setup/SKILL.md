@@ -121,6 +121,24 @@ must match the root private source. README Quickstart owns the
 [closed local demo database grammar](../../../README.md#3-prepare-local-https-and-start-the-applications)
 and its supported field aliases; it does not promise general Npgsql parsing.
 
+**Accepted P03-3 setup extension; apply after its runtime activation.**
+[ADR-0078's exact callback/origin contract](../../../docs/decisions/0078-native-session-scope-and-self-entry.md#selection-refresh-and-host-transition)
+adds management hosts to the existing two public hosts. Explicit local hosts
+aliases and trusted TLS leaves must cover `demo-english.learnstack.local`,
+`demo-yoga.learnstack.local`, `manage.demo-english.learnstack.local` and
+`manage.demo-yoga.learnstack.local`; no script installs system aliases or CA
+trust. Provider callback/post-logout registrations and native origin admission
+must match those exact HTTPS origins, without wildcards. Follow the realm guide
+and activated launcher configuration rather than assuming the current baseline
+commands already supply this extension.
+
+Enabled native scope also requires its separate API/web purpose secret and
+private stable AuthorityId projection matching the installed authority; neither
+may be copied into public configuration, build inputs or browser code. Preserve
+existing values and use [Security's qualified rotation contract](../../../docs/standards/11-security.md#native-scope-and-global-self-admission).
+The phase Status block owns activation. Until then these are prerequisites to
+the pending extension, not new commands or a claim that management login works.
+
 **Ordinary API startup.** `dotnet run` does not load `.env`. For an API-only
 session, supply `ConnectionStrings:Default` (`learnstack_app`) and
 `ConnectionStrings:OutboxDispatcher` (`learnstack_outbox_admin`) through environment

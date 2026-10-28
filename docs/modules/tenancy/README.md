@@ -4,6 +4,11 @@
 and its schema-level isolation suite; commands, host resolution and the request-level
 isolation suite shipped in Packet 7). P02d-2 Step 1 adds contextual verification/locale
 reads; Step 2 implements locale/branding writers, with both review rounds complete.
+The [ADR-0078](../../decisions/0078-native-session-scope-and-self-entry.md) /
+[ADR-0079](../../decisions/0079-bounded-identity-administration.md) native admission,
+administration and warm-preservation contracts are Accepted; their new consumers
+and actual proofs remain pending P03-3 implementation. The
+[phase Status block](../../roadmap/phase-03-identity-admin.md) owns packet state.
 
 The first module spec in the repository, per
 [Documentation Standards § Per-Module Specifications](../../standards/13-documentation.md).
@@ -166,9 +171,12 @@ It accepts no scope selector and returns `AccountSite`: the context's stable
 `PublicSite` projection. It discloses no permission-sensitive configuration and
 adds no permission key; Phase 03 owns membership and permissions.
 
-Before any configuration, settings or feature read, its own guard requires
+Before any configuration, settings or feature read, its implemented guard requires
 `HostAndClaim`, a real non-system actor and matching real resolved/host scope.
-Missing provenance and `ClaimAndMembership` return `not_found`, including future
+ADR-0078's accepted extension admits independently validated
+`HostAndNativeSessionScope` with the same actual-host ceiling; that implementation
+and proof remain P03-3 work. Missing provenance and `ClaimAndMembership` return
+`not_found`, including future
 membership-confirmed platform contexts with an apparently matching host scope.
 Both site handlers call the same projection directly within the pipeline-owned
 physical READ ONLY frame. The live configuration reader independently retains
@@ -260,6 +268,76 @@ records implementation; the
 [merge closeout](../../roadmap/phase-02b-delivery-log.md#p02b-4-merge-and-closeout-2026-10-19)
 records its complete source-bound qualification.
 
+### Bounded Organization and settings administration
+
+**Accepted under ADR-0079; new handlers/routes/proofs pending P03-3.**
+[Tenancy permissions](permissions.md#bounded-human-administration-contract) owns
+the exact three Tenant pairs and separate human request bindings. Seed commands
+remain Seed-only; human handlers share module business logic without dispatching
+those requests or fabricating seed provenance. Organization CRUD/default API and
+SDK consumers ship in P03-3; full Organization/locale/theme editors and first
+reporting-parent authoring belong to Phase 06. ReportingParentId remains an unused
+additive field outside P03-3 DTOs, authorization and resolution.
+
+Organization create/rename/archive each writes that one Organization root.
+Explicit default selection writes only Tenant's default reference, with its
+expected/returned version; it is a sub-operation of Tenant
+`tenancy.organization.admin`. Current target checks require an Active/nondeleted
+Organization belonging to that Tenant. Archive refuses the current default or
+last Active Organization; select another default in its own transaction first.
+No automatic multi-root switch, cascade or new ADR-0042 aggregate exception is
+introduced. Archived Organization history, mappings, memberships and content stay
+retained, while live lifecycle checks withdraw ordinary branch work. There is no
+per-organization last-admin invariant or silent archived-tenant exemption.
+
+Locale add/default/enable/remove acts use one Tenant root/version and preserve
+translations. Missing/invalid configuration or default removal/disable refuses;
+select another enabled default first. `branding.theme` remains one complete
+TenantSetting root/version and its existing safe palette grammar. Organization
+settings/branding overrides and generic settings power remain outside this set.
+All human writes require orgless context and live post-lock authority/target
+checks. [Standard 05](../../standards/05-database.md#p03-3-storage-and-replay-contract)
+owns the strongest complete fences, fresh lifecycle reads and invoker guards.
+
+### Warm seed and administration origins
+
+**Accepted contract; implementation and races pending P03-3.** Ordinary warm seed
+verifies immutable installed root identities and current valid graphs rather than
+original mutable showcase values. Legitimate names, status/default, locales,
+theme and Identity administration remain unchanged. Removed locales or child
+grants are not evidence of never-installed state; retired roots are not recreated.
+Only a provable pristine incomplete prefix can resume. Edited partial or foreign
+state refuses before remaining writes. Each potential write rechecks its trusted
+evidence and target version under the same tenant fence used by administration;
+a read taken before a competing administrator commits is not authority to repair.
+The [canonical contract](../../standards/05-database.md#p03-3-storage-and-replay-contract)
+owns exact witnesses and held-seed locale/profile/grant race proofs. No new seed
+receipt table or reset mode is introduced; Customization/Education checks retain
+their separate existing scope.
+
+The fixed new administration origins are `manage.demo-english.learnstack.local`
+and `manage.demo-yoga.learnstack.local`, each mapping to its existing Tenant with
+NULL organization. Existing public mappings remain unchanged. Fresh installation
+uses the same confined adoption act as the explicit one-time completed-warm
+upgrade, `make seed-admin-origins`. This closed Seed act advances Tenant's
+`adopted_seed_origin_version` from 0 to 1 and installs/verifies only its exact
+owned mapping projection on that same announced unit of work.
+`AdoptSeedAdministrationOriginCommand` handles one Tenant per invocation; the two
+Tenants commit independently. Its common audit frame declares two MUST intents:
+`tenancy.tenant.adopt_seed_origin` for the Tenant marker and existing
+`tenancy.hostmapping.write` for the mapping projection.
+The projection is not a second aggregate root or a new provisioning exception.
+No v2 Role grant is adopted by this act. Conflicting mappings refuse; version 1
+with a missing/wrong mapping refuses rather than repairing it. A valid second run
+is write-free. Ordinary completed warm seed requires this explicit upgrade when
+the old installation lacks the new origin; it never silently creates it.
+
+Local demo destinations/readiness derive from actual live scope and locales.
+An intentionally archived public branch is reported unavailable without retargeting
+its host; its tenant administration origin remains the recovery destination.
+Fresh CI still requires its original complete nine-page/27-audit population;
+edited local state does not replace that source-bound qualification.
+
 ## Entity-relationship diagram
 
 Aggregate roots in the shipped code are `Tenant`, `Organization`, `TenantDomain` and
@@ -267,7 +345,8 @@ Aggregate roots in the shipped code are `Tenant`, `Organization`, `TenantDomain`
 promotion below. `SetTenantBrandingCommand` writes `TenantSetting`; no command
 writes `TenantDomain` yet.
 `PlatformHostMapping` and `PlatformEntitlement` are projections rather than
-aggregates: nothing in this module mutates them through a root.
+aggregate roots. The accepted fixed seed-origin act writes its mapping projection
+under the Tenant owner's transaction without a second aggregate root.
 
 **The other four split two ways, and Packet 7 settled the split.** `TenantDomain` and
 `TenantSetting` are root-shaped — a surrogate Vogen id, `AuditableEntity`, their own
@@ -408,9 +487,10 @@ which commits. One transaction, one connection, one commit point.
 `TransactionBehavior`, and the distinction is not stylistic. A
 `BeginTransactionAsync` from inside a handler is a *joiner* — [ADR-0040](../../decisions/0040-ambient-unit-of-work.md)
 returns a nested frame on the same transaction, so it would be a no-op that
-reads like a boundary. An announcement from inside a handler would be a ninth
-setter of `app.tenant_id` against a set ADR-0040 closes at eight, and would hand
-every handler in the solution the ability to move the ambient tenant.
+reads like a boundary. An announcement from inside a handler would be an unlisted
+setter of `app.tenant_id` outside the
+[closed census](../../standards/11-security.md#tenant-context), and would hand every
+handler in the solution the ability to move the ambient tenant.
 
 Three statements, one transaction. The tenant id is **never minted in the
 handler**: the registry assigns it, and the behavior announces it *before* the

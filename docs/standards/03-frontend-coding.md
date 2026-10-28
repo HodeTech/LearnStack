@@ -3,6 +3,10 @@
 **Status:** Active
 **Derives from:** [ADR 0009 — Frontend Single App First](../decisions/0009-frontend-single-app-first.md).
 Public UI localization derives from [ADR-0027](../decisions/0027-frontend-i18n.md).
+The bounded protected document/form contract derives from
+[ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md) and
+[ADR-0079](../decisions/0079-bounded-identity-administration.md); its implementation
+and qualification follow the [Phase 03 Status block](../roadmap/phase-03-identity-admin.md).
 
 TypeScript, React, and Next.js coding conventions. Frontend *architecture* (App Router layout, tenant resolution, SDK shape) is in [07-frontend-architecture.md](07-frontend-architecture.md).
 
@@ -96,13 +100,21 @@ export function CourseCard({ course, onEnroll }: CourseCardProps) {
 - Local state for view-only concerns.
 - Server Components + URL search params for filterable lists.
 - `useReducer` for complex client state.
-- TanStack Query for client-side server-state caching.
+- TanStack Query for separately admitted client-side server-state caching.
+  P03-3 protected pages use immutable request-bound snapshots and full document
+  navigation; no protected TanStack/SPA cache or optimistic permission state.
 - Avoid global client stores unless multiple unrelated routes share the same mutable client state.
 
 ## Data Fetching
 
-- Server Components call the typed SDK directly.
-- Client Components route through server actions or RSC props; never call the API with bearer tokens directly.
+- Public Server Components use the admitted request-local loaders and typed SDK.
+  Protected P03-3 RSCs read their frozen page snapshot and passive `auth()` only;
+  the native response owner alone performs credentialed SDK, refresh/idle/cookie
+  work before output. [Frontend Architecture](07-frontend-architecture.md#native-entry-and-administration)
+  owns the exact routes, owner bounds and nine advisory action flags.
+- Client Components receive safe typed props, never bearer tokens, provider/raw
+  identity, grant graphs or a generic credentialed transport. Future Server Action
+  consumers need explicit admission; none is implied by the coding convention.
 - Cache keys carry the tenant, the organization where applicable, and the locale; the
   rule lives in
   [Security Standards § Multi-Tenant + Organization Isolation Review Checklist](11-security.md#multi-tenant--organization-isolation-review-checklist).
@@ -113,6 +125,12 @@ export function CourseCard({ course, onEnroll }: CourseCardProps) {
 - React Hook Form for non-trivial forms; controlled inputs for simple ones.
 - Zod schemas for client-side validation; reuse on the server when possible.
 - Inline error rendering; submit button stays enabled but the failure surface is accessible.
+- P03-3 protected mutations use plain native POST forms, fixed local 303
+  destinations and fresh reads. Exact Origin/current CSRF, strict finite fields
+  and the 16-KiB pre-Next bound precede work. Decimal Int64 versions remain
+  strings; native builds If-Match and required idempotency headers. No hidden
+  field becomes authority. Unknown outcomes offer deliberate same-key/request
+  retry without claiming rollback; edits require a new key.
 
 ## Styling
 
@@ -135,10 +153,11 @@ owns verification and the remaining product/manual accessibility proof boundary.
 
 ## Server Actions
 
-- Live in `app/.../actions.ts`.
-- Each action validates input with Zod before doing work.
-- Each action returns a typed `Result<T, AppError>`.
-- Server actions never read secrets from the client.
+No production Server Action is admitted by the current BFF/administration
+contract. Phase 06 must explicitly admit a first consumer with native method,
+Origin/CSRF, body, authority and response-owner controls before it ships.
+The future coding shape is `app/.../actions.ts`, input validation before work and
+typed `Result<T, AppError>` results; it grants no present route or secret input.
 
 ## Async
 
@@ -158,6 +177,8 @@ owns verification and the remaining product/manual accessibility proof boundary.
 - Image: `next/image` with explicit `width`/`height`; never raw `<img>` for content images.
 - Font: `next/font` self-hosted.
 - Parallel fetches in RSC via `Promise.all`; no waterfalls.
+  Protected pages complete credentialed reads in their bounded response owner;
+  RSC does not start independent credential work to parallelize it.
 - Memo (`useMemo`, `React.memo`) only when profiled and proven to help.
 
 ## Accessibility

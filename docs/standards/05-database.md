@@ -4411,6 +4411,9 @@ authority boundary and the global exceptions.
 P03-1 delivers the internal creation core, seed adoption and ordinary
 existing-binding lookup. New-user HTTP/native-BFF activation belongs to P03-3;
 this annex adds no P03-1 HTTP endpoint.
+The Accepted [P03-3 extension](#p03-3-storage-and-replay-contract) owns its new
+budget/discovery functions, seed preservation and protected durable replay. Those
+extensions require their own applied-schema and runtime proof before activation.
 
 <a id="proposed-global-class-and-authority-anchor"></a>
 
@@ -4850,6 +4853,161 @@ remain fixture-local. Profile/removal controls prove no automatic User lock.
 Representative trigger-path p95/query/pool measurements include repeated view
 collection and contention. Complete-graph constraint preflight and forced central
 MUST failure prove rollback without reclassifying unknown physical COMMITs.
+
+## P03-3 storage and replay contract
+
+**Derives from:** [ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md)
+and [ADR-0079](../decisions/0079-bounded-identity-administration.md).
+**Accepted contract; implementation/proof pending.** The existing global,
+contextual and authorization/evidence contracts remain the baseline. The
+[Phase 03 Status block](../roadmap/phase-03-identity-admin.md) owns delivery state.
+
+### Creation admission and confined discovery
+
+`identity_creation_capacity` is a nonpersonal, platform-scoped control relation,
+not an eighth table class. One row references the installed stable AuthorityId;
+that authority is shared by all tenants in this deployment. Fields are the exact
+UTC minute/day window starts, their nonnegative attempt counts and a nonnegative
+permanent User allocation count. The authority key never changes. Migration
+initializes allocation from all retained Users, including seed and Closed rows;
+it never deletes or resets existing bindings. An already exhausted authority
+continues existing-binding reads and refuses new allocation.
+
+The relation has ENABLE/FORCE RLS and one role-qualified isolation policy whose
+USING and WITH CHECK admit only `learnstack_migration`. Runtime has no table
+SELECT/INSERT/UPDATE/DELETE/TRUNCATE grant. The installer and the two enumerated
+owner functions below are its only writers. No runtime reset/decrement or generic
+control API exists. Ordinary User deletion remains forbidden, and closure keeps
+the binding; capacity is consequently monotonic, not a reusable active-user quota.
+
+The exact definer census expands from five to eight functions. Existing five
+projections and callers remain unchanged. The new functions use fixed
+`search_path = pg_catalog`, qualified relations, no dynamic SQL, no PUBLIC EXECUTE
+and the same NOBYPASSRLS migration owner. Callable grants name `learnstack_app`
+only; trigger functions have no generic callable admission.
+
+| New function | Exact authority and result |
+|---|---|
+| `fn_identity_creation_attempt_admission()` | On one short app-role global owner, lock the installed authority's control row; derive authority/key from the enrolled verified subject. Return only admitted/window-refused and bounded retry seconds. Debit at most one attempt for this invocation; reset a window only when database UTC has advanced. No supplied authority, UserId or reset input. |
+| `fn_identity_user_capacity_guard()` | BEFORE User INSERT, verify the exact enrolled global creation/seed owner and immutable authority; lock the same control row, refuse allocation at 10,000, otherwise increment. The increment shares the User/central MUST transaction and rolls back with it. No decrement or projection. |
+| `fn_identity_self_membership_scopes(after_membership_id uuid, page_limit integer)` | On an enrolled physically READ ONLY global-self owner, derive the Active actor from announced authority/key and retained-subject consistency. Return only that actor's Active/nondeleted Membership IDs and tenant/nullable-org keys, ordered by Membership ID, with page size 1–100. No supplied actor, profile, grant, audit or Tenancy join. |
+
+Attempt admission follows a missing lookup and commits before the prepared
+creation transaction starts. It has no business owner nested beneath it and
+closes before subject-key preparation. A racing creation winner may then produce
+Existing, without a second creation intent. Failed/cancelled/uncertain attempts
+remain charged. Existing bindings bypass this debit. Fixed seed adoption bypasses
+HTTP attempt debit, but its INSERT consumes permanent capacity. New-user budget
+is ten attempts/UTC minute and 100/UTC day; database clock regression cannot
+reopen an old window. The public status/hint mapping belongs to Security 11.
+
+Discovery requires a narrowly named owner visibility arm in the existing single
+Membership isolation policy. It admits only `learnstack_migration` and rows whose
+User matches the announced authority/key and remains Active. The function also
+repeats this exact predicate and returns no User fields. This USING arm is row
+visibility, not a SELECT-only policy: unchanged WITH CHECK and mutation/fence
+guards still reject unscoped writes, and no definer body writes Memberships.
+There is no owner-wide tenant or Role directory. Exact body/policy/ACL/caller and
+dirty-twin controls qualify this extension before enabling the HTTP consumer.
+
+`PreContextSelfDiscoveryScopeReader` is the tenth logical tenant setter. It
+accepts only a single-use captured own-Membership scope witness from this function,
+never a request UserId or submitted tenant. It announces that tenant/org on a
+short physically READ ONLY owner from the ordinary business source. One
+five-second deadline includes checkout, announcement, Tenancy application-contract
+label/destination reads and body work. It returns no profile or permission data.
+Global lookup/discovery, label and candidate owners close sequentially; no outer
+connector waits for another lane. The four authorization-reader and two evidence
+slots retain their query sets and independent source ledgers. Cancellation does
+not release retained capacity until actual transaction/connection cleanup.
+
+Cursor parsing remains actor-bound: the request's verified subject selects the
+actor; an after-ID is only an ordering bound within that actor's rows. A foreign
+Membership ID cannot select another actor or make foreign rows visible. No raw
+cursor or relationship/witness value enters diagnostics. Cross-tenant names come
+only from Tenancy's declared contract after the captured-scope announcement;
+there is no cross-module SQL join or `IgnoreQueryFilters` exception.
+
+### Warm seed evidence and origin adoption
+
+Installed roots are recognized by permanent IDs, tenant/scope/natural keys,
+trusted creation stamps, declared immutable revision pins and current invariant
+validity. Completion does not compare mutable values with showcase defaults.
+Retained/deleted/revoked evidence is read through a closed seed projection, never
+by disabling EF filters. Tombstones and terminal Memberships prevent recreation.
+No new installation-receipt table is introduced.
+
+| Fact | Admitted incomplete-v1 continuation |
+|---|---|
+| Tenant/locales | Exact original locale prefix with `k` committed additions and Tenant version `1 + k`; add only the next originally declared locale. Any removal/edit/extra version invalidates this continuation. |
+| Initial Role | Create an absent, never-installed root with its entire finite v1 grant graph atomically at version 0. Never fill an individual missing grant on an existing Role. |
+| Membership/profile | Initialize only the original version-0 Membership's original empty profile; the first profile initialization yields version 1. An edited empty profile is preserved, not initialized again. |
+| Assignments | Initial graph is one witnessed Membership act. Existing missing assignments are never treated as never installed. |
+| Other roots | Require exact never-installed absence and a recognized pristine predecessor; a retained/deleted conflicting identity is not absence. |
+
+Before **each** possible seed write, acquire its complete User-before-Tenant
+plan, with an exclusive tenant fence, then the target root lock and expected
+version. Re-read the authoritative installation/pristine-prefix evidence through
+the owning module contracts on that owner. An earlier planner snapshot is not
+authority to write. Competing human writers take at least the same tenant
+family's shared fence, so their changes either precede this fresh decision or
+wait for its commit. No cross-module write transaction or global connector joins
+the tenant owner. Edited partial state refuses before the remaining act; a typed
+race may receive one fresh verification, never blind repair. Real held-seed
+locale-removal/profile-edit/grant-removal competitors prove this boundary.
+
+The fixed `AdoptSeedAdministrationOriginCommand` installs only the declared
+`manage.demo-english.learnstack.local` / `manage.demo-yoga.learnstack.local`
+mapping for its respective seeded Tenant, with NULL organization. It takes the
+exclusive tenant fence, root lock and expected version. A private, nonpersonal
+`tenants.adopted_seed_origin_version` starts at 0 and changes only 0→1 in the same
+transaction as the exact host projection INSERT and central plural MUST audit.
+Database guards reject reset/unknown versions or a marker change without the
+exact projection witness. A conflicting, disabled or differently mapped host
+refuses without overwriting it. A version-1 marker requires the exact live mapping;
+a missing/deleted mapping refuses instead of being restored.
+
+The mapping is a projection, explicitly outside ADR-0042's aggregate count; this
+act writes only the Tenant aggregate root. Fresh seed invokes the same closed
+act after v1 completion. Existing completed installations use the fixed
+`make seed-admin-origins` adoption, not ordinary warm preservation. Each Tenant
+commits independently, so interruption can resume the other Tenant and an exact
+repeat writes nothing. No public generic host writer, reset or repair mode is
+introduced. The marker is not a general installation-completed flag.
+
+### Protected durable idempotency
+
+The first protected keyed routes trigger `PostgresIdempotencyStore`; the existing
+table/RLS and app SELECT/INSERT/UPDATE grants remain. Add paired nullable internal
+`replay_target_kind` / `replay_target_id` columns. A protected completed success
+requires an allowed Membership/Role/Organization/Tenant kind and actual original
+target UUID; generic outcomes may leave both NULL. They have no cross-module FK.
+The protected filter captures a typed actual-result target, never arbitrary body
+metadata. Reclamation clears both columns with the old outcome. The API standard
+owns fingerprints, wire receipts, preconditions and replay disclosure.
+
+| Lock family | Physical owner / order / lifetime |
+|---|---|
+| `IdempotencyTenantCapacity` | A transaction-level exclusive canonical bigint advisory key in the separate `learnstack.idempotency.capacity.v1` domain, with length-prefixed TenantId RFC bytes. Its own short READ COMMITTED claim transaction checks an existing requested key first, then serializes new INSERT/expired-row rekey. It commits and disposes before any business dispatch. |
+| Business User/Tenant/Role/Membership | Existing canonical complete plan, on the later business owner. It never takes or waits while holding an idempotency capacity fence. |
+| Outcome completion/release | A later short store owner, only after actual business-owner disposal. It verifies the exact claim token/key and does not acquire business locks. |
+
+The capacity key uses SHA-256 over unsigned-32-bit-big-endian length-prefixed
+domain and Tenant UUID bytes; its first eight bytes use the same signed-bigint
+conversion as the Identity key. Distinct domains can collide only into extra
+serialization. Use transaction-local two-second lock timeout within the operation
+deadline; cancellation/timeout never proves cleanup or business rollback. No
+session advisory API or ambient UoW retargeting is admitted.
+
+At most 1,000 physical retained slots per tenant include live claims, completed
+receipts and unreplayable outcomes. Recycle only a database-expired row through
+UPDATE/rekey/reset; old claim/token completion cannot affect the replacement.
+No live eviction, app DELETE, global-count promise or MVCC/disk bound follows.
+An authorized person can intentionally exhaust this shared 24-hour budget and
+deny new operations; this is an accepted initial limit, without per-actor
+fairness or emergency-slot reservation. Existing-key service is checked before
+capacity rejection. Phase 11 owns purge/production sizing; a changed cap or
+fairness policy requires review rather than a silent reset.
 
 ## Backups
 

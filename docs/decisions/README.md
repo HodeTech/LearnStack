@@ -121,13 +121,14 @@ records hosted qualification. Phase 11 owns production qualification.
 | 0076 | [Live Scoped Authorization](0076-live-scoped-authorization.md) | Accepted 2026-10-27: bounded independent authorization source, explicit HTTP/application policies, operation-bound SQL/EF read scope and one administrative directory GET. Runtime implementation/qualification remains P03-2. |
 | 0077 | [Trusted Authorization Evidence](0077-trusted-authorization-evidence.md) | Accepted 2026-10-27: central denial owner, pre-success durability barrier, fixed occurrence reconciliation, trusted enrichment and separate claim-context assertions. Runtime implementation/qualification remains P03-2. |
 
+| 0078 | [Native Session Scope and Self Entry](0078-native-session-scope-and-self-entry.md) | Accepted jointly with ADR-0079 on 2026-10-28: separate authenticated native scope, bounded subject-only entry/discovery, initial/switch admission and unchanged-context refresh; implementation/proof state lives in the [Phase 03 Status block](../roadmap/phase-03-identity-admin.md). |
+| 0079 | [Bounded Identity Administration](0079-bounded-identity-administration.md) | Accepted jointly with ADR-0078 on 2026-10-28: finite administration, explicit v2 adoption, witnessed preserving seed/origin upgrade and current-authority durable replay; acceptance does not qualify runtime. |
+
 ## Proposed ADRs
 
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
-| 0078 | [Native Session Scope and Self Entry](0078-native-session-scope-and-self-entry.md) | Separate authenticated native scope candidates, live API confirmation and bounded global-self entry; no gate accepted | P03-3 G1/G4/G6 before runtime activation |
-| 0079 | [Bounded Identity Administration](0079-bounded-identity-administration.md) | Finite member/Role/Tenancy operations, explicit release adoption, preserving warm seed and durable reauthorized replay; no gate accepted | P03-3 G3/G5/G6 before new writers |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
 the P02d-2 package on 2026-10-02. Their rows are now in Active ADRs; ADR-0049 remains

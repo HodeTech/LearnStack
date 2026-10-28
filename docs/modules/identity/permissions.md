@@ -52,7 +52,7 @@ new assignable definitions require their own approved finite manifest.
   for discovery is not administrative authority.
 - Branch-scoped sessions use eligible Tenant grants for branch operations and
   explicitly declared tenant-wide reads, including the accepted directory.
-  Tenant-wide writes require the explicit orgless reissue transition owned by
+  Tenant-wide writes require the explicit orgless native admission transition owned by
   P03-3; `app.scope` widens reads only. The [seed handoff](README.md#first-admin-and-seed-sequence)
   preserves Yoga admin's branch claim while using its declared NULL-org target.
 - Org Admin cannot edit templates. Editing requires an eligible Tenant Admin
@@ -66,8 +66,9 @@ new assignable definitions require their own approved finite manifest.
   implications refuse.
 - The two-pair admin kernel is deliberately smaller than the three-pair initial
   Tenant Admin bundle. P03-2 owns explicit audited grant adoption/removal outside
-  that kernel. A later adopted manifest does not make the fixed v1 seed an
-  upgrade writer; a mismatch, including a legitimate upgrade, refuses unchanged.
+  that kernel. P03-3's exact v2 adoption adds only the approved new-key delta;
+  ordinary warm seed preserves a valid adopted graph without restoring removed
+  grants or acting as an upgrade writer.
 - A per-act committed snapshot defines revocation: later admissions see the change;
   already admitted work is not retroactively cancelled. JWT/session/UI caching
   cannot establish that boundary. P03-3 owns UI freshness/target transitions.
@@ -79,9 +80,11 @@ new assignable definitions require their own approved finite manifest.
 | `ListMembershipsQuery` | Tenant `identity.membership.admin` | Exact protected policy with invocation-bound tenant-wide reads, six approved contextual fields and MembershipId continuation. Fresh committed authority is required for every act. Ordinary ReadWrite; MUST sensitive-read audit. |
 | `GET /api/v1/identity/memberships` | Tenant `identity.membership.admin` | Declared tenant-wide administrative read; an eligible NULL-org Tenant Admin Membership can authorize it from a branch session. Organization grants cannot. MUST sensitive-read audit; no native BFF expansion. |
 | `ChangeRoleGrantsCommand` | Eligible Tenant Admin and Tenant `identity.role.admin` | Orgless write, current delegation ceiling/kernel, expected Role row version; recheck actor/target authority after invariant-lock wait. No HTTP writer. |
-| `AdoptRoleGrantManifestCommand` | Same admin gate | Separate approved finite v1 manifest/diff and same concurrency/audit rules; unknown manifests refuse, no v2 bundle or automatic adoption. No HTTP writer. |
+| `AdoptRoleGrantManifestCommand` | Same admin gate | Implemented finite v1 consumer and concurrency/audit rules; unknown manifests refuse. The exact v2 extension below remains pending; adoption is never automatic. No HTTP writer is implemented yet. |
 
-The five assignable scoped pairs, eight templates and fixed v1 seed remain.
+The historical v1 five-pair registry, eight templates and fixed initial seed
+remain; ADR-0079's separately accepted v2 contract adds three Tenancy pairs,
+pending implementation. It changes no Identity template count or admin kernel.
 Virtual Portal Public definitions are nonassignable and describe existing public
 reads only; [Standard 19](../../standards/19-permissions.md) owns their exact set.
 Default-deny HTTP and independent application checks consume fresh committed
@@ -103,3 +106,53 @@ an empty population. Organization Learner has own-studio positive and other-stud
 denied controls. P03-2 adds live HTTP/application default-deny, freshness,
 delegation and pre-disclosure audit controls. The phase Status block owns
 source-bound qualification; this matrix is not a test receipt.
+
+## Bounded administration contract
+
+**Accepted under [ADR-0078](../../decisions/0078-native-session-scope-and-self-entry.md)
+and [ADR-0079](../../decisions/0079-bounded-identity-administration.md); new bindings,
+routes and proofs pending P03-3 implementation.**
+[Standard 19](../../standards/19-permissions.md#bounded-administration-and-version-2-adoption)
+owns exact scoped pairs, release adoption and finite compiled policy combinations.
+An applicable pair means the declared eligible Tenant alternative or exact-current-
+Organization alternative; another branch contributes nothing. Every actual act
+rechecks current capability and target facts. The table adds no blanket role-name
+grant or SQL/EF write widening.
+
+| Operation family | Capability and target boundary |
+|---|---|
+| Own binding/bootstrap/global contexts | Exact native source and verified provider subject; no Tenant capability. Only opt-in bounded creation; no Membership or tenant-session grant. |
+| Context selection/admission | Own current coverage/lifecycle and real host ceiling; no administration key. Initial selection/explicit switch commits MUST admission. Refresh preserves original scope and separately checks the new token/association and AccountSite; it does not repeat the admission event. |
+| Tenant member directory | Tenant membership-admin; declared tenant-wide read witness, no write hatch. |
+| Organization member directory | Applicable membership-admin and non-NULL current organization; exact branch SQL/EF even for the Tenant alternative. |
+| Member detail | Applicable membership-admin; only its explicitly declared Tenant read alternative may widen reads. |
+| Other member profile | Applicable profile-write AND membership-admin; exact target write scope. |
+| Membership status/assignments | Applicable membership-admin; actual User/lifecycle/last-admin and whole-Role delegation/fence checks remain mandatory. |
+| Own profile | Read exact actor-owned current Membership Off; write needs applicable profile-write, exact actor and write scope. |
+| Role/permission registry reads | Tenant role-admin; no orgless condition on reads. Registry returns exactly eight assignable scoped pairs after v2 registration. |
+| Role grant edit | Current eligible Tenant Admin with both kernel pairs, Tenant role-admin and orgless context; current delegation ceiling and protected kernel. |
+| First v2 adoption | Same eligible actor/scope and exact approved release/target/version; only the three-new-key exception and monotonic marker in Standard 19. |
+| Protected receipt read | Fresh original-target disclosure policy, exact actor/scope/self predicate and MUST read audit; no original mutation replay or successor substitution. |
+
+The no-store, Off own-capability response contains exactly these advisory flags;
+it has no ETag or grants. Each flag presupposes current User/coverage/lifecycle.
+False previews create no denial event, and true previews authorize no mutation.
+
+| Flag | Prerequisite from the operation table |
+|---|---|
+| `canReadTenantMembers` | Tenant member-directory capability |
+| `canReadOrganizationMembers` | Current-branch directory capability, including its non-NULL-org condition |
+| `canWriteMemberProfiles` | Applicable profile-write AND membership-admin; target scope checked separately |
+| `canManageMemberships` | Applicable membership-admin; transition/delegation checked for each actual target |
+| `canReadRoles` | Role-read capability |
+| `canChangeRoleGrants` | Eligible Tenant Admin/role-admin and orgless write prerequisites |
+| `canAdoptRoleRelease` | Same prerequisites; selected built-in key/release marker independently controls the action |
+| `canWriteOwnProfile` | Applicable profile-write and exact actor-owned current Membership |
+| `canManageOrganizations` | Tenant `tenancy.organization.admin` and orgless context |
+
+Per-pair `canGrant` previews describe additions within the current ceiling and
+explicit same-key Tenant-to-Organization bridge. False does not prevent removing
+an existing nonkernel grant. Protected resource DTO ETags do not validate these
+separate current previews. Native transport admits only the joint package's exact
+operations; neither capability flags nor the permission registry creates a generic
+proxy, Server Action or browser credential.

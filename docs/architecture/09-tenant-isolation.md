@@ -45,7 +45,9 @@ announcements never announce PlatformSentinel as a tenant. The sentinel has two
 named audit populations: existing platform-scope standalone operations and
 accepted global identity-creation attempts. The second is storage attribution,
 not a Platform permission or general audit-read capability. P03-1 adds no HTTP
-creation route; P03-2 owns live membership and P03-3 new-user/BFF activation.
+creation route; ADR-0078's Accepted new-user/discovery extension has separately
+confined global and sequential contextual owners under the
+[P03-3 database contract](../standards/05-database.md#p03-3-storage-and-replay-contract).
 
 ## Defense-in-depth layers
 
@@ -60,6 +62,15 @@ lifecycle and capability checks at each protected act, independently of tenant
 resolution. Its candidate reader has a confined READ ONLY owner; it never installs
 an ambient TenantContext. The [Phase 03 Status block](../roadmap/phase-03-identity-admin.md)
 owns implementation and qualification.
+
+Accepted [ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md)
+adds separate native scope evidence without rewriting that provider projection.
+The API confirms its actual host, binding, Membership and lifecycle before
+`HostAndNativeSessionScope` can admit independently declared protected operations
+or actual-host-backed AccountSite. It adds neither PublicSurface nor platform-
+host AccountSite authority. Exact source ordering and ceilings remain in
+[Security](../standards/11-security.md#native-scope-and-global-self-admission);
+acceptance does not qualify their runtime implementation.
 
 P02d-4's accepted public boundary adds immutable factory-preserved HostScope,
 intersected with normal context, filters and RLS. Tenant hosts expose tenant-wide
@@ -80,7 +91,7 @@ its own policy, without widening any public or AccountSite read.
 | Application context | `ITenantContextAccessor.Current.TenantId` (AsyncLocal) | `ITenantContextAccessor.Current.OrganizationId` (AsyncLocal; nullable) |
 | EF Core | Global query filter `e.TenantId == currentTenantId` | Global query filter `e.OrganizationId == null OR e.OrganizationId == currentOrgId` |
 | PostgreSQL | The tenant term of the single policy: `tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid` | The organization term `AND`-ed into that **same** policy, plus the restrictive `UPDATE` / `DELETE` write guards. Canonical SQL in [Database Standards](../standards/05-database.md) |
-| Identity | Single-realm `learnstack` with `tenant_id` JWT claim (default per [ADR-0004](../decisions/0004-authentication-strategy.md); realm-per-tenant is an opt-in for enterprise isolation only) | `organization_id` JWT claim populated from active org membership |
+| Identity | `learnstack` verified subject plus independently confirmed live Membership. Legacy scalar claims remain; ADR-0078 defines separately authenticated native scope. | Actual organization context obeys host/candidate consistency and live exact-branch coverage, never a browser selector. |
 | Cache | The caller composes `{tenant_id}:{module}:{logical-name}` with `CacheKey.ForTenant`; every `ICacheService` implementation validates the key and prefixes nothing | `{tenant_id}:{org_id}:{module}:{logical-name}` with `CacheKey.ForOrganization`, for a value scoped to one organization. Settings reads are uncached in P02d-2/3 under [Accepted G23](../roadmap/phase-02d-delivery-log.md#p02d-3-decision-package-2026-10-02); no settings cache key is active |
 | Files (SeaweedFS) | Object key prefix `tenants/{tenant_id}/...` | `tenants/{tenant_id}/organizations/{org_id}/...` for org-scoped assets |
 | Search | `tenant_id` as a mandatory filter composed **inside** `ITenantSearch` — callers pass criteria, never filter strings. Until Meilisearch's demand gate fires ([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)), search runs on PostgreSQL full-text over tenant-owned tables and inherits Row Level Security; the engine-enforced per-request tenant token arrives with the Meilisearch adapter in [Phase 09](../roadmap/phase-09-billing-integrations-analytics.md) | `organization_id = X OR organization_id IS NULL` clause when org context |

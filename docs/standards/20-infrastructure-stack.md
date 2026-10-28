@@ -88,7 +88,7 @@ named phase when a written trigger fires.
 | Signed licence key | `IEntitlementProvider` | `NullEntitlementProvider` (the same registration) | [Phase 11](../roadmap/phase-11-production-hardening.md) | A Self-Hosted contract is signed |
 | Custom-domain TLS automation | `IHostToTenantResolver` + `ITlsCertificateProvider` | `platform_host_to_tenant` rows managed by configuration | [Phase 11](../roadmap/phase-11-production-hardening.md) | A tenant needs its own domain in production |
 | `audit_log` partitioning + retention | schema-internal | Single unpartitioned table | [Phase 11](../roadmap/phase-11-production-hardening.md) | Measured `audit_log` growth justifies partition maintenance |
-| Durable idempotency store | `IIdempotencyStore` | `InMemoryIdempotencyStore` | [Phase 02a Packet 6](../roadmap/phase-02a-kernel-tenancy.md) shipped the table; `PostgresIdempotencyStore` lands with whichever phase fires the trigger first — the first `[Idempotent]` endpoint's, or [Phase 11](../roadmap/phase-11-production-hardening.md)'s multi-instance deployment ([ADR-0037 Amendment 1](../decisions/0037-idempotency-key-contract.md)) | The first endpoint carrying `[Idempotent]`, **or** more than one application instance runs concurrently |
+| Durable idempotency store | `IIdempotencyStore` | `InMemoryIdempotencyStore`; ADR-0079 selects its pending replacement | [P03-3](../roadmap/phase-03-identity-admin.md) owns `PostgresIdempotencyStore` with its first protected keyed endpoints; the table shipped in Phase 02a Packet 6 | First `[Idempotent]` endpoint, selected by Accepted [ADR-0079](../decisions/0079-bounded-identity-administration.md); multi-instance deployment remains the alternative trigger |
 | Meilisearch | `ITenantSearch` | PostgreSQL full-text search | [Phase 09](../roadmap/phase-09-billing-integrations-analytics.md) | Search quality or scale exceeds PostgreSQL FTS |
 | LiveKit | `ILiveClassProvider` | none — scheduled, not gated; see the exception below | [Phase 08c](../roadmap/phase-08c-classroom.md) | Live classes become a product requirement |
 | Managed video transcoding | `IVideoTranscoder` | ffmpeg-backed worker ([Phase 04](../roadmap/phase-04-cms-media-pages.md)) | [Phase 11](../roadmap/phase-11-production-hardening.md) | In-house transcode backlog or per-minute cost exceeds the managed alternative |
@@ -424,11 +424,22 @@ Rules:
 [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md) supplies the
 in-process tenant resource-server boundary. Its one stock JWT/OIDC scheme uses
 explicit issuer configuration and closed projection/admission owners; API startup
-validates configuration without contacting Keycloak. No admin adapter, client
-secret or live membership is added. P02b-6 owns realm reconciliation, P02b-7 the
+validates configuration without contacting Keycloak. That boundary introduced no
+admin adapter or client secret; P03-2 separately implements live Membership and
+policy checks. P02b-6 owns realm reconciliation, P02b-7 the
 BFF/session transport, Phase 03 application authorization, and Phase 11 production
 IdP provisioning and distributed/edge capacity. The gateway below remains gated;
 it cannot replace the API's own validation and host reconciliation.
+
+Accepted [ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md)
+adds a separately authenticated native scope source, not a provider Admin API
+adapter or another token issuer. Its secret stays behind the existing startup
+configuration boundary; private AuthorityId projection grants no authority.
+[Security](11-security.md#native-scope-and-global-self-admission) owns bounded
+rotation and evidence admission. Discovery owners remain sequential on the
+[ordinary business source](05-database.md#p03-3-storage-and-replay-contract),
+without enlarging the authorization/evidence lanes. Runtime qualification remains
+in the phase Status block.
 
 ## APISIX Gateway
 

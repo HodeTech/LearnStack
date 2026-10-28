@@ -29,6 +29,18 @@ the request exists, and off-path events register by slug when their writer lands
 | Membership directory | `identity.membership.list` | **MUST** (`read-sensitive`) | Internal `ListMembershipsQuery` under existing Tenant `identity.membership.admin`; ordinary ReadWrite owner commits its row before disclosure. No HTTP activation follows from its catalogue entry. |
 | Role including grants | `identity.role.change_grants` | **MUST** (`security-event`) | `ChangeRoleGrantsCommand`; one Role root and contained grant diff, expected row version and fresh post-lock authority recheck; success/audit share the transaction. |
 | Role including grants | `identity.role.adopt_manifest` | **MUST** (`security-event`) | `AdoptRoleGrantManifestCommand`; separately admitted finite v1 manifest adoption, one Role root and contained grant diff; no automatic registry/seed upgrade. |
+| Current-branch Membership directory | `identity.membership.list_organization` `(planned)` | **MUST** (`read-sensitive`) | Exact branch-scoped member list under an admitted Tenant-or-Organization alternative; no Tenant read hatch on this endpoint. |
+| Membership detail | `identity.membership.read` `(planned)` | **MUST** (`read-sensitive`) | Declared target read scope; commit before contextual profile/assignment disclosure. |
+| MembershipProfile, captured under Membership | `identity.membership_profile.write` `(planned)` | **MUST** (`update`) | Exact own-person or independently admitted administrator profile replacement; one Membership root. |
+| Membership including assignments | `identity.membership.replace_role_assignments` `(planned)` | **MUST** (`security-event`) | Exact current Role graph/delegation, expected version and ordered fences; contained diffs share the transaction. |
+| Membership lifecycle | `identity.membership.change_status` `(planned)` | **MUST** (`security-event`) | Suspend/reactivate/revoke with current User, scope and last-admin guards; Revoked is terminal. |
+| Membership context admission | `identity.membership.admit_session_scope` `(planned)` | **MUST** (`security-event`) | Initial context selection/explicit switch; ordinary resolved ReadWrite owner commits before its association witness. This event proves API admission, not browser cookie delivery. |
+| Role summaries | `identity.role.list` `(planned)` | **MUST** (`read-sensitive`) | Current Role-read admission before finite template disclosure. |
+| Role detail | `identity.role.read` `(planned)` | **MUST** (`read-sensitive`) | Current Role-read admission before grants/release-marker disclosure. |
+| Permission registry and release choices | `identity.role.list_permissions` `(planned)` | **MUST** (`read-sensitive`) | Tenant role-admin admits the exact finite registry/release configuration, separately from own-capability hints. |
+| Original Membership outcome | `identity.membership.read_receipt` `(planned)` | **MUST** (`read-sensitive`) | Current original-target disclosure authority before stored successful bytes; terminal target facts only for this receipt. |
+| Original MembershipProfile outcome | `identity.membership_profile.read_receipt` `(planned)` | **MUST** (`read-sensitive`) | Exact stored original Membership and self/admin predicate; no later successor substitution. |
+| Original Role outcome | `identity.role.read_receipt` `(planned)` | **MUST** (`read-sensitive`) | Fresh Role receipt disclosure admission; does not reexecute grant/adoption mutation. |
 
 **Explicit Off reads.** Contextual seed verification request types are registered
 Off before use; they inspect only the exact bounded declared seed facts, with no
@@ -98,3 +110,37 @@ own [retention target](../../standards/18-audit-coverage.md#retention): Security
 seven years, ReadSensitive two years. Purge remains Phase 11 work; P03-10's Audit
 participant locates/reports surviving actor/subject linkage without metadata
 UPDATE authority. No email mirror or Platform/operator flag population is added.
+
+## Bounded entry and administration classifications
+
+**Accepted under ADR-0078/0079; new catalogue bindings and proof pending P03-3.**
+The new matrix rows remain `(planned)` until actual writers/readers and catalogue
+entries land together. Existing User creation, Role grant/adoption and denial
+slugs keep their implemented classifications; their new consumers do not invent
+private audit writers. V2 adoption extends the existing Role adoption operation
+with the exact approved delta and same-transaction contained marker/grant capture.
+
+Global-self lookup/context choices, current-tenant own contexts, exact own-profile
+reads and own-capability previews are explicitly Off, no-store self navigation.
+Their request types require Off catalogue registration before dispatch. An
+ordinary refresh's positive new-token association/AccountSite check preserves the
+original scope and remains Off; it does not call the audited admission operation.
+Initial selection/explicit switch alone produces the new admission security event.
+Bootstrap retains the existing central `identity.user.create` owner: actual
+creation/audit commit together, matching existing bindings declare no new creation
+intent, and failed/indeterminate creation follows central reconciliation. No User
+or session is inferred from a failed audit/unknown COMMIT.
+
+Protected completed response replay performs a separately classified current
+receipt read. It checks the stored original target and commits a new MUST read
+event before disclosure; it never repeats the original mutation event or exchange
+headers. Failed read/audit retains the stored completion. The
+[storage contract](../../standards/05-database.md#p03-3-storage-and-replay-contract)
+owns typed target persistence, reclamation and owner/fence lifetime.
+
+Own context choices, association witnesses, stored receipt targets and copied
+page/response bodies remain personal/reference data where linkable. Off means no
+operation event, not anonymous data or diagnostic permission. SecurityEvent and
+ReadSensitive retention remain policy targets; Phase 11 owns automatic purge,
+while P03-10 owns applicable export/closure/linkage location. Acceptance does not
+qualify the new provider, database, browser, race or failure proofs.

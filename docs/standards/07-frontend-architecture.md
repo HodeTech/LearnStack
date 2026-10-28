@@ -19,6 +19,11 @@ page composition follows the
 [Accepted P02d-6 package](../roadmap/phase-02d-delivery-log.md#p02d-6-decision-package-2026-10-09).
 The existing-session Identity foundation boundary derives from Accepted
 [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md).
+Native entry, scoped publication and bounded administration derive from
+[ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md) and
+[ADR-0079](../decisions/0079-bounded-identity-administration.md). Their accepted
+contracts below require implementation/qualification; the
+[Phase 03 Status block](../roadmap/phase-03-identity-admin.md) owns progress.
 
 Next.js App Router layout, tenant resolution, SDK shape, and runtime concerns for the
 tenant-facing `apps/web` application in *this* repository. See
@@ -119,7 +124,9 @@ flowchart TD
   and the configured caller; Step 4 implements frontend fences and real-API
   production HTML/RSC proofs. Public page composition remains P02d-6.
 - Studio/Portal tenant switching is separate authenticated functionality; its
-  validated claim/cookie contract does not select institution public content.
+  admitted native candidate and live API confirmation do not select institution
+  public content. Native scope is separate from provider identity, under
+  [Native entry and administration](#native-entry-and-administration).
 
 ## Native Admission and URL Identity
 
@@ -129,10 +136,13 @@ evidence belongs to the [delivery record](../roadmap/phase-02d-delivery-log.md#r
 
 - Admit GET/HEAD on HTTP paths reaching the native listener callback before
   Next dispatch, including matcher-exempt health/assets and exact scaffolds.
-  ADR-0070 additionally admits POST only on `/api/auth/signin/keycloak`,
-  `/api/auth/signout` and `/api/auth/extend`, with their closed proof/body
-  rules. All other methods receive masked no-store 404 without bootstrap or
-  Next method conversion. HEAD is bodyless; Node owns malformed protocol input.
+  The existing ADR-0070 sign-in/sign-out/extend POSTs and the exact ADR-0078/0079
+  [entry/administration form set](#native-entry-and-administration) are the only
+  additional admitted methods, with their closed proof/body rules. All other
+  methods receive masked no-store 404 without bootstrap or Next method
+  conversion. HEAD is bodyless; Node owns malformed protocol input. Adding the
+  new form set requires atomic ingress/route/CSRF/owner qualification; acceptance
+  alone is no runtime allowlist change.
 - Close every production WebSocket upgrade. Development admits only the validated
   GET HMR upgrade path and closes failed/unhandled delegation. Health/asset
   exemptions grant no method, provenance or tenant authority.
@@ -216,10 +226,11 @@ server caller in `apps/web/src/server/configured-public-client.ts`.
   Production served/snapshot equality and required frontend regeneration/drift
   checks are part of P02d-4; generator output remains outside formatter rewriting.
 - The root exports generated types and the exact authenticated path/operation
-  contract. `/authenticated-server` supplies only the injected, no-store
-  `getAccountSite` GET; its native configured caller owns credentials and the
-  independently verified host/current visitor. It exposes no credential/header/host
-  selector to UI consumers. `/server` supplies four thin public GET
+  contract. `/authenticated-server` supplies only injected, no-store methods
+  selected by the closed API contract, including AccountSite and the accepted
+  ADR-0078/0079 extension. Its native configured caller owns credentials and the
+  independently verified host/current visitor. It exposes no credential/header/
+  host/scope selector to UI consumers. `/server` supplies four thin public GET
   wrappers using generated operation types and an injected Fetch-compatible
   transport that resolves relative URLs; no global-fetch default.
 - The unused client factory/export is removed. No tenant-ID option, authority-header
@@ -260,11 +271,104 @@ owns the source, pin, diff policy, bootstrap exception and required-check rollou
   owners perform refresh/idle/cookie updates before streaming. Never expose
   credentials to Client Components; no Server Action is admitted by P02b-7.
 - Accepted ADR-0072 preserves complete native actor/tenant identity, independent
-  ID-token verification and the matching positive AccountSite witness. P03-1 only
-  aligns native opaque subject validation to the API's 255-character bound; it
-  adds no SDK operation or `LoginCompletion` variant. P03-3/G1/G6 owns new-user
-  HTTP/bootstrap association and typed session/no-session completion decisions
-  under the [Security activation gate](11-security.md#p03-3-new-user-http-and-native-activation-gate).
+  ID-token verification and matching positive AccountSite for the original
+  existing-session boundary. ADR-0078 replaces provider tenant/actor completeness
+  as native session scope authority: verified provider identity, optional
+  compatibility claims, API-associated actor and published context are separate
+  types. Typed entry/no-session completion grants no Membership or tenant cookie.
+  The [Security activation gate](11-security.md#p03-3-new-user-http-and-native-activation-gate)
+  still requires actual API/provider/native/browser proof before activation.
+
+## Native Entry and Administration
+
+**Derives from:** ADR-0078/0079; accepted contract, qualification required.
+Native Studio/Portal uses admitted tenant/organization origins. Fixed management
+origins map to tenants with NULL organization; PlatformHost does not acquire
+native AccountSite/session entry. The source credential, subject association,
+live candidate and exact host ceiling follow Security 11. Public wrappers remain
+anonymous; no browser-controlled header, cookie or hidden field selects authority.
+
+Only these additional native POST paths are admitted:
+
+| Path | Fixed operation |
+|---|---|
+| `/api/auth/entry/create` | Deliberate own bootstrap from the current bounded entry |
+| `/api/auth/entry/select` | Fresh own context choice and audited initial admission |
+| `/api/auth/switch` | Same-subject fresh audited context transition |
+| `/api/studio/membership-profile` | Exact contextual profile replacement |
+| `/api/studio/membership-roles` | Whole compatible Role assignment replacement |
+| `/api/studio/membership-status` | Named Active/Suspended/Revoked transition |
+| `/api/studio/role-grants` | Whole registered scoped grant replacement |
+| `/api/studio/role-manifest-adoption` | Exact explicit release adoption |
+| `/api/account/profile` | Exact current own Membership preferences |
+
+Existing `/api/auth/signin/keycloak`, `/api/auth/signout` and `/api/auth/extend`
+retain their contracts. New forms require verified exact same Origin and current
+entry/session CSRF before work. Strict UTF-8 form input is at most 16 KiB before
+Next, with single-valued named fields and duplicate/unknown fields refused. Only
+the declared Role/grant field contains strict finite JSON arrays, at most eight
+items. Form decoding, extra fields, canonical identifiers and bounds get real
+transport controls. Ordinary admin forms accept no tenant/org, absolute return
+URL, path/method/header or bearer; only context-selection forms propose a
+non-authorizing candidate. Versions are canonical Int64 decimal strings converted
+to exact strong If-Match, never JavaScript numbers. Idempotency nonces survive
+deliberate same-request unknown-outcome retry; edited requests need new keys.
+
+GET `/api/auth/entry` serves the own-entry/confirmation/recovery document. The
+protected document set is exactly `/studio`, `/studio/members`,
+`/studio/members/{MembershipId}`, `/studio/roles`, `/studio/roles/{RoleId}`,
+`/portal` and `/portal/profile`, with canonical resource IDs. Only member-list
+GET accepts cursor/limit; exact route/query/history censuses reject alternatives.
+The API directory is selected by current admitted capability; a URL never widens
+scope. Organization CRUD is API/SDK-only in this packet; full editors are Phase 06.
+
+Use plain anchors and native forms with fixed same-host 303 destinations and
+pessimistic fresh reads. No protected SPA/TanStack cache, prefetch or Server Action
+is admitted. The response owner holds one credential revision and performs only
+the exact generated operations, with one ten-second refresh/API/body deadline and
+256-KiB decoded response ceiling. RSC `auth()` remains passive; response owners
+perform refresh, idle/epoch/cookie decisions before protected output can stream.
+No raw identity, credentials or grant graph enters SessionProjection/client props.
+
+The pre-entry owner retains its original five-minute deadline and existing
+pending/global/per-subject capacity. Callback alone creates no User or tenant
+session. Zero Membership gives localized recovery; a destination with a live
+session accepts replacement only for the exact verified issuer/sub. A different
+subject needs explicit sign-out/fresh sign-in; advisory display names cannot
+authorize account replacement. Cross-host entry is independent destination OIDC,
+not source-person continuity or token transfer. Refresh uses Off self/AccountSite
+checks under the new held token and unchanged scope, not another admission POST.
+
+Reserve a distinct protected-page snapshot before API page reads: 128 global,
+eight per current entry/session owner, at most 256 KiB serialized each. Global
+exhaustion returns no-store 503; per-owner exhaustion 429; no queue/live eviction.
+The 32-MiB serialized bound excludes runtime/rendering/protocol overhead. Freeze
+the exact page DTO/capability snapshot to the actual request, host, epoch and
+credential revision; RSC only reads it. Actual API/render/body settlement releases
+credit, including cancelled/closing work and joined shutdown. Logical timeout or
+response finish alone is no proof that retained work ended.
+
+The own-capability read is Off/no-store/no-ETag and returns exactly nine advisory
+flags: canReadTenantMembers, canReadOrganizationMembers, canWriteMemberProfiles,
+canManageMemberships, canReadRoles, canChangeRoleGrants, canAdoptRoleRelease,
+canWriteOwnProfile and canManageOrganizations. The canonical predicates are in
+[ADR-0079](../decisions/0079-bounded-identity-administration.md#nativeui-execution-and-failure)
+and Standard 19. Distinct Role read/change/adopt flags preserve readable but
+noneditable pages; target/release state further restricts adoption controls. False
+previews mint no denial event or reusable permission. Per-pair canGrant describes
+additions and does not prevent removing an existing nonkernel grant. Every
+operation independently reauthorizes; target ETags do not validate capability
+metadata. Hide unavailable controls and render read-only preferences when needed.
+
+Ordinary admin refusals retain a live broader session while withholding that
+result; AccountSite/publication/refresh retain their separate Security 11 policy.
+Recoverable localized states include 403/404, 409 conflict/key cases, 429, 503,
+unknown commit, expiry and no Membership. Do not assert rollback or automatically
+retry mutations. PreferredLocale uses only the exact current Membership's enabled
+UI preference, else site default; it never changes content locale or scope.
+Equal en/tr namespaces and actual keyboard/focus/error/reflow/contrast/assistive-
+technology evidence are required. Veiled restoration and no-script recovery need
+real browser proof; a script-disabled browser has no script-based expiry promise.
 
 ## Routing
 
@@ -354,8 +458,11 @@ names the controls; the remediation record owns execution evidence.
 
 ## Admin Studio
 
-- Server-rendered shell; data-heavy screens use Client Components with optimistic UI.
-- Tenant switcher in the top bar (platform admin sees all tenants; tenant admin sees only their tenants).
+- P03-3's bounded member/Role screens use the accepted
+  [native entry and administration](#native-entry-and-administration) contract.
+  Full data-heavy/optimistic editors remain Phase 06's separately admitted work.
+- Context choices disclose only the person's current usable contexts; Platform
+  operator administration remains P03-9, without an all-tenant native switcher.
 - Permission-aware UI hides unavailable actions but never replaces server-side authorization.
 - Drafts and publishing flows explicit; published state visible.
 
@@ -402,6 +509,8 @@ without CSP, whose delivery remains Phase 11.
 
 - Local state for view-only.
 - Server state cached via TanStack Query in Client Components.
+  The protected P03-3 form/document set uses its request-bound snapshots instead,
+  with no protected client cache or optimistic authority state.
 - URL state (search params) for filterable lists.
 - Avoid global Zustand/Redux stores unless multiple unrelated routes share the same mutable client state.
 

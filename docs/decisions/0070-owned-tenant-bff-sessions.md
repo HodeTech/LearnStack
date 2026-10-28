@@ -564,3 +564,53 @@ no-session completion remain unaccepted P03-3 changes; no new HTTP/BFF operation
 is activated here. P03-1 Step 5 still owns the subject-bound and existing-session
 integration proofs. This navigation and bounded validation alignment supply no
 new session authority or runtime receipt.
+
+### Amendment 5 — Pre-session entry and application-scoped publication (2026-10-28)
+
+Accepted [ADR-0078](0078-native-session-scope-and-self-entry.md) narrowly replaces
+the complete provider actor/tenant profile as native session scope authority.
+ProviderIdentity becomes the verified issuer/sub projection with optional
+compatibility actor/provider scope. Separate PublishedSessionIdentity carries
+the API-associated actor and application tenant/org. API/ID-token association uses
+the existing canonical stable-authority subject key, not access-token decoding,
+email matching or a new issuer-derived digest. Compatibility scope/actor must
+agree exactly when present; provider evidence is never rewritten.
+
+The bounded pending owner can finish OIDC into an entry outcome without a tenant
+cookie. Its opaque host-only entry cookie/CSRF permits deliberate bootstrap,
+discovery and selection within the original five-minute lifetime. The existing
+1,024 total/128 pending, 16/source and eight/verified-subject limits include
+pre-entry and retained closing/logout-return work. Creating User grants no
+Membership/session; zero-Membership entry renders truthful recovery. Capacity
+returns only after actual work/cleanup, not logical cancellation or deadline.
+
+Initial selection and explicit same-host switch require a fresh ordinary API
+admission MUST event plus matching AccountSite, source/epoch checks and positive
+association before publication. Switching consumes no new provider grant and
+inherits original absolute/provider limits. It serializes current refresh/work,
+rotates handle/CSRF, and preserves a live source on failed target admission;
+possibly consumed refresh retains the stricter revoke rule. The event proves API
+admission, not that a browser received the cookie.
+
+Ordinary refresh uses internal ValidateRefreshedScope: Off GET self without scope
+fields and Off AccountSite with the same new held token and unchanged native
+context. It compares fresh subject/actor association and live host/Membership;
+it never calls admission POST, allocates User, switches context or emits a new
+admission event. Failed post-refresh validation still revokes. Ordinary uncertain
+AccountSite reads keep ADR-0071's retention/no-idle-touch behavior.
+
+Cross-host entry is fresh independent destination-bound OIDC, without source
+cookie/token or person-continuity transfer. A live destination may be replaced
+only by the exact same verified issuer/sub. Another subject requires explicit
+destination sign-out and fresh sign-in recovery, preserving the old live owner
+until then. Escaped optional account labels are advisory, never identity proof;
+identical names, nontruncated long labels and Unicode lookalikes cannot bypass
+that subject fence. No permanent email/display mirror is introduced.
+
+[ADR-0079](0079-bounded-identity-administration.md) adds the exact current-owner
+admin forms, request-local protected page snapshots and API-qualified capability
+previews; it creates no generic proxy/Server Action or RSC credential operation.
+The snapshot cap is separate from session count: 128 global/eight per owner,
+256 KiB serialized each, retained through actual settlement. The original
+body/metadata and prior amendments remain historical. P03-3 owns real provider,
+API, native HTTPS, browser, late-response and cleanup qualification before delivery.

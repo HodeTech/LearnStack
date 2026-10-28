@@ -8,6 +8,8 @@
 [ADR-0057 (Transactional Event Production and Completion)](../decisions/0057-transactional-event-production-and-completion.md),
 [ADR-0076 (Live Scoped Authorization)](../decisions/0076-live-scoped-authorization.md),
 [ADR-0077 (Trusted Authorization Evidence)](../decisions/0077-trusted-authorization-evidence.md),
+[ADR-0078 (Native Session Scope and Self Entry)](../decisions/0078-native-session-scope-and-self-entry.md),
+[ADR-0079 (Bounded Identity Administration)](../decisions/0079-bounded-identity-administration.md),
 [ADR-0017 (Tenant + Organization)](../decisions/0017-tenant-organization-hierarchy.md),
 [18-audit-coverage.md](../standards/18-audit-coverage.md).
 
@@ -192,6 +194,45 @@ snapshot and confined source/store methods are wired together with live policy
 in the API composition. The
 [Phase 03 Status block](../roadmap/phase-03-identity-admin.md) owns current
 qualification and review state.
+
+### Accepted native scope and administration extension
+
+ADR-0078/0079 extend these common owners; acceptance defines the contract and
+does not qualify an unimplemented writer. The
+[Phase 03 Status block](../roadmap/phase-03-identity-admin.md) owns activation and
+runtime proof. The Identity/Tenancy audit matrices own exact request/operation
+classifications rather than another Identity-specific audit subsystem.
+
+Actual global User creation retains the prepared owner and typed common global
+creation seam. Existing-binding lookup declares no second creation event;
+declared failed/indeterminate attempts retain central reconciliation. Initial
+context selection and explicit switching separately commit MUST
+`identity.membership.admit_session_scope` through the ordinary ReadWrite
+audit/transaction owner. Its successful row proves API admission only, not
+browser cookie delivery or continuing session authority.
+
+Ordinary refresh uses ADR-0078's unchanged-context `ValidateRefreshedScope`
+check: Off GET self supplies association evidence for the new held access token,
+then Off AccountSite verifies that same token against the unchanged native
+candidate and actual host. This check does not call the admission POST or write
+another admission security event. GET self/contexts and own-capability previews
+remain explicitly Off navigation, without removing independent denial evidence.
+
+Protected administration mutations and fixed seed-origin adoption keep their
+declared resource intents on the state-changing transaction. Default selection
+attributes the changed Tenant root; a topology-adoption marker and mapping
+projection commit with their plural MUST intents. A protected receipt replay
+instead performs fresh authorized MUST receipt-read auditing before disclosing
+stored bytes. It never repeats the original mutation's audit as new evidence.
+The [Database contract](../standards/05-database.md#p03-3-storage-and-replay-contract)
+owns durable outcome/target binding; the central denial contract above still
+owns failed disclosure evidence and pre-success barriers.
+
+Admission/replay references remain personal linkage under
+[Data Protection's inventory](23-data-protection.md#accepted-native-entry-and-protected-receipt-inventory).
+Retention periods are policy targets, with automatic purge owned by Phase 11.
+Local BFF expiry, cookie receipt and provider/BFF atomicity are not newly audited
+durability guarantees.
 
 ### Confined event-terminal audit
 

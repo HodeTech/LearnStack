@@ -45,6 +45,17 @@ handles, raw provider errors, profiles or redirect URLs. Metrics carry no host,
 issuer, subject, actor or correlation identity labels. Provider user-event records
 stay in Keycloak, not raw artifacts; local diagnostics are not durable audit.
 
+Accepted [ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md) /
+[ADR-0079](../decisions/0079-bounded-identity-administration.md) extend that
+exclusion to native-purpose credentials, association witnesses/subject digests,
+self-context relationships/cursors, transient account labels, page snapshots and
+idempotency keys/receipts. Use closed failure descriptors, never those values as
+diagnostic payloads or labels. Explicit admission audit is not cookie-delivery
+proof; ordinary refresh emits no new admission event. The canonical
+[Security contract](11-security.md#native-scope-and-global-self-admission) and
+[privacy inventory](../architecture/23-data-protection.md#accepted-native-entry-and-protected-receipt-inventory)
+own these pending extension obligations; no new metric family is declared here.
+
 ## Stack
 
 - **OpenTelemetry** SDK for traces + metrics.

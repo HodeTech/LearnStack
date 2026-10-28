@@ -643,3 +643,45 @@ sensitive-read evidence before activation. No HTTP mutation, new-user bootstrap,
 BFF proxy/allowlist expansion or generic authenticated read follows. P03-2 owns
 implementation/qualification; approval alone changes no runtime. Other decisions
 and historical Accepted body/status/date remain unchanged.
+
+### Amendment 6 — Confined native scope and global-self transport (2026-10-28)
+
+Jointly accepted [ADR-0078](0078-native-session-scope-and-self-entry.md) and
+[ADR-0079](0079-bounded-identity-administration.md) extend the closed authenticated
+surface to their exact reads/mutations and separately credentialed native source.
+This narrowly replaces the earlier GET/HEAD-only and no-global-self transport
+clauses; it adds neither a generic authenticated endpoint nor Platform authority.
+The exact API/SDK operation and status matrix lives in Standard 04.
+
+Host/visitor/body admission precedes provider validation, verified-subject quota
+and native-source validation. Exactly GET `/api/v1/identity/self`, POST
+`/api/v1/identity/self/bootstrap` and GET `/api/v1/identity/self/contexts` branch
+there, before ordinary binding/tenant resolution. Known Tenant/Org host and native
+source are required; no TenantContext or unresolved MediatR marker is installed.
+Missing credentials are masked 404, present invalid credentials 401, malformed
+input 400 and admitted wrong method 405. Global-self authority/storage uncertainty
+is 503. Bootstrap is natural-subject-key convergent, not tenant-keyed Idempotent;
+creation-disabled is 403 only to that verified caller. Ordinary binding keeps
+uniform 401 and ordinary resolution remains route-independent and allocation-free.
+
+Ordinary scoped native calls first normalize the existing binding. Separate
+immutable NativeScopeEvidence carries the independently authenticated candidate;
+VerifiedProviderSubject and ValidatedTenantIdentity preserve provider/binding facts.
+Provider scope, when present, must exactly equal the full native tuple including
+org absence; compatibility actor must equal stored actor. The resolver confirms
+actual host and live Membership/lifecycle before HostAndNativeSessionScope.
+Legacy tenant/org headers remain refusal-only final-context assertions. Invalid
+native input never falls back to another source or public authority.
+
+AccountSite admits that native origin only with the same independent real-host
+ceiling and current Membership/lifecycle checks; PlatformHost still cannot supply
+native AccountSite authority. Existing direct-bearer profiles, public anonymity,
+invalid-present precedence and current per-act policy/resource checks remain.
+Context admission POST is a separately classified ordinary ReadWrite MUST act;
+ordinary refresh uses Off GET self plus AccountSite, never another admission POST.
+ADR-0071 ordinary uncertain-read retention and stricter post-refresh refusal stay.
+
+ADR-0036's own Amendment extends the matrix/source ceiling. Standards 04/11 and
+the source/SDK/surface censuses adopt these exact exceptions before dependent code.
+Original body/status/date and earlier amendments remain historical; contract
+acceptance supplies no runtime, OpenAPI/SDK or native/browser qualification.

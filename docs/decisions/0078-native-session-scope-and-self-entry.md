@@ -2,16 +2,16 @@
 
 ## Status
 
-Proposed — no gate is accepted and no dependent runtime is implemented.
-Joint acceptance with [ADR-0079](0079-bounded-identity-administration.md) and
-the revised P03-3 packet is required.
+Accepted — jointly with [ADR-0079](0079-bounded-identity-administration.md) and the revised P03-3
+package on 2026-10-28, after the maintainer-requested review corrections.
+Acceptance authorizes implementation; it is not runtime qualification.
 
 **Date:** 2026-10-28
 **Deciders:** @cemil
 
-**Bounded supersession:** This proposal changes the trusted scope-source and
+**Bounded supersession:** This decision changes the trusted scope-source and
 native publication rules named below. It is not an ADR-0041 correction.
-Acceptance appends dated Amendments; historical bodies and metadata remain.
+Dated carrier Amendments preserve historical bodies and metadata.
 
 ## Decision Drivers
 
@@ -28,7 +28,7 @@ Acceptance appends dated Amendments; historical bodies and metadata remain.
 
 ## Considered Options
 
-1. **Authenticated native candidates; live API confirmation** (proposed).
+1. **Authenticated native candidates; live API confirmation** (chosen).
    A separate native-purpose credential distinguishes the server-owned candidate
    from browser assertions. No new token issuer or provider administrator is needed.
 2. **Static optional provider scopes** (viable, not selected). Real pinned
@@ -102,6 +102,26 @@ physical owner before business/audit continuation. Ordinary operation/resource
 checks remain independent. A source credential alone grants no user, enumeration,
 SQL context, Membership, grant or Platform authority.
 
+The order is host/visitor/body admission → provider validation → verified-subject
+quota → native-source validation → exact global-self branch, or ordinary existing-
+binding normalization → native candidate confirmation → tenant resolution → legacy
+assertions → operation classification/authorization/surface admission. No native
+source validation opens identity SQL before quota. Only the three global-self
+descriptors branch; ordinary resolution remains independent of the matched route.
+
+| Evidence | Source and use |
+|---|---|
+| VerifiedProviderSubject | Validated issuer/sub and optional provider actor/scope claims; immutable. |
+| ValidatedTenantIdentity | Existing binding's actor plus unchanged provider identity/scope facts; never populated with native selectors. |
+| NativeScopeEvidence | Exact request, host, quota/source provenance, normalized actor and native candidate tuple; separate immutable feature. |
+| Resolved TenantContext | Factory confirms native evidence, real host and live Membership/lifecycle, then selects the native origin; it does not mint a provider claim. |
+
+The candidate source validates both feature families and their exact retained
+references. A present compatibility actor agrees with the binding. If provider
+tenant scope is present, its complete tenant/org tuple, including org absence,
+equals the native tuple; disagreement refuses, with no preferred source. A
+tenantless provider subject can acquire scope only through the native source.
+
 | Real host | Native candidate rule |
 |---|---|
 | Tenant host | Tenant matches; a selected organization must belong and have current coverage/lifecycle. Orgless remains orgless. |
@@ -109,15 +129,35 @@ SQL context, Membership, grant or Platform authority.
 | Platform/unknown host | No native scoped session/AccountSite admission; existing unknown-host precedence remains. |
 | Provider scope also present | Require exact consistency; disagreement never chooses a winner. |
 
+The ADR-0036 Amendment extends its total matrix explicitly: a known tenant/org
+host plus quota-admitted tenantless subject/native credential without selectors
+reaches only the exact global-self descriptors, with no TenantContext; missing
+binding is permitted only there. A scoped native candidate additionally requires
+an Active matching binding and the host/Membership checks above. A platform host
+with native source refuses, while its existing direct-bearer rows remain. An
+invalid-present source never falls through to legacy or public resolution.
+
+`HostAndNativeSessionScope` admits independently classified authenticated reads
+and writes, including AccountSite and the member directory, only through their
+own current policy/resource checks. It can support a tenant-wide read witness
+only when that exact policy admits it. It grants no Platform permission,
+unresolved marker, PublicSurface extension or write/read-scope bypass. AccountSite
+still requires actual matching HostScope; context writers remain the existing
+four. The enum and surface/query/candidate guards name this ceiling explicitly.
+
 Legacy provider-claim/direct-bearer behavior remains. Existing `X-Tenant-Id` and
-`X-Organization-Id` are still assertions. The new source is a named exception to
+`X-Organization-Id` compare the final resolved context and can only refuse; they
+never complete or replace a native tuple. The new source is a named exception to
 ADR-0036's prohibition on header-carried scope selection. AccountSite's authority
 ceiling still requires the actual independently resolved host and exact scope;
 only its admitted evidence origin expands. No platform-host AccountSite is added.
 
-API secrets use the existing secret-provider boundary. Native holds only its
-current sending value. API accepts at most current/previous values, with an
-explicit absolute previous-value retirement time and no unlimited overlap.
+API secrets use the existing secret-provider boundary. The wire value is exactly
+32 random bytes encoded as canonical unpadded 43-character base64url. Native holds
+only its current sending value. API compares configured decoded values in constant
+time and accepts at most current/previous, with an absolute previous-value UTC
+retirement at most 15 minutes after configuration qualification. Restart never
+extends that instant; no clock-skew fallback or unlimited overlap is admitted.
 Configuration rejects equal public/native secrets, placeholders and partial input.
 Rotation installs acceptance, changes native sending, drains real old requests,
 then retires the previous value. Mismatch/retirement fails closed. Public-only
@@ -145,15 +185,42 @@ global-self descriptor or a fourth early-branch route.
 | POST `/api/v1/identity/session-scope/admissions` | Ordinary resolved native context; central MUST security event before returning an exact server-only actor/context association witness. |
 
 An association witness contains authority, subject digest and stored actor plus
-applicable context. Native computes the canonical digest from the independently
-validated ID-token issuer/subject and configured stable authority, then compares.
+applicable context. Native uses the existing
+[canonical subject-key encoding](../standards/05-database.md#identity-storage-contract)
+with independently validated ID-token subject and the configured stable authority
+UUID. The issuer separately equals the admitted configured issuer; issuer URL
+bytes are not digest input. Domain/UUID/subject lengths and UTF-8/network byte
+order follow Standard 05, with shared C#/TypeScript vectors, not a new hash scheme.
 A present compatibility actor must agree. Access-token decoding is not proof.
 API and ID-token identity must name the same subject before credentials publish.
+The witness stays server-only with its entry/session credential revision, never
+acts as a bearer capability, and is replaced only after fresh positive checks.
+Expiry/logout/actual owner cleanup removes it with that revision; no durable
+profile mirror or browser projection is introduced. Its digest is linkable
+personal data, not an anonymous account identifier.
 The admission success event uses a separately classified ordinary ReadWrite
 request/common AuditLog + Transaction owner, with its Membership resource subject.
 It is not a denial-evidence-lane write. Failed success-audit INSERT, constraint
 validation or COMMIT prevents a success witness and session publication; unknown
 COMMIT still proves neither rollback nor cookie delivery. Test each boundary.
+
+GET self returns missing only for actual absence and Active only for an admitting
+matching binding. Closing/Closed, conflict and other nonadmitting outcomes refuse
+with fixed 401, never missing or a successor invitation. Global-self authority/
+storage uncertainty is 503. Missing bearer/source is masked 404; present invalid
+credentials are 401; malformed input is 400; admitted wrong method is 405. These
+are bounded global-self rules, not changes to ordinary binding's uniform 401.
+
+Bootstrap is a tenantless natural-key convergent create, not a tenant-keyed
+Idempotent endpoint; Idempotency-Key is refused, never admitted as an unscoped key.
+It accepts only an empty JSON object (512-byte maximum). Acknowledged creation is
+201 with exact self Location; an existing matching binding, including a concurrent
+winner, is 200. A genuine conflict/nonadmitting binding is fixed 401. An unknown
+commit is 503 and a deliberate retry resolves to 200 if it committed, or may
+create with 201 if still absent and admitted. No automatic retry is safe. Only
+actual creation declares a creation intent; declared failed/indeterminate attempts
+retain the existing central reconciliation contract. Existing-binding success
+does not create a second creation event.
 
 Creation is opt-in deployment configuration; absent/false refuses new allocation
 while existing bindings can continue. Enabling it explicitly accepts the configured
@@ -163,10 +230,14 @@ binding, never a Membership. No email mirror or email-based merge is introduced.
 Production registration/abuse configuration remains Phase 11 qualification; there
 is no production readiness claim or hidden verified-email bypass of P03-4.
 
-The proposed initial durable budgets are **10 creation attempts per UTC minute,
+The selected initial durable budgets are **10 creation attempts per UTC minute,
 100 per UTC day, and 10,000 retained User bindings per authority**, including
 existing/seed bindings in the last bound. They are selected starting budgets,
-not measured throughput or fairness. Exact existing bindings consume no creation
+not measured throughput or fairness. Authority is the deployment's singleton
+stable provider-authority anchor, shared by all its tenants, not a tenant quota.
+Users retain permanent closure tombstones and cannot be deleted: the allocation
+count is monotonic and includes those retained bindings, without a closure refund.
+Exact existing bindings consume no creation
 attempt. Following an initial missing result, one short app-role admission owner
 commits the attempt debit before the prepared creation owner begins. Failed,
 cancelled and uncertain attempts do not refund it; a racing winner can make the
@@ -184,8 +255,11 @@ witnessed and consumes total space, not HTTP attempt quota. Counter exhaustion
 before mutation declaration creates no failed creation intent. Existing subject,
 visitor and peer quotas remain; unrelated authorization-denial audit is unchanged.
 
-Minute/day refusal is 429 with a bounded next-window hint; permanent capacity is
-503. One source can consume the deployment's registration allowance with multiple
+Minute/day refusal is 429 with integer-seconds Retry-After in `[1, 86400]` for the
+next applicable window; permanent capacity is 503 with no time-based retry hint.
+Creation-disabled is 403 only after the exact verified native-subject boundary;
+this deliberately discloses that configuration to that caller. One source can
+consume the deployment's registration allowance with multiple
 provider accounts; no tenant reservations or DDoS guarantee is claimed. Restart
 cannot reset counters. Raising/resetting the selected policy needs explicit
 reviewed migration/decision, not a browser input or silent config fallback.
@@ -199,7 +273,7 @@ cursor pages. Tenancy supplies names/destinations through its application contra
 without cross-module joins or Organization FK. Any derived tenant read announces
 only a captured own-Membership scope through a separately enumerated, short
 physically READ ONLY owner on the ordinary business source; no synthetic
-TenantContext or hidden setter is allowed. The new logical setter is
+TenantContext or hidden setter is allowed. The tenth logical setter is
 `PreContextSelfDiscoveryScopeReader`, entered only with a captured exact
 own-Membership witness from the subject-confined discovery operation. The four-slot
 authorization lane keeps its existing grant/lifecycle-only query set; it does not
@@ -211,6 +285,16 @@ Global/candidate/label owners close sequentially: no outer connector is retained
 while waiting for another lane. The exact setter/function/privilege census expands
 with implementation; missing/nonadmitting subjects disclose no directory.
 
+`fn_identity_self_membership_scopes(after_membership_id, limit)` is the sole
+subject-confined discovery function. It returns only the current Active actor's
+Active/nondeleted Membership tuples, with no UserId parameter, profile, arbitrary
+SQL or cross-module join. Its fixed owner/search-path, no-PUBLIC/app EXECUTE ACL,
+RLS predicates, 1–100 limit, index/query plan and captured caller are adopted in
+Standard 05 before code. A foreign cursor position never changes the derived
+actor or discloses another person's row. No IgnoreQueryFilters path is added.
+ADR-0040 and Security's closed census explicitly change nine setters to ten;
+the four context writers and four/two auxiliary lane capacities stay unchanged.
+
 The response contains only tenant/org IDs, public scope names and independently
 verified entry destinations. This self-only navigation read is explicitly Off,
 like AccountSite; no other person's PII/profile/roles are disclosed. It remains
@@ -221,16 +305,24 @@ when current tenant-wide Membership covers them; branch-only Membership exposes
 only its exact branch. Discovery is a suggestion, never an admission witness.
 
 Native distinguishes verified provider identity, durable binding and published
-session. Pre-session credentials stay within the existing 1,024 total/128 pending
+session. `ProviderIdentity` is the pre-session provider projection: issuer/sub,
+optional compatibility actor and optional complete provider scope. A separate
+`PublishedSessionIdentity` contains the associated stored actor and API-admitted
+tenant/org tuple. `LoginCompletion` distinguishes an entry outcome from a
+published-session outcome; missing Membership is not an authentication failure.
+Neither projection fabricates provider scope. Pre-session credentials stay
+within the existing 1,024 total/128 pending
 owners, 16 pending per source and original five-minute transaction deadline.
 After subject verification, pre-session/established/closing/logout-return entries
 share the eight-owner subject ceiling. No passive poll extends entry lifetime.
 A separate opaque host-only entry cookie and entry-bound CSRF authorize deliberate
 creation, discovery retry or selection; no tenant session cookie is published.
-Entry confirmation can show one escaped, bounded provider account label from
-validated ID-token name/preferred_username (at most 128 characters), never the raw
-profile or subject. Missing/malformed optional display data uses explicit
-reauthentication recovery rather than blocking binding or displaying an actor ID.
+Entry confirmation can show an escaped provider account label from validated
+ID-token name/preferred_username (at most 128 characters), never the raw profile
+or subject. It does not truncate a longer label into apparent agreement. Missing/
+malformed optional display data uses explicit reauthentication recovery rather
+than blocking binding or displaying an actor ID. A display claim, including a
+signed username/email, is not assumed to distinguish all provider accounts.
 The label is transient self-only personal data, retained only by the five-minute
 entry; it creates no User mirror or authorization signal. Selection is explicit
 confirmation of the destination account/context, not automatic callback publication.
@@ -239,6 +331,14 @@ login or a fabricated empty tenant. A failed replacement preserves a live old
 session. Expiry/logout cancels publication and joins actual work before releasing
 capacity. Unknown creation responses imply neither rollback nor safe automatic
 mutation retry; a deliberate retry resolves the existing binding if it committed.
+
+A live destination session can be replaced only by the same exact verified
+issuer/subject, independently of all display labels. Different subjects require
+explicit destination sign-out and fresh sign-in recovery; confirmation alone
+cannot authorize cross-account replacement. Keep the old live owner unchanged
+while offering that recovery. This supplies a reliable account-change fence even
+for identical names, long labels and Unicode lookalikes; it does not claim
+source-person continuity across hosts or make a display label identity proof.
 
 ### Selection, refresh and host transition
 
@@ -269,9 +369,15 @@ Admission still reserves capacity; replacement is no capacity bypass. Failed
 target admission preserves an otherwise-live source session; a possibly consumed
 refresh still follows the existing stricter revoke rule.
 
-Ordinary refresh preserves original application context and provider identity,
-obtains positive API admission/AccountSite with the new access token, and publishes
-one revision. It never allocates User or changes context. Switching inherits the
+Ordinary refresh preserves original application context and provider identity.
+The internal `ValidateRefreshedScope` check uses the same new held access token
+for Off GET self without scope headers, compares its association witness, then
+calls Off AccountSite with the unchanged native scope. AccountSite repeats live
+binding/Membership/lifecycle and actual-host checks. It never calls the admission
+POST or emits a new admission security event. Initial selection and explicit
+switching alone use that MUST event; GET self/contexts remain Off. Refresh then
+publishes one revision; any failed post-refresh check retains the existing
+fail-closed rule. It never allocates User or changes context. Switching inherits the
 original absolute/provider deadlines; it cannot manufacture a new eight-hour
 session. ADR-0071 ordinary uncertain-read retention/no-idle-touch remains.
 
@@ -283,9 +389,29 @@ destination-bound OIDC/state/cookies. No source cookie, bearer or refresh token
 crosses hosts; source sessions remain independent. It is a fresh destination
 sign-in, not proof
 of source-person continuity; destination account/context confirmation precedes
-replacement of any live destination owner. Same-host switch always retains the
+same-subject replacement of any live destination owner. Same-host switch retains the
 original verified subject. Destination URLs come from
 admitted deployment/host facts, never a submitted absolute return URL.
+
+Native Studio/Portal entry runs on admitted tenant/organization origins; the two
+management origins are tenant hosts with NULL organization. They do not turn
+`app.learnstack.dev` or `localhost` into native platform entry: PlatformHost keeps
+its existing direct-bearer resolution role and no native AccountSite/session
+admission. Production management origins require explicit deployment mappings,
+TLS/native origin admission and exact provider callbacks under the same rules.
+
+The development web client has exactly these four HTTPS callback URIs:
+
+- `https://demo-english.learnstack.local:3000/api/auth/callback/keycloak`
+- `https://demo-yoga.learnstack.local:3000/api/auth/callback/keycloak`
+- `https://manage.demo-english.learnstack.local:3000/api/auth/callback/keycloak`
+- `https://manage.demo-yoga.learnstack.local:3000/api/auth/callback/keycloak`
+
+Post-logout redirects are the four corresponding origin roots; webOrigins stays
+empty and no wildcard is added. Setup and local-dev-setup record the real
+certificate/native admission and manual hosts/CA prerequisites. The fixed
+management-host installation/adoption operation follows ADR-0079; ordinary warm
+seed cannot silently repair a completed installation's mappings.
 
 The admission event records API approval for publication, not proof that a BFF
 cookie reached the browser. Local session lifecycle still has ADR-0070's disclosed
@@ -348,6 +474,12 @@ Extend `Bff_Session_Refresh_And_Revocation_Have_One_Owner` and
 provider refresh, source-key overlap/retirement, no-session/unknown-bootstrap,
 quota-before-SQL, durable budgets/restart/races, association mismatch, wrong host,
 orgless absence, held refresh/switch/logout and absolute-deadline controls.
+Include same-label/different-subject destination replacement refusal, long-label
+and Unicode collisions, explicit recovery and preservation of the old live owner.
+Refresh proves unchanged scope and no admission-event delta, including repeated
+real grants; creation/concurrent retry/terminal binding cases prove exact states
+and no duplicate creation intent. Global-self/scoped source combinations and the
+three-versus-ordinary branch census prove the extended reconciliation matrix.
 Add real app-role discovery/function/body/ACL/caller and pool/cleanup tests.
 Runtime qualification uses pinned provider plus actual native HTTPS/API paths;
 the stock-scope feasibility probe substitutes for none of these controls.

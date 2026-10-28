@@ -823,3 +823,38 @@ owns the exact source/capacity/configuration ledger and
 [Security](../standards/11-security.md) owns placement. Acceptance is not runtime
 implementation; P03-2 proves scope, progress and cleanup before activation.
 Other decisions and historical Accepted body/status/date remain unchanged.
+
+### Amendment 16 — Tenth self-discovery setter and confined owners (2026-10-28)
+
+Accepted [ADR-0078](0078-native-session-scope-and-self-entry.md) adds the tenth
+logical tenant setter, `PreContextSelfDiscoveryScopeReader`. It accepts only the
+captured exact own-Membership witness returned by subject-confined global-self
+discovery, never raw caller-selected User/tenant/org IDs. A fresh physically READ
+ONLY app-role transaction on the ordinary business source announces that scope
+and actual generation for bounded Tenancy label/destination reads. It installs
+no ITenantContext, runs no mutation/audit work and refuses nested ownership.
+
+Global discovery, the existing candidate lane and label owners close sequentially:
+no outer connector is retained while another owner/lane is acquired. Each label
+owner has one five-second total I/O deadline; actual transaction/connection cleanup
+clears the announcement before credit or pooled reuse, including cancellation.
+The four-slot authorization source remains confined to grant/lifecycle reads and
+the two-slot evidence source remains evidence-only. This is not another lane,
+public nested send, context writer or permission to join global/tenant owners.
+
+The definer census expands from five to exactly eight: the subject-derived
+self-membership discovery function, creation-attempt admission function and
+User-INSERT capacity trigger join the existing five. Their exact signatures,
+owner/body/ACL/caller controls and new fixed platform control relation live in
+[Standard 05](../standards/05-database.md#p03-3-storage-and-replay-contract), without
+a new login or generic global User directory. The logical setter census changes
+nine to ten; the four TenantContext writers do not change.
+
+[ADR-0079](0079-bounded-identity-administration.md)'s durable idempotency owners
+use the already enumerated idempotency setter, not an eleventh path. Short claim/
+capacity transactions complete before business ownership; business User/Tenant/
+Role/Membership fences never overlap that capacity fence. Completion/replay owners
+retain their independently defined authority and cleanup boundaries. Standard 05
+owns the lock/source ledger; existing mode, poisoning and common audit rules stay.
+Historical body/status/date and prior amendments remain unchanged. Acceptance is
+not proof that these new owners, functions or setters have been implemented.

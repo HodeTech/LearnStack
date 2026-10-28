@@ -243,7 +243,7 @@ Exclusion from this asynchronous inventory is not an erasure exemption.
 <!-- async-store-exclusions:start -->
 | Excluded table | Scope boundary |
 |---|---|
-| `idempotency_keys` | Synchronous HTTP request replay, outside asynchronous transport scope; cached body/headers can still contain personal data |
+| `idempotency_keys` | Synchronous HTTP replay, outside asynchronous transport scope; cached body/headers and ADR-0079's protected target metadata can retain personal linkage. The Accepted extension below names its fulfillment boundary. |
 <!-- async-store-exclusions:end -->
 
 Other module tables remain explicit scope exclusions, so a new table cannot
@@ -347,6 +347,41 @@ P03-10's Audit participant locates authorization references through retained
 actor/subject attribution and reports surviving metadata under the fulfillment
 contract below. Removing a Membership or redacting the six permitted columns
 does not establish removal of these references.
+
+### Accepted native entry and protected receipt inventory
+
+Jointly Accepted [ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md)
+and [ADR-0079](../decisions/0079-bounded-identity-administration.md) add these
+purposes and copies. This inventory adopts the contract; the
+[phase Status block](../roadmap/phase-03-identity-admin.md) owns runtime activation
+and qualification. Canonical encoding, function/ACL owners, budgets and cleanup
+remain in [Database Standards](../standards/05-database.md#p03-3-storage-and-replay-contract)
+and [Security](../standards/11-security.md#native-scope-and-global-self-admission).
+
+| Copy or control | Purpose, classification and fulfillment boundary |
+|---|---|
+| Association witness | Authority, subject digest, actor and applicable context bind independently validated provider identity to API facts. The digest and actor/context linkage remain PII-Identity, not anonymous data or a displayed account identifier. Custody ends with its owning entry/session revision; it grants no independent authority. |
+| Self-context discovery and cursors | Own Membership relationships, Tenant/Organization labels and verified destinations support navigation only. Their association with the person is PII-Identity. The read is Off/no-store, self-only and excluded from diagnostics; no profile, role graph or other person's relationship is disclosed. Cursor input supplies no subject authority. |
+| Transient account label | Escaped bounded provider display data supports explicit confirmation, never identity comparison or cross-account replacement. It is self-only PII-Identity in the bounded entry owner, with no User email/name mirror. Missing or visually colliding labels do not bypass verified-subject continuity. |
+| Native pre-session and scoped owners | Credentials, verified identity, selected context and transition witnesses remain server-side security/PII custody. Entry and session cookies are opaque. Expiry/logout closes publication; actual work and cleanup govern release. Local invalidation does not erase provider or diagnostic copies. |
+| Protected page snapshots | Authorized member/profile/Role projections and action previews are request-bound personal/authority data, not a shared application cache. Snapshot ownership and actual cleanup bound retention; no-store and history withholding do not make disclosed data anonymous. |
+| Protected idempotency outcomes | The existing replay table adds internal typed original-target metadata beside actor/scope-bound fingerprints and bounded receipts. Membership target IDs remain personal linkage even when a later successor exists. Fresh disclosure authorization/audit precedes replay. The 24-hour replay window is not proof of row deletion; expiry/reclamation, not a new erasure privilege, controls reuse. |
+| Creation attempt/allocation controls | Authority/window counts contain no subject, actor, IP, profile or arbitrary payload. They are nonpersonal allocation controls; account erasure does not reset spent budgets or permanent allocation accounting. Linked User/audit rows keep their separate personal classification. |
+| Seed origin and release markers | Monotonic topology/release versions and fingerprints are nonpersonal configuration/provenance controls. Human actor references in their audit remain personal. Erasure does not reset adoption or authorize host/grant repair. |
+
+Initial selection/explicit switching and actual creation add their declared
+central audit linkages; ordinary refresh and own navigation do not create another
+admission event. The same per-row retention targets and existing metadata UPDATE
+restrictions apply. No new private Identity audit store or blanket metadata
+redaction grant follows.
+
+P03-10's Identity closure coordinator and Audit redaction participant own subject/
+actor/context/receipt locators and truthful retained-copy reporting before their
+first affected writer. They must include these synchronous and volatile copies,
+not infer erasure from a deleted source row or logout. Phase 11 owns automatic
+purge, replay-table maintenance, backups and provider/diagnostic retained-copy
+reconciliation. These are named fulfillment obligations, not a claim that
+P03-3 implements account closure, anonymisation or retention enforcement.
 
 ### Erasure authority and first-writer prerequisites
 

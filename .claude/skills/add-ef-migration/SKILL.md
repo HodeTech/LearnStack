@@ -170,14 +170,11 @@ migrationBuilder.Sql("""
 **Session variable names** are canonical: `app.tenant_id` / `app.organization_id` /
 `app.scope` / `app.resolving_host`. Always pass the second `true` argument so an unset
 context filters the row out instead of raising on a pooled connection. Write the
-`app.scope` term into the policy even though **nothing sets it**: the flag derives from
-the actor's role and roles arrive in
-[Phase 03](../../../docs/roadmap/phase-03-identity-admin.md), which is the earliest
-phase that can own the carrier
-([Security Standards § Tenant Context](../../../docs/standards/11-security.md#tenant-context)),
-so the cross-organization read hatch is unreachable at runtime until then — the correct
-default, and the reason the two `AS RESTRICTIVE` guards need a test that sets the
-variable by hand.
+`app.scope` term into the policy. Only the operation-bound live-authorized read
+witness may announce tenant-wide read authority; an actor Role, endpoint field
+or successful Organization clause alone cannot. Follow the current
+[Security contract](../../../docs/standards/11-security.md#live-authorization-contract)
+and qualify the two restrictive write guards through real app-role controls.
 
 **Roles.** Migrations run as `learnstack_migration` (the table owner);
 the application connects as `learnstack_app` (`NOBYPASSRLS`, not the owner). Grant the
@@ -267,8 +264,9 @@ The ordinary API job runtime cannot receive migration credentials or execute thi
 backfill. The migration-owned loop sets `app.tenant_id` per tenant on its own
 **migration** connection:
 
-> This loop is a migration-time backfill, not a ninth entry in ADR-0040's closed
-> eight-setter set. Application code never opens its own connection to set the
+> This loop is a migration-time backfill, not another runtime logical setter.
+> The current closed census lives in Security 11. Application code never opens
+> its own connection to set the
 > variable — it goes through `IUnitOfWork.SetTenantContextAsync` on the ambient
 > transaction ([ADR-0040](../../../docs/decisions/0040-ambient-unit-of-work.md)).
 

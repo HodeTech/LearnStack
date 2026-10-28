@@ -6,6 +6,9 @@ Public-page obligations also follow [ADR-0027](../decisions/0027-frontend-i18n.m
 and the [Accepted P02d-6 package](../roadmap/phase-02d-delivery-log.md#p02d-6-decision-package-2026-10-09).
 Session-warning behavior follows
 [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md#effective-lifetime-activity-and-refresh).
+P03-3's bounded entry/administration obligations additionally derive from
+[ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md) and
+[ADR-0079](../decisions/0079-bounded-identity-administration.md).
 
 LearnStack targets **WCAG 2.2 AA** across all user-facing surfaces.
 
@@ -150,6 +153,16 @@ by acceptance alone.
 - Screen reader smoke test on critical flows (VoiceOver, NVDA).
 - Color contrast verified for new design tokens.
 - `axe` baseline must not regress.
+
+P03-3's new entry/context switch, member/Role administration and own-profile
+flows require source/environment-bound manual keyboard, focus, form-error,
+reflow, contrast and real screen-reader evidence before packet completion.
+Browser controls separately exercise expiry/logout/history withholding, late
+responses, identical/Unicode account labels and usable no-JavaScript recovery.
+A hidden button or DOM assertion proves neither authorization nor assistive-
+technology behavior. These Accepted obligations are pending implementation
+proof; Phase 06 still owns the full authenticated browser matrix. The
+[phase Status block](../roadmap/phase-03-identity-admin.md) owns their qualification.
 
 ## Process
 

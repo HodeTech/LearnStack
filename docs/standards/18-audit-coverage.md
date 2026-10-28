@@ -28,6 +28,9 @@ Live authorization evidence derives from jointly Accepted
 [ADR-0076](../decisions/0076-live-scoped-authorization.md) and
 [ADR-0077](../decisions/0077-trusted-authorization-evidence.md). The
 [phase Status block](../roadmap/phase-03-identity-admin.md) owns qualification.
+Native entry/administration and replay additions derive from jointly Accepted
+[ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md) and
+[ADR-0079](../decisions/0079-bounded-identity-administration.md).
 
 This standard defines **which operations must be audited**, **what an audit entry
 contains**, **how long entries are retained**, and how each module signs up for its
@@ -806,6 +809,44 @@ scoped read-only enrollment reader preserves the lazy application-source boundar
 No global audit read endpoint or P03-1 HTTP creation route follows. Registered
 Identity audit controls now exercise actual app-role, clean/dirty and physical
 COMMIT-boundary paths. Later contextual writers and HTTP activation remain separate.
+
+## Native entry and protected administration
+
+**Accepted contract; implementation/proof pending.** Identity and Tenancy's
+module matrices own the exact request/slug/resource bindings. Every human wrapper
+has its own classification/policy; reusing business logic never fabricates Seed
+provenance or invokes a Seed-only command.
+
+Initial selection and explicit switch commit ordinary ReadWrite MUST/SecurityEvent
+`identity.membership.admit_session_scope`, attributed to the actual Membership,
+before returning a publication witness. The row proves API approval, not browser
+cookie delivery. Failed INSERT/constraint/COMMIT cannot publish success; unknown
+COMMIT remains unknown. This is not a standalone denial-lane event.
+
+Ordinary refresh runs `ValidateRefreshedScope`: Off GET self followed by Off
+AccountSite on the same new held token and original context. It creates no new
+admission event or User. GET self/contexts and current own capability/profile
+navigation are explicitly Off and no-store; personal relationship disclosure is
+limited to the verified person's own records. Other people's member data and
+Role/permission configuration reads retain MUST sensitive-read coverage. Failed
+capability previews do not emit denial evidence; actual protected acts do.
+
+Protected successful receipt replay is a fresh MUST sensitive read of its
+original immutable target under current disclosure authority, separate from the
+original mutation's event. Its read audit commits before stored bytes. A failed
+guard/audit preserves the retained completion. Do not replay original audit
+evidence or re-run a successful mutation to authorize a receipt.
+
+Fixed management-origin adoption uses one Tenant-root marker change and its host
+projection on the same common transaction with declared plural MUST evidence.
+There is no second aggregate writer or private Seeder audit table. Successful
+warm no-write checks declare no new mutation intent. Real seed/adoption races,
+unknown creation, replay failure and refresh zero-event-delta proofs are required.
+
+The seven-/two-year retention periods above remain **policy targets**, not an
+implemented automatic purge. Phase 11 owns enforcement and production volume
+qualification. New relationship/target/subject links remain personal data under
+the Data Protection inventory; ordinary redaction grants are not widened.
 
 ## Architecture and Integration Tests
 

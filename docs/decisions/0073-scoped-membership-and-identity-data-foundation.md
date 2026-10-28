@@ -265,3 +265,54 @@ Tenant membership-admin key; native editing/UI and orgless reissue remain P03-3.
 and [ADR-0077](0077-trusted-authorization-evidence.md) owns evidence. P03-2 runtime
 implementation/proofs remain required. Other decisions and historical Accepted
 body/status/date remain unchanged.
+
+### Amendment 3 — Explicit v2 adoption and preserved warm administration (2026-10-28)
+
+Accepted [ADR-0079](0079-bounded-identity-administration.md) keeps version 1's five
+Identity scoped pairs, eight templates and two-pair administrator kernel, while
+selecting exactly three new Tenant pairs for v2: tenancy.organization.admin,
+tenancy.locale.write and tenancy.setting.write. Registration adopts no grants.
+The explicit first v1-to-v2 Tenant Admin act adds only that exact three-key delta,
+preserving earlier nonkernel removals. It requires current eligible NULL-org
+Tenant Admin/kernel, Tenant role-admin, orgless context, exact version/fingerprint,
+exclusive tenant fencing, fresh post-wait checks and MUST audit. A monotonic
+release marker on the Role prevents reset/repeated adoption after grants change.
+No other template expands automatically; ordinary edits retain their held ceiling.
+
+Finite declared Tenant-or-exact-Organization alternatives, conjunctions and own-
+resource predicates admit only the packet's named operations. They do not identify
+Tenant/Organization permission identities as equal or widen writes. Whole-Role
+assignment delegation locks the current Role graph before evaluating all grants;
+canonical User/Tenant/Role/Membership order and no-upgrade rules remain. The
+exact registry/policy/seed contract lives in Standard 19 and the module matrices.
+
+Warm seed now preserves valid installed mutable state rather than refusing every
+legitimate edit or adopted release. Immutable provider/actor/scope/natural identities,
+root/history pins and database/admin invariants remain mandatory. Completed valid
+profile/status/assignment/grant/adoption, Organization/default/locale/theme edits
+are read-only preserved. Retired roots or Membership history never authorize
+recreation, reactivation or a successor. Invalid/foreign authority still refuses.
+
+Absence alone proves no never-installed fact. Interrupted v1 resume requires the
+exact pristine prefix: locale append checks original children/stamps and Tenant
+version 1+k; Role creation requires pristine existing v1 Roles before Membership
+history and initializes all grants atomically; never restore one missing grant.
+Membership/profile and other root stages require their exact original prefix,
+empty/version and history conditions. Every prospective write rechecks inside its
+own fenced transaction/root lock against human writers, after required User locks.
+Changed or edited incomplete evidence refuses before that write, without restart
+or repair; earlier committed acts stay. Standard 19/module specs own the exact
+fact table. No installation receipt table or general reset mode is added.
+
+The separate fixed administration-origin adoption is explicit, not warm seed
+repair. It installs only the two management mappings under completed foundation,
+expected Tenant version and exclusive fencing. Tenant's monotonic private origin-
+version marker and exact mapping projection commit with their MUST audit rows;
+Tenant is the sole aggregate root, so ADR-0042 is unchanged. Completed legacy and
+partial two-tenant upgrades, mapping conflicts and second-pass zero-write behavior
+need real proof. Ordinary warm seed/demo does not silently adopt missing origins.
+
+This bounded replacement changes the old exact-v1 warm-refusal rule and finite
+release boundary; historical Accepted body/status/date and prior Amendments stay.
+P03-3 owns implementation, held seed/human races, preservation/adoption/audit
+rollback and repeated no-write controls. Acceptance does not qualify those paths.

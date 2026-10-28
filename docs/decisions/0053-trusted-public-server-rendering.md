@@ -408,3 +408,35 @@ Original body, metadata and earlier amendments remain historical.
 - [NextRequest version history](https://nextjs.org/docs/app/api-reference/functions/next-request)
 - [Next.js 15 route configuration](https://nextjs.org/docs/15/app/api-reference/file-conventions/route-segment-config)
 - [mkcert setup and trust stores](https://github.com/FiloSottile/mkcert)
+
+### Amendment 12 — Closed native entry and administration callers (2026-10-28)
+
+Jointly accepted [ADR-0078](0078-native-session-scope-and-self-entry.md) and
+[ADR-0079](0079-bounded-identity-administration.md) extend Amendment 11's confined
+authenticated caller from AccountSite to the exact selected self/bootstrap/context,
+session-scope admission, member/profile/status/assignment, Role/grant/adoption and
+Tenancy Organization API operations. The closed method/path/DTO matrix lives in
+[API Standards](../standards/04-api-design.md) and the P03-3 package. This grants
+no generic fetch, browser bearer, arbitrary header/path, proxy or Server Action.
+
+One current native entry/session credential owner supplies the held token,
+independently verified host/visitor hop, separate native-purpose credential and,
+for scoped calls only, immutable application tenant/org candidate. Global-self
+calls omit and forbid scope fields. Provider claims stay immutable; the API
+confirms candidate authority against actual host and current Membership/lifecycle.
+Public wrappers remain credential-free and expose no selector/source-secret option.
+The request-local public holder never acquires credentials or native authority.
+
+The authenticated operation owner bounds total refresh/API/body work to ten
+seconds and decoded data to 256 KiB; exact forms are bounded before Next. It
+retains actual cleanup, epoch and credential-revision fences and never automatically
+retries a mutation or redirects credentials to an API-supplied destination.
+Protected page owners reserve the separate 128-global/eight-per-entry-or-session
+snapshot budget before API reads, with at most 256 KiB serialized data each.
+Actual render/body/operation settlement releases credit; RSC consumes only its
+immutable request-bound projection and performs no credential, refresh or idle work.
+
+No public cache, public bootstrap, visitor/peer quota, socket-provenance or host
+resolution rule is broadened. The native method allowlist is amended separately
+in ADR-0054. Original body, metadata and earlier delivery notes remain historical;
+P03-3 still owes native/API/browser, cleanup and containment proofs before delivery.

@@ -145,12 +145,13 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 644 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 720 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
   - [P03-3 second proposal review and bounded snapshot correction (2026-10-28)](#p03-3-second-proposal-review-and-bounded-snapshot-correction-2026-10-28) — 58 lines
   - [P03-3 proposal readback and approval readiness (2026-10-28)](#p03-3-proposal-readback-and-approval-readiness-2026-10-28) — 42 lines
+  - [P03-3 maintainer corrections, joint acceptance and Step 1 (2026-10-28)](#p03-3-maintainer-corrections-joint-acceptance-and-step-1-2026-10-28) — 76 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -6338,3 +6339,79 @@ Implementation, migrations and application/native activation remain unstarted
 until that approval. Each implementation step still requires both fresh review
 rounds, verified fixes and appropriate actual proof; proposal approval replaces
 none of them. No PR is opened before that implementation/review sequence closes.
+
+### P03-3 maintainer corrections, joint acceptance and Step 1 (2026-10-28)
+
+The maintainer authorizes verification/correction of the supplied reviews, then
+joint acceptance of ADR-0078/0079 and implementation without another approval
+pause. This entry supersedes the proposal-readiness statement above; it preserves
+that historical record and the original ten-step plan. Baseline is `4f133477` on
+`development`; no branch switch or runtime change is part of this acceptance.
+
+#### Review disposition and selected corrections
+
+Findings, paths and code excerpts are review data. The current ADRs, actual
+middleware/seed/store/domain sources and Accepted carriers were checked before
+changing contracts. Three independent readbacks covered authority/transport,
+seed/adoption/concurrency and administration/replay. The earlier two proposal
+rounds did not establish the missing precision identified by the maintainer.
+
+| Supplied finding | Current-source disposition / concrete action |
+|---|---|
+| First review1; B3: existing management-host upgrade | Valid. A fixed `AdoptSeedAdministrationOriginCommand` and `make seed-admin-origins` operation add each Tenant's exact NULL-org management mapping and a private monotonic Tenant marker atomically, with plural MUST evidence. ADR-0042 explicitly excludes the mapping projection from aggregate counting. No new aggregate exception or receipt table. Completed legacy, independently interrupted upgrade, conflict, marker-with-missing-mapping and repeat-zero-write proofs are mandatory. |
+| First review2; B3: warm read/write race and absence ambiguity | Valid. A fact-based matrix uses retained roots, trusted stamps/revision pins and exact pristine-prefix versions. Tenant locale prefix has version `1 + k`; initial Role grants are atomic and never individually restored; profile initialization requires original empty version0. Each possible write freshly rechecks under its complete User-before-Tenant plan, exclusive tenant fence, actual root lock and expected version. Completed valid edits remain read-only. Held-seed locale removal/profile edit/grant removal races are required. |
+| First review3: indistinguishable account labels | Valid. Labels remain transient advisory self-only text. A live destination owner can only be replaced by exact verified issuer/sub equality. Another subject requires explicit sign-out/re-entry and preserves the old owner, even when names, truncation or Unicode look alike. No email/global profile mirror or supposed display-name uniqueness. |
+| B1/B4: native matrix, topology, pipeline and identity composition | Valid precision gaps. ADR-0036 gains explicit native/global-self rows and bounded origin ceiling. Native Studio/Portal use Tenant/Organization origins; PlatformHost keeps legacy direct-bearer behavior. Provider, stored binding and native evidence remain separate immutable types/features. Native source follows quota; only three exact descriptors branch; full legacy provider tuple must agree and legacy headers only assert final scope. Enum/factory/surface/candidate/AccountSite caller controls ship together. |
+| B2: refresh admission audit | Valid ambiguity, without evidence of an existing event-volume defect. Initial selection/explicit switch alone use MUST admission POST. Ordinary `ValidateRefreshedScope` uses Off GET self and Off AccountSite on the same new held token/unchanged scope, with no new admission event. Existing stricter refreshed-package failure rules remain. Actual zero-event-delta refresh proof is required. |
+| B5: idempotency lock lifetime and intentional exhaustion | Valid precision. Separate short capacity/claim transaction commits and actually disposes before business dispatch; completion starts after actual business disposal. It never overlaps User/Tenant/Role/Membership locks. The shared1,000-slot/24-hour budget can be deliberately exhausted by an authorized actor; that initial limitation is explicit, with existing-key precedence and no fairness/eviction promise. |
+| M1/M2/M9/M12: v2, targets and human audit bindings | Canonical adoption required, rather than a defect that new code is absent while Proposed. Standard19 now distinguishes retained v1five Identity pairs and exact v2three Tenant Tenancy pairs. Separate human wrappers retain Seed-only requests/provenance. Default selection is an Organization-administration suboperation writing one Tenant root, with MUST `tenancy.organization.select_default`. Forward Org Admin Tenancy write examples are removed from this packet; Phase06 owns any selected own-org extension. |
+| M3/M4: digest and creation-budget semantics | Valid precision. Reuse the existing Standard05 length-prefixed domain/AuthorityUUID/opaque-sub digest; issuer equality is separate and issuer URL is not digest input. Singleton authority is shared deployment-wide. Permanent retained bindings, including Closed/seed, consume monotonic capacity with no refund. Shared attempt denial and reviewed-migration-only budget changes are explicit. No anonymous hash or DDoS guarantee. |
+| M5/M11: tenth setter, confined self discovery/privacy | Valid precision. The exact tenth setter, new function/ACL/policy/source/caller population and sequential physically READ ONLY label owner are canonical in Standard05. Only the verified person's rows can be paged; a foreign cursor cannot select another actor. Data Protection/glossary record relationship/witness purpose, custody and named P03-10/Phase11 owners. No general directory, cross-module SQL join or filter bypass. |
+| M6: seven versus nine flags | Already explicitly superseded by the final proposal precision; the historical log is not rewritten. ADR0079 and the Identity spec now carry nine exact predicates. The Organization directory uses Tenant-or-exact-Organization membership-admin but remains branch-scoped, including its Tenant alternative. Flags remain advisory/Off, with no false-preview denial event. |
+| M7: protected If-Match400/409 | Already selected in the final revision; made explicit in ADR0079 and Standard04. Protected malformed/missing/noncanonical/weak/wildcard/list tags are400; valid stale tags are409. Generic behavior is unchanged. |
+| M8: bootstrap convergence/status | Existing natural-key201/200 selection retained and completed. Reject tenantless Idempotency-Key; concurrent Existing is200, acknowledged creation201, terminal/conflicting binding401 and unknown result503. Deliberate retry checks existing binding; actual declared failure/uncertainty retains central reconciliation, without automatic retry or fabricated success. |
+| M10: absent management callbacks/code | Expected unimplemented state, not a current runtime defect. ADR0078 names all four exact HTTPS callbacks/root logout redirects; shared API scope stays intact and only the web edge is replaced. TLS/native/hosts/CA prerequisites and actual provider/warm no-write tests are implementation obligations. |
+| Minor terminal/secret/hint/resource/form details | Terminal self is never missing; source rotation uses canonical32-byte base64url, constant-time comparison and absolute15-minute maximum previous overlap. Window hints are integer Retry-After≤86,400; capacity503 has no invented time hint. Contained locale audit is intentionally Tenant-attributed. Strict duplicate/extra-field/array/percent-decoding and resource/target controls remain in the exact transport proof. Different API/native path spellings are separate explicitly mapped namespaces. |
+| Final checklist: gates remain Open after acceptance | Not adopted literally. Explicit joint acceptance closes the named **contract** parts of G1/G3/G4/G5/G6; the phase register separately states runtime qualification pending. No provider/database/browser outcome or completed implementation follows from acceptance. |
+
+#### Joint acceptance and canonical adoption
+
+ADR-0078 and ADR-0079 move together to Accepted, dated2026-10-28, under the
+maintainer's conditional authorization above. Their original Date/Deciders are
+unchanged. Earlier Accepted bodies/statuses/dates are untouched; actual dated
+Amendments carry the bounded replacement in ADR-0036/0037/0040/0053/0054/0064/
+0068/0070/0072/0073/0076. Unchanged ADR-0042/0074/0077/0071 contracts require no
+new policy amendment solely for navigation.
+
+Canonical Standards04/05/11/18/19 and the Identity/Tenancy specifications/matrices
+own ongoing contracts. Frontend/architecture/setup carriers link those owners
+rather than introducing another algorithm. The catalogue registers new source,
+global-self, replay and Tenancy-race obligations; shipped controls remain
+Implemented only for their existing populations. No new code or proof status is
+promoted by this commit. The phase Status block and decision register are updated;
+no packet status is copied into repository README or CLAUDE.md.
+
+#### Implementation continuation and proof
+
+The ten steps in the original package remain in order, with these corrected
+closure conditions: Step2 includes the exact three global descriptors, native
+source/evidence and eight-function/tenth-setter controls; Step3 includes per-act
+seed/admin serialization and durable fixed origin adoption; Steps6/7 include
+isolated capacity ownership and fresh original-target replay; Steps8/9 include
+refresh zero-admission-event delta and same-label/different-subject recovery.
+Both fresh independent review rounds, verified corrections and normal commits
+remain mandatory for every step before automatic continuation.
+
+The present result is Step1's contract adoption only. Actual PostgreSQL/app-role,
+provider/native HTTPS, browser/manual accessibility, complete zero-skip suites
+and final-source A/B are pending implementation obligations. Document lint and
+source review establish none of them. No new Hub crossing, provider administrator,
+Platform gate, generic proxy, production first-admin or closure writer is added.
+
+Step1 pre-review validation: `make lint-docs` passes with2,890 fragment links,
+ADR-0069 structure and all three generated indexes current;
+`scripts/test-adr-status.py` passes7/7; changed-document relative targets resolve;
+`git diff --check` passes. Earlier Accepted ADR bodies remain byte-for-byte
+prefixes and the shipped delivery-log body remains a prefix after its generated
+index. No application/database/provider/browser test is claimed for this
+Markdown-only acceptance. Two fresh post-commit review rounds follow.

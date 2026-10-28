@@ -6,7 +6,7 @@ file. Part of the [module spec](README.md).
 **P02b-5 account-site subject.** `GetAccountSiteQuery` is non-public and
 explicitly audit Off. It adds no permission key or grant, and
 returns only the context's own actor/scope with the existing public site
-projection. Its independent `HostAndClaim`/host-scope guard precedes all readers;
+projection. Its implemented `HostAndClaim`/host-scope guard precedes all readers;
 membership alone cannot admit it. [The module contract](README.md#p02b-5-authenticated-account-site-read)
 owns the boundary. P02b-5 Step 4 exposes only its authenticated GET route;
 Accepted [ADR-0076](../../decisions/0076-live-scoped-authorization.md) adds live
@@ -14,6 +14,10 @@ membership/lifecycle checks to its protected admission while preserving its
 independent host ceiling and Off success classification. The
 [Phase 03 Status block](../../roadmap/phase-03-identity-admin.md) owns execution
 and qualification; acceptance is not activation.
+
+ADR-0078 additionally accepts the separately validated native-session origin
+under the same real-host ceiling. That consumer remains pending P03-3; it does
+not admit HostOnly/ClaimAndMembership or turn AccountSite into an admin query.
 
 **P02b-1 Step 3 producer implemented — 2026-10-12.** The completed-provisioning
 domain translator runs only during owner completion, adds no endpoint or
@@ -52,17 +56,16 @@ P02d-4. [The module contract](README.md#p02d-3-accepted-typed-settings-contract)
 [locale and branding commands](README.md#p02d-2-accepted-locale-and-branding-contract)
 are implemented unrouted tenant-wide operations, with no assignable permission or
 organization override. Their finite Seed admission is described below. Human-facing
-permissions require their owning Phase 03 decision; no HTTP or Hub-internal route
-is admitted here.
+permissions are selected by ADR-0079 below; their new consumers remain pending
+P03-3. No additional Hub-internal route is admitted here.
 
-**No assignable Tenancy permission keys yet.** The matrix below is a forward declaration in the
-`{module}.{resource}.{action}` form with the closed action set of
-[Permission Standards](../../standards/19-permissions.md). Its adopted module-source
-contract registers scoped definitions separately from finite grants; no `IModule`
-API is implied. Identity's foundation definitions/Role templates are implemented.
-Tenancy's assignable keys and their human/operator consumers require their owning
-Phase 03 decision; these examples register or grant nothing. The virtual public
-definition above is separate from this assignable resource matrix.
+**Accepted P03-3 assignable contract; registration/consumers pending implementation.**
+[ADR-0079](../../decisions/0079-bounded-identity-administration.md) selects exactly
+the three Tenant pairs below. The
+[versioned manifest](../../standards/19-permissions.md#bounded-administration-and-version-2-adoption)
+owns first adoption into Tenant Admin; declaration alone grants nothing. No
+Organization Tenancy pair or generic settings power is selected. The virtual
+Portal Public definition above remains nonassignable and separate.
 
 **Six write handlers and four verification queries have finite Seed admission.**
 `TenancyOperationPolicySource` binds each request to its declared Seed source under
@@ -89,20 +92,55 @@ no direct `CreateOrganizationCommand` endpoint. That future surface accepts only
 `MapHostToTenantCommand` controls whose data an anonymous request sees. The proposed
 `tenancy.hostmapping.admin` key therefore describes an admin-scope act, outside
 ordinary tenant-admin grants; `HostMapping` has no `write` action. The proposed
-`tenancy.tenant.admin` and `tenancy.organization.write` keys describe provisioning
-and organization creation. Each requires its owning surface decision and approved
-finite registration; the matrix alone registers or grants none of them.
+`tenancy.tenant.admin` remains a future provisioning example, not a P03-3 grant.
+The older unregistered `tenancy.organization.write` example is replaced for this
+packet by Tenant `tenancy.organization.admin`, covering lifecycle/default acts.
+P03-3 creates no human host-mapping, domain, feature-flag or platform-operator
+authority. Their named Phase 02c/P03-9 surfaces retain separate admission decisions.
 
 | Resource | read | write | delete | admin | Default role grants |
 |----------|:----:|:-----:|:------:|:-----:|---------------------|
-| `Tenant` | ✓ | ✓ | – | ✓ | tenant-admin: read+write; platform operator: admin |
-| `HostMapping` | ✓ | – | – | ✓ | platform operator: admin. **No `write`**: pointing a hostname at a tenant is an admin-scope act, and a `write` grant would put the resolution index inside the everyday tenant-admin role |
-| `Organization` | ✓ | ✓ | ✓ | ✓ | tenant-admin: all; org-admin: read+write (own) |
-| `TenantDomain` | ✓ | ✓ | ✓ | – | tenant-admin: all |
-| `TenantSetting` | ✓ | ✓ | ✓ | – | tenant-admin: all; org-admin: own organization only |
-| `TenantLocale` | ✓ | ✓ | ✓ | – | tenant-admin: all |
-| `TenantFeatureFlag` | ✓ | ✓ | ✓ | – | tenant-admin: all |
+| `Organization` (`organization`) | – | – | – | Tenant | Exact v2 Tenant Admin delta; only admitted Organization/default operations |
+| `TenantLocale` (`locale`) | – | Tenant | – | – | Same delta; only admitted locale operations through Tenant root |
+| `TenantSetting` (`setting`) | – | Tenant | – | – | Same delta; only whole tenant-wide `branding.theme` |
 
 `Tenant` has no `delete`: deprovisioning has no owning phase, and
 [Database Standards § GRANT matrix](../../standards/05-database.md) records that
 the widening it needs is an ADR's to make, not a migration's.
+
+## Bounded human administration contract
+
+**Accepted; new requests, policy/catalogue bindings and proof pending P03-3.**
+All human writes require current Tenant capability, exact orgless context and
+fresh target/delegation/version checks under the canonical fences. The Tenant
+comes from resolved context; OrganizationId is a resource selector, not authority.
+Org Admin receives none of these three pairs. Its own-organization settings and
+Organization editor capabilities require a separate Phase 06 decision/consumer.
+
+| Human request | Exact Tenant capability | Root |
+|---|---|---|
+| `CreateManagedOrganizationCommand` | `tenancy.organization.admin` | Organization |
+| `RenameOrganizationCommand` | Same | Organization |
+| `ArchiveOrganizationCommand` | Same | Organization |
+| `SelectDefaultOrganizationCommand` | Same | Tenant; Active/nondeleted selected Organization must belong to it |
+| `AddManagedTenantLocaleCommand` | `tenancy.locale.write` | Tenant |
+| `SetManagedDefaultTenantLocaleCommand` | Same | Tenant |
+| `SetTenantLocaleEnabledCommand` | Same | Tenant |
+| `RemoveTenantLocaleCommand` | Same | Tenant |
+| `SetManagedTenantBrandingCommand` | `tenancy.setting.write` | TenantSetting |
+
+These requests share module business logic with the existing Seed acts without
+dispatching them or obtaining Seed provenance. `TenancyOperationPolicySource`
+classifies each human request separately; [audit](audit.md#bounded-administration-bindings)
+owns the exact event/class bindings. Organization reads require the same Tenant
+administration capability and MUST configuration-read audit; reads do not imply
+an orgless mutation. Default selection writes only Tenant's reference/version,
+not the target Organization. Locale writes capture Tenant's contained navigation.
+
+The new `AdoptSeedAdministrationOriginCommand` is instead a closed Seed-only act,
+one Tenant per invocation. It cannot be sent by a human wrapper or obtained from
+the v2 grant. Its fixed mapping projection and Tenant marker share the announced
+unit of work and two MUST intents. No general host-mapping route or permission
+is introduced. The [module contract](README.md#warm-seed-and-administration-origins)
+and [Standard 05](../../standards/05-database.md#p03-3-storage-and-replay-contract)
+own exact witness/adoption/fence rules and write-free repeats.

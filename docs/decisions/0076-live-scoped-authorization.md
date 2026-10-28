@@ -383,3 +383,52 @@ for the two explicit lane keys without adding credentials to restore/build.
 - [PostgreSQL 18 READ COMMITTED](https://www.postgresql.org/docs/18/transaction-iso.html#XACT-READ-COMMITTED).
 - [Npgsql data sources and pools](https://www.npgsql.org/doc/basic-usage.html),
   [PgBouncer pool and database configuration](https://www.pgbouncer.org/config.html).
+
+## Amendments
+
+### Amendment 1 — Native candidates and finite administration requirements (2026-10-28)
+
+Jointly accepted [ADR-0078](0078-native-session-scope-and-self-entry.md) and
+[ADR-0079](0079-bounded-identity-administration.md) extend the exact candidate/policy
+census for native application scope and the named member/Role/Tenancy operations.
+Verified provider/binding facts remain immutable; distinct NativeScopeEvidence
+supplies a separately credentialed candidate, confirmed against real host and live
+Membership/lifecycle before HostAndNativeSessionScope. Candidate freshness retains
+exact request/feature/source references, isolated committed reads and actual owner
+cleanup. Legacy direct-bearer rules and the four-slot grant/lifecycle lane remain.
+
+Policy declarations gain only finite registered scoped alternatives/conjunctions
+and explicit self/target predicates. The exact operation matrix names each clause;
+there is no wildcard, generic Organization-to-Tenant escalation or cached HTTP
+allow. Tenant member-detail read clauses can mint their declared tenant-wide read
+witness; Organization clauses and the current-branch directory stay scoped. No
+read witness changes write authority. Direct application calls independently
+recheck classification, current capability and exact target after ordered waits.
+
+Exactly three Tenant Tenancy pairs form the v2 release delta; the original five
+Identity pairs/kernel and eight templates remain. Explicit first adoption carries
+its exact eligible Tenant Admin/role-admin/orgless/version/fingerprint/fence/MUST
+contract and monotonic marker; ordinary registration/seed/edit cannot restore a
+removed grant. Warm installed mutable authority is preserved under ADR-0079's
+pristine-prefix/per-write-lock rules rather than repaired or exact-v1 refused.
+
+Assignment writers serialize whole current Role grant graphs before checking the
+actor's complete delegation ceiling, under canonical User/Tenant/Role/Membership
+ordering. The admitted same-key Tenant-to-exact-Organization bridge stays explicit;
+other-key/reverse escalation and kernel removal remain refused. Live target User,
+lifecycle, terminal-state and last-admin guarantees are unchanged.
+
+Own-capability previews are separately classified Off self-navigation, not attempted
+protected acts: their nine advisory flags and addition-only canGrant choices mint
+no denial event or reusable authority. Actual reads/mutations still authorize and
+audit independently. Protected completed-receipt disclosure gets its own current
+MUST read and immutable target; stale mutation authorization is never replay
+permission. Denial evidence remains ADR-0077's common owner, without a new generic
+suppression budget or changed audit durability.
+
+[Standard 19](../standards/19-permissions.md) owns finite policies/releases and
+[Standard 05](../standards/05-database.md#p03-3-storage-and-replay-contract) owns
+source, lock and cleanup controls. Other grants, public/AccountSite ceilings,
+auxiliary capacities and historical body/status/date remain. P03-3 owes actual
+policy, HTTP/direct, app-role concurrency, replay and native proofs; acceptance
+alone does not mark its new callers or controls implemented.

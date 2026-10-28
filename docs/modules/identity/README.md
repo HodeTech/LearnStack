@@ -14,6 +14,11 @@ authorization and one administrative directory GET. Its confined reader,
 canonical policy/evaluator, central denial evidence and HTTP directory are wired
 in the API composition. New-user/native editing
 activation remains P03-3.
+The additional [ADR-0078](../../decisions/0078-native-session-scope-and-self-entry.md)
+and [ADR-0079](../../decisions/0079-bounded-identity-administration.md) contracts are
+Accepted; their new schema, handlers, routes and native/browser proofs remain
+pending implementation. The [bounded contract](#bounded-entry-and-administration-contract)
+below does not claim those consumers exist.
 The ordered admission timing/observation contract additionally derives from
 [ADR-0074](../../decisions/0074-membership-admission-under-ordered-locks.md),
 Accepted 2026-10-26. The phase Status block owns qualification and review state.
@@ -204,20 +209,25 @@ Organization pair; no cross-module transaction or further exception is admitted.
 4. `CreateSeedMembership` writes each learner and contained state separately.
    `SetSeedMembershipProfile` changes bounded fields through Membership. No
    command writes another root merely because its transaction is available.
-5. Each act uses a deterministic version-1 expected manifest fingerprint and
-   exact postcondition. Matching completed acts skip before dispatch. Interrupted
-   reruns verify committed acts and create only missing uncompleted declarations.
-   Revocation, suspension, ID conflict or edited grants refuse with a fixed
-   diagnostic, stop remaining acts and leave prior committed facts intact.
-   They never reset, repair or silently create successors.
+5. Fresh acts use deterministic version-1 declarations and exact postconditions.
+   Warm completion verifies named immutable roots and a valid installed graph;
+   matching completion performs no writes. Valid suspension, historical revocation,
+   profile/assignment changes and adopted grants are preserved without reset,
+   reactivation or successor creation. Only a recognized pristine incomplete
+   prefix can resume; a missing contained grant or assignment is not evidence
+   that it was never installed. Recheck each possible write's current evidence
+   under its fence/version. Edited partial, ID-conflicting or invalid/foreign
+   state refuses before remaining writes, preserving earlier commits.
 
 The expected fingerprint is not a new receipt table. Existing Role/Membership
-facts establish completion; keep historical manifest versions to verify earlier
-completed acts. Registry additions do not change adopted grants. P03-2 owns
-separately admitted/audited grant adoption, including removal of the initial
-profile grant outside the two-pair kernel. A legitimate later upgrade that no
-longer matches this fixed v1 seed also makes that seed refuse; it never overwrites,
-repairs or resets upgraded authority. Seed is not an upgrade reconciler.
+facts and canonical pristine-prefix evidence establish completion/resume; keep
+historical manifests for earlier completed acts. Registry additions do not change
+grants. Legitimate later adoption or removal of nonkernel profile writing is
+preserved, without turning seed into an upgrade reconciler. The exact evidence,
+per-write recheck and held-seed/admin race controls belong to
+[Standard 05](../../standards/05-database.md#p03-3-storage-and-replay-contract).
+Tenancy's separate [seed-origin adoption](../tenancy/README.md#warm-seed-and-administration-origins)
+does not grant Role authority or repair Identity children.
 
 | Existing actor | Membership scope | Assignment |
 |---|---|---|
@@ -240,7 +250,7 @@ target; the authentication manifest does not choose the Membership write scope.
 A branch session may consume eligible Tenant grants for branch operations and
 explicitly declared tenant-wide reads. Tenant-wide Membership/Profile/template
 writes require an explicitly selected orgless context through P03-3's validated
-reissue transition. Neither the existing branch claim nor `app.scope` promotes
+native admission transition. Neither the existing branch claim nor `app.scope` promotes
 writes; no extra branch-admin Membership or provider-claim rewrite is required.
 
 ### Accepted live authorization and directory contract
@@ -268,8 +278,8 @@ scope but does not authorize a later protected act. Public requests remain free
 of identity/grant lookups; AccountSite keeps its separate real HostScope ceiling
 and Off/physical ReadOnly mode while gaining live membership/lifecycle admission.
 
-The accepted administrative directory uses existing Tenant
-`identity.membership.admin`, with no new grant or v2 seed bundle. It admits
+The implemented administrative directory uses existing Tenant
+`identity.membership.admin`, without requiring the new v2 grant delta. It admits
 HostAndClaim or confirmed ClaimAndMembership, never HostOnly. Its declared
 tenant-wide read can use an eligible NULL-org Tenant Admin Membership from a
 branch session. It returns current undeleted Active/Suspended Memberships and
@@ -284,7 +294,7 @@ before disclosure; it is not a physical ReadOnly-catalogue query. The implemente
 with contained grants, expected version, current post-lock authority and same-
 transaction MUST audit. [Permissions](permissions.md) owns their exact bindings
 and delegation ceiling; unknown manifest, self-escalation or kernel removal
-refuses. Fixed v1 seed reruns still refuse legitimate differing adopted state.
+refuses. The accepted warm contract preserves valid differing adopted state.
 Human-facing grant-editing/adoption routes remain P03-3 work.
 
 [Standard 05](../../standards/05-database.md#authorization-and-evidence-source-ledger)
@@ -294,6 +304,44 @@ retained cleanup and required direct/PgBouncer progress proofs. Its
 owns invocation/transaction lifetime and EF/RLS agreement. [Standard 18](../../standards/18-audit-coverage.md#trusted-authorization-evidence)
 owns denial occurrences, immutable provenance and all pre-success barriers.
 No pool, crash, permission or disclosure proof is claimed by acceptance alone.
+
+### Bounded entry and administration contract
+
+**Accepted under ADR-0078/0079; implementation and actual proof pending P03-3.**
+Keycloak authenticates the provider subject. Native scope evidence remains a
+separate immutable source; it never rewrites provider claims. The API binds the
+User, validates actual host and live Membership/lifecycle, then applies each
+ordinary operation's current capability and target rules. Global-self lookup,
+deliberate opt-in bootstrap and own-context discovery have only their three exact
+early-branch descriptors; no ordinary request allocates a User. Creating identity
+provides neither Membership nor a tenant session. Discovery exposes only the
+verified person's own eligible context choices, not another person's data.
+
+Membership administration reads existing targets and edits contained profile,
+assignments or lifecycle. There is no guessed-UserId create/rejoin path; P03-4
+owns invitations/successors. Profile admits only nullable DisplayName and enabled
+PreferredLocale. Own-profile reads use the exact current Membership without
+NULL-org fallback; own writing needs profile-write, and editing another person
+additionally needs membership-admin. Suspension and prepared assignments confer
+no live authority; Revoked remains terminal.
+
+Role list/detail/registry reads and grant/adoption writes use the eight finite
+templates. [Standard 19](../../standards/19-permissions.md#bounded-administration-and-version-2-adoption)
+owns the five-plus-three registry, explicit v2 exception, monotonic marker and
+unchanged kernel. [Standard 05](../../standards/05-database.md#p03-3-storage-and-replay-contract)
+owns exact Role/Membership lock plans, adoption guards, warm witnesses and durable
+protected receipt metadata. Member-detail Tenant read alternatives may mint the
+existing read witness; exact-branch alternatives stay scoped, and writes never
+inherit that hatch. Receipt disclosure reauthorizes the stored original target
+and commits a fresh MUST read event before returning retained bytes; it neither
+reruns the mutation nor substitutes a successor Membership for the original.
+
+[Permissions](permissions.md#bounded-administration-contract) owns capability and
+advisory-preview bindings; [audit](audit.md#bounded-entry-and-administration-classifications)
+owns planned classifications. Exact HTTP/native routes and DTOs derive from the
+joint decision package. UI hints are not grants; actual API/application/target
+checks remain authoritative. Acceptance closes no runtime, race, provider,
+browser or accessibility proof by itself.
 
 ## Entity-relationship diagram
 
