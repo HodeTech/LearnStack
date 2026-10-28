@@ -403,6 +403,7 @@ public sealed partial class CorpusConsistencyTests
     /// <summary>The number words the index's summary sentence uses.</summary>
     private static readonly Dictionary<string, int> Words = new(StringComparer.OrdinalIgnoreCase)
     {
+        ["zero"] = 0,
         ["one"] = 1,
         ["two"] = 2,
         ["three"] = 3,

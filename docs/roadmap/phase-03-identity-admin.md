@@ -18,7 +18,7 @@
 > |---|---|---|
 > | P03-0 | Entry preparation | Complete — [reconciliation](phase-03-delivery-log.md#entry-preparation-2026-10-25) |
 > | P03-1 | Identity authority and membership foundation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-1-merge-and-closeout-2026-10-27) |
-> | P03-2 | Live membership and authorization | In progress — [Step 6 source freeze](phase-03-delivery-log.md#p03-2-browser-and-recovery-correction-source-freeze-2026-10-28); both fresh review rounds per correction, clean full frontend and actual demo pass; complete final-source hosted A/B remains required |
+> | P03-2 | Live membership and authorization | In progress — [Step 6 standard census correction](phase-03-delivery-log.md#p03-2-zero-adopted-standard-census-correction-2026-10-28); browser/native reviews, clean full frontend and actual demo pass; census review and complete final-source hosted A/B remain required |
 > | P03-3 | Protected Studio and membership administration | Not started |
 > | P03-4 | Invitations and bounded delivery | Not started |
 > | P03-5 | Custom fields and privacy classification | Not started |

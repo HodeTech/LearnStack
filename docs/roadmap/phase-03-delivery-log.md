@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,346 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,371 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -133,6 +133,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 recovery scheduling review round 2 (2026-10-28)](#p03-2-recovery-scheduling-review-round-2-2026-10-28) — 16 lines
   - [P03-2 clean local managed browser proof (2026-10-28)](#p03-2-clean-local-managed-browser-proof-2026-10-28) — 21 lines
   - [P03-2 browser and recovery correction source freeze (2026-10-28)](#p03-2-browser-and-recovery-correction-source-freeze-2026-10-28) — 17 lines
+  - [P03-2 zero-adopted standard census correction (2026-10-28)](#p03-2-zero-adopted-standard-census-correction-2026-10-28) — 25 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -5332,3 +5333,28 @@ source, toolchain, plan and population. The prior failed attempts remain failed
 evidence, and local controls do not substitute for this qualification. Packet,
 gate and catalogue completion and PR handoff stay gated on the pair and its
 independent original-evidence audit.
+
+### P03-2 zero-adopted standard census correction (2026-10-28)
+
+Final carrier preparation finds an actual corpus-control gap before promotion:
+making Permissions Active gives **22 Active / zero Adopted**, but
+`CorpusConsistencyTests` recognizes only number words one through twenty-two.
+The existing status control therefore cannot validate the truthful final split.
+The correction adds only `zero = 0` to that dictionary, without changing its
+parser, assertions, population or refusal behavior. The pending six-file carrier
+preview also updates the summary split and the obsolete Permissions sentence.
+
+An isolated development copy applies the future permission documents. Before
+the code correction, **4/5** corpus controls pass; exactly the status-header/index
+control fails on `zero`. With the one-line correction, **5/5** pass. Applying the
+pending catalogue preview as well passes **5/5**, including the **251** implemented
+rules, **146** Architecture / **105** elsewhere and unchanged **320** method census.
+Both Release builds report zero warnings/errors. These future-document controls
+are not qualification, delivered status or timing-weight evidence.
+
+Full A [40616215040/1](https://github.com/HodeTech/LearnStack/actions/runs/40616215040)
+at `07a0431a` is deliberately cancelled during execution because this necessary
+test-source correction invalidates its freeze. The **27**-job API record and all
+**six** available original packages are retained; no complete population or fit
+is claimed, no B starts, and cancellation is not classified as a new product
+failure. Fresh review rounds precede one new complete same-source A/B freeze.
