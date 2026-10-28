@@ -163,7 +163,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**323 test methods run in
+**325 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -2968,8 +2968,10 @@ qualify a new runtime population. The phase Status block owns delivery state.
 - **Type:** complete compiled production-writer/source census and real app-role
   PostgreSQL interruption, preservation and competing-commit controls.
   **Kind:** structural and behavioural.
-- **Planned test owners:** `SeedContinuationConventionTests`,
-  `SeedContinuationIntegrationTests`.
+- **Test owners:** `SeedContinuationConventionTests`, `SeedContentContinuationTests`,
+  `IdentitySeederTests` and `SeedAdministrationOriginTests`. Full family qualification
+  remains open; the [Phase 03 Status block](../roadmap/phase-03-identity-admin.md)
+  distinguishes implemented local controls from the origin-completion decision.
 - **Status:** **Registered.**
 - **Phase:** P03-3 Step 3; Phase 06 reopens staging before mutable content administration.
 

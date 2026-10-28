@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 1,304 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 1,359 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -165,6 +165,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 3 — Origin completion authority gap (2026-10-29)](#p03-3-step-3--origin-completion-authority-gap-2026-10-29) — 62 lines
   - [ADR-0081 proposal review round 1 and revised package (2026-10-29)](#adr-0081-proposal-review-round-1-and-revised-package-2026-10-29) — 58 lines
   - [ADR-0081 proposal review round 2 and approval readiness (2026-10-29)](#adr-0081-proposal-review-round-2-and-approval-readiness-2026-10-29) — 39 lines
+  - [P03-3 Step 3 independent seed regressions and typed race correction (2026-10-29)](#p03-3-step-3-independent-seed-regressions-and-typed-race-correction-2026-10-29) — 55 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -7012,3 +7013,58 @@ not closed; its original two postcommit implementation-review rounds, remaining
 full-source suites and later provider/browser/final A/B proofs remain required.
 The maintainer's earlier request to approve each new ADR is why this proposal,
 rather than ADR-0080, needs an explicit acceptance answer.
+
+### P03-3 Step 3 independent seed regressions and typed race correction (2026-10-29)
+
+While the separate ADR-0081 approval question is pending, Root continues only
+already-authorized validation. The three adapted component/public/delivery
+fixture families pass **23/23**, zero skipped. They retain actual stores, fencing,
+central audit and public HTTP/RLS assertions; component setup is explicitly named
+and does not borrow or widen production fixed-seed authority. Fresh/backlog
+delivery provisioning uses actual `SeedComposition`; full seed/event competition
+observes the Tenant fence before the built-in concept lock.
+
+The broader `SeederTests` filter initially completes **93 passed / 2 failed**,
+zero skipped. Root verifies both findings:
+
+- The CLI fixture treats a completed Tenant display-name change as a mismatch,
+  contrary to the Accepted preservation policy. The corrected process test
+  positively proves that mutable rename is retained with exit 0, then introduces
+  an immutable declared-slug conflict and requires exit 1 without further writes.
+- A real concurrent provisioning/continuation test reaches a completed second
+  Organization while the other runner waits. A valid post-fence stage change is
+  incorrectly classified as an ordinary business refusal, preventing the existing
+  one-time exact postcondition read. The Tenancy guard now rechecks its original
+  source/admission/plan before returning `concurrency_conflict` for this changed
+  observation. Invalid/expired sources, declarations and widened-prerequisite
+  refusals keep their existing business refusal. The result grants no retry,
+  repair, new prefix or next-stage write authority. Every later actual writer
+  still validates its own full current prerequisite under its complete plan.
+
+Focused unit controls prove both a canonical competing completion and source
+expiry during the fresh read, with no target mutation or hatch and one plan.
+An older stale-version expectation is reconciled to the same bounded result;
+disabled/default-promotion refusal remains unchanged. The final complete Unit
+run passes **3,177/3,177**, zero skipped. The fresh complete `SeederTests` filter
+passes **95/95**, zero skipped, in about 4.3 minutes, including the actual held
+provisioning race and child-process CLI assertions. The initial failures are not
+counted as passing qualification.
+
+The exact source/writer architecture control initially rejects its own parsed
+census because it counts the provisioning type both in the capability initializer
+and in an unrelated runtime comparison. Root restricts this independent parsed
+leg to the actual `Requests` initializer, preserving duplicate/extra detection
+and the compiled constructor/capability-token legs. The final architecture subset
+passes **12/12**, zero skipped: both new seed controls, existing scope/enrollment/
+permission controls and the catalogue consistency family. The compiled method
+count becomes 325 without promoting the still-Registered full seed obligations.
+The catalogue names the actual authored behavioral owners.
+
+These are current working-tree local results. Step 3 capability/source/tests
+remain uncommitted, and no complete Architecture/Integration/provider/browser or
+final-source A/B claim follows. The actual missing origin-completion refusal
+remains red pending explicit ADR-0081 acceptance and implementation; its new
+witness, marker-2 transition and migration are not implemented. The next required
+sequence remains that decision, its reconciled carriers, dependent implementation
+and qualification, then the original Step 3 commit and two fresh postcommit
+review rounds. All later approved steps retain their original order.
