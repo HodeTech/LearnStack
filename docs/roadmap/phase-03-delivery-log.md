@@ -145,11 +145,12 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 602 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 644 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
   - [P03-3 second proposal review and bounded snapshot correction (2026-10-28)](#p03-3-second-proposal-review-and-bounded-snapshot-correction-2026-10-28) — 58 lines
+  - [P03-3 proposal readback and approval readiness (2026-10-28)](#p03-3-proposal-readback-and-approval-readiness-2026-10-28) — 42 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -6295,3 +6296,45 @@ correction and target-capture clarification receive focused independent readback
 before the approval request. All new catalogue extensions remain proposed, not
 Registered/Implemented; runtime, migration, real app-role and native/browser proof
 still belong to the ten implementation steps after explicit joint approval.
+
+### P03-3 proposal readback and approval readiness (2026-10-28)
+
+**Status: Proposed; awaiting explicit joint maintainer approval.** Both full fresh
+proposal rounds and verified corrections are complete. The second transport
+reviewer independently reads `c124f36f` and approves the new snapshot budget and
+held-response/settlement proof; its Major is closed. The second storage reviewer
+approves the persisted original-target clarification against the existing schema/
+app grants and opaque fingerprint contract. Neither performs runtime tests.
+
+**Final action-preview precision.** Root verifies current RoleGrantAuthorization
+requires eligible Tenant Admin, role-admin and orgless scope for mutation, while
+Role reads can have broader legitimate admission. The second transport reviewer
+confirms the distinction. Replace the initial seven-Boolean list with **nine**:
+canReadTenantMembers, canReadOrganizationMembers, canWriteMemberProfiles,
+canManageMemberships, canReadRoles, canChangeRoleGrants, canAdoptRoleRelease,
+canWriteOwnProfile and canManageOrganizations. Role-read follows its current read
+policy; change/adopt additionally require the exact current eligible/orgless
+mutation prerequisites. Selected built-in template/release marker determines
+whether its adoption button is applicable. Permission choices add a per-pair
+canGrant preview for additions under the current ceiling/explicit same-key bridge;
+false canGrant does not prohibit removing an existing nonkernel grant. No preview
+mints a denial or authorizes a mutation. This closes readable-but-not-editable UI
+without exposing another user's grants or changing SessionProjection.
+
+The glossary marks native scope candidate and protected receipt target Proposed.
+All other corpus adoptions/Accepted ADR Amendments remain Step 1 after approval,
+not advance claims of implemented behavior. The proposal commits change only
+Markdown. Source baseline remains `575d8e32`; the preserved provider feasibility
+probe is the alternative's two isolated experiments, not selected-path runtime
+qualification. Document/ADR-status/link checks are rerun on the final proposal.
+
+**Maintainer decision.** Accept ADR-0078, ADR-0079 and the initial package as
+bounded by the first/second review corrections and this precision, including
+its ten implementation steps. The material costs are the new native trust source
+and secret, shared durable registration budgets, self-only Off navigation,
+explicit first release adoption, valid warm-state preservation, durable protected
+receipt metadata/recycling, 128/eight snapshot admission and new admin origins.
+Implementation, migrations and application/native activation remain unstarted
+until that approval. Each implementation step still requires both fresh review
+rounds, verified fixes and appropriate actual proof; proposal approval replaces
+none of them. No PR is opened before that implementation/review sequence closes.

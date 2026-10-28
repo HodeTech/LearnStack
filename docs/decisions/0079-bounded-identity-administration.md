@@ -309,7 +309,11 @@ before history/restoration disclosure; scripts/no-script behavior needs explicit
 real browser proof. No-JavaScript recovery remains usable; script-based expiry/
 history withholding is not claimed for a browser that cannot execute it.
 A separate no-store, Off own-capability read returns finite advisory operation
-Booleans, never grants or another actor's data. Resource DTOs/ETags remain aggregate
+Booleans, never another actor's data. Distinct Role-read, grant-change and release-
+adoption flags preserve readable-but-not-editable cases; mutation previews require
+current eligible Tenant Admin, role-admin and orgless context. Per-pair addition
+choices reflect the current ceiling but do not prevent nonkernel removals.
+Resource DTOs/ETags remain aggregate
 representations; action flags do not silently share that validator. The server
 combines those current flags with target scope/status when rendering controls,
 and every mutation independently rechecks authority. SessionProjection remains
