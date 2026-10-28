@@ -1,15 +1,14 @@
 # Phase 03: Identity Domain, Authorization, and Admin Foundation
 
-> **Status (2026-10-28).** P03-0 and P03-1 are complete. P03-1 is merged through
-> [PR #38](https://github.com/HodeTech/LearnStack/pull/38); its six implementation
-> steps, review corrections and ADR-0075 correction are closed. The
-> [merge closeout](phase-03-delivery-log.md#p03-1-merge-and-closeout-2026-10-27)
-> distinguishes implementation-source A/B qualification from the final PR head's
-> successful protected checks and records the identical squash-merge file tree.
-> Phase 03 remains in progress; P03-2 implementation, both fresh review rounds per
-> step and complete hosted A/B qualification are closed. PR review remains pending.
-> Live Membership and permission enforcement are implemented; new-user HTTP/BFF
-> activation stays in P03-3. This remains the critical-path phase after
+> **Status (2026-10-28).** P03-0, P03-1 and P03-2 are complete. P03-1 is merged
+> through [PR #38](https://github.com/HodeTech/LearnStack/pull/38); P03-2 is merged
+> through [PR #39](https://github.com/HodeTech/LearnStack/pull/39). Their closeouts
+> below distinguish implementation-source A/B qualification from final PR checks
+> and record identical squash-merge file trees. P03-2's six implementation steps,
+> both fresh review rounds per step and verified PR corrections are closed.
+> Phase 03 remains in progress. P03-3 is next and not started: protected Studio,
+> membership administration, new-user HTTP/BFF entry and validated scope switching.
+> This remains the critical-path phase after
 > [Phase 02b](phase-02b-events-auth.md). The
 > [decision register](#the-decision-register) owns gate state; dated records live
 > in the [delivery log](phase-03-delivery-log.md).
@@ -18,7 +17,7 @@
 > |---|---|---|
 > | P03-0 | Entry preparation | Complete — [reconciliation](phase-03-delivery-log.md#entry-preparation-2026-10-25) |
 > | P03-1 | Identity authority and membership foundation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-1-merge-and-closeout-2026-10-27) |
-> | P03-2 | Live membership and authorization | Implemented and qualified — [Step 6 closeout](phase-03-delivery-log.md#p03-2-step-6-qualification-and-review-handoff-2026-10-28); all six steps and review rounds closed; PR review pending |
+> | P03-2 | Live membership and authorization | Complete and merged — [closeout](phase-03-delivery-log.md#p03-2-merge-and-closeout-2026-10-28) |
 > | P03-3 | Protected Studio and membership administration | Not started |
 > | P03-4 | Invitations and bounded delivery | Not started |
 > | P03-5 | Custom fields and privacy classification | Not started |
