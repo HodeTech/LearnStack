@@ -81,7 +81,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0075 Step 3 review round 2 correction (2026-10-27)](#adr-0075-step-3-review-round-2-correction-2026-10-27) — 28 lines
   - [ADR-0075 three-step closeout (2026-10-27)](#adr-0075-three-step-closeout-2026-10-27) — 33 lines
   - [P03-1 merge and closeout (2026-10-27)](#p03-1-merge-and-closeout-2026-10-27) — 58 lines
-- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,593 lines
+- [P03-2 — Live membership and authorization](#p03-2--live-membership-and-authorization) — 2,611 lines
   - [P03-2 proposed decision package (2026-10-27)](#p03-2-proposed-decision-package-2026-10-27) — 167 lines
   - [P03-2 proposal review round 1 (2026-10-27)](#p03-2-proposal-review-round-1-2026-10-27) — 32 lines
   - [P03-2 independent preflight carrier correction (2026-10-27)](#p03-2-independent-preflight-carrier-correction-2026-10-27) — 19 lines
@@ -142,6 +142,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 correction review round 1 (2026-10-28)](#p03-2-pr-39-correction-review-round-1-2026-10-28) — 17 lines
   - [P03-2 PR 39 correction review round 2 and handoff (2026-10-28)](#p03-2-pr-39-correction-review-round-2-and-handoff-2026-10-28) — 23 lines
   - [P03-2 PR 39 role-guard cancellation control (2026-10-28)](#p03-2-pr-39-role-guard-cancellation-control-2026-10-28) — 36 lines
+  - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -5588,3 +5589,21 @@ source-location census. The optional `authorization_read_source` code now retain
 bounded file/line diagnostics; waiter observation has a fixed timeout diagnostic.
 No case declaration, selector, timing weight, permission or production path
 changes. Fresh correction reviews and updated-head CI remain required.
+
+### P03-2 PR 39 cancellation control review round 1 (2026-10-28)
+
+Two fresh independent reviewers (`gpt-6.1-sol` / `gpt-6-luna`, high) approve
+`6cf8c714..6ed0f12b` without verified findings. Lifetime review checks positive
+acquisition, exact PID/mode observation, all early-failure release/join paths,
+unexpected returned-owner disposal and real capacity recovery. Evidence review
+independently verifies all **24** ZIP hashes/CRCs, the complete failed-attempt
+population, **9/9** corrected local cases and **95/95** native control results.
+Both preserve the unknown historical interleaving and unchanged runtime limits.
+
+An isolated development-copy counterfactual then removes effective mode
+qualification. The actual shared-reader negative control fails exactly as
+expected, before the exclusive blocker starts. The single intentional failure
+is not a passing result or historical reproduction. Its TRX SHA-256 is
+`47a621c43ec82beceb953e5f546558a568c5448e8721e4b3fd6c904c0491af30`.
+Source and Integration/Infrastructure/API DLL hashes restore exactly afterward.
+The second fresh review round and updated-head hosted checks remain required.
