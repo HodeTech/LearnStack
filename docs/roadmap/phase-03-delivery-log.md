@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 1,090 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 1,145 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -161,6 +161,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0080 proposal review round 1 (2026-10-28)](#adr-0080-proposal-review-round-1-2026-10-28) — 39 lines
   - [ADR-0080 proposal review round 2 and approval readiness (2026-10-28)](#adr-0080-proposal-review-round-2-and-approval-readiness-2026-10-28) — 36 lines
   - [P03-3 Step 3 independent preservation and diagnostic controls (2026-10-28)](#p03-3-step-3-independent-preservation-and-diagnostic-controls-2026-10-28) — 30 lines
+  - [ADR-0080 maintainer corrections and acceptance (2026-10-29)](#adr-0080-maintainer-corrections-and-acceptance-2026-10-29) — 55 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -6794,3 +6795,58 @@ remains unresolved pending ADR-0080. New authority, Step 3 architecture/full-sou
 qualification, its implementation commit and two implementation-review rounds
 remain open. The maintainer approval question links the unchanged Proposed ADR
 and its second-round plan record; no answer is inferred from elapsed time.
+
+### ADR-0080 maintainer corrections and acceptance (2026-10-29)
+
+The maintainer conditionally approves ADR-0080 and the Step 3 continuation after
+verification/correction of the supplied review. Root and two independent
+read-only source assessments verify the concrete findings. Earlier proposal
+no-finding verdicts remain historical and limited to their reported lenses;
+they did not establish complete seed-write coverage or runtime qualification.
+
+| Finding | Verified disposition |
+|---|---|
+| Complete seed-write scope | Valid. The v1 runners send 21 writer types: five Tenancy, six Customization, six Education and four Identity. Origin adoption is a separate twenty-second writer. The eight temporary-read consumers are not an exemption for the twelve content writers. All per-write checks and real competitors close in Step 3. |
+| M1: owner state/write barrier | Valid design specificity gap. Select a separate sealed Seed witness, closed same-owner verification API and private state, scope-only SQL/EF restoration, first SaveChanges and owned raw-write barriers, and commit/nesting refusal. Preserve the human witness. Actual barriers, dirty-state checks and fault/cleanup proofs remain implementation exit conditions. |
+| M2: forged SystemActor/version metadata | Valid residual. Application-role SQL credentials suffice to forge persisted attribution; owner/bypass access is not required. Select the explicit admitted-writer boundary, retaining existing target-value checks. Do not add a HMAC key, profile fingerprint or receipt store. A metadata check is not authenticated database history. |
+| m1: lock wording | Valid. Only three temporary consumers need User fences; existing-root updates take their actual row lock, absent roots use the exclusive Tenant absence fence and uniqueness. Locale's final check moves after the Tenant row lock. Do not acquire a second plan. |
+| m2: sensitive-read boundary | Clarify in Standard 18 and the module matrix: closed prerequisite metadata stays inside the existing classified seed act, with its existing failure/unknown-COMMIT evidence. No independent directory disclosure or editor-bearing result is added. A later value-disclosing/public reader would require separate coverage. |
+| m3: related authorities | Add ADR-0072/0073/0077, Standards 18/21 and Tenancy/Customization/Education references. Append ADR-0073 navigation; ADR-0072/0077 decisions and audit floors are retained, not superseded. |
+| m4: executable acceptance | Add exact amendment numbers/titles, canonical carrier files, Phase Status/G5/index updates and named Registered test owners. Correct the already-stale eight-setter statement to the existing ten-setter set. Scope-only sites do not add a logical Tenant setter. |
+| m5: ports/order/cycles | Narrow Tenancy checks precede the Identity-only temporary projection, then clear before usable result. Owning Application.Contracts ports share the actual unit; no nested dispatch/new provider. The Identity reader has no dependency on the Tenancy guard. Content guards stay module-local. |
+| m6: lane wording | Use physical owner/connector versus logical read authority explicitly. One new logical authority uses the existing ordinary ReadWrite owner; no new physical read lane is introduced. |
+| n1–n3 | Use the actual decider; name branding/theme setting creation; distinguish the four consuming Tenancy operations from INSERT-first provisioning. |
+| n4 | No change: bounded supersession names the existing human-source/scope-site exception and preserves historical Accepted bodies. |
+
+The complementary content proof uses ordinary scope. Every fixed content act
+binds exact request values to the closed declaration, acquires exclusive Tenant
+before its own module/root locks, then freshly checks Tenancy prerequisites,
+absence of **all retained** Identity Role history, and its own retained target/
+predecessor/version/immutable pins through owning contracts. Roles are
+Tenant-wide, precede every v1 Membership and cannot be deleted by the app role;
+any Role proves a later Identity stage. This detects the reported Tenant/Identity
+competitor without extending the eight-consumer hatch. It is not a fresh
+all-branch content snapshot or arbitrary-SQL history proof. Current content
+writers admit only canonical advancement; Phase 06 must reopen this staging proof
+before mutable content administration. Built-in event initialization remains a
+separate source with shared Tenant-before-concept fencing and no seed witness.
+
+The separate origin-adoption command retains its own completed-foundation,
+root/mapping lock and plural-MUST obligations; it is neither a pristine-resume
+consumer nor omitted from Step 3 coverage. Its existing command-only controls do
+not by themselves prove every prerequisite of the completed-foundation claim.
+
+Acceptance reconciles the named canonical carriers before capability code.
+The complete writer/source/lock census, all eight temporary consumers, all twelve
+ordinary-scope content consumers, origin adoption and event competitors require
+actual PostgreSQL, planted misuse and cleanup/isolation evidence before the
+original Step 3 implementation commit and its two fresh review rounds. The
+known cross-branch regression remains open until that implementation passes.
+No proposal/doc check closes G1/G4/G6, provider/browser/manual accessibility or
+final-source A/B obligations. The remaining approved Steps 4–10 keep their order.
+
+**Acceptance.** After these verified corrections, ADR-0080 is Accepted on
+2026-10-29 under the maintainer's explicit conditional approval. Its decider/index,
+Phase Status/G5, four dated amendments and canonical carriers are reconciled in
+the acceptance commit before capability implementation. New controls remain
+Registered. No repeated approval is required for this corrected authorized scope.

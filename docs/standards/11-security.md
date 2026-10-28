@@ -27,6 +27,8 @@ model, and session-variable placement**),
 [ADR-0035 Demand-Gated Infrastructure](../decisions/0035-demand-gated-infrastructure.md),
 [ADR-0044 The Audit Write Path](../decisions/0044-audit-write-path.md)
 (the audit row's tenant, capture, redaction, and the append-only layers).
+Fixed-seed scope-only verification derives from
+[ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md).
 Public-read additions derive from
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md); the private web
 ingress/caller and anonymous visitor budgets derive from
@@ -502,9 +504,9 @@ Every institution public read dispatches a marked request through ISender, audit
 Off and GET/HEAD only. Factory HostScope is an independent host ceiling intersected
 with normal reconciliation, query filters and RLS; it cannot widen through claims
 or the tenant-scope read hatch. Publication, access and lifecycle remain explicit
-application predicates. The four context writers and eight tenant setters are
-unchanged. Host resolution, flag-loader connections and rejected-assertion audit
-keep their separately sanctioned paths.
+application predicates. The four context writers remain unchanged; the current
+closed contract has ten logical Tenant setters below. Host resolution, flag-loader
+connections and rejected-assertion audit keep their separately sanctioned paths.
 
 READ ONLY protects the enlisted ambient transaction. Structural guards detect
 controller/helper/independent-connection bypasses; real app-role HTTP/database
@@ -532,6 +534,15 @@ ITenantContext member may manufacture it. The
 [Phase 03 Status block](../roadmap/phase-03-identity-admin.md) owns current
 qualification and review state. HostScope remains an independent narrowing ceiling.
 
+ADR-0080 separately admits fixed-seed prerequisite verification through the
+[canonical common-owner contract](05-database.md#fixed-seed-prerequisite-read-authority).
+Only its separately witnessed, closed operation may enable and clear `app.scope`
+temporarily on the already-announced ordinary ReadWrite owner. These scope-only
+SQL sites preserve Tenant/organization values and announcement generation; they
+are separately enumerated callers, not Tenant setters or context writers. Human
+`OperationReadWitness` minting remains Protected-only. The fixed source adds no
+SQL owner, connection, role, definer, permission or independently callable reader.
+
 P02b-1 Step 1 adds a read-only announcement snapshot through
 `IUnitOfWork.GetTenantContextAnnouncement(DbTransaction?)`, under
 [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
@@ -545,15 +556,16 @@ context writer, factory privilege or tenant retargeting authority.
 ### The out-of-band setters
 
 `TransactionBehavior` delegates the general announcement path to
-`TransactionExecutionCoordinator`. The baseline eight logical setter paths are
-enumerated below. The Accepted [candidate-reader extension](#owner-and-setter-census)
-adds the ninth; the API registers its confined live membership reader. ADR-0077's confined
-evidence methods extend central audit ownership, not the logical setter count. The current set is closed
+`TransactionExecutionCoordinator`. The current ten logical setter paths are
+enumerated below. ADR-0076 adds the ninth candidate reader and ADR-0078 the tenth
+own-context discovery reader; their source bounds are in the
+[owner census](#owner-and-setter-census). ADR-0077's confined evidence methods and
+ADR-0080's scope-only enable/clear sites do not add logical Tenant setters. The set
+is closed
 ([ADR-0040 § Who sets `app.tenant_id`, completely](../decisions/0040-ambient-unit-of-work.md),
-with its Amendments 3 and 7, is the authority; it is reproduced here because this section
-is the placement authority). Two set it on the **ambient** transaction; six own a **short
-transaction of their own**, because they run where no ambient transaction exists
-yet:
+with its dated Amendments, is the authority; it is reproduced here because this
+section is the placement authority). Two set it on the **ambient** transaction;
+eight own a **short transaction of their own** under their exact source contract:
 
 | Setter | Transaction | Why it is not `TransactionBehavior` |
 |---|---|---|
@@ -565,6 +577,8 @@ yet:
 | `IAuditStore.WriteBestEffortAsync` | its own short one | Same shape, SHOULD/MAY class; failures are logged and dropped |
 | The `AuditConfig` override loader | its own short read-only one | An out-of-band cached projection, never a request-path query |
 | The tenant-flag loader (`FeatureFlags`) | its own short read-only one | A cached projection of `tenant_feature_flags`, read on a cache miss wherever `IFeatureFlags` is asked — inside a request's transaction or outside any ([ADR-0045 § 2](../decisions/0045-entitlement-and-feature-flag-socket.md), [ADR-0040 Amendment 7](../decisions/0040-ambient-unit-of-work.md)) |
+| `PreContextIdentityAuthorizationReader` | its isolated physical READ ONLY child | Exact verified candidate coverage/grant and Tenancy lifecycle reads; never parent business state or ambient TenantContext |
+| `PreContextSelfDiscoveryScopeReader` | its own short physical READ ONLY one | Single-use captured own-Membership scope witness, followed only by bounded Tenancy label/destination reads |
 
 > **`IOrganizationScopeValidator` performs row-7 organization narrowing after
 > affirmative live Membership admission.** `TenantAssertionMiddleware` separately
@@ -589,7 +603,7 @@ variable is unset fails `WITH CHECK`
 ([ADR-0033 Amendment 2 § 5](../decisions/0033-audit-durability-model.md),
 [ADR-0044 § 9](../decisions/0044-audit-write-path.md)).
 
-Every one of the eight setters connects as `learnstack_app`. A setter that reached
+Every one of the ten setters connects as `learnstack_app`. A setter that reached
 for `learnstack_platform` would be invisible to the isolation suite, which is the
 failure mode [ADR-0003](../decisions/0003-tenant-isolation-defense-in-depth.md)
 names by hand.
@@ -606,25 +620,28 @@ runs on it.
 unit's announcement seam. Matching `[TenantOwned]` table names would put a parser
 between every query and the database to decide something the transaction already
 answers.
-Of the eight logical paths, the MediatR transaction owner and P02b-3's integration
+Of the ten logical paths, the MediatR transaction owner and P02b-3's integration
 transport mark the ambient transaction through sanctioned `IUnitOfWork`
 announcement methods. Durable acceptance and prepared subscriber execution both
 announce before their first app-role command; the production call-site census
-closes these implementations without adding a ninth logical setter. The durable
-idempotency store remains unimplemented. The five other paths,
+closes these implementations without adding another logical setter. Durable
+idempotency activation/proof belongs to the
+[phase Status block](../roadmap/phase-03-identity-admin.md). The five original raw paths,
 `OrganizationScopeValidator`,
 the two standalone audit writers and the two cached-projection loaders, issue raw
-`NpgsqlCommand`s on connections of their own, which EF interception never sees. `CachedHostToTenantResolver` is not in this set at all: it sets
+`NpgsqlCommand`s on connections of their own, which EF interception never sees.
+The ninth and tenth use their confined common-owner announcement seams and exact
+source/generation guards. `CachedHostToTenantResolver` is not in this set at all: it sets
 `app.resolving_host`, not `app.tenant_id`. That is also why the
 exemption list is empty, and why `PlatformAdminScope`, whose `BYPASSRLS` connection
 announces no tenant by design, is invisible to the guard by construction rather than by a
 hand-written exception. The concern the earlier wording had — that naming
 `TransactionBehavior` alone would reject legitimate transport and audit writes,
-and the future idempotency store's writes on its own short transaction — is real,
+and the durable idempotency store's writes on its own short transaction — is real,
 and is answered by the guard reading a marker rather than a behavior's name:
 a setter marks the transaction it
 opens if and only if it reaches EF. The audit store's writers have landed and reach none;
-the durable idempotency store will mark its own if it does. It throws
+the durable idempotency store must mark its own whenever it does. It throws
 `TenantContextMissingException` when it has not, which
 [`Tenant_Context_Guard_Fires_Only_On_An_Unmarked_Transaction`](21-architecture-tests-catalogue.md)
 asserts in both directions. **Packet 7 owns it**: Packet 6 ships
@@ -1208,13 +1225,15 @@ or new global User/profile/directory projection. It closes before ordinary
 business continuation, including when a nested/post-lock parent already exists.
 Tenancy's lifecycle reader uses this same physical child owner/generation.
 
-Ten is the Accepted logical setter set under ADR-0078. The pre-existing eight
-paths plus the implemented ninth remain the implementation baseline; the durable
-idempotency path and tenth discovery reader require P03-3 activation/proof.
+Ten is the existing Accepted logical setter set under ADR-0078. The
+[phase Status block](../roadmap/phase-03-identity-admin.md) owns current
+implementation, activation and proof for those paths.
 The ninth's reader/owner has source, database and exact trusted-source controls.
 Global subject owners and the
 confined central denial-event methods add no tenant-context writer or logical
-setter. Standard 05 owns the source/configuration/retained-cleanup ledger.
+setter. ADR-0080's fixed-seed scope-only sites preserve those ten setters and four
+context writers; Standard 05 owns their distinct source/caller census and
+temporary state/write barriers as well as the source/configuration/retained-cleanup ledger.
 
 <a id="proposed-bounded-contention-and-proof"></a>
 

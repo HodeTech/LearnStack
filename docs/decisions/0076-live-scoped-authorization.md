@@ -432,3 +432,31 @@ source, lock and cleanup controls. Other grants, public/AccountSite ceilings,
 auxiliary capacities and historical body/status/date remain. P03-3 owes actual
 policy, HTTP/direct, app-role concurrency, replay and native proofs; acceptance
 alone does not mark its new callers or controls implemented.
+
+### Amendment 2 — Separate fixed-seed prerequisite source (2026-10-29)
+
+Accepted [ADR-0080](0080-fixed-seed-prerequisite-read-scope.md) adds a bounded
+exception to this ADR's human-capability-only read-hatch source. Exactly its eight
+fixed seed consumers may request internal prerequisite verification after their
+complete ordered fences and target preparation, on the same ordinary ReadWrite
+owner. The private seed witness binds the actual invocation and independently
+captured immutable declaration; it is default-denied in API composition.
+`OperationReadWitness` remains sealed and Protected-human-only, with its existing
+capability, actor, scope, invocation, nesting and one-use controls unchanged.
+
+The separate owner state and scope-only enable/clear sites preserve Tenant,
+organization and generation, returning narrow before any usable result or
+mutation. No seed-shaped context, SystemActor attribution, supplied hash, nested
+dispatch, human request or event inherits this authority. The metadata-only
+operation is an internal prerequisite of the classified seed act, not a general
+directory reader or separately successful sensitive-read event. Its physical
+Tenant-wide read reach is constrained by closed application source/projection
+and lifetime; it grants no wider write scope or SQL READ ONLY guarantee.
+
+[Database Standards](../standards/05-database.md#operation-bound-read-authority)
+and ADR-0080 own the source, state, barriers and proof obligations. The complete
+seed-write census extends beyond these eight readers; the remaining writers
+retain their separately specified narrow checks. Existing human authorization,
+auxiliary capacities, evidence durability and historical Accepted body/status/
+date remain unchanged. Acceptance registers the new controls; Step 3 proves them
+before activation.

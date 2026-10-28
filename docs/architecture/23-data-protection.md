@@ -384,6 +384,29 @@ purge, replay-table maintenance, backups and provider/diagnostic retained-copy
 reconciliation. These are named fulfillment obligations, not a claim that
 P03-3 implements account closure, anonymisation or retention enforcement.
 
+### Accepted fixed-seed prerequisite metadata
+
+[ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md) admits a closed
+temporary prerequisite check on the existing seed writer's ordinary owner.
+Membership/Role relationships and creation/update editor IDs remain personal
+linkage even when used only with lifecycle, version and finite child metadata.
+They stay internal to verification, with no raw DTO, log, telemetry, cache or
+durable receipt disclosure. The check selects no provider subject, email,
+display-name or locale-preference value merely to establish pristine history.
+It adds no personal-data store, profile-value hash or anonymity claim.
+
+The operation is an internal prerequisite of the classified seed mutation, not
+a new independently callable directory or sensitive-read audit class. An
+independently callable or value-disclosing reader requires its own classification
+before activation. Persisted SystemActor/version/history stamps are not
+authenticated provenance: arbitrary SQL with application database credentials
+can forge them without owner or bypass credentials. The check detects violations
+by the closed admitted writer population and does not establish database-tamper
+detection. [Database Standards](../standards/05-database.md#warm-seed-evidence-and-origin-adoption)
+owns the canonical source, metadata projection and lifetime; existing personal
+classification, diagnostic exclusion and fulfillment boundaries continue to
+apply. Acceptance does not claim runtime proof or extend erasure authority.
+
 ### Erasure authority and first-writer prerequisites
 
 - [Phase 03](../roadmap/phase-03-identity-admin.md#tenant-data-ownership-dsar-boundary-and-pii-classification)

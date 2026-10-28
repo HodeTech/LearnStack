@@ -8,6 +8,9 @@ Derived from jointly Accepted [ADR-0072](../../decisions/0072-application-owned-
 and jointly Accepted [ADR-0076](../../decisions/0076-live-scoped-authorization.md) /
 [ADR-0077](../../decisions/0077-trusted-authorization-evidence.md), with
 [Standard 18](../../standards/18-audit-coverage.md). Part of the [module spec](README.md).
+The internal fixed-seed prerequisite boundary derives from
+[ADR-0080](../../decisions/0080-fixed-seed-prerequisite-read-scope.md); new
+qualification remains in the phase Status block.
 
 The baseline MUST floor applies. `IdentityAuditCatalogSource` declares
 actual operations: catalogue-to-matrix coverage is total. Audit slugs are not
@@ -47,6 +50,15 @@ Off before use; they inspect only the exact bounded declared seed facts, with no
 directory/provider profile. Ordinary existing-binding lookups create no mutation
 intent under ADR-0072. Off request registration is separate from MUST operation
 rows; no Off value is presented as an `OperationClass` or a MUST audit slug.
+
+The separate closed prerequisite operation is internal to an already classified
+seed act, rather than a new Off request or externally disclosed sensitive read.
+It returns no raw editor IDs, relationship metadata or profile values. Existing
+seed mutation classifications, MUST floors, failed/denied outcomes and genuine
+unknown-COMMIT reconciliation remain unchanged; no separate successful read event
+or private receipt is added. [Standard 18](../../standards/18-audit-coverage.md#native-entry-and-protected-administration)
+owns the audit boundary; [Standard 05](../../standards/05-database.md#fixed-seed-prerequisite-read-authority)
+owns the metadata-only projection and restoration before results.
 
 No seed command mutates a second root. Role grants travel in Role diffs;
 assignments/Profile travel in Membership diffs. Instance-qualified paths

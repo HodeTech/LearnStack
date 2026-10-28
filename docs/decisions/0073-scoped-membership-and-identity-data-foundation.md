@@ -316,3 +316,24 @@ This bounded replacement changes the old exact-v1 warm-refusal rule and finite
 release boundary; historical Accepted body/status/date and prior Amendments stay.
 P03-3 owns implementation, held seed/human races, preservation/adoption/audit
 rollback and repeated no-write controls. Acceptance does not qualify those paths.
+
+### Amendment 4 — Fixed seed prerequisite navigation (2026-10-29)
+
+Accepted [ADR-0080](0080-fixed-seed-prerequisite-read-scope.md) supplies the
+temporary, separately witnessed prerequisite read for the fixed seed's same
+ordinary owner after ordered fences and target preparation. It restores narrow
+scope before mutation and changes neither Tenant nor organization announcement.
+Yoga admin's original independently declared NULL-org seed target remains the
+write scope; the provider branch claim still does not select it. This verification
+capability grants no human orgless reissue, target retargeting or general
+Membership directory access.
+
+[Database Standards](../standards/05-database.md#warm-seed-evidence-and-origin-adoption)
+owns the exact source/lifetime and complete tenant-bound writer census, including
+the content writers' narrow staging proof. The
+[Identity seed sequence](../modules/identity/README.md#first-admin-and-seed-sequence)
+remains the foundation handoff. Private verification metadata stays internal;
+finite manifests, separate global ownership, pristine interrupted resume and
+preserved completed state retain their accepted boundaries. P03-3 Step 3 owes
+runtime proof. Historical Accepted body, status, date and prior amendments remain
+unchanged.

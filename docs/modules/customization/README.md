@@ -6,6 +6,10 @@ path; P02d-2 Step 1 adds contextual exact-definition reads and metadata validati
 P02d-3 adds internal generation-cached display reads; P02d-4 delivers public consumers
 in [Phase 02d](../../roadmap/phase-02d-walking-skeleton.md), and the Admin Studio
 editors with the phases that consume them).
+The fixed-seed continuation extension derives from
+[ADR-0080](../../decisions/0080-fixed-seed-prerequisite-read-scope.md). Its new
+guards and race proofs remain governed by the
+[Phase 03 Status block](../../roadmap/phase-03-identity-admin.md).
 
 The second module spec in the repository, per
 [Documentation Standards § Per-Module Specifications](../../standards/13-documentation.md).
@@ -280,6 +284,20 @@ root `x-fields` profile and semantic resolver. It preserves the four gates and l
 schemas; P02d-2 Step 1 implements the parser and semantic resolver. Seed definitions opt
 into the profile, whereas built-in `card`/`plain` remain unchanged and Active.
 
+### Fixed-seed continuation
+
+The six fixed-seed writer types (both built-in initializers and ContentType/
+Taxonomy register/publish) use the
+[ordinary-scope per-write contract](../../standards/05-database.md#every-tenant-bound-seed-write).
+Module-local guards bind the exact active fixed declaration, take an exclusive
+Tenant fence before quota/concept locks, then freshly verify pristine Tenancy
+prerequisites, absence of all retained Identity Role history and this module's
+exact retained target/predecessor state, natural keys, expected versions and
+immutable authored pins. Owning Application.Contracts ports use that same owner;
+pre-wait tracked objects are not evidence. No temporary seed hatch is used.
+Standard 05 owns the monotonic Identity-stage and admitted immutable-content
+proof, its cross-branch limits and Phase 06 reopening requirement.
+
 ## Component diagram
 
 ```mermaid
@@ -327,12 +345,17 @@ identity; Tenancy carries neither schemas nor Customization IDs.
 
 Initialization preserves Draft, Active, Deprecated, successor and deliberately
 deleted definitions; it never overwrites, republishes or resurrects them. Each
-parameterless initializer takes its tenant from trusted context, acquires the
+parameterless initializer takes its tenant from trusted context, acquires at
+least the canonical shared Tenant fence before quota/concept locks, including the
 transaction-owned semantic lock shared by ordinary registration, then checks all
 revision/status/deletion history under RLS. A new root is validated and Active
 before one save, generation bump and MUST audit; a preserved attempt changes no
 root or generation. The coordinating handlers are explicitly Off and send one
 classified nested command, refusing a failed result rather than completing inbox.
+
+The built-in IntegrationEvent source remains distinct from the exact fixed Seed
+source and receives no seed prerequisite witness. The new fence/competitor proof
+is part of the ADR-0080 extension; the phase Status block owns qualification.
 
 Seeder discovers built-ins by key/version and verifies their exact Active shape,
 retaining warm/generated IDs. Authored curriculum identities/pins stay exact.

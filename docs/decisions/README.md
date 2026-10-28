@@ -124,12 +124,13 @@ records hosted qualification. Phase 11 owns production qualification.
 | 0078 | [Native Session Scope and Self Entry](0078-native-session-scope-and-self-entry.md) | Accepted jointly with ADR-0079 on 2026-10-28: separate authenticated native scope, bounded subject-only entry/discovery, initial/switch admission and unchanged-context refresh; implementation/proof state lives in the [Phase 03 Status block](../roadmap/phase-03-identity-admin.md). |
 | 0079 | [Bounded Identity Administration](0079-bounded-identity-administration.md) | Accepted jointly with ADR-0078 on 2026-10-28: finite administration, explicit v2 adoption, witnessed preserving seed/origin upgrade and current-authority durable replay; acceptance does not qualify runtime. |
 
+| 0080 | [Fixed Seed Prerequisite Read Scope](0080-fixed-seed-prerequisite-read-scope.md) | Accepted 2026-10-29 after maintainer review: separate same-owner temporary seed metadata authority, scope-only restoration/write barriers and complete tenant-bound seed-write proof; implementation/qualification stays in the [Phase 03 Status block](../roadmap/phase-03-identity-admin.md). |
+
 ## Proposed ADRs
 
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
-| 0080 | [Fixed Seed Prerequisite Read Scope](0080-fixed-seed-prerequisite-read-scope.md) | Separate temporary seed read authority for fenced pristine-prefix verification; no human witness weakening or new physical owner | P03-3 Step 3, before this read capability is implemented |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
 the P02d-2 package on 2026-10-02. Their rows are now in Active ADRs; ADR-0049 remains

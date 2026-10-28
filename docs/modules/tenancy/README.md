@@ -10,6 +10,9 @@ administration and warm-preservation contracts are Accepted. The
 [phase Status block](../../roadmap/phase-03-identity-admin.md) owns implementation
 and qualification state for the native read core and subsequent administration,
 seed preservation and provider/browser consumers.
+The separate fixed-seed prerequisite source derives from
+[ADR-0080](../../decisions/0080-fixed-seed-prerequisite-read-scope.md); acceptance
+does not qualify its owner transition or races.
 
 The first module spec in the repository, per
 [Documentation Standards § Per-Module Specifications](../../standards/13-documentation.md).
@@ -313,9 +316,20 @@ state refuses before remaining writes. Each potential write rechecks its trusted
 evidence and target version under the same tenant fence used by administration;
 a read taken before a competing administrator commits is not authority to repair.
 The [canonical contract](../../standards/05-database.md#p03-3-storage-and-replay-contract)
-owns exact witnesses and held-seed locale/profile/grant race proofs. No new seed
-receipt table or reset mode is introduced; Customization/Education checks retain
-their separate existing scope.
+owns exact witnesses and held-seed locale/profile/grant race proofs. Its
+[complete writer census](../../standards/05-database.md#every-tenant-bound-seed-write)
+also governs all twelve Customization/Education writers in ordinary scope. No new
+seed receipt table or reset mode is introduced.
+
+Four original Tenancy continuation writers use the
+[closed temporary prerequisite operation](../../standards/05-database.md#fixed-seed-prerequisite-read-authority)
+after their complete exclusive Tenant plan and applicable target locks;
+`ProvisionTenant` retains INSERT-first without a widened pre-insert read. Owning
+Tenancy prerequisite contracts run narrow before the separate Identity metadata
+projection enters the hatch. The common owner clears it before a usable result
+or mutation. Tenancy's contracts remain separate from Identity's metadata reader;
+closed composition joins them without a dependency cycle or nested dispatch.
+Standard 05 owns exact source binding, consumer population, barriers and cleanup.
 
 The fixed new administration origins are `manage.demo-english.learnstack.local`
 and `manage.demo-yoga.learnstack.local`, each mapping to its existing Tenant with

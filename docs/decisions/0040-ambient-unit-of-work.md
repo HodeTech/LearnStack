@@ -858,3 +858,35 @@ retain their independently defined authority and cleanup boundaries. Standard 05
 owns the lock/source ledger; existing mode, poisoning and common audit rules stay.
 Historical body/status/date and prior amendments remain unchanged. Acceptance is
 not proof that these new owners, functions or setters have been implemented.
+
+### Amendment 17 — Fixed seed scope-only verification (2026-10-29)
+
+Accepted [ADR-0080](0080-fixed-seed-prerequisite-read-scope.md) adds one closed
+temporary prerequisite operation on the existing ordinary ReadWrite owner. Its
+private `SeedPrerequisiteReadWitness` and separate Narrow → Enabling → Verifying → Clearing
+→ Narrow state do not reuse the Protected-human witness or retarget a joined
+owner. The exact active invocation, immutable declaration, complete ordered
+fence/root-lock plan, transaction and generation bind entry and every await.
+
+Dedicated transaction-local enable/clear sites change only `app.scope`; they
+preserve the exact Tenant/organization announcement and generation. The matching
+EF read view widens only while Verifying and returns narrow before usable
+evidence leaves the operation. These scope-only sites enter their own caller
+census; the ten logical Tenant setters, four context writers, eight definers and
+four-role model remain unchanged. No new connection, owner or authorization lane
+is added, and the physical transaction remains ReadWrite.
+
+The common first SaveChanges barrier refuses synchronous/asynchronous and empty
+flushes before audit/domain-event capture, including same-organization writes.
+Entry/exit change detection, the EF
+command guard, owned raw writes including audit/outbox, commit, nested Begin,
+context setters and write/constraint-validation paths enforce the separate
+verification state. Misuse, cancellation, failed enable/clear acknowledgement or
+uncertain cleanup makes the owner sticky rollback-only. Bounded cleanup remains
+independent of caller cancellation and must actually restore/close ownership.
+
+[Database Standards](../standards/05-database.md#warm-seed-evidence-and-origin-adoption)
+owns the canonical transition, barriers and closed caller census. This amendment
+authorizes the bounded source change; P03-3 Step 3 still owes actual lifetime,
+flush/write/commit, isolation, cleanup and competing-commit proofs. Historical
+Accepted bodies, status, date and prior amendments remain unchanged.

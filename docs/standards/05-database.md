@@ -47,6 +47,9 @@ Identity storage and global audit authority additionally derive from Accepted
 Live authorization and evidence source contracts additionally derive from Accepted
 [ADR-0076](../decisions/0076-live-scoped-authorization.md) and
 [ADR-0077](../decisions/0077-trusted-authorization-evidence.md).
+Fixed-seed prerequisite authority and the complete tenant-bound seed-write proof
+additionally derive from
+[ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md).
 
 PostgreSQL schema, EF Core, and migration conventions.
 
@@ -385,6 +388,9 @@ Rules:
   [operation-bound read authority](#operation-bound-read-authority); it derives
   from a live eligible Tenant capability plus a declared tenant-wide operation
   and binds EF/SQL to the actual owner generation. The
+  separate [fixed-seed prerequisite authority](#fixed-seed-prerequisite-read-authority)
+  admits only its closed temporary verification on an existing ordinary owner.
+  It adds scope-only enable/clear sites, not a Tenant setter. The
   [Phase 03 Status block](../roadmap/phase-03-identity-admin.md) owns current
   qualification and review state. The placement rule
   applies to that carrier unchanged. `app.resolving_host` is set by
@@ -2188,8 +2194,8 @@ the resource contract and required progress proof.
 
 ### Operation-bound read authority
 
-**Operation-bound read authority.** ADR-0076 supplies the
-`app.scope` carrier. Only a declared tenant-wide read with an eligible
+**Human operation-bound read authority.** ADR-0076 supplies the
+`app.scope` carrier. Only a declared Protected tenant-wide read with an eligible
 Tenant capability mints an immutable witness binding actor, tenant/org, exact
 request policy and invocation. Branch grants cannot mint it. Step 6 binds the
 actual owner generation and announced values before data SQL; parameterized EF
@@ -2227,6 +2233,111 @@ fixed `(id,timestamp)`/expected-`audit_log_pkey` verification governed by
 READ ONLY verification uses captured RLS scope and full null-safe draft equality;
 it grants no new SELECT, global function or sentinel authority. Ordinary resource
 intent reconciliation retains its different-timestamp contract.
+
+### Fixed-seed prerequisite read authority
+
+[ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md) adds a separate
+sealed `SeedPrerequisiteReadWitness` with a private constructor and exact-census
+minter, derived only from the actual active Application invocation, canonical
+finite Seed policy and independently captured
+immutable fixed-v1 declaration. Bind the exact request reference/type/values,
+manifest/root pins, announced Tenant/organization, complete lock plan, current
+unit, transaction and positive generation. API composition denies its producer;
+an injectable admission Boolean, SystemActor or seed-shaped context supplies no
+authority. `OperationReadWitness` remains sealed, Protected-human-only and unchanged.
+
+Exactly eight writer types consume this temporary authority; this is not the
+[complete tenant-bound seed-write census](#every-tenant-bound-seed-write).
+
+| Temporary-read consumer | Complete fences and target preparation before verification |
+|---|---|
+| Role initialization | Exclusive Tenant; absent-root fence and uniqueness |
+| First-admin Membership creation | Target User, then exclusive Tenant; absent-root fence and uniqueness |
+| Other Membership creation | Target User, then exclusive Tenant; absent-root fence and uniqueness |
+| Profile initialization | Target User, exclusive Tenant, then retained Membership row lock |
+| Additional Organization creation | Exclusive Tenant; absent-root fence and uniqueness |
+| Original host mapping | Exclusive Tenant; absent-projection fence and uniqueness |
+| Locale append | Exclusive Tenant, then existing Tenant row lock |
+| Branding/theme setting creation | Exclusive Tenant, then target setting absence/row probe |
+
+`ProvisionTenant` keeps INSERT-first without a widened pre-insert read. Ordinary
+queries, human requests, jobs, events, nested dispatch, content writers and origin
+adoption cannot inherit this witness. User fences apply only to the three named
+admission/profile consumers and precede Tenant. Lock existing roots that will
+change before verification; absent roots have no row to lock. Verification takes
+no new User lock below Tenant and never reacquires a second plan.
+
+A separate common-owner interface exposes only
+`VerifySeedPrerequisitesAsync(witness, cancellationToken)`: no arbitrary callback,
+SQL argument, directory API or reusable scope lease. Its constructor-registered
+fixed reader resolves on the same scoped owner after construction. Module-local
+guards use owning Application.Contracts ports; the common Application coordinator
+does not reference module request types. A closed composition service joins those
+readers: Tenancy prerequisites run in narrow scope first; only the separate Identity
+metadata projection runs inside the hatch. That Identity reader does not depend
+on the Tenancy guard. No nested `SendAsync`, new provider scope or second physical
+owner implements a prerequisite read.
+
+Seed state is separate from human `_tenantWideRead` and per-frame human witnesses:
+Narrow → Enabling → Verifying → Clearing → Narrow. Entry requires physical depth
+one on a clean, announced ordinary READ COMMITTED ReadWrite owner, without human,
+global or self authority or an earlier consumed witness. Every await revalidates
+the captured invocation, fixed pins, exact plan, transaction and generation.
+Misuse or uncertain outcomes make the complete owner sticky Faulted/rollback-only.
+
+Dedicated transaction-local enable/clear statements change **only** `app.scope`.
+They preserve the exact Tenant/organization announcement and generation; neither
+the ordinary Tenant setter nor `ClearTenantContextAnnouncement` toggles this
+scope. The dynamic EF read view is wide only after acknowledged enable and while
+Verifying, unavailable while Enabling/Clearing and narrow after acknowledged
+clear. No usable admission Boolean or opaque one-use result leaves the operation
+before restoration and continuity recheck. These scope-only sites have an exact
+caller census separate from the unchanged ten logical Tenant setters and four
+context writers.
+
+While verification is active, a common first SaveChanges interceptor refuses
+synchronous/asynchronous flushes before audit/domain-event capture, including
+empty and same-organization saves.
+Enrolled contexts run change detection at entry/exit; pending Added, Modified or
+Deleted state refuses. The EF command guard also checks verification phase and
+command source without parsing SQL. Common owned raw writes, including pending
+audit and outbox INSERTs, check the same write barrier. COMMIT, nested Begin,
+context setters and write/constraint-validation paths refuse and poison while
+verification is active. The hatch physically widens reads across the target
+Tenant's organization-scoped tables; it is not a fixed-ID row-level capability.
+This owner remains ReadWrite, so same-scope/Tenant-wide writes remain physically
+possible. Existing WITH CHECK and restrictive UPDATE/DELETE guards still reject
+cross-organization writes. These are application-owner barriers, not physical
+READ ONLY or a guard against arbitrary SQL through a retained connection.
+
+The fixed Identity projection checks declared predecessors, required absence,
+retained terminal history and graph conditions across the target Tenant's
+branches. Trusted per-root scopes come from the immutable declaration; ordinary
+seed queries retain their current-organization predicates. Read only identifiers,
+lifecycle, versions, creation/update actors, required child existence and finite
+grant/assignment metadata. Do not select provider subject, email, display-name or
+locale-preference values merely to establish pristine history. Admitted edits
+advance versions and carry their actual actor; original seed evidence requires
+SystemActor creation, expected initial versions and required update stamps.
+Return no `MembershipSeedDto`, raw editor evidence or relationship metadata;
+keep those facts outside diagnostics, telemetry, public DTOs, new caches and
+durable receipts. Existing target-value checks remain where required.
+
+These persisted stamps establish the closed admitted-writer boundary, not
+cryptographic provenance: arbitrary SQL with application database credentials
+can forge SystemActor/version/history without any owner or witness. No owner or
+bypass credential is required. This adds no profile hash, HMAC key, receipt store
+or database-tamper-detection claim. Owning module contracts supply other facts
+without cross-module SQL joins. The result is a fenced target-Tenant prefix,
+not an atomic global User/provider or two-Tenant snapshot, and grants no repair,
+reactivation or recreation authority.
+
+Mixed/nested entry, reuse, wrong generation/source, cancellation, failed enable
+or clear and unknown cleanup make the owner rollback-only. Cleanup uses the
+existing bounded owner policy independently of a cancelled caller. A timeout
+alone neither proves restoration nor releases retained capacity. The
+[phase Status block](../roadmap/phase-03-identity-admin.md) owns implementation
+and behavioral proof; acceptance does not qualify this extension.
 
 ## Background jobs
 
@@ -4966,6 +5077,50 @@ locale-removal/profile-edit/grant-removal competitors prove this boundary.
 Global User seed adoption retains its separate subject-key prepared owner and
 commits/disposes outside every tenant-bound owner. It takes no tenant fence or
 synthetic tenant context; this per-write recheck rule does not join those modes.
+
+#### Every tenant-bound seed write
+
+The fixed-v1 runners send **21 writer types**: five Tenancy, six Customization,
+six Education and four Identity. Origin adoption below is the separate
+twenty-second tenant-bound writer. The refused `SetDefaultTenantLocaleCommand`
+adds no actual writer. The eight temporary-read consumers follow the
+[separate authority contract](#fixed-seed-prerequisite-read-authority); they do
+not replace this complete per-write obligation.
+
+The twelve content writers are both built-in initializers, ContentType and
+Taxonomy register/publish, and Course/Lesson create, translation append and
+publish. Their module-local guards first bind the actual invocation and canonical
+finite Seed policy to the independently captured exact fixed declaration,
+acquire one exclusive Tenant plan and applicable module/root locks, then freshly
+verify prerequisites through owning Application.Contracts
+ports on that same owner. Customization takes Tenant before quota/concept keys;
+Education takes Tenant before parent/target row locks. Tracked pre-wait objects
+are not fresh evidence. A seed-shaped context or arbitrary request cannot replace
+exact fixed-source admission. These checks use ordinary scope, with no seed hatch.
+
+Each requires pristine Tenancy prerequisites and **no retained Identity Role
+history**, through a closed ordinary-scope Identity contract. All Roles precede
+Memberships in v1; Role storage is Tenant-wide, DELETE is denied and tombstones
+remain. Any retained Role therefore proves the later Identity stage began, even
+when a branch profile/grant/assignment is invisible to the content owner. Check
+all retained Roles, not only active rows or declared IDs. Owning contracts also
+check exact retained target/predecessor state, natural keys, expected versions
+and immutable authored pins. The fixed source admits canonical advancement only,
+not arbitrary authored values. Initial taxonomy/built-in versions follow their
+real aggregate transitions, without an assumed version-zero rule.
+
+Cross-organization immutable prerequisites remain stable under the closed
+admitted writer population and existing publication rules. This is neither an
+all-branch content snapshot nor proof against arbitrary database mutation.
+Phase 06 reopens the staging proof before mutable content administration. Ambiguous
+or conflicting history refuses without repair; valid interrupted fixed installs
+still require actual resume proof at each stage.
+
+The built-in IntegrationEvent source remains distinct and receives no seed
+witness. Participating writes acquire at least the canonical shared Tenant fence
+before quota/concept locks. Origin adoption retains its separately fenced
+topology/completion checks and plural audit, with no pristine-resume hatch.
+Both populations enter the complete writer/competitor census and race proofs.
 
 The fixed `AdoptSeedAdministrationOriginCommand` installs only the declared
 `manage.demo-english.learnstack.local` / `manage.demo-yoga.learnstack.local`

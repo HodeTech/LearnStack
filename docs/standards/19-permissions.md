@@ -18,6 +18,8 @@ Native scope admission and bounded administration additionally derive from
 [ADR-0079](../decisions/0079-bounded-identity-administration.md). Their new consumers
 are Accepted contracts pending P03-3 implementation and proof; the
 [phase Status block](../roadmap/phase-03-identity-admin.md) owns packet state.
+The separate fixed-seed prerequisite source derives from
+[ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md).
 
 LearnStack uses permission-based RBAC layered on top of tenant membership. This standard pins the **naming convention**, **closed action set**, **registration pattern**, **enforcement points**, and the **per-module matrix template** that every module must produce.
 
@@ -428,6 +430,17 @@ grants; coverage alone supplies no capability. Resolver, HTTP and earlier nested
 results are not reusable grants. Tenant-wide read widening requires the
 [operation witness](05-database.md#operation-bound-read-authority), never an
 Organization grant or implicit clearing of authenticated branch write scope.
+
+The separate [fixed-seed prerequisite witness](05-database.md#fixed-seed-prerequisite-read-authority)
+derives only from the exact active finite Seed invocation and independently
+captured fixed declaration. It grants no human permission and does not generalize
+Protected-only `OperationReadWitness` minting. The closed temporary check runs
+after the complete ordered plan, clears before any usable result or mutation and
+cannot be inherited by human, event/job, origin-adoption or content writers.
+Content seed writers instead obey the
+[ordinary-scope per-write proof](05-database.md#every-tenant-bound-seed-write).
+Standard 05 owns both contracts and their closed source/caller populations;
+acceptance supplies no implementation proof or production provisioner authority.
 
 `ChangeRoleGrantsCommand` and `AdoptRoleGrantManifestCommand` are separate
 production application acts, each with one Role root and expected Role row version.

@@ -31,6 +31,8 @@ Live authorization evidence derives from jointly Accepted
 Native entry/administration and replay additions derive from jointly Accepted
 [ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md) and
 [ADR-0079](../decisions/0079-bounded-identity-administration.md).
+The internal fixed-seed prerequisite boundary additionally derives from
+[ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md).
 
 This standard defines **which operations must be audited**, **what an audit entry
 contains**, **how long entries are retained**, and how each module signs up for its
@@ -842,6 +844,19 @@ projection on the same common transaction with declared plural MUST evidence.
 There is no second aggregate writer or private Seeder audit table. Successful
 warm no-write checks declare no new mutation intent. Real seed/adoption races,
 unknown creation, replay failure and refresh zero-event-delta proofs are required.
+
+The [closed fixed-seed prerequisite check](05-database.md#fixed-seed-prerequisite-read-authority)
+is internal to the classified seed act. Its metadata projection is not an
+externally callable directory or a disclosure under the other-person
+sensitive-read rule above; it adds no audit classification or separate successful
+read event. The eight temporary-read consumers and twelve ordinary-scope content
+writers retain their existing mutation classifications and MUST floors. Refusal
+retains the act's existing failed/denied audit and genuine unknown-COMMIT
+reconciliation. Editor IDs and relationship metadata remain personal data,
+internal to the check; no raw editor evidence enters results, diagnostics or
+durable receipts. An independently callable or value-disclosing reader requires
+separate sensitive-read classification before activation. Acceptance supplies no
+new runtime qualification; the phase Status block remains authoritative.
 
 The seven-/two-year retention periods above remain **policy targets**, not an
 implemented automatic purge. Phase 11 owns enforcement and production volume

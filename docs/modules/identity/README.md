@@ -24,6 +24,9 @@ obligations without treating acceptance as runtime proof.
 The ordered admission timing/observation contract additionally derives from
 [ADR-0074](../../decisions/0074-membership-admission-under-ordered-locks.md),
 Accepted 2026-10-26. The phase Status block owns qualification and review state.
+The fixed-seed prerequisite source derives from
+[ADR-0080](../../decisions/0080-fixed-seed-prerequisite-read-scope.md); its
+acceptance does not qualify the new owner transition or seed race proofs.
 
 ## Overview
 
@@ -230,6 +233,26 @@ per-write recheck and held-seed/admin race controls belong to
 [Standard 05](../../standards/05-database.md#p03-3-storage-and-replay-contract).
 Tenancy's separate [seed-origin adoption](../tenancy/README.md#warm-seed-and-administration-origins)
 does not grant Role authority or repair Identity children.
+
+The four Identity seed writers use Standard 05's
+[closed temporary prerequisite operation](../../standards/05-database.md#fixed-seed-prerequisite-read-authority)
+only after their complete ordered plan and target preparation. A separate
+Identity projection checks the fixed declaration's retained history across the
+target Tenant's branches using metadata only; ordinary seed readers keep their
+current-organization predicates. Tenancy prerequisites run narrow first, and
+the common owner restores narrow scope before returning any usable result. The
+Identity metadata reader does not depend on the Tenancy guard; a closed
+composition service joins owning contracts without a runtime dependency cycle
+or module request types in the common coordinator. It returns no profile values,
+raw editor evidence or Membership directory. Standard 05 owns source binding,
+state/write barriers, cleanup and the admitted-writer threat boundary.
+
+Identity also supplies the separate closed ordinary-scope prerequisite for the
+[twelve content seed writers](../../standards/05-database.md#every-tenant-bound-seed-write):
+absence of **all retained Tenant-wide Role history**, including tombstones and
+undeclared IDs. Role DELETE is denied, so any retained Role proves the later v1
+Identity stage began even when branch Membership facts are invisible. This
+contract neither borrows the temporary hatch nor exposes a Role directory.
 
 | Existing actor | Membership scope | Assignment |
 |---|---|---|

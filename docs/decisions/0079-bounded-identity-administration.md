@@ -558,3 +558,40 @@ TenantContext. This clarification preserves the original global/tenant owner
 separation; it adds no new writer or lock. The canonical wording is explicit in
 [Database Standards](../standards/05-database.md#warm-seed-evidence-and-origin-adoption).
 Accepted body, Date and Deciders remain unchanged.
+
+### Amendment 2 — Complete seed-write census and prerequisite proof (2026-10-29)
+
+Accepted [ADR-0080](0080-fixed-seed-prerequisite-read-scope.md) supplies the
+missing post-wait read authority for this ADR's pristine-prefix obligation. Its
+eight direct temporary-read consumers are a subset of the 21 v1 tenant-bound
+writer types: five Tenancy, six Customization, six Education and four Identity.
+Fixed administration-origin adoption is a separate twenty-second writer; global
+User adoption retains its separate subject-key owner. Every tenant-bound write
+still takes its complete ordered fences and applicable root locks, then freshly
+checks prerequisites on that same owner. `ProvisionTenant` remains INSERT-first.
+
+The twelve Customization/Education writers use narrow owning Application.Contracts
+reads, without the temporary hatch. Their stage proof requires pristine Tenancy
+and no retained Role history for the target Tenant, including inactive,
+tombstoned and undeclared Role IDs. Roles are Tenant-wide, DELETE is denied and
+all Roles precede Memberships in v1; any retained Role establishes the later
+Identity stage. Exact fixed-source admission, retained targets/predecessors,
+versions, natural keys and immutable authored pins also remain required.
+Built-in IntegrationEvent competitors receive no seed witness and take at least
+the shared Tenant fence before quota/concept locks. Origin adoption retains its
+own fenced completion/topology checks and plural MUST audit.
+
+This is a proof over the closed admitted writer population, not an all-branch
+content snapshot or authenticated database history. Arbitrary SQL with application
+database credentials can forge SystemActor/version/history without owner or
+bypass credentials. No hash, receipt store, repair or reset authority is added.
+Phase 06 must reopen the content staging proof before mutable content
+administration. Valid completed state stays preserved and compatible interrupted
+v1 installations still require real resume proof.
+
+[Database Standards](../standards/05-database.md#warm-seed-evidence-and-origin-adoption)
+owns the complete writer/competitor census and checks; the
+[architecture catalogue](../standards/21-architecture-tests-catalogue.md#tenant_bound_seed_writes_recheck_under_ordered_fences)
+registers their actual concurrency and interruption obligations. P03-3 Step 3
+qualifies them before its implementation closeout. Historical Accepted body,
+status, date, Deciders and Amendment 1 remain unchanged.

@@ -28,6 +28,10 @@ P02d-4 is complete and merged through
 [PR #25](https://github.com/HodeTech/LearnStack/pull/25) on 2026-10-08; its
 [merge closeout](../../roadmap/phase-02d-delivery-log.md#p02d-4-merge-and-closeout-2026-10-08)
 records final verification. The diagram includes the access column.
+The fixed-seed continuation extension derives from
+[ADR-0080](../../decisions/0080-fixed-seed-prerequisite-read-scope.md); its new
+guards and race proofs remain governed by the
+[Phase 03 Status block](../../roadmap/phase-03-identity-admin.md).
 
 ## Overview
 
@@ -259,6 +263,17 @@ including exact ownership/content/state and current root version where needed.
 They are explicitly audit Off, unrouted, without unresolved/public admission and
 never bypass RLS. The phase's convergence rules govern skip/create/verify behavior;
 they are not a weaker alternate write path.
+
+All six fixed Course/Lesson create, translation-append and publish writers obey
+the [ordinary-scope per-write contract](../../standards/05-database.md#every-tenant-bound-seed-write).
+Module-local guards bind the exact active fixed declaration, acquire an exclusive
+Tenant fence before applicable parent/target row locks, then freshly verify
+pristine Tenancy prerequisites, absence of all retained Identity Role history
+and exact retained target/predecessor state, natural keys, expected versions and
+immutable authored pins. Reads use owning Application.Contracts ports on that
+same owner; pre-wait tracked objects are not evidence. These writers use no
+temporary seed hatch. Standard 05 owns the admitted immutable-content proof,
+its cross-branch limits and the Phase 06 reopening requirement.
 
 ## Components and primary read flow
 
