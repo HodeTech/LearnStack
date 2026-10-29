@@ -2,6 +2,7 @@ using FluentAssertions;
 using LearnStack.Api.Common;
 using LearnStack.Modules.Education.Application.Contracts.PublicReads;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
+using LearnStack.Modules.Identity.Application.Contracts.Entry;
 using LearnStack.SharedKernel.Pagination;
 using LearnStack.Modules.Tenancy.Application.Contracts.Account;
 using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
@@ -30,6 +31,8 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
             "Get" => typeof(PublicSite),
             "GetSite" => typeof(AccountSite),
             "List" => typeof(Page<MembershipDirectoryItem>),
+            "Admit" when action.ControllerTypeInfo.AsType() == typeof(LearnStack.Api.Identity.NativeSessionAdmissionController)
+                => typeof(NativeSessionScopeAdmission),
             "Catalog" => typeof(PublicCourseCatalog),
             "Course" => typeof(PublicCourseDetail),
             "Lesson" => typeof(PublicLessonDetail),
@@ -131,7 +134,7 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         AssertFilterProviders(factory.Services.GetServices<IFilterProvider>());
         var actions = factory.Services.GetRequiredService<EndpointDataSource>().Endpoints
             .Select(endpoint => endpoint.Metadata.GetMetadata<ControllerActionDescriptor>()).OfType<ControllerActionDescriptor>().ToArray();
-        actions.Should().HaveCount(10);
+        actions.Should().HaveCount(11);
         foreach (var action in actions)
         {
             Action assert = () => AssertActionFilters(action);
@@ -155,7 +158,7 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         using var client = factory.CreateClient();
         var endpoints = factory.Services.GetRequiredService<EndpointDataSource>().Endpoints
             .Where(endpoint => endpoint.Metadata.GetMetadata<ControllerActionDescriptor>() is not null).ToArray();
-        endpoints.Should().HaveCount(10);
+        endpoints.Should().HaveCount(11);
         foreach (var endpoint in endpoints)
         {
             var action = endpoint.Metadata.GetMetadata<ControllerActionDescriptor>()!;

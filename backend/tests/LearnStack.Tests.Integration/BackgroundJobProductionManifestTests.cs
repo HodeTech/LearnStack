@@ -195,9 +195,10 @@ public sealed class BackgroundJobProductionManifestTests
         }).Order(StringComparer.Ordinal).ToArray();
         var applicationRoutes = new[]
         {
-            // The two authenticated reads add no job operator route.
+            // The two authenticated reads and exact native admission add no job operator route.
             "account/site|GET|" + typeof(AccountController).FullName + ".GetSite",
             "identity/memberships|GET|" + typeof(MembershipsController).FullName + ".List",
+            "identity/session-scope/admissions|POST|" + typeof(NativeSessionAdmissionController).FullName + ".Admit",
             "public/site|GET|" + typeof(PublicSiteController).FullName + ".Get",
             "public/site|HEAD|" + typeof(PublicSiteController).FullName + ".Head",
             "public/courses|GET|" + typeof(PublicEducationController).FullName + ".Catalog",

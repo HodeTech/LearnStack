@@ -23,6 +23,8 @@
                       ReferenceOutputAssembly="false" />
     <ProjectReference Include="../LearnStack.Tests.AuthorizationEvidenceProbe/LearnStack.Tests.AuthorizationEvidenceProbe.csproj"
                       ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../LearnStack.Tests.IdempotencyStoreProbe/LearnStack.Tests.IdempotencyStoreProbe.csproj"
+                      ReferenceOutputAssembly="false" />
     <!-- The tenancy schema tests apply the module's own migration and assert its
          policies, so they need the migration assembly and the persistence model
          directly — not the DI registration. AddLearnStackPersistence does register
@@ -78,6 +80,16 @@
     <Error Condition="'@(_AuthorizationEvidenceProbeFiles)' == ''" Text="The authorization evidence proof sidecar was not built." />
     <Copy SourceFiles="@(_AuthorizationEvidenceProbeFiles)"
           DestinationFiles="@(_AuthorizationEvidenceProbeFiles->'$(OutDir)authorization-evidence-probe/%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="StageIdempotencyStoreProbe" AfterTargets="Build">
+    <ItemGroup>
+      <_IdempotencyStoreProbeFiles Include="$(MSBuildThisFileDirectory)../LearnStack.Tests.IdempotencyStoreProbe/bin/$(Configuration)/$(TargetFramework)/**/*" />
+    </ItemGroup>
+    <Error Condition="'@(_IdempotencyStoreProbeFiles)' == ''" Text="The idempotency store proof sidecar was not built." />
+    <Copy SourceFiles="@(_IdempotencyStoreProbeFiles)"
+          DestinationFiles="@(_IdempotencyStoreProbeFiles->'$(OutDir)idempotency-store-probe/%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true" />
   </Target>
 

@@ -133,12 +133,145 @@ public sealed class UnitOfWorkCommitCleanupTests(SchemaFixture schema)
         (await CountMarkerAsync(source, marker)).Should().Be(0);
     }
 
+    [Fact]
+    public async Task Idempotency_end_disposes_the_committed_transaction_and_connection_once()
+    {
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using var source = ApplicationDataSource.Build(database.AppConnectionString);
+        await using var unit = new NpgsqlUnitOfWork(source, NullLogger<NpgsqlUnitOfWork>.Instance);
+        var frame = await unit.BeginTransactionAsync();
+        await unit.SetTenantContextAsync(Context);
+        var connection = unit.Connection;
+        var marker = await InsertMarkerAsync(unit);
+        var transaction = Interpose(unit);
+        await frame.CompleteAsync();
+        unit.HasActiveTransaction.Should().BeFalse();
+        connection.State.Should().Be(ConnectionState.Open);
+        (await unit.EndBusinessOwnerAsync()).Should().BeTrue();
+        connection.State.Should().Be(ConnectionState.Closed);
+        transaction.Disposals.Should().Be(1);
+        (await unit.EndBusinessOwnerAsync()).Should().BeTrue();
+        transaction.Disposals.Should().Be(1);
+        await FluentActions.Awaiting(() => unit.BeginTransactionAsync()).Should().ThrowAsync<ObjectDisposedException>();
+        (await CountMarkerAsync(source, marker)).Should().Be(1);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Idempotency_end_joins_actual_frame_or_unit_cleanup_instead_of_a_repeated_noop(bool wholeUnit)
+    {
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using var source = ApplicationDataSource.Build(database.AppConnectionString);
+        await using var unit = new NpgsqlUnitOfWork(source, NullLogger<NpgsqlUnitOfWork>.Instance);
+        var frame = await unit.BeginTransactionAsync();
+        await unit.SetTenantContextAsync(Context);
+        var marker = await InsertMarkerAsync(unit);
+        var connection = unit.Connection;
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var transaction = Interpose(unit, releaseCleanup: release.Task);
+        await frame.CompleteAsync();
+        var cleanup = wholeUnit ? unit.DisposeAsync().AsTask() : frame.DisposeAsync().AsTask();
+        Task<bool>? end = null;
+        Task? afterEnd = null;
+        var outcomeStarted = false;
+        try
+        {
+            await transaction.CleanupEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            end = unit.EndBusinessOwnerAsync().AsTask();
+            afterEnd = ObserveOutcomeAsync(end);
+            // A scheduling yield alone could precede End's first continuation.
+            // Observe the held owner over a bounded interval instead.
+            await Assert.ThrowsAsync<TimeoutException>(() => afterEnd.WaitAsync(TimeSpan.FromMilliseconds(150)));
+            cleanup.IsCompleted.Should().BeFalse();
+            end.IsCompleted.Should().BeFalse();
+            outcomeStarted.Should().BeFalse();
+            connection.State.Should().Be(ConnectionState.Open);
+            await FluentActions.Awaiting(() => unit.BeginTransactionAsync()).Should().ThrowAsync<ObjectDisposedException>();
+        }
+        finally
+        {
+            release.TrySetResult();
+            await cleanup.WaitAsync(TimeSpan.FromSeconds(5));
+            if (end is not null) (await end.WaitAsync(TimeSpan.FromSeconds(5))).Should().BeTrue();
+            if (afterEnd is not null) await afterEnd.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        transaction.Disposals.Should().Be(1);
+        connection.State.Should().Be(ConnectionState.Closed);
+        outcomeStarted.Should().BeTrue();
+        (await CountMarkerAsync(source, marker)).Should().Be(1);
+
+        async Task ObserveOutcomeAsync(Task<bool> ended)
+        {
+            if (await ended) outcomeStarted = true;
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Idempotency_end_never_relabels_a_failed_transaction_cleanup_as_confirmed(bool commitFailed)
+    {
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using var source = ApplicationDataSource.Build(database.AppConnectionString);
+        await using var unit = new NpgsqlUnitOfWork(source, NullLogger<NpgsqlUnitOfWork>.Instance);
+        var frame = await unit.BeginTransactionAsync();
+        await unit.SetTenantContextAsync(Context);
+        var marker = await InsertMarkerAsync(unit);
+        var connection = unit.Connection;
+        var primary = new IOException("fixed unsent commit failure");
+        var failure = new IOException("fixed transaction cleanup failure");
+        Interpose(unit, commitFailed ? primary : null, failure);
+        if (commitFailed)
+        {
+            // Injection fails before COMMIT is sent; this does not establish a
+            // network lost-ACK case. The original exception must remain primary.
+            await FluentActions.Awaiting(() => frame.CompleteAsync()).Should()
+                .ThrowAsync<IOException>().Where(actual => ReferenceEquals(actual, primary));
+        }
+        else
+        {
+            await frame.CompleteAsync();
+            await FluentActions.Awaiting(() => frame.DisposeAsync().AsTask()).Should()
+                .ThrowAsync<IOException>().Where(actual => ReferenceEquals(actual, failure));
+        }
+        unit.HasActiveTransaction.Should().BeFalse();
+        (await unit.EndBusinessOwnerAsync()).Should().BeFalse();
+        connection.State.Should().Be(ConnectionState.Closed);
+        (await unit.EndBusinessOwnerAsync()).Should().BeFalse();
+        await unit.DisposeAsync();
+        (await CountMarkerAsync(source, marker)).Should().Be(commitFailed ? 0 : 1);
+    }
+
+    [Fact]
+    public async Task Positive_idempotency_cleanup_after_a_commit_exception_does_not_prove_business_rollback()
+    {
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using var source = ApplicationDataSource.Build(database.AppConnectionString);
+        await using var unit = new NpgsqlUnitOfWork(source, NullLogger<NpgsqlUnitOfWork>.Instance);
+        var frame = await unit.BeginTransactionAsync();
+        await unit.SetTenantContextAsync(Context);
+        var marker = await InsertMarkerAsync(unit);
+        var primary = new IOException("fixed post-commit observation failure");
+        var transaction = Interpose(unit, afterCommitFailure: primary);
+        // The real PostgreSQL COMMIT succeeds before this injected observation
+        // fault. This is deliberately not described as a dropped wire ACK.
+        await FluentActions.Awaiting(() => frame.CompleteAsync()).Should()
+            .ThrowAsync<IOException>().Where(actual => ReferenceEquals(actual, primary));
+        unit.HasActiveTransaction.Should().BeFalse();
+        transaction.Disposals.Should().Be(1);
+        (await unit.EndBusinessOwnerAsync()).Should().BeTrue();
+        (await CountMarkerAsync(source, marker)).Should().Be(1,
+            "cleanup establishes ended ownership, never business rollback or exactly-once execution");
+    }
+
     private static CleanupTransaction Interpose(NpgsqlUnitOfWork unit,
-        Exception? commitFailure = null, Exception? cleanupFailure = null, Task? releaseCleanup = null)
+        Exception? commitFailure = null, Exception? cleanupFailure = null, Task? releaseCleanup = null,
+        Exception? afterCommitFailure = null)
     {
         var field = typeof(NpgsqlUnitOfWork).GetField("_transaction", BindingFlags.Instance | BindingFlags.NonPublic)!;
         var current = (DbTransaction)field.GetValue(unit)!;
-        var wrapper = new CleanupTransaction(current, commitFailure, cleanupFailure, releaseCleanup);
+        var wrapper = new CleanupTransaction(current, commitFailure, cleanupFailure, releaseCleanup, afterCommitFailure);
         // Test-only failure injection: all SQL/COMMIT still uses the actual app-role
         // connection; no production transaction factory or alternate owner is added.
         field.SetValue(unit, wrapper);
@@ -187,7 +320,7 @@ public sealed class UnitOfWorkCommitCleanupTests(SchemaFixture schema)
     }
 
     private sealed class CleanupTransaction(DbTransaction inner, Exception? commitFailure,
-        Exception? cleanupFailure, Task? releaseCleanup) : DbTransaction
+        Exception? cleanupFailure, Task? releaseCleanup, Exception? afterCommitFailure) : DbTransaction
     {
         public int Commits { get; private set; }
         public int Disposals { get; private set; }
@@ -203,6 +336,7 @@ public sealed class UnitOfWorkCommitCleanupTests(SchemaFixture schema)
             Commits++;
             if (commitFailure is not null) throw commitFailure;
             await inner.CommitAsync(cancellationToken);
+            if (afterCommitFailure is not null) throw afterCommitFailure;
         }
 
         public override async ValueTask DisposeAsync()

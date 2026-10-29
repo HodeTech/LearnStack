@@ -120,6 +120,9 @@ internal static class TenancyAdministrationInput
     {
         ListOrganizationsQuery query => query.Limit > 0 && ValidCursor(query.Cursor),
         GetOrganizationDetailQuery query => ValidId(query.OrganizationId),
+        ReadOrganizationReceiptQuery query => ValidId(query.OrganizationId),
+        ReadDefaultOrganizationReceiptQuery query => StronglyTypedId.IsAssigned(query.TenantId)
+            && query.TenantId != TenantId.PlatformSentinel && query.TenantId.Value.Version == 7,
         CreateManagedOrganizationCommand command => ValidSlug(command.Slug) && ValidName(command.DisplayName),
         RenameOrganizationCommand command => ValidId(command.OrganizationId) && command.ExpectedVersion >= 0 && ValidName(command.DisplayName),
         ArchiveOrganizationCommand command => ValidId(command.OrganizationId) && command.ExpectedVersion >= 0,

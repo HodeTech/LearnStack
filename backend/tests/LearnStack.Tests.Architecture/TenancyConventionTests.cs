@@ -287,7 +287,8 @@ public sealed partial class TenancyConventionTests
     /// </summary>
     private static readonly string[] WritingSetters =
         ["LearnStack.Infrastructure.Audit/PostgresAuditStore.cs", "LearnStack.Infrastructure.Audit/PostgresAuditStore.GlobalIdentity.cs",
-         "LearnStack.Infrastructure/Persistence/AuthorizationEvidenceSession.cs"];
+         "LearnStack.Infrastructure/Persistence/AuthorizationEvidenceSession.cs",
+         "LearnStack.Infrastructure/Idempotency/PostgresIdempotencyStore.Owner.cs"];
 
     /// <summary>
     /// The readers, each in a short read-only transaction of its own: the host resolver, the

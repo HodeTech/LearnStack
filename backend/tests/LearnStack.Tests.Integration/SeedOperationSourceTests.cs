@@ -7,6 +7,7 @@ using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.Application.Pipeline;
 using MediatR;
+using LearnStack.Modules.Identity.Application.Contracts.Entry;
 using LearnStack.Modules.Tenancy.Application.Contracts.Account;
 using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
 using LearnStack.Modules.Tenancy.Application.Contracts.Seeding;
@@ -138,7 +139,8 @@ public sealed class SeedOperationSourceTests
         var scope = provider.CreateAsyncScope();
         var expected = ModuleSources().SelectMany(source => source.Policies)
             .Where(policy => policy.AllowedSources.Contains(AuthorizationSourceKind.Seed)).Select(policy => policy.RequestType).ToArray();
-        expected.Should().HaveCount(34).And.OnlyHaveUniqueItems();
+        expected.Should().HaveCount(35).And.OnlyHaveUniqueItems();
+        expected.Should().Contain(typeof(AdoptSeedAdministrationOriginCommand));
         var sources = scope.ServiceProvider.GetServices<ITrustedOperationSource>().ToArray();
         var captured = expected.Select(type => sources.Select(source => source.Capture(type, context))
             .Where(descriptor => descriptor is not null).Cast<TrustedOperationDescriptor>().Should().ContainSingle().Subject).ToArray();
@@ -148,7 +150,7 @@ public sealed class SeedOperationSourceTests
             descriptor.Matches(descriptor.RequestType, context).Should().BeTrue();
             descriptor.Matches(descriptor.RequestType, new SeedTenantContext(context.TenantId, context.OrganizationId)).Should().BeFalse();
         }
-        foreach (var type in new[] { typeof(GetPublicSiteQuery), typeof(GetAccountSiteQuery), typeof(SeedOperationSourceTests) })
+        foreach (var type in new[] { typeof(GetPublicSiteQuery), typeof(GetAccountSiteQuery), typeof(AdmitNativeSessionScopeCommand), typeof(SeedOperationSourceTests) })
             sources.Select(source => source.Capture(type, context)).Should().OnlyContain(descriptor => descriptor == null);
         await scope.DisposeAsync();
         captured.Should().OnlyContain(descriptor => !descriptor.IsActive);

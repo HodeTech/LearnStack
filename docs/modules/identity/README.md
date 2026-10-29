@@ -404,8 +404,9 @@ mutation results retain the exact MembershipId and version for later transport.
 
 These six application consumers add no HTTP route or native screen. Current-branch
 directory, Role list/detail/permission-registry reads, own-capability previews,
-protected receipt replay and administration HTTP/SDK/native/browser consumers
-remain pending under the [phase Status block](../../roadmap/phase-03-identity-admin.md).
+administration HTTP/SDK/native/browser consumers remain governed by the
+[phase Status block](../../roadmap/phase-03-identity-admin.md). Receipt disclosure
+uses the six closed Identity/Tenancy application reads described below.
 
 The existing Role grant/adoption writers use the eight finite templates.
 [Standard 19](../../standards/19-permissions.md#bounded-administration-and-version-2-adoption)
@@ -414,9 +415,14 @@ unchanged kernel. [Standard 05](../../standards/05-database.md#p03-3-storage-and
 owns exact Role/Membership lock plans, adoption guards, warm witnesses and durable
 protected receipt metadata. Member-detail Tenant read alternatives may mint the
 existing read witness; exact-branch alternatives stay scoped, and writes never
-inherit that hatch. The pending receipt consumer must reauthorize the stored
-original target and commit a fresh MUST read event before returning retained
-bytes; it must neither rerun the mutation nor substitute a successor Membership.
+inherit that hatch. Receipt reads reauthorize the stored original target and
+commit a fresh MUST read event before retained bytes can be returned. Membership,
+profile, own-profile and Role reads use exact original IDs, including retained
+terminal targets; own-profile disclosure also requires the original current actor
+and scope. They neither rerun the mutation nor substitute a successor Membership.
+The Tenancy receipt reads cover the original Organization or Tenant default
+resource with their current disclosure capability. Ordinary readers keep their
+current-only filters; receipt reads add no general history or directory surface.
 
 [Permissions](permissions.md#bounded-administration-contract) owns capability and
 advisory-preview bindings; [audit](audit.md#bounded-entry-and-administration-classifications)

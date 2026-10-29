@@ -45,9 +45,9 @@ the request exists, and off-path events register by slug when their writer lands
 | Role summaries | `identity.role.list` `(planned)` | **MUST** (`read-sensitive`) | Current Role-read admission before finite template disclosure. |
 | Role detail | `identity.role.read` `(planned)` | **MUST** (`read-sensitive`) | Current Role-read admission before grants/release-marker disclosure. |
 | Permission registry and release choices | `identity.role.list_permissions` `(planned)` | **MUST** (`read-sensitive`) | Tenant role-admin admits the exact finite registry/release configuration, separately from own-capability hints. |
-| Original Membership outcome | `identity.membership.read_receipt` `(planned)` | **MUST** (`read-sensitive`) | Current original-target disclosure authority before stored successful bytes; terminal target facts only for this receipt. |
-| Original MembershipProfile outcome | `identity.membership_profile.read_receipt` `(planned)` | **MUST** (`read-sensitive`) | Exact stored original Membership and self/admin predicate; no later successor substitution. |
-| Original Role outcome | `identity.role.read_receipt` `(planned)` | **MUST** (`read-sensitive`) | Fresh Role receipt disclosure admission; does not reexecute grant/adoption mutation. |
+| Original Membership outcome | `identity.membership.read_receipt` | **MUST** (`read-sensitive`) | Current original-target disclosure authority before stored successful bytes; terminal target facts only for this receipt. |
+| Original MembershipProfile outcome | `identity.membership_profile.read_receipt` | **MUST** (`read-sensitive`) | Exact stored original Membership and self/admin predicate; no later successor substitution. |
+| Original Role outcome | `identity.role.read_receipt` | **MUST** (`read-sensitive`) | Fresh Role receipt disclosure admission; does not reexecute grant/adoption mutation. |
 
 **Explicit Off reads.** Contextual seed verification request types are registered
 Off before use; they inspect only the exact bounded declared seed facts, with no

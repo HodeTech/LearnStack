@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 1,978 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 2,061 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -175,7 +175,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 4 review round 2 and closeout (2026-10-29)](#p03-3-step-4-review-round-2-and-closeout-2026-10-29) — 37 lines
   - [P03-3 Step 5 — Tenancy administration and lifecycle guards (2026-10-29)](#p03-3-step-5--tenancy-administration-and-lifecycle-guards-2026-10-29) — 91 lines
   - [P03-3 Step 5 review round 1 and verified corrections (2026-10-29)](#p03-3-step-5-review-round-1-and-verified-corrections-2026-10-29) — 60 lines
-  - [P03-3 Step 5 review round 2 and closeout (2026-10-29)](#p03-3-step-5-review-round-2-and-closeout-2026-10-29) — 61 lines
+  - [P03-3 Step 5 review round 2 and closeout (2026-10-29)](#p03-3-step-5-review-round-2-and-closeout-2026-10-29) — 62 lines
+  - [P03-3 Step 6 — Durable protected outcomes and receipt disclosure (2026-10-29)](#p03-3-step-6--durable-protected-outcomes-and-receipt-disclosure-2026-10-29) — 82 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -7697,3 +7698,86 @@ HTTP/OpenAPI/SDK and remaining directory/Role/own-navigation consumers; Steps
 8/9 retain native/screens/provider/browser/manual accessibility and Step 10
 full final-source/hosted A-B qualification. No selected work moves to another
 phase, and no branch switch, push or PR occurs here.
+
+
+### P03-3 Step 6 — Durable protected outcomes and receipt disclosure (2026-10-29)
+
+**Implementation.** The production `IIdempotencyStore` registration now uses
+`PostgresIdempotencyStore` on the existing guarded app source. Claim, completion
+and release own separate short READ COMMITTED transactions, announce their
+Tenant before SQL, use the closed capacity-key domain and await actual resource
+disposal. Existing-key service precedes capacity; at most 1,000 physical retained
+slots include every state. Expired UPDATE/rekey clears outcome/target/token;
+old owners cannot complete or release a replacement. A forward Platform-chain
+migration adds paired nullable original-target metadata and closed checks; no
+role, policy, column privilege, table, definer or logical setter is added.
+
+The six closed Identity/Tenancy application receipt reads use current live
+coverage/lifecycle/disclosure capability and the retained original target. They
+commit fresh MUST sensitive-read evidence before replay bytes. Own-profile
+receipt disclosure also requires the original actor and exact scope; it uses the
+narrow audited-own COMMIT-failure mapping. Terminal target facts admit only this
+receipt, with no successor substitution, global projection, directory hatch or
+mutation reexecution. Ordinary list/detail filters and write predicates remain.
+
+The protected API mechanism has a finite ten-operation descriptor and sealed
+actual-result carrier, canonical strong numeric preconditions, versioned
+fingerprint and header-inclusive 1 KiB successful receipt. Missing/malformed
+preconditions refuse; original-target replay sends only its separate read query.
+Invalid success becomes an unreplayable tombstone and is withheld. Exchange,
+framing, cookie and Connection-nominated headers cannot enter protected replay.
+Generic fingerprint/status semantics remain historical. Administration routes,
+OpenAPI/SDK and native consumers are the selected later steps, not activated here.
+
+**Owner boundary.** A narrow lifecycle port joins the business unit's actual
+transaction and connection disposal. Detached fields, cancelled waits and a
+repeat no-op Dispose do not establish release; failed cleanup stays negative.
+Claim cleanup precedes dispatch and positive business cleanup precedes outcome
+storage. Cleanup following a COMMIT exception proves ended ownership, never
+rollback. An uncertain outcome-store commit is not automatically abandoned.
+These mechanisms promise neither automatic mutation retry nor exactly-once work.
+
+**Local validation and corrections.** Strict complete Release builds pass with
+zero warnings/errors. Full Unit passes 3,299/3,299, zero skips. The new/affected
+store, module-disclosure, audit-failure and cleanup PostgreSQL population passes
+102/102, including actual process kill/restart, saturation/recycling, old fences,
+foreign masking, terminal targets, live denial and MUST failure. The 59 targeted
+HTTP cases pass after repairing the component host's missing closed Identity
+helper registrations; its NoHuman authorizer remains intact. Internal postcommit
+observation faults are boundary controls, not a claim of dropped wire ACK proof.
+
+The first affected architecture run completes 77 cases: 74 pass, three fail on
+the new test's cross-assembly symbol-key collision, empty Own policy assertion
+and stale planned audit rows. Assembly-qualified traversal, exact Own versus
+Protected alternatives and current audit rows fix these; all three rerun green.
+The source census remains exact: six receipt reads, 74 request policies, 24
+Protected and two OwnMembershipRead requests; three authority minters, eight
+assignable pairs, ten logical setters and eight definers remain unchanged.
+
+Broader PostgreSQL qualification completes 229 cases, 222 passing and seven
+AuditPipeline preparation failures. The old shortened declaration omitted the
+now-required fixed locale. The fixture now sends the unmodified canonical prefix
+through real production composition and checks the exact seven success rows,
+including the SHOULD locale. Its MUST-failure twin uses the actual declared host
+at its admitted prefix, retaining zero-write/audit and health checks. No guard or
+source authority is relaxed. All 411 Docker-free cases and those seven audit
+cases then complete together: 417 pass, one exposes an old expectation that a
+pre-construction refusal captured an Organization instance. The test now observes
+the plural two-intent provisioning refusal before dispatching the second call,
+then requires exactly one further event and unchanged business counts. That
+single final rerun passes. Earlier failures remain recorded as failures.
+
+The Docker-free correction also closes exact prior-step inventories: 35 finite
+Seed requests including origin adoption, 11 MVC actions including the native
+admission POST, its precise request/response/authentication metadata and new
+wrong-method/request/metadata twins. No production endpoint or authorization
+allowance is added by those test corrections. Current database/module/adapter
+and catalogue documentation is reconciled; the replay rule remains Registered
+until its selected production HTTP/native proof is complete.
+
+This implementation commit precedes two fresh independent review rounds. It is
+not Step 6 closeout or packet qualification. Step 7 retains remaining directory,
+Role/permission/own-navigation reads and all HTTP/OpenAPI/SDK activation; Steps
+8/9 retain native/provider/browser/manual accessibility, and Step 10 retains
+full discovered suites and hosted final-source A/B evidence. No selected work
+moves to another phase and no branch switch, push or PR occurs here.

@@ -120,7 +120,7 @@ public sealed class OperationPolicyCombinationTests
         Assert.Equal(["tenancy.locale.write", "tenancy.organization.admin", "tenancy.setting.write"],
             BoundedTenancyAdministrationPermissions.Definitions.Select(pair => pair.Key).Order());
         var human = tenancy.Policies.Where(policy => policy.Kind == OperationPolicyKind.Protected).ToArray();
-        Assert.Equal(11, human.Length);
+        Assert.Equal(13, human.Length);
         Assert.All(human, policy =>
         {
             Assert.Equal(OperationReadScope.Scoped, policy.ReadScope);

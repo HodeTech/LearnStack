@@ -11,9 +11,8 @@ namespace LearnStack.Infrastructure.Persistence;
 /// <c>inbox_messages</c> belong to no module. This migration chain also owns
 /// LearnStack job state and guarded Hangfire control storage. Their runtime
 /// paths use the corresponding infrastructure ports and confined credentials.
-/// <c>IIdempotencyStore</c> ships
-/// today, behind <c>InMemoryIdempotencyStore</c> until its ADR-0035 trigger
-/// fires; <c>IOutbox</c> enqueues immediately on the ambient transaction under
+/// <c>PostgresIdempotencyStore</c> owns short app-role claim/completion transactions
+/// under ADR-0079; <c>IOutbox</c> enqueues immediately on the ambient transaction under
 /// <see href="../../../../docs/decisions/0057-transactional-event-production-and-completion.md">ADR-0057</see>.
 /// Dispatcher leases and terminal state are decided by ADR-0046. Putting
 /// them in a module's context would make every other module's use of the outbox a
@@ -47,10 +46,9 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
 
         // No entity types. These tables are written through their ports with
         // parameterised SQL, not through a change tracker: an outbox row is
-        // enqueued and never updated by application code. ADR-0037 Amendment 2
-        // specifies the future PostgreSQL idempotency adapter's single-round-trip
-        // claim; the current registered store remains in memory. Mapping these as
-        // entities would
+        // enqueued and never updated by application code. ADR-0037 Amendment 5
+        // gives durable idempotency its separate bounded claim/recycling owner.
+        // Mapping these as entities would
         // add a model nothing queries and invite exactly the row-by-row use both
         // designs avoid.
         //

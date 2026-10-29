@@ -166,7 +166,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**327 test methods run in
+**329 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -2544,15 +2544,12 @@ because the filters hold, and removing both turns all five red.
   ADR-0040 Amendment 5 adds. The MediatR transaction owner and P02b-3's transport
   stamp it through `SetTenantContextAsync`; acceptance and prepared execution
   announce their own ambient transaction before app-role commands. The durable
-  idempotency store remains unimplemented. The five other logical setters,
-  `OrganizationScopeValidator`, the two standalone audit writers and the two cached
-  projection loaders (`AuditConfig` and the tenant flags), issue raw `NpgsqlCommand`s on
-  connections of their own, which EF interception cannot see, so they need neither a mark
-  nor an exemption. (`CachedHostToTenantResolver` is not one of the eight: it sets
-  `app.resolving_host`.) The exemption list is empty for the
-  same reason, which is why `PlatformAdminScope` — a `BYPASSRLS` connection that announces
-  no tenant by design — is invisible here by construction rather than by a hand-written
-  exception someone later widens.
+  idempotency store uses raw app-role SQL on its short announced owners, which
+  EF interception does not see; it receives no EF exemption. The
+  [Security setter census](11-security.md#the-out-of-band-setters) owns the
+  complete logical set. Global, discovery and fixed-seed transitions retain their
+  separately enumerated owner checks. `PlatformAdminScope` announces no Tenant
+  and acquires no ordinary-context exemption.
 - **Note:** the guard is a **diagnostic above Row Level Security, never the boundary**.
   `Without_The_Guard_An_Unannounced_Read_Is_Silent_And_Empty` asserts the state it exists
   to make visible: safe already, because the predicate is `NULL`, and silent, which is the
@@ -3134,8 +3131,11 @@ owns delivery state, and later HTTP/native/browser consumers retain their own pr
 - **Source:** ADR-0079; [Storage contract](05-database.md#p03-3-storage-and-replay-contract).
 - **Type:** actual PostgreSQL/process-restart/HTTP and source/target census.
   **Kind:** behavioural and structural.
-- **Planned test owners:** `PostgresIdempotencyStoreTests`,
-  `ProtectedReceiptReplayTests`, `IdempotencyConventionTests`.
+- **Test owners:** `PostgresIdempotencyStoreTests`, `ModuleReceiptDisclosureTests`,
+  `ModuleReceiptAuditFailureTests`, `UnitOfWorkCommitCleanupTests`,
+  `ProtectedIdempotencyHttpTests`, `IdempotencyConventionTests`.
+  These include internal/module/component controls; production HTTP/native replay
+  qualification remains required by the full rule before Implemented status.
 - **Status:** **Registered.**
 - **Phase:** P03-3 Steps 6/7/8.
 
@@ -4920,10 +4920,11 @@ implements it.
 - **Type:** xUnit over the host's real `EndpointDataSource`. **Kind:**
   structural.
 - **Status:** **Implemented** (`IdempotentEndpointConventionTests`). The
-  production surface carries no `[Idempotent]` endpoint until Phase 09, so the
-  rule would pass vacuously; a companion test drives the same predicate over a
-  probe host that *does* violate it, which is what distinguishes the guard from
-  an empty assertion.
+  current production surface has no keyed endpoint; ADR-0079 selects the
+  protected administration activation tracked by the
+  [phase Status block](../roadmap/phase-03-identity-admin.md). A companion test
+  drives the same predicate over a probe host that *does* violate it, which
+  distinguishes the guard from an empty assertion.
 - **Phase:** 02a (Packet 4).
 
 #### `A_Sweep_Never_Destroys_A_Claim_Another_Thread_Just_Won`

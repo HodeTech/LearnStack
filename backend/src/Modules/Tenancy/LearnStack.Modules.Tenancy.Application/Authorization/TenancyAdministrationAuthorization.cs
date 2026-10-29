@@ -23,7 +23,8 @@ public sealed class TenancyAdministrationAuthorization(IOperationPolicyCatalog c
     internal bool Matches(object request, OperationInvocation invocation)
     {
         var permission = Permission(request);
-        var write = request is not (ListOrganizationsQuery or GetOrganizationDetailQuery);
+        var write = request is not (ListOrganizationsQuery or GetOrganizationDetailQuery
+            or ReadOrganizationReceiptQuery or ReadDefaultOrganizationReceiptQuery);
         return permission is not null && ReferenceEquals(invocations.CurrentInvocation, invocation)
             && invocation is { IsActive: true, EntryKind: OperationEntryKind.Application, TrustedSource: null }
             && ReferenceEquals(invocation.Operation, request) && ReferenceEquals(invocation.Context, context)
@@ -135,7 +136,8 @@ public sealed class TenancyAdministrationAuthorization(IOperationPolicyCatalog c
 
     private static PermissionDefinition? Permission(object request) => request switch
     {
-        ListOrganizationsQuery or GetOrganizationDetailQuery or CreateManagedOrganizationCommand or RenameOrganizationCommand
+        ListOrganizationsQuery or GetOrganizationDetailQuery or ReadOrganizationReceiptQuery or ReadDefaultOrganizationReceiptQuery
+            or CreateManagedOrganizationCommand or RenameOrganizationCommand
             or ArchiveOrganizationCommand or SelectDefaultOrganizationCommand => BoundedTenancyAdministrationPermissions.OrganizationAdministration,
         AddManagedTenantLocaleCommand or SetManagedDefaultTenantLocaleCommand or SetTenantLocaleEnabledCommand
             or RemoveTenantLocaleCommand => BoundedTenancyAdministrationPermissions.LocaleWrite,

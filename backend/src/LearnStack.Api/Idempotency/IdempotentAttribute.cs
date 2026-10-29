@@ -41,6 +41,16 @@ namespace LearnStack.Api.Idempotency;
 [AttributeUsage(AttributeTargets.Method | AttributeTargets.Class, Inherited = true)]
 public sealed class IdempotentAttribute : Attribute, IFilterFactory
 {
+    public IdempotentAttribute() { }
+
+    public IdempotentAttribute(ProtectedAdministrationOperation operation)
+    {
+        _ = ProtectedAdministrationDescriptor.For(operation);
+        ProtectedOperation = operation;
+    }
+
+    public ProtectedAdministrationOperation? ProtectedOperation { get; }
+
     /// <summary>The header a client supplies its key in.</summary>
     public const string HeaderName = "Idempotency-Key";
 
@@ -92,7 +102,9 @@ public sealed class IdempotentAttribute : Attribute, IFilterFactory
     public IFilterMetadata CreateInstance(IServiceProvider serviceProvider)
     {
         ArgumentNullException.ThrowIfNull(serviceProvider);
-        return ActivatorUtilities.CreateInstance<IdempotencyFilter>(serviceProvider);
+        return ProtectedOperation is { } operation
+            ? ActivatorUtilities.CreateInstance<ProtectedIdempotencyFilter>(serviceProvider, operation)
+            : ActivatorUtilities.CreateInstance<IdempotencyFilter>(serviceProvider);
     }
 }
 
@@ -111,7 +123,8 @@ public sealed class IdempotentAttribute : Attribute, IFilterFactory
 internal sealed partial class IdempotencyFilter(
     IIdempotencyStore store,
     ITenantContext tenantContext,
-    ILogger<IdempotencyFilter> logger) : IAsyncResourceFilter
+    ILogger<IdempotencyFilter> logger,
+    IIdempotencyBusinessOwnerCleanup cleanup) : IAsyncResourceFilter
 {
     /// <summary>
     /// Response headers that are never replayed.
@@ -207,8 +220,16 @@ internal sealed partial class IdempotencyFilter(
         var fingerprint = await ComputeFingerprintAsync(context.HttpContext, cancellationToken)
             .ConfigureAwait(false);
 
-        var claim = await store
-            .TryClaimAsync(tenantId, key, fingerprint, cancellationToken).ConfigureAwait(false);
+        IdempotencyClaimResult claim;
+        try
+        {
+            claim = await store.TryClaimAsync(tenantId, key, fingerprint, cancellationToken).ConfigureAwait(false);
+        }
+        catch (IdempotencyStoreException)
+        {
+            context.Result = new ProblemDetailsActionResult(new Error(LocalizedMessage.Of("lockey_dependency_unavailable")));
+            return;
+        }
 
         switch (claim.Outcome)
         {
@@ -299,11 +320,13 @@ internal sealed partial class IdempotencyFilter(
         catch
         {
             response.Body = original;
-            await AbandonAsync(tenantId, key, token).ConfigureAwait(false);
+            if (await EndBusinessOwnerAsync().ConfigureAwait(false))
+                await AbandonAfterFailureAsync(tenantId, key, token).ConfigureAwait(false);
             throw;
         }
 
         response.Body = original;
+        var ended = await EndBusinessOwnerAsync().ConfigureAwait(false);
 
         // An unhandled exception leaves this method WITHOUT delivering anything.
         // MVC returns normally from next() in that case and rethrows after the
@@ -315,7 +338,12 @@ internal sealed partial class IdempotencyFilter(
         // bytes are discarded; the framework's rethrow does the rest.
         if (executed.Exception is not null && !executed.ExceptionHandled)
         {
-            await AbandonAsync(tenantId, key, token).ConfigureAwait(false);
+            if (ended) await AbandonAfterFailureAsync(tenantId, key, token).ConfigureAwait(false);
+            return;
+        }
+        if (!ended)
+        {
+            await WriteUnavailableAsync(context).ConfigureAwait(false);
             return;
         }
 
@@ -325,27 +353,36 @@ internal sealed partial class IdempotencyFilter(
         // Recording after the copy — or under RequestAborted — loses the answer
         // precisely then, and the retry re-runs the work.
         var outcome = Classify(executed, response, buffer.Length);
-        var fenced = outcome switch
+        bool fenced;
+        try
         {
-            Outcome.Record => await store.CompleteAsync(
-                tenantId,
-                key,
-                token,
-                new IdempotentResponse(
-                    response.StatusCode,
-                    response.ContentType,
-                    CaptureHeaders(response),
-                    buffer.ToArray()),
-                CancellationToken.None).ConfigureAwait(false),
+            fenced = outcome switch
+            {
+                Outcome.Record => await store.CompleteAsync(
+                    tenantId,
+                    key,
+                    token,
+                    new IdempotentResponse(
+                        response.StatusCode,
+                        response.ContentType,
+                        CaptureHeaders(response),
+                        buffer.ToArray()),
+                    CancellationToken.None).ConfigureAwait(false),
 
-            // Not a release. The side effect happened; releasing would let a
-            // retry do it again, which is the one failure this whole mechanism
-            // exists to prevent. The key stays taken and says so.
-            Outcome.Tombstone => await store.CompleteAsync(
-                tenantId, key, token, null, CancellationToken.None).ConfigureAwait(false),
+                // Not a release. The side effect happened; releasing would let a
+                // retry do it again, which is the one failure this whole mechanism
+                // exists to prevent. The key stays taken and says so.
+                Outcome.Tombstone => await store.CompleteAsync(
+                    tenantId, key, token, null, CancellationToken.None).ConfigureAwait(false),
 
-            _ => await AbandonAsync(tenantId, key, token).ConfigureAwait(false),
-        };
+                _ => await AbandonAsync(tenantId, key, token).ConfigureAwait(false),
+            };
+        }
+        catch (IdempotencyStoreException)
+        {
+            await WriteUnavailableAsync(context).ConfigureAwait(false);
+            return;
+        }
 
         if (!fenced && outcome != Outcome.Release)
         {
@@ -405,6 +442,28 @@ internal sealed partial class IdempotencyFilter(
     private Task<bool> AbandonAsync(TenantId tenantId, string key, Guid token) =>
         store.AbandonAsync(tenantId, key, token, CancellationToken.None);
 
+    private async Task AbandonAfterFailureAsync(TenantId tenantId, string key, Guid token)
+    {
+        try { await AbandonAsync(tenantId, key, token).ConfigureAwait(false); }
+        catch (IdempotencyStoreException) { /* Preserve the primary failure; no release or rollback is asserted. */ }
+    }
+
+    private async ValueTask<bool> EndBusinessOwnerAsync()
+    {
+        try { return await cleanup.EndBusinessOwnerAsync().ConfigureAwait(false); }
+        catch { return false; }
+    }
+
+    private static async Task WriteUnavailableAsync(ResourceExecutingContext context)
+    {
+        var response = context.HttpContext.Response;
+        var correlation = response.Headers[CorrelationHeaderMiddleware.HeaderName];
+        response.Headers.Clear();
+        if (correlation.Count > 0) response.Headers[CorrelationHeaderMiddleware.HeaderName] = correlation;
+        await new ProblemDetailsActionResult(new Error(LocalizedMessage.Of("lockey_dependency_unavailable")))
+            .ExecuteResultAsync(context).ConfigureAwait(false);
+    }
+
     /// <summary>
     /// Digests everything that must match for a replay to be the same answer:
     /// who is asking, of what, and with what.
@@ -436,7 +495,7 @@ internal sealed partial class IdempotencyFilter(
     /// the same question.
     /// </para>
     /// </remarks>
-    private async Task<string> ComputeFingerprintAsync(
+    internal async Task<string> ComputeFingerprintAsync(
         HttpContext context, CancellationToken cancellationToken)
     {
         using var digest = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
@@ -526,7 +585,7 @@ internal sealed partial class IdempotencyFilter(
     }
 
     /// <summary>Snapshots the response headers that describe the outcome.</summary>
-    private static Dictionary<string, IReadOnlyList<string>> CaptureHeaders(
+    internal static Dictionary<string, IReadOnlyList<string>> CaptureHeaders(
         HttpResponse response)
     {
         var captured = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
@@ -545,7 +604,7 @@ internal sealed partial class IdempotencyFilter(
     }
 
     /// <summary>Writes the stored response, marked as a replay.</summary>
-    private static async Task ReplayAsync(
+    internal static async Task ReplayAsync(
         HttpContext context, IdempotentResponse stored, CancellationToken cancellationToken)
     {
         context.Response.StatusCode = stored.StatusCode;
@@ -569,7 +628,7 @@ internal sealed partial class IdempotencyFilter(
         }
     }
 
-    private static bool TryReadKey(HttpContext context, out string key)
+    internal static bool TryReadKey(HttpContext context, out string key)
     {
         key = string.Empty;
         var raw = context.Request.Headers[IdempotentAttribute.HeaderName];

@@ -279,15 +279,11 @@ public static class TenancyCompositionExtensions
         // — so the registration can be scoped without capturing anything.
         services.AddScoped<ITenantAssertionRecorder, AuditingTenantAssertionRecorder>();
 
-        // The only registered IIdempotencyStore. Correct for one instance and
-        // wrong for two, and it stays registered anyway: ADR-0037 Amendment 1
-        // separates the table from the store. Packet 6 ships idempotency_keys
-        // because the schema is a one-way door; the durable store is additive and
-        // ships on its ADR-0035 trigger — the first [Idempotent] endpoint, or the
-        // first deployment running more than one instance. Standards 04's
-        // "required for payment operations" list has no member yet.
+        // ADR-0079's protected routes select ADR-0037's durable-store trigger.
+        // Each store phase owns and disposes a short app-role transaction; it
+        // never borrows or retargets the request's ambient business owner.
         services.AddSingleton<LearnStack.SharedKernel.Idempotency.IIdempotencyStore,
-            LearnStack.Infrastructure.Idempotency.InMemoryIdempotencyStore>();
+            LearnStack.Infrastructure.Idempotency.PostgresIdempotencyStore>();
 
         return services;
     }

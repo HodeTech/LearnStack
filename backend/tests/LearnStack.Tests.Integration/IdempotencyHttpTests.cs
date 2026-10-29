@@ -4,6 +4,8 @@ using System.Text.Json;
 using FluentAssertions;
 using LearnStack.Api.Common;
 using LearnStack.Api.Idempotency;
+using LearnStack.Infrastructure.Idempotency;
+using LearnStack.SharedKernel.Idempotency;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.AspNetCore.Hosting;
@@ -532,7 +534,18 @@ public sealed class IdempotencyFixture : ComponentApiFactory
             services.AddHttpContextAccessor();
             services.RemoveAll<ITenantContext>();
             services.AddScoped<ITenantContext, HeaderTenantContext>();
+            services.RemoveAll<IIdempotencyStore>();
+            services.AddSingleton<IIdempotencyStore, InMemoryIdempotencyStore>();
+            services.RemoveAll<IIdempotencyBusinessOwnerCleanup>();
+            services.AddScoped<IIdempotencyBusinessOwnerCleanup, NoBusinessOwnerCleanup>();
         });
+    }
+
+    // These two component-only controllers never dispatch business work or open
+    // a database owner. Production cleanup remains the real scoped unit seam.
+    private sealed class NoBusinessOwnerCleanup : IIdempotencyBusinessOwnerCleanup
+    {
+        public ValueTask<bool> EndBusinessOwnerAsync() => ValueTask.FromResult(true);
     }
 
     /// <summary>A client whose requests resolve to the given tenant, or to none.</summary>

@@ -49,6 +49,7 @@ public sealed partial class AuditCoverageTests
         // classifies concrete handler types before construction. A slug or event-level
         // comparison cannot distinguish multiple consumers of the same event.
         AssertTenancyAdministrationBindings();
+        AssertReceiptBindings();
         var shipped = AuditSubjects(AuditCatalogDiscovery.Types());
 
         shipped.Should().Contain(typeof(CreateOrganizationCommand),

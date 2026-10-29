@@ -186,6 +186,9 @@ public static class PersistenceCompositionExtensions
         services.TryAddScoped<LearnStack.SharedKernel.Identity.IGlobalIdentityEnrollment>(provider =>
             provider.GetRequiredService<GlobalIdentityEnrollment>());
         services.TryAddScoped<IUnitOfWork>(CreateUnitOfWork);
+        services.TryAddScoped<LearnStack.SharedKernel.Idempotency.IIdempotencyBusinessOwnerCleanup>(provider =>
+            provider.GetRequiredService<IUnitOfWork>() as LearnStack.SharedKernel.Idempotency.IIdempotencyBusinessOwnerCleanup
+                ?? throw new InvalidOperationException("Idempotency cleanup requires the actual business owner."));
 
         // Every module context goes through the helper. A registration that built
         // its own connection string would give the context its own connection,

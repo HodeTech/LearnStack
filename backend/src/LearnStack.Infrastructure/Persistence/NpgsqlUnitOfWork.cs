@@ -120,7 +120,7 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
         get
         {
             JobApplicationSourceOwner.RefuseExternalEntry();
-            ObjectDisposedException.ThrowIf(_disposed, this);
+            ObjectDisposedException.ThrowIf(_disposed || _idempotencyEnding, this);
             EnsureOperationReadScope();
 
             if (_connection is null)
@@ -165,7 +165,7 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
         TransactionMode mode, bool globalIdentity, CancellationToken cancellationToken)
     {
         JobApplicationSourceOwner.RefuseExternalEntry();
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(_disposed || _idempotencyEnding, this);
         RequireWriteAllowed();
 
         if (_selfDiscoveryWitness is not null)
@@ -759,7 +759,7 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
 
     [SuppressMessage("Design", "CA1031:Do not catch general exception types",
         Justification = "Actual connection cleanup runs after every failure, then the original failure is rethrown outside finally.")]
-    public async ValueTask DisposeAsync()
+    private async ValueTask DisposeCoreAsync()
     {
         if (_disposed)
         {
@@ -882,7 +882,7 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
             // also fails. No explicit rollback can establish its server outcome.
             try
             {
-                await transaction.DisposeAsync();
+                await DisposeOwnedTransactionAsync(transaction);
                 _jobSourceOwner?.ReportMainTransactionCleanup(this, transaction, succeeded: true);
             }
             catch
@@ -918,7 +918,7 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
 
         try
         {
-            await completed.DisposeAsync();
+            await DisposeOwnedTransactionAsync(completed);
             _jobSourceOwner?.ReportMainTransactionCleanup(this, completed, succeeded: true);
         }
         catch
@@ -980,7 +980,7 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
         {
             try
             {
-                await transaction.DisposeAsync();
+                await DisposeOwnedTransactionAsync(transaction);
                 _jobSourceOwner?.ReportMainTransactionCleanup(this, transaction, succeeded: true);
             }
             catch (Exception failure)

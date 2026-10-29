@@ -63,7 +63,7 @@ public sealed class OperationHttpClassificationTests
         var endpoints = Endpoints(app);
         var catalog = Catalog();
         var classifier = new OperationHttpClassifier(catalog);
-        Assert.Equal(10, endpoints.Count(endpoint => endpoint.Metadata.GetMetadata<ControllerActionDescriptor>() is not null));
+        Assert.Equal(11, endpoints.Count(endpoint => endpoint.Metadata.GetMetadata<ControllerActionDescriptor>() is not null));
         foreach (var endpoint in endpoints)
         {
             var classification = classifier.Classify(endpoint, out var policy);
@@ -114,24 +114,27 @@ public sealed class OperationHttpClassificationTests
     public async Task Actual_endpoint_metadata_twins_refuse_before_a_handler_can_run(string defect)
     {
         await using var app = await CreateAsync();
-        var original = Assert.Single(Endpoints(app), endpoint => endpoint.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName == "GetPublicSite");
         var classifier = new OperationHttpClassifier(Catalog());
-        Assert.Equal(HttpOperationClassification.Application, classifier.Classify(original, out _));
-        var metadata = original.Metadata.ToList();
-        var declaration = Assert.Single(metadata.OfType<OperationPolicyAttribute>());
-        switch (defect)
+        foreach (var name in new[] { "GetPublicSite", "AdmitNativeSessionScope" })
         {
-            case "missing": metadata.Remove(declaration); break;
-            case "duplicate": metadata.Add(declaration); break;
-            case "wrong-request": metadata.Remove(declaration); metadata.Add(new OperationPolicyAttribute(typeof(LearnStack.Modules.Tenancy.Application.Contracts.Account.GetAccountSiteQuery))); break;
-            case "wrong-name": metadata.RemoveAll(value => value is IEndpointNameMetadata); metadata.Add(new EndpointNameMetadata("UnclassifiedAction")); break;
-            case "wrong-method": metadata.RemoveAll(value => value is IHttpMethodMetadata); metadata.Add(new HttpMethodMetadata(["POST"])); break;
-            case "infrastructure-on-controller": metadata.Add(InfrastructureOperationMetadata.Health); break;
+            var original = Assert.Single(Endpoints(app), endpoint => endpoint.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName == name);
+            Assert.Equal(HttpOperationClassification.Application, classifier.Classify(original, out _));
+            var metadata = original.Metadata.ToList();
+            var declaration = Assert.Single(metadata.OfType<OperationPolicyAttribute>());
+            switch (defect)
+            {
+                case "missing": metadata.Remove(declaration); break;
+                case "duplicate": metadata.Add(declaration); break;
+                case "wrong-request": metadata.Remove(declaration); metadata.Add(new OperationPolicyAttribute(typeof(LearnStack.Modules.Tenancy.Application.Contracts.Account.GetAccountSiteQuery))); break;
+                case "wrong-name": metadata.RemoveAll(value => value is IEndpointNameMetadata); metadata.Add(new EndpointNameMetadata("UnclassifiedAction")); break;
+                case "wrong-method": metadata.RemoveAll(value => value is IHttpMethodMetadata); metadata.Add(new HttpMethodMetadata([name == "AdmitNativeSessionScope" ? "GET" : "POST"])); break;
+                case "infrastructure-on-controller": metadata.Add(InfrastructureOperationMetadata.Health); break;
+            }
+            var dirty = new Endpoint(original.RequestDelegate, new EndpointMetadataCollection(metadata), original.DisplayName);
+            Assert.Equal(HttpOperationClassification.Refused, classifier.Classify(dirty, out var refused));
+            Assert.Null(refused);
+            Assert.Equal(HttpOperationClassification.Application, classifier.Classify(original, out _));
         }
-        var dirty = new Endpoint(original.RequestDelegate, new EndpointMetadataCollection(metadata), original.DisplayName);
-        Assert.Equal(HttpOperationClassification.Refused, classifier.Classify(dirty, out var refused));
-        Assert.Null(refused);
-        Assert.Equal(HttpOperationClassification.Application, classifier.Classify(original, out _));
     }
 
     [Fact]

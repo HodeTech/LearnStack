@@ -11,6 +11,7 @@ namespace LearnStack.Tests.Architecture;
 public sealed partial class PersistenceConventionTests
 {
     private const string ContextualEnrollment = "LearnStack.Modules.Identity.Infrastructure.Persistence.ContextualIdentityStorageControl";
+    private const string ReceiptEnrollment = "LearnStack.Modules.Identity.Infrastructure.Persistence.IdentityReceiptReader";
     private const string TenancyEnrollment = "LearnStack.Modules.Tenancy.Infrastructure.Persistence.TenancyAdministrationReader";
     private const string EfEnrollment = "Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions";
 
@@ -84,6 +85,23 @@ public sealed partial class PersistenceConventionTests
             dirty.Should().NotBe(tenancy);
             TenancyEnrollmentIsGuarded(dirty).Should().BeFalse("Tenancy facts cannot retarget or borrow a stale, dirty or global owner");
         }
+        var receipt = File.ReadAllText(Path.Combine(SourceScan.SourceRoot,
+            "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/Persistence/IdentityReceiptReader.cs"));
+        ReceiptEnrollmentIsGuarded(receipt).Should().BeTrue();
+        foreach (var (before, after) in new[]
+        {
+            ("!context.IsResolved", "false"), ("context.TenantId == TenantId.PlatformSentinel", "false"),
+            ("context.UserId is null", "false"), ("context.UserId == UserId.SystemActor", "false"),
+            ("unit.Mode != TransactionMode.ReadWrite", "unit.Mode != TransactionMode.ReadOnly"),
+            ("unit is IOperationReadScopeView { IsTenantWideRead: true }", "false"),
+            ("db.CurrentTenantWideRead", "false"),
+            ("ContextualIdentityStorageControl.EnrollCurrentTenantOwner(db, unit);", "return;"),
+        })
+        {
+            var dirty = receipt.Replace(before, after, StringComparison.Ordinal);
+            dirty.Should().NotBe(receipt);
+            ReceiptEnrollmentIsGuarded(dirty).Should().BeFalse("the receipt's MUST audit requires the same ordinary scoped writable owner");
+        }
         EfEnrollmentOffenders(census).Should().BeEmpty("all actual compiled enrollment subjects are restored");
     }
 
@@ -110,6 +128,7 @@ public sealed partial class PersistenceConventionTests
             { ContextualEnrollment + "::PrepareFreshRead", ContextualEnrollment + "::LockRootAsync",
                 "LearnStack.Modules.Identity.Infrastructure.Persistence.MembershipDirectoryReader::Admit",
                 "LearnStack.Modules.Identity.Infrastructure.Persistence.MembershipAdministrationReader::Admit",
+                ReceiptEnrollment + "::Admit",
                 "LearnStack.Modules.Identity.Infrastructure.Persistence.RoleReadStore::ReadAsync",
                 "LearnStack.Modules.Identity.Infrastructure.Persistence.RoleReadStore::ReadManyAsync",
                 "LearnStack.Modules.Identity.Infrastructure.Persistence.MembershipAdmissionReader::ReadCurrentAsync",
@@ -121,6 +140,26 @@ public sealed partial class PersistenceConventionTests
             || reenrollments.Any(site => site.Instruction.OpCode != OpCodes.Call))
             errors.Add("Only the exact contextual graph, seed metadata/stage, member/Role and native admission readers may reenroll the same tenant owner");
         return errors;
+    }
+
+    private static bool ReceiptEnrollmentIsGuarded(string source)
+    {
+        var root = CSharpSyntaxTree.ParseText(source).GetRoot();
+        var methods = root.DescendantNodes().OfType<ClassDeclarationSyntax>().Where(type => type.Identifier.ValueText == "IdentityReceiptReader")
+            .SelectMany(type => type.Members.OfType<MethodDeclarationSyntax>()).Where(method => method.Identifier.ValueText == "Admit").ToArray();
+        if (root.ContainsDiagnostics || methods.Length != 1 || methods[0].Modifiers.Count != 1
+            || !methods[0].Modifiers.Any(SyntaxKind.PrivateKeyword) || methods[0].ReturnType.ToString() != "void"
+            || methods[0].ParameterList.Parameters.Count != 0 || methods[0].Body is not { Statements.Count: 2 } body
+            || body.Statements[0] is not IfStatementSyntax guard) return false;
+        return SyntaxFactory.AreEquivalent(guard.Condition, SyntaxFactory.ParseExpression("""
+            !context.IsResolved || context.TenantId == TenantId.PlatformSentinel
+            || context.UserId is null || context.UserId == UserId.SystemActor
+            || unit.Mode != TransactionMode.ReadWrite || unit is IOperationReadScopeView { IsTenantWideRead: true }
+            || db.CurrentTenantWideRead
+            """)) && guard.Statement is ThrowStatementSyntax { Expression: ObjectCreationExpressionSyntax exception }
+            && exception.Type.ToString() == "TenantContextMissingException"
+            && SyntaxFactory.AreEquivalent(body.Statements[1], SyntaxFactory.ParseStatement(
+                "ContextualIdentityStorageControl.EnrollCurrentTenantOwner(db, unit);"));
     }
 
     private static bool TenancyEnrollmentIsGuarded(string source)

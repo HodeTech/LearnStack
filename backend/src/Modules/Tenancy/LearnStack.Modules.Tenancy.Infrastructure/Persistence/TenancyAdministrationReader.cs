@@ -84,6 +84,14 @@ public sealed class TenancyAdministrationReader(TenancyDbContext db, IUnitOfWork
             return row is null ? null : new OrganizationAdministrationDetail(row.Organization, row.IsDefault);
         });
 
+    public Task<Organization?> ReadOrganizationReceiptAsync(OrganizationId id, CancellationToken cancellationToken = default) =>
+        ReadAsync(() => db.Organizations.AsNoTracking().SingleOrDefaultAsync(organization => organization.Id == id
+            && organization.TenantId == context.TenantId, cancellationToken));
+
+    public Task<Tenant?> ReadDefaultOrganizationReceiptAsync(TenantId id, CancellationToken cancellationToken = default) =>
+        ReadAsync(() => db.Tenants.AsNoTracking().SingleOrDefaultAsync(tenant => tenant.Id == id
+            && tenant.Id == context.TenantId, cancellationToken));
+
     private async Task<T> ReadAsync<T>(Func<Task<T>> read)
     {
         Admit();

@@ -308,7 +308,9 @@ public sealed partial class TransactionExecutionCoordinator(
                 if (scope.IsOwner && commitFailure is DbException && globalOwner is null
                     && authorization?.CurrentDecision is { Outcome: ProtectedOperationOutcome.Allowed, IsActive: true } decision
                     && decision.Invocation.EntryKind == OperationEntryKind.Application
-                    && decision.Invocation.Policy.Kind == OperationPolicyKind.Protected
+                    && (decision.Invocation.Policy.Kind == OperationPolicyKind.Protected
+                        || (decision.Invocation.Policy.Kind == OperationPolicyKind.OwnMembershipRead
+                            && operation is LearnStack.SharedKernel.Idempotency.IIdempotencyReceiptRead))
                     && decision.Invocation.Policy.RequestType == operationType
                     && ReferenceEquals(decision.Invocation.Operation, operation)
                     && !invocation.HasProducedWork && capture.Changes.Count == 0

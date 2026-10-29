@@ -324,6 +324,15 @@ storage failures pass through a source-owned diagnostic boundary; cancellation
 and programming failures keep their semantics. Existing Seed store behavior is
 separate from that human boundary.
 
+Original-outcome receipt reads authorize the retained Organization or Tenant ID
+under current organization-admin disclosure capability, then commit a fresh MUST
+read event. A default-selection receipt designates the original Tenant root,
+not the selected Organization. These exact-ID reads may observe a retained
+terminal target for this receipt; ordinary list/detail filters remain unchanged.
+They do not rerun the mutation or require its former write/adoption eligibility.
+The [phase Status block](../../roadmap/phase-03-identity-admin.md) owns transport
+activation and qualification.
+
 ### Warm seed and administration origins
 
 **Accepted contract.** Ordinary warm seed

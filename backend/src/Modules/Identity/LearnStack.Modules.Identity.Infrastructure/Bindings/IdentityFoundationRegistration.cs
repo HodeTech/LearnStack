@@ -32,6 +32,7 @@ public static class IdentityFoundationRegistration
         services.TryAddScoped<IMembershipDirectoryReader, MembershipDirectoryReader>();
         services.TryAddScoped<IMembershipAdmissionReader, MembershipAdmissionReader>();
         services.TryAddScoped<IMembershipAdministrationReader, MembershipAdministrationReader>();
+        services.TryAddScoped<IIdentityReceiptReader, IdentityReceiptReader>();
         services.AddSingleton(new ExplicitReadOnlyRequest(typeof(GetOwnMembershipProfileQuery)));
         services.TryAddScoped<Func<RoleGrantAuthorization>>(provider => () => provider.GetRequiredService<RoleGrantAuthorization>());
         return services;

@@ -6,8 +6,7 @@ using LearnStack.SharedKernel.Time;
 namespace LearnStack.Infrastructure.Idempotency;
 
 /// <summary>
-/// The default <see cref="IIdempotencyStore"/>: correct for one instance,
-/// wrong for two.
+/// An explicitly selected component-test <see cref="IIdempotencyStore"/> with process-local state.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -27,8 +26,9 @@ namespace LearnStack.Infrastructure.Idempotency;
 /// while the durable store is additive and ships on its
 /// <see href="../../../../docs/decisions/0035-demand-gated-infrastructure.md">ADR-0035</see>
 /// trigger — the first <c>[Idempotent]</c> endpoint, or the first deployment
-/// running more than one instance. This implementation stays registered until
-/// then.
+/// running more than one instance. ADR-0079's protected administration uses
+/// <see cref="PostgresIdempotencyStore"/>; this implementation remains available
+/// only when a component explicitly selects its volatile behavior.
 /// </para>
 /// <para>
 /// The same limitation is why <c>ICacheService</c> exists as a port and why

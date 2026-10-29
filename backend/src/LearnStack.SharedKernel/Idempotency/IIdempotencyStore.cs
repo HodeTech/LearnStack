@@ -13,11 +13,13 @@ namespace LearnStack.SharedKernel.Idempotency;
 /// status without the answer.
 /// </param>
 /// <param name="Body">Its body, verbatim.</param>
+/// <param name="ReplayTarget">The actual protected result's original target; absent for generic outcomes.</param>
 public sealed record IdempotentResponse(
     int StatusCode,
     string? ContentType,
     IReadOnlyDictionary<string, IReadOnlyList<string>> Headers,
-    byte[] Body);
+    byte[] Body,
+    IdempotencyReplayTarget? ReplayTarget = null);
 
 /// <summary>What a claim attempt found.</summary>
 public enum IdempotencyClaim
@@ -95,16 +97,11 @@ public sealed record IdempotencyClaimResult(
 /// from being told its edit succeeded.
 /// </para>
 /// <para>
-/// <b>Port, default, phase, trigger</b>, per
-/// <see href="../../../../docs/decisions/0035-demand-gated-infrastructure.md">ADR-0035</see>:
-/// this interface is the port; <c>InMemoryIdempotencyStore</c> is the working
-/// default; the durable Postgres-backed implementation is owned by
-/// <see href="../../../../docs/roadmap/phase-02a-kernel-tenancy.md">Phase 02a
-/// Packet 6</see>; and its trigger is <b>the first endpoint that carries
-/// <c>[Idempotent]</c>, or the first deployment that runs more than one
-/// instance — whichever comes first</b>. The in-memory default is correct for
-/// one instance and wrong for two, which is stated on the implementation rather
-/// than implied.
+/// <c>PostgresIdempotencyStore</c> supplies the durable implementation selected by
+/// ADR-0079 for protected administration. It uses its own short application-role
+/// owners and a separate capacity fence; business transactions never join it.
+/// The in-memory implementation remains available for explicitly selected
+/// component tests and supplies neither restart durability nor a shared budget.
 /// </para>
 /// </remarks>
 public interface IIdempotencyStore

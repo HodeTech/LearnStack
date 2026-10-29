@@ -7,6 +7,7 @@ using LearnStack.Api.Pagination;
 using LearnStack.Api.Tenancy;
 using LearnStack.Modules.Education.Application.Contracts.PublicReads;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
+using LearnStack.Modules.Identity.Application.Contracts.Entry;
 using LearnStack.Modules.Tenancy.Application.Contracts.Account;
 using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
 using MediatR;
@@ -66,6 +67,12 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         Action wrongRequest = () => AssertUnion(actual.Select(entry => entry.Replace(typeof(GetAccountSiteQuery).FullName!,
             typeof(GetPublicSiteQuery).FullName!, StringComparison.Ordinal)));
         wrongRequest.Should().Throw<Xunit.Sdk.XunitException>("an approved action may not dispatch another approved query");
+        Action wrongAdmissionRequest = () => AssertUnion(actual.Select(entry => entry.Replace(typeof(AdmitNativeSessionScopeCommand).FullName!,
+            typeof(ListMembershipsQuery).FullName!, StringComparison.Ordinal)));
+        wrongAdmissionRequest.Should().Throw<Xunit.Sdk.XunitException>("native admission cannot substitute a Membership directory request");
+        Action wrongAdmissionMethod = () => AssertUnion(actual.Select(entry => entry.Replace("identity/session-scope/admissions|POST|",
+            "identity/session-scope/admissions|GET|", StringComparison.Ordinal)));
+        wrongAdmissionMethod.Should().Throw<Xunit.Sdk.XunitException>("native admission remains the exact POST route");
 
         await using var dirtyFactory = new SurfaceFactory(environment, addFilterProvider: true);
         using var dirtyClient = dirtyFactory.CreateClient();
@@ -88,7 +95,8 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         Action extra = () => AssertEndpointAuthorization(action, metadata.Append(new UnexpectedAnonymousAttribute()));
         extra.Should().Throw<Xunit.Sdk.XunitException>("custom IAllowAnonymous metadata cannot augment any approved MVC endpoint");
         if (action.ControllerTypeInfo.AsType() != typeof(AccountController)
-            && action.ControllerTypeInfo.AsType() != typeof(MembershipsController))
+            && action.ControllerTypeInfo.AsType() != typeof(MembershipsController)
+            && action.ControllerTypeInfo.AsType() != typeof(NativeSessionAdmissionController))
         {
             Action substitute = () => AssertEndpointAuthorization(action,
                 metadata.Where(item => item is not IAllowAnonymous).Append(new UnexpectedAnonymousAttribute()));
@@ -116,14 +124,16 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         items.OfType<AuthorizationPolicy>().Should().BeEmpty("explicit policies are a separate framework authorization channel");
         items.OfType<IAuthorizationRequirementData>().Should().BeEmpty("requirement metadata must not augment the approved authorization contract");
         if (action.ControllerTypeInfo.AsType() == typeof(AccountController)
-            || action.ControllerTypeInfo.AsType() == typeof(MembershipsController))
+            || action.ControllerTypeInfo.AsType() == typeof(MembershipsController)
+            || action.ControllerTypeInfo.AsType() == typeof(NativeSessionAdmissionController))
         {
             anonymous.Should().BeEmpty("authenticated endpoint metadata must never bypass authorization");
             var authorization = authorizations.Should().ContainSingle().Which.Should().BeOfType<AuthorizeAttribute>().Subject;
             authorization.AuthenticationSchemes.Should().Be("TenantBearer");
             authorization.Roles.Should().BeNull();
             authorization.Policy.Should().Be("LearnStackOperation:" + (action.ControllerTypeInfo.AsType() == typeof(AccountController)
-                ? "tenancy.account_site.read" : "identity.membership.list"));
+                ? "tenancy.account_site.read" : action.ControllerTypeInfo.AsType() == typeof(MembershipsController)
+                    ? "identity.membership.list" : "identity.membership.admit_session_scope"));
         }
         else
         {
@@ -222,6 +232,16 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         var controller = (ControllerBase)Activator.CreateInstance(action.ControllerTypeInfo.AsType(), sender)!;
         var context = new DefaultHttpContext();
         context.Features.Set(HostClassification.Platform("census.invalid"));
+        using var admissionBody = new MemoryStream("{}"u8.ToArray());
+        if (action.ControllerTypeInfo.AsType() == typeof(NativeSessionAdmissionController))
+        {
+            // Exercise the admitted empty input so this dispatch census observes
+            // the actual command; the sender probe stops before witness publication.
+            context.Request.Method = HttpMethods.Post;
+            context.Request.ContentType = "application/json";
+            context.Request.ContentLength = admissionBody.Length;
+            context.Request.Body = admissionBody;
+        }
         controller.ControllerContext = new ControllerContext { HttpContext = context };
         var arguments = action.MethodInfo.GetParameters().Select(parameter => parameter.ParameterType switch
         {
@@ -250,6 +270,7 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
             Mvc("public/courses/{slug}/lessons/{lessonSlug}", "HEAD", typeof(PublicEducationController), "HeadLesson", typeof(GetPublicLessonQuery)),
             Mvc("account/site", "GET", typeof(AccountController), "GetSite", typeof(GetAccountSiteQuery)),
             Mvc("identity/memberships", "GET", typeof(MembershipsController), "List", typeof(ListMembershipsQuery)),
+            Mvc("identity/session-scope/admissions", "POST", typeof(NativeSessionAdmissionController), "Admit", typeof(AdmitNativeSessionScopeCommand)),
         };
         var infrastructure = new[]
         {

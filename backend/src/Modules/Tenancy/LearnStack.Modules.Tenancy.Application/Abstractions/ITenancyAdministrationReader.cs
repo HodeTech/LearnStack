@@ -16,6 +16,10 @@ public interface ITenancyAdministrationReader
     Task<OrganizationDirectoryPage?> ListOrganizationsAsync(string? cursor, int limit, CancellationToken cancellationToken = default);
     /// <summary>The organization and its Tenant default reference come from one joined SQL snapshot.</summary>
     Task<OrganizationAdministrationDetail?> ReadOrganizationDetailAsync(OrganizationId id, CancellationToken cancellationToken = default);
+    /// <summary>Exact retained root for receipt attribution only; terminal state does not grant live authority.</summary>
+    Task<Organization?> ReadOrganizationReceiptAsync(OrganizationId id, CancellationToken cancellationToken = default);
+    /// <summary>The original Tenant root of a default-selection receipt; no current default substitution.</summary>
+    Task<Domain.Tenant?> ReadDefaultOrganizationReceiptAsync(TenantId id, CancellationToken cancellationToken = default);
 }
 
 public sealed record TenantAdministrationFacts(TenantId Id, TenantStatus Status, bool IsDeleted,

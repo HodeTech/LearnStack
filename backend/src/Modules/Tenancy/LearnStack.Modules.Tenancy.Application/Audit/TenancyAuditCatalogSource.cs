@@ -52,6 +52,8 @@ public sealed class TenancyAuditCatalogSource : IAuditCatalogSource
         builder
             .MustAudit<ListOrganizationsQuery>("tenancy.organization.list", OperationType.ReadSensitive, typeof(Organization))
             .MustAudit<GetOrganizationDetailQuery>("tenancy.organization.read", OperationType.ReadSensitive, typeof(Organization))
+            .MustAudit<ReadOrganizationReceiptQuery>("tenancy.organization.read_receipt", OperationType.ReadSensitive, typeof(Organization))
+            .MustAudit<ReadDefaultOrganizationReceiptQuery>("tenancy.organization.read_receipt", OperationType.ReadSensitive, typeof(Domain.Tenant))
             .MustAudit<CreateManagedOrganizationCommand>("tenancy.organization.create", OperationType.Create, typeof(Organization))
             .ShouldAudit<RenameOrganizationCommand>("tenancy.organization.rename", OperationType.Update, typeof(Organization))
             .MustAudit<ArchiveOrganizationCommand>("tenancy.organization.archive", OperationType.Update, typeof(Organization))

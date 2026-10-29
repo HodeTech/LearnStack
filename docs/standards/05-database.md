@@ -1903,21 +1903,22 @@ including tenant-wide rows.
 
 ## Idempotency
 
-`idempotency_keys` is the schema the durable `IIdempotencyStore` will read and
-write ([ADR-0037](../decisions/0037-idempotency-key-contract.md)). The table and
-the store ship apart, per Amendment 1: the schema is a one-way door and shipped
-in Packet 6; the store is additive and ships on its ADR-0035 trigger, with
-`InMemoryIdempotencyStore` registered until then. Every column below
-is forced by the shipped port
-(`LearnStack.SharedKernel/Idempotency/IIdempotencyStore.cs`) rather than chosen:
-`fingerprint` by `TryClaimAsync`'s third parameter and the `Mismatched`
-outcome, `claim_token` by the fence on `Complete` and `Abandon`, `state` by the
-tombstone ADR-0037 says is explicitly **not** a release, and the four response
-columns by `IdempotentResponse`.
-ADR-0079 selects that trigger for P03-3. Its Accepted
-[protected durable extension](#protected-durable-idempotency) replaces the old
-unexpired-count admission shape with retained-slot recycling and adds original
-replay-target metadata; implementation/proof remains pending.
+`PostgresIdempotencyStore` reads and writes the existing tenant-wide
+`idempotency_keys` table as `learnstack_app`
+([ADR-0037](../decisions/0037-idempotency-key-contract.md), as extended by
+[ADR-0079](../decisions/0079-bounded-identity-administration.md)). The production
+registration selects the durable adapter; `InMemoryIdempotencyStore` remains an
+explicit component-test implementation. The
+[phase Status block](../roadmap/phase-03-identity-admin.md) owns qualification and
+protected-route activation.
+
+`fingerprint` identifies the scoped request, `claim_token` fences completion and
+release, and `state` distinguishes an unfinished claim from completed or
+unreplayable work. The response columns preserve the whole recorded outcome.
+Paired nullable replay-target fields retain a protected operation's original
+resource independently of wire bytes or a later Membership successor. The
+[protected durable extension](#protected-durable-idempotency) owns retained-slot
+recycling and its separate owner/lock lifetime.
 
 ```sql
 -- Tenant-owned, tenant-wide. Addressed by its natural key, so it generates no id.
@@ -1931,6 +1932,8 @@ CREATE TABLE idempotency_keys (
     content_type text        NULL,
     headers      jsonb       NULL,
     body         bytea       NULL,
+    replay_target_kind text   NULL,
+    replay_target_id uuid     NULL,
     claimed_at   timestamptz NOT NULL DEFAULT now(),
     -- ONE expiry column, deliberately. It is the 5-minute claim lease while in_flight
     -- and the 24-hour retention window once the outcome is recorded, so the claim
@@ -1961,7 +1964,14 @@ CREATE TABLE idempotency_keys (
     CONSTRAINT ck_idempotency_keys_outcome CHECK (
         (state =  'completed' AND status_code IS NOT NULL AND body IS NOT NULL)
      OR (state <> 'completed' AND status_code IS NULL AND content_type IS NULL
-                              AND headers IS NULL AND body IS NULL))
+                              AND headers IS NULL AND body IS NULL)),
+    CONSTRAINT ck_idempotency_keys_replay_target CHECK (
+        (replay_target_kind IS NULL AND replay_target_id IS NULL)
+        OR (replay_target_kind IS NOT NULL AND replay_target_id IS NOT NULL
+            AND replay_target_kind IN ('Membership','Role','Organization','Tenant')
+            AND replay_target_id <> '00000000-0000-0000-0000-000000000000'::uuid
+            AND state = 'completed' AND status_code BETWEEN 200 AND 299
+            AND body IS NOT NULL AND octet_length(body) <= 1024))
 );
 
 -- Serves both the retention sweep and the per-tenant admission count, tenant first
@@ -1997,12 +2007,13 @@ Two properties are contract rather than implementation:
   recycling only a database-expired row. With no reusable slot it answers
   `CapacityExhausted`; it never drops a live record to make room.
 
-**Packet 6 ships the table; `PostgresIdempotencyStore` ships on its trigger** —
-the first endpoint carrying `[Idempotent]`, or the first deployment running more
-than one instance, whichever comes first
-([ADR-0035](../decisions/0035-demand-gated-infrastructure.md)). The table is
-one-way-door schema; the implementation is not, and `InMemoryIdempotencyStore`
-remains the registered default until then.
+ADR-0079 selects the durable adapter under the existing
+[ADR-0035 trigger](../decisions/0035-demand-gated-infrastructure.md); Packet 6
+already supplied its one-way-door table. Claim/complete/release use short
+independent owners. Outcome work follows positively observed business transaction
+and connection disposal; a detached transaction or repeated no-op disposal is not
+that evidence. Successful cleanup after a COMMIT exception proves ended ownership,
+never rollback. No automatic mutation retry or exactly-once guarantee follows.
 
 The retention sweep that deletes rows past `expires_at` is owned by
 [Phase 11](../roadmap/phase-11-production-hardening.md), alongside the other

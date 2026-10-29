@@ -21,6 +21,8 @@ public sealed class TenancyOperationPolicySource : IOperationPolicySource
         OperationPolicy.ForAccount<GetAccountSiteQuery>(AccountSiteOperation),
         OperationPolicy.ForProtected<ListOrganizationsQuery>("tenancy.organization.list", BoundedTenancyAdministrationPermissions.OrganizationAdministration),
         OperationPolicy.ForProtected<GetOrganizationDetailQuery>("tenancy.organization.read", BoundedTenancyAdministrationPermissions.OrganizationAdministration),
+        OperationPolicy.ForProtected<ReadOrganizationReceiptQuery>("tenancy.organization.read_receipt", BoundedTenancyAdministrationPermissions.OrganizationAdministration),
+        OperationPolicy.ForProtected<ReadDefaultOrganizationReceiptQuery>("tenancy.organization.read_default_receipt", BoundedTenancyAdministrationPermissions.OrganizationAdministration),
         OperationPolicy.ForProtected<CreateManagedOrganizationCommand>("tenancy.organization.create", BoundedTenancyAdministrationPermissions.OrganizationAdministration, requiresOrglessWrite: true),
         OperationPolicy.ForProtected<RenameOrganizationCommand>("tenancy.organization.rename", BoundedTenancyAdministrationPermissions.OrganizationAdministration, requiresOrglessWrite: true),
         OperationPolicy.ForProtected<ArchiveOrganizationCommand>("tenancy.organization.archive", BoundedTenancyAdministrationPermissions.OrganizationAdministration, requiresOrglessWrite: true),
