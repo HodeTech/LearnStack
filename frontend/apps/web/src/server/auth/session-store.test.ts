@@ -3,6 +3,9 @@ import { randomBytes } from 'node:crypto';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import * as entryCursor from './entry-cursor';
+import { BffInputError } from './input-error';
+import type { SelfContexts } from './native-contract';
 import type { NativeAdministrationCaller } from './native-operation-contract';
 import type { ProviderCredentials, ProviderIdentity } from './provider';
 import { BffProviderError } from './provider-error';
@@ -111,7 +114,12 @@ function fixture(options: { initialTime?: number; utcJitter?: () => number } = {
       association(token),
     ),
     contexts: vi.fn(
-      async (_token: string, binding: { host: string }, _page: unknown, _signal: AbortSignal) => ({
+      async (
+        _token: string,
+        binding: { host: string },
+        _page: unknown,
+        _signal: AbortSignal,
+      ): Promise<SelfContexts> => ({
         items: [
           {
             tenantId: identity.tenantId!,
@@ -2020,6 +2028,333 @@ describe('scoped switch choices use current tenant discovery', () => {
     expect(f.store.peek(active.binding)).toEqual(active.finished.session);
     expect(f.store.counts()).toMatchObject({ owners: 1, pending: 0, subjects: 1 });
   });
+});
+
+describe('entry cursors remain in server custody', () => {
+  const authority = '10000000-0000-4000-8000-000000000099';
+  const subjectDigest = 'b'.repeat(64);
+  const membership = '019a154b-0000-7000-8000-000000000011';
+  const rawCursor = Buffer.from(`${authority}:${subjectDigest}:${membership}`).toString(
+    'base64url',
+  );
+  const scope = { tenantId: identity.tenantId!, organizationId: null };
+  const binding = (
+    entry: Awaited<ReturnType<ReturnType<typeof fixture>['enter']>>,
+    atHost = host,
+  ) => ({ host: atHost, browser: entry.browser, handle: entry.handle });
+  const contextPage = (endCursor: string | null = rawCursor, atHost = host): SelfContexts => ({
+    items: [
+      {
+        ...scope,
+        tenantName: 'Institution',
+        organizationName: null,
+        entryOrigin: 'https://' + atHost,
+        canUseCurrentHost: true,
+      },
+    ],
+    endCursor,
+    hasNextPage: endCursor !== null,
+  });
+  async function issued(f: ReturnType<typeof fixture>, atHost = host) {
+    f.native.contexts.mockResolvedValue(contextPage(rawCursor, atHost));
+    const entry = await f.enter(await f.start({ host: atHost }), atHost);
+    const current = binding(entry, atHost);
+    const page = await f.store.entry(current, source);
+    const cursor = page.contexts?.endCursor;
+    if (!cursor) throw new Error('Expected a next-page cursor');
+    return { entry, binding: current, page, cursor };
+  }
+  function clearApiCalls(f: ReturnType<typeof fixture>) {
+    f.native.self.mockClear();
+    f.native.contexts.mockClear();
+    f.native.admit.mockClear();
+    f.account.mockClear();
+  }
+  function noApiCalls(f: ReturnType<typeof fixture>) {
+    expect(f.native.self).not.toHaveBeenCalled();
+    expect(f.native.contexts).not.toHaveBeenCalled();
+    expect(f.native.admit).not.toHaveBeenCalled();
+    expect(f.account).not.toHaveBeenCalled();
+  }
+
+  it.each(['publication', 'logout', 'expiry', 'stop'] as const)(
+    'zeroes the actual key buffer on %s before ignored page work settles',
+    async (terminal) => {
+      const f = fixture();
+      const keys: Buffer[] = [];
+      const original = entryCursor.sealEntryCursor;
+      const seal = vi.spyOn(entryCursor, 'sealEntryCursor').mockImplementation((key, ...args) => {
+        keys.push(key);
+        return original(key, ...args);
+      });
+      const held = deferred<void>();
+      releases.push(() => held.resolve());
+      try {
+        const value = await issued(f);
+        expect(keys.length).toBe(1);
+        const key = keys[0]!;
+        expect(key.length).toBe(32);
+        expect(key.some((byte) => byte !== 0)).toBe(true);
+        f.native.contexts.mockImplementationOnce(async () => {
+          await held.promise;
+          return contextPage();
+        });
+        f.native.contexts.mockClear();
+        const pending = f.store.entry(value.binding, source, value.cursor);
+        const refused = expect(pending).rejects.toMatchObject({
+          reason: terminal === 'publication' ? 'revoked' : 'cancelled',
+        });
+        await vi.waitFor(() => expect(f.native.contexts).toHaveBeenCalledTimes(1));
+        let stopped: Promise<void> | undefined;
+        if (terminal === 'publication')
+          await f.store.select(value.binding, source, value.page.csrfToken, scope, value.cursor);
+        else if (terminal === 'logout') f.store.discardEntry(value.binding, value.page.csrfToken);
+        else if (terminal === 'stop') stopped = f.store.stop();
+        else {
+          f.advance(BFF_LIMITS.transactionMs);
+          f.store.sweep();
+        }
+        expect(key.every((byte) => byte === 0)).toBe(true);
+        expect(f.store.counts()).toMatchObject({
+          owners: 1,
+          operations: 1,
+          cursorKeyRecords: 0,
+        });
+        held.resolve();
+        await refused;
+        await stopped;
+      } finally {
+        held.resolve();
+        seal.mockRestore();
+      }
+    },
+  );
+
+  it('never exposes an API identity cursor through entry JSON or a base64url-decoded browser cursor', async () => {
+    const f = fixture();
+    const value = await issued(f);
+    expect(rawCursor).toHaveLength(184);
+    expect(Buffer.from(rawCursor, 'base64url').toString()).toContain(subjectDigest);
+    const decoded = Buffer.from(value.cursor, 'base64url');
+    for (const privateValue of [authority, subjectDigest, membership]) {
+      expect(decoded.includes(Buffer.from(privateValue))).toBe(false);
+      expect(JSON.stringify(value.page)).not.toContain(privateValue);
+    }
+    expect(value.cursor).not.toBe(rawCursor);
+    expect(value.cursor).toHaveLength(284);
+    expect(value.cursor).toMatch(/^[A-Za-z0-9_-]+$/);
+    expect(decoded.toString('base64url')).toBe(value.cursor);
+    expect(value.page.contexts?.items).toEqual(contextPage().items);
+    expect(value.page.contexts?.hasNextPage).toBe(true);
+    expect(f.store.counts()).toMatchObject({ owners: 1, pending: 1, cursorKeyRecords: 1 });
+  });
+
+  it('unwraps paging and selection only inside the owner and preserves null end-of-pages', async () => {
+    const f = fixture();
+    const value = await issued(f);
+    f.native.contexts.mockResolvedValue(contextPage(null));
+    f.native.contexts.mockClear();
+    const next = await f.store.entry(value.binding, source, value.cursor);
+    expect(f.native.contexts).toHaveBeenCalledExactlyOnceWith(
+      expect.any(String),
+      { host, source },
+      { cursor: rawCursor, limit: 20 },
+      expect.any(AbortSignal),
+    );
+    expect(next.contexts).toEqual(contextPage(null));
+    expect(f.store.counts().cursorKeyRecords).toBe(1);
+    f.native.contexts.mockClear();
+    const selected = await f.store.select(
+      value.binding,
+      source,
+      next.csrfToken,
+      scope,
+      value.cursor,
+    );
+    expect(selected.kind).toBe('session');
+    expect(f.native.contexts.mock.calls[0]![2]).toEqual({ cursor: rawCursor, limit: 20 });
+    expect(f.native.admit).toHaveBeenCalledTimes(1);
+    expect(f.store.counts()).toMatchObject({ owners: 1, cursorKeyRecords: 0 });
+  });
+
+  it('keeps independently sealed parallel page cursors usable without per-tab eviction', async () => {
+    const f = fixture();
+    const value = await issued(f);
+    const pages = await Promise.all(
+      Array.from({ length: 12 }, () => f.store.entry(value.binding, source)),
+    );
+    const cursors = pages.map((page) => page.contexts!.endCursor!);
+    expect(new Set([value.cursor, ...cursors]).size).toBe(13);
+    f.native.contexts.mockClear();
+    await Promise.all(
+      [value.cursor, ...cursors].map((cursor) => f.store.entry(value.binding, source, cursor)),
+    );
+    expect(f.native.contexts).toHaveBeenCalledTimes(13);
+    expect(
+      f.native.contexts.mock.calls.every(
+        (call) => (call[2] as { cursor: string }).cursor === rawCursor,
+      ),
+    ).toBe(true);
+    expect(f.store.counts()).toMatchObject({ owners: 1, pending: 1, cursorKeyRecords: 1 });
+  });
+
+  it.each(['entry', 'host', 'epoch'] as const)(
+    'refuses a cursor from a foreign %s before API work while preserving the current entry',
+    async (foreign) => {
+      const f = fixture();
+      const first = await issued(f);
+      const atHost = foreign === 'host' ? secondHost : host;
+      let prior: { browser: string; handle: string } | undefined;
+      if (foreign === 'epoch') {
+        const selected = await f.store.select(first.binding, source, first.page.csrfToken, scope);
+        if (selected.kind !== 'session') throw new Error('Expected a published new epoch');
+        prior = selected;
+      }
+      const entry = await f.enter(await f.start({ host: atHost, ...prior }), atHost);
+      const current = binding(entry, atHost);
+      f.native.contexts.mockResolvedValue(contextPage(rawCursor, atHost));
+      clearApiCalls(f);
+      await expect(f.store.entry(current, source, first.cursor)).rejects.toBeInstanceOf(
+        BffInputError,
+      );
+      noApiCalls(f);
+      await expect(
+        f.store.select(current, source, entry.entry.csrfToken, scope, first.cursor),
+      ).rejects.toBeInstanceOf(BffInputError);
+      noApiCalls(f);
+      expect(f.store.peek(current)).toBeNull();
+      const stillLive = await f.store.entry(current, source);
+      expect(stillLive.csrfToken).toBe(entry.entry.csrfToken);
+      expect(stillLive.expiresAt).toBe(entry.entry.expiresAt);
+    },
+  );
+
+  const dirtyCursors: ReadonlyArray<readonly [string, (cursor: string) => string]> = [
+    ['raw API cursor', () => rawCursor],
+    [
+      'tampered ciphertext',
+      (cursor) => {
+        const bytes = Buffer.from(cursor, 'base64url');
+        bytes[13] = bytes[13]! ^ 1;
+        return bytes.toString('base64url');
+      },
+    ],
+    [
+      'truncated tag',
+      (cursor) => Buffer.from(cursor, 'base64url').subarray(0, -1).toString('base64url'),
+    ],
+    [
+      'wrong version',
+      (cursor) => {
+        const bytes = Buffer.from(cursor, 'base64url');
+        bytes[0] = 255;
+        return bytes.toString('base64url');
+      },
+    ],
+    ['noncanonical padding', (cursor) => cursor + '='],
+    ['empty', () => ''],
+    ['overlong', () => 'A'.repeat(1025)],
+  ];
+  it.each(
+    dirtyCursors.flatMap(([name, mutate]) =>
+      (['entry', 'select'] as const).map((operation) => ({ name, mutate, operation })),
+    ),
+  )(
+    'refuses $name at $operation before any API or selection transition',
+    async ({ mutate, operation }) => {
+      const f = fixture();
+      const value = await issued(f);
+      clearApiCalls(f);
+      const cursor = mutate(value.cursor);
+      const attempted =
+        operation === 'entry'
+          ? f.store.entry(value.binding, source, cursor)
+          : f.store.select(value.binding, source, value.page.csrfToken, scope, cursor);
+      await expect(attempted).rejects.toBeInstanceOf(BffInputError);
+      noApiCalls(f);
+      expect(f.store.peek(value.binding)).toBeNull();
+      const retained = await f.store.entry(value.binding, source);
+      expect(retained.csrfToken).toBe(value.page.csrfToken);
+      expect(retained.expiresAt).toBe(value.page.expiresAt);
+    },
+  );
+
+  it('fits a 739-byte API cursor within the browser bound and refuses 740 bytes without truncation', async () => {
+    const f = fixture();
+    const value = await issued(f);
+    const maximum = 'A'.repeat(739);
+    f.native.contexts.mockResolvedValue(contextPage(maximum));
+    const page = await f.store.entry(value.binding, source);
+    const cursor = page.contexts!.endCursor!;
+    expect(cursor).toHaveLength(1024);
+    f.native.contexts.mockClear();
+    await f.store.entry(value.binding, source, cursor);
+    expect(f.native.contexts.mock.calls[0]![2]).toEqual({ cursor: maximum, limit: 20 });
+    f.native.contexts.mockResolvedValue(contextPage('A'.repeat(740)));
+    await expect(f.store.entry(value.binding, source)).rejects.toMatchObject({
+      reason: 'response',
+    });
+    f.native.contexts.mockResolvedValue(contextPage(null));
+    await expect(f.store.entry(value.binding, source)).resolves.toMatchObject({ state: 'entry' });
+  });
+
+  it.each([false, true])(
+    'clears the entry key on logout, including provider failure=%s',
+    async (failure) => {
+      const f = fixture();
+      const value = await issued(f);
+      expect(f.store.counts().cursorKeyRecords).toBe(1);
+      if (failure)
+        vi.mocked(f.provider.logoutUrl).mockImplementationOnce(() => {
+          throw new BffProviderError('transport');
+        });
+      const logout = f.store.discardEntry(value.binding, value.page.csrfToken);
+      expect(f.store.counts()).toMatchObject({
+        owners: 1,
+        subjects: 1,
+        logoutStates: 1,
+        proofRecords: 1,
+        cursorKeyRecords: 0,
+      });
+      expect(f.store.consumeLogout({ ...value.binding, ...logout })).toBe(true);
+      expect(Object.values(f.store.counts()).every((count) => count === 0)).toBe(true);
+    },
+  );
+
+  it.each(['expiry', 'stop'] as const)(
+    'clears keys on %s while retaining ignored-cancellation work',
+    async (terminal) => {
+      const f = fixture();
+      const value = await issued(f);
+      expect(f.store.counts().cursorKeyRecords).toBe(1);
+      const held = deferred<void>();
+      releases.push(() => held.resolve());
+      f.native.contexts.mockImplementationOnce(async () => {
+        await held.promise;
+        return contextPage();
+      });
+      f.native.contexts.mockClear();
+      const pending = f.store.entry(value.binding, source, value.cursor);
+      const refused = expect(pending).rejects.toMatchObject({ reason: 'cancelled' });
+      await vi.waitFor(() => expect(f.native.contexts).toHaveBeenCalledTimes(1));
+      let stopped: Promise<void> | undefined;
+      if (terminal === 'stop') stopped = f.store.stop();
+      else {
+        f.advance(BFF_LIMITS.transactionMs);
+        f.store.sweep();
+      }
+      expect(f.store.counts()).toMatchObject({
+        owners: 1,
+        subjects: 1,
+        operations: 1,
+        cursorKeyRecords: 0,
+      });
+      held.resolve();
+      await refused;
+      await stopped;
+      expect(Object.values(f.store.counts()).every((count) => count === 0)).toBe(true);
+    },
+  );
 });
 
 describe('entry provider logout is a separate retained owner', () => {

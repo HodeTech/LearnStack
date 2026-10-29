@@ -7,6 +7,7 @@ import { bffFixture, bffHost, bffOpaque, bffRequest, bffSource } from './bff-fix
 import { BFF_COOKIES } from '../server/auth/cookies';
 import { renderBffDocument } from '../server/auth/html';
 import { bffAdministrationForm, bffCursor, bffPageQuery } from '../server/auth/http-forms';
+import { createNativeSessionApi, nativeSubjectKey } from '../server/auth/native-session-client';
 import { BffSessionError } from '../server/auth/session-contract';
 import type { PublicSite } from '../server/public-entry';
 
@@ -58,6 +59,62 @@ function fixture() {
   const f = bffFixture();
   fixtures.push(f);
   return f;
+}
+function nativeCursorFixture(nextCursor = 'Zm9yd2FyZC1wYWdl') {
+  const f = fixture();
+  const authorityId = '019a1929-5450-7bbb-8df1-516e8e002501';
+  const transport = vi.fn<typeof fetch>(async (input) => {
+    const target = new URL(String(input));
+    const json = (body: unknown) =>
+      new Response(JSON.stringify(body), {
+        headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+      });
+    if (target.pathname === '/api/v1/identity/self')
+      return json({
+        state: 'active',
+        authorityId,
+        actorId: '019a154b-0000-7000-8000-000000000011',
+        subjectKey: nativeSubjectKey(authorityId, 'opaque-subject'),
+      });
+    if (target.pathname !== '/api/v1/identity/self/contexts')
+      throw new Error('Unexpected native cursor proof endpoint');
+    const following = target.searchParams.has('cursor');
+    return json({
+      items: [
+        {
+          ...f.scope,
+          tenantName: following ? 'Following institution choice' : 'First institution choice',
+          organizationName: null,
+          entryOrigin: 'https://' + bffHost,
+          canUseCurrentHost: true,
+        },
+      ],
+      pageInfo: {
+        nextCursor: following ? null : nextCursor,
+        previousCursor: null,
+        hasNext: !following,
+        hasPrevious: false,
+      },
+    });
+  });
+  const native = createNativeSessionApi(
+    {
+      apiOrigin: 'http://127.0.0.1:5100',
+      secret: 'private-hop-'.padEnd(48, 'x'),
+      nativeSourceSecret: Buffer.from(Array.from({ length: 32 }, (_, index) => index + 1)).toString(
+        'base64url',
+      ),
+      authorityId,
+      issuer: 'https://identity.example.test/realms/learnstack',
+    },
+    transport,
+  );
+  f.native.self.mockImplementation(native.self);
+  f.native.contexts.mockImplementation(native.contexts);
+  f.native.bootstrap.mockImplementation(native.bootstrap);
+  f.native.admit.mockImplementation(native.admit);
+  f.native.verifyAssociation.mockImplementation(native.verifyAssociation);
+  return { ...f, transport };
 }
 afterEach(async () => {
   vi.restoreAllMocks();
@@ -610,6 +667,108 @@ describe('exact native administration forms', () => {
 });
 
 describe('entry and scope HTTP publication', () => {
+  it.each([
+    ['one symbol', 'A'],
+    ['five symbols', 'AAAAA'],
+    ['nonzero four trailing bits', 'AB'],
+    ['nonzero two trailing bits', 'AAB'],
+    ['empty', ''],
+    ['overlong', 'A'.repeat(1025)],
+  ])(
+    'malformed browser cursor %s is 400 before any real native API call',
+    async (_label, cursor) => {
+      const f = nativeCursorFixture();
+      const entered = await f.enter();
+      const readEntry = vi.spyOn(f.store, 'entry');
+      const response = (await f.http.handle(
+        bffRequest('/api/auth/entry?' + new URLSearchParams({ cursor }), {
+          cookie: entered.cookie,
+          headers: { accept: 'application/json' },
+        }),
+      ))!;
+      expect(response.status).toBe(400);
+      expect(response.headers.get('cache-control')).toBe('no-store');
+      expect(response.headers.getSetCookie()).toEqual([]);
+      expect(await response.json()).toEqual({ code: 'invalid_request' });
+      expect(readEntry).not.toHaveBeenCalled();
+      expect(f.transport).not.toHaveBeenCalled();
+      expect(f.native.self).not.toHaveBeenCalled();
+      expect(f.native.contexts).not.toHaveBeenCalled();
+      expect(f.store.counts()).toMatchObject({ owners: 1, operations: 0 });
+    },
+  );
+
+  it('round-trips a published canonical opaque cursor through the real native client', async () => {
+    const rawApiCursor = 'Zm9yd2FyZC1wYWdl';
+    const f = nativeCursorFixture(rawApiCursor);
+    const entered = await f.enter();
+    const first = (await f.http.handle(
+      bffRequest('/api/auth/entry', {
+        cookie: entered.cookie,
+        headers: { accept: 'application/json' },
+      }),
+    ))!;
+    expect(first.status).toBe(200);
+    const page = (await first.json()) as { contexts: { endCursor: string; hasNextPage: boolean } };
+    expect(page.contexts.hasNextPage).toBe(true);
+    expect(typeof page.contexts.endCursor).toBe('string');
+    expect(bffCursor(page.contexts.endCursor)).toBe(page.contexts.endCursor);
+    const following = (await f.http.handle(
+      bffRequest('/api/auth/entry?' + new URLSearchParams({ cursor: page.contexts.endCursor }), {
+        cookie: entered.cookie,
+        headers: { accept: 'application/json' },
+      }),
+    ))!;
+    expect(following.status).toBe(200);
+    expect(following.headers.get('cache-control')).toBe('no-store');
+    expect(following.headers.getSetCookie()).toEqual([]);
+    expect(await following.json()).toMatchObject({
+      contexts: {
+        items: [{ tenantName: 'Following institution choice' }],
+        endCursor: null,
+        hasNextPage: false,
+      },
+    });
+    const targets = f.transport.mock.calls.map(([input]) => new URL(String(input)));
+    expect(targets.map((target) => target.pathname)).toEqual([
+      '/api/v1/identity/self',
+      '/api/v1/identity/self/contexts',
+      '/api/v1/identity/self',
+      '/api/v1/identity/self/contexts',
+    ]);
+    expect(targets[1]!.search).toBe('?limit=20');
+    expect(targets[3]!.searchParams.get('limit')).toBe('20');
+    expect(targets[3]!.searchParams.get('cursor')).toBe(rawApiCursor);
+    expect(f.native.verifyAssociation).toHaveBeenCalledTimes(2);
+    expect(f.native.bootstrap).not.toHaveBeenCalled();
+    expect(f.native.admit).not.toHaveBeenCalled();
+    expect(f.account).not.toHaveBeenCalled();
+  });
+
+  it.each(['A', 'AB', 'AAB'])(
+    'keeps strict native response validation for malformed upstream continuation %s',
+    async (upstreamCursor) => {
+      const f = nativeCursorFixture(upstreamCursor);
+      const entered = await f.enter();
+      const response = (await f.http.handle(
+        bffRequest('/api/auth/entry', {
+          cookie: entered.cookie,
+          headers: { accept: 'application/json' },
+        }),
+      ))!;
+      expect(response.status).toBe(503);
+      expect(response.headers.get('cache-control')).toBe('no-store');
+      expect(response.headers.getSetCookie()).toEqual([]);
+      expect(await response.json()).toEqual({ code: 'response' });
+      expect(f.transport).toHaveBeenCalledTimes(2);
+      expect(f.native.verifyAssociation).toHaveBeenCalledTimes(1);
+      expect(f.native.bootstrap).not.toHaveBeenCalled();
+      expect(f.native.admit).not.toHaveBeenCalled();
+      expect(f.account).not.toHaveBeenCalled();
+      expect(f.store.counts()).toMatchObject({ owners: 1, operations: 0 });
+    },
+  );
+
   it('entry creation is deliberate, never a consequence of callback or discovery', async () => {
     const f = fixture();
     const entered = await f.enter();
@@ -639,11 +798,31 @@ describe('entry and scope HTTP publication', () => {
   it('selection requires current entry proof and fresh exact-page membership before audited admission', async () => {
     const f = fixture();
     const entered = await f.enter();
+    const rawApiCursor = Buffer.from('page_for_entry_selection').toString('base64url');
+    const contexts = f.native.contexts.getMockImplementation()!;
+    f.native.contexts.mockImplementationOnce(async (...args) => ({
+      ...(await contexts(...args)),
+      endCursor: rawApiCursor,
+      hasNextPage: true,
+    }));
+    const first = (await f.http.handle(
+      bffRequest('/api/auth/entry', {
+        cookie: entered.cookie,
+        headers: { accept: 'application/json' },
+      }),
+    ))!;
+    expect(first.status).toBe(200);
+    const page = (await first.json()) as { contexts: { endCursor: string; hasNextPage: boolean } };
+    expect(page.contexts.hasNextPage).toBe(true);
+    expect(typeof page.contexts.endCursor).toBe('string');
+    expect(f.native.contexts).toHaveBeenCalledTimes(1);
+    f.native.self.mockClear();
+    f.native.contexts.mockClear();
     const form = (csrf: string, tenant = f.scope.tenantId) =>
       new URLSearchParams({
         csrfToken: csrf,
         tenantId: tenant,
-        cursor: 'opaque_cursor',
+        cursor: page.contexts.endCursor,
       }).toString();
     const invalid = await f.http.handle(
       bffRequest('/api/auth/entry/select', {
@@ -653,6 +832,7 @@ describe('entry and scope HTTP publication', () => {
       }),
     );
     expect(invalid!.status).toBe(403);
+    expect(f.native.self).not.toHaveBeenCalled();
     expect(f.native.contexts).not.toHaveBeenCalled();
     expect(f.native.admit).not.toHaveBeenCalled();
     const wrong = await f.http.handle(
@@ -677,7 +857,7 @@ describe('entry and scope HTTP publication', () => {
     expect(f.native.contexts).toHaveBeenLastCalledWith(
       'private-access-canary',
       expect.objectContaining({ host: bffHost }),
-      { cursor: 'opaque_cursor', limit: 20 },
+      { cursor: rawApiCursor, limit: 20 },
       expect.any(AbortSignal),
     );
     expect(

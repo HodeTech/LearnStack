@@ -182,6 +182,7 @@ export async function startBffProof({
     'native-operation-contract',
     'native-api-transport',
     'native-session-client',
+    'entry-cursor',
     'native-administration-client',
     'http-forms',
     'input-error',

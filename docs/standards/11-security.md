@@ -1485,6 +1485,18 @@ Keep the witness only in the corresponding entry/credential revision; clear it
 with actual owner cleanup, refresh replacement, expiry and logout. It remains
 linkable personal data, not a browser projection or anonymous identifier.
 
+ADR-0078's server-only boundary also covers identity material embedded in an
+upstream cursor: reversible encoding does not make it a browser projection.
+Native entry continuations use authenticated confidentiality under one fresh,
+server-only entry key, bound to the actual owner, host, epoch and paging purpose.
+The key is independent of cookies/handles/CSRF and is cleared on publication,
+logout, expiry and close; actual work still governs owner release. This adds no
+configured credential, page registry or admission authority. The existing browser
+cursor bound and original entry lifetime remain. Validate canonical input and
+authentication before any discovery call or selection transition; malformed or
+foreign continuations are 400, not configuration/availability failures. API
+cursor/response validation remains strict.
+
 Entry selection freshly checks global-self `/identity/self/contexts`. A published
 same-host switch instead freshly reads `/identity/me/contexts` with the old held
 credential and immutable current scope, so tenant-wide coverage can suggest its

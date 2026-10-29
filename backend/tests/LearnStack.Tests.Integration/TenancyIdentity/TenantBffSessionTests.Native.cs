@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using FluentAssertions;
 using LearnStack.SharedKernel.Identity;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.Tests.Integration.Database;
 using LearnStack.Tools.Seeder;
@@ -16,6 +17,152 @@ namespace LearnStack.Tests.Integration.TenancyIdentity;
 
 public sealed partial class TenantBffSessionTests
 {
+    [Fact]
+    public async Task Real_entry_pagination_keeps_subject_and_authority_out_of_JSON_HTML_and_browser_history()
+    {
+        await using var provider = await KeycloakFixture.StartAsync();
+        using var admin = await provider.CreateAdminClientAsync();
+        await using var database = await KeycloakIdentityDatabase.CreateAsync(publicDatabase, provider);
+        await SeedAdministrationOriginsAsync(database);
+        var identity = SeedData.IdentityUsers.First(person => person.Tenant == SeedData.English);
+        var organizations = Enumerable.Range(0, 21).Select(_ => Guid.CreateVersion7()).ToArray();
+        var expected = await SeedEntryPageMembershipsAsync(database, identity, organizations);
+        var user = await admin.UserAsync(identity.Username);
+        var subjectKey = IdentitySubjectKey.Compute(database.Registration.AuthorityId, user.GetProperty("id").GetString()!).Hex;
+        var authority = database.Registration.AuthorityId.Value.ToString("D");
+        var secret = Convert.ToHexString(RandomNumberGenerator.GetBytes(24)).ToLowerInvariant();
+        var nativeSourceSecret = WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
+        await using var api = StartApi(database, secret, nativeSourceSecret, provider);
+        await using var native = await BffNativeDriver.StartAsync(RepositoryRoot(),
+            NativeConfiguration(provider, database, api, secret, nativeSourceSecret));
+        using var browser = provider.Browser();
+        var cookies = new BffWireCookies();
+        var host = Host(identity.Tenant);
+        var beforeAudit = await AuditCountsAsync(database);
+        var csrf = await native.RequestAsync(host, "/api/auth/csrf");
+        csrf.Status.Should().Be(200);
+        cookies.Apply(csrf);
+        var begin = await native.RequestAsync(host, "/api/auth/signin/keycloak", cookies.Header, "POST",
+            Form("csrfToken", csrf.Data.GetProperty("csrfToken").GetString()!) + "&" + Form("returnTo", "/studio"));
+        begin.Status.Should().Be(303);
+        cookies.Apply(begin);
+        var callback = await browser.CompleteBffLoginAsync(PrivateLocation(begin), identity.Username, KeycloakFixture.DemoPassword);
+        var completed = await native.RequestAsync(host, callback.PathAndQuery, cookies.Header);
+        completed.Status.Should().Be(303);
+        cookies.Apply(completed);
+        RequireCookieAbsent(completed.Cookies, value => value.StartsWith("__Host-ls-session=", StringComparison.Ordinal),
+            "entry pagination must not publish a tenant session");
+
+        var seen = new List<Guid?>();
+        var privacy = new List<bool>();
+        string? cursor = null;
+        string? selectionCursor = null;
+        string? selectionCsrf = null;
+        Guid? selectionOrganization = null;
+        for (var page = 0; page < 2; ++page)
+        {
+            var response = await native.RequestAsync(host, "/api/auth/entry" +
+                (cursor is null ? "" : "?cursor=" + Uri.EscapeDataString(cursor)), cookies.Header);
+            response.Status.Should().Be(200);
+            response.PrivateFree.Should().BeTrue();
+            (response.Data.GetProperty("state").GetString() == "entry").Should().BeTrue();
+            var contexts = response.Data.GetProperty("contexts");
+            var items = contexts.GetProperty("items");
+            items.GetArrayLength().Should().Be(page == 0 ? 20 : 2,
+                "the actual API pages 22 real own Membership records at its unchanged native limit");
+            foreach (var item in items.EnumerateArray())
+            {
+                (item.GetProperty("tenantId").GetGuid() == identity.Tenant.TenantId.Value).Should().BeTrue();
+                seen.Add(item.GetProperty("organizationId").ValueKind == JsonValueKind.Null
+                    ? null : item.GetProperty("organizationId").GetGuid());
+            }
+            if (page == 1)
+            {
+                selectionCursor = cursor;
+                selectionCsrf = response.Data.GetProperty("csrfToken").GetString();
+                selectionOrganization = items.EnumerateArray().First(item =>
+                    item.GetProperty("organizationId").ValueKind != JsonValueKind.Null).GetProperty("organizationId").GetGuid();
+            }
+            cursor = contexts.GetProperty("endCursor").GetString();
+            contexts.GetProperty("hasNextPage").GetBoolean().Should().Be(page == 0);
+            (cursor is not null).Should().Be(page == 0);
+            privacy.Add(EntryCursorPrivateFree(response.Data.GetRawText(), cursor, authority, subjectKey));
+        }
+        seen.Count.Should().Be(22);
+        seen.Distinct().Count().Should().Be(22);
+        seen.Should().Equal(expected, "continuation preserves the actual MembershipId ordering without duplicates or omissions");
+        privacy.Should().OnlyContain(value => value,
+            "browser-visible JSON and decoded cursors must not reveal AuthorityId or the server-only SubjectKey");
+
+        var proof = await native.EntryBrowserAsync(host, cookies.Header, subjectKey);
+        proof.FirstItems.Should().Be(20);
+        proof.SecondItems.Should().Be(2);
+        proof.RestoredItems.Should().Be(20);
+        proof.HistoryEntries.Should().BeInRange(2, 8);
+        proof.HtmlPrivateFree.Should().BeTrue();
+        proof.BrowserPrivateFree.Should().BeTrue();
+        proof.HistoryPrivateFree.Should().BeTrue();
+        proof.NetworkPrivateFree.Should().BeTrue();
+        api.AccountResponses.Responses.Count.Should().Be(0, "entry reads never admit a tenant session");
+        (await AuditCountsAsync(database)).Should().Equal(beforeAudit,
+            "subject-confined discovery is Off; fixture setup precedes the audit baseline");
+        (selectionCursor is not null && selectionCsrf is not null && selectionOrganization is not null).Should().BeTrue();
+        var chosenOrganization = selectionOrganization ?? throw new InvalidOperationException("Entry continuation selection is unavailable.");
+        var beforeAdmission = await ScopeAdmissionCountAsync(database, identity.Tenant, chosenOrganization);
+        var selected = await native.RequestAsync(host, "/api/auth/entry/select", cookies.Header, "POST",
+            Form("csrfToken", selectionCsrf!) + "&" + Form("cursor", selectionCursor!) + "&"
+            + Form("tenantId", identity.Tenant.TenantId.Value.ToString("D")) + "&"
+            + Form("organizationId", chosenOrganization.ToString("D")));
+        selected.Status.Should().Be(303);
+        (selected.Location == "https://" + host + "/studio").Should().BeTrue();
+        selected.PrivateFree.Should().BeTrue();
+        cookies.Apply(selected);
+        var session = await native.RequestAsync(host, "/api/auth/session", cookies.Header);
+        session.Status.Should().Be(200);
+        (session.Data.GetProperty("state").GetString() == "authenticated").Should().BeTrue();
+        api.AccountResponses.Responses.Count.Should().Be(1);
+        (await ScopeAdmissionCountAsync(database, identity.Tenant, chosenOrganization)).Should().Be(beforeAdmission + 1,
+            "selecting a branch from the sealed second-page cursor obtains the actual audited admission");
+        await native.CompleteAsync();
+    }
+
+    private static bool EntryCursorPrivateFree(string json, string? cursor, string authority, string subjectKey)
+    {
+        if (json.Contains(authority, StringComparison.Ordinal) || json.Contains(subjectKey, StringComparison.Ordinal)) return false;
+        if (cursor is null) return true;
+        try
+        {
+            var decoded = System.Text.Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(cursor));
+            return !decoded.Contains(authority, StringComparison.Ordinal) && !decoded.Contains(subjectKey, StringComparison.Ordinal);
+        }
+        catch (FormatException) { return false; }
+    }
+
+    private static async Task<Guid?[]> SeedEntryPageMembershipsAsync(IdentityPublicReadFixture database, SeedIdentity identity,
+        Guid[] organizations)
+    {
+        await using (var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.AppConnectionString))
+        {
+            await SchemaQueries.AssertApplicationRoleAsync(app);
+            await using var transaction = await app.BeginTransactionAsync();
+            foreach (var organization in organizations)
+            {
+                await IdentityMembershipFixture.ScopeAsync(app, transaction, identity.Tenant.TenantId.Value, organization);
+                await IdentityMembershipFixture.ExecuteAsync(app, transaction, """
+                    INSERT INTO public.organizations(id,tenant_id,slug,display_name,status,created_at,created_by,row_version)
+                    VALUES(@organization,@tenant,@slug,'Entry page branch','Active',clock_timestamp(),@actor,0)
+                    """, ("organization", organization), ("tenant", identity.Tenant.TenantId.Value),
+                    ("slug", "entry-page-" + organization.ToString("N")), ("actor", identity.UserId.Value));
+            }
+            await transaction.CommitAsync();
+        }
+        var foundation = SeedData.IdentityMemberships.Single(value => value.Identity == identity);
+        var scopes = new List<(Guid Membership, Guid? Organization)> { (foundation.MembershipId, foundation.OrganizationId?.Value) };
+        foreach (var organization in organizations)
+            scopes.Add((await database.AddMembershipAsync(identity.Tenant, identity.UserId, OrganizationId.From(organization)), organization));
+        return scopes.OrderBy(scope => scope.Membership.ToString("D"), StringComparer.Ordinal).Select(scope => scope.Organization).ToArray();
+    }
+
     [Fact]
     public async Task Actorless_creation_with_lost_response_converges_without_tenant_session_and_logs_out_entry()
     {

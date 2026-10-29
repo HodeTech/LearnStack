@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 2,494 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 2,585 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -184,6 +184,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 7 review round 2, protocol bounds and closeout (2026-10-29)](#p03-3-step-7-review-round-2-protocol-bounds-and-closeout-2026-10-29) — 52 lines
   - [P03-3 Step 8 — Native session ownership (2026-10-29)](#p03-3-step-8--native-session-ownership-2026-10-29) — 112 lines
   - [P03-3 Step 8 review round 1 and recovery corrections (2026-10-29)](#p03-3-step-8-review-round-1-and-recovery-corrections-2026-10-29) — 88 lines
+  - [P03-3 Step 8 review round 2 and cursor confidentiality closeout (2026-10-29)](#p03-3-step-8-review-round-2-and-cursor-confidentiality-closeout-2026-10-29) — 91 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -8221,3 +8222,94 @@ permission, ADR or runtime authority. A fresh independent second review round
 follows the correction commit; Step 9 still owns bounded page snapshots/screens
 and actual browser/no-script/localization/manual accessibility. Step 10 retains
 complete final-source and hosted A/B qualification.
+
+### P03-3 Step 8 review round 2 and cursor confidentiality closeout (2026-10-29)
+
+**Independent review.** Three new `gpt-6-astra` xhigh reviewers examined
+`75f974502a4f443f0fda6b8b073758a78546f9c3` through
+`492baf759c43afc96c86b5f67a3e567e09268cfc` in owner/security,
+HTTP/protocol/lifetime and integration/realm/configuration/evidence lenses.
+The owner reviewer found one privacy Blocker; the protocol reviewer corroborated
+it and independently found one Minor input-classification defect. The integration
+lens established no actionable finding. These were source reviews, not runtime
+executions or all-lines approval.
+
+**Verified defects.** The API's subject-confined discovery continuation encodes
+AuthorityId, canonical SubjectKey and MembershipId with reversible base64url.
+Copying it into entry JSON, links and hidden fields disclosed the server-only
+association material when the entry had more than twenty qualifying Memberships.
+This granted no bearer or scope, but violated the existing confidentiality rule.
+Separately, impossible/noncanonical base64url reached self lookup and became a
+configuration 503 rather than input 400.
+
+**Correction.** Native entry uses the established Node crypto AES-256-GCM library
+with one independent random 32-byte cursor-only key, fresh 12-byte IV, full
+16-byte tag and fixed version/purpose plus actual owner/host/epoch authenticated
+data. This implements ADR-0078's server-only custody; it creates no configured
+credential, permission or context authority. The API contract remains private
+and unchanged. A maximum 739-byte ASCII plaintext plus envelope fits the existing
+1,024-character browser bound; the actual API's 184-character cursor produces a
+284-character continuation. No per-page map, eviction or queue is introduced.
+The [Node 22 crypto contract](https://nodejs.org/docs/latest-v22.x/api/crypto.html)
+owns primitive behavior; independent counterexamples exercise tag/AAD failures.
+
+Unwrapping occurs after current entry/proof validation and before API work or
+selection phase changes. The API still independently binds its cursor to the
+verified subject and rechecks admission. Malformed/foreign/old continuations
+refuse as input. Publication/logout/expiry/close clear and zero the owned key
+buffer while retaining unsettled work credits. This is owned-buffer cleanup,
+not a heap-wide erasure claim. Browser-safe canonical grammar checks length and
+unused trailing bits without introducing Node imports into the public graph.
+Upstream response validation remains strict.
+
+**Red/green proof.**
+
+- Root's frozen old-source targets had 223 passing/38 expected failing cases of
+  261, zero skips: 25 privacy/custody, nine canonical-grammar and four composed
+  real-native-client HTTP failures. All other positive/strict-response controls
+  passed. The first full corrected frontend attempt found only two old fake
+  noncanonical positive cursors; canonical examples replace them and the old
+  values now have explicit rejection controls.
+- The new real PostgreSQL/Keycloak/API/native case creates 21 additional app-role
+  branch Memberships, yielding actual 20+2 global discovery pages. With only the
+  reviewed old store temporarily restored, completeness passed and privacy
+  failed in 30 seconds, exposing only a Boolean list in the failure. The fixed
+  source was restored before green execution.
+- Fixed-source targets pass 287/287, zero skips, including same-key independent
+  AAD dimensions, shortened/tampered tags, canonical aliases, byte bounds,
+  parallel continuations, foreign/old entry, exact API cursor round trips and
+  actual-buffer zeroing before ignored work settles.
+- The real corrective case passes 1/1, zero skips, in 30 seconds. It observes
+  JSON/HTML, stock-Chromium next-link/Back and actual navigation history/DOM/
+  storage/decoded continuation privacy; then an earlier second-page continuation
+  still selects its real branch, committing exactly one admission event and one
+  positive AccountSite check. Cookies came from the real callback; browser
+  execution of the OIDC code flow is not claimed.
+- Guarded frontend passes 3,068/3,068 across web/SDK with zero skips/todos.
+  Workspace typecheck/lint and the native web/SDK build pass. The strict
+  integration Release build passes with zero warnings/errors. The owner reviewer
+  independently reads the frozen correction and reports no remaining actionable
+  finding; that readback executes no tests.
+
+**Canonical alignment.** Security 11 keeps identity-bearing API cursors private
+and rejects malformed browser continuations before work. Data Protection inventories
+the volatile key/ciphertext copies as personal navigation custody, not anonymity.
+Testing 06 and the existing BFF catalogue families describe the real pagination
+proof and its exact browser/code-flow boundary. The new fixture action has a
+closed input/receipt, one owned browser, existing EOF/deadline cleanup and scalar
+output. No runtime privilege, API route, grant, table or Accepted ADR body changes.
+
+**Final local qualification.** All nine current-source real native/provider/
+stock-browser cases pass together, zero skips, in 6m57s. The rebuilt relevant
+architecture population passes 39/39, zero skips, including raw authority,
+policy/replay ownership, corpus and both Docker-trait controls. Its Release build
+has zero warnings/errors. Markdown/roadmap/generated-index and normal commit-hook
+checks accompany this dated record.
+
+**Closeout.** Step 8 closes both required independent rounds and verified
+corrections with the normal correction commit. Step 9 proceeds with bounded preloaded page
+snapshots, selected screens and real browser/no-script/en/tr/manual accessibility.
+Its current-session context pages must likewise preserve the API cursor's private
+identity binding; no global fallback or authority follows from a continuation.
+Step 10 retains complete final-source populations, public demo and hosted A/B
+qualification plus the reviewable PR. No production-readiness claim follows.

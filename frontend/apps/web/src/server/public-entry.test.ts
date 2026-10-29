@@ -105,7 +105,7 @@ describe('membership-first public entry', () => {
     '/portal/profile',
     '/studio/members/019a154b-0000-7000-8000-000000000011',
     '/studio/roles/019a154b-0000-7000-8000-000000000022',
-    '/studio/members?cursor=abc_123&limit=100',
+    '/studio/members?cursor=YWJjXzEyMw&limit=100',
   ])('continues the exact live-host scaffold only: %s', (target) => {
     expect(publicEntry(target, site())).toEqual({ kind: 'continue', locale: null });
   });
@@ -121,6 +121,8 @@ describe('membership-first public entry', () => {
     '/portal/profile?cursor=abc',
     '/studio/roles?limit=1',
     '/studio/members?cursor=',
+    '/studio/members?cursor=abc_123',
+    '/studio/members?cursor=page_1',
     '/studio/members?cursor=a&cursor=b',
     '/studio/members?limit=1&limit=2',
     '/studio/members?scope=tenant',
@@ -250,7 +252,7 @@ it('accepts one bounded Flight transport token only with independently captured 
   for (const target of [
     '/studio?_rsc=probe',
     '/portal/profile?_rsc=x',
-    '/studio/members?cursor=page_1&limit=200&_rsc=probe',
+    '/studio/members?cursor=cGFnZV8x&limit=200&_rsc=probe',
   ]) {
     expect(publicEntry(target, site(), true)).toEqual({ kind: 'continue', locale: null });
     expect(publicEntry(target, site())).toEqual({ kind: 'refuse', status: 404 });

@@ -156,6 +156,27 @@ internal sealed class BffNativeDriver : IAsyncDisposable
         _complete = true;
     }
 
+    internal async Task<BffEntryBrowserReceipt> EntryBrowserAsync(string host, string cookie, string subjectKey)
+    {
+        await WriteAsync(new { protocol = 1, action = "entry-browser", host, cookie, subjectKey });
+        var reply = await ReadAsync("entry_browser");
+        try
+        {
+            if (string.Join(',', reply.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal))
+                != "browserPrivateFree,firstItems,historyEntries,historyPrivateFree,htmlPrivateFree,networkPrivateFree,phase,protocol,restoredItems,secondItems")
+                throw new InvalidOperationException();
+            var result = new BffEntryBrowserReceipt(reply.GetProperty("firstItems").GetInt32(), reply.GetProperty("secondItems").GetInt32(),
+                reply.GetProperty("restoredItems").GetInt32(), reply.GetProperty("historyEntries").GetInt32(),
+                reply.GetProperty("htmlPrivateFree").GetBoolean(), reply.GetProperty("browserPrivateFree").GetBoolean(),
+                reply.GetProperty("historyPrivateFree").GetBoolean(), reply.GetProperty("networkPrivateFree").GetBoolean());
+            if (result.FirstItems is < 0 or > 20 || result.SecondItems is < 0 or > 20
+                || result.RestoredItems is < 0 or > 20 || result.HistoryEntries is < 2 or > 8)
+                throw new InvalidOperationException();
+            return result;
+        }
+        catch { throw new InvalidOperationException("BFF entry browser receipt has an invalid closed shape."); }
+    }
+
     private async Task WriteAsync(object value)
     {
         try
@@ -170,7 +191,7 @@ internal sealed class BffNativeDriver : IAsyncDisposable
     {
         var lastStage = "input";
         using var responseBudget = CancellationTokenSource.CreateLinkedTokenSource(_deadline.Token);
-        responseBudget.CancelAfter(TimeSpan.FromSeconds(phase is "ready" or "held-build" ? 90 : phase == "browser_result" ? 150 : 40));
+        responseBudget.CancelAfter(TimeSpan.FromSeconds(phase is "ready" or "held-build" or "entry_browser" ? 90 : phase == "browser_result" ? 150 : 40));
         try
         {
             for (var count = 0; count < 8; ++count)
@@ -310,6 +331,8 @@ internal sealed class BffNativeDriver : IAsyncDisposable
 internal sealed record BffWireResponse(int Status, string[] Cookies, string? Location, string? Cache,
     JsonElement Data, bool Rendered, bool PrivateFree);
 internal sealed record BffBrowserReceipt(string Version, int NaturalRestores, string? CounterWitness);
+internal sealed record BffEntryBrowserReceipt(int FirstItems, int SecondItems, int RestoredItems, int HistoryEntries,
+    bool HtmlPrivateFree, bool BrowserPrivateFree, bool HistoryPrivateFree, bool NetworkPrivateFree);
 
 /// <summary>Separate HTTP-chain jars; browser storage rules are proved by the actual browser case.</summary>
 internal sealed class BffWireCookies

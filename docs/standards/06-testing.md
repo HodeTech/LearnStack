@@ -27,7 +27,13 @@ alone proves no BFF session; Phase 06 retains the full browser OIDC journey.
 `verify-bff-session.mjs` through a bounded private pipe. Its separate stock-browser
 case invokes `verify-bff-browser.mjs` against native HTTPS with fake grants/API;
 natural BFCache observations and the explicit persisted-event counter remain
-distinct. Every fixture compiles the copied current native/Next sources, joins
+distinct. ADR-0078's separate real entry-pagination case uses more than twenty
+actual app-role Membership records and the real API; a stock browser imports the
+real callback's owned entry cookies, follows continuation links and Back, and
+observes HTML/URL/history confidentiality before second-page selection. This
+proves navigation after the real code flow, not browser execution of that flow.
+Only closed scalar observations leave its browser action. Every fixture compiles
+the copied current native/Next sources, joins
 owned processes/listeners and exports no raw tokens, cookies, callback/logout
 URLs, provider text or HTML. Ordinary CI compiles native web/authenticated SDK
 entries before test discovery/execution within its existing whole-job budget.

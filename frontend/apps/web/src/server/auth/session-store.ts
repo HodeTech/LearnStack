@@ -1,6 +1,7 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 
 import { canonicalAddress, normalizeHost } from '../ingress.js';
+import { openEntryCursor, sealEntryCursor } from './entry-cursor.js';
 import { NativeApiError } from './native-contract.js';
 import type { NativeScope, SelfContexts } from './native-contract.js';
 import type { NativeOperation, NativeOperationResult } from './native-operation-contract.js';
@@ -86,6 +87,7 @@ type Owner = {
   credentials?: ProviderCredentials;
   account?: AccountWitness;
   identity?: PublishedSessionIdentity;
+  cursorKey?: Buffer;
   busy?: Promise<unknown>;
   transition?: Promise<SelectionCompletion>;
   absolute: number;
@@ -171,6 +173,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
   #release(entry: Owner) {
     if (entry.phase !== 'closing' || entry.work.size || this.#owners.get(entry.id) !== entry)
       return;
+    this.#clearCursorKey(entry);
     this.#owners.delete(entry.id);
     if (entry.transaction) this.#states.delete(entry.transaction.state);
     if (entry.logoutState) this.#logoutStates.delete(entry.logoutState);
@@ -188,6 +191,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       this.#groups.delete(this.#groupKey(entry.group.host, entry.group.browser));
   }
   #close(entry: Owner) {
+    this.#clearCursorKey(entry);
     entry.phase = 'closing';
     entry.credentials = undefined;
     entry.account = undefined;
@@ -195,6 +199,13 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     entry.proof = undefined;
     entry.controller.abort();
     this.#release(entry);
+  }
+  #clearCursorKey(entry: Owner) {
+    entry.cursorKey?.fill(0);
+    entry.cursorKey = undefined;
+  }
+  #cursorBinding(entry: Owner) {
+    return { id: entry.id, host: entry.group.host, epoch: entry.epoch };
   }
   #tracked<T>(entry: Owner, action: () => Promise<T>): Promise<T> {
     // Assign ownership before any action or continuation can execute.
@@ -452,6 +463,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
         );
         this.#assert(entry, 'exchange');
         this.#reserveSubject(entry, credentials);
+        entry.cursorKey = randomBytes(32);
         entry.credentials = credentials;
         entry.transaction = undefined;
         entry.proof = undefined;
@@ -502,7 +514,20 @@ export class InMemoryBffSessionStore implements BffSessionStore {
         entry.utcOffset + Math.min(entry.deadline, entry.credentials!.refreshExpiresAt),
       ),
       identityState,
-      contexts,
+      contexts:
+        contexts === null
+          ? null
+          : Object.freeze({
+              ...contexts,
+              endCursor:
+                contexts.endCursor === null
+                  ? null
+                  : sealEntryCursor(
+                      entry.cursorKey!,
+                      this.#cursorBinding(entry),
+                      contexts.endCursor,
+                    ),
+            }),
       contextHint: entry.contextHint ?? null,
     });
   }
@@ -583,8 +608,12 @@ export class InMemoryBffSessionStore implements BffSessionStore {
   ): Promise<EntryProjection> {
     this.#checkSource(binding.host, source);
     const owner = this.#findEntry(binding);
+    const rawCursor =
+      cursor === undefined
+        ? undefined
+        : openEntryCursor(owner.cursorKey!, this.#cursorBinding(owner), cursor);
     return this.#bounded(owner, signal, (current) =>
-      this.#entryRead(owner, binding, source, cursor, current),
+      this.#entryRead(owner, binding, source, rawCursor, current),
     );
   }
   async create(
@@ -650,6 +679,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     } catch (error) {
       this.#diagnostic(this.#reason(error));
     } finally {
+      this.#clearCursorKey(entry);
       entry.credentials = undefined;
       entry.account = undefined;
       entry.identity = undefined;
@@ -753,6 +783,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       ...entry.credentials!,
       identity: Object.freeze({ ...entry.credentials!.identity, displayLabel: null }),
     });
+    this.#clearCursorKey(entry);
     entry.phase = 'active';
     // Switch inherits its source absolute cap; initial publication starts its own eight-hour cap.
     if (phase === 'selecting') entry.absolute = this.#now() + BFF_LIMITS.absoluteMs;
@@ -781,6 +812,10 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     this.#checkSource(binding.host, source);
     const entry = this.#findEntry(binding);
     this.#entryProof(entry, csrf);
+    const rawCursor =
+      cursor === undefined
+        ? undefined
+        : openEntryCursor(entry.cursorKey!, this.#cursorBinding(entry), cursor);
     if (entry.busy || entry.group.publishing) throw new BffSessionError('transaction');
     if (!entry.credentials!.identity.displayLabel) throw new BffSessionError('reauthenticate');
     const old = entry.replacement && this.#live(entry.replacement) ? entry.replacement : undefined;
@@ -789,7 +824,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     entry.group.publishing = entry;
     try {
       return await this.#bounded(entry, signal, async (current) => {
-        const selected = await this.#chosen(entry, binding, source, scope, cursor, current);
+        const selected = await this.#chosen(entry, binding, source, scope, rawCursor, current);
         this.#assert(entry, 'selecting');
         if (!selected.canUseCurrentHost) {
           return Object.freeze({
@@ -1134,6 +1169,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     } catch (error) {
       this.#diagnostic(this.#reason(error));
     } finally {
+      this.#clearCursorKey(entry);
       entry.credentials = undefined;
       entry.account = undefined;
       entry.identity = undefined;
@@ -1188,6 +1224,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       operations: [...this.#owners.values()].reduce((count, entry) => count + entry.work.size, 0),
       credentialRecords: [...this.#owners.values()].filter((entry) => entry.credentials).length,
       identityRecords: [...this.#owners.values()].filter((entry) => entry.identity).length,
+      cursorKeyRecords: [...this.#owners.values()].filter((entry) => entry.cursorKey).length,
       displayLabelRecords: [...this.#owners.values()].filter(
         (entry) => typeof entry.credentials?.identity.displayLabel === 'string',
       ).length,

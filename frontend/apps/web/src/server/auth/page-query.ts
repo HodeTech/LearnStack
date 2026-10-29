@@ -61,6 +61,17 @@ export function bffQuery(target: string, allowed: readonly string[]): URLSearchP
 export function bffCursor(value: string | null): string | undefined {
   if (value === null) return undefined;
   if (!value || value.length > 1024 || !/^[A-Za-z0-9_-]+$/.test(value)) throw new BffInputError();
+  const remainder = value.length % 4;
+  const last = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'.indexOf(
+    value[value.length - 1]!,
+  );
+  // Unpadded base64url cannot end in one symbol; unused trailing bits must be zero.
+  if (
+    remainder === 1 ||
+    (remainder === 2 && last % 16 !== 0) ||
+    (remainder === 3 && last % 4 !== 0)
+  )
+    throw new BffInputError();
   return value;
 }
 export function bffPageQuery(fields: URLSearchParams) {

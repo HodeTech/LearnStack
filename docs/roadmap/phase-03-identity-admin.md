@@ -1,30 +1,23 @@
 # Phase 03: Identity Domain, Authorization, and Admin Foundation
 
 > **Status (2026-10-29).** P03-0, P03-1 and P03-2 are complete. P03-1 is merged
-> through [PR #38](https://github.com/HodeTech/LearnStack/pull/38); P03-2 is merged
-> through [PR #39](https://github.com/HodeTech/LearnStack/pull/39). Their closeouts
-> below distinguish implementation-source A/B qualification from final PR checks
-> and record identical squash-merge file trees. P03-2's six implementation steps,
-> both fresh review rounds per step and verified PR corrections are closed.
-> Phase 03 remains in progress. P03-3's ADR-0078/0079 and revised ten-step
-> package are jointly Accepted after maintainer-requested corrections. Step 1
-> canonical adoption and both fresh review rounds are closed; Step 2's storage/
-> entry/native-source core, local controls and both fresh postcommit review rounds
-> are closed. Step 3's finite policies, v2 adoption, preserving warm seed and
-> qualified origin completion are closed after both fresh review rounds and
-> verified corrections. Its [closeout](phase-03-delivery-log.md#p03-3-step-3-review-round-2-and-closeout-2026-10-29)
-> distinguishes local passing coverage from full final-source qualification.
-> Step 4's [internal Membership administration closeout](phase-03-delivery-log.md#p03-3-step-4-review-round-2-and-closeout-2026-10-29)
-> completes both fresh review rounds and verified fixes. [Step 5's internal Tenancy closeout](phase-03-delivery-log.md#p03-3-step-5-review-round-2-and-closeout-2026-10-29) completes both fresh rounds and verified fixes. [Step 6 durable replay closeout](phase-03-delivery-log.md#p03-3-step-6-review-round-2-and-closeout-2026-10-29) completes both fresh rounds and verified corrections; Step 7's [HTTP/SDK implementation](phase-03-delivery-log.md#p03-3-step-7--closed-administration-http-and-generated-sdk-2026-10-29) completes both fresh review rounds and verified corrections; its [closeout](phase-03-delivery-log.md#p03-3-step-7-review-round-2-protocol-bounds-and-closeout-2026-10-29) separates local proof from final qualification. [Step 8's native session implementation](phase-03-delivery-log.md#p03-3-step-8--native-session-ownership-2026-10-29) completes its first fresh independent review round and verified corrections; the [round 1 record](phase-03-delivery-log.md#p03-3-step-8-review-round-1-and-recovery-corrections-2026-10-29) retains qualification limits. The second fresh postcommit round follows.
+> through [PR #38](https://github.com/HodeTech/LearnStack/pull/38); P03-2 through
+> [PR #39](https://github.com/HodeTech/LearnStack/pull/39). Their linked closeouts
+> distinguish implementation-source A/B qualification from final PR checks.
+> Phase 03 remains in progress. P03-3's ADR-0078/0079 and revised ten-step package
+> are jointly Accepted. Steps 1–8 close both fresh independent review rounds and
+> verified corrections. The latest [Step 8 closeout](phase-03-delivery-log.md#p03-3-step-8-review-round-2-and-cursor-confidentiality-closeout-2026-10-29)
+> records current-source native/browser, frontend and relevant architecture proof;
+> complete final-source and hosted A/B qualification remains Step 10 work.
+> Step 9 proceeds with bounded preloaded page snapshots, selected screens and
+> real browser/history/no-script/en/tr/manual accessibility. Step 10 follows.
 > [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md) and
 > [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md)
-> are Accepted. Their separate eight-consumer prerequisite and one-consumer
+> are Accepted; their separate eight-consumer prerequisite and one-consumer
 > completion controls pass locally, including owner barriers and competing commits.
-> The [Step 2 record](phase-03-delivery-log.md#p03-3-step-2--bounded-self-entry-and-native-scope-admission-2026-10-28)
-> distinguishes local checks from the later provider/native/browser proofs.
-> This remains the critical-path phase after [Phase 02b](phase-02b-events-auth.md). The
-> [decision register](#the-decision-register) owns gate state; dated records live
-> in the [delivery log](phase-03-delivery-log.md).
+> This remains the critical-path phase after [Phase 02b](phase-02b-events-auth.md).
+> The [decision register](#the-decision-register) owns gate state; dated decisions,
+> reviews and proof boundaries live in the [delivery log](phase-03-delivery-log.md).
 >
 > | Packet | Title | State |
 > |---|---|---|

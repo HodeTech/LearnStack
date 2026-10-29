@@ -6390,13 +6390,17 @@ hosted timing fit. Prior receipts do not qualify subsequent source changes.
   old-work settlement precede handle/CSRF replacement; original lifetime stays.
   Same-label or Unicode-lookalike different subjects cannot replace a live owner;
   entry provider logout preserves the primary local owner and retains its own
-  credit through actual settlement.
+  credit through actual settlement. Entry continuation values conceal upstream
+  association material, authenticate the actual owner/host/epoch/purpose, and
+  preserve concurrent tabs without a page registry. Key custody clears on
+  publication/logout/expiry/stop, including before ignored work settles.
 - **Source:** ADR-0070/0071/0078/0079; Security 11 § Tenant BFF sessions and native entry.
 - **Type:** unit and actual response-owning routes. **Kind:** behavioural.
 - **Test owner:** `frontend/apps/web/src/server/auth/session-store.test.ts` and
   `frontend/apps/web/src/test/bff-session-routes.test.ts`, with composed caller/
   middleware controls in `src/server/auth/account-site-policy.test.ts` and real
-  protocol cancellation in `src/server/auth/session-http-lifetime.test.ts`.
+  protocol cancellation in `src/server/auth/session-http-lifetime.test.ts` and
+  authenticated cursor controls in `src/server/auth/entry-cursor.test.ts`.
 - **Status:** **Implemented** — actual owner/route controls above and
   `TenantBffSessionTests` real refresh/maximum and shutdown/failure controls.
 - **Phase:** P02b-7 Steps 2–5; P03-3 Step 8 extends entry/operation ownership.
@@ -6413,6 +6417,8 @@ hosted timing fit. Prior receipts do not qualify subsequent source changes.
   write/end and a foreign origin with the same logout path. Fixed native port,
   POST return paths and exact provider/PKCE/logout wire parameters have isolated
   controls; fake-transport assertions run outside production exception conversion.
+  Canonical cursor input refuses impossible lengths and nonzero pad bits before
+  API work, while malformed upstream responses retain response-failure semantics.
 - **Source:** ADR-0070/0078/0079; ADR-0054 dated auth extension; Security 11 § CSRF.
 - **Type:** native listener and actual Next route controls. **Kind:** behavioural.
 - **Test owner:** `frontend/apps/web/src/test/bff-auth-admission.test.ts` and
@@ -6430,8 +6436,11 @@ hosted timing fit. Prior receipts do not qualify subsequent source changes.
   opaque cookies and cannot reuse another host's session/transaction; logout and
   browser history do not restore protected display. A separate real warm
   provider/BFF/API chain proves sign-in/AccountSite/refresh/extension/logout and
-  stored provider events. Stopped-provider public rendering remains independent.
-- **Source:** ADR-0070; Security 11 § Tenant BFF sessions.
+  stored provider events. Real paginated entry JSON/HTML, stock-browser next/Back
+  URLs/history and second-page selection keep subject/authority material private;
+  the original disclosure has a real old-source negative control. Stopped-provider
+  public rendering remains independent.
+- **Source:** ADR-0070/0078; Security 11 § Tenant BFF sessions and native entry.
 - **Type:** native HTTPS browser and Docker integration. **Kind:** behavioural.
 - **Test owner:** `frontend/apps/web/scripts/verify-bff-session.mjs`,
   `frontend/apps/web/scripts/verify-bff-browser.mjs` and backend
