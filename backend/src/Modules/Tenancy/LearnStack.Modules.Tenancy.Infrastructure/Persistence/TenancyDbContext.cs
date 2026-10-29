@@ -54,8 +54,10 @@ public sealed class TenancyDbContext(
         var core = optionsBuilder.Options.FindExtension<CoreOptionsExtension>();
         var loggers = core?.LoggerFactory
             ?? core?.ApplicationServiceProvider?.GetService(typeof(ILoggerFactory)) as ILoggerFactory;
-        if (loggers is not null) optionsBuilder.UseLoggerFactory(TenantLocaleReadLoggerFactory.Wrap(loggers));
+        if (loggers is not null) optionsBuilder.UseLoggerFactory(
+            TenancyAdministrationLoggerFactory.Wrap(TenantLocaleReadLoggerFactory.Wrap(loggers)));
         optionsBuilder.AddInterceptors(new TenantLocaleReadTraceInterceptor());
+        optionsBuilder.AddInterceptors(new TenancyAdministrationTraceInterceptor());
     }
 
     public DbSet<Tenant> Tenants => Set<Tenant>();

@@ -56,10 +56,11 @@ P02d-4. [The module contract](README.md#p02d-3-accepted-typed-settings-contract)
 [locale and branding commands](README.md#p02d-2-accepted-locale-and-branding-contract)
 are implemented unrouted tenant-wide operations, with no assignable permission or
 organization override. Their finite Seed admission is described below. Human-facing
-permissions are selected by ADR-0079 below; their new consumers remain pending
-P03-3. No additional Hub-internal route is admitted here.
+permissions bind the separate human handlers below. Their transport qualification
+belongs to [Phase 03](../../roadmap/phase-03-identity-admin.md).
+No additional Hub-internal route is admitted here.
 
-**Accepted P03-3 assignable contract; registration/consumers pending implementation.**
+**Bounded assignable contract.**
 [ADR-0079](../../decisions/0079-bounded-identity-administration.md) selects exactly
 the three Tenant pairs below. The
 [versioned manifest](../../standards/19-permissions.md#bounded-administration-and-version-2-adoption)
@@ -110,7 +111,8 @@ the widening it needs is an ADR's to make, not a migration's.
 
 ## Bounded human administration contract
 
-**Accepted; new requests, policy/catalogue bindings and proof pending P03-3.**
+Internal human requests carry separate Protected policies and audit bindings.
+[Phase 03](../../roadmap/phase-03-identity-admin.md) owns packet state and transport qualification.
 All human writes require current Tenant capability, exact orgless context and
 fresh target/delegation/version checks under the canonical fences. The Tenant
 comes from resolved context; OrganizationId is a resource selector, not authority.
@@ -119,6 +121,8 @@ Organization editor capabilities require a separate Phase 06 decision/consumer.
 
 | Human request | Exact Tenant capability | Root |
 |---|---|---|
+| `ListOrganizationsQuery` | `tenancy.organization.admin` | Detached bounded page; current Tenant default/version metadata |
+| `GetOrganizationDetailQuery` | Same | Detached Organization and current default association |
 | `CreateManagedOrganizationCommand` | `tenancy.organization.admin` | Organization |
 | `RenameOrganizationCommand` | Same | Organization |
 | `ArchiveOrganizationCommand` | Same | Organization |

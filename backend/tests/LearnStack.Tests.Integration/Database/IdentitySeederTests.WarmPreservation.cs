@@ -84,7 +84,7 @@ public sealed partial class IdentitySeederTests
         await using (var transaction = await app.BeginTransactionAsync())
         {
             await IdentityMembershipFixture.ScopeAsync(app, transaction, tenant.TenantId.Value);
-            await IdentityMembershipFixture.LockAsync(app, transaction, tenant.TenantId.Value, null, false);
+            await IdentityMembershipFixture.LockAsync(app, transaction, tenant.TenantId.Value, null, true);
             await IdentityMembershipFixture.ExecuteAsync(app, transaction, """
                 UPDATE public.tenants SET display_name='Edited institution',status='Suspended',default_organization_id=@organization,
                     row_version=row_version+1,updated_at=clock_timestamp(),updated_by=@actor WHERE id=@tenant;

@@ -48,6 +48,7 @@ public sealed partial class AuditCoverageTests
         // build instead of a 500 per call. MediatR classifies request types and delivery
         // classifies concrete handler types before construction. A slug or event-level
         // comparison cannot distinguish multiple consumers of the same event.
+        AssertTenancyAdministrationBindings();
         var shipped = AuditSubjects(AuditCatalogDiscovery.Types());
 
         shipped.Should().Contain(typeof(CreateOrganizationCommand),

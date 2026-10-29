@@ -46,6 +46,7 @@ public sealed class AggregateWriteTests
         // forbidden, so no handler can name a DbSet at all. A rule at Implemented status
         // that cannot fire is worse than one at Registered, because the catalogue then
         // claims coverage it does not have.
+        AssertTenancyAdministrationRoots();
         AssertOnlyTenantProvisioningWritesAcrossAggregates(ProductionAssemblies()
             .Select(Assembly.Load)
             .SelectMany(assembly => assembly.GetTypes()));
@@ -106,6 +107,19 @@ public sealed class AggregateWriteTests
         var identityDomains = new HashSet<Assembly> { typeof(LearnStack.Modules.Identity.Domain.Role).Assembly };
         TakesDomainObject(typeof(LearnStack.Modules.Identity.Application.Abstractions.IRoleReadStore), identityDomains)
             .Should().BeFalse("the exact untracked Role lookup is a read, not a second aggregate writer");
+        TakesDomainObject(typeof(LearnStack.Modules.Identity.Application.Abstractions.IMembershipAdministrationReader), identityDomains)
+            .Should().BeFalse("the exact detached Membership lookup does not mutate its typed key");
+        foreach (var method in new[]
+        {
+            typeof(LearnStack.Modules.Identity.Application.Abstractions.IRoleReadStore).GetMethod("LockAsync")!,
+            typeof(LearnStack.Modules.Identity.Application.Abstractions.IRoleReadStore).GetMethod("ReadManyAsync")!,
+            typeof(LearnStack.Modules.Identity.Application.Abstractions.IMembershipAdministrationReader).GetMethod("ReadDetailAsync")!,
+        })
+        {
+            ReadMethods.Remove(method).Should().BeTrue();
+            try { TakesDomainObject(method.DeclaringType!, identityDomains).Should().BeTrue("only the exact read/retained-lock method may exempt its key"); }
+            finally { ReadMethods.Add(method); }
+        }
         TakesDomainObject(typeof(LearnStack.Modules.Identity.Application.Abstractions.ISeedStateReader), identityDomains)
             .Should().BeFalse("the exact seed DTO lookups do not write their typed keys");
         var directory = typeof(LearnStack.Modules.Identity.Application.Abstractions.IMembershipDirectoryReader);
@@ -155,6 +169,35 @@ public sealed class AggregateWriteTests
         AssertOnlyTenantProvisioningWritesAcrossAggregates([TenantProvisioningHandler]);
     }
 
+    private static void AssertTenancyAdministrationRoots()
+    {
+        var application = TenantProvisioningHandler.Assembly;
+        const string administration = "LearnStack.Modules.Tenancy.Application.Administration.";
+        (string Handler, Type[] Roots)[] expected =
+        [
+            (administration + "CreateManagedOrganizationCommandHandler", [typeof(LearnStack.Modules.Tenancy.Domain.Organization)]),
+            (administration + "RenameOrganizationCommandHandler", [typeof(LearnStack.Modules.Tenancy.Domain.Organization)]),
+            (administration + "ArchiveOrganizationCommandHandler", [typeof(LearnStack.Modules.Tenancy.Domain.Organization)]),
+            (administration + "SelectDefaultOrganizationCommandHandler", [typeof(LearnStack.Modules.Tenancy.Domain.Tenant)]),
+            (administration + "AddManagedTenantLocaleCommandHandler", [typeof(LearnStack.Modules.Tenancy.Domain.Tenant)]),
+            (administration + "SetManagedDefaultTenantLocaleCommandHandler", [typeof(LearnStack.Modules.Tenancy.Domain.Tenant)]),
+            (administration + "SetTenantLocaleEnabledCommandHandler", [typeof(LearnStack.Modules.Tenancy.Domain.Tenant)]),
+            (administration + "RemoveTenantLocaleCommandHandler", [typeof(LearnStack.Modules.Tenancy.Domain.Tenant)]),
+            ("LearnStack.Modules.Tenancy.Application.Branding.SetManagedTenantBrandingCommandHandler", [typeof(LearnStack.Modules.Tenancy.Domain.TenantSetting)]),
+            (administration + "ListOrganizationsQueryHandler", []),
+            (administration + "GetOrganizationDetailQueryHandler", []),
+            ("LearnStack.Modules.Tenancy.Application.Authorization.TenancyAdministrationAuthorization", []),
+        ];
+        foreach (var (name, roots) in expected)
+        {
+            var type = application.GetType(name, throwOnError: true)!;
+            type.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance).Should().NotBeEmpty();
+            foreach (var constructor in type.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
+                AggregatesWrittenBy(constructor).Should().BeEquivalentTo(roots,
+                    "default selection writes Tenant only, archive writes Organization only, and reads/gates cannot hide another write port: " + name);
+        }
+    }
+
     private static void AssertOnlyTenantProvisioningWritesAcrossAggregates(IEnumerable<Type> types) =>
         CrossAggregateWriters(types).Should().Equal(
             [TenantProvisioningHandler],
@@ -192,6 +235,9 @@ public sealed class AggregateWriteTests
         typeof(LearnStack.Modules.Customization.Application.Abstractions.ISeedStateReader).GetMethod("ReadContentTypeAsync")!,
         typeof(LearnStack.Modules.Customization.Application.Abstractions.ISeedStateReader).GetMethod("ReadTaxonomyAsync")!,
         typeof(LearnStack.Modules.Identity.Application.Abstractions.IRoleReadStore).GetMethod("ReadAsync")!,
+        typeof(LearnStack.Modules.Identity.Application.Abstractions.IRoleReadStore).GetMethod("LockAsync")!,
+        typeof(LearnStack.Modules.Identity.Application.Abstractions.IRoleReadStore).GetMethod("ReadManyAsync")!,
+        typeof(LearnStack.Modules.Identity.Application.Abstractions.IMembershipAdministrationReader).GetMethod("ReadDetailAsync")!,
         typeof(LearnStack.Modules.Identity.Application.Abstractions.IMembershipDirectoryReader).GetMethod("ReadAsync")!,
         typeof(LearnStack.Modules.Identity.Application.Abstractions.ISeedStateReader).GetMethod("ReadRoleAsync")!,
         typeof(LearnStack.Modules.Identity.Application.Abstractions.ISeedStateReader).GetMethod("ReadMembershipAsync")!,

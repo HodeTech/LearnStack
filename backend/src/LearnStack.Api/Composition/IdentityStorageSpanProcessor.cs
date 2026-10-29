@@ -12,5 +12,6 @@ internal sealed class IdentityStorageSpanProcessor : BaseProcessor<Activity>
     {
         IdentityStorageTraceBoundary.ApplyBeforeExport(data);
         TenantLocaleReadTraceBoundary.ApplyBeforeExport(data);
+        TenancyAdministrationTraceBoundary.ApplyBeforeExport(data);
     }
 }

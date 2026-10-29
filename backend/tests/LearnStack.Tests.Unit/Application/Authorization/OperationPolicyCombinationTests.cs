@@ -119,7 +119,18 @@ public sealed class OperationPolicyCombinationTests
         Assert.All(BoundedTenancyAdministrationPermissions.Definitions, pair => Assert.Equal(PermissionScope.Tenant, pair.Scope));
         Assert.Equal(["tenancy.locale.write", "tenancy.organization.admin", "tenancy.setting.write"],
             BoundedTenancyAdministrationPermissions.Definitions.Select(pair => pair.Key).Order());
-        Assert.DoesNotContain(tenancy.Policies, policy => policy.Kind == OperationPolicyKind.Protected);
+        var human = tenancy.Policies.Where(policy => policy.Kind == OperationPolicyKind.Protected).ToArray();
+        Assert.Equal(11, human.Length);
+        Assert.All(human, policy =>
+        {
+            Assert.Equal(OperationReadScope.Scoped, policy.ReadScope);
+            Assert.False(policy.RequiresOrganization);
+            Assert.Single(policy.Alternatives);
+            var pair = Assert.Single(policy.Alternatives[0].RequiredPermissions);
+            Assert.Contains(pair, BoundedTenancyAdministrationPermissions.Definitions);
+            Assert.Equal(PermissionScope.Tenant, pair.Scope);
+        });
+        Assert.Equal(9, human.Count(policy => policy.RequiresOrglessWrite));
     }
 
     [Fact]

@@ -8,6 +8,9 @@ using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Application.Contracts.Roles;
 using LearnStack.Modules.Identity.Domain;
 using LearnStack.Modules.Tenancy.Application.Authorization;
+using LearnStack.Modules.Tenancy.Application.Contracts.Branding;
+using LearnStack.Modules.Tenancy.Application.Contracts.Locales;
+using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Permissions;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
@@ -81,6 +84,17 @@ public sealed partial class OperationPermissionConventionTests
         (Type Request, bool Orgless, OperationPolicyClause[] Clauses)[] expected =
         [
             (typeof(ListMembershipsQuery), false, [new([membershipAdmin], OperationReadScope.Tenant)]),
+            (typeof(ListOrganizationsQuery), false, [new([BoundedTenancyAdministrationPermissions.OrganizationAdministration])]),
+            (typeof(GetOrganizationDetailQuery), false, [new([BoundedTenancyAdministrationPermissions.OrganizationAdministration])]),
+            (typeof(CreateManagedOrganizationCommand), true, [new([BoundedTenancyAdministrationPermissions.OrganizationAdministration])]),
+            (typeof(RenameOrganizationCommand), true, [new([BoundedTenancyAdministrationPermissions.OrganizationAdministration])]),
+            (typeof(ArchiveOrganizationCommand), true, [new([BoundedTenancyAdministrationPermissions.OrganizationAdministration])]),
+            (typeof(SelectDefaultOrganizationCommand), true, [new([BoundedTenancyAdministrationPermissions.OrganizationAdministration])]),
+            (typeof(AddManagedTenantLocaleCommand), true, [new([BoundedTenancyAdministrationPermissions.LocaleWrite])]),
+            (typeof(SetManagedDefaultTenantLocaleCommand), true, [new([BoundedTenancyAdministrationPermissions.LocaleWrite])]),
+            (typeof(SetTenantLocaleEnabledCommand), true, [new([BoundedTenancyAdministrationPermissions.LocaleWrite])]),
+            (typeof(RemoveTenantLocaleCommand), true, [new([BoundedTenancyAdministrationPermissions.LocaleWrite])]),
+            (typeof(SetManagedTenantBrandingCommand), true, [new([BoundedTenancyAdministrationPermissions.SettingWrite])]),
             (typeof(ChangeRoleGrantsCommand), true, [new([roleAdmin])]),
             (typeof(AdoptRoleGrantManifestCommand), true, [new([roleAdmin])]),
             (typeof(GetMembershipDetailQuery), false,

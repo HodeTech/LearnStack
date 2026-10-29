@@ -11,12 +11,13 @@ namespace LearnStack.Tests.Architecture;
 public sealed partial class PersistenceConventionTests
 {
     private const string ContextualEnrollment = "LearnStack.Modules.Identity.Infrastructure.Persistence.ContextualIdentityStorageControl";
+    private const string TenancyEnrollment = "LearnStack.Modules.Tenancy.Infrastructure.Persistence.TenancyAdministrationReader";
     private const string EfEnrollment = "Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions";
 
     private static void AssertExactEfEnrollment()
     {
         using var census = EnrollmentCensus.Read();
-        EfEnrollmentOffenders(census).Should().BeEmpty("only the common factory and exact Identity owner reenrollment paths may bind EF to an existing transaction");
+        EfEnrollmentOffenders(census).Should().BeEmpty("only the common factory and exact Identity/Tenancy owner reenrollment paths may bind EF to an existing transaction");
         var sites = census.Methods.SelectMany(method => method.Body.Instructions.Where(IsEfEnrollment)
             .Select(instruction => (Method: method, Instruction: instruction))).ToArray();
         var guardedReads = census.Methods.SelectMany(method => method.Body.Instructions.Where(instruction => instruction.Operand is MethodReference target
@@ -60,6 +61,29 @@ public sealed partial class PersistenceConventionTests
             dirty.Should().NotBe(source);
             ContextualEnrollmentIsGuarded(dirty).Should().BeFalse("the same connection, fresh announcement, scope, mode and clean graph are required");
         }
+        var tenancy = File.ReadAllText(Path.Combine(SourceScan.SourceRoot,
+            "Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/Persistence/TenancyAdministrationReader.cs"));
+        TenancyEnrollmentIsGuarded(tenancy).Should().BeTrue();
+        foreach (var (before, after) in new[]
+        {
+            ("!context.IsResolved", "false"), ("context.TenantId == TenantId.PlatformSentinel", "false"),
+            ("context.UserId is null", "false"), ("context.UserId == UserId.SystemActor", "false"),
+            ("!unit.HasActiveTransaction", "false"), ("unit.IsRollbackOnly", "false"),
+            ("unit.Mode is not (TransactionMode.ReadOnly or TransactionMode.ReadWrite)", "false"),
+            ("unit is IGlobalIdentityUnitOfWork { IsGlobalIdentityTransaction: true }", "false"),
+            ("!unit.IsTenantContextIssuedOn(unit.Transaction)", "false"), ("Generation: > 0", "Generation: >= 0"),
+            ("announcement.TenantId != context.TenantId", "false"),
+            ("announcement.OrganizationId != context.OrganizationId", "false"),
+            ("db.CurrentTenantId != context.TenantId", "false"), ("db.CurrentOrganizationId != context.OrganizationId", "false"),
+            ("!ReferenceEquals(db.Database.GetDbConnection(), unit.Connection)", "false"),
+            ("db.ChangeTracker.Entries().Any(entry => entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)", "false"),
+            ("!ReferenceEquals(current.GetDbTransaction(), unit.Transaction)", "false"),
+        })
+        {
+            var dirty = tenancy.Replace(before, after, StringComparison.Ordinal);
+            dirty.Should().NotBe(tenancy);
+            TenancyEnrollmentIsGuarded(dirty).Should().BeFalse("Tenancy facts cannot retarget or borrow a stale, dirty or global owner");
+        }
         EfEnrollmentOffenders(census).Should().BeEmpty("all actual compiled enrollment subjects are restored");
     }
 
@@ -72,12 +96,13 @@ public sealed partial class PersistenceConventionTests
             ? "LearnStack.Infrastructure.Persistence.ModuleDbContextRegistration::AddModuleDbContext" : census.Owner(site.Method)).Order(StringComparer.Ordinal);
         var expected = new[] { "LearnStack.Infrastructure.Persistence.ModuleDbContextRegistration::AddModuleDbContext",
             "LearnStack.Modules.Identity.Infrastructure.Persistence.UserBindingStore::EnrollCurrentOwner",
-            ContextualEnrollment + "::EnrollCurrentTenantOwner" }.Order(StringComparer.Ordinal);
+            ContextualEnrollment + "::EnrollCurrentTenantOwner",
+            TenancyEnrollment + "::Admit" }.Order(StringComparer.Ordinal);
         var errors = new List<string>();
         if (!actual.SequenceEqual(expected, StringComparer.Ordinal) || sites.Any(site => site.Instruction.OpCode != OpCodes.Call
             || site.Instruction.Operand is not MethodReference target
             || target.FullName != "Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions::UseTransaction(Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade,System.Data.Common.DbTransaction)"))
-            errors.Add("EF enrollment callers/signatures must remain the exact common factory, global binding owner and guarded contextual reenrollment");
+            errors.Add("EF enrollment callers/signatures must remain the exact common factory, global binding owner and guarded contextual/Tenancy reenrollment");
         var reenrollments = census.Methods.SelectMany(method => method.Body.Instructions.Where(instruction => instruction.Operand is MethodReference target
                 && target.DeclaringType.FullName == ContextualEnrollment && target.Name == "EnrollCurrentTenantOwner")
             .Select(instruction => (Method: method, Instruction: instruction))).ToArray();
@@ -96,6 +121,34 @@ public sealed partial class PersistenceConventionTests
             || reenrollments.Any(site => site.Instruction.OpCode != OpCodes.Call))
             errors.Add("Only the exact contextual graph, seed metadata/stage, member/Role and native admission readers may reenroll the same tenant owner");
         return errors;
+    }
+
+    private static bool TenancyEnrollmentIsGuarded(string source)
+    {
+        var root = CSharpSyntaxTree.ParseText(source).GetRoot();
+        var methods = root.DescendantNodes().OfType<ClassDeclarationSyntax>().Where(type => type.Identifier.ValueText == "TenancyAdministrationReader")
+            .SelectMany(type => type.Members.OfType<MethodDeclarationSyntax>()).Where(method => method.Identifier.ValueText == "Admit").ToArray();
+        if (root.ContainsDiagnostics || methods.Length != 1 || methods[0].Modifiers.Count != 1
+            || !methods[0].Modifiers.Any(SyntaxKind.PrivateKeyword) || methods[0].ReturnType.ToString() != "void"
+            || methods[0].ParameterList.Parameters.Count != 0
+            || methods[0].Body is not { Statements.Count: 2 } body || body.Statements[0] is not IfStatementSyntax guard
+            || body.Statements[1] is not IfStatementSyntax current)
+            return false;
+        return SyntaxFactory.AreEquivalent(guard.Condition, SyntaxFactory.ParseExpression("""
+            !context.IsResolved || context.TenantId == TenantId.PlatformSentinel || context.UserId is null
+            || context.UserId == UserId.SystemActor || !unit.HasActiveTransaction || unit.IsRollbackOnly
+            || unit.Mode is not (TransactionMode.ReadOnly or TransactionMode.ReadWrite)
+            || unit is IGlobalIdentityUnitOfWork { IsGlobalIdentityTransaction: true }
+            || !unit.IsTenantContextIssuedOn(unit.Transaction)
+            || unit.GetTenantContextAnnouncement(unit.Transaction) is not { Generation: > 0 } announcement
+            || announcement.TenantId != context.TenantId || announcement.OrganizationId != context.OrganizationId
+            || db.CurrentTenantId != context.TenantId || db.CurrentOrganizationId != context.OrganizationId
+            || !ReferenceEquals(db.Database.GetDbConnection(), unit.Connection)
+            || db.ChangeTracker.Entries().Any(entry => entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
+            """)) && guard.Statement is ThrowStatementSyntax { Expression: ObjectCreationExpressionSyntax exception }
+            && exception.Type.ToString() == "TenantContextMissingException"
+            && SyntaxFactory.AreEquivalent(current.Condition, SyntaxFactory.ParseExpression("db.Database.CurrentTransaction is not { } current || !ReferenceEquals(current.GetDbTransaction(), unit.Transaction)"))
+            && SyntaxFactory.AreEquivalent(current.Statement, SyntaxFactory.ParseStatement("db.Database.UseTransaction(unit.Transaction);"));
     }
 
     private static bool IsEfEnrollment(Instruction instruction) => instruction.Operand is MethodReference target

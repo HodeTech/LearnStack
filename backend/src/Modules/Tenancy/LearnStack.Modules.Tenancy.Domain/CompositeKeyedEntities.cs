@@ -67,6 +67,9 @@ public sealed class TenantLocale : ITenantOwned
     /// <summary>Stops this being the default.</summary>
     internal void ClearDefault() => IsDefault = false;
 
+    /// <summary>Changed only through the owning Tenant's validated mutation.</summary>
+    internal void SetEnabled(bool isEnabled) => IsEnabled = isEnabled;
+
     internal static TenantLocale Create(
         TenantId tenantId, string locale, bool isDefault, bool isEnabled = true, short sort = 0)
     {

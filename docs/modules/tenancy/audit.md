@@ -3,11 +3,10 @@
 Per [Audit Coverage](../../standards/18-audit-coverage.md), which names this
 file. Part of the [module spec](README.md).
 
-The additional ADR-0078/0079 administration, native source and warm-adoption
-contracts are Accepted; their new request/catalogue consumers and proofs remain
-pending P03-3. Existing classifications below retain their implemented writers.
-[The new bindings](#bounded-administration-bindings) are planned until the actual
-request and catalogue registration land together.
+The [bounded human bindings](#bounded-administration-bindings) register the
+internal administration requests separately from Seed requests. Native transport
+and replay consumers retain their own classifications below.
+[Phase 03](../../roadmap/phase-03-identity-admin.md) owns packet state and proofs.
 
 **P02b-1 Step 3 producer implemented — 2026-10-12.** Completed provisioning
 adds one pending outbox row before the existing two MUST rows and commit. Its
@@ -146,11 +145,11 @@ unmarked row is one a shipped command already raises.
 | `Tenant` | `tenancy.tenant.rename` `(planned)` | SHOULD | Presentational |
 | `Tenant` | `tenancy.tenant.adopt_seed_origin` | **MUST** (`security-event`) | Closed `AdoptSeedAdministrationOriginCommand` advances only its fixed Tenant seed-origin marker; its separate hostmapping MUST intent shares the same transaction. |
 | `Organization` | `tenancy.organization.create` | **MUST** | Adds an isolation surface; every org-scoped row written afterwards is written under it |
-| `Organization` | `tenancy.organization.archive` `(planned)` | **MUST** | Withdraws that surface while every row it isolated stays behind, and the rows themselves say nothing about who archived the organization or when |
-| `Organization` | `tenancy.organization.rename` `(planned)` | SHOULD | Presentational |
-| `Tenant` default reference | `tenancy.organization.select_default` `(planned)` | **MUST** (`update`) | `SelectDefaultOrganizationCommand` changes only Tenant's default/version; the selected Active/nondeleted Organization must belong to that Tenant. Resource segment matches the organization-admin sub-operation. |
-| Organization summaries | `tenancy.organization.list` `(planned)` | **MUST** (`read-sensitive`) | Fresh Tenant organization-admin admission before scope-owned configuration/default-version disclosure. |
-| Organization detail | `tenancy.organization.read` `(planned)` | **MUST** (`read-sensitive`) | Fresh target read admission before Organization configuration/version disclosure. |
+| `Organization` | `tenancy.organization.archive` | **MUST** | Withdraws that surface while every row it isolated stays behind, and the rows themselves say nothing about who archived the organization or when |
+| `Organization` | `tenancy.organization.rename` | SHOULD | Presentational |
+| `Tenant` default reference | `tenancy.organization.select_default` | **MUST** (`update`) | `SelectDefaultOrganizationCommand` changes only Tenant's default/version; the selected Active/nondeleted Organization must belong to that Tenant. Resource segment matches the organization-admin sub-operation. |
+| Organization summaries | `tenancy.organization.list` | **MUST** (`read-sensitive`) | Fresh Tenant organization-admin admission before scope-owned configuration/default-version disclosure. |
+| Organization detail | `tenancy.organization.read` | **MUST** (`read-sensitive`) | Fresh target read admission before Organization configuration/version disclosure. |
 | Original Organization/Tenant default outcome | `tenancy.organization.read_receipt` `(planned)` | **MUST** (`read-sensitive`) | Current original-target receipt disclosure authority and fresh committed evidence before replay bytes; no mutation rerun. |
 | `TenantDomain` | `tenancy.domain.claim` `(planned)` | **MUST** | `ux_tenant_domains_host` is unique on the host alone, so a claim takes a host no other tenant can claim while it stands |
 | `TenantDomain` | `tenancy.domain.verify` `(planned)` | **MUST** | Verification is the gate the custom-domain lifecycle opens before a mapping row exists; a wrongly verified domain serves one tenant's content at another's address |
@@ -287,8 +286,9 @@ phase authority and fixed-diagnostic requirements before activation.
 
 ## Bounded administration bindings
 
-**Accepted under [ADR-0079](../../decisions/0079-bounded-identity-administration.md);
-new request/catalogue bindings and actual proof pending P03-3.** Existing slugs
+Internal human requests and catalogue bindings implement
+[ADR-0079](../../decisions/0079-bounded-identity-administration.md).
+[Phase 03](../../roadmap/phase-03-identity-admin.md) owns packet state. Existing slugs
 may bind more than one request type; the catalogue/matrix join remains total.
 Human wrappers have separate Protected policies, never Seed provenance or nested
 dispatch to Seed-only commands. The classification matrix above remains the sole
@@ -296,6 +296,8 @@ class/type declaration; this request-binding table maps types to those rows:
 
 | New human request | Aggregate subject | Matrix operation |
 |---|---|---|
+| `ListOrganizationsQuery` | Organization summaries | `tenancy.organization.list` |
+| `GetOrganizationDetailQuery` | Exact detached Organization | `tenancy.organization.read` |
 | `CreateManagedOrganizationCommand` | Organization | `tenancy.organization.create` |
 | `RenameOrganizationCommand` | Organization | `tenancy.organization.rename` |
 | `ArchiveOrganizationCommand` | Organization | `tenancy.organization.archive` |

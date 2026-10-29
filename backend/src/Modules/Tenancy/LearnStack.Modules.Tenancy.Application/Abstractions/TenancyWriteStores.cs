@@ -31,7 +31,11 @@ public interface ITenantSettingWriteStore : IAggregateWriteStore<TenantSetting, 
 /// confines cross-aggregate writes counts how many of these a handler takes, and a
 /// combined port would hide the very thing ADR-0042 exists to enumerate.
 /// </remarks>
-public interface IOrganizationWriteStore : IAggregateWriteStore<Organization, OrganizationId>;
+public interface IOrganizationWriteStore : IAggregateWriteStore<Organization, OrganizationId>
+{
+    Task<Organization?> FindForUpdateAsync(OrganizationId id, CancellationToken cancellationToken = default) =>
+        throw new InvalidOperationException("This Organization store has no retained root lock.");
+}
 
 /// <summary>The write side of <c>platform_host_to_tenant</c>.</summary>
 /// <remarks>

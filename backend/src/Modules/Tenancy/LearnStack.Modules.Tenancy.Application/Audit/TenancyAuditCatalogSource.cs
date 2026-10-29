@@ -50,6 +50,17 @@ public sealed class TenancyAuditCatalogSource : IAuditCatalogSource
         builder.Off<GetAccountSiteQuery>();
 
         builder
+            .MustAudit<ListOrganizationsQuery>("tenancy.organization.list", OperationType.ReadSensitive, typeof(Organization))
+            .MustAudit<GetOrganizationDetailQuery>("tenancy.organization.read", OperationType.ReadSensitive, typeof(Organization))
+            .MustAudit<CreateManagedOrganizationCommand>("tenancy.organization.create", OperationType.Create, typeof(Organization))
+            .ShouldAudit<RenameOrganizationCommand>("tenancy.organization.rename", OperationType.Update, typeof(Organization))
+            .MustAudit<ArchiveOrganizationCommand>("tenancy.organization.archive", OperationType.Update, typeof(Organization))
+            .MustAudit<SelectDefaultOrganizationCommand>("tenancy.organization.select_default", OperationType.Update, typeof(Domain.Tenant))
+            .ShouldAudit<AddManagedTenantLocaleCommand>("tenancy.locale.write", OperationType.Update, typeof(Domain.Tenant))
+            .ShouldAudit<SetManagedDefaultTenantLocaleCommand>("tenancy.locale.write", OperationType.Update, typeof(Domain.Tenant))
+            .ShouldAudit<SetTenantLocaleEnabledCommand>("tenancy.locale.write", OperationType.Update, typeof(Domain.Tenant))
+            .ShouldAudit<RemoveTenantLocaleCommand>("tenancy.locale.write", OperationType.Update, typeof(Domain.Tenant))
+            .MustAudit<SetManagedTenantBrandingCommand>("tenancy.setting.write", OperationType.Update, typeof(TenantSetting))
             .ShouldAudit<AddTenantLocaleCommand>("tenancy.locale.write", OperationType.Update, typeof(Domain.Tenant))
             .ShouldAudit<SetDefaultTenantLocaleCommand>("tenancy.locale.write", OperationType.Update, typeof(Domain.Tenant))
             .MustAudit<SetTenantBrandingCommand>("tenancy.setting.write", OperationType.Update, typeof(TenantSetting))

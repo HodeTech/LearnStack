@@ -41,6 +41,18 @@ public class PublicReadFixture : ConstructionOnlyApiFactory, IAsyncLifetime
     private string PlatformConnectionString => _database?.PlatformConnectionString ?? Postgres.PlatformConnectionString;
     public PublicReadObservation Observation { get; } = new();
 
+    internal static async Task<PublicReadFixture> CreateIsolatedAsync(PublicReadFixture parent)
+    {
+        var database = await DisposableSchemaDatabase.CreateAsync(parent.Postgres);
+        var fixture = new PublicReadFixture(database);
+        try
+        {
+            await fixture.InitializeAsync();
+            return fixture;
+        }
+        catch { await fixture.DisposeAsync(); throw; }
+    }
+
     public async Task InitializeAsync()
     {
         if (_database is null)
@@ -116,7 +128,13 @@ public class PublicReadFixture : ConstructionOnlyApiFactory, IAsyncLifetime
     public Task ExecuteOwnerFixtureAsync(SeedTenant tenant, string sql, IReadOnlyDictionary<string, object>? parameters = null, OrganizationId? organization = null) =>
         ExecuteFixtureAsync(tenant, sql, MigrationConnectionString, parameters, organization);
 
-    private static async Task ExecuteFixtureAsync(SeedTenant tenant, string sql, string connectionString, IReadOnlyDictionary<string, object>? parameters, OrganizationId? organization)
+    /// <summary>Lifecycle setup preserves the mapped branch while optionally selecting a different Active default.</summary>
+    public Task ExecuteLifecycleAsync(SeedTenant tenant, string sql, bool selectAlternateDefault = false) =>
+        ExecuteFixtureAsync(tenant, sql, AppConnectionString, null, null, lifecycle: true, selectAlternateDefault: selectAlternateDefault);
+
+    private static async Task ExecuteFixtureAsync(SeedTenant tenant, string sql, string connectionString,
+        IReadOnlyDictionary<string, object>? parameters, OrganizationId? organization,
+        bool lifecycle = false, bool selectAlternateDefault = false)
     {
         await using var connection = new NpgsqlConnection(connectionString);
         await connection.OpenAsync();
@@ -128,6 +146,13 @@ public class PublicReadFixture : ConstructionOnlyApiFactory, IAsyncLifetime
             announce.Parameters.AddWithValue("tenant", tenant.TenantId.Value.ToString("D"));
             announce.Parameters.AddWithValue("organization", organization?.Value.ToString("D") ?? "");
             await announce.ExecuteNonQueryAsync();
+        }
+        if (lifecycle)
+        {
+            await TenancyLifecycleFixture.LockAsync(connection, transaction, tenant.TenantId.Value);
+            if (selectAlternateDefault)
+                await TenancyLifecycleFixture.SelectDefaultAsync(connection, transaction,
+                    tenant.TenantId.Value, tenant.SecondOrganization.OrganizationId.Value);
         }
         await using var command = new NpgsqlCommand(sql, connection, transaction);
         command.Parameters.AddWithValue("tenant", tenant.TenantId.Value);

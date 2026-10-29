@@ -284,7 +284,8 @@ records its complete source-bound qualification.
 
 ### Bounded Organization and settings administration
 
-**Accepted under ADR-0079; new handlers/routes/proofs pending P03-3.**
+Internal handlers implement [ADR-0079](../../decisions/0079-bounded-identity-administration.md).
+[Phase 03](../../roadmap/phase-03-identity-admin.md) owns packet state and remaining transport proofs.
 [Tenancy permissions](permissions.md#bounded-human-administration-contract) owns
 the exact three Tenant pairs and separate human request bindings. Seed commands
 remain Seed-only; human handlers share module business logic without dispatching
@@ -312,6 +313,16 @@ settings/branding overrides and generic settings power remain outside this set.
 All human writes require orgless context and live post-lock authority/target
 checks. [Standard 05](../../standards/05-database.md#p03-3-storage-and-replay-contract)
 owns the strongest complete fences, fresh lifecycle reads and invoker guards.
+
+Organization list/detail use bounded detached projections with default metadata
+from one SQL snapshot, stable contextual keyset cursors and MUST read evidence.
+Writes retain their actual root after lock waits. Removed locales are explicitly
+deleted as contained Tenant rows; a two-save failure poisons the owner even when
+an outer caller absorbs it. No-op human edits preserve root version/stamps.
+Known slug collisions return the fixed `Slug`/`slug_taken` field refusal. Human
+storage failures pass through a source-owned diagnostic boundary; cancellation
+and programming failures keep their semantics. Existing Seed store behavior is
+separate from that human boundary.
 
 ### Warm seed and administration origins
 

@@ -3151,8 +3151,10 @@ owns delivery state, and later HTTP/native/browser consumers retain their own pr
 - **Source:** ADR-0079; [Tenancy specification](../modules/tenancy/README.md).
 - **Type:** actual app-role races/guard/fault controls and finite policy/source
   census. **Kind:** behavioural and structural.
-- **Planned test owners:** `OrganizationAdministrationTests`,
-  `TenantAdministrationTests`, `TenancySchemaTests`.
+- **Test owners:** `TenancyAdministrationTests`,
+  `TenancyAdministrationRaceTests`, `TenancyAdministrationBranchRaceTests`,
+  `TenancyAdministrationAdditionalProofTests`, `TenancyAdministrationMigrationTests`,
+  `TenancyWriterTests`, `TenancySchemaTests`, and their protected HTTP counterparts.
 - **Status:** **Registered.**
 - **Phase:** P03-3 Steps 3/5/7.
 

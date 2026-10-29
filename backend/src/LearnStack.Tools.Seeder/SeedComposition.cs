@@ -129,6 +129,8 @@ public static class SeedComposition
         services.AddScoped<ITenantWriteStore, TenantWriteStore>();
         services.AddScoped<ITenantSettingWriteStore, TenantSettingWriteStore>();
         services.AddScoped<ITenantExistenceReader, TenantExistenceReader>();
+        services.AddScoped<ITenancyAdministrationReader, TenancyAdministrationReader>();
+        services.AddScoped<LearnStack.Modules.Tenancy.Application.Authorization.TenancyAdministrationAuthorization>();
         services.AddScoped<IOrganizationWriteStore, OrganizationWriteStore>();
         services.AddScoped<LearnStack.Modules.Tenancy.Application.Contracts.IdentityLifecycle.IIdentityScopeLifecycleReader,
             IdentityScopeLifecycleReader>();

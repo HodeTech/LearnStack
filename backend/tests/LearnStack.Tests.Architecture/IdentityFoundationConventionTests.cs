@@ -105,6 +105,7 @@ public sealed class IdentityFoundationConventionTests
         string[] acquisitions =
         [
             .. identityWriters,
+            "LearnStack.Modules.Tenancy.Application.Authorization.TenancyAdministrationAuthorization.AdmitWriteAsync",
             "LearnStack.Modules.Customization.Application.Seeding.SeedCustomizationWriteGuard.PrepareAsync",
             "LearnStack.Modules.Education.Application.Seeding.SeedEducationWriteGuard.PrepareAsync",
             "LearnStack.Modules.Tenancy.Application.Seeding.SeedTenantWriteGuard.AdmitAsync",
@@ -115,6 +116,8 @@ public sealed class IdentityFoundationConventionTests
         string[] rechecks =
         [
             .. identityWriters,
+            "LearnStack.Modules.Tenancy.Application.Authorization.TenancyAdministrationAuthorization.AdmitWriteAsync",
+            "LearnStack.Modules.Tenancy.Application.Authorization.TenancyAdministrationAuthorization.VerifyWriteAsync",
             "LearnStack.Modules.Customization.Application.Seeding.SeedCustomizationWriteGuard.IsCurrent",
             "LearnStack.Modules.Education.Application.Seeding.SeedEducationWriteGuard.IsCurrent",
             "LearnStack.Modules.Tenancy.Application.Seeding.SeedTenantWriteGuard.RequireCurrent",

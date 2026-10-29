@@ -333,6 +333,8 @@ public static class PersistenceCompositionExtensions
         services.TryAddScoped<ITenantWriteStore, TenantWriteStore>();
         services.TryAddScoped<ITenantSettingWriteStore, TenantSettingWriteStore>();
         services.TryAddScoped<ITenantExistenceReader, TenantExistenceReader>();
+        services.TryAddScoped<ITenancyAdministrationReader, TenancyAdministrationReader>();
+        services.TryAddScoped<LearnStack.Modules.Tenancy.Application.Authorization.TenancyAdministrationAuthorization>();
         services.TryAddScoped<IOrganizationWriteStore, OrganizationWriteStore>();
         services.TryAddScoped<IPlatformHostMappingStore, PlatformHostMappingStore>();
         services.TryAddSingleton<LearnStack.Modules.Tenancy.Application.Contracts.Seeding.ISeedTenantContinuationSource,

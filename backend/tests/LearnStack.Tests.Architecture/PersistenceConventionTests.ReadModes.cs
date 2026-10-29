@@ -3,6 +3,7 @@ using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Infrastructure.Bindings;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.Modules.Tenancy.Application.Contracts.Account;
+using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.Modules.Tenancy.Infrastructure;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
@@ -62,6 +63,12 @@ public sealed partial class PersistenceConventionTests
                     ? typeof(GetOwnMembershipProfileQuery) : typeof(GetAccountSiteQuery));
                 try { AssertDirty(); }
                 finally { literal.Operand = originalType; }
+                foreach (var sensitiveRead in new[] { typeof(ListOrganizationsQuery), typeof(GetOrganizationDetailQuery) })
+                {
+                    literal.Operand = owner.Module.ImportReference(sensitiveRead);
+                    try { AssertDirty(); }
+                    finally { literal.Operand = originalType; }
+                }
                 var originalOpcode = literal.OpCode;
                 literal.OpCode = OpCodes.Nop;
                 try { AssertDirty(); }
@@ -128,7 +135,8 @@ public sealed partial class PersistenceConventionTests
             AssertDirty();
             argument.Operand = originalArgument;
 
-            foreach (var request in new[] { typeof(GetAccountSiteQuery), typeof(GetOwnMembershipProfileQuery) })
+            foreach (var request in new[] { typeof(GetAccountSiteQuery), typeof(GetOwnMembershipProfileQuery),
+                         typeof(ListOrganizationsQuery), typeof(GetOrganizationDetailQuery) })
             {
                 var hardcoded = Instruction.Create(OpCodes.Isinst, behavior.Module.ImportReference(request));
                 handle.Body.Instructions.Add(hardcoded);

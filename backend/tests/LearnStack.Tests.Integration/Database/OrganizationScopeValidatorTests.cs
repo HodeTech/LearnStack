@@ -220,6 +220,8 @@ public sealed class OrganizationScopeValidatorTests
             await announce.ExecuteNonQueryAsync();
         }
 
+        // A2 is not the current default; A1 remains Active throughout the proof.
+        await TenancyLifecycleFixture.LockAsync(connection, transaction, tenant);
         await using (var update = new NpgsqlCommand(
             "UPDATE organizations SET deleted_at = @at WHERE tenant_id = @tenant AND id = @id",
             connection,

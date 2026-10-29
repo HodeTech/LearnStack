@@ -111,8 +111,11 @@ public sealed partial class AccountSiteHttpTests(PublicReadFixture parent)
         var token = Token(issuer, SeedData.Yoga, organization: true);
         using var warm = await Send(client, SeedData.Yoga, token);
         await Account(warm, SeedData.Yoga, organization: true);
-        await fixture.ExecuteAsync(SeedData.Yoga,
-            "UPDATE organizations SET status='Suspended' WHERE tenant_id=@tenant AND id=@organization");
+        // Select the other Active default; the cached mapping and token still name
+        // the original branch whose lifecycle must be checked on every request.
+        await fixture.ExecuteLifecycleAsync(SeedData.Yoga,
+            "UPDATE organizations SET status='Suspended' WHERE tenant_id=@tenant AND id=@organization",
+            selectAlternateDefault: true);
         try
         {
             using var refused = await Send(client, SeedData.Yoga, token);
@@ -125,8 +128,11 @@ public sealed partial class AccountSiteHttpTests(PublicReadFixture parent)
         }
         finally
         {
-            await fixture.ExecuteAsync(SeedData.Yoga,
-                "UPDATE organizations SET status='Active' WHERE tenant_id=@tenant AND id=@organization");
+            await fixture.ExecuteLifecycleAsync(SeedData.Yoga, """
+                UPDATE organizations SET status='Active' WHERE tenant_id=@tenant AND id=@organization;
+                UPDATE tenants SET default_organization_id=@organization,row_version=row_version+1,
+                    updated_at=clock_timestamp(),updated_by=@actor WHERE id=@tenant;
+                """);
         }
         using var restored = await Send(client, SeedData.Yoga, token);
         await Account(restored, SeedData.Yoga, organization: true);

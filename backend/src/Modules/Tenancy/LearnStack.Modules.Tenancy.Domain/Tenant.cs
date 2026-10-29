@@ -274,6 +274,40 @@ public sealed class Tenant : AuditableEntity<TenantId>, IAggregateRoot<TenantId>
         PromoteDefault(target);
     }
 
+    /// <summary>Enables or disables existing membership without removing its locale row.</summary>
+    /// <returns>Whether the child and Tenant root changed.</returns>
+    public bool SetLocaleEnabled(string locale, bool isEnabled, IClock clock, UserId updatedBy)
+    {
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentException.ThrowIfNullOrWhiteSpace(locale);
+
+        MappedLength.EnsureAtMost(locale, LocaleTag.MaxLength, nameof(locale));
+        if (!LocaleTag.IsWellFormed(locale))
+        {
+            throw new ArgumentException("The locale must be a well-formed BCP-47 tag.", nameof(locale));
+        }
+
+        EnsureLocaleConfigurationValid();
+        var canonical = LocaleTag.Canonicalize(locale);
+        var target = _locales.FirstOrDefault(existing => string.Equals(
+                         existing.Locale, canonical, StringComparison.Ordinal))
+            ?? throw new InvalidOperationException("The tenant does not publish in the requested locale.");
+
+        if (!isEnabled && target.IsDefault)
+        {
+            throw new InvalidOperationException("Select another enabled default before disabling this locale.");
+        }
+
+        if (target.IsEnabled == isEnabled) return false;
+
+        var firstEnabled = isEnabled && !_locales.Any(existing => existing.IsEnabled);
+        MarkUpdated(clock.UtcNow, updatedBy);
+        target.SetEnabled(isEnabled);
+
+        if (firstEnabled) PromoteDefault(target);
+        return true;
+    }
+
     /// <summary>Zero/all-disabled rows are valid; enabled rows require one enabled default.</summary>
     public bool HasValidLocaleConfiguration() =>
         !_locales.Any(locale => locale.IsDefault && !locale.IsEnabled)

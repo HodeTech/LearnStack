@@ -5151,6 +5151,47 @@ cursor or relationship/witness value enters diagnostics. Cross-tenant names come
 only from Tenancy's declared contract after the captured-scope announcement;
 there is no cross-module SQL join or `IgnoreQueryFilters` exception.
 
+### Tenancy administration owners and guards
+
+Under [ADR-0079](../decisions/0079-bounded-identity-administration.md), human
+Organization/default, locale and whole-theme requests keep their ordinary
+announced owner. They acquire no User fence or tenant-wide read witness. Default
+selection, archive and all four locale mutations use the canonical exclusive
+Tenant fence; Organization creation/rename and branding use its shared mode.
+Retained root locks follow that fence. Fresh Identity authorization and Tenancy
+lifecycle facts are checked after waits, before mutation, on the same invocation.
+Each handler has one aggregate write port: default/locale writes Tenant,
+Organization acts write Organization, and branding writes TenantSetting.
+
+`fn_tenancy_administration_guard()` and
+`fn_tenancy_default_organization_guard()` are same-module `VOLATILE SECURITY
+INVOKER` trigger functions with `search_path=pg_catalog` and no runtime EXECUTE
+grant. They add no definer, role, table, column or tenant setter. The former checks
+the current backend's exclusive canonical Tenant key for retained default and
+Organization lifecycle changes, refusing terminal archive reversal, default
+withdrawal and loss of the last Active Organization. Its local SQL key derivation
+has actual C#/SQL vector controls and no Identity function/table dependency.
+Heldness does not prove acquisition history or distinguish session-level locks;
+the existing caller/transaction controls retain those obligations.
+
+The deferred guard validates an established serving Tenant default against the
+same Tenant's Active, nondeleted Organization. Initial provisioning retains its
+untouched version-zero creation shape and temporary NULL/default sequence in
+one transaction. Deployment preflight refuses an invalid established default
+without repair. The migration owner temporarily disables the two tables' RLS
+under transaction-held DDL locks to inspect retained rows, restores ENABLE/FORCE
+before commit, and rolls the whole change back on refusal. Runtime queries never
+observe an unprotected relation.
+
+Organization list/detail read Tenant default metadata and rows in one SQL
+snapshot. Both are ordinary ReadWrite sensitive-read owners whose MUST evidence
+commits before disclosure; neither acquires a physical read-only exception or an
+`app.scope` hatch. Scoped keyset cursors grant no authority or snapshot. The named
+human storage boundary keeps provider payloads out of exceptions/logs/exported
+spans while preserving cancellation and programming failures. Known slug
+uniqueness gives a fixed `Slug` field refusal; unowned storage faults retain their
+dependency-failure classification.
+
 ### Warm seed evidence and origin adoption
 
 Installed roots are recognized by permanent IDs, tenant/scope/natural keys,

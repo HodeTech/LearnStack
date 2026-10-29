@@ -91,9 +91,9 @@ public sealed class Organization : AuditableEntity<OrganizationId>, IAggregateRo
     /// that a policy never has to walk a tree.
     /// <b>No write path yet</b>, for the same reason as
     /// <see cref="CustomSubdomain"/>: reporting roll-up is an admin operation and
-    /// arrives with the organization admin surface in
-    /// <see href="../../../../../docs/roadmap/phase-03-identity-admin.md">Phase
-    /// 03</see>. The composite foreign key and its index ship now because both are
+    /// arrives with the Organization/settings editors in
+    /// <see href="../../../../../docs/roadmap/phase-06-renderer-admin-studio.md">Phase
+    /// 06</see>. The composite foreign key and its index ship now because both are
     /// one-way doors; the mutator is additive.
     /// </remarks>
     public OrganizationId? ReportingParentId { get; private set; }

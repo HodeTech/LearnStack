@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 1,766 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 1,857 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -173,6 +173,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 4 — Contextual Membership administration (2026-10-29)](#p03-3-step-4--contextual-membership-administration-2026-10-29) — 80 lines
   - [P03-3 Step 4 review round 1 and scoped read correction (2026-10-29)](#p03-3-step-4-review-round-1-and-scoped-read-correction-2026-10-29) — 41 lines
   - [P03-3 Step 4 review round 2 and closeout (2026-10-29)](#p03-3-step-4-review-round-2-and-closeout-2026-10-29) — 37 lines
+  - [P03-3 Step 5 — Tenancy administration and lifecycle guards (2026-10-29)](#p03-3-step-5--tenancy-administration-and-lifecycle-guards-2026-10-29) — 91 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -7482,3 +7483,94 @@ receipt disclosure remains Step 6, native ownership Step 8, screens/manual
 accessibility Step 9 and full final-source/A-B qualification Step 10. No selected
 P03-3 consumer is moved to another phase or called complete by this closeout.
 No branch switch, push or PR occurs at this step.
+
+### P03-3 Step 5 — Tenancy administration and lifecycle guards (2026-10-29)
+
+**Scope.** The implementation on `development`, based on Step 4 closeout
+`3cca247a`, implements ADR-0079's internal Organization directory/detail and nine
+human administration commands. Existing Seed request policies remain finite and
+separate. There is no new HTTP endpoint, assignable pair, decision minter,
+definer, database role, tenant setter or aggregate exception.
+
+**Implementation.** The two sensitive-read queries require current Tenant
+organization-admin authority and ordinary ReadWrite MUST evidence before
+disclosure. Their bounded detached projections obtain Organization/default and
+Tenant-version metadata from one SQL snapshot. Contextual keyset cursors carry
+no authority or snapshot guarantee. Eligible Tenant authority can read from a
+branch; all nine mutations require orgless scope.
+
+Organization creation, rename and archive write Organization only. Explicit
+default selection and locale add/default/enable/remove write Tenant only;
+whole `branding.theme` writes TenantSetting only, with a server-assigned setting
+identity. The authorization gate binds the exact active canonical application
+invocation/candidate/decision. It reuses Identity's evaluator after retained-lock
+waits instead of copying permission evaluation or minting another decision.
+Default/archive/locale take the exclusive Tenant fence; create/rename/theme take
+the shared mode. No User fence is acquired. Expected versions, actual lifecycle,
+target scope and current authority are freshly checked before mutation.
+
+The generated `20261029101520_enforce_tenancy_administration` forward migration
+installs two same-module invoker guards without an Identity SQL dependency.
+Their actual app-role controls enforce the canonical exclusive key, Active own
+default, last-Active floor and terminal archive. INSERT-first provisioning keeps
+its untouched creation-shape exemption and temporary NULL/default sequence.
+Migration preflight refuses invalid retained defaults without repair; both
+successful deployment and failed rollback leave ENABLE/FORCE RLS intact.
+Function-owner/ACL/search-path and fresh-versus-upgrade equivalence are exercised
+against PostgreSQL, including three actual C#/SQL key vectors.
+
+Removed contained locale rows are explicitly deleted. Existing two-pass default
+switching is atomic; a failure poisons the owner even when an outer caller absorbs
+it. Human no-ops preserve versions/stamps. The new source-owned storage boundary
+contains provider exception/log/exported-span payloads and preserves cancellation
+and programming failures. Existing Seed/direct-store failure contracts remain
+separate. A reproduced slug-collision case changed generic `concurrency_conflict`
+to the existing fixed `Slug`/`slug_taken` field refusal, with no second root or
+success audit. Unowned storage faults retain fixed dependency failure.
+
+**Regression assurance.** The legacy Tenancy writer cases could no longer reach
+their mechanisms through arbitrary component Seed requests. Their replacement
+retains all 14 methods/19 cases through actual human policies and live grants.
+The cases preserve canonical locale/default ordering and audit fields, invalid
+configuration/no-stamp refusal, exact versions, isolation, palette atomicity,
+whole-value PII redaction, unowned-constraint faults, two-save failure and MUST
+rollback. Client-chosen setting IDs are outside the selected managed contract;
+populated foreign/generic settings are instead proved unchanged. Real database
+waits replace obsolete pre-lock read barriers. Each refused transaction uses a
+fresh owner, preserving rollback-only lifetime rather than resetting it.
+
+Adjacent lifecycle fixtures now select another Active default before withdrawing
+the original mapped branch, hold the canonical exclusive plan and isolate
+terminal archive cases. Account cleanup restores its original default; ordinary
+UnitOfWork cleanup cannot NULL an established default or delete its last Active
+Organization. Provisioning mechanism cases use an immutable, exact one-command
+test declaration and real finite invocation around the existing transaction and
+handler. They preserve commit/collision/pool-locality controls without weakening
+production sources. The real resolved-caller guard refusal and the independent
+raw app-role 42501 counterfactual are separate claims. These manual mechanism
+cases do not claim full audit coverage; the actual seed/human pipelines do.
+
+**Local evidence.** The final strict complete Release build has zero
+warnings/errors. Full Unit passes 3,234/3,234 and all 93 affected architecture
+cases pass with zero skips. Closed policy discovery is 68 requests/19 Protected;
+the eight assignable definitions, three decision minters and 327 architecture
+methods remain unchanged. Exact typed Role retained-lock/bulk-read and Membership
+detail exclusions have missing-entry dirty controls; unenumerated key writes
+remain visible. Matrix markers match actual request/catalogue bindings.
+
+Actual PostgreSQL coverage includes the coherent read snapshot across a competing
+commit, post-wait grant revocation, both archive/default and actual branch-profile
+winner orders, direct missing/shared versus exclusive fence twins, last-Active
+competition, central MUST rollback, source diagnostic dirty/protected twins and
+second-save programming/cancellation poisoning. An expanded pre-slug correction
+run passed 346/346 adjacent cases; after that narrow correction, all 47 directly
+affected Tenancy cases pass in one fresh run. The separate main seed/member/locale
+population passes 77/77. One earlier writer run had a pre-business SSL transport
+setup failure; its fresh isolated rerun and the final combined Tenancy population
+pass. It is not counted as a passing original attempt.
+
+Fragment/roadmap/index and whitespace controls pass. Full discovered suites,
+provider/native/browser/manual accessibility and hosted A/B remain later step
+obligations. This record accompanies the implementation commit; both fresh
+postcommit review rounds and any verified correction remain required before
+Step 6. No branch switch, push or PR occurs here.

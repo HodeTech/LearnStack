@@ -30,10 +30,10 @@ public sealed class OperationPolicyCatalogTests
             && type.GetInterfaces().Any(contract => contract.IsGenericType && contract.GetGenericTypeDefinition() == typeof(IRequest<>)))
             .OrderBy(type => type.FullName, StringComparer.Ordinal).ToArray();
         Assert.Equal(actual, catalog.All.Select(policy => policy.RequestType));
-        Assert.Equal(57, actual.Length);
+        Assert.Equal(68, actual.Length);
         Assert.Equal(4, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.PublicRead));
         Assert.Single(catalog.All, policy => policy.Kind == OperationPolicyKind.AccountRead);
-        Assert.Equal(8, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.Protected));
+        Assert.Equal(19, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.Protected));
         var ownProfile = Assert.Single(catalog.All, policy => policy.Kind == OperationPolicyKind.OwnMembershipRead);
         Assert.Equal(typeof(GetOwnMembershipProfileQuery), ownProfile.RequestType);
         Assert.Null(ownProfile.RequiredPermission);
