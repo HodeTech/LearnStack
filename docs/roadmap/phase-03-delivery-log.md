@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 2,087 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 2,121 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -177,7 +177,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 5 review round 1 and verified corrections (2026-10-29)](#p03-3-step-5-review-round-1-and-verified-corrections-2026-10-29) — 60 lines
   - [P03-3 Step 5 review round 2 and closeout (2026-10-29)](#p03-3-step-5-review-round-2-and-closeout-2026-10-29) — 62 lines
   - [P03-3 Step 6 — Durable protected outcomes and receipt disclosure (2026-10-29)](#p03-3-step-6--durable-protected-outcomes-and-receipt-disclosure-2026-10-29) — 83 lines
-  - [P03-3 Step 6 review round 1 and permission-matrix correction (2026-10-29)](#p03-3-step-6-review-round-1-and-permission-matrix-correction-2026-10-29) — 25 lines
+  - [P03-3 Step 6 review round 1 and permission-matrix correction (2026-10-29)](#p03-3-step-6-review-round-1-and-permission-matrix-correction-2026-10-29) — 26 lines
+  - [P03-3 Step 6 review round 2 and closeout (2026-10-29)](#p03-3-step-6-review-round-2-and-closeout-2026-10-29) — 33 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -7808,3 +7809,37 @@ disclosure policy and still perform the audited application read before bytes,
 without pre-authorizing a new mutation or taking capacity from an unauthorized
 claim. That selected HTTP consumer is not activated by this step. A fresh second
 review round follows this correction commit; Step 6 remains open until it closes.
+
+
+### P03-3 Step 6 review round 2 and closeout (2026-10-29)
+
+Three new independent reviewers inspect `e343be56..3ad51362` through
+SQL/concurrency/migration/lifecycle, authorization/audit/module-boundary and
+API/privacy/evidence/quality lenses. All approve their assigned scope without
+Blocker, Major, Minor or Suggestion findings. They independently read production
+source and relevant positive/negative controls; they run no tests and do not
+relabel Root's executions as independent proof.
+
+The second round confirms existing-key/capacity/recycling/fence behavior,
+independent app owners and actual positive cleanup, paired target migration
+compatibility, six current-disclosure receipt reads and precise own predicates,
+MUST commit before retained bytes, typed result/version binding, protected-only
+precondition/fingerprint rules, header-inclusive limits and fixed diagnostics.
+It also verifies R1's exact six permission-matrix bindings and the preserved
+production-transport boundary. No runtime correction is needed after R1.
+
+**Qualification boundary.** The implementation record owns the passing local
+populations and their earlier failed attempts. Hook changes in four C# files
+are inspected and whitespace-only. R1's documentation correction passes all
+five Corpus controls plus fragment/roadmap/index/whitespace checks. The complete
+329-method architecture census and full final-source/provider/browser/manual/
+hosted A/B populations are not claimed here; Step 10 retains them. Actual
+process kill/restart is distinguished from injected post-COMMIT observation
+faults, with no dropped-wire ACK or exactly-once claim.
+
+Step 6 closes after implementation and correction commits and both fresh review
+rounds. Step 7 proceeds with remaining branch/Role/permission/own-navigation
+reads, exact administration HTTP, fresh disclosure-aware replay admission,
+OpenAPI and generated SDK. Steps 8/9 retain native/provider/screens/browser/manual
+accessibility; Step 10 retains complete qualification and the reviewable PR.
+No work moves to another phase and no branch switch, push or PR occurs here.
