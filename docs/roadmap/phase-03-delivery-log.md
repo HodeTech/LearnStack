@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 1,917 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 1,978 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -175,6 +175,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 4 review round 2 and closeout (2026-10-29)](#p03-3-step-4-review-round-2-and-closeout-2026-10-29) — 37 lines
   - [P03-3 Step 5 — Tenancy administration and lifecycle guards (2026-10-29)](#p03-3-step-5--tenancy-administration-and-lifecycle-guards-2026-10-29) — 91 lines
   - [P03-3 Step 5 review round 1 and verified corrections (2026-10-29)](#p03-3-step-5-review-round-1-and-verified-corrections-2026-10-29) — 60 lines
+  - [P03-3 Step 5 review round 2 and closeout (2026-10-29)](#p03-3-step-5-review-round-2-and-closeout-2026-10-29) — 61 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -7635,3 +7636,64 @@ Step 5 still requires its second fresh independent postcommit review round.
 Full discovered/provider/native/browser/manual-accessibility and hosted
 final-source A/B qualification remain Step 10 obligations. No branch switch,
 push or PR occurs here.
+
+### P03-3 Step 5 review round 2 and closeout (2026-10-29)
+
+Three new independent reviewers inspected `3cca247a..a46e51dd` through
+authority/aggregate, SQL/migration and quality/privacy lenses. They performed
+source reviews, not independent executions. Two independently found the same
+required Organization error-classification correction (authority graded Minor;
+quality graded Major); neither found a confidentiality or atomicity defect.
+Storage approved its scope and suggested direct qualification of the
+correction migration's own failed preflight.
+
+**Verified correction.** Organization saves formerly translated every `23505`
+into AggregateConflictException; the human boundary then reported unknown
+uniqueness as concurrency_conflict. The actual protected unknown-23505
+diagnostic twin reproduced that wrong result. Initial Create/Rename index
+cases failed during setup because unrelated fixture branches legitimately
+share names; those attempts are not counted as business-path reproductions.
+The index now covers only the generated canary name. Against the exact
+pre-correction store, both cases then reach the actual unknown-constraint
+witness, unchanged-state/no-success-audit checks and fail only on
+concurrency_conflict instead of dependency_unavailable.
+
+Human Organization Add/Update now pass only the actual owned
+primary/composite/slug constraint names to the shared translator. Unknown23505
+retains its DbUpdate/provider shape and reaches the fixed no-inner Provider
+boundary; known slug/version behavior remains intact. Seed/direct callers keep
+their prior translator path. Real unique-index Create/Rename and both
+dirty/protected provider-error diagnostic families qualify this distinction.
+The authority reviewer read back the correction and found the scoped issue
+structurally closed.
+
+**Additional migration proof.** A disposable database applies the original
+guard, then reproduces the unfenced-default/fenced-archive defect with two
+real committed app-role transactions. Applying exactly the correction
+migration refuses the invalid established graph with the named 23514
+constraint. Retained rows, migration history, function
+definitions/owner/privileges and ENABLE/FORCE RLS remain unchanged. Explicit
+fenced operator selection of the other Active Organization permits deployment
+without further data repair. The storage reviewer found the new proof
+structurally sound; actual execution passes separately.
+
+**Local validation.** The final strict complete Release build has zero
+warnings/errors. The combined real PostgreSQL population passes 74/74 with
+zero skips, covering unknown and owned Organization conflicts, provider
+diagnostic twins, original/current migration behavior,
+initiality/default/archive races, legacy human writers and INSERT-first
+provisioning. The earlier post-fix run had 72 passes and the same two
+index-setup failures; it is not relabeled successful. Full Unit passes
+3,234/3,234 and all 93 affected architecture cases pass with zero skips.
+Fragment/roadmap/index/Corpus and whitespace controls accompany this commit.
+These local populations do not replace the full discovered suite,
+provider/native/browser/manual-accessibility or hosted final-source A/B
+qualification.
+
+Step 5 closes after both fresh independent rounds, verified fixes and
+committed proof. Step 6 proceeds with PostgreSQL idempotency and
+original-target replay disclosure. Step 7 retains the selected
+HTTP/OpenAPI/SDK and remaining directory/Role/own-navigation consumers; Steps
+8/9 retain native/screens/provider/browser/manual accessibility and Step 10
+full final-source/hosted A-B qualification. No selected work moves to another
+phase, and no branch switch, push or PR occurs here.

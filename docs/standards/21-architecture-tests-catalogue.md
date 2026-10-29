@@ -3156,8 +3156,8 @@ owns delivery state, and later HTTP/native/browser consumers retain their own pr
 - **Test owners:** `TenancyAdministrationTests`,
   `TenancyAdministrationRaceTests`, `TenancyAdministrationBranchRaceTests`,
   `TenancyAdministrationAdditionalProofTests`, `TenancyAdministrationMigrationTests`,
-  `TenancyDefaultInitialityTests`, `TenancyWriterTests`, `TenancySchemaTests`, and
-  their protected HTTP counterparts.
+  `TenancyDefaultInitialityTests`, `TenancyOrganizationConflictTests`,
+  `TenancyWriterTests`, `TenancySchemaTests`, and their protected HTTP counterparts.
 - **Status:** **Registered.**
 - **Phase:** P03-3 Steps 3/5/7.
 

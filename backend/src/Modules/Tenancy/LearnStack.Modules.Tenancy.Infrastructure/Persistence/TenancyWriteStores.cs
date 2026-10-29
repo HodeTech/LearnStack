@@ -170,6 +170,11 @@ public sealed class TenantSettingWriteStore(TenancyDbContext db, IUnitOfWork? un
 /// </remarks>
 public sealed class OrganizationWriteStore(TenancyDbContext db, IUnitOfWork? unit = null, IOperationInvocationContext? invocations = null) : IOrganizationWriteStore
 {
+    private static readonly HashSet<string> OwnedConstraints = new(StringComparer.Ordinal)
+    {
+        "pk_organizations", "ux_organizations_tenant_id_id", "ux_organizations_tenant_id_slug",
+    };
+
     public async Task<Organization?> FindForUpdateAsync(OrganizationId id, CancellationToken cancellationToken = default)
     {
         Organization? result = null;
@@ -196,7 +201,8 @@ public sealed class OrganizationWriteStore(TenancyDbContext db, IUnitOfWork? uni
         return TenancyAdministrationStorageBoundary.WriteAsync(db, unit, invocations, () =>
         {
             db.Organizations.Add(aggregate);
-            return SaveTranslatingConflictsAsync(db, cancellationToken);
+            return SaveTranslatingConflictsAsync(db, cancellationToken,
+                TenancyAdministrationStorageScope.IsHumanWrite(invocations) ? OwnedConstraints : null);
         });
     }
 
@@ -205,7 +211,8 @@ public sealed class OrganizationWriteStore(TenancyDbContext db, IUnitOfWork? uni
     {
         EnsureTracked(db, aggregate);
         return TenancyAdministrationStorageBoundary.WriteAsync(db, unit, invocations,
-            () => SaveTranslatingConflictsAsync(db, cancellationToken));
+            () => SaveTranslatingConflictsAsync(db, cancellationToken,
+                TenancyAdministrationStorageScope.IsHumanWrite(invocations) ? OwnedConstraints : null));
     }
 }
 

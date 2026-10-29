@@ -107,10 +107,15 @@ public sealed class TenancyAdministrationDiagnosticTests(TenancyAdministrationFi
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Actual_write_provider_payload_has_dirty_and_human_protected_diagnostic_sink_twins(bool protectedWriter)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task Actual_write_provider_payload_has_dirty_and_human_protected_diagnostic_sink_twins(
+        bool protectedWriter, bool unknownUniqueConstraint)
     {
+        var sqlState = unknownUniqueConstraint ? PostgresErrorCodes.UniqueViolation : "P0399";
+        var constraint = unknownUniqueConstraint ? "ux_test_unowned" : "tenancy_administration_test_fault";
         var canaries = new[] { "write-neutral-63c19", "write-nested-8da21", "write-secret-379bc" };
         var payload = JsonSerializer.Serialize(new { value = canaries[0], items = new[] { new { value = canaries[1], token = canaries[2] } } });
         Assert.InRange(payload.Length, 1, MappedLength.DisplayName);
@@ -126,11 +131,12 @@ public sealed class TenancyAdministrationDiagnosticTests(TenancyAdministrationFi
         Assert.NotNull(caller);
         var witness = new SaveFailureWitness();
         Exception failure;
+        string? resultCode = null;
         await ExecuteAsync(owner, null, $$"""
             CREATE FUNCTION tenancy_administration_write_sink_fault() RETURNS trigger
             LANGUAGE plpgsql SECURITY INVOKER SET search_path=pg_catalog AS $$
             BEGIN
-                RAISE EXCEPTION USING ERRCODE='P0399',MESSAGE=NEW.display_name;
+                RAISE EXCEPTION USING ERRCODE='{{sqlState}}',CONSTRAINT='{{constraint}}',MESSAGE=NEW.display_name;
             END $$;
             REVOKE ALL ON FUNCTION tenancy_administration_write_sink_fault() FROM PUBLIC;
             CREATE TRIGGER tenancy_administration_write_sink_fault BEFORE UPDATE ON organizations
@@ -150,10 +156,10 @@ public sealed class TenancyAdministrationDiagnosticTests(TenancyAdministrationFi
                         ActivatorUtilities.CreateInstance<OrganizationWriteStore>(provider)));
                 });
                 var result = await harness.Sender.Send(new RenameOrganizationCommand(id, create.Value.Version, payload));
-                Assert.Equal("dependency_unavailable", result.Error!.Code);
+                Assert.True(result.IsFailure);
+                resultCode = result.Error!.Code;
                 Assert.NotNull(observed);
                 var translated = Assert.IsType<TenancyAdministrationStorageException>(observed.Failure);
-                Assert.Equal(TenancyAdministrationStorageFailure.Provider, translated.Failure);
                 Assert.Null(translated.InnerException);
                 failure = translated;
             }
@@ -179,7 +185,8 @@ public sealed class TenancyAdministrationDiagnosticTests(TenancyAdministrationFi
             }
             Assert.Equal(1, witness.Failures);
             var provider = Assert.IsType<PostgresException>(Assert.IsType<DbUpdateException>(witness.Failure).InnerException);
-            Assert.Equal("P0399", provider.SqlState);
+            Assert.Equal(sqlState, provider.SqlState);
+            Assert.Equal(constraint, provider.ConstraintName);
             Assert.Equal(payload, provider.MessageText);
         }
         finally
@@ -205,6 +212,9 @@ public sealed class TenancyAdministrationDiagnosticTests(TenancyAdministrationFi
             Assert.Contains("3292", captured.Log, StringComparison.Ordinal);
             Assert.All(errors, trace => Assert.Equal("Tenancy administration storage failed.", trace.Description));
             captured.AssertExcludes(canaries);
+            Assert.Equal("dependency_unavailable", resultCode);
+            Assert.Equal(TenancyAdministrationStorageFailure.Provider,
+                Assert.IsType<TenancyAdministrationStorageException>(failure).Failure);
         }
         else
         {

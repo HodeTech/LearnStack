@@ -17,6 +17,7 @@ public sealed class TenancyAdministrationMigrationTests(SchemaFixture schema)
 {
     private const string Predecessor = "20261029045617_qualify_seed_administration_origins";
     private const string InitialGuardMigration = "20261029101520_enforce_tenancy_administration";
+    private const string RetainedDefaultCorrection = "20261029112940_guard_retained_tenancy_defaults";
 
     [Theory]
     [InlineData("Suspended", false)]
@@ -138,6 +139,103 @@ public sealed class TenancyAdministrationMigrationTests(SchemaFixture schema)
             await transaction.CommitAsync();
         }
         (await SnapshotAsync(database, tenant)).Should().Contain(organization.ToString("D"));
+    }
+
+    [Fact]
+    public async Task Correction_preflight_refuses_the_original_committed_race_without_repair_or_partial_ddl()
+    {
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres, applyMigrations: false);
+        await using var migration = Context(database);
+        await migration.GetService<IMigrator>().MigrateAsync(InitialGuardMigration);
+        var tenant = Guid.CreateVersion7();
+        var first = Guid.CreateVersion7();
+        var second = Guid.CreateVersion7();
+        await using (var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.AppConnectionString))
+        await using (var transaction = await app.BeginTransactionAsync())
+        {
+            await SchemaQueries.AssertApplicationRoleAsync(app, transaction);
+            await AnnounceAsync(app, transaction, tenant);
+            await ExecuteAsync(app, transaction, """
+                INSERT INTO public.tenants(id,slug,display_name,status,created_at,created_by,row_version)
+                    VALUES(@tenant,'preflight-race','Preflight race','Trial',clock_timestamp(),@actor,0);
+                INSERT INTO public.organizations(id,tenant_id,slug,display_name,status,created_at,created_by,row_version)
+                    VALUES(@first,@tenant,'first','First','Active',clock_timestamp(),@actor,0),
+                          (@second,@tenant,'second','Second','Active',clock_timestamp(),@actor,0);
+                SET CONSTRAINTS ALL IMMEDIATE;
+                """, ("tenant", tenant), ("first", first), ("second", second), ("actor", UserId.SystemActor.Value));
+            await transaction.CommitAsync();
+        }
+        // Reproduce the old guard's actual app-role race, with no disabled trigger,
+        // owner data write or forged fixture receipt. Both real transactions commit.
+        await using (var selection = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.AppConnectionString))
+        await using (var transaction = await selection.BeginTransactionAsync())
+        {
+            await SchemaQueries.AssertApplicationRoleAsync(selection, transaction);
+            await AnnounceAsync(selection, transaction, tenant);
+            await ExecuteAsync(selection, transaction, """
+                UPDATE public.tenants SET display_name=display_name WHERE id=@tenant;
+                UPDATE public.tenants SET default_organization_id=@first,row_version=row_version+1 WHERE id=@tenant;
+                SET CONSTRAINTS ALL IMMEDIATE;
+                """, ("tenant", tenant), ("first", first));
+            await using (var archive = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.AppConnectionString))
+            await using (var archiveTransaction = await archive.BeginTransactionAsync())
+            {
+                archive.ProcessID.Should().NotBe(selection.ProcessID);
+                await SchemaQueries.AssertApplicationRoleAsync(archive, archiveTransaction);
+                await AnnounceAsync(archive, archiveTransaction, tenant);
+                await ExecuteAsync(archive, archiveTransaction, "SELECT pg_catalog.pg_advisory_xact_lock(@key)",
+                    ("key", IdentityAdvisoryLockKey.ForTenant(TenantId.From(tenant))));
+                await ExecuteAsync(archive, archiveTransaction, """
+                    UPDATE public.organizations SET status='Archived',row_version=row_version+1 WHERE id=@first;
+                    SET CONSTRAINTS ALL IMMEDIATE;
+                    """, ("first", first));
+                await archiveTransaction.CommitAsync();
+            }
+            await transaction.CommitAsync();
+        }
+        await using (var read = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.AppConnectionString))
+        await using (var transaction = await read.BeginTransactionAsync())
+        {
+            await AnnounceAsync(read, transaction, tenant);
+            await using var command = new NpgsqlCommand("""
+                SELECT organization.status FROM public.tenants AS tenant
+                JOIN public.organizations AS organization ON organization.tenant_id=tenant.id
+                    AND organization.id=tenant.default_organization_id
+                WHERE tenant.id=@tenant
+                """, read, transaction);
+            command.Parameters.AddWithValue("tenant", tenant);
+            (await command.ExecuteScalarAsync()).Should().Be("Archived");
+        }
+        var before = await SnapshotAsync(database, tenant);
+        var definitions = await GuardDefinitionsAsync(database);
+        var apply = async () => await migration.GetService<IMigrator>().MigrateAsync(RetainedDefaultCorrection);
+        var refusal = (await apply.Should().ThrowAsync<PostgresException>()).Which;
+        refusal.SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
+        refusal.ConstraintName.Should().Be("tenancy_default_organization");
+        (await migration.Database.GetAppliedMigrationsAsync()).Last().Should().Be(InitialGuardMigration);
+        (await SnapshotAsync(database, tenant)).Should().Be(before);
+        (await GuardDefinitionsAsync(database)).Should().Equal(definitions);
+        await AssertForcedRlsAsync(database);
+
+        // Explicit operator remediation chooses the other Active Organization;
+        // the failed migration neither repairs the default nor reverses archive.
+        await using (var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.AppConnectionString))
+        await using (var transaction = await app.BeginTransactionAsync())
+        {
+            await AnnounceAsync(app, transaction, tenant);
+            await ExecuteAsync(app, transaction, "SELECT pg_catalog.pg_advisory_xact_lock(@key)",
+                ("key", IdentityAdvisoryLockKey.ForTenant(TenantId.From(tenant))));
+            await ExecuteAsync(app, transaction, """
+                UPDATE public.tenants SET default_organization_id=@second,row_version=row_version+1 WHERE id=@tenant;
+                SET CONSTRAINTS ALL IMMEDIATE;
+                """, ("second", second), ("tenant", tenant));
+            await transaction.CommitAsync();
+        }
+        var valid = await SnapshotAsync(database, tenant);
+        await migration.GetService<IMigrator>().MigrateAsync(RetainedDefaultCorrection);
+        (await SnapshotAsync(database, tenant)).Should().Be(valid);
+        (await migration.Database.GetAppliedMigrationsAsync()).Last().Should().Be(RetainedDefaultCorrection);
+        await AssertForcedRlsAsync(database);
     }
 
     [Theory]
