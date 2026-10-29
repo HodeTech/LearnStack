@@ -5,6 +5,7 @@ using LearnStack.Modules.Customization.Application.Contracts.Customization;
 using LearnStack.Modules.Education.Application.Contracts.Courses;
 using LearnStack.Modules.Education.Application.Contracts.Lessons;
 using LearnStack.Modules.Identity.Domain;
+using LearnStack.Modules.Tenancy.Application.Contracts.Branding;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Results;
@@ -25,6 +26,70 @@ public sealed class SeedContentContinuationTests(SchemaFixture schema) : IAsyncL
     private DisposableSchemaDatabase _database = null!;
     public async Task InitializeAsync() => _database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
     public Task DisposeAsync() => _database.DisposeAsync().AsTask();
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task A_later_declared_creation_refuses_without_skipping_its_missing_predecessor(bool lesson)
+    {
+        await using var source = ApplicationDataSource.Build(_database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(_database);
+        var predecessor = Describe(lesson ? "create-lesson" : "create-course");
+        await PrepareAsync(source, evidence, predecessor);
+        var firstCourse = SeedData.English.Curriculum!.Courses[0];
+        var laterCourse = SeedData.English.Curriculum.Courses[1];
+        var laterLesson = firstCourse.Lessons[1];
+        object request = lesson
+            ? new CreateLessonCommand(laterLesson.Id, firstCourse.Id, laterLesson.Sort,
+                laterLesson.ContentTypeKey, laterLesson.ContentTypeSchemaVersion)
+            : new CreateCourseCommand(laterCourse.Id, laterCourse.SlugKey, laterCourse.ContentAccess,
+                laterCourse.LevelTaxonomyKey, laterCourse.LevelTaxonomySchemaVersion, laterCourse.LevelBandKey);
+        var attempted = predecessor with { Command = request, Target = lesson ? laterLesson.Id : laterCourse.Id };
+        var before = await SnapshotAsync(attempted);
+        var first = await SnapshotAsync(predecessor);
+        var successes = await SuccessesAsync(attempted);
+
+        var refused = await SendAsync(source, evidence, request);
+
+        refused.IsSuccess.Should().BeFalse("a canonical value is not authority to skip the next missing root");
+        refused.Error!.Code.Should().Be("concurrency_conflict");
+        (await SnapshotAsync(attempted)).Should().Be(before);
+        (await SnapshotAsync(predecessor)).Should().Be(first);
+        (await SuccessesAsync(attempted)).Should().Be(successes);
+        var runner = new SeedRunner(context => SeedComposition.Build(source, context, NullLoggerFactory.Instance,
+            authorizationEvidence: evidence.Source), NullLogger<SeedRunner>.Instance);
+        (await runner.RunAsync(CancellationToken.None, [SeedData.English])).Should().Be(0);
+        var installed = await AuditCountAsync(source);
+        (await runner.RunAsync(CancellationToken.None, [SeedData.English])).Should().Be(0);
+        (await AuditCountAsync(source)).Should().Be(installed);
+    }
+
+    [Fact]
+    public async Task Fixed_branding_refuses_before_Customization_completion_and_keeps_the_prefix_resumable()
+    {
+        await using var source = ApplicationDataSource.Build(_database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(_database);
+        await PrepareAsync(source, evidence, Describe("builtin-content"));
+        var theme = SeedData.English.Curriculum!.Theme;
+        var request = new SetTenantBrandingCommand(theme.Id, theme.Value, null);
+        var attempted = new ContentAct(request, "tenancy.setting.write", "tenant_settings", "",
+            "SELECT count(*),coalesce(max(row_version),-1) FROM public.tenant_settings WHERE id=@target", theme.Id);
+        var before = await SnapshotAsync(attempted);
+        var successes = await SuccessesAsync(attempted);
+
+        var refused = await SendAsync(source, evidence, request);
+
+        refused.IsSuccess.Should().BeFalse("a theme cannot close the still-missing Customization predecessor");
+        refused.Error!.Code.Should().Be("concurrency_conflict");
+        (await SnapshotAsync(attempted)).Should().Be(before);
+        (await SuccessesAsync(attempted)).Should().Be(successes);
+        var runner = new SeedRunner(context => SeedComposition.Build(source, context, NullLoggerFactory.Instance,
+            authorizationEvidence: evidence.Source), NullLogger<SeedRunner>.Instance);
+        (await runner.RunAsync(CancellationToken.None, [SeedData.English])).Should().Be(0);
+        var installed = await AuditCountAsync(source);
+        (await runner.RunAsync(CancellationToken.None, [SeedData.English])).Should().Be(0);
+        (await AuditCountAsync(source)).Should().Be(installed);
+    }
 
     [Theory]
     [InlineData("register-content", false)]

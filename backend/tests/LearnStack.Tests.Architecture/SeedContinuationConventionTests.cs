@@ -13,6 +13,7 @@ namespace LearnStack.Tests.Architecture;
 public sealed class SeedContinuationConventionTests
 {
     private const string Custom = "LearnStack.Modules.Customization.Application.Seeding.SeedCustomizationWriteGuard";
+    private const string CustomPrerequisite = "LearnStack.Modules.Customization.Application.Seeding.SeedCustomizationPrerequisiteReader";
     private const string Education = "LearnStack.Modules.Education.Application.Seeding.SeedEducationWriteGuard";
     private const string CustomPort = "LearnStack.Modules.Customization.Application.Seeding.ISeedCustomizationWriteGuard";
     private const string EducationPort = "LearnStack.Modules.Education.Application.Seeding.ISeedEducationWriteGuard";
@@ -24,6 +25,8 @@ public sealed class SeedContinuationConventionTests
     private const string CustomState = "LearnStack.Modules.Customization.Application.Abstractions.ISeedCustomizationState";
     private const string EducationState = "LearnStack.Modules.Education.Application.Abstractions.ISeedEducationState";
     private const string CustomGuardPath = "Modules/Customization/LearnStack.Modules.Customization.Application/Seeding/SeedCustomizationWriteGuard.cs";
+    private const string CustomEvidencePath = "Modules/Customization/LearnStack.Modules.Customization.Application/Seeding/SeedCustomizationEvidence.cs";
+    private const string CustomPrerequisitePath = "Modules/Customization/LearnStack.Modules.Customization.Application/Seeding/SeedCustomizationPrerequisiteReader.cs";
     private const string EducationGuardPath = "Modules/Education/LearnStack.Modules.Education.Application/Seeding/SeedEducationWriteGuard.cs";
     private const string StagePath = "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/Persistence/SeedIdentityStageReader.cs";
     private const string CustomStatePath = "Modules/Customization/LearnStack.Modules.Customization.Infrastructure/Persistence/SeedCustomizationState.cs";
@@ -54,7 +57,7 @@ public sealed class SeedContinuationConventionTests
         "LearnStack.Tools.Seeder/SeedAdministrationOriginRunner.cs"];
     private static readonly string[] RunnerTypes = ["LearnStack.Tools.Seeder.SeedRunner", "LearnStack.Tools.Seeder.SeedIdentityFoundationRunner",
         "LearnStack.Tools.Seeder.SeedAdministrationOriginRunner"];
-    private static readonly string[] SourcePaths = [CustomGuardPath, EducationGuardPath, StagePath, CustomStatePath, EducationStatePath,
+    private static readonly string[] SourcePaths = [CustomGuardPath, CustomPrerequisitePath, CustomEvidencePath, EducationGuardPath, StagePath, CustomStatePath, EducationStatePath,
         FixedSourcePath, ApiPath, SeedCompositionPath, SeedSourcePath,
         "Modules/Customization/LearnStack.Modules.Customization.Application.Contracts/Seeding/SeedCustomizationDeclaration.cs",
         "Modules/Education/LearnStack.Modules.Education.Application.Contracts/Seeding/SeedEducationDeclaration.cs"];
@@ -98,6 +101,14 @@ public sealed class SeedContinuationConventionTests
             "_event ? IdentityTenantLockMode.Shared : IdentityTenantLockMode.Exclusive",
             "_event ? IdentityTenantLockMode.Exclusive : IdentityTenantLockMode.Shared", StringComparison.Ordinal));
         DirtySource(census, source, EducationGuardPath, text => text.Replace("create.SlugKey == course.SlugKey", "true", StringComparison.Ordinal));
+        DirtySource(census, source, CustomEvidencePath, text => text.Replace("row.SchemaRevision == expected.Items.Length", "true", StringComparison.Ordinal));
+        DirtySource(census, source, CustomPrerequisitePath, text => text.Replace("plan.TenantMode != IdentityTenantLockMode.Exclusive", "false", StringComparison.Ordinal));
+        DirtySource(census, source, CustomPrerequisitePath, text => text.Replace("unit.GetTenantContextAnnouncement(transaction) == announcement", "true", StringComparison.Ordinal));
+        DirtySource(census, source, CustomPrerequisitePath, text => text.Replace("ReferenceEquals(source.ForTenant(context.TenantId), declaration)", "true", StringComparison.Ordinal));
+        DirtySource(census, source, CustomPrerequisitePath, text => text.Replace("IsTenantWideRead: true", "IsTenantWideRead: false", StringComparison.Ordinal));
+        foreach (var occurrence in new[] { 0, 1 })
+            Dirty(census, source, () => RemoveCall(census.Body(CustomPrerequisite, "IsCompleteAsync"),
+                "LearnStack.SharedKernel.Identity.IIdentityMutationLocks", "RequireCurrent", occurrence));
         DirtySource(census, source, StagePath, text => text.Replace("db.Roles.AsNoTracking().AnyAsync(cancellationToken)",
             "db.Roles.AsNoTracking().AnyAsync(role => role.DeletedAt == null, cancellationToken)", StringComparison.Ordinal));
         DirtySource(census, source, ApiPath, text => text.Replace("TryAddSingleton<ISeedEducationContinuationSource, DenyAllSeedEducationContinuationSource>",
@@ -121,13 +132,13 @@ public sealed class SeedContinuationConventionTests
         Exact(StagePort, "HasNoRoleHistoryAsync", [Custom + "::PrepareAsync", Education + "::PrepareAsync"]);
         Exact(CustomState, "PrepareAsync", [Custom + "::PrepareAsync"]);
         Exact(EducationState, "PrepareAsync", [Education + "::PrepareAsync"]);
-        Exact("LearnStack.Modules.Customization.Application.Contracts.Seeding.ISeedCustomizationPrerequisiteReader", "IsCompleteAsync", [Education + "::PrepareAsync"]);
+        Exact("LearnStack.Modules.Customization.Application.Contracts.Seeding.ISeedCustomizationPrerequisiteReader", "IsCompleteAsync", [Education + "::PrepareAsync", "LearnStack.Modules.Tenancy.Application.Seeding.SeedTenantWriteGuard::IsPristineStageAsync"]);
         Implementations(CustomPort, [Custom]);
         Implementations(EducationPort, [Education]);
         Implementations(StagePort, [Stage]);
         Implementations(CustomState, ["LearnStack.Modules.Customization.Infrastructure.Persistence.SeedCustomizationState"]);
         Implementations(EducationState, ["LearnStack.Modules.Education.Infrastructure.Persistence.SeedEducationState"]);
-        Implementations("LearnStack.Modules.Customization.Application.Contracts.Seeding.ISeedCustomizationPrerequisiteReader", [Custom]);
+        Implementations("LearnStack.Modules.Customization.Application.Contracts.Seeding.ISeedCustomizationPrerequisiteReader", [CustomPrerequisite]);
         Implementations(CustomSource, [FixedSource, "LearnStack.Modules.Customization.Application.Contracts.Seeding.DenyAllSeedCustomizationContinuationSource"]);
         Implementations(EducationSource, [FixedSource, "LearnStack.Modules.Education.Application.Contracts.Seeding.DenyAllSeedEducationContinuationSource"]);
         foreach (var writer in Writers)
@@ -142,13 +153,13 @@ public sealed class SeedContinuationConventionTests
             CheckGuard(Parse(source[path]), order, type == Custom, errors);
         }
         Require(Stage, "HasNoRoleHistoryAsync", "LearnStack.SharedKernel.Identity.IIdentityMutationLocks", "RequireCurrent", 2);
-        var participating = new[] { Custom, Education, Stage, "LearnStack.Modules.Customization.Infrastructure.Persistence.SeedCustomizationState",
+        var participating = new[] { Custom, Education, Stage, CustomPrerequisite, "LearnStack.Modules.Customization.Infrastructure.Persistence.SeedCustomizationState",
             "LearnStack.Modules.Education.Infrastructure.Persistence.SeedEducationState" };
         if (calls.Any(call => participating.Any(type => call.Method.DeclaringType.FullName == type
                 || call.Method.DeclaringType.FullName.StartsWith(type + "/", StringComparison.Ordinal))
             && (call.Target.Name is "BeginTransactionAsync" or "BeginGlobalIdentityTransactionAsync" or "CreateConnection"
                 or "OpenConnectionAsync" or "CreateAsyncScope" or "CreateScope" or "Send" or "SendAsync"
-                or "SetTenantContextAsync" or "SetProvisioningTenantContextAsync" or "VerifySeedPrerequisitesAsync" or "IgnoreQueryFilters")))
+                or "SetTenantContextAsync" or "SetProvisioningTenantContextAsync" or "VerifySeedPrerequisitesAsync" or "VerifySeedCompletionAsync" or "IgnoreQueryFilters")))
             errors.Add("Content prerequisites use the existing ordinary owner and owning contracts, without dispatch, filter override or hatch");
         var fixedSource = census.Type(FixedSource);
         if (fixedSource.Fields.Count != 2 || fixedSource.Fields.Any(field => !field.IsPrivate || !field.IsInitOnly
@@ -170,6 +181,10 @@ public sealed class SeedContinuationConventionTests
         CheckPopulation(source, errors);
         CheckSourceAndComposition(source, errors);
         CheckStage(Parse(source[StagePath]), errors);
+        CheckCustomizationPrerequisite(Parse(source[CustomPrerequisitePath]), errors);
+        if (!Has(Parse(source[CustomEvidencePath]), "row.SchemaRevision == expected.Items.Length"))
+            errors.Add("Shared fixed Customization evidence retains its exact taxonomy revision pin");
+        Require(CustomPrerequisite, "IsCompleteAsync", "LearnStack.SharedKernel.Identity.IIdentityMutationLocks", "RequireCurrent", 2);
         CheckStates(source, errors);
         return errors;
 
@@ -238,7 +253,7 @@ public sealed class SeedContinuationConventionTests
         var required = customization
             ? new[] { "value.ContentTypeId == declaration.ContentType.Id", "value.Key == declaration.ContentType.Key", "Map(value.DisplayName, declaration.ContentType.DisplayName)",
                 "value.JsonSchema == declaration.ContentType.JsonSchema", "value.RendererKey == declaration.ContentType.RendererKey", "value.RequireNoIncumbent",
-                "value.TaxonomyId == declaration.Taxonomy.Id", "item.Metadata == declaration.Taxonomy.Items[index].Metadata", "row.SchemaRevision == expected.Items.Length" }
+                "value.TaxonomyId == declaration.Taxonomy.Id", "item.Metadata == declaration.Taxonomy.Items[index].Metadata" }
             : ["create.CourseId == course.Id", "create.SlugKey == course.SlugKey", "create.ContentAccess == course.ContentAccess",
                 "create.LevelTaxonomyKey == course.LevelTaxonomyKey", "add.ExpectedVersion == index", "add.Title == translation.Title", "add.Summary == translation.Summary",
                 "createLesson.CourseId == course.Id", "createLesson.ContentTypeSchemaVersion == lesson.ContentTypeSchemaVersion",
@@ -307,6 +322,22 @@ public sealed class SeedContinuationConventionTests
         if (!Same(policies, Writers.Select(writer => writer.Policy))) errors.Add("Only the twelve seed content policies consume the Role-history stage proof");
     }
 
+    private static void CheckCustomizationPrerequisite(SyntaxNode root, List<string> errors)
+    {
+        var read = Method(root, "IsCompleteAsync");
+        var owner = Method(root, "HasOwner");
+        var policies = read.DescendantNodes().OfType<LiteralExpressionSyntax>().Where(literal => literal.IsKind(SyntaxKind.StringLiteralExpression))
+            .Select(literal => literal.Token.ValueText);
+        if (!Same(policies, Writers.Where(writer => writer.Module == "Education").Select(writer => writer.Policy).Append("tenancy.seed.set_branding"))
+            || !Has(read, "plan.TenantMode != IdentityTenantLockMode.Exclusive") || !Has(read, "!plan.UserIds.IsEmpty")
+            || !Has(read, "ReferenceEquals(unit.Transaction, transaction)") || !Has(read, "unit.GetTenantContextAnnouncement(transaction) == announcement")
+            || !Has(read, "ReferenceEquals(source.ForTenant(context.TenantId), declaration)")
+            || !Has(owner, "unit is not IOperationReadScopeView { IsTenantWideRead: true }")
+            || !Has(owner, "unit.Mode == TransactionMode.ReadWrite")
+            || !Has(owner, "unit is not IGlobalIdentityUnitOfWork { IsGlobalIdentityTransaction: true }"))
+            errors.Add("Only the six fixed Education acts and fixed branding borrow the current narrow Customization prerequisite under their supplied exclusive plan");
+    }
+
     private static void CheckStates(Dictionary<string, string> source, List<string> errors)
     {
         var customization = Parse(source[CustomStatePath]);
@@ -358,10 +389,11 @@ public sealed class SeedContinuationConventionTests
         finally { source[path] = clean; }
         AssertClean(census, source);
     }
-    private static Action RemoveCall(MethodDefinition method, string type, string name)
+    private static Action RemoveCall(MethodDefinition method, string type, string name, int? occurrence = null)
     {
-        var instruction = method.Body.Instructions.Single(instruction => instruction.Operand is MethodReference call
-            && call.DeclaringType.FullName == type && call.Name == name);
+        var candidates = method.Body.Instructions.Where(instruction => instruction.Operand is MethodReference call
+            && call.DeclaringType.FullName == type && call.Name == name).ToArray();
+        var instruction = occurrence is { } index ? candidates[index] : candidates.Single();
         var opcode = instruction.OpCode;
         var operand = instruction.Operand;
         instruction.OpCode = OpCodes.Nop;

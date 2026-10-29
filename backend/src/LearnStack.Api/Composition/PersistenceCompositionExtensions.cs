@@ -359,7 +359,7 @@ public static class PersistenceCompositionExtensions
         services.TryAddScoped<ISeedIdentityStageReader, SeedIdentityStageReader>();
         services.TryAddScoped<SeedCustomizationWriteGuard>();
         services.TryAddScoped<ISeedCustomizationWriteGuard>(provider => provider.GetRequiredService<SeedCustomizationWriteGuard>());
-        services.TryAddScoped<ISeedCustomizationPrerequisiteReader>(provider => provider.GetRequiredService<SeedCustomizationWriteGuard>());
+        services.TryAddScoped<ISeedCustomizationPrerequisiteReader, SeedCustomizationPrerequisiteReader>();
         services.TryAddScoped<ISeedEducationWriteGuard, SeedEducationWriteGuard>();
 
         // And the catalogue an `x-taxonomy` resolves through, which is a read and

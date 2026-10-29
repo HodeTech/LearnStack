@@ -15,6 +15,8 @@ public sealed partial class OperationPermissionConventionTests
     private const string ReleasedPairMethod = "AssertReleasedAssignablePairAsync";
     private const string PairOwnerFile = "LearnStack.Tests.Integration/Database/RoleGrantCommandIntegrationTests.cs";
     private const string HarnessFile = "LearnStack.Tests.Integration/Database/RoleGrantPipelineHarness.cs";
+    private static readonly string[] ReleasedPairLifecycleStatements =
+        ["INSERT INTO public.tenants", "INSERT INTO public.organizations"];
     private static readonly DeniedProof[] PublicDeniedProofs =
     [
         new("tenancy.public_site.read", "LearnStack.Tests.Integration/Database/PublicSiteHttpTests.cs",
@@ -212,7 +214,7 @@ public sealed partial class OperationPermissionConventionTests
             || FindDeniedProofHelper(files[PairFile], "InstallReleasedPairLifecycleAsync") is not { } lifecycle
             || !Has(lifecycle, "SchemaQueries.AssertApplicationRoleAsync(app)", "ScopeAsync(app, transaction, SchemaFixture.TenantA)",
                 "await transaction.CommitAsync()")
-            || !new[] { "INSERT INTO public.tenants", "INSERT INTO public.organizations" }.All(sql => lifecycle.DescendantNodes()
+            || !ReleasedPairLifecycleStatements.All(sql => lifecycle.DescendantNodes()
                 .OfType<LiteralExpressionSyntax>().Any(literal => literal.Token.ValueText.Contains(sql, StringComparison.Ordinal))))
             errors.Add("actual released pair evidence");
         foreach (var proof in PublicDeniedProofs.Concat(OtherDeniedProofs))

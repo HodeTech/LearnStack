@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 1,492 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 1,549 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -168,6 +168,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 3 independent seed regressions and typed race correction (2026-10-29)](#p03-3-step-3-independent-seed-regressions-and-typed-race-correction-2026-10-29) — 55 lines
   - [ADR-0081 maintainer corrections and acceptance (2026-10-29)](#adr-0081-maintainer-corrections-and-acceptance-2026-10-29) — 49 lines
   - [P03-3 Step 3 implementation and qualification (2026-10-29)](#p03-3-step-3-implementation-and-qualification-2026-10-29) — 84 lines
+  - [P03-3 Step 3 review round 1 and seed frontier corrections (2026-10-29)](#p03-3-step-3-review-round-1-and-seed-frontier-corrections-2026-10-29) — 57 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -7203,3 +7204,60 @@ The new seed extension rules remain Registered through their pending Step 3
 implementation reviews. Full provider/native/browser/manual-accessibility and
 fresh final-source A/B qualification remain the already assigned later steps.
 There is no new approval wait, no push or PR, and no branch change.
+
+### P03-3 Step 3 review round 1 and seed frontier corrections (2026-10-29)
+
+**Reviewed source:** implementation commit `467601c3`, against Step 2 closeout
+`23869e91` and ADR-0081 acceptance `33ec1d96`. Three fresh independent read-only
+reviewers (`gpt-6-astra`, extra-high effort) cover finite authority/delegation,
+physical owner/audit/cleanup, and seed/release/origin continuation. Authority and
+owner reviewers find no additional concrete issue in their slices. The seed
+reviewer identifies two Major findings; no Blocker is reported. This is scoped
+review evidence, not a claim that every possible defect is absent.
+
+**Verified findings and corrections.**
+
+| Finding | Verification and correction |
+|---|---|
+| An exact later Course/Lesson ID can skip its missing predecessor | Three new real PostgreSQL negative cases include the later Course and later Lesson. Both initially succeed incorrectly. Validate the proposed missing root within the fresh canonical prefix, preserving initialized predecessors and the runner's separate publication pass. Refusal leaves business state and successful audit counts unchanged; ordinary resume then completes and repeats without new audit. |
+| Theme can be written before Customization completion, preventing later content continuation | The third negative case reproduces that early successful theme write. Require the owning narrow Customization prerequisite under the existing exclusive plan before branding and revalidate admission afterward. Extract the existing prerequisite reader from the content write guard to avoid a Tenancy/Customization constructor cycle; retain pure evidence predicates, exact fixed source and same physical owner. Its only caller sites are fixed branding and the Education guard. No temporary read consumer, witness or authority is added. |
+| Strict post-hook architecture recompilation rejects four test-only analyzer violations | Replace two repeated literal arrays with static readonly fixtures and two `Regex.Matches(...).Count` expressions with `Regex.Count`. No suppression or CI-policy change. The earlier cached solution build was insufficient to expose these fresh-compilation errors. |
+
+The original seed reviewer independently reads the corrections and finds both
+Major findings closed. The historical Identity foundation entry requires
+completed Tenancy, not completed Education; supported seed/demo wrappers finish
+content before Identity. No new cross-branch Education prerequisite or authority
+is added to Role initialization.
+
+**Validation sequence.** The three negative PostgreSQL cases first fail as
+expected against the committed implementation. The initial correction run has
+24 passing and 21 failing cases because Root used the audit slug instead of the
+closed Seed policy ID for the extracted branding prerequisite. After binding
+`tenancy.seed.set_branding`, all **61/61** cases pass, zero skips: the complete
+45-case content population, including the three new negatives and ordinary
+resume/write-free repeat, plus both competing-commit orders for all eight
+pristine consumers. These use disposable real PostgreSQL and ordinary app-role
+owners. No local developer database or credential is used.
+
+Strict compilation, architecture/current-census controls and the complete Unit
+population qualify the correction before its commit; their actual results are
+appended below. The second fresh review round starts from that correction commit.
+Step 3 is not closed by this first-round record; Steps 4–10 and final provider/
+native/browser/manual-accessibility/A–B evidence remain their selected work.
+
+**Correction qualification.** CI-mode solution Release compilation passes with
+zero warnings/errors. The current architecture population completes 86 cases:
+85 pass after exact moved-helper/generated-local census updates; its remaining
+failure is a new dirty-control helper that assumed a single plan-check call.
+That control now removes each of the reader's two checks independently, and the
+entire seed-continuation architecture rule passes. Every one of the 86 distinct
+cases therefore has current passing coverage; no failed run is labeled green.
+The source/caller/plan controls retain fourteen exact recheck owners, including
+the separate prerequisite reader, without a namespace or type-wide exception.
+The complete Unit population passes **3,184/3,184**, zero skips, after adding the
+new reader substitute to the shared Tenancy unit fixture; the earlier 24 failures
+were all that missing fixture registration. Real API/Seeder composition is
+separately exercised by the 61 passing PostgreSQL cases above. Markdown links,
+roadmap structure and generated indexes pass, and `git diff --check` is clean.
+Full final-source suite/A–B qualification remains Step 10; it is not inferred
+from these local targeted architecture and database controls.

@@ -3023,7 +3023,11 @@ qualify a new runtime population. The phase Status block owns delivery state.
   `ProvisionTenant` stays INSERT-first. The twelve content
   writers use narrow owning contracts for pristine Tenancy and absence of all
   retained Role history, plus exact target/predecessor/natural-key/version and
-  immutable authored pins under the exact fixed source. Tenant-wide Role storage,
+  immutable authored pins under the exact fixed source. Proposed Course/Lesson
+  creation cannot skip its missing predecessor; fixed branding requires completed
+  Customization on the same narrow owner and supplied plan, with exactly two
+  prerequisite caller sites and one independent reader implementation.
+  Tenant-wide Role storage,
   denied DELETE and v1 Role-before-Membership ordering establish the stage proof;
   inactive, tombstoned and undeclared Role IDs cannot evade it. Built-in event
   competitors use their separate source and at least shared Tenant before
@@ -3034,7 +3038,9 @@ qualify a new runtime population. The phase Status block owns delivery state.
   missing/extra-source and removed-guard controls; actual held-Tenant/first-Role
   competitors and both commit orders for all twelve content writer types;
   retained/conflicting/absent roots, exact fixed-source denial and untouched
-  interruption at every stage. Preserve valid completed edits, prove no-write
+  interruption at every stage, including later canonical Course/Lesson creation
+  and premature branding followed by successful ordinary resume. Preserve valid
+  completed edits, prove no-write
   repeats and refuse incompatible incomplete history. This proves the admitted
   writer population, not an all-branch snapshot or forged database history.
 - **Source:** [ADR-0079 Amendment 2](../decisions/0079-bounded-identity-administration.md#amendment-2--complete-seed-write-census-and-prerequisite-proof-2026-10-29),

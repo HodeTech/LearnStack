@@ -1,3 +1,4 @@
+using LearnStack.Modules.Customization.Application.Contracts.Seeding;
 using System.Data.Common;
 using LearnStack.Application.Audit;
 using LearnStack.Application.Authorization;
@@ -186,8 +187,28 @@ public sealed class SeedTenantWriteGuardTests
         {
             fixture.Settings.FindForUpdateAsync(TenantSettingId.From(ThemeId), Arg.Any<CancellationToken>());
             fixture.State.ReadTenantAsync(Arg.Any<CancellationToken>());
+            fixture.Customization.IsCompleteAsync(fixture.HeldPlan!, Arg.Any<CancellationToken>());
             fixture.Prerequisites.VerifyAsync(request, fixture.HeldPlan!, Arg.Any<CancellationToken>());
         });
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Branding_requires_completed_Customization_and_current_admission_after_its_read(bool sourceExpires)
+    {
+        using var fixture = new Fixture(locales: 2);
+        fixture.Customization.IsCompleteAsync(Arg.Any<IdentityMutationLockPlan>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                if (sourceExpires) fixture.RevokeSource();
+                return sourceExpires;
+            });
+        var result = await fixture.SendAsync<SetTenantBrandingCommand, TenantBrandingDto>(new(ThemeId, Theme, null));
+        Assert.Equal(sourceExpires ? "business_rule_violation" : "concurrency_conflict", result.Error!.Code);
+        await fixture.Settings.DidNotReceiveWithAnyArgs().AddAsync(null!);
+        await fixture.Prerequisites.DidNotReceiveWithAnyArgs().VerifyAsync(null!, null!);
+        await fixture.Customization.Received(1).IsCompleteAsync(fixture.HeldPlan!, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -344,7 +365,8 @@ public sealed class SeedTenantWriteGuardTests
             var execution = Substitute.For<IOperationInvocationContext>();
             execution.CurrentInvocation.Returns(_ => current?.CurrentInvocation);
             Prerequisites.VerifyAsync(Arg.Any<object>(), Arg.Any<IdentityMutationLockPlan>(), Arg.Any<CancellationToken>()).Returns(true);
-            Guard = new SeedTenantWriteGuard(declarations, State, Locks, execution, context, Unit, Prerequisites);
+            Customization.IsCompleteAsync(Arg.Any<IdentityMutationLockPlan>(), Arg.Any<CancellationToken>()).Returns(true);
+            Guard = new SeedTenantWriteGuard(declarations, State, Locks, execution, context, Unit, Prerequisites, Customization);
             _source = new(context);
             var evidence = new AuthorizationEvidenceCoordinator(Substitute.For<IAuditStore>(), new AuditStateCapture(), Unit,
                 Clock, guids, () => current!, [], NullLogger<AuthorizationEvidenceCoordinator>.Instance);
@@ -372,6 +394,7 @@ public sealed class SeedTenantWriteGuardTests
             services.AddSingleton(Guard);
             _provider = services.BuildServiceProvider();
         }
+        public ISeedCustomizationPrerequisiteReader Customization { get; } = Substitute.For<ISeedCustomizationPrerequisiteReader>();
         public SeedTenantWriteGuard Guard { get; }
         public IFixedSeedPrerequisiteVerifier Prerequisites { get; } = Substitute.For<IFixedSeedPrerequisiteVerifier>();
         public TenantRoot Root { get; }
@@ -466,6 +489,9 @@ internal sealed class TenancySeedHandlerOwner : IDisposable
         var prerequisites = Substitute.For<IFixedSeedPrerequisiteVerifier>();
         prerequisites.VerifyAsync(Arg.Any<object>(), Arg.Any<IdentityMutationLockPlan>(), Arg.Any<CancellationToken>()).Returns(true);
         services.AddSingleton(prerequisites);
+        var customization = Substitute.For<ISeedCustomizationPrerequisiteReader>();
+        customization.IsCompleteAsync(Arg.Any<IdentityMutationLockPlan>(), Arg.Any<CancellationToken>()).Returns(true);
+        services.AddSingleton(customization);
         services.AddSingleton<SeedTenantWriteGuard>();
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(TenancySeedInvocationBehavior<,>));
     }

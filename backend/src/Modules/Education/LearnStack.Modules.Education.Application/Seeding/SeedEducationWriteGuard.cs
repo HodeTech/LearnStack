@@ -66,14 +66,14 @@ public sealed class SeedEducationWriteGuard(ISeedEducationContinuationSource sou
         var noIdentity = await identity.HasNoRoleHistoryAsync(_plan, cancellationToken);
         if (!IsCurrent(request)) return false;
         if (!noIdentity) return ChangedState();
-        var completeCustomization = await customization.IsCompleteAsync(cancellationToken);
+        var completeCustomization = await customization.IsCompleteAsync(_plan, cancellationToken);
         if (!IsCurrent(request)) return false;
         if (!completeCustomization) return ChangedState();
         var courses = await state.ReadCoursesAsync(cancellationToken);
         if (!IsCurrent(request)) return false;
         var lessons = await state.ReadLessonsAsync(cancellationToken);
         if (!IsCurrent(request)) return false;
-        return CanonicalPrefix(declaration, context.OrganizationId, courses, lessons)
+        return CanonicalPrefix(declaration, context.OrganizationId, courses, lessons, target)
             && AllowsStage(target, courses, lessons) || ChangedState();
     }
 
@@ -160,7 +160,7 @@ public sealed class SeedEducationWriteGuard(ISeedEducationContinuationSource sou
     }
 
     private static bool CanonicalPrefix(SeedEducationDeclaration declaration, OrganizationId? organization,
-        IReadOnlyList<Course> courses, IReadOnlyList<Lesson> lessons)
+        IReadOnlyList<Course> courses, IReadOnlyList<Lesson> lessons, Target target)
     {
         var declared = declaration.Courses.Where(course => course.OrganizationId == organization).ToArray();
         if (courses.Any(row => !declared.Any(course => course.Id == row.Id.Value))
@@ -173,7 +173,10 @@ public sealed class SeedEducationWriteGuard(ISeedEducationContinuationSource sou
             var children = lessons.Where(lesson => lesson.CourseId.Value == expected.Id).ToArray();
             if (row is null)
             {
-                if (children.Length != 0) return false;
+                // Validate the proposed creation as well as the retained graph. A
+                // canonical later root must not turn a valid prefix into a gap.
+                if (children.Length != 0 || target.Operation == Kind.CreateCourse
+                    && target.Course.Id == expected.Id && !predecessorComplete) return false;
                 predecessorComplete = false;
                 continue;
             }
@@ -184,7 +187,13 @@ public sealed class SeedEducationWriteGuard(ISeedEducationContinuationSource sou
             foreach (var expectedLesson in expected.Lessons)
             {
                 var lesson = children.SingleOrDefault(value => value.Id.Value == expectedLesson.Id);
-                if (lesson is null) { previousLessonComplete = false; continue; }
+                if (lesson is null)
+                {
+                    if (target.Operation == Kind.CreateLesson && target.Lesson!.Id == expectedLesson.Id
+                        && !previousLessonComplete) return false;
+                    previousLessonComplete = false;
+                    continue;
+                }
                 if (!previousLessonComplete || !LessonMatches(lesson, expected, expectedLesson, declaration.TenantId)) return false;
                 previousLessonComplete = lesson.Translations.Count == expectedLesson.Translations.Length;
             }

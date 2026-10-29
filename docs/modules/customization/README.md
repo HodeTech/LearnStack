@@ -301,6 +301,12 @@ pre-wait tracked objects are not evidence. No temporary seed hatch is used.
 Standard 05 owns the monotonic Identity-stage and admitted immutable-content
 proof, its cross-branch limits and Phase 06 reopening requirement.
 
+`SeedCustomizationPrerequisiteReader` supplies the same-owner narrow Boolean
+prerequisite to fixed branding creation and the six fixed Education acts.
+It does not depend on another writer, acquire another plan or open a read hatch;
+[Standard 05](../../standards/05-database.md#every-tenant-bound-seed-write) owns
+its exact caller and supplied-plan boundary.
+
 The separate [fixed-origin completion operation](../../standards/05-database.md#fixed-seed-completion-read-authority)
 uses a closed Customization Application.Contracts reader on the adoption owner's
 ordinary narrow scope. It verifies required built-in/authored ContentType and

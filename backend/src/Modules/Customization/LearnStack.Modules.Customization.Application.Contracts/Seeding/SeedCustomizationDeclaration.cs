@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Identity;
 
 namespace LearnStack.Modules.Customization.Application.Contracts.Seeding;
 
@@ -30,5 +31,5 @@ public sealed class DenyAllSeedCustomizationContinuationSource : ISeedCustomizat
 /// <summary>Fixed immutable customization prerequisites on the caller's already fenced ordinary owner.</summary>
 public interface ISeedCustomizationPrerequisiteReader
 {
-    Task<bool> IsCompleteAsync(CancellationToken cancellationToken = default);
+    Task<bool> IsCompleteAsync(IdentityMutationLockPlan plan, CancellationToken cancellationToken = default);
 }

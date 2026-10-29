@@ -119,6 +119,7 @@ public sealed class IdentityFoundationConventionTests
             "LearnStack.Modules.Tenancy.Application.Seeding.SeedTenantWriteGuard.RequireCurrent",
             "LearnStack.Modules.Tenancy.Application.Seeding.AdoptSeedAdministrationOriginCommandHandler.Handle",
             "LearnStack.Modules.Identity.Infrastructure.Persistence.SeedIdentityStageReader.HasNoRoleHistoryAsync",
+            "LearnStack.Modules.Customization.Application.Seeding.SeedCustomizationPrerequisiteReader.IsCompleteAsync",
             "LearnStack.Tools.Seeder.FixedSeedPrerequisiteSource.Capture",
             "LearnStack.Tools.Seeder.FixedSeedCompletionSource.Capture",
             "LearnStack.SharedKernel.Permissions.SeedPrerequisiteReadWitness.RequireCurrent",

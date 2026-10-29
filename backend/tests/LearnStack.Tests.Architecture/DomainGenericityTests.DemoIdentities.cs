@@ -385,6 +385,8 @@ public sealed partial class DomainGenericityTests
         "Modules/Tenancy/LearnStack.Modules.Tenancy.Application.Contracts/Seeding/SeedAdministrationOriginManifest.cs";
     private const string FixedOriginManifestType =
         "LearnStack.Modules.Tenancy.Application.Contracts.Seeding.SeedAdministrationOriginManifest";
+    private static readonly string[] FixedOriginManifestUsings =
+        ["LearnStack.SharedKernel.Identifiers", "System.Collections.Immutable"];
 
     private static bool IsFixedOriginManifestPath(string path) => string.Equals(Path.GetFullPath(path),
         Path.GetFullPath(Path.Combine(RepositoryPaths.BackendSrc(), FixedOriginManifestRelativePath)), StringComparison.Ordinal);
@@ -398,7 +400,7 @@ public sealed partial class DomainGenericityTests
         if (root is not CompilationUnitSyntax unit || unit.ContainsDirectives || unit.Externs.Count != 0
             || unit.AttributeLists.Count != 0 || unit.Members.Count != 1
             || !unit.Usings.Select(value => value.Name?.ToString() ?? string.Empty).Order(StringComparer.Ordinal)
-                .SequenceEqual(new[] { "LearnStack.SharedKernel.Identifiers", "System.Collections.Immutable" }, StringComparer.Ordinal)
+                .SequenceEqual(FixedOriginManifestUsings, StringComparer.Ordinal)
             || unit.Usings.Any(value => value.Alias is not null || value.StaticKeyword.RawKind != 0 || value.GlobalKeyword.RawKind != 0)
             || unit.Members[0] is not FileScopedNamespaceDeclarationSyntax space
             || space.Name.ToString() != "LearnStack.Modules.Tenancy.Application.Contracts.Seeding"

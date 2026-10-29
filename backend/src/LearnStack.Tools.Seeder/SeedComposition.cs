@@ -187,7 +187,7 @@ public static class SeedComposition
         services.AddScoped<ISeedIdentityStageReader, SeedIdentityStageReader>();
         services.AddScoped<SeedCustomizationWriteGuard>();
         services.AddScoped<ISeedCustomizationWriteGuard>(provider => provider.GetRequiredService<SeedCustomizationWriteGuard>());
-        services.AddScoped<ISeedCustomizationPrerequisiteReader>(provider => provider.GetRequiredService<SeedCustomizationWriteGuard>());
+        services.AddScoped<ISeedCustomizationPrerequisiteReader, SeedCustomizationPrerequisiteReader>();
         services.AddScoped<ISeedEducationWriteGuard, SeedEducationWriteGuard>();
 
         // The Audit module's context, on the same helper and for the same reason as the

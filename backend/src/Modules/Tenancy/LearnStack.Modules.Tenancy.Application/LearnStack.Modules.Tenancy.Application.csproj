@@ -8,6 +8,7 @@
     <ProjectReference Include="..\..\..\LearnStack.SharedKernel\LearnStack.SharedKernel.csproj" />
     <ProjectReference Include="..\LearnStack.Modules.Tenancy.Domain\LearnStack.Modules.Tenancy.Domain.csproj" />
     <ProjectReference Include="..\LearnStack.Modules.Tenancy.Application.Contracts\LearnStack.Modules.Tenancy.Application.Contracts.csproj" />
+    <ProjectReference Include="..\..\Customization\LearnStack.Modules.Customization.Application.Contracts\LearnStack.Modules.Customization.Application.Contracts.csproj" />
     <ProjectReference Include="..\..\Identity\LearnStack.Modules.Identity.Application.Contracts\LearnStack.Modules.Identity.Application.Contracts.csproj" />
   </ItemGroup>
 

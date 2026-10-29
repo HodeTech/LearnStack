@@ -1,16 +1,13 @@
+using static LearnStack.Modules.Customization.Application.Seeding.SeedCustomizationEvidence;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Results;
 using System.Data.Common;
-using System.Collections.Immutable;
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Customization.Application.Contracts.Customization;
 using LearnStack.Modules.Customization.Application.Contracts.Seeding;
 using LearnStack.Modules.Customization.Domain;
 using LearnStack.Modules.Identity.Application.Contracts.Seeding;
 using LearnStack.Modules.Tenancy.Application.Contracts.Seeding;
-using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Identity;
 using LearnStack.SharedKernel.Permissions;
@@ -30,7 +27,7 @@ public interface ISeedCustomizationWriteGuard
 public sealed class SeedCustomizationWriteGuard(ISeedCustomizationContinuationSource source,
     ISeedCustomizationState state, ISeedTenantContinuationGuard tenancy, ISeedIdentityStageReader identity,
     IIdentityMutationLocks locks, IOperationInvocationContext execution, ITenantContext context, IUnitOfWork unit)
-    : ISeedCustomizationWriteGuard, ISeedCustomizationPrerequisiteReader
+    : ISeedCustomizationWriteGuard
 {
     public Error Failure { get; private set; } = new(new LocalizedMessage("lockey_business_rule_violation"));
 
@@ -98,35 +95,6 @@ public sealed class SeedCustomizationWriteGuard(ISeedCustomizationContinuationSo
         }
         locks.RequireCurrent(_plan!);
         return true;
-    }
-
-    public async Task<bool> IsCompleteAsync(CancellationToken cancellationToken = default)
-    {
-        var invocation = execution.CurrentInvocation;
-        if (!HasOwner() || invocation is not { IsActive: true, EntryKind: OperationEntryKind.Application }
-            || !ReferenceEquals(invocation.Context, context) || invocation.Policy.Kind != OperationPolicyKind.FiniteTrusted
-            || invocation.Policy.RequestType != invocation.Operation.GetType()
-            || invocation.TrustedSource is not { SourceKind: AuthorizationSourceKind.Seed } trusted
-            || !trusted.Matches(invocation.Operation.GetType(), context)
-            || invocation.Policy.Id is not ("education.seed.create_course" or "education.seed.add_course_translation"
-                or "education.seed.publish_course" or "education.seed.create_lesson" or "education.seed.add_lesson_translation"
-                or "education.seed.publish_lesson")
-            || source.ForTenant(context.TenantId) is not { } declaration) return false;
-        var transaction = unit.Transaction;
-        var announcement = unit.GetTenantContextAnnouncement(transaction);
-        var content = await state.ReadContentTypesAsync(cancellationToken);
-        if (!invocation.IsActive || !ReferenceEquals(invocation, execution.CurrentInvocation) || !HasOwner()
-            || !ReferenceEquals(unit.Transaction, transaction) || unit.GetTenantContextAnnouncement(transaction) != announcement
-            || !ReferenceEquals(source.ForTenant(context.TenantId), declaration)) return false;
-        var taxonomies = await state.ReadTaxonomiesAsync(cancellationToken);
-        return invocation.IsActive && ReferenceEquals(invocation, execution.CurrentInvocation) && HasOwner()
-            && ReferenceEquals(unit.Transaction, transaction) && unit.GetTenantContextAnnouncement(transaction) == announcement
-            && ReferenceEquals(source.ForTenant(context.TenantId), declaration)
-            && content.Count == 2 && taxonomies.Count == 2
-            && Content(content, declaration.BuiltInContentType, declaration.TenantId, active: true)
-            && Content(content, declaration.ContentType, declaration.TenantId, active: true)
-            && Taxonomy(taxonomies, declaration.BuiltInTaxonomy, declaration.TenantId, active: true)
-            && Taxonomy(taxonomies, declaration.Taxonomy, declaration.TenantId, active: true);
     }
 
     private bool HasOwner() => context.IsResolved && context.HostScope is null && unit.HasActiveTransaction && !unit.IsRollbackOnly
@@ -214,40 +182,4 @@ public sealed class SeedCustomizationWriteGuard(ISeedCustomizationContinuationSo
         };
     }
 
-    private static bool Content(IReadOnlyList<TenantContentType> rows, SeedContentTypeDeclaration expected, TenantId tenant, bool active)
-    {
-        var found = rows.Where(row => row.Key == expected.Key || row.Id.Value == expected.Id).ToArray();
-        return found.Length == 1 && found[0] is { } row && (expected.Id is null || row.Id.Value == expected.Id)
-            && row.TenantId == tenant && row.Key == expected.Key && row.SchemaVersion == expected.SchemaVersion && row.SchemaRevision == 0
-            && row.Status == (active ? CustomizationStatus.Active : CustomizationStatus.Draft)
-            && Pristine(row, active ? 1 : 0) && Json(row.DisplayName.ToJson(), JsonSerializer.Serialize(expected.DisplayName))
-            && Json(row.JsonSchema, expected.JsonSchema) && row.RendererKey == expected.RendererKey;
-    }
-
-    private static bool Taxonomy(IReadOnlyList<TenantLevelTaxonomy> rows, SeedTaxonomyDeclaration expected, TenantId tenant, bool active)
-    {
-        var found = rows.Where(row => row.Key == expected.Key || row.Id.Value == expected.Id).ToArray();
-        return found.Length == 1 && found[0] is { } row && (expected.Id is null || row.Id.Value == expected.Id)
-            && row.TenantId == tenant && row.Key == expected.Key && row.SchemaVersion == expected.SchemaVersion
-            && row.SchemaRevision == expected.Items.Length && row.Status == (active ? CustomizationStatus.Active : CustomizationStatus.Draft)
-            && Pristine(row, expected.Items.Length + (active ? 1 : 0))
-            && Json(row.DisplayName.ToJson(), JsonSerializer.Serialize(expected.DisplayName)) && row.Items.Count == expected.Items.Length
-            && row.Items.All(item => expected.Items.Any(expectedItem => item.Key == expectedItem.Key && item.Sort == expectedItem.Sort
-                && Json(item.DisplayName.ToJson(), JsonSerializer.Serialize(expectedItem.DisplayName)) && Json(item.Metadata, expectedItem.Metadata)));
-    }
-
-    private static bool Pristine<TId>(AuditableEntity<TId> row, long version)
-        where TId : struct, IStronglyTypedId<Guid>, IEquatable<TId> => row.Version == version
-        && row.CreatedAt != default && row.CreatedBy == UserId.SystemActor && row.DeletedAt is null && row.DeletedBy is null
-        && (version == 0 ? row.UpdatedAt is null && row.UpdatedBy is null : row.UpdatedAt is { } at && at != default && row.UpdatedBy == UserId.SystemActor);
-
-    private static bool Map(IReadOnlyDictionary<string, string> left, ImmutableDictionary<string, string> right) =>
-        left.Count == right.Count && left.All(pair => right.TryGetValue(pair.Key, out var value) && pair.Value == value);
-
-    private static bool Json(string? left, string? right)
-    {
-        if (left is null || right is null) return left == right;
-        try { return JsonNode.DeepEquals(JsonNode.Parse(left), JsonNode.Parse(right)); }
-        catch (JsonException) { return false; }
-    }
 }

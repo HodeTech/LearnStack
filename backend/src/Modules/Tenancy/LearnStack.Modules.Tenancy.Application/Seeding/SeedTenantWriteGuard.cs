@@ -1,3 +1,4 @@
+using LearnStack.Modules.Customization.Application.Contracts.Seeding;
 using LearnStack.Modules.Tenancy.Application.Abstractions;
 using LearnStack.Modules.Identity.Application.Contracts.Seeding;
 using LearnStack.Modules.Tenancy.Application.Branding;
@@ -19,7 +20,7 @@ namespace LearnStack.Modules.Tenancy.Application.Seeding;
 /// <summary>Exact v1 continuation on the caller's existing owner; registration grants no repair authority.</summary>
 public sealed class SeedTenantWriteGuard(ISeedTenantContinuationSource declarations, ISeedStateReader state,
     IIdentityMutationLocks locks, IOperationInvocationContext execution, ITenantContext context, IUnitOfWork unit,
-    IFixedSeedPrerequisiteVerifier prerequisites)
+    IFixedSeedPrerequisiteVerifier prerequisites, ISeedCustomizationPrerequisiteReader customization)
     : ISeedTenantContinuationGuard
 {
     internal async Task<Result<SeedTenantWriteAdmission>> AdmitAsync(object request, CancellationToken cancellationToken)
@@ -183,7 +184,9 @@ public sealed class SeedTenantWriteGuard(ISeedTenantContinuationSource declarati
             case SeedTenantContinuationOperation.SetBranding:
                 return tenant.Locales.Length == declaration.OriginalLocales.Length
                     && IsPristineOrganization(second, declaration.SecondOrganization, declaration.TenantId)
-                    && IsPristineHost(host, declaration) && theme is null;
+                    && IsPristineHost(host, declaration) && theme is null
+                    && await customization.IsCompleteAsync(admission.Plan, cancellationToken)
+                    && RequireCurrent(admission, admission.Request).IsSuccess;
             default:
                 return false;
         }

@@ -5213,6 +5213,16 @@ and immutable authored pins. The fixed source admits canonical advancement only,
 not arbitrary authored values. Initial taxonomy/built-in versions follow their
 real aggregate transitions, without an assumed version-zero rule.
 
+Fixed branding creation requires the completed Customization prerequisite on
+that same narrow owner and supplied exclusive plan; it cannot close an
+unfinished content stage. Only that fixed act and the six Education acts consume
+`ISeedCustomizationPrerequisiteReader`. Its separate owning reader avoids a
+writer dependency cycle and revalidates invocation, source, transaction,
+announcement and plan. Course/Lesson creation validates the proposed next root
+against the existing pristine prefix, including preceding translations/children;
+a canonical later ID cannot skip a missing predecessor. Publication remains a
+separate pass and is not required before creating the next initialized root.
+
 Cross-organization immutable prerequisites remain stable under the closed
 admitted writer population and existing publication rules. This is neither an
 all-branch content snapshot nor proof against arbitrary database mutation.

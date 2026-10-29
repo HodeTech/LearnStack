@@ -320,10 +320,10 @@ public sealed partial class TenantContextConstructionTests
             ? text.TextToken.ValueText : "{fixed-pin}"));
         // Comments cannot lend the executed guard an absent key or INVOKER clause.
         sql = Regex.Replace(sql, @"--[^\r\n]*|/\*[\s\S]*?\*/", "", RegexOptions.CultureInvariant);
-        if (Regex.Matches(sql, @"\borganizations\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant).Count != 1) return false;
+        if (Regex.Count(sql, @"\borganizations\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant) != 1) return false;
         var normalized = NormalizeOrganizationSql(sql);
         var composite = NormalizeOrganizationSql("OR NOT EXISTS (" + OrganizationOriginCompositeSelect + ")");
-        if (Regex.Matches(normalized, Regex.Escape(composite), RegexOptions.CultureInvariant).Count != 1) return false;
+        if (Regex.Count(normalized, Regex.Escape(composite), RegexOptions.CultureInvariant) != 1) return false;
         var header = owner == "Install" ? "CREATE FUNCTION" : "CREATE OR REPLACE FUNCTION";
         string[] guard =
         [
