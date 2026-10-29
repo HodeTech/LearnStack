@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 1,729 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 1,766 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -172,6 +172,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 3 review round 2 and closeout (2026-10-29)](#p03-3-step-3-review-round-2-and-closeout-2026-10-29) — 59 lines
   - [P03-3 Step 4 — Contextual Membership administration (2026-10-29)](#p03-3-step-4--contextual-membership-administration-2026-10-29) — 80 lines
   - [P03-3 Step 4 review round 1 and scoped read correction (2026-10-29)](#p03-3-step-4-review-round-1-and-scoped-read-correction-2026-10-29) — 41 lines
+  - [P03-3 Step 4 review round 2 and closeout (2026-10-29)](#p03-3-step-4-review-round-2-and-closeout-2026-10-29) — 37 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -7444,3 +7445,40 @@ rule pins only that exact caller/opcode and rejects aliases; it broadens no
 namespace/type allowance. The existing architectural method count stays 327.
 Fragment, roadmap, generated-index and whitespace checks pass.. A normal correction commit precedes the second fresh independent
 review round. Step 5 remains behind that closeout.
+
+### P03-3 Step 4 review round 2 and closeout (2026-10-29)
+
+**Reviewed source:** `57d469de..0e29a0b9`, including implementation `4043328a`
+and R1 correction `0e29a0b9`. Three new independent `gpt-6-astra` / `xhigh`
+reviewers covered authority, transactions/persistence, and diagnostics/proof/
+corpus. None authored the implementation or participated in R1. All applied the
+standards gate and six review lenses. All returned Approve with no verified
+Blocker, Major or Minor. Their review was read-only; they inspected retained
+execution evidence and claimed no independent test execution.
+
+The reviewers rechecked exact own-profile coverage and physical ReadOnly mode,
+Tenant versus Organization detail clauses, four write-policy/target boundaries,
+whole-current-Role delegation and ordered post-wait graph/plan/version/lifecycle
+checks. They also reviewed assignment child retention/deletion, no-op versions,
+User admission and last-admin invariants, source-owned locale failure containment,
+actual sink twins, the inherited historical/RLS/fixed-target test corrections,
+and the exact active-decision COMMIT mapping with its concrete/interface opcode
+controls. No further code correction was required after R1.
+
+**Closeout evidence.** Current code passes 3,202/3,202 Unit cases and 209/209
+combined actual PostgreSQL cases with zero skips. The strict complete Release
+build has zero warnings/errors. All 83 affected architecture cases have passing
+coverage, recorded accurately as 82/83 followed by the corrected evidence-census
+case 1/1; the final Corpus family also passes 5/5. Fragment/roadmap/delivery-index
+and whitespace controls pass. The R1 hook changed no file; review source and the
+qualified implementation are the same. These are local step populations, not a
+full-suite, provider/native/browser or production-capacity qualification.
+
+Step 4 is closed after both fresh independent rounds and the verified Major
+correction. Step 5 proceeds with Tenancy Organization/default lifecycle and human
+locale/theme admission. Selected branch-directory, Role/permission-registry and
+own-navigation semantic/transport consumers remain within Step 7; protected
+receipt disclosure remains Step 6, native ownership Step 8, screens/manual
+accessibility Step 9 and full final-source/A-B qualification Step 10. No selected
+P03-3 consumer is moved to another phase or called complete by this closeout.
+No branch switch, push or PR occurs at this step.

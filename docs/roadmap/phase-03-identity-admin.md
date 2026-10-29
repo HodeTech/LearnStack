@@ -14,8 +14,8 @@
 > qualified origin completion are closed after both fresh review rounds and
 > verified corrections. Its [closeout](phase-03-delivery-log.md#p03-3-step-3-review-round-2-and-closeout-2026-10-29)
 > distinguishes local passing coverage from full final-source qualification.
-> Step 4's [first review and correction](phase-03-delivery-log.md#p03-3-step-4-review-round-1-and-scoped-read-correction-2026-10-29)
-> closes one verified audit COMMIT mapping finding; its fresh second review remains pending.
+> Step 4's [internal Membership administration closeout](phase-03-delivery-log.md#p03-3-step-4-review-round-2-and-closeout-2026-10-29)
+> completes both fresh review rounds and verified fixes. Step 5 proceeds with Tenancy administration.
 > [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md) and
 > [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md)
 > are Accepted. Their separate eight-consumer prerequisite and one-consumer
