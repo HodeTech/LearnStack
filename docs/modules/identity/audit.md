@@ -19,6 +19,8 @@ actual operations: catalogue-to-matrix coverage is total. Audit slugs are not
 additional permission keys. The internal `ListMembershipsQuery` has a real MUST
 catalogue entry, ordinary ReadWrite adapter and declared HTTP admission.
 The two grant commands have real MUST catalogue entries and contained Role diffs.
+Membership detail, both profile writers, status and assignment replacement have
+actual typed MUST bindings; exact own-profile reading is separately registered Off.
 `(off-path)` marks a central event without a MediatR request.
 Catalogue → matrix remains total; the reverse request join applies only when
 the request exists, and off-path events register by slug when their writer lands.
@@ -33,12 +35,12 @@ the request exists, and off-path events register by slug when their writer lands
 | Authorization decision | `identity.authorization.deny` `(off-path)` | **MUST** (`security-event`) | Central HTTP/application/resource denial owner; one decided invocation event, separate from ordinary plural resource intents. No tenant override or host suppression budget. |
 | Membership directory | `identity.membership.list` | **MUST** (`read-sensitive`) | Internal `ListMembershipsQuery` under existing Tenant `identity.membership.admin`; ordinary ReadWrite owner commits its row before disclosure. No HTTP activation follows from its catalogue entry. |
 | Role including grants | `identity.role.change_grants` | **MUST** (`security-event`) | `ChangeRoleGrantsCommand`; one Role root and contained grant diff, expected row version and fresh post-lock authority recheck; success/audit share the transaction. |
-| Role including grants | `identity.role.adopt_manifest` | **MUST** (`security-event`) | `AdoptRoleGrantManifestCommand`; separately admitted finite v1 manifest adoption, one Role root and contained grant diff; no automatic registry/seed upgrade. |
+| Role including grants | `identity.role.adopt_manifest` | **MUST** (`security-event`) | `AdoptRoleGrantManifestCommand`; exact first v2 delta, one Role root and contained marker/grant capture; historical v1/repeated adoption refuses, with no automatic registry/seed upgrade. |
 | Current-branch Membership directory | `identity.membership.list_organization` `(planned)` | **MUST** (`read-sensitive`) | Exact branch-scoped member list under an admitted Tenant-or-Organization alternative; no Tenant read hatch on this endpoint. |
-| Membership detail | `identity.membership.read` `(planned)` | **MUST** (`read-sensitive`) | Declared target read scope; commit before contextual profile/assignment disclosure. |
-| MembershipProfile, captured under Membership | `identity.membership_profile.write` `(planned)` | **MUST** (`update`) | Exact own-person or independently admitted administrator profile replacement; one Membership root. |
-| Membership including assignments | `identity.membership.replace_role_assignments` `(planned)` | **MUST** (`security-event`) | Exact current Role graph/delegation, expected version and ordered fences; contained diffs share the transaction. |
-| Membership lifecycle | `identity.membership.change_status` `(planned)` | **MUST** (`security-event`) | Suspend/reactivate/revoke with current User, scope and last-admin guards; Revoked is terminal. |
+| Membership detail | `identity.membership.read` | **MUST** (`read-sensitive`) | `GetMembershipDetailQuery`; ordinary ReadWrite owner commits before contextual profile/assignment disclosure. Only the matched Tenant clause may widen reads; Organization admission stays scoped. |
+| MembershipProfile, captured under Membership | `identity.membership_profile.write` | **MUST** (`update`) | Separate `SetMembershipProfileCommand` and `SetOwnMembershipProfileCommand` bindings share this slug. Exact Active target, contextual fields and expected version; one Membership root, with contained profile capture on the business transaction. |
+| Membership including assignments | `identity.membership.replace_role_assignments` | **MUST** (`security-event`) | `ReplaceMembershipRoleAssignmentsCommand`; current Role graph/whole-grant delegation, expected version and ordered fences; retained children and actual contained diffs share the transaction. |
+| Membership lifecycle | `identity.membership.change_status` | **MUST** (`security-event`) | `ChangeMembershipStatusCommand`; suspend/reactivate/revoke with fresh authority, actual User admission, exact scope and last-admin guards; Revoked is terminal. |
 | Membership context admission | `identity.membership.admit_session_scope` | **MUST** (`security-event`) | `AdmitNativeSessionScopeCommand`; initial context selection/explicit switch under the native source. The ordinary ReadWrite owner commits before its association witness. Prefer the exact branch Membership when present, otherwise the covering tenant-wide Membership; designate that actual resource. This event proves API admission, not browser cookie delivery. |
 | Role summaries | `identity.role.list` `(planned)` | **MUST** (`read-sensitive`) | Current Role-read admission before finite template disclosure. |
 | Role detail | `identity.role.read` `(planned)` | **MUST** (`read-sensitive`) | Current Role-read admission before grants/release-marker disclosure. |
@@ -52,6 +54,10 @@ Off before use; they inspect only the exact bounded declared seed facts, with no
 directory/provider profile. Ordinary existing-binding lookups create no mutation
 intent under ADR-0072. Off request registration is separate from MUST operation
 rows; no Off value is presented as an `OperationClass` or a MUST audit slug.
+`GetOwnMembershipProfileQuery` is registered Off and declared physically ReadOnly
+by Identity. It reads only the actor's exact current Active Membership profile,
+with no supplied target or NULL-org fallback. Its separate writer remains MUST
+and ReadWrite. Membership administration HTTP/cache-header consumers are pending.
 
 The separate closed prerequisite operation is internal to an already classified
 seed act, rather than a new Off request or externally disclosed sensitive read.
@@ -138,9 +144,12 @@ UPDATE authority. No email mirror or Platform/operator flag population is added.
 
 ## Bounded entry and administration classifications
 
-**Accepted under ADR-0078/0079; new catalogue bindings and proof pending P03-3.**
-The new matrix rows remain `(planned)` until actual writers/readers and catalogue
-entries land together. Existing User creation, Role grant/adoption and denial
+**Accepted under ADR-0078/0079.** The six Membership application requests above
+have actual handlers and catalogue bindings. Rows still marked `(planned)` name
+later current-branch directory, Role/registry and receipt consumers; administration
+HTTP/native/browser consumers remain pending. The
+[phase Status block](../../roadmap/phase-03-identity-admin.md) owns qualification
+and review state. Existing User creation, Role grant/adoption and denial
 slugs keep their implemented classifications; their new consumers do not invent
 private audit writers. V2 adoption extends the existing Role adoption operation
 with the exact approved delta and same-transaction contained marker/grant capture.

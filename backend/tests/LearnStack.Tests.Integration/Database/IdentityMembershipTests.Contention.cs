@@ -57,7 +57,8 @@ public sealed partial class IdentityMembershipTests
         await using var db = new IdentityDbContext(new DbContextOptionsBuilder<IdentityDbContext>().UseNpgsql(unit.Connection).Options,
             new StaticTenantContextAccessor(context), EmptyIdentityScope.Instance);
         await db.Database.UseTransactionAsync(unit.Transaction);
-        var store = new MembershipWriteStore(db, new ContextualIdentityStorageControl(db, unit));
+        var control = new ContextualIdentityStorageControl(db, unit);
+        var store = new MembershipWriteStore(db, control);
         var locks = new IdentityMutationLocks(unit);
         Task<Result<None>>? handled = null;
         Task pending;
@@ -71,7 +72,7 @@ public sealed partial class IdentityMembershipTests
             var admission = new FoundationProofAdmission(new SeedIdentityFoundationAct(SeedIdentityFoundationOperation.SetProfile, tenant, null,
                 UserId.SystemActor, LearnerMembershipA, UserId.From(PersonA), role, null, PermissionScope.Tenant, 1, fingerprint));
             var handler = new SetSeedMembershipProfileCommandHandler(store, context, admission,
-                new IdentityScopeLifecycleReader(unit), locks, new SystemClock(), new RoleReadStore(db),
+                new IdentityScopeLifecycleReader(unit), locks, new SystemClock(), new RoleReadStore(db, unit, control),
                 new ContentionSeedContinuation());
             handled = handler.Handle(command, CancellationToken.None);
             pending = handled;

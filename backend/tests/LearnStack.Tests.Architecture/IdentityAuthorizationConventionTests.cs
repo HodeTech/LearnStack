@@ -67,6 +67,8 @@ public sealed class IdentityAuthorizationConventionTests
         foreach (var target in new[] { census.Method(Source, "OpenAsync"), census.Method(LifecyclePort, "ReadAuthorizationAsync"),
                      census.Method(ReaderPort, "ReadAsync"), census.Method(SessionFactoryPort, "OpenAsync"), census.Method(SessionPort, "ReadMembershipsAsync") })
             Dirty(census, BorrowerOffenders, () => AddCall(census.Type(HttpMinter).Module, target));
+        Dirty(census, BorrowerOffenders, () => RemoveCall(census.Body(
+            "LearnStack.Modules.Identity.Application.Authorization.MembershipAdministrationAuthorization", "RecheckAsync"), ReaderPort, "ReadAsync"));
         foreach (var port in new[] { ReaderPort, SessionFactoryPort, SessionPort })
             Dirty(census, BorrowerOffenders, () =>
             {
@@ -212,6 +214,7 @@ public sealed class IdentityAuthorizationConventionTests
         Callers(census, errors, Source, "OpenAsync", [Reader + ".OpenAsync"]);
         Callers(census, errors, ReaderPort, "ReadAsync", ["LearnStack.Modules.Identity.Application.Authorization.IdentityOperationAuthorizer.AuthorizeAsync",
             "LearnStack.Modules.Identity.Application.Authorization.RoleGrantAuthorization.RecheckAsync",
+            "LearnStack.Modules.Identity.Application.Authorization.MembershipAdministrationAuthorization.RecheckAsync",
             "LearnStack.Api.Authentication.LiveTenantMembershipReader.CoversAsync"]);
         Callers(census, errors, LifecyclePort, "ReadAuthorizationAsync", [Orchestrator + ".ReadAsync"]);
         Callers(census, errors, SessionFactoryPort, "OpenAsync", [Orchestrator + ".ReadAsync"]);

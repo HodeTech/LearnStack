@@ -28,6 +28,8 @@ public static class IdentityAuthorizationRegistration
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IOperationPolicySource, IdentityOperationPolicySource>());
         services.TryAddScoped<IProtectedOperationAuthorizer>(provider => new IdentityOperationAuthorizer(
             () => provider.GetRequiredService<IIdentityAuthorizationReader>(), provider.GetRequiredService<IOperationPolicyCatalog>()));
+        services.TryAddScoped<MembershipAdministrationAuthorization>();
+        services.TryAddScoped<Func<MembershipAdministrationAuthorization>>(provider => () => provider.GetRequiredService<MembershipAdministrationAuthorization>());
         services.TryAddScoped<RoleGrantAuthorization>();
         services.TryAddScoped<Func<RoleGrantAuthorization>>(provider => () => provider.GetRequiredService<RoleGrantAuthorization>());
         services.TryAddScoped<IMembershipDirectoryReader, MembershipDirectoryReader>();

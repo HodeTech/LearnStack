@@ -18,6 +18,16 @@ public sealed partial class OperationPolicyOwnershipTests
     private const string Frame = Coordinator + "/Frame";
     private const string Evaluator = "LearnStack.Modules.Identity.Application.Authorization.IdentityOperationAuthorizer";
     private const string RoleEvaluator = "LearnStack.Modules.Identity.Application.Authorization.RoleGrantAuthorization";
+    private const string MemberEvaluator = "LearnStack.Modules.Identity.Application.Authorization.MembershipAdministrationAuthorization";
+    private static readonly (string Type, string Method, string Target, string Name)[] MemberChecks =
+    [
+        (MemberEvaluator, "Matches", Invocation, "get_IsActive"),
+        (MemberEvaluator, "Matches", Candidate, "get_IsActive"),
+        (MemberEvaluator, "Matches", Decision, "get_IsActive"),
+        (MemberEvaluator, "Matches", Permissions + "IOperationPolicyCatalog", "TryGet"),
+        (MemberEvaluator, "RecheckAsync", "LearnStack.Modules.Identity.Application.Contracts.Authorization.IIdentityAuthorizationReader", "ReadAsync"),
+        (MemberEvaluator, "RecheckAsync", "LearnStack.Modules.Identity.Application.Authorization.IdentityPolicyEvaluation", "Evaluate"),
+    ];
     private const string HttpSource = "LearnStack.Api.Authentication.TenantAuthorizationCandidateSource";
     private const string Unit = "LearnStack.Infrastructure.Persistence.NpgsqlUnitOfWork";
     private const string AuthorizationBehavior = "LearnStack.Application.Pipeline.AuthorizationBehavior`2";
@@ -86,6 +96,8 @@ public sealed partial class OperationPolicyOwnershipTests
             ("LearnStack.Api.Authentication.OperationClassificationMiddleware", "InvokeAsync", Coordinator, "CheckHttpAsync"),
             ("LearnStack.Api.Authentication.LiveTenantMembershipReader", "CoversAsync", HttpSource, "ForValidatedScope"),
         }) Dirty(census, () => RemoveCall(census.Body(type, method), target, name));
+        foreach (var (type, method, target, name) in MemberChecks)
+            Dirty(census, () => RemoveCall(census.Body(type, method), target, name));
         var bind = census.Body(Invocation, "TryBindRead");
         Dirty(census, () => RemoveInstruction(bind.Body.Instructions.Single(instruction => instruction.OpCode == OpCodes.Stfld
             && instruction.Operand is FieldReference field && field.Name == "_readBinding")));
@@ -117,7 +129,7 @@ public sealed partial class OperationPolicyOwnershipTests
                 errors.Add("Private immutable operation authority shape changed: " + name);
         }
         Derivers(Invocation + "/MintingSource", [Coordinator]);
-        Derivers(Decision + "/MintingSource", [Evaluator, RoleEvaluator]);
+        Derivers(Decision + "/MintingSource", [Evaluator, RoleEvaluator, MemberEvaluator]);
         Derivers(Witness + "/MintingSource", [Decision + "/MintingSource"]);
         Derivers(Candidate + "/MintingSource", [HttpSource]);
         Implementations(Permissions + "IProtectedOperationAuthorizer", [Evaluator]);
@@ -127,7 +139,8 @@ public sealed partial class OperationPolicyOwnershipTests
         Exact(Decision, ".ctor", [(Decision + "/MintingSource", "ForDecision", 1)]);
         Exact(Witness, ".ctor", [(Witness + "/MintingSource", "ForTenantRead", 1)]);
         Exact(Invocation + "/MintingSource", "ForInvocation", [(Coordinator, "ExecuteAsync", 1)]);
-        Exact(Decision + "/MintingSource", "ForDecision", [(Evaluator, "AuthorizeAsync", 12), (RoleEvaluator, "RecheckAsync", 2)]);
+        Exact(Decision + "/MintingSource", "ForDecision", [(Evaluator, "AuthorizeAsync", 6),
+            (RoleEvaluator, "RecheckAsync", 2), (MemberEvaluator, "RecheckAsync", 2)]);
         Exact(Witness + "/MintingSource", "ForTenantRead", [(Decision + "/MintingSource", "ForDecision", 1)]);
         Exact(Permissions + "IProtectedOperationAuthorizer", "AuthorizeAsync", [(Coordinator, "ExecuteAsync", 1)]);
         Exact(Permissions + "IAuthorizationCandidateSource", "ForValidatedScope", [(Coordinator, "ExecuteAsync", 1)]);
@@ -160,6 +173,7 @@ public sealed partial class OperationPolicyOwnershipTests
         Require(Frame, "Close", "System.Threading.Interlocked", "Exchange");
         Require(Evaluator, "AuthorizeAsync", "LearnStack.Modules.Identity.Application.Contracts.Authorization.IIdentityAuthorizationReader", "ReadAsync");
         Require(RoleEvaluator, "RecheckAsync", "LearnStack.Modules.Identity.Application.Contracts.Authorization.IIdentityAuthorizationReader", "ReadAsync");
+        foreach (var (type, method, target, name) in MemberChecks) Require(type, method, target, name);
         foreach (var property in new[] { "get_Unit", "get_Transaction", "get_Generation" })
             Require(Invocation, "IsReadBoundTo", Invocation + "/ReadBinding", property);
 

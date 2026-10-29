@@ -6,7 +6,9 @@ The live contract is jointly Accepted in
 [ADR-0076](../../decisions/0076-live-scoped-authorization.md) /
 [ADR-0077](../../decisions/0077-trusted-authorization-evidence.md).
 The directory query/GET, finite unrouted Role grant commands, fresh evaluator
-and exact policy source use canonical HTTP/application admission. The [module spec](README.md)
+and exact policy source use canonical HTTP/application admission. Six Membership
+administration requests have application handlers without new HTTP routes.
+The [module spec](README.md)
 owns storage/lifecycle; [Standard 19's accepted foundation contract](../../standards/19-permissions.md#proposed-identity-foundation-contract)
 owns the exact registry, grant manifests and kernel without a second copy here.
 
@@ -80,20 +82,30 @@ new assignable definitions require their own approved finite manifest.
 | `ListMembershipsQuery` | Tenant `identity.membership.admin` | Exact protected policy with invocation-bound tenant-wide reads, six approved contextual fields and MembershipId continuation. Fresh committed authority is required for every act. Ordinary ReadWrite; MUST sensitive-read audit. |
 | `GET /api/v1/identity/memberships` | Tenant `identity.membership.admin` | Declared tenant-wide administrative read; an eligible NULL-org Tenant Admin Membership can authorize it from a branch session. Organization grants cannot. MUST sensitive-read audit; no native BFF expansion. |
 | `ChangeRoleGrantsCommand` | Eligible Tenant Admin and Tenant `identity.role.admin` | Orgless write, current delegation ceiling/kernel, expected Role row version; recheck actor/target authority after invariant-lock wait. No HTTP writer. |
-| `AdoptRoleGrantManifestCommand` | Same admin gate | Implemented finite v1 consumer and concurrency/audit rules; unknown manifests refuse. The exact v2 extension below remains pending; adoption is never automatic. No HTTP writer is implemented yet. |
+| `AdoptRoleGrantManifestCommand` | Same admin gate | Exact first v2 delta, current concurrency/audit guards and monotonic adoption marker; historical v1, repeated and unknown adoption refuse. Adoption is never automatic; no HTTP writer. |
+| `GetMembershipDetailQuery` | Tenant or exact-current-Organization membership-admin | Only the matched Tenant clause may mint tenant-wide read authority. The Organization clause stays scoped; ordinary ReadWrite owner commits MUST audit before the bounded detail DTO. |
+| `GetOwnMembershipProfileQuery` | Exact own Membership coverage | Separate `OwnMembershipRead` policy, Off and module-declared physically ReadOnly. Exact actor/current organization/Active Membership, no target selector and no NULL-org fallback; no administration or profile-write grant required. |
+| `SetMembershipProfileCommand` | Applicable membership-admin AND profile-write | Four exact Tenant/Organization conjunctions; Active target in the current write scope, expected Membership version, fresh post-lock checks and enabled PreferredLocale. MUST update; no read hatch or HTTP writer. |
+| `SetOwnMembershipProfileCommand` | Applicable profile-write and exact ownership | Tenant or exact-current-Organization profile pair plus the actor's exact Active current Membership. No supplied member/User selector or NULL-org fallback; same version/lifecycle/locale/MUST boundary. |
+| `ChangeMembershipStatusCommand` | Applicable membership-admin | Exact write scope, expected version and current graph; reactivate checks User admission, status/administrator effects determine fences, and last-admin protection remains. MUST security event; Revoked is terminal. |
+| `ReplaceMembershipRoleAssignmentsCommand` | Applicable membership-admin and whole-Role delegation | At most eight distinct compatible Role IDs; Active/Suspended target in exact write scope. Added Roles' whole current grants must fit the live ceiling under retained Role-root locks, with actual User/administrator fences, fresh graph/version/plan checks and MUST audit. |
 
 The historical v1 five-pair registry, eight templates and fixed initial seed
-remain; ADR-0079's separately accepted v2 contract adds three Tenancy pairs,
-pending implementation. It changes no Identity template count or admin kernel.
+remain; the finite v2 registry adds three Tenancy pairs with separately admitted
+first adoption. It changes no Identity template count or admin kernel.
 Virtual Portal Public definitions are nonassignable and describe existing public
 reads only; [Standard 19](../../standards/19-permissions.md) owns their exact set.
 Default-deny HTTP and independent application checks consume fresh committed
 policy facts. P03-9 retains Platform admission; a SystemActor UUID is no bypass.
 `IdentityOperationPolicySource` classifies the six existing seed requests as
-finite Seed operations, the internal directory and the two orgless Role grant
-commands. The fresh evaluator distinguishes coverage from capability and
-returns bounded Membership/Role references only. API composition registers the
-HTTP gate; native transport remains limited to AccountSite.
+finite Seed operations, native session admission, the internal directory, two
+orgless Role grant commands and the six Membership requests above. Own-profile
+reading has its separate coverage-only kind; the other five new requests are
+Protected. The fresh evaluator distinguishes coverage from capability and returns
+bounded Membership/Role references only. All four Membership writers retain
+Scoped read metadata and exact target write scope; a detail read witness never
+authorizes their mutation. Administration HTTP/native transport remains pending;
+existing directory and self-entry HTTP admission is unchanged.
 The [Standard 05 read authority contract](../../standards/05-database.md#operation-bound-read-authority)
 owns immutable invocation/transaction scope and EF/RLS agreement.
 
@@ -110,8 +122,13 @@ source-bound qualification; this matrix is not a test receipt.
 ## Bounded administration contract
 
 **Accepted under [ADR-0078](../../decisions/0078-native-session-scope-and-self-entry.md)
-and [ADR-0079](../../decisions/0079-bounded-identity-administration.md); new bindings,
-routes and proofs pending P03-3 implementation.**
+and [ADR-0079](../../decisions/0079-bounded-identity-administration.md).**
+The live table above names implemented Membership application bindings. Current-
+branch directory, Role list/detail/permission-registry reads, own-capability
+previews, protected receipt replay and administration HTTP/SDK/native/browser
+consumers remain pending; the
+[phase Status block](../../roadmap/phase-03-identity-admin.md) owns qualification
+and review.
 [Standard 19](../../standards/19-permissions.md#bounded-administration-and-version-2-adoption)
 owns exact scoped pairs, release adoption and finite compiled policy combinations.
 An applicable pair means the declared eligible Tenant alternative or exact-current-

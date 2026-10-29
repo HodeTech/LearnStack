@@ -20,6 +20,10 @@ public sealed partial class IdentityAuditConventionTests
     private const string PolicyOwner = "LearnStack.Application.Authorization.OperationAuthorizationCoordinator";
     private const string RoleAuthorization = "LearnStack.Modules.Identity.Application.Authorization.RoleGrantAuthorization";
     private const string RoleHandler = "LearnStack.Modules.Identity.Application.Roles.RoleGrantCommandHandlerBase";
+    private const string MemberAuthorization = "LearnStack.Modules.Identity.Application.Authorization.MembershipAdministrationAuthorization";
+    private const string MemberHandler = "LearnStack.Modules.Identity.Application.Memberships.MembershipAdministrationCommandHandlerBase";
+    private const string MemberDetailHandler = "LearnStack.Modules.Identity.Application.Memberships.GetMembershipDetailQueryHandler";
+    private const string OwnProfileHandler = "LearnStack.Modules.Identity.Application.Memberships.GetOwnMembershipProfileQueryHandler";
     private const string StateCapture = "LearnStack.Infrastructure.Audit.AuditStateCapture";
     private const string FrameBindings = "System.Collections.Generic.Dictionary`2<System.Int32,LearnStack.SharedKernel.Permissions.OperationInvocation>";
     private const string OrdinaryAuditOwner = "LearnStack.Application.Audit.AuditExecutionCoordinator";
@@ -39,6 +43,10 @@ public sealed partial class IdentityAuditConventionTests
         (CentralEvidence, "Snapshot", 1),
         (RoleAuthorization, "Matches", 1),
         (RoleHandler, "ExecuteAsync", 1),
+        (MemberAuthorization, "Matches", 1),
+        (MemberHandler, "ExecuteAsync", 1),
+        (MemberDetailHandler, "Handle", 1),
+        (OwnProfileHandler, "Handle", 1),
         (FixedPrerequisiteSource, "Capture", 1),
         (FixedPrerequisiteSource, "HasInvocation", 1),
         (FixedCompletionSource, "Capture", 1),
@@ -55,6 +63,17 @@ public sealed partial class IdentityAuditConventionTests
         (SeedEducationGuard, "PrepareAsync", 2),
         (SeedEducationGuard, "IsCurrent", 1),
         (SeedStageReader, "HasNoRoleHistoryAsync", 2),
+    ];
+
+    private static readonly (string Owner, string Method, int Count)[] CurrentDecisionBorrowers =
+    [
+        (RoleAuthorization, "Matches", 1),
+        (RoleHandler, "ExecuteAsync", 1),
+        (MemberAuthorization, "Matches", 1),
+        (MemberHandler, "ExecuteAsync", 1),
+        (MemberDetailHandler, "Handle", 1),
+        (OwnProfileHandler, "Handle", 1),
+        ("LearnStack.Modules.Identity.Application.Bindings.AdmitNativeSessionScopeCommandHandler", "Handle", 1),
     ];
 
     [Fact]
@@ -95,16 +114,24 @@ public sealed partial class IdentityAuditConventionTests
                      (CentralEvidence, "BeginExecution"), (CentralEvidence, "Observe"),
                      (CentralEvidence, "RecordPolicyRefusal"), (CentralEvidence, "CaptureRefusalObservation"), (CentralEvidence, "RecordRefusalResult"),
                      ("LearnStack.Api.Tenancy.IClaimContextAssertionRecorder", "RecordAsync"),
-                     (InvocationContext, "get_CurrentInvocation"),
+                     (InvocationContext, "get_CurrentInvocation"), (InvocationContext, "get_CurrentDecision"),
+                     ("LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportRecheck"),
+                     ("LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportResourceRefusal"),
                      (CentralEvidence, "BeforeSuccessAsync") })
             foreach (var opcode in new[] { OpCodes.Call, OpCodes.Ldftn }) EvidenceDirty(census, EvidenceProvenanceOffenders,
                 () => EvidenceExtraCall(census, census.Method(type, method), opcode));
-        foreach (var opcode in new[] { OpCodes.Callvirt, OpCodes.Ldvirtftn })
-            EvidenceDirty(census, EvidenceProvenanceOffenders,
-                () => EvidenceExtraCall(census, census.Method(InvocationContext, "get_CurrentInvocation"), opcode));
+        foreach (var property in new[] { "get_CurrentInvocation", "get_CurrentDecision" })
+            foreach (var opcode in new[] { OpCodes.Callvirt, OpCodes.Ldvirtftn })
+                EvidenceDirty(census, EvidenceProvenanceOffenders,
+                    () => EvidenceExtraCall(census, census.Method(InvocationContext, property), opcode));
         foreach (var (owner, method, _) in CurrentInvocationBorrowers)
         {
             var borrowed = EvidenceCalls(census.Body(owner, method), InvocationContext, "get_CurrentInvocation").First();
+            EvidenceDirty(census, EvidenceProvenanceOffenders, () => EvidenceReplace(borrowed, OpCodes.Nop, null));
+        }
+        foreach (var (owner, method, _) in CurrentDecisionBorrowers)
+        {
+            var borrowed = EvidenceCalls(census.Body(owner, method), InvocationContext, "get_CurrentDecision").Single();
             EvidenceDirty(census, EvidenceProvenanceOffenders, () => EvidenceReplace(borrowed, OpCodes.Nop, null));
         }
         var guardedPreparation = census.Body(SeedCustomizationGuard, "PrepareAsync");
@@ -127,6 +154,8 @@ public sealed partial class IdentityAuditConventionTests
             (Assertion, "get_IsActive", Assertion + "/MintingSource", "get_IsOpen"),
             (Assertion + "/MintingSource", "Dispose", "System.Threading.Interlocked", "Exchange"),
             (AssertionSource, "Capture", "LearnStack.Api.Authentication.TenantAuthorizationCandidateSource", "ForValidatedScope"),
+            (MemberAuthorization, "ReportRecheck", "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportRecheck"),
+            (MemberAuthorization, "ReportRefusal", "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportResourceRefusal"),
             (CentralEvidence, "Snapshot", InvocationContext, "get_CurrentInvocation"),
             (CentralEvidence, "RecordObservedDenial", "LearnStack.SharedKernel.Identifiers.IGuidFactory", "NewUuidV7"),
             (CentralEvidence, "RecordObservedDenial", "LearnStack.SharedKernel.Time.IClock", "get_UtcNow"),
@@ -242,12 +271,13 @@ public sealed partial class IdentityAuditConventionTests
         EvidenceCallers(census, errors, InvocationContext, "get_CurrentInvocation", CurrentInvocationBorrowers);
         if (census.Methods.SelectMany(method => method.Body.Instructions).Any(instruction =>
                 instruction.Operand is MethodReference target && target.DeclaringType.FullName == InvocationContext
-                && target.Name == "get_CurrentInvocation" && instruction.OpCode.Code != Code.Callvirt))
-            errors.Add("Current invocation borrowers use the exact interface callvirt, never a direct call or method alias");
-        EvidenceCallers(census, errors, InvocationContext, "get_CurrentDecision", [(RoleAuthorization, "Matches", 1), (RoleHandler, "ExecuteAsync", 1),
-            ("LearnStack.Modules.Identity.Application.Bindings.AdmitNativeSessionScopeCommandHandler", "Handle", 1)]);
-        EvidenceCallers(census, errors, "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportRecheck", [(RoleAuthorization, "ReportRecheck", 1)]);
-        EvidenceCallers(census, errors, "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportResourceRefusal", [(RoleAuthorization, "ReportRefusal", 1)]);
+                && (target.Name is "get_CurrentInvocation" or "get_CurrentDecision") && instruction.OpCode.Code != Code.Callvirt))
+            errors.Add("Current invocation and decision borrowers use the exact interface callvirt, never a direct call or method alias");
+        EvidenceCallers(census, errors, InvocationContext, "get_CurrentDecision", CurrentDecisionBorrowers);
+        EvidenceCallers(census, errors, "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportRecheck",
+            [(RoleAuthorization, "ReportRecheck", 1), (MemberAuthorization, "ReportRecheck", 1)]);
+        EvidenceCallers(census, errors, "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportResourceRefusal",
+            [(RoleAuthorization, "ReportRefusal", 1), (MemberAuthorization, "ReportRefusal", 1)]);
         foreach (var (type, method, target, name) in new[]
         {
             (Occurrence, ".ctor", Occurrence, "CopyAddress"), (Occurrence, "get_Draft", Occurrence, "CopyAddress"),
@@ -257,6 +287,8 @@ public sealed partial class IdentityAuditConventionTests
             (Assertion, "get_IsActive", Assertion + "/MintingSource", "get_IsOpen"),
             (Assertion + "/MintingSource", "Dispose", "System.Threading.Interlocked", "Exchange"),
             (AssertionSource, "Capture", "LearnStack.Api.Authentication.TenantAuthorizationCandidateSource", "ForValidatedScope"),
+            (MemberAuthorization, "ReportRecheck", "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportRecheck"),
+            (MemberAuthorization, "ReportRefusal", "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportResourceRefusal"),
             (CentralEvidence, "RecordObservedDenial", "LearnStack.SharedKernel.Identifiers.IGuidFactory", "NewUuidV7"),
             (CentralEvidence, "RecordObservedDenial", "LearnStack.SharedKernel.Time.IClock", "get_UtcNow"),
             (HttpTransport, "Capture", "LearnStack.Api.Authentication.OperationHttpClassifier", "Classify"),

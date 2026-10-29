@@ -85,6 +85,7 @@ public sealed class OperationAuthorizationCoordinator(
                 break;
             case OperationPolicyKind.AccountRead:
             case OperationPolicyKind.NativeSessionAdmission:
+            case OperationPolicyKind.OwnMembershipRead:
             case OperationPolicyKind.Protected:
                 if (!HasProtectedContext()
                     || (policy.Kind is OperationPolicyKind.AccountRead or OperationPolicyKind.NativeSessionAdmission

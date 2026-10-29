@@ -12,6 +12,15 @@ public sealed class IdentityOperationPolicySource : IOperationPolicySource
 {
     public const string MembershipDirectoryOperation = "identity.membership.list";
     public const string NativeSessionAdmissionOperation = "identity.membership.admit_session_scope";
+    public const string MembershipDetailOperation = "identity.membership.read";
+    public const string OwnMembershipProfileReadOperation = "identity.membership_profile.read_own";
+    public const string MembershipProfileWriteOperation = "identity.membership_profile.write";
+    public const string OwnMembershipProfileWriteOperation = "identity.membership_profile.write_own";
+    public const string MembershipStatusOperation = "identity.membership.change_status";
+    public const string MembershipAssignmentsOperation = "identity.membership.replace_role_assignments";
+    public static PermissionDefinition OrganizationMembershipAdministration { get; } = new(PermissionScope.Organization, IdentityFoundationManifest.MembershipAdmin);
+    public static PermissionDefinition ProfileWrite { get; } = new(PermissionScope.Tenant, IdentityFoundationManifest.ProfileWrite);
+    public static PermissionDefinition OrganizationProfileWrite { get; } = new(PermissionScope.Organization, IdentityFoundationManifest.ProfileWrite);
     public static PermissionDefinition MembershipAdministration { get; } = new(PermissionScope.Tenant, IdentityFoundationManifest.MembershipAdmin);
     public static PermissionDefinition RoleAdministration { get; } = new(PermissionScope.Tenant, IdentityFoundationManifest.RoleAdmin);
 
@@ -22,6 +31,18 @@ public sealed class IdentityOperationPolicySource : IOperationPolicySource
     [
         OperationPolicy.ForNativeSessionAdmission<AdmitNativeSessionScopeCommand>(NativeSessionAdmissionOperation),
         OperationPolicy.ForProtected<ListMembershipsQuery>(MembershipDirectoryOperation, MembershipAdministration, OperationReadScope.Tenant),
+        OperationPolicy.ForProtected<GetMembershipDetailQuery>(MembershipDetailOperation,
+            [new([MembershipAdministration], OperationReadScope.Tenant), new([OrganizationMembershipAdministration])]),
+        OperationPolicy.ForOwnMembershipRead<GetOwnMembershipProfileQuery>(OwnMembershipProfileReadOperation),
+        OperationPolicy.ForProtected<SetMembershipProfileCommand>(MembershipProfileWriteOperation,
+            [new([MembershipAdministration, ProfileWrite]), new([MembershipAdministration, OrganizationProfileWrite]),
+                new([OrganizationMembershipAdministration, ProfileWrite]), new([OrganizationMembershipAdministration, OrganizationProfileWrite])]),
+        OperationPolicy.ForProtected<SetOwnMembershipProfileCommand>(OwnMembershipProfileWriteOperation,
+            [new([ProfileWrite]), new([OrganizationProfileWrite])]),
+        OperationPolicy.ForProtected<ChangeMembershipStatusCommand>(MembershipStatusOperation,
+            [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),
+        OperationPolicy.ForProtected<ReplaceMembershipRoleAssignmentsCommand>(MembershipAssignmentsOperation,
+            [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),
         OperationPolicy.ForProtected<ChangeRoleGrantsCommand>("identity.role.change_grants", RoleAdministration, requiresOrglessWrite: true),
         OperationPolicy.ForProtected<AdoptRoleGrantManifestCommand>("identity.role.adopt_manifest", RoleAdministration, requiresOrglessWrite: true),
         OperationPolicy.ForTrusted<InitializeSeedRoleCommand>("identity.role.initialize", AuthorizationSourceKind.Seed),

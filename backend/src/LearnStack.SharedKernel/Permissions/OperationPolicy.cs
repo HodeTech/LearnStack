@@ -3,7 +3,7 @@ using LearnStack.SharedKernel.Identifiers;
 
 namespace LearnStack.SharedKernel.Permissions;
 
-public enum OperationPolicyKind { PublicRead = 1, AccountRead = 2, Protected = 3, FiniteTrusted = 4, NativeSessionAdmission = 5 }
+public enum OperationPolicyKind { PublicRead = 1, AccountRead = 2, Protected = 3, FiniteTrusted = 4, NativeSessionAdmission = 5, OwnMembershipRead = 6 }
 public enum OperationReadScope { Scoped = 0, Tenant = 1 }
 
 /// <summary>Definition composition is separate from stored grants and operation admission.</summary>
@@ -96,6 +96,10 @@ public sealed class OperationPolicy
 
     public static OperationPolicy ForNativeSessionAdmission<TRequest>(string id) =>
         new(typeof(TRequest), id, OperationPolicyKind.NativeSessionAdmission, null, OperationReadScope.Scoped, [], false);
+
+    /// <summary>Exact actor-owned current Membership read; coverage alone grants no directory or write authority.</summary>
+    public static OperationPolicy ForOwnMembershipRead<TRequest>(string id) =>
+        new(typeof(TRequest), id, OperationPolicyKind.OwnMembershipRead, null, OperationReadScope.Scoped, [], false);
 
     public static OperationPolicy ForProtected<TRequest>(string id, PermissionDefinition permission,
         OperationReadScope readScope = OperationReadScope.Scoped, bool requiresOrglessWrite = false, bool requiresOrganization = false) =>

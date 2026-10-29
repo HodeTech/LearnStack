@@ -23,6 +23,12 @@ public sealed class IdentityAuditCatalogSource : IAuditCatalogSource
         builder.Off<GetRoleSeedStateQuery>();
         builder.Off<GetMembershipSeedStateQuery>();
         builder.MustAudit<ListMembershipsQuery>(IdentityOperationPolicySource.MembershipDirectoryOperation, OperationType.ReadSensitive, typeof(Membership));
+        builder.MustAudit<GetMembershipDetailQuery>(IdentityOperationPolicySource.MembershipDetailOperation, OperationType.ReadSensitive, typeof(Membership));
+        builder.Off<GetOwnMembershipProfileQuery>();
+        builder.MustAudit<SetMembershipProfileCommand>(IdentityOperationPolicySource.MembershipProfileWriteOperation, OperationType.Update, typeof(Membership));
+        builder.MustAudit<SetOwnMembershipProfileCommand>(IdentityOperationPolicySource.MembershipProfileWriteOperation, OperationType.Update, typeof(Membership));
+        builder.MustAudit<ChangeMembershipStatusCommand>(IdentityOperationPolicySource.MembershipStatusOperation, OperationType.SecurityEvent, typeof(Membership));
+        builder.MustAudit<ReplaceMembershipRoleAssignmentsCommand>(IdentityOperationPolicySource.MembershipAssignmentsOperation, OperationType.SecurityEvent, typeof(Membership));
         builder.MustAudit<ChangeRoleGrantsCommand>("identity.role.change_grants", OperationType.SecurityEvent, typeof(Role));
         builder.MustAudit<AdoptRoleGrantManifestCommand>("identity.role.adopt_manifest", OperationType.SecurityEvent, typeof(Role));
         builder.DeclareOffPath("identity.user.create", OperationType.SecurityEvent, OperationClass.Must, typeof(User));

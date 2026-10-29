@@ -5,6 +5,7 @@ using LearnStack.Modules.Identity.Application.Bindings;
 using LearnStack.Modules.Identity.Application.Authorization;
 using LearnStack.Modules.Identity.Application.Contracts.Bindings;
 using LearnStack.Modules.Identity.Application.Contracts.Entry;
+using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Application.Contracts.Seeding;
 using LearnStack.Modules.Identity.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Audit;
@@ -30,6 +31,8 @@ public static class IdentityFoundationRegistration
         services.TryAddScoped<ISeedStateReader, SeedStateReader>();
         services.TryAddScoped<IMembershipDirectoryReader, MembershipDirectoryReader>();
         services.TryAddScoped<IMembershipAdmissionReader, MembershipAdmissionReader>();
+        services.TryAddScoped<IMembershipAdministrationReader, MembershipAdministrationReader>();
+        services.AddSingleton(new ExplicitReadOnlyRequest(typeof(GetOwnMembershipProfileQuery)));
         services.TryAddScoped<Func<RoleGrantAuthorization>>(provider => () => provider.GetRequiredService<RoleGrantAuthorization>());
         return services;
     }

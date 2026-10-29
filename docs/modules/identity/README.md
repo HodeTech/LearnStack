@@ -44,8 +44,9 @@ navigation or database join. Branch-specific Role configuration is not selected.
 P03-1 Step 3 implements one global User/authority model and migration chain,
 the common prepared creation owner and eight central audit seams. API composition
 denies seed adoption; the ordinary seed/demo handoff is implemented in Step 4.
-Existing-binding API admission uses the same read-only contract. No creation
-route is exposed here.
+Existing-binding API admission uses the same read-only contract. The separately
+classified global-self bootstrap route uses the bounded entry contract below;
+ordinary API admission never creates a User.
 
 Set both `Identity__AuthorityId` and `Authentication__Tenant__Issuer` in the
 selected private deployment environment before `make migrate` installs/verifies
@@ -144,8 +145,9 @@ No unused contact field is collected. Missing values use explicit safe UI fallba
 global fields on reads. NULL-org profiles contain no branch-private notes;
 organization profiles are independent. Self/admin changes allow those fields
 only, never canonical email/verification, global identity, Role bindings,
-arbitrary settings or consent evidence. P03-3/G6 chooses exact DTOs; P03-5/G9 owns
-dynamic fields/revisions. No dormant custom-fields column lands in the foundation.
+arbitrary settings or consent evidence. The implemented Membership contracts
+below carry these exact fields; P03-5/G9 owns dynamic fields/revisions. No dormant
+custom-fields column lands in the foundation.
 
 Creation, Suspended→Active and **all** assignment additions recheck the target
 User fence, including additions of currently empty/inactive templates.
@@ -368,29 +370,58 @@ early-branch descriptors; no ordinary request allocates a User. Creating identit
 provides neither Membership nor a tenant session. Discovery exposes only the
 verified person's own eligible context choices, not another person's data.
 
-Membership administration reads existing targets and edits contained profile,
-assignments or lifecycle. There is no guessed-UserId create/rejoin path; P03-4
-owns invitations/successors. Profile admits only nullable DisplayName and enabled
-PreferredLocale. Own-profile reads use the exact current Membership without
-NULL-org fallback; own writing needs profile-write, and editing another person
-additionally needs membership-admin. Suspension and prepared assignments confer
-no live authority; Revoked remains terminal.
+Six application requests read existing Memberships and edit their contained
+profile, assignments or lifecycle. `GetMembershipDetailQuery` returns the target's
+MembershipId, UserId, OrganizationId, status, DisplayName, PreferredLocale, RoleIds
+and version. Its ordinary ReadWrite owner commits MUST sensitive-read audit before
+disclosure. Only the matched Tenant membership-admin clause may widen detail
+reads; the Organization clause remains in the exact current branch.
+`GetOwnMembershipProfileQuery` is Off and module-declared physically ReadOnly.
+It selects the actor's exact Active current Membership, without a target selector
+or NULL-org fallback, and returns only DisplayName, PreferredLocale and version.
 
-Role list/detail/registry reads and grant/adoption writes use the eight finite
-templates. [Standard 19](../../standards/19-permissions.md#bounded-administration-and-version-2-adoption)
+`SetMembershipProfileCommand` requires applicable membership-admin and
+profile-write; `SetOwnMembershipProfileCommand` requires applicable profile-write
+and the exact actor-owned current Membership. Both replace only nullable
+DisplayName and an enabled PreferredLocale on an Active target.
+`ChangeMembershipStatusCommand` suspends, reactivates or revokes;
+`ReplaceMembershipRoleAssignmentsCommand` replaces at most eight distinct,
+same-tenant, capability-compatible Roles on an Active or Suspended target.
+Empty assignments remain subject to the database's total-admin invariant.
+Unchanged assignments retain their child instances; no-op mutations do not
+advance the Membership version. Suspension and prepared assignments confer no
+live authority; Revoked remains terminal. There is no guessed-UserId create/rejoin
+path; P03-4 owns invitations/successors.
+
+All four writers retain exact context scope and expected Membership version.
+They recheck current authority, lifecycle, target graph and complete lock plan
+after waiting. Assignment additions check each Role's whole current grant set
+against the actor's live ceiling under retained Role-root locks; profile-only
+changes need no Role lock. Actual User/administrator effects select the canonical
+fences, with no shared-to-exclusive upgrade. The owning transaction validates
+the graph/last-admin invariant and commits MUST audit with the change. Module
+mutation results retain the exact MembershipId and version for later transport.
+
+These six application consumers add no HTTP route or native screen. Current-branch
+directory, Role list/detail/permission-registry reads, own-capability previews,
+protected receipt replay and administration HTTP/SDK/native/browser consumers
+remain pending under the [phase Status block](../../roadmap/phase-03-identity-admin.md).
+
+The existing Role grant/adoption writers use the eight finite templates.
+[Standard 19](../../standards/19-permissions.md#bounded-administration-and-version-2-adoption)
 owns the five-plus-three registry, explicit v2 exception, monotonic marker and
 unchanged kernel. [Standard 05](../../standards/05-database.md#p03-3-storage-and-replay-contract)
 owns exact Role/Membership lock plans, adoption guards, warm witnesses and durable
 protected receipt metadata. Member-detail Tenant read alternatives may mint the
 existing read witness; exact-branch alternatives stay scoped, and writes never
-inherit that hatch. Receipt disclosure reauthorizes the stored original target
-and commits a fresh MUST read event before returning retained bytes; it neither
-reruns the mutation nor substitutes a successor Membership for the original.
+inherit that hatch. The pending receipt consumer must reauthorize the stored
+original target and commit a fresh MUST read event before returning retained
+bytes; it must neither rerun the mutation nor substitute a successor Membership.
 
 [Permissions](permissions.md#bounded-administration-contract) owns capability and
 advisory-preview bindings; [audit](audit.md#bounded-entry-and-administration-classifications)
-owns planned classifications. Exact HTTP/native routes and DTOs derive from the
-joint decision package. UI hints are not grants; actual API/application/target
+owns actual and planned classifications. Exact HTTP/native routes and DTOs derive
+from the joint decision package. UI hints are not grants; actual API/application/target
 checks remain authoritative. Acceptance closes no runtime, race, provider,
 browser or accessibility proof by itself.
 
@@ -497,7 +528,8 @@ nor a route; canonical admission and exact endpoint declarations enforce both.
 ## Audit coverage matrix
 
 [Identity audit](audit.md) declares implemented root/child classifications and
-personal/reference paths and the implemented authorization event/read/grant rows.
+personal/reference paths and the implemented authorization, Membership read/write
+and Role grant rows.
 The central writer owns durability; Identity has no
 audit table/direct audit SQL. Global mutation audit follows ADR-0072 alone.
 

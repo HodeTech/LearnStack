@@ -84,6 +84,9 @@ public sealed partial class PersistenceConventionTests
         if (!reenrollments.Select(site => census.Owner(site.Method)).Order(StringComparer.Ordinal).SequenceEqual(new[]
             { ContextualEnrollment + "::PrepareFreshRead", ContextualEnrollment + "::LockRootAsync",
                 "LearnStack.Modules.Identity.Infrastructure.Persistence.MembershipDirectoryReader::Admit",
+                "LearnStack.Modules.Identity.Infrastructure.Persistence.MembershipAdministrationReader::Admit",
+                "LearnStack.Modules.Identity.Infrastructure.Persistence.RoleReadStore::ReadAsync",
+                "LearnStack.Modules.Identity.Infrastructure.Persistence.RoleReadStore::ReadManyAsync",
                 "LearnStack.Modules.Identity.Infrastructure.Persistence.MembershipAdmissionReader::ReadCurrentAsync",
                 "LearnStack.Modules.Identity.Infrastructure.Persistence.SeedStateReader::ReadRoleCoreAsync",
                 "LearnStack.Modules.Identity.Infrastructure.Persistence.SeedStateReader::ReadMembershipCoreAsync",
@@ -91,7 +94,7 @@ public sealed partial class PersistenceConventionTests
                 "LearnStack.Modules.Identity.Infrastructure.Persistence.FixedSeedIdentityCompletionReader::ReadAsync",
                 "LearnStack.Modules.Identity.Infrastructure.Persistence.SeedIdentityStageReader::HasNoRoleHistoryAsync" }.Order(StringComparer.Ordinal), StringComparer.Ordinal)
             || reenrollments.Any(site => site.Instruction.OpCode != OpCodes.Call))
-            errors.Add("Only the exact contextual graph, seed metadata/stage, directory and native admission readers may reenroll the same tenant owner");
+            errors.Add("Only the exact contextual graph, seed metadata/stage, member/Role and native admission readers may reenroll the same tenant owner");
         return errors;
     }
 

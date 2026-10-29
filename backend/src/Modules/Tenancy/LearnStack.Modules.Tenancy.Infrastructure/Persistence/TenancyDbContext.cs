@@ -3,6 +3,8 @@ using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Domain;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.Logging;
 
 namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 
@@ -46,6 +48,16 @@ public sealed class TenancyDbContext(
     DbContextOptions<TenancyDbContext> options, ITenantContextAccessor accessor)
     : TenantScopedDbContext(options, accessor)
 {
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        base.OnConfiguring(optionsBuilder);
+        var core = optionsBuilder.Options.FindExtension<CoreOptionsExtension>();
+        var loggers = core?.LoggerFactory
+            ?? core?.ApplicationServiceProvider?.GetService(typeof(ILoggerFactory)) as ILoggerFactory;
+        if (loggers is not null) optionsBuilder.UseLoggerFactory(TenantLocaleReadLoggerFactory.Wrap(loggers));
+        optionsBuilder.AddInterceptors(new TenantLocaleReadTraceInterceptor());
+    }
+
     public DbSet<Tenant> Tenants => Set<Tenant>();
 
     public DbSet<Organization> Organizations => Set<Organization>();

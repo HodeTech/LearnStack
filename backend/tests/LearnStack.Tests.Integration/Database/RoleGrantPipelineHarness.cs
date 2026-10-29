@@ -31,7 +31,7 @@ using Xunit;
 
 namespace LearnStack.Tests.Integration.Database;
 
-/// <summary>Actual scoped authorization, committed rechecks, audited Role writes and independent evidence source.</summary>
+/// <summary>Actual scoped authorization, committed rechecks, audited Identity writes and independent evidence source.</summary>
 internal sealed class RoleGrantPipelineHarness : IAsyncDisposable
 {
     private readonly IdentityAuthorizationReadSource _authorization;
@@ -50,10 +50,12 @@ internal sealed class RoleGrantPipelineHarness : IAsyncDisposable
 
     public string ApplicationName { get; }
     public ISender Sender => _scope.ServiceProvider.GetRequiredService<ISender>();
+    public IServiceProvider Services => _scope.ServiceProvider;
     public NpgsqlUnitOfWork Unit => (NpgsqlUnitOfWork)_scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
     public static async Task<RoleGrantPipelineHarness> CreateAsync(string connectionString, IdentityAuthorityRegistration authority,
-        TenantId tenant, UserId actor, string correlation, OrganizationId? organization = null)
+        TenantId tenant, UserId actor, string correlation, OrganizationId? organization = null,
+        Action<IServiceCollection>? configure = null)
     {
         var authorization = new IdentityAuthorizationReadSource(connectionString);
         var evidence = new AuthorizationEvidenceSource(connectionString);
@@ -116,6 +118,7 @@ internal sealed class RoleGrantPipelineHarness : IAsyncDisposable
         Assert.Equal(MediatRPipelineRegistration.CanonicalBehaviorOrder,
             services.Where(descriptor => descriptor.ServiceType == typeof(IPipelineBehavior<,>))
                 .Select(descriptor => descriptor.ImplementationType));
+        configure?.Invoke(services);
         return new(authorization, evidence, business, candidate, services.BuildServiceProvider(), application);
     }
 

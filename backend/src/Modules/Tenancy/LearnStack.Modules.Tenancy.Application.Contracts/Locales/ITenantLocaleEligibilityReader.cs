@@ -1,4 +1,5 @@
 using LearnStack.SharedKernel.Results;
+using LearnStack.SharedKernel.Errors;
 
 namespace LearnStack.Modules.Tenancy.Application.Contracts.Locales;
 
@@ -11,3 +12,7 @@ public interface ITenantLocaleEligibilityReader
 {
     Task<Result<string>> ReadEligibleAsync(string locale, CancellationToken cancellationToken);
 }
+
+/// <summary>A fixed owning-port failure; provider text and inner exceptions never leave the reader.</summary>
+public sealed class TenantLocaleEligibilityReadException()
+    : InfrastructureException("Tenant locale eligibility is unavailable.");

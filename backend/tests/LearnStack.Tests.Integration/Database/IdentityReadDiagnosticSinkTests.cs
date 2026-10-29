@@ -163,7 +163,7 @@ public sealed class IdentityReadDiagnosticSinkTests(IdentityMembershipFixture fi
             "role-history" => await new RoleWriteStore(db, control).HasMembershipHistoryAsync(cancellationToken),
             "membership-find" => await new MembershipWriteStore(db, control).FindAsync(member, cancellationToken),
             "membership-history" => await new MembershipWriteStore(db, control).HasMembershipHistoryAsync(cancellationToken),
-            "role-read" => await new RoleReadStore(db).ReadAsync(role, cancellationToken),
+            "role-read" => await new RoleReadStore(db, unit, control).ReadAsync(role, cancellationToken),
             "seed-role" => await new SeedStateReader(db, unit).ReadRoleAsync(role, cancellationToken),
             "seed-membership" => await new SeedStateReader(db, unit).ReadMembershipAsync(member, cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(port)),

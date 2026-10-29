@@ -39,7 +39,7 @@ public sealed class ProtectedOperationDecision
             ArgumentNullException.ThrowIfNull(candidate);
             if (!Enum.IsDefined(outcome) || !ReferenceEquals(invocation.Candidate, candidate)
                 || invocation.Policy.Kind is not (OperationPolicyKind.AccountRead or OperationPolicyKind.Protected
-                    or OperationPolicyKind.NativeSessionAdmission))
+                    or OperationPolicyKind.NativeSessionAdmission or OperationPolicyKind.OwnMembershipRead))
                 throw new ArgumentException("Protected operation decision provenance is invalid.");
             var members = Snapshot(membershipIds, 2);
             var roles = Snapshot(roleIds, 8);

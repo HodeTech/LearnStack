@@ -126,11 +126,17 @@ choose a locale automatically. The CHECK cannot detect enabled-without-default;
 reader/writer validation does. Arbitrary raw deletes do not gain an exactly-one
 database guarantee.
 
-The shipped authoring-only `ITenantLocaleEligibilityReader` returns canonical
+`ITenantLocaleEligibilityReader` returns canonical
 enabled membership in the announced tenant, uncached in the caller's ambient frame.
 It rejects invalid legacy configuration with a bounded configuration failure; it
-does not invent `en`. A missing/disabled requested member gives Education bounded
-`validation_failed`. Content URL/body lookup has no label fallback. Phase 03 owns
+does not invent `en`. Education authoring and contextual Identity profile writers
+consume this contract. A missing/disabled requested member gives bounded
+`validation_failed`. Provider/time-out failures become the fixed
+`TenantLocaleEligibilityReadException`, without an inner payload; cancellation
+and programming failures retain their own semantics. The owning locale call
+filters its EF query-failure payload and emits a fixed signal; its marked EF
+error spans pass through the source boundary before export. Other Tenancy reads
+retain their diagnostics. Content URL/body lookup has no label fallback. Phase 03 owns
 locale removal/disable commands; those retain Education translations and public
 readers recheck enabled membership rather than cascading across modules.
 

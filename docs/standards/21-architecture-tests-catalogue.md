@@ -2670,7 +2670,9 @@ Implemented requires nonempty production subjects and dirty/clean controls.
   [Database lock contract](05-database.md#lock-snapshot-and-adoption-conditions).
 - **Type:** real app-role PostgreSQL mutation/concurrency controls and closed
   transaction-only acquisition/caller census. **Kind:** structural and behavioural.
-- **Test owners:** `IdentityMembershipTests`, `IdentityMutationLockTests`, `IdentityFoundationConventionTests`.
+- **Test owners:** `IdentityMembershipTests`, `IdentityMutationLockTests`, `IdentityFoundationConventionTests`,
+  `MembershipAdministrationProfileTests`, `MembershipAdministrationAssignmentTests`,
+  `MembershipAdministrationRaceTests`.
 - **Status:** **Implemented** (`IdentityFoundationConventionTests`; `IdentityMembershipTests`, integration assembly) — real app-role races, immediate/deferred guards,
   transaction-only caller/receipt controls, fixture restoration and local
   command-path measurement. Current qualification/review state lives in the
@@ -2760,7 +2762,7 @@ promotes an unrun proof.
 - **Asserts:** complete real HTTP/request/source composition explicitly classifies
   public, AccountSite, permission-bound and confined seed/system operations.
   The unchanged canonical eight-step pipeline admits application requests through
-  `AuthorizationBehavior`. The HTTP census contains exactly eight public GET/HEAD
+  `AuthorizationBehavior`. The baseline HTTP census contains exactly eight public GET/HEAD
   actions, AccountSite GET and `GET /api/v1/identity/memberships`; exact named
   policies and the default/fallback refusal guard own the two authenticated reads.
   Live reader/evaluator/current-context/evidence aliases and qualification startup
@@ -2770,6 +2772,13 @@ promotes an unrun proof.
   committed revocation, same-key scoped delegation, finite manifest adoption and
   retained public/AccountSite ceilings have useful production positive/denied
   controls. Ambient/SystemActor or realm-role values alone supply no exemption.
+  The exact own-profile request uses coverage-only `OwnMembershipRead`, has no
+  stored permission or tenant-wide read witness, and checks the actor's exact
+  current Membership without NULL-org fallback. Its owning module declares
+  physical READ ONLY independently of AccountSite. Member detail's matched
+  Tenant clause may widen reads; its Organization clause and all writes stay
+  scoped. Exact current-invocation borrowers and the separate Membership target
+  decision source join the compiled census with missing/extra/alias controls.
 - **Source:** [ADR-0076](../decisions/0076-live-scoped-authorization.md);
   [Permissions](19-permissions.md#live-permission-enforcement-contract).
 - **Type:** complete compiled metadata/caller census, real direct dispatch and
@@ -2778,6 +2787,8 @@ promotes an unrun proof.
   `OperationPolicyOwnershipTests`, `OperationHttpClassificationTests`,
   `OperationAuthorizationCoordinatorTests`, `IdentityOperationAuthorizerTests`,
   `RoleGrantCommandTests`, `RoleGrantCommandIntegrationTests`,
+  `MembershipAdministrationProfileTests`, `MembershipAdministrationAssignmentTests`,
+  `MembershipAdministrationRaceTests`,
   `IdentityAuthorizationHttpTests`, `UndeclaredHttpOperationTests`.
 - **Status:** **Implemented** — `OperationPolicyOwnershipTests`; actual composition and
   caller controls complement the direct/HTTP proofs above.
@@ -2919,7 +2930,7 @@ owns delivery state, and later HTTP/native/browser consumers retain their own pr
 | `Identity_Seed_Uses_Finite_Adopted_Manifests` | `IdentitySeederTests` and Tenancy seed controls: pristine-prefix versions, edited completed-state preservation, terminal/tombstone refusal, no individual grant restoration, per-write fence/version recheck and real held-seed locale/profile/grant competitors. Fixed origin adoption's qualified marker-2 transitions, warm preservation, legacy upgrade and zero-dispatch repeat belong to [the separate completion rule](#fixed_seed_origin_adoption_requires_completed_foundation). ADR-0080's [temporary read](#fixed_seed_prerequisites_use_a_closed_temporary_read_scope) and [complete writer census](#tenant_bound_seed_writes_recheck_under_ordered_fences) retain separate authority and proof populations; their own rows record status. |
 | `Tenant_Scope_Widening_Is_Never_Set_From_Request_Input`, `Permission_Scope_Matches_Resource_Scope`, `Out_Of_Band_Setters_Open_Read_Only_Transactions`, `Protected_Operations_Require_Explicit_Live_Policies` and `Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork` | Existing human witness, scope-carrier and source/attachment owners gain the exact separate fixed-seed producers and reader populations under [the eight-consumer prerequisite rule](#fixed_seed_prerequisites_use_a_closed_temporary_read_scope) and [one-consumer completion rule](#fixed_seed_origin_adoption_requires_completed_foundation). Their private typed transition shares the same two scope-only enable/clear SQL sites. Preserve Protected-human minters, current owner/source enrollment, ten Tenant setters and four context writers; no new physical owner or READ ONLY claim. Their separate rule rows record qualification under the named owners. |
 | `Permission_Definitions_DeclareScope` and `Permission_Registry_Has_DeniedTest` | `OperationPermissionConventionTests` and actual command controls: exact v1 five Identity pairs plus v2 three Tenant Tenancy pairs; finite Any/All alternatives, disabled default, explicit additive adoption and independent denied coverage. No blanket key/scope implication. |
-| `Identity_Membership_Invariants_Use_Fresh_Ordered_Locks` | Actual member profile/status/assignment commands, retained Role-root grant locks and fresh post-wait delegation; no extra User fence for profile/removal. Existing deferred/MUST rollback and last-admin guarantees remain. |
+| `Identity_Membership_Invariants_Use_Fresh_Ordered_Locks` | Actual internal member profile/status/assignment commands, retained Role-root grant locks and fresh post-wait delegation; no extra User fence for profile/removal. `MembershipAdministrationProfileTests`, `MembershipAdministrationAssignmentTests` and `MembershipAdministrationRaceTests` own their app-role proof. Existing deferred/MUST rollback and last-admin guarantees remain; later HTTP/native consumers retain separate qualification. |
 | `Authenticated_Http_Surface_Is_Enumerated_And_ReadOnly` and `Authentication_Middleware_Order_Is_Enforced` | Exact protected write/global-self descriptors supplement the historical read-only union. Source admission follows verified-subject quota, separate native evidence never rewrites provider facts, and both HTTP/direct application entry retain independent policy checks. Wrong-method/masking, legacy/public and OpenAPI/SDK caller controls cover the complete union. |
 | `Bff_Session_Refresh_And_Revocation_Have_One_Owner` | Actual entry/selection/switch owners, unchanged-context refresh with zero new admission-event delta, original absolute deadline, exact-subject live-destination replacement and actual cancellation/cleanup. |
 | `Bff_Auth_Admission_And_Csrf_Are_Closed` and `Bff_Host_Cookies_And_History_Are_Isolated` | Exact native form/path/field census, nine advisory flags, no capability in aggregate ETag, bounded snapshot admission 128 global/eight per owner and 32 MiB serialized ceiling. Actual native HTTPS/browser same-label/truncation/Unicode different-subject recovery, four-origin cookies, late publication, history/no-script, en/tr and manual accessibility. |

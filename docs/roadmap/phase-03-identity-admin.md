@@ -14,15 +14,15 @@
 > qualified origin completion are closed after both fresh review rounds and
 > verified corrections. Its [closeout](phase-03-delivery-log.md#p03-3-step-3-review-round-2-and-closeout-2026-10-29)
 > distinguishes local passing coverage from full final-source qualification.
-> Step 4 delivers Membership detail, own/admin profile, lifecycle and assignments.
+> Step 4's [internal Membership administration](phase-03-delivery-log.md#p03-3-step-4--contextual-membership-administration-2026-10-29)
+> passes local qualification; its two fresh independent review rounds remain pending.
 > [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md) and
 > [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md)
 > are Accepted. Their separate eight-consumer prerequisite and one-consumer
 > completion controls pass locally, including owner barriers and competing commits.
 > The [Step 2 record](phase-03-delivery-log.md#p03-3-step-2--bounded-self-entry-and-native-scope-admission-2026-10-28)
 > distinguishes local checks from the later provider/native/browser proofs.
-> This remains the critical-path phase after
-> [Phase 02b](phase-02b-events-auth.md). The
+> This remains the critical-path phase after [Phase 02b](phase-02b-events-auth.md). The
 > [decision register](#the-decision-register) owns gate state; dated records live
 > in the [delivery log](phase-03-delivery-log.md).
 >

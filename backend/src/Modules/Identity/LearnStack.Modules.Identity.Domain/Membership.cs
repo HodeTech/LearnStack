@@ -14,6 +14,8 @@ public enum MembershipStatus { Active = 1, Suspended = 2, Revoked = 3 }
 [OrganizationScoped]
 public sealed class Membership : AuditableEntity<MembershipId>, IAggregateRoot<MembershipId>, IOrganizationScoped
 {
+    public const int MaximumRoleAssignments = 8;
+
     private readonly List<MembershipRoleAssignment> _roleAssignments = [];
     private Membership() { Profile = null!; }
 
@@ -60,6 +62,30 @@ public sealed class Membership : AuditableEntity<MembershipId>, IAggregateRoot<M
             return Result<None>.Ok(None.Value);
         MarkUpdated(at, actor);
         Profile.Set(displayName, preferredLocale);
+        return Result<None>.Ok(None.Value);
+    }
+
+    /// <summary>Retains unchanged assignment instances so tracked writes capture only the actual difference.</summary>
+    public Result<None> ReplaceAssignments(IReadOnlyCollection<Role> desired, DateTimeOffset at, UserId actor)
+    {
+        ArgumentNullException.ThrowIfNull(desired);
+        var scope = OrganizationId is null ? PermissionScope.Tenant : PermissionScope.Organization;
+        if (Status is not (MembershipStatus.Active or MembershipStatus.Suspended) || IsDeleted
+            || desired.Count > MaximumRoleAssignments
+            || desired.Any(role => role is null || !role.Id.IsInitialized() || role.Id.Value == Guid.Empty
+                || role.Id.Value.Version != 7 || role.TenantId != TenantId || role.IsDeleted || role.PermissionScope != scope)
+            || desired.Select(role => role.Id).Distinct().Count() != desired.Count)
+            return IdentityFailures.BusinessRule();
+
+        if (_roleAssignments.Count == desired.Count
+            && desired.All(role => _roleAssignments.Any(assignment => assignment.RoleId == role.Id)))
+            return Result<None>.Ok(None.Value);
+
+        MarkUpdated(at, actor);
+        _roleAssignments.RemoveAll(assignment => !desired.Any(role => role.Id == assignment.RoleId));
+        foreach (var role in desired)
+            if (!_roleAssignments.Any(assignment => assignment.RoleId == role.Id))
+                _roleAssignments.Add(new MembershipRoleAssignment(this, role.Id));
         return Result<None>.Ok(None.Value);
     }
 

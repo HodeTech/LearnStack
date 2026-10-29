@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 1,608 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 1,688 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -170,6 +170,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 3 implementation and qualification (2026-10-29)](#p03-3-step-3-implementation-and-qualification-2026-10-29) — 84 lines
   - [P03-3 Step 3 review round 1 and seed frontier corrections (2026-10-29)](#p03-3-step-3-review-round-1-and-seed-frontier-corrections-2026-10-29) — 57 lines
   - [P03-3 Step 3 review round 2 and closeout (2026-10-29)](#p03-3-step-3-review-round-2-and-closeout-2026-10-29) — 59 lines
+  - [P03-3 Step 4 — Contextual Membership administration (2026-10-29)](#p03-3-step-4--contextual-membership-administration-2026-10-29) — 80 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -7321,3 +7322,83 @@ Markdown fragment/roadmap/index checks and `git diff --check` pass before the
 closeout commit. No full combined 320-case rerun or final-source A/B is claimed:
 the unchanged 319 passing cases and the corrected replacement test have the
 current passing coverage described above.
+
+### P03-3 Step 4 — Contextual Membership administration (2026-10-29)
+
+**Baseline:** Step 3 closeout `57d469de`. This step implements six internal
+Membership requests under Accepted ADR-0073/0074/0076/0077/0079. It adds no
+administration HTTP route, native form, new grant, Membership creation or global
+User writer. Later transport/browser consumers remain selected in Steps 7–9.
+
+**Implementation.** Member detail has exact Tenant/Organization alternatives:
+only the matched Tenant clause mints the existing read witness. Its ordinary
+ReadWrite owner commits MUST sensitive-read evidence before disclosure. The
+separate exact-own profile query uses coverage-only `OwnMembershipRead`, Off
+registration and module-declared physical ReadOnly. It has no target selector,
+profile-write requirement, AccountSite HostScope shortcut or NULL-org fallback.
+Both paths require the live current application invocation and target decision.
+
+Four protected writers implement own/admin profile replacement, status changes
+and Role assignment replacement on existing Memberships. Administrator profile
+writing requires membership-admin and profile-write; own writing checks exact
+actor ownership. All writes retain the current nullable organization and expected
+Membership version. Profiles accept only nullable DisplayName and enabled
+PreferredLocale. Revoked stays terminal; Suspended assignments confer no live
+authority. Replacement retains unchanged child instances, explicitly deletes
+removed children and leaves no-op versions unchanged.
+
+Mutation plans derive from actual User/administrator/Role effects. User admission
+precedes Tenant fencing for reactivation/every addition. Profiles/removals acquire
+no User fence solely for admission; independent profile writers avoid Role-root
+serialization. Assignment paths lock retained Role roots in sorted order before
+the final tracked Membership read, then recheck the complete graph, version,
+strongest plan, lifecycle and current committed authority. Added Roles' entire
+current grant sets must fit the live ceiling, with only the approved same-key
+Tenant-to-target-Organization bridge. Graph/last-admin validation and MUST audit
+share the business transaction. Unregistered grants on an added Role refuse delegation.
+
+**Diagnostic correction.** The new profile consumer exposed a raw EF failure at
+Tenancy's locale eligibility port. Its owning boundary now drops provider/timeout
+payloads and inner exceptions, filters only the enclosed EF query-iteration error,
+emits a fixed signal and marks its own EF spans for pre-export sanitization.
+Cancellation/programming failures and other Tenancy diagnostics retain their
+semantics. A fixture-only unprotected query proves stored neutral/nested/secret
+canaries reach actual logs, local archive, Sentry and exported trace; protected
+own/admin commands exclude the same payloads and return dependency_unavailable
+without stamping a Member. This is a named source boundary, not global scrubbing.
+
+**Inherited proof corrections.** Broader regression found seven stale cases.
+Historical Identity proofs now construct the predecessor directly and move
+forward, preserving same-database function OID/body/owner/ACL/security comparisons,
+real predecessor/corrected races, and independent fresh-chain convergence. The
+locale CHECK proof targets its own migration rather than comparing an unrelated
+later marker column. The RLS proof temporarily isolates the newer independent
+Role-root guard, still requires 42501, admits an actual foreign row only in its
+dirty WITH CHECK twin and restores all trigger/policy state. The first-admin race
+uses actual fixed declarations, provider-witness adoption and canonical source;
+its same fixed target proves post-wait target revalidation/one graph, not an
+independently isolated history predicate for arbitrary identifiers.
+
+**Qualification.**
+
+| Population | Completed result |
+|---|---|
+| Complete solution, CI=true Release | Zero warnings/errors |
+| Complete Unit assembly | 3,202/3,202 passed, zero skips |
+| New Membership/race/audit/diagnostic controls | 33/33 passed, zero skips |
+| Affected architecture/AuditCoverage/DataProtection/Corpus controls | 83/83 passed, zero skips; 327 architecture methods retained |
+| Education/public-locale/locale-migration regressions | 21/21 passed, zero skips |
+| Combined final PostgreSQL population | 182/182 passed, zero skips; 2.714 minutes |
+| Documentation and whitespace | Fragment, roadmap, delivery-index and whitespace checks passed |
+
+The first combined legacy run completed 129 cases with 122 passing and seven
+failures; it is not qualification. All seven received targeted corrections and
+passing controls before the final combined run. The first full Unit run's one
+stale catalogue count and one architecture compilation analyzer failure were
+also corrected. Reports above name completed passing populations only.
+
+**Review state.** Implementation qualification precedes the local commit. Both
+fresh independent postcommit review rounds, verified fixes and normal commits
+remain mandatory before Step 5. Full discovered suites, actual provider/native
+HTTPS/browser/manual accessibility and final-source A/B remain Steps 8–10; these
+local populations do not qualify those later consumers or production capacity.

@@ -277,14 +277,41 @@ public sealed class MembershipWriteStore(IdentityDbContext db, ContextualIdentit
     }
     public Task UpdateAsync(Membership aggregate, CancellationToken cancellationToken = default)
     {
-        WriteStoreTracking.EnsureTracked(db, aggregate);
+        var detectChanges = db.ChangeTracker.AutoDetectChangesEnabled;
+        try
+        {
+            db.ChangeTracker.AutoDetectChangesEnabled = false;
+            WriteStoreTracking.EnsureTracked(db, aggregate);
+            foreach (var assignment in db.ChangeTracker.Entries<MembershipRoleAssignment>().Where(entry =>
+                entry.Entity.TenantId == aggregate.TenantId && entry.Entity.MembershipId == aggregate.Id
+                && !aggregate.RoleAssignments.Contains(entry.Entity)).ToArray())
+                assignment.State = EntityState.Deleted;
+        }
+        finally { db.ChangeTracker.AutoDetectChangesEnabled = detectChanges; }
         return control.SaveAsync(cancellationToken);
     }
 }
 
-public sealed class RoleReadStore(IdentityDbContext db) : IRoleReadStore
+public sealed class RoleReadStore(IdentityDbContext db, IUnitOfWork unit, ContextualIdentityStorageControl control) : IRoleReadStore
 {
-    public Task<Role?> ReadAsync(RoleId roleId, CancellationToken cancellationToken = default) =>
-        ContextualIdentityStorageControl.ReadAsync(() => db.Roles.AsNoTracking().Include(role => role.Grants)
+    public Task LockAsync(RoleId roleId, CancellationToken cancellationToken = default) => control.LockRoleAsync(roleId, cancellationToken);
+
+    public Task<Role?> ReadAsync(RoleId roleId, CancellationToken cancellationToken = default)
+    {
+        ContextualIdentityStorageControl.EnrollCurrentTenantOwner(db, unit);
+        return ContextualIdentityStorageControl.ReadAsync(() => db.Roles.AsNoTracking().Include(role => role.Grants)
             .SingleOrDefaultAsync(role => role.Id == roleId, cancellationToken));
+    }
+
+    public async Task<IReadOnlyList<Role>> ReadManyAsync(IReadOnlyCollection<RoleId> roleIds, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(roleIds);
+        if (roleIds.Count > Membership.MaximumRoleAssignments) throw new ArgumentOutOfRangeException(nameof(roleIds));
+        cancellationToken.ThrowIfCancellationRequested();
+        ContextualIdentityStorageControl.EnrollCurrentTenantOwner(db, unit);
+        if (roleIds.Count == 0) return [];
+        var ids = roleIds.ToArray();
+        return await ContextualIdentityStorageControl.ReadAsync(() => db.Roles.AsNoTracking().Include(role => role.Grants)
+            .Where(role => ids.Contains(role.Id)).OrderBy(role => role.Id).ToArrayAsync(cancellationToken));
+    }
 }

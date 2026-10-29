@@ -1,4 +1,6 @@
+using System.Data.Common;
 using LearnStack.Modules.Tenancy.Application.Contracts.Locales;
+using LearnStack.Modules.Tenancy.Domain;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
@@ -25,9 +27,22 @@ public sealed class TenantLocaleEligibilityReader(TenancyDbContext context, ITen
             return Refused();
         }
 
-        var tenant = await context.Tenants.AsNoTracking().Include(row => row.Locales)
-            .SingleOrDefaultAsync(row => row.Id == tenantContext.TenantId && row.DeletedAt == null,
-                cancellationToken);
+        using var boundary = TenantLocaleReadScope.Enter(context);
+        Tenant? tenant;
+        try
+        {
+            tenant = await context.Tenants.AsNoTracking().Include(row => row.Locales)
+                .SingleOrDefaultAsync(row => row.Id == tenantContext.TenantId && row.DeletedAt == null,
+                    cancellationToken);
+        }
+        catch (InvalidOperationException failure) when (failure.InnerException is DbException or TimeoutException)
+        {
+            throw new TenantLocaleEligibilityReadException();
+        }
+        catch (Exception failure) when (failure is DbException or TimeoutException)
+        {
+            throw new TenantLocaleEligibilityReadException();
+        }
         if (tenant is null || !tenant.HasValidLocaleConfiguration())
         {
             return Refused();
