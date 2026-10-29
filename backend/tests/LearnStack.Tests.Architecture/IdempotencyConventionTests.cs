@@ -334,6 +334,9 @@ public sealed class IdempotencyConventionTests
 
     private static (string File, string Relation)[] AdmissionGuardRelations() =>
     [
+        (AdmissionFile, "if (!AdministrationHttpInput.SupportsJsonMedia(http.Request)) return Failure(\"lockey_validation_failed\");"),
+        (AdmissionFile, "&& AdministrationHttpInput.SupportsJsonMedia(current.Request)"),
+        (FilterFile, "if (!AdministrationHttpInput.SupportsJsonMedia(context.HttpContext.Request)) { context.Result = AdministrationHttpInput.Invalid(); return; }"),
         (AdmissionFile, "var requestType = frozen is null ? declared.RequestType : ReceiptRequest(descriptor.Operation);"),
         (AdmissionFile, "if (result.IsFailure) return result; if (!binding.Matches(http, context, descriptor, key, fingerprint, expected)) return Failure(\"lockey_forbidden\"); http.Features.Set(new Admission(binding, frozen));"),
         (AdmissionFile, "if (http.Features.Get<Admission>() is not { } admission) return new(OperationHttpClassifier.RequiresProtectedAdmission(http.GetEndpoint()) ? ProtectedHttpAdmissionKind.Refused : ProtectedHttpAdmissionKind.Unbound);"),

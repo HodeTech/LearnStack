@@ -292,6 +292,38 @@ public sealed class ProtectedReplayHttpAdmissionTests
         Assert.Empty(harness.Store.ReceivedCalls());
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("text/plain")]
+    [InlineData("application/json; charset=utf-16")]
+    public async Task Unsupported_media_refuses_before_any_lookup_or_authorization(string? contentType)
+    {
+        using var harness = await Harness.CreateAsync(ProtectedAdministrationOperation.RenameOrganization);
+        harness.Http.Request.ContentType = contentType;
+        var result = await harness.AdmitAsync();
+        Assert.Equal("validation_failed", result.Error!.Code);
+        Assert.Empty(harness.Authorizer.Requests);
+        Assert.Empty(harness.Store.ReceivedCalls());
+    }
+
+    [Fact]
+    public async Task Changed_media_invalidates_a_bound_replay_and_the_filter_refuses_without_store_work()
+    {
+        using var harness = await Harness.CreateAsync(ProtectedAdministrationOperation.RenameOrganization);
+        harness.Store.ReadCompletedAsync(Tenant, Key, Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Stored(harness.Descriptor));
+        Assert.True((await harness.AdmitAsync()).IsSuccess);
+        harness.Store.ClearReceivedCalls();
+        harness.Http.Request.ContentType = "text/plain";
+        Assert.Equal(ProtectedHttpAdmissionKind.Refused, (await harness.ConsumeAsync()).Kind);
+        var filter = new ProtectedIdempotencyFilter(harness.Store, harness.Context, Substitute.For<IIdempotencyBusinessOwnerCleanup>(),
+            Substitute.For<ISender>(), NullLogger<ProtectedIdempotencyFilter>.Instance, harness.Descriptor.Operation);
+        var resource = ResourceContext(harness.Http);
+        await filter.OnResourceExecutionAsync(resource, () => throw new InvalidOperationException("Invalid media cannot dispatch."));
+        Assert.Equal("validation_failed", Assert.IsType<ProblemDetailsActionResult>(resource.Result).Error.Code);
+        Assert.Empty(harness.Store.ReceivedCalls());
+        Assert.Equal(0, harness.Http.Response.Body.Length);
+    }
+
     [Fact]
     public async Task Actual_body_bytes_are_bounded_before_fingerprinting_or_store_lookup()
     {
@@ -448,6 +480,7 @@ public sealed class ProtectedReplayHttpAdmissionTests
             http.Request.Headers[IdempotentAttribute.HeaderName] = Key;
             if (operation != ProtectedAdministrationOperation.CreateOrganization) http.Request.Headers.IfMatch = "\"7\"";
             http.Request.Body = new MemoryStream("{}"u8.ToArray());
+            http.Request.ContentType = "application/json";
             http.Response.Body = new MemoryStream();
             http.Features.Set(HostClassification.Platform("platform.example"));
             http.Features.Set(new TenantCredentialFeature

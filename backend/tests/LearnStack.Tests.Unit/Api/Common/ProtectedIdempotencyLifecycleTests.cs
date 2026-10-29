@@ -201,6 +201,7 @@ public sealed class ProtectedIdempotencyLifecycleTests
         http.Request.Method = "PUT";
         http.Request.Path = "/component";
         http.Request.Body = new MemoryStream("{\"name\":\"Private\"}"u8.ToArray());
+        http.Request.ContentType = "application/json";
         if (operation != ProtectedAdministrationOperation.CreateOrganization) http.Request.Headers.IfMatch = "\"7\"";
         http.SetEndpoint(new Endpoint(null, new EndpointMetadataCollection(new IdempotentAttribute(operation)), "component"));
         http.Response.Body = new MemoryStream();

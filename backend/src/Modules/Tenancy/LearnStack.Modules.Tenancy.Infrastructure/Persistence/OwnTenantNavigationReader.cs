@@ -72,8 +72,8 @@ public sealed class OwnTenantNavigationReader(TenancyDbContext db, IUnitOfWork u
             if (final.IsFailure) return Result<Page<OwnTenantNavigationItem>>.Fail(final.Error);
             if (!Matches(final.Value) || !ReferenceEquals(final.Value.Invocation, access.Invocation)
                 || final.Value.HasTenantMembership != access.HasTenantMembership) return Fail("lockey_not_found");
-            var page = items.Take(limit).ToArray();
-            var next = items.Count > limit && page.Length != 0 ? OwnTenantNavigationCursor.Encode(scope, page[^1].OrganizationId) : null;
+            var page = OwnTenantNavigationPageBudget.Select(items, limit);
+            var next = items.Count > page.Length && page.Length != 0 ? OwnTenantNavigationCursor.Encode(scope, page[^1].OrganizationId) : null;
             return Result.Ok(new Page<OwnTenantNavigationItem>(page, new PageInfo(next, null, next is not null, false)));
         }
         catch (TenancyAdministrationStorageException)

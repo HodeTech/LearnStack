@@ -489,3 +489,37 @@ describe('closed administration server SDK', () => {
     expect(transport).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('own-context legal wire sizes', () => {
+  it.each([80, 100])(
+    'keeps the body bound for a legal %i-item worst-label shape',
+    async (count) => {
+      const host =
+        'a'.repeat(45) +
+        '.' +
+        'b'.repeat(63) +
+        '.' +
+        'c'.repeat(63) +
+        '.' +
+        'd'.repeat(63) +
+        '.example.invalid';
+      const body = {
+        items: Array.from({ length: count }, (_, index) => ({
+          tenantId: member,
+          organizationId: '01930000-0000-7000-8000-' + (index + 1).toString(16).padStart(12, '0'),
+          tenantName: '\u0001'.repeat(200),
+          organizationName: '\u0001'.repeat(200),
+          entryOrigin: 'https://' + host + ':65535',
+          canUseCurrentHost: false,
+        })),
+        pageInfo: { nextCursor: null, previousCursor: null, hasNext: false, hasPrevious: false },
+      };
+      const bytes = new TextEncoder().encode(JSON.stringify(body)).byteLength;
+      expect(bytes <= 256 * 1024).toBe(count === 80);
+      const transport = vi.fn<AdministrationFetch>(async () => json(body));
+      const result = await createAdministrationServerSdk(transport).getOwnContexts();
+      expect(result.kind).toBe(count === 80 ? 'success' : 'invalid-response');
+      expect(transport).toHaveBeenCalledTimes(1);
+    },
+  );
+});

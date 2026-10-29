@@ -46,6 +46,7 @@ internal static class ProtectedReplayHttpAdmission
 
         // Authorization precedes MVC filters, including RequestSizeLimit. Bound
         // actual bytes here before fingerprinting, without consuming model input.
+        if (!AdministrationHttpInput.SupportsJsonMedia(http.Request)) return Failure("lockey_validation_failed");
         await AdministrationHttpInput.ReadBodyBytesAsync(http);
         long? expected = descriptor.Creates ? null : version;
         var fingerprint = await ProtectedIdempotencyFilter.ComputeFingerprintAsync(http, context, descriptor, expected, http.RequestAborted);
@@ -125,6 +126,7 @@ internal static class ProtectedReplayHttpAdmission
             && candidate.Actor == _actor && candidate.TenantId == _tenant && candidate.OrganizationId == _organization
             && descriptor == operation && key == currentKey && fingerprint == currentFingerprint && expected == currentExpected
             && classifier.Classify(endpoint, out var currentPolicy) == HttpOperationClassification.Application
-            && ReferenceEquals(policy, currentPolicy);
+            && ReferenceEquals(policy, currentPolicy)
+            && AdministrationHttpInput.SupportsJsonMedia(current.Request);
     }
 }

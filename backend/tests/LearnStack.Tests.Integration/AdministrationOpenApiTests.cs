@@ -1,11 +1,17 @@
 using LearnStack.Api.Authentication;
+using LearnStack.Api.Identity;
+using LearnStack.SharedKernel.Domain;
+using LearnStack.SharedKernel.Pagination;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using LearnStack.Api.Idempotency;
+using LearnStack.Modules.Tenancy.Application.Contracts.IdentityLifecycle;
+using LearnStack.SharedKernel.Identifiers;
 using Xunit;
 
 namespace LearnStack.Tests.Integration;
@@ -13,6 +19,31 @@ namespace LearnStack.Tests.Integration;
 /// <summary>Served contracts, not a hand-maintained snapshot; live application authority has separate PostgreSQL HTTP tests.</summary>
 public sealed class AdministrationOpenApiTests(ProductionHostFixture fixture) : IClassFixture<ProductionHostFixture>
 {
+    [Fact]
+    public void Own_context_maximum_page_fits_the_administration_wire_budget()
+    {
+        var label = new string('\u0001', MappedLength.DisplayName);
+        Assert.False(string.IsNullOrWhiteSpace(label));
+        Assert.True(JsonValue.IsStorableText(label));
+        var tenant = TenantId.From(Guid.Parse("01930000-0000-7000-8000-00000000a001"));
+        var items = Enumerable.Range(0, 100).Select(_ => new OwnTenantNavigationItem(
+            tenant, OrganizationId.From(Guid.CreateVersion7()), label, label, OwnNavigationWireProof.LongHost(tenant.Value))).ToArray();
+        var options = fixture.Services.GetRequiredService<IOptions<Microsoft.AspNetCore.Mvc.JsonOptions>>().Value.JsonSerializerOptions;
+        var info = new PageInfo(new string('a', 1024), null, true, false);
+        Assert.True(OwnNavigationWireProof.Serialize(items, info, options).Length > OwnNavigationWireProof.MaximumBytes);
+        var selected = OwnNavigationWireProof.Select(items, 100);
+        Assert.InRange(selected.Length, 1, 99);
+        OwnNavigationWireProof.AssertSdkReadable(OwnNavigationWireProof.Serialize(selected, info, options), selected.Length);
+        var single = OwnNavigationWireProof.Select(items, 1);
+        Assert.Single(single);
+        OwnNavigationWireProof.AssertSdkReadable(OwnNavigationWireProof.Serialize(single, info, options), 1);
+
+        var small = items.Select(item => item with { TenantName = "Tenant", OrganizationName = "Branch" }).ToArray();
+        var full = OwnNavigationWireProof.Select(small, 100);
+        Assert.Equal(100, full.Length);
+        OwnNavigationWireProof.AssertSdkReadable(OwnNavigationWireProof.Serialize(full, info, options), 100);
+    }
+
     private static readonly string[] ProfileFields = ["displayName", "preferredLocale"];
 
     private static readonly (string Path, string Method, string Operation, string? Input)[] Operations =

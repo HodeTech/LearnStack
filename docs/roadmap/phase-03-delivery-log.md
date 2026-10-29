@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 2,241 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 2,294 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -180,7 +180,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 6 review round 1 and permission-matrix correction (2026-10-29)](#p03-3-step-6-review-round-1-and-permission-matrix-correction-2026-10-29) — 26 lines
   - [P03-3 Step 6 review round 2 and closeout (2026-10-29)](#p03-3-step-6-review-round-2-and-closeout-2026-10-29) — 34 lines
   - [P03-3 Step 7 — Closed administration HTTP and generated SDK (2026-10-29)](#p03-3-step-7--closed-administration-http-and-generated-sdk-2026-10-29) — 84 lines
-  - [P03-3 Step 7 review round 1 and own-navigation diagnostics correction (2026-10-29)](#p03-3-step-7-review-round-1-and-own-navigation-diagnostics-correction-2026-10-29) — 35 lines
+  - [P03-3 Step 7 review round 1 and own-navigation diagnostics correction (2026-10-29)](#p03-3-step-7-review-round-1-and-own-navigation-diagnostics-correction-2026-10-29) — 36 lines
+  - [P03-3 Step 7 review round 2, protocol bounds and closeout (2026-10-29)](#p03-3-step-7-review-round-2-protocol-bounds-and-closeout-2026-10-29) — 52 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -7965,3 +7966,56 @@ hosted A/B qualification.
 This normal correction commit closes the verified R1 finding. A second fresh
 independent review round follows it before Step 7 closes or Step 8 implementation
 starts. No runtime authority, transport or schema policy changes in this fix.
+
+
+### P03-3 Step 7 review round 2, protocol bounds and closeout (2026-10-29)
+
+Three new independent reviewers inspect `cc79ccab..7615c804` through the same
+authority/audit/isolation, storage/replay/lifetime and HTTP/SDK/privacy/quality
+lenses. Authority and storage approve without actionable findings. Quality
+confirms R1's correction and finds one Minor media-boundary inconsistency; its
+additional maximum-page concern is then reproduced by Root as a second Minor.
+The reviewers inspect source/test controls read-only and execute no tests.
+
+**Replay media.** A completed exact key bypasses controller parsing, so unsupported
+media can return retained 200 while a new key returns 400. Three actual PostgreSQL/
+HTTP cases reproduce missing Content-Type, text/plain and unsupported charset.
+The shared UTF-8 application/json predicate now precedes HTTP completed lookup
+and filter claim/replay, and remains part of current request binding. It changes
+no fingerprint or authority decision. New unit controls require refusal without
+lookup/authorization/store work and invalidate a bound replay after media changes.
+
+**Page wire budget.** Actual MVC serialization of 100 valid contexts with
+200-character escaping labels and the management origin produces 263,900 bytes,
+exceeding the existing 262,144-byte API/SDK bound. The ordinary Tenancy reader now
+selects a conservative byte-bounded prefix before constructing its continuation.
+Default JSON escaping, origin/port/transport fields and the page/cursor envelope
+are included. Small records still fill 100-item pages, a valid single item always
+progresses, and omitted items remain after the last returned key. The response
+cap, read authority, owner and logical setter/function censuses remain unchanged.
+
+A real app-role PostgreSQL case walks 115 added organizations with maximum labels
+and canonical hosts, checks every actual-MVC-serialized page, exact ordered
+completeness, single-item progress and the restored short-label 100-item page.
+The wire helper states SDK-equivalent byte/shape checks rather than claiming a
+JavaScript run. Two actual SDK cases separately accept a bounded legal extreme
+shape and reject its oversized counterpart. The quality reviewer statically
+rechecks both correction deltas and accepts them without further findings.
+
+**Correction verification.** Complete solution Release/CI build has zero warnings/
+errors after three test-only constant-array analyzer fixes. All 3,432 Unit cases,
+22 actual runtime/serializer/media/navigation cases, 427 offline HTTP cases,
+nine Contract cases, 148 SDK cases and three targeted source/architecture cases
+pass with zero skips. SDK typecheck/lint and document/corpus/whitespace controls
+pass. The earlier three media cases and serializer case remain explicit failed
+reproductions; they are not counted as qualification. R1's formatter delta is
+compared with its pre-hook tree and is whitespace-only in C#.
+
+Step 7 closes after its implementation, R1 correction, both fresh review rounds
+and these verified R2 corrections. Step 8 proceeds with native entry/no-session,
+context switch/refresh and credential-preserving operation ownership, including
+real provider/native HTTPS proofs. Step 9 retains screens, snapshot admission and
+real browser/history/no-script/localization/manual accessibility. Step 10 retains
+complete discovered zero-skip suites, public-demo preservation, final-source
+hosted A/B, final review and PR. No selected consumer moves to another phase;
+there is no branch switch, push or PR before the ten-step implementation closes.

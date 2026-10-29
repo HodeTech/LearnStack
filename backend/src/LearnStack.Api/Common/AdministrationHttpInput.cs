@@ -47,10 +47,7 @@ internal static class AdministrationHttpInput
 
     internal static async Task<JsonDocument?> ReadObjectAsync(HttpContext http, params string[] fields)
     {
-        if (http.Request.Query.Count != 0 || !MediaTypeHeaderValue.TryParse(http.Request.ContentType, out var contentType)
-            || !string.Equals(contentType.MediaType.Value, "application/json", StringComparison.OrdinalIgnoreCase)
-            || contentType.Charset.HasValue && !string.Equals(HeaderUtilities.RemoveQuotes(contentType.Charset).Value,
-                "utf-8", StringComparison.OrdinalIgnoreCase)) return null;
+        if (http.Request.Query.Count != 0 || !SupportsJsonMedia(http.Request)) return null;
         var bytes = await ReadBodyBytesAsync(http);
         JsonDocument? document = null;
         try
@@ -65,6 +62,12 @@ internal static class AdministrationHttpInput
         document?.Dispose();
         return null;
     }
+
+    internal static bool SupportsJsonMedia(HttpRequest request) =>
+        MediaTypeHeaderValue.TryParse(request.ContentType, out var contentType)
+        && string.Equals(contentType.MediaType.Value, "application/json", StringComparison.OrdinalIgnoreCase)
+        && (!contentType.Charset.HasValue || string.Equals(HeaderUtilities.RemoveQuotes(contentType.Charset).Value,
+            "utf-8", StringComparison.OrdinalIgnoreCase));
 
     internal static bool HasFields(JsonElement value, params string[] fields)
     {

@@ -51,6 +51,11 @@ internal sealed partial class ProtectedIdempotencyFilter(IIdempotencyStore store
             return;
         }
         if (!_descriptor.Creates) expected = version;
+        if (!AdministrationHttpInput.SupportsJsonMedia(context.HttpContext.Request))
+        {
+            context.Result = AdministrationHttpInput.Invalid();
+            return;
+        }
         var cancellationToken = context.HttpContext.RequestAborted;
         await AdministrationHttpInput.ReadBodyBytesAsync(context.HttpContext);
         var fingerprint = await ComputeFingerprintAsync(context.HttpContext, expected, cancellationToken);

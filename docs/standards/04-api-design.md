@@ -388,6 +388,13 @@ The lookup acquires no capacity fence, creates no key and extends no retention.
 The [storage/replay contract](05-database.md#p03-3-storage-and-replay-contract)
 owns durable key and outcome semantics.
 
+Every protected write, including a completed-key replay, satisfies the same
+UTF-8 application/json media predicate before lookup, claim or disclosure.
+Own-context pagination selects its byte-bounded prefix before constructing the
+continuation cursor. The count limit remains an upper bound: escaped labels and
+verified origin expansion may shorten a page to preserve ADR-0079's 256 KiB
+API/SDK response budget, while subsequent pages retain every remaining item.
+
 ## Pagination
 
 Cursor pagination by default:

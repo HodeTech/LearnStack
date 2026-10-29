@@ -418,6 +418,9 @@ only the current branch participates. This adds no general organization reader,
 tenant-wide scope hatch, setter or owner function. Cursors bind the actor, Tenant,
 organization and coverage mode. Own-capability preview projects nine finite flags
 without running denied operations or caching authorization.
+The [API wire boundary](../../standards/04-api-design.md#accepted-p03-3-self-entry-and-administration)
+owns byte-bounded page selection before continuation; ordinary short records keep
+the requested count and large escaped labels retain complete subsequent pages.
 
 The existing Role grant/adoption writers use the eight finite templates.
 [Standard 19](../../standards/19-permissions.md#bounded-administration-and-version-2-adoption)

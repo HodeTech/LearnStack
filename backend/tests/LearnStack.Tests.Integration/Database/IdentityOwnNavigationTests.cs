@@ -4,11 +4,13 @@ using LearnStack.Modules.Identity.Application.Memberships;
 using LearnStack.Modules.Tenancy.Application.Contracts.IdentityLifecycle;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Domain;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Results;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using Npgsql;
 using Xunit;
 using static LearnStack.Tests.Integration.Database.IdentityMembershipFixture;
@@ -18,6 +20,82 @@ namespace LearnStack.Tests.Integration.Database;
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
 public sealed class IdentityOwnNavigationTests(IdentityOwnNavigationFixture fixture) : IClassFixture<IdentityOwnNavigationFixture>
 {
+    [Fact]
+    public async Task Escaped_context_pages_fit_MVC_and_SDK_bytes_without_losing_ordered_continuation_or_small_pages()
+    {
+        var organizations = Enumerable.Range(0, 115).Select(_ => Guid.CreateVersion7()).ToArray();
+        var label = new string('\u0001', MappedLength.DisplayName);
+        Assert.False(string.IsNullOrWhiteSpace(label));
+        Assert.True(JsonValue.IsStorableText(label));
+        var originalName = await fixture.TenantNameAsync();
+        try
+        {
+            await fixture.SeedPageAsync(organizations, label);
+            var expected = new Guid?[] { null }.Concat(organizations.Append(SchemaFixture.OrgA1).Append(SchemaFixture.OrgA2)
+                .OrderBy(id => id.ToString("D"), StringComparer.Ordinal).Select(id => (Guid?)id)).ToArray();
+            await ReadAllAsync("own-contexts-escaped-page", expected, expectFullPage: false);
+
+            await using (var one = await fixture.CreateAsync("own-contexts-escaped-one", AdminA, SchemaFixture.OrgA1))
+            {
+                var tenant = await one.Sender.Send(new GetOwnMembershipContextsQuery(Limit: 1));
+                Assert.True(tenant.IsSuccess);
+                Assert.Null(Assert.Single(tenant.Value.Items).OrganizationId);
+                Assert.True(tenant.Value.PageInfo.HasNext);
+                var branch = await one.Sender.Send(new GetOwnMembershipContextsQuery(tenant.Value.PageInfo.NextCursor, 1));
+                Assert.True(branch.IsSuccess);
+                Assert.NotNull(Assert.Single(branch.Value.Items).OrganizationId);
+                Assert.Equal(label, branch.Value.Items[0].OrganizationName);
+                AssertWire(branch.Value);
+            }
+
+            await fixture.SetPageLabelsAsync(organizations, "Small label");
+            await ReadAllAsync("own-contexts-small-page", expected, expectFullPage: true);
+        }
+        finally { await fixture.ClearPageAsync(organizations, originalName); }
+
+        async Task ReadAllAsync(string correlation, Guid?[] expected, bool expectFullPage)
+        {
+            await using var harness = await fixture.CreateAsync(correlation, AdminA, SchemaFixture.OrgA1);
+            var seen = new List<Guid?>();
+            var cursors = new HashSet<string>(StringComparer.Ordinal);
+            string? cursor = null;
+            var pages = 0;
+            do
+            {
+                var result = await harness.Sender.Send(new GetOwnMembershipContextsQuery(cursor, 100));
+                Assert.True(result.IsSuccess);
+                var page = result.Value;
+                Assert.InRange(page.Items.Count, 1, 100);
+                if (pages == 0)
+                {
+                    if (expectFullPage) Assert.Equal(100, page.Items.Count);
+                    else Assert.InRange(page.Items.Count, 1, 99);
+                }
+                AssertWire(page);
+                Assert.All(page.Items, item => Assert.Equal(TenantId.From(SchemaFixture.TenantA), item.TenantId));
+                foreach (var item in page.Items.Where(item => item.OrganizationId is { } id && organizations.Contains(id.Value)))
+                    Assert.Equal(OwnNavigationWireProof.LongHost(item.OrganizationId!.Value.Value), item.EntryHost);
+                seen.AddRange(page.Items.Select(item => item.OrganizationId?.Value));
+                Assert.Equal(page.PageInfo.NextCursor is not null, page.PageInfo.HasNext);
+                cursor = page.PageInfo.NextCursor;
+                if (cursor is not null) Assert.True(cursors.Add(cursor));
+                Assert.False(harness.Unit.HasActiveTransaction);
+                Assert.InRange(++pages, 1, 4);
+            } while (cursor is not null);
+            Assert.True(pages > 1);
+            Assert.Equal(expected, seen);
+            Assert.Equal(seen.Count, seen.Distinct().Count());
+        }
+
+        void AssertWire(LearnStack.SharedKernel.Pagination.Page<OwnMembershipContextDto> page)
+        {
+            var options = fixture.Http.Services.GetRequiredService<IOptions<Microsoft.AspNetCore.Mvc.JsonOptions>>().Value.JsonSerializerOptions;
+            var items = page.Items.Select(item => new OwnTenantNavigationItem(item.TenantId, item.OrganizationId,
+                item.TenantName, item.OrganizationName, item.EntryHost)).ToArray();
+            OwnNavigationWireProof.AssertSdkReadable(OwnNavigationWireProof.Serialize(items, page.PageInfo, options), items.Length);
+        }
+    }
+
     [Fact]
     public async Task Branch_only_coverage_returns_only_its_branch_while_Tenant_membership_derives_active_branches()
     {
@@ -194,6 +272,7 @@ public sealed class IdentityOwnNavigationTests(IdentityOwnNavigationFixture fixt
 public sealed class IdentityOwnNavigationFixture : IAsyncLifetime
 {
     public TenancyAdministrationFixture Administration { get; } = new();
+    public ProductionHostFixture Http { get; } = new();
 
     public async Task InitializeAsync()
     {
@@ -225,5 +304,73 @@ public sealed class IdentityOwnNavigationFixture : IAsyncLifetime
             configure?.Invoke(services);
         });
 
-    public Task DisposeAsync() => Administration.DisposeAsync();
+    internal async Task<string> TenantNameAsync()
+    {
+        await using var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(Administration.AppConnectionString);
+        await SchemaQueries.AssertApplicationRoleAsync(app);
+        await using var transaction = await app.BeginTransactionAsync();
+        await ScopeAsync(app, transaction, SchemaFixture.TenantA);
+        return await ScalarAsync<string>(app, transaction, "SELECT display_name FROM public.tenants WHERE id=@tenant", ("tenant", SchemaFixture.TenantA));
+    }
+
+    internal async Task SeedPageAsync(Guid[] organizations, string label)
+    {
+        await using var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(Administration.AppConnectionString);
+        await SchemaQueries.AssertApplicationRoleAsync(app);
+        await using var transaction = await app.BeginTransactionAsync();
+        await ScopeAsync(app, transaction, SchemaFixture.TenantA);
+        await ExecuteAsync(app, transaction, "UPDATE public.tenants SET display_name=@label WHERE id=@tenant",
+            ("label", label), ("tenant", SchemaFixture.TenantA));
+        await ExecuteAsync(app, transaction, """
+            INSERT INTO public.platform_host_to_tenant(host,tenant_id,organization_id,is_active,is_publicly_live)
+            VALUES(@host,@tenant,NULL,true,false)
+            """, ("host", OwnNavigationWireProof.LongHost(SchemaFixture.TenantA)), ("tenant", SchemaFixture.TenantA));
+        foreach (var id in organizations)
+        {
+            await ScopeAsync(app, transaction, SchemaFixture.TenantA, id);
+            await ExecuteAsync(app, transaction, """
+                INSERT INTO public.organizations(id,tenant_id,slug,display_name,status,created_at,created_by,row_version)
+                VALUES(@id,@tenant,@slug,@label,'Active',clock_timestamp(),@actor,0);
+                INSERT INTO public.platform_host_to_tenant(host,tenant_id,organization_id,is_active,is_publicly_live)
+                VALUES(@host,@tenant,@id,true,false)
+                """, ("id", id), ("tenant", SchemaFixture.TenantA), ("slug", "page-budget-" + id.ToString("N")),
+                ("label", label), ("actor", AdminA), ("host", OwnNavigationWireProof.LongHost(id)));
+        }
+        await transaction.CommitAsync();
+    }
+
+    internal async Task SetPageLabelsAsync(Guid[] organizations, string label)
+    {
+        await using var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(Administration.AppConnectionString);
+        await SchemaQueries.AssertApplicationRoleAsync(app);
+        await using var transaction = await app.BeginTransactionAsync();
+        await ScopeAsync(app, transaction, SchemaFixture.TenantA);
+        await ExecuteAsync(app, transaction, """
+            UPDATE public.tenants SET display_name=@label WHERE id=@tenant;
+            UPDATE public.organizations SET display_name=@label WHERE tenant_id=@tenant AND id=ANY(@ids)
+            """, ("label", label), ("tenant", SchemaFixture.TenantA), ("ids", organizations));
+        await transaction.CommitAsync();
+    }
+
+    internal async Task ClearPageAsync(Guid[] organizations, string originalName)
+    {
+        await using var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(Administration.AppConnectionString);
+        await SchemaQueries.AssertApplicationRoleAsync(app);
+        await using var transaction = await app.BeginTransactionAsync();
+        await ScopeAsync(app, transaction, SchemaFixture.TenantA);
+        await LockAsync(app, transaction, SchemaFixture.TenantA, null, exclusive: true);
+        await ExecuteAsync(app, transaction, """
+            DELETE FROM public.platform_host_to_tenant WHERE tenant_id=@tenant AND (organization_id=ANY(@ids) OR host=@host);
+            DELETE FROM public.organizations WHERE tenant_id=@tenant AND id=ANY(@ids);
+            UPDATE public.tenants SET display_name=@label WHERE id=@tenant
+            """, ("tenant", SchemaFixture.TenantA), ("ids", organizations),
+                ("host", OwnNavigationWireProof.LongHost(SchemaFixture.TenantA)), ("label", originalName));
+        await transaction.CommitAsync();
+    }
+
+    public async Task DisposeAsync()
+    {
+        await Http.DisposeAsync();
+        await Administration.DisposeAsync();
+    }
 }
