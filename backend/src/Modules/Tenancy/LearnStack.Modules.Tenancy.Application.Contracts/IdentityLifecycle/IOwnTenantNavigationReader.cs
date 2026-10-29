@@ -1,3 +1,4 @@
+using LearnStack.SharedKernel.DataProtection;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Pagination;
 using LearnStack.SharedKernel.Permissions;
@@ -17,7 +18,10 @@ public interface IOwnTenantNavigationReader
 }
 
 public sealed record OwnTenantNavigationItem(TenantId TenantId, OrganizationId? OrganizationId,
-    string TenantName, string? OrganizationName, string EntryHost);
+    [property: PiiSensitive] string TenantName, [property: PiiSensitive] string? OrganizationName, string EntryHost)
+{
+    public override string ToString() => nameof(OwnTenantNavigationItem);
+}
 
 /// <summary>Injected Identity-owned current-fact provider, not a caller-supplied permission or navigation selector.</summary>
 public interface IOwnTenantNavigationCoverage

@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 2,205 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 2,241 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -179,7 +179,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 6 — Durable protected outcomes and receipt disclosure (2026-10-29)](#p03-3-step-6--durable-protected-outcomes-and-receipt-disclosure-2026-10-29) — 83 lines
   - [P03-3 Step 6 review round 1 and permission-matrix correction (2026-10-29)](#p03-3-step-6-review-round-1-and-permission-matrix-correction-2026-10-29) — 26 lines
   - [P03-3 Step 6 review round 2 and closeout (2026-10-29)](#p03-3-step-6-review-round-2-and-closeout-2026-10-29) — 34 lines
-  - [P03-3 Step 7 — Closed administration HTTP and generated SDK (2026-10-29)](#p03-3-step-7--closed-administration-http-and-generated-sdk-2026-10-29) — 83 lines
+  - [P03-3 Step 7 — Closed administration HTTP and generated SDK (2026-10-29)](#p03-3-step-7--closed-administration-http-and-generated-sdk-2026-10-29) — 84 lines
+  - [P03-3 Step 7 review round 1 and own-navigation diagnostics correction (2026-10-29)](#p03-3-step-7-review-round-1-and-own-navigation-diagnostics-correction-2026-10-29) — 35 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -7928,3 +7929,39 @@ and real provider/native HTTPS; Step 9 retains screens, snapshot admission, brow
 history/no-script/localization/manual accessibility. Step 10 retains complete
 discovered zero-skip suites, public demo, final-source hosted A/B, final reviews
 and PR. No selected work moves to another phase; development remains the branch.
+
+
+### P03-3 Step 7 review round 1 and own-navigation diagnostics correction (2026-10-29)
+
+Three fresh independent reviewers inspect `cc79ccab..d8d63ca9` through
+authority/audit/isolation, storage/replay/lifetime and HTTP/SDK/privacy/quality
+lenses. The authority and storage reviewers approve without actionable findings.
+The quality reviewer approves with one verified Minor diagnostic-carrier finding.
+All reviewers inspect source and targeted positive/negative controls read-only;
+they run no tests and do not present Root's executions as independent proof.
+
+`OwnMembershipContextDto` and `OwnTenantNavigationItem` synthesize record
+ToString output containing own Tenant/Organization IDs, labels and entry host.
+The association is PII-Identity excluded from diagnostics under ADR-0078 and the
+Data Protection inventory. No production logging path emitting these records is
+found, so this is a latent carrier weakness rather than observed live leakage.
+Both records now use the established fixed ToString convention; label properties
+match the HTTP carrier's PiiSensitive classification. Attributes alone are not
+logging redaction or anonymisation. The typed authorized navigation data remains.
+
+**Verification.** Two neutral-name formatting canaries first fail on both original
+records, then both pass after the fix. The corrected complete solution builds
+with zero warnings/errors; eight real PostgreSQL/navigation/API cases, nine
+served/closed-schema Contract cases and the exact navigation architecture control
+pass with zero skips. Fragment/roadmap/index and whitespace checks pass.
+
+Before this correction, the committed implementation also passes its post-hook
+complete build, 3,426 Unit cases, nine Contract cases and all 56 affected
+Architecture cases in a single passing run; the implementation record owns the
+other local populations and unsuccessful attempts. Steps 8/9 retain their selected
+provider/native/browser/manual proofs; Step 10 retains complete final-source and
+hosted A/B qualification.
+
+This normal correction commit closes the verified R1 finding. A second fresh
+independent review round follows it before Step 7 closes or Step 8 implementation
+starts. No runtime authority, transport or schema policy changes in this fix.

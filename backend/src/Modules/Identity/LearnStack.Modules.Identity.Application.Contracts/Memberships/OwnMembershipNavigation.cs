@@ -1,3 +1,4 @@
+using LearnStack.SharedKernel.DataProtection;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Pagination;
 using LearnStack.SharedKernel.Results;
@@ -13,7 +14,10 @@ public sealed record GetOwnMembershipContextsQuery(string? Cursor = null, int Li
 
 /// <summary>Own navigation only. The API independently converts the verified host to an admitted origin.</summary>
 public sealed record OwnMembershipContextDto(TenantId TenantId, OrganizationId? OrganizationId,
-    string TenantName, string? OrganizationName, string EntryHost);
+    [property: PiiSensitive] string TenantName, [property: PiiSensitive] string? OrganizationName, string EntryHost)
+{
+    public override string ToString() => nameof(OwnMembershipContextDto);
+}
 
 public sealed record GetOwnCapabilitiesQuery() : IRequest<Result<OwnCapabilitiesDto>>;
 
