@@ -91,17 +91,43 @@ public sealed class IdentityFoundationConventionTests
     [Fact]
     public void Identity_Membership_Invariants_Use_Fresh_Ordered_Locks()
     {
-        string[] admitted =
+        string[] identityWriters =
         [
             "LearnStack.Modules.Identity.Application.Roles.RoleGrantCommandHandlerBase.ExecuteAsync",
             "LearnStack.Modules.Identity.Application.Seeding.InitializeSeedRoleCommandHandler.Handle",
             "LearnStack.Modules.Identity.Application.Seeding.SeedMembershipCreation.CreateAsync",
             "LearnStack.Modules.Identity.Application.Seeding.SetSeedMembershipProfileCommandHandler.Handle",
         ];
+        // Each complete writer acquires one plan. The content guards own their
+        // exact twelve consumers separately in SeedContinuationConventionTests;
+        // this whole-production census admits only these named acquisition sites.
+        string[] acquisitions =
+        [
+            .. identityWriters,
+            "LearnStack.Modules.Customization.Application.Seeding.SeedCustomizationWriteGuard.PrepareAsync",
+            "LearnStack.Modules.Education.Application.Seeding.SeedEducationWriteGuard.PrepareAsync",
+            "LearnStack.Modules.Tenancy.Application.Seeding.SeedTenantWriteGuard.AdmitAsync",
+            "LearnStack.Modules.Tenancy.Application.Seeding.AdoptSeedAdministrationOriginCommandHandler.Handle",
+        ];
+        // A retained-plan check is not another acquisition: the guards, bounded
+        // reader and two separately confined source/witness pairs must recheck it.
+        string[] rechecks =
+        [
+            .. identityWriters,
+            "LearnStack.Modules.Customization.Application.Seeding.SeedCustomizationWriteGuard.IsCurrent",
+            "LearnStack.Modules.Education.Application.Seeding.SeedEducationWriteGuard.IsCurrent",
+            "LearnStack.Modules.Tenancy.Application.Seeding.SeedTenantWriteGuard.RequireCurrent",
+            "LearnStack.Modules.Tenancy.Application.Seeding.AdoptSeedAdministrationOriginCommandHandler.Handle",
+            "LearnStack.Modules.Identity.Infrastructure.Persistence.SeedIdentityStageReader.HasNoRoleHistoryAsync",
+            "LearnStack.Tools.Seeder.FixedSeedPrerequisiteSource.Capture",
+            "LearnStack.Tools.Seeder.FixedSeedCompletionSource.Capture",
+            "LearnStack.SharedKernel.Permissions.SeedPrerequisiteReadWitness.RequireCurrent",
+            "LearnStack.SharedKernel.Permissions.SeedCompletionReadWitness.RequireCurrent",
+        ];
         Callers(typeof(IIdentityMutationLocks).FullName!, nameof(IIdentityMutationLocks.AcquireAsync))
-            .Should().BeEquivalentTo(admitted);
+            .Should().BeEquivalentTo(acquisitions);
         Callers(typeof(IIdentityMutationLocks).FullName!, nameof(IIdentityMutationLocks.RequireCurrent))
-            .Should().BeEquivalentTo(admitted);
+            .Should().BeEquivalentTo(rechecks);
         Callers(typeof(DatabaseFacade).FullName!, "set_AutoSavepointsEnabled").Should().Equal(ContextualSaveOwners,
             "only the closed whole-graph adapter may suspend automatic savepoints, with finally restoration and full rollback on failure");
         var root = SourceScan.SourceRoot;

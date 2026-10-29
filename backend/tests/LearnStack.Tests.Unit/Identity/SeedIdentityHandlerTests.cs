@@ -48,13 +48,15 @@ public sealed class SeedIdentityHandlerTests
             .Returns(_ => { events.Add("lock"); return Task.CompletedTask; });
         fixture.Locks.When(locks => locks.RequireCurrent(Arg.Any<IdentityMutationLockPlan>()))
             .Do(_ => events.Add("receipt"));
+        fixture.Continuation.VerifyAsync(Arg.Any<object>(), Arg.Any<IdentityMutationLockPlan>(), Arg.Any<CancellationToken>())
+            .Returns(_ => { events.Add("verify"); return true; });
         fixture.Memberships.AddAsync(Arg.Any<Membership>(), Arg.Any<CancellationToken>())
             .Returns(_ => { events.Add("write"); return Task.CompletedTask; });
         fixture.Memberships.ValidateGraphAsync(Arg.Any<CancellationToken>())
             .Returns(_ => { events.Add("graph"); return Task.CompletedTask; });
         var result = await fixture.FirstAdmin().Handle(FirstAdminCommand(), CancellationToken.None);
         result.IsSuccess.Should().BeTrue();
-        events.Should().Equal("lock", "receipt", "write", "graph");
+        events.Should().Equal("lock", "verify", "receipt", "write", "graph");
         await fixture.Roles.Received(2).ReadAsync(RoleId.From(RoleGuid), Arg.Any<CancellationToken>());
         await fixture.Locks.Received(1).AcquireAsync(Arg.Is<IdentityMutationLockPlan>(plan =>
             plan.UserIds.Length == 1 && plan.UserIds[0] == User && plan.TenantMode == IdentityTenantLockMode.Exclusive),
@@ -78,35 +80,36 @@ public sealed class SeedIdentityHandlerTests
     }
 
     [Fact]
-    public async Task Learner_plan_is_shared_and_still_fences_its_actual_target_user()
+    public async Task Learner_seed_plan_is_exclusive_and_fences_its_actual_target_user()
     {
         var fixture = new Fixture();
         fixture.Roles.ReadAsync(RoleId.From(RoleGuid), Arg.Any<CancellationToken>()).Returns(RoleFor(BuiltInRoleKey.Learner));
         var handler = new CreateSeedMembershipCommandHandler(fixture.Memberships, fixture.Roles, fixture.Context,
-            fixture.Admission, fixture.Lifecycle, fixture.Locks, fixture.Clock);
+            fixture.Admission, fixture.Lifecycle, fixture.Locks, fixture.Clock, fixture.Continuation);
         var result = await handler.Handle(new CreateSeedMembershipCommand(Member, User, RoleGuid, PermissionScope.Tenant,
             1, MembershipFingerprint()), CancellationToken.None);
         result.IsSuccess.Should().BeTrue();
         await fixture.Locks.Received(1).AcquireAsync(Arg.Is<IdentityMutationLockPlan>(plan =>
-            plan.UserIds.Length == 1 && plan.UserIds[0] == User && plan.TenantMode == IdentityTenantLockMode.Shared),
+            plan.UserIds.Length == 1 && plan.UserIds[0] == User && plan.TenantMode == IdentityTenantLockMode.Exclusive),
             Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task Profile_change_uses_shared_tenant_without_a_user_fence_and_cannot_repair_an_edited_profile()
+    public async Task Profile_seed_uses_user_then_exclusive_tenant_and_cannot_repair_an_edited_profile()
     {
         var fixture = new Fixture();
         var member = Membership.Create(MembershipId.From(Member), Tenant, null, User,
-            RoleFor(BuiltInRoleKey.Learner), At, User).Value!;
+            RoleFor(BuiltInRoleKey.Learner), At, UserId.SystemActor).Value!;
+        fixture.Roles.ReadAsync(RoleId.From(RoleGuid), Arg.Any<CancellationToken>()).Returns(RoleFor(BuiltInRoleKey.Learner));
         fixture.Memberships.FindAsync(MembershipId.From(Member), Arg.Any<CancellationToken>()).Returns(member);
         var handler = new SetSeedMembershipProfileCommandHandler(fixture.Memberships, fixture.Context,
-            fixture.Admission, fixture.Lifecycle, fixture.Locks, fixture.Clock);
+            fixture.Admission, fixture.Lifecycle, fixture.Locks, fixture.Clock, fixture.Roles, fixture.Continuation);
         var command = new SetSeedMembershipProfileCommand(Member, User, RoleGuid, PermissionScope.Tenant, "Contextual Name", "en", 1,
             IdentityFoundationManifest.Version1.ProfileFingerprint(Tenant, null, Member, "Contextual Name", "en"));
         var result = await handler.Handle(command, CancellationToken.None);
         result.IsSuccess.Should().BeTrue();
         await fixture.Locks.Received(1).AcquireAsync(Arg.Is<IdentityMutationLockPlan>(plan =>
-            plan.UserIds.IsEmpty && plan.TenantMode == IdentityTenantLockMode.Shared), Arg.Any<CancellationToken>());
+            plan.UserIds.Length == 1 && plan.UserIds[0] == User && plan.TenantMode == IdentityTenantLockMode.Exclusive), Arg.Any<CancellationToken>());
         member.Profile.DisplayName.Should().Be("Contextual Name");
         member.SetProfile("Operator edit", "en", At.AddMinutes(2), User).IsSuccess.Should().BeTrue();
         fixture.Locks.ClearReceivedCalls();
@@ -137,18 +140,19 @@ public sealed class SeedIdentityHandlerTests
     {
         var fixture = new Fixture();
         var role = RoleFor(BuiltInRoleKey.Learner);
-        var original = Membership.Create(MembershipId.From(Member), Tenant, null, User, role, At, User).Value!;
+        fixture.Roles.ReadAsync(RoleId.From(RoleGuid), Arg.Any<CancellationToken>()).Returns(role);
+        var original = Membership.Create(MembershipId.From(Member), Tenant, null, User, role, At, UserId.SystemActor).Value!;
         var driftedRole = wrongUser ? role : Role.Create(RoleId.From(Guid.CreateVersion7()), Tenant,
             BuiltInRoleKey.Learner, PermissionScope.Tenant, At, User).Value!;
         var drifted = Membership.Create(original.Id, Tenant, null,
-            wrongUser ? UserId.From(Guid.CreateVersion7()) : User, driftedRole, At, User).Value!;
+            wrongUser ? UserId.From(Guid.CreateVersion7()) : User, driftedRole, At, UserId.SystemActor).Value!;
         fixture.Memberships.FindAsync(original.Id, Arg.Any<CancellationToken>())
             .Returns(afterWait ? original : drifted, drifted);
         var command = new SetSeedMembershipProfileCommand(Member, User, RoleGuid, PermissionScope.Tenant,
             "Contextual Name", "en", 1, IdentityFoundationManifest.Version1.ProfileFingerprint(
                 Tenant, null, Member, "Contextual Name", "en"));
         var handler = new SetSeedMembershipProfileCommandHandler(fixture.Memberships, fixture.Context,
-            fixture.Admission, fixture.Lifecycle, fixture.Locks, fixture.Clock);
+            fixture.Admission, fixture.Lifecycle, fixture.Locks, fixture.Clock, fixture.Roles, fixture.Continuation);
         (await handler.Handle(command, CancellationToken.None)).IsFailure.Should().BeTrue();
         await fixture.Memberships.DidNotReceiveWithAnyArgs().UpdateAsync(null!);
         await fixture.Memberships.DidNotReceiveWithAnyArgs().ValidateGraphAsync();
@@ -201,7 +205,7 @@ public sealed class SeedIdentityHandlerTests
         Tenant, null, Member, User, RoleGuid);
     private static CreateFirstSeedAdminMembershipCommand FirstAdminCommand() => new(Member, User, RoleGuid, 1, MembershipFingerprint());
     private static Role RoleFor(BuiltInRoleKey key) => Role.Create(RoleId.From(RoleGuid), Tenant, key,
-        PermissionScope.Tenant, At, User).Value!;
+        PermissionScope.Tenant, At, UserId.SystemActor).Value!;
 
     private sealed class Fixture
     {
@@ -214,6 +218,7 @@ public sealed class SeedIdentityHandlerTests
             Lifecycle.ReadAsync(Tenant, null, Arg.Any<CancellationToken>())
                 .Returns(new IdentityScopeLifecycle(true, true, false, false));
             Clock.UtcNow.Returns(At.AddMinutes(1));
+            Continuation.VerifyAsync(Arg.Any<object>(), Arg.Any<IdentityMutationLockPlan>(), Arg.Any<CancellationToken>()).Returns(true);
         }
         internal IMembershipWriteStore Memberships { get; } = Substitute.For<IMembershipWriteStore>();
         internal IRoleReadStore Roles { get; } = Substitute.For<IRoleReadStore>();
@@ -222,7 +227,8 @@ public sealed class SeedIdentityHandlerTests
         internal IIdentityScopeLifecycleReader Lifecycle { get; } = Substitute.For<IIdentityScopeLifecycleReader>();
         internal IIdentityMutationLocks Locks { get; } = Substitute.For<IIdentityMutationLocks>();
         internal IClock Clock { get; } = Substitute.For<IClock>();
+        internal IFixedSeedPrerequisiteVerifier Continuation { get; } = Substitute.For<IFixedSeedPrerequisiteVerifier>();
         internal CreateFirstSeedAdminMembershipCommandHandler FirstAdmin() => new(Memberships, Roles, Context, Admission,
-            Lifecycle, Locks, Clock);
+            Lifecycle, Locks, Clock, Continuation);
     }
 }

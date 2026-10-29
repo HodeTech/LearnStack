@@ -41,21 +41,39 @@ public sealed class IdentityOperationAuthorizer(Func<IIdentityAuthorizationReade
         if (policy.Kind is OperationPolicyKind.AccountRead or OperationPolicyKind.NativeSessionAdmission)
             return ForDecision(invocation, candidate, ProtectedOperationOutcome.Allowed,
                 members.Select(member => member.MembershipId), members.SelectMany(member => member.Roles).Select(role => role.RoleId).Distinct());
-        var permission = policy.RequiredPermission!;
-        if (!permission.IsActive || !catalog.TryGetDefinition(permission.Scope, permission.Key, out var registration)
-            || !registration.Assignable || !registration.Definition.IsActive || registration.Definition != permission
-            || policy.RequiresOrglessWrite && candidate.OrganizationId is not null)
+        if (policy.RequiresOrglessWrite && candidate.OrganizationId is not null
+            || policy.RequiresOrganization && candidate.OrganizationId is null)
             return ForDecision(invocation, candidate, ProtectedOperationOutcome.Forbidden);
-        var contributing = members.SelectMany(member => member.Roles
-            .Where(role => role.Scope == permission.Scope
-                && (permission.Scope == PermissionScope.Tenant ? member.OrganizationId is null
-                    : candidate.OrganizationId is not null && member.OrganizationId == candidate.OrganizationId)
-                && role.Grants.Any(grant => grant.IsActive && grant == permission))
-            .Select(role => (Member: member.MembershipId, Role: role.RoleId))).ToArray();
-        return contributing.Length == 0
-            ? ForDecision(invocation, candidate, ProtectedOperationOutcome.Forbidden)
-            : ForDecision(invocation, candidate, ProtectedOperationOutcome.Allowed,
-                contributing.Select(value => value.Member).Distinct(), contributing.Select(value => value.Role).Distinct());
+        foreach (var clause in policy.Alternatives)
+        {
+            var contributors = new List<(Guid Member, Guid Role)>();
+            var satisfied = true;
+            foreach (var permission in clause.RequiredPermissions)
+            {
+                if (!permission.IsActive || !catalog.TryGetDefinition(permission.Scope, permission.Key, out var registration)
+                    || !registration.Assignable || !registration.Definition.IsActive || registration.Definition != permission)
+                {
+                    satisfied = false;
+                    break;
+                }
+                var contributing = members.SelectMany(member => member.Roles
+                    .Where(role => role.Scope == permission.Scope
+                        && (permission.Scope == PermissionScope.Tenant ? member.OrganizationId is null
+                            : candidate.OrganizationId is not null && member.OrganizationId == candidate.OrganizationId)
+                        && role.Grants.Any(grant => grant.IsActive && grant == permission))
+                    .Select(role => (Member: member.MembershipId, Role: role.RoleId))).ToArray();
+                if (contributing.Length == 0)
+                {
+                    satisfied = false;
+                    break;
+                }
+                contributors.AddRange(contributing);
+            }
+            if (satisfied)
+                return ForDecision(invocation, candidate, ProtectedOperationOutcome.Allowed,
+                    contributors.Select(value => value.Member).Distinct(), contributors.Select(value => value.Role).Distinct(), clause);
+        }
+        return ForDecision(invocation, candidate, ProtectedOperationOutcome.Forbidden);
     }
 
     private bool Matches(OperationInvocation invocation, OperationPolicy policy, AuthorizationCandidate candidate) =>

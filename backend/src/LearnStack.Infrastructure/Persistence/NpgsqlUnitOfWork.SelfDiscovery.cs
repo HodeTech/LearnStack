@@ -18,9 +18,10 @@ public sealed partial class NpgsqlUnitOfWork
     public async Task<IUnitOfWorkScope> BeginSelfDiscoveryTransactionAsync(OwnMembershipScopeWitness witness,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(witness);
         JobApplicationSourceOwner.RefuseExternalEntry();
         ObjectDisposedException.ThrowIf(_disposed, this);
+        RequireWriteAllowed();
+        ArgumentNullException.ThrowIfNull(witness);
         if (HasActiveTransaction || IsGlobalIdentityTransaction || _selfDiscoveryWitness is not null
             || _openingSelfDiscovery || _jobSourceOwner is not null || JobApplicationSourceOwner.Current is not null
             || !witness.TryBindTo(this))

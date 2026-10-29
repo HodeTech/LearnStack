@@ -8,12 +8,13 @@ public enum ProtectedOperationOutcome { Unavailable = 0, NotCovered = 1, Forbidd
 public sealed class ProtectedOperationDecision
 {
     private ProtectedOperationDecision(OperationInvocation invocation, ProtectedOperationOutcome outcome,
-        ImmutableArray<Guid> membershipIds, ImmutableArray<Guid> roleIds, OperationReadWitness? readWitness)
+        ImmutableArray<Guid> membershipIds, ImmutableArray<Guid> roleIds, OperationPolicyClause? matchedClause, OperationReadWitness? readWitness)
     {
         Invocation = invocation;
         Outcome = outcome;
         MembershipIds = membershipIds;
         RoleIds = roleIds;
+        MatchedClause = matchedClause;
         ReadWitness = readWitness;
     }
 
@@ -21,6 +22,7 @@ public sealed class ProtectedOperationDecision
     public ProtectedOperationOutcome Outcome { get; }
     public ImmutableArray<Guid> MembershipIds { get; }
     public ImmutableArray<Guid> RoleIds { get; }
+    public OperationPolicyClause? MatchedClause { get; }
     public OperationReadWitness? ReadWitness { get; }
     public bool IsActive => Invocation.IsActive;
     public override string ToString() => nameof(ProtectedOperationDecision);
@@ -30,7 +32,8 @@ public sealed class ProtectedOperationDecision
 #pragma warning restore CA1034
     {
         protected static ProtectedOperationDecision ForDecision(OperationInvocation invocation, AuthorizationCandidate candidate,
-            ProtectedOperationOutcome outcome, IEnumerable<Guid>? membershipIds = null, IEnumerable<Guid>? roleIds = null)
+            ProtectedOperationOutcome outcome, IEnumerable<Guid>? membershipIds = null, IEnumerable<Guid>? roleIds = null,
+            OperationPolicyClause? matchedClause = null)
         {
             ArgumentNullException.ThrowIfNull(invocation);
             ArgumentNullException.ThrowIfNull(candidate);
@@ -42,9 +45,17 @@ public sealed class ProtectedOperationDecision
             var roles = Snapshot(roleIds, 8);
             if (outcome == ProtectedOperationOutcome.Allowed && (!invocation.IsActive || !candidate.IsActive || members.IsEmpty))
                 throw new InvalidOperationException("Protected operation admission has no active membership witness.");
-            var read = outcome == ProtectedOperationOutcome.Allowed && invocation.Policy.ReadScope == OperationReadScope.Tenant
-                ? ForTenantRead(invocation, candidate) : null;
-            return new(invocation, outcome, members, roles, read);
+            if (outcome == ProtectedOperationOutcome.Allowed && invocation.Policy.Kind == OperationPolicyKind.Protected)
+            {
+                matchedClause ??= invocation.Policy.Alternatives.Length == 1 ? invocation.Policy.Alternatives[0] : null;
+                if (matchedClause is null || !invocation.Policy.Alternatives.Any(clause => ReferenceEquals(clause, matchedClause)))
+                    throw new ArgumentException("Protected operation admission has no matching policy clause.");
+            }
+            else if (matchedClause is not null)
+                throw new ArgumentException("Protected operation clause is incompatible with its outcome.");
+            var read = matchedClause?.ReadScope == OperationReadScope.Tenant
+                ? ForTenantRead(invocation, candidate, matchedClause) : null;
+            return new(invocation, outcome, members, roles, matchedClause, read);
         }
 
         private static ImmutableArray<Guid> Snapshot(IEnumerable<Guid>? values, int maximum)

@@ -88,7 +88,7 @@ public sealed class IdentityReadDiagnosticSinkTests(IdentityMembershipFixture fi
             await SchemaQueries.AssertApplicationRoleAsync((NpgsqlConnection)unit.Connection);
             await using var db = CreateContext(unit, sinks.Loggers, witness);
             await db.Database.UseTransactionAsync(unit.Transaction);
-            failure = await Record.ExceptionAsync(() => ReadPortAsync(db, new ContextualIdentityStorageControl(db, unit), port));
+            failure = await Record.ExceptionAsync(() => ReadPortAsync(db, new ContextualIdentityStorageControl(db, unit), unit, port));
             witness.Failure.Should().BeOfType<PostgresException>();
             var providerFailure = (PostgresException)witness.Failure!;
             providerFailure.SqlState.Should().Be(sqlState);
@@ -138,11 +138,11 @@ public sealed class IdentityReadDiagnosticSinkTests(IdentityMembershipFixture fi
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
         var cancelled = await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            ReadPortAsync(db, control, "role-read", cancellation.Token));
+            ReadPortAsync(db, control, unit, "role-read", cancellation.Token));
         cancelled.CancellationToken.Should().Be(cancellation.Token);
         witness.Commands.Should().Be(0);
         await db.DisposeAsync();
-        await Assert.ThrowsAsync<ObjectDisposedException>(() => ReadPortAsync(db, control, "role-read"));
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => ReadPortAsync(db, control, unit, "role-read"));
         witness.Commands.Should().Be(0);
     }
 
@@ -152,7 +152,7 @@ public sealed class IdentityReadDiagnosticSinkTests(IdentityMembershipFixture fi
         new StaticTenantContextAccessor(new SeedTenantContext(TenantId.From(SchemaFixture.TenantA), null)),
         EmptyIdentityScope.Instance);
 
-    private static async Task<object?> ReadPortAsync(IdentityDbContext db, ContextualIdentityStorageControl control,
+    private static async Task<object?> ReadPortAsync(IdentityDbContext db, ContextualIdentityStorageControl control, NpgsqlUnitOfWork unit,
         string port, CancellationToken cancellationToken = default)
     {
         var role = IdentityRoleId.From(RoleId(SchemaFixture.TenantA, BuiltInRoleKey.Learner, PermissionScope.Tenant));
@@ -164,8 +164,8 @@ public sealed class IdentityReadDiagnosticSinkTests(IdentityMembershipFixture fi
             "membership-find" => await new MembershipWriteStore(db, control).FindAsync(member, cancellationToken),
             "membership-history" => await new MembershipWriteStore(db, control).HasMembershipHistoryAsync(cancellationToken),
             "role-read" => await new RoleReadStore(db).ReadAsync(role, cancellationToken),
-            "seed-role" => await new SeedStateReader(db).ReadRoleAsync(role, cancellationToken),
-            "seed-membership" => await new SeedStateReader(db).ReadMembershipAsync(member, cancellationToken),
+            "seed-role" => await new SeedStateReader(db, unit).ReadRoleAsync(role, cancellationToken),
+            "seed-membership" => await new SeedStateReader(db, unit).ReadMembershipAsync(member, cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(port)),
         };
     }
@@ -177,7 +177,7 @@ public sealed class IdentityReadDiagnosticSinkTests(IdentityMembershipFixture fi
         await unit.SetProvisioningTenantContextAsync(TenantId.From(SchemaFixture.TenantA));
         await using var db = CreateContext(unit, loggers);
         await db.Database.UseTransactionAsync(unit.Transaction);
-        var value = await ReadPortAsync(db, new ContextualIdentityStorageControl(db, unit), port);
+        var value = await ReadPortAsync(db, new ContextualIdentityStorageControl(db, unit), unit, port);
         if (port.EndsWith("history", StringComparison.Ordinal)) value.Should().Be(true);
         else value.Should().NotBeNull();
         await frame.CompleteAsync();

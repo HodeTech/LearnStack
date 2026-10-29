@@ -1,15 +1,13 @@
-using System.Collections.Immutable;
 using System.Data.Common;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Identity.Application.Abstractions;
-using LearnStack.Modules.Identity.Application.Contracts.Seeding;
 using LearnStack.Modules.Identity.Domain;
-using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Errors;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql;
+using NpgsqlTypes;
 
 namespace LearnStack.Modules.Identity.Infrastructure.Persistence;
 
@@ -63,8 +61,59 @@ public sealed class ContextualIdentityStorageControl(IdentityDbContext db, IUnit
         }
     }
 
+    internal Task LockRoleAsync(RoleId roleId, CancellationToken cancellationToken) =>
+        LockRootAsync(roleId.Value, membership: false, cancellationToken);
+
+    internal Task LockMembershipAsync(MembershipId membershipId, CancellationToken cancellationToken) =>
+        LockRootAsync(membershipId.Value, membership: true, cancellationToken);
+
+    private async Task LockRootAsync(Guid id, bool membership, CancellationToken cancellationToken)
+    {
+        if (unit is IUnitOfWorkWriteGuard writeGuard) writeGuard.RequireWriteAllowed();
+        EnrollCurrentTenantOwner(db, unit);
+        if (_validated || unit.Mode != TransactionMode.ReadWrite)
+            throw new InvalidOperationException("Identity root locking requires its writable tenant owner.");
+        try
+        {
+            await using var command = new NpgsqlCommand(membership ? """
+                SELECT public.fn_identity_assert_tenant_fence(@tenant,false);
+                SELECT id FROM public.memberships
+                WHERE tenant_id=@tenant AND id=@id AND organization_id IS NOT DISTINCT FROM @organization
+                FOR NO KEY UPDATE;
+                """ : """
+                SELECT public.fn_identity_assert_tenant_fence(@tenant,false);
+                SELECT id FROM public.roles WHERE tenant_id=@tenant AND id=@id FOR NO KEY UPDATE;
+                """, (NpgsqlConnection)unit.Connection, (NpgsqlTransaction)unit.Transaction!)
+            { CommandTimeout = 10 };
+            command.Parameters.AddWithValue("tenant", db.CurrentTenantId.Value);
+            command.Parameters.AddWithValue("id", id);
+            if (membership)
+                command.Parameters.AddWithValue("organization", NpgsqlDbType.Uuid,
+                    db.CurrentOrganizationId is { } organization ? organization.Value : DBNull.Value);
+            // This statement supplies only retained exclusion. Materialize the
+            // complete graph with a separate READ COMMITTED statement afterward.
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+        catch (PostgresException failure) when (IsOwned(failure))
+        {
+            unit.MarkRollbackOnly();
+            throw Translate(failure);
+        }
+        catch (Exception failure) when (failure is DbException or TimeoutException)
+        {
+            unit.MarkRollbackOnly();
+            throw new IdentityStorageProviderException();
+        }
+        catch
+        {
+            unit.MarkRollbackOnly();
+            throw;
+        }
+    }
+
     public async Task SaveAsync(CancellationToken cancellationToken)
     {
+        if (unit is IUnitOfWorkWriteGuard writeGuard) writeGuard.RequireWriteAllowed();
         if (_validated) throw new InvalidOperationException("An Identity graph cannot change after validation.");
         // The common owner must roll back this complete aggregate act on every
         // failure. A private EF subtransaction supplies no recoverable boundary
@@ -113,6 +162,7 @@ public sealed class ContextualIdentityStorageControl(IdentityDbContext db, IUnit
 
     public async Task ValidateGraphAsync(CancellationToken cancellationToken)
     {
+        if (unit is IUnitOfWorkWriteGuard writeGuard) writeGuard.RequireWriteAllowed();
         if (_validated || !unit.HasActiveTransaction || unit.Mode != TransactionMode.ReadWrite
             || !unit.IsTenantContextIssuedOn(unit.Transaction))
             throw new InvalidOperationException("Identity graph validation requires its active tenant owner.");
@@ -168,6 +218,8 @@ public sealed class ContextualIdentityStorageControl(IdentityDbContext db, IUnit
 
 public sealed class RoleWriteStore(IdentityDbContext db, ContextualIdentityStorageControl control) : IRoleWriteStore
 {
+    public Task LockAsync(RoleId roleId, CancellationToken cancellationToken = default) => control.LockRoleAsync(roleId, cancellationToken);
+
     public async Task<Role?> FindAsync(RoleId roleId, CancellationToken cancellationToken = default)
     {
         control.PrepareFreshRead();
@@ -205,6 +257,9 @@ public sealed class RoleWriteStore(IdentityDbContext db, ContextualIdentityStora
 
 public sealed class MembershipWriteStore(IdentityDbContext db, ContextualIdentityStorageControl control) : IMembershipWriteStore
 {
+    public Task LockAsync(MembershipId membershipId, CancellationToken cancellationToken = default) =>
+        control.LockMembershipAsync(membershipId, cancellationToken);
+
     public async Task<Membership?> FindAsync(MembershipId membershipId, CancellationToken cancellationToken = default)
     {
         control.PrepareFreshRead();
@@ -224,29 +279,6 @@ public sealed class MembershipWriteStore(IdentityDbContext db, ContextualIdentit
     {
         WriteStoreTracking.EnsureTracked(db, aggregate);
         return control.SaveAsync(cancellationToken);
-    }
-}
-
-public sealed class SeedStateReader(IdentityDbContext db) : ISeedStateReader
-{
-    public async Task<RoleSeedDto?> ReadRoleAsync(RoleId roleId, CancellationToken cancellationToken = default)
-    {
-        var role = await ContextualIdentityStorageControl.ReadAsync(() => db.Roles.AsNoTracking().Include(role => role.Grants)
-            .SingleOrDefaultAsync(role => role.Id == roleId, cancellationToken));
-        return role is null ? null : new(role.Id.Value, role.TenantId, role.BuiltInKey, role.PermissionScope,
-            role.Version, role.DeletedAt, role.DeletedBy,
-            role.Grants.Select(grant => new PermissionDefinition(grant.PermissionScope, grant.PermissionKey)).ToImmutableArray());
-    }
-
-    public async Task<MembershipSeedDto?> ReadMembershipAsync(MembershipId membershipId, CancellationToken cancellationToken = default)
-    {
-        var member = await ContextualIdentityStorageControl.ReadAsync(() => db.Memberships.AsNoTracking()
-            .Include(member => member.Profile).Include(member => member.RoleAssignments)
-            .SingleOrDefaultAsync(member => member.Id == membershipId, cancellationToken));
-        return member is null ? null : new(member.Id.Value, member.TenantId, member.OrganizationId, member.UserId,
-            member.Status.ToString(), member.Version, member.DeletedAt, member.DeletedBy,
-            member.Profile.DisplayName, member.Profile.PreferredLocale,
-            member.RoleAssignments.Select(assignment => assignment.RoleId.Value).ToImmutableArray());
     }
 }
 

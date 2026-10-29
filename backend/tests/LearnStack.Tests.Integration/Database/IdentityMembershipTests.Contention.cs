@@ -71,7 +71,8 @@ public sealed partial class IdentityMembershipTests
             var admission = new FoundationProofAdmission(new SeedIdentityFoundationAct(SeedIdentityFoundationOperation.SetProfile, tenant, null,
                 UserId.SystemActor, LearnerMembershipA, UserId.From(PersonA), role, null, PermissionScope.Tenant, 1, fingerprint));
             var handler = new SetSeedMembershipProfileCommandHandler(store, context, admission,
-                new IdentityScopeLifecycleReader(unit), locks, new SystemClock());
+                new IdentityScopeLifecycleReader(unit), locks, new SystemClock(), new RoleReadStore(db),
+                new ContentionSeedContinuation());
             handled = handler.Handle(command, CancellationToken.None);
             pending = handled;
         }
@@ -129,6 +130,13 @@ public sealed partial class IdentityMembershipTests
             ValueTask.FromResult(permitted.Contains(act));
         public ValueTask<bool> AllowsAsync(GlobalIdentitySubject subject, UserId declaredActor, CancellationToken cancellationToken = default) =>
             ValueTask.FromResult(false);
+    }
+
+    // This fixture isolates actual row-lock contention; fixed declaration admission is covered by Seeder tests.
+    private sealed class ContentionSeedContinuation : IFixedSeedPrerequisiteVerifier
+    {
+        public Task<bool> VerifyAsync(object request, IdentityMutationLockPlan plan, CancellationToken cancellationToken = default) =>
+            Task.FromResult(true);
     }
 
     private sealed class FoundationProofContext(TenantId tenant) : ITenantContext

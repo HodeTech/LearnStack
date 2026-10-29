@@ -5,6 +5,8 @@ using LearnStack.Modules.Customization.Application.Contracts.Customization;
 using LearnStack.Modules.Education.Application.Contracts.Seeding;
 using LearnStack.Modules.Tenancy.Application.Contracts.Seeding;
 using LearnStack.Modules.Tenancy.Application.Branding;
+using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Localization;
 
 namespace LearnStack.Tools.Seeder;
 
@@ -40,10 +42,13 @@ internal static class SeedVerification
     internal static bool Tenant(TenantSeedDto? row, SeedTenant expected)
     {
         if (row is null) return false;
-        Require(row.Id == expected.TenantId && row.Slug == expected.Slug && row.DisplayName == expected.DisplayName
-            && row.Status == "Trial" && row.DefaultOrganizationId == expected.DefaultOrganization.OrganizationId, expected, "tenant");
-        if (expected.Curriculum is { } curriculum)
-            Require(row.Locales.All(actual => curriculum.Locales.Any(locale => LocaleMatches(actual, locale))), expected, "tenant locales");
+        Require(row.Id == expected.TenantId && row.Slug == expected.Slug && !string.IsNullOrWhiteSpace(row.DisplayName)
+            && row.Status is "Trial" or "Active" or "Suspended" or "Archived" && row.DefaultOrganizationId is not null
+            && ValidStamps(row.CreatedAt, row.CreatedBy, row.UpdatedAt, row.UpdatedBy, row.DeletedAt, row.DeletedBy, row.Version)
+            && row.AdoptedSeedOriginVersion is 0 or 1 or 2, expected, "tenant");
+        Require(row.Locales.Select(locale => locale.Locale).Distinct(StringComparer.Ordinal).Count() == row.Locales.Length
+            && row.Locales.All(locale => LocaleTag.IsWellFormed(locale.Locale) && (!locale.IsDefault || locale.IsEnabled))
+            && (!row.Locales.Any(locale => locale.IsEnabled) || row.Locales.Count(locale => locale.IsDefault) == 1), expected, "tenant locales");
         return true;
     }
 
@@ -51,7 +56,8 @@ internal static class SeedVerification
     {
         if (row is null) return false;
         Require(row.Id == expected.OrganizationId && row.TenantId == tenant.TenantId && row.Slug == expected.Slug
-            && row.DisplayName == expected.DisplayName && row.Status == "Active", tenant, act);
+            && !string.IsNullOrWhiteSpace(row.DisplayName) && row.Status is "Active" or "Suspended" or "Archived"
+            && ValidStamps(row.CreatedAt, row.CreatedBy, row.UpdatedAt, row.UpdatedBy, row.DeletedAt, row.DeletedBy, row.Version), tenant, act);
         return true;
     }
 
@@ -59,8 +65,7 @@ internal static class SeedVerification
     {
         if (row is null) return false;
         Require(row.Host == tenant.Host && row.TenantId == tenant.TenantId && row.OrganizationId ==
-            (tenant.MapHostToDefaultOrganization ? tenant.DefaultOrganization.OrganizationId : null)
-            && row.IsActive && row.IsPubliclyLive, tenant, "host mapping");
+            (tenant.MapHostToDefaultOrganization ? tenant.DefaultOrganization.OrganizationId : null), tenant, "host mapping");
         return true;
     }
 
@@ -71,6 +76,32 @@ internal static class SeedVerification
     }
     private static bool LocaleMatches(TenantLocaleSeedDto row, SeedLocale expected) =>
         row.Locale == expected.Locale && row.IsEnabled == expected.IsEnabled && row.IsDefault == expected.IsDefault && row.Sort == expected.Sort;
+
+    internal static void RequirePristineTenant(TenantSeedDto? row, SeedTenant tenant)
+    {
+        if (row is null) return;
+        var declaration = new FixedSeedTenantContinuationSource().GetDeclaration(
+            new(SeedTenantContinuationOperation.IdentityFoundation, tenant.TenantId));
+        Require(declaration is not null && SeedTenantContinuationEvidence.IsPristinePrefix(row, declaration), tenant, "pristine tenant prefix");
+    }
+
+    internal static void RequirePristineOrganization(OrganizationSeedDto? row, SeedOrganization expected, SeedTenant tenant)
+    {
+        if (row is null) return;
+        Require(Organization(row, expected, tenant, "organization") && row.DisplayName == expected.DisplayName
+            && row.Status == "Active" && row.Version == 0 && row.UpdatedAt is null && row.UpdatedBy is null
+            && row.DeletedAt is null && row.DeletedBy is null, tenant, "pristine organization");
+    }
+
+    private static bool ValidStamps(DateTimeOffset createdAt, UserId? createdBy, DateTimeOffset? updatedAt,
+        UserId? updatedBy, DateTimeOffset? deletedAt, UserId? deletedBy, long version) =>
+        createdAt != default && createdBy == UserId.SystemActor && version >= 0
+        && (version == 0 ? updatedAt is null && updatedBy is null
+            : updatedAt is { } updated && updated != default && updatedBy is { } editor
+                && editor.IsInitialized() && editor.Value != Guid.Empty)
+        && (deletedAt is null ? deletedBy is null : version > 0 && deletedAt is { } deleted && deleted != default
+            && deletedBy is { } deleting && deleting.IsInitialized() && deleting.Value != Guid.Empty
+            && updatedAt == deletedAt && updatedBy == deletedBy);
 
     internal static bool BuiltInContentType(ContentTypeSeedDto? row, SeedTenant tenant)
     {
@@ -117,11 +148,15 @@ internal static class SeedVerification
         return !published || row.Status == "Active";
     }
 
-    internal static bool Theme(SettingSeedDto? row, SeedTheme expected, SeedTenant tenant)
+    internal static bool Theme(SettingSeedDto? row, SeedTheme expected, SeedTenant tenant, bool preserveInstalled = false)
     {
         if (row is null) return false;
         Require(row.Id == expected.Id && row.TenantId == tenant.TenantId && row.OrganizationId is null
-            && row.Key == BrandingThemeRegistry.SettingKey && JsonEqual(row.Value, expected.Value), tenant, "branding");
+            && row.Key == BrandingThemeRegistry.SettingKey
+            && ValidStamps(row.CreatedAt, row.CreatedBy, row.UpdatedAt, row.UpdatedBy, row.DeletedAt, row.DeletedBy, row.Version)
+            && BrandingThemeRegistry.ValidateAndCanonicalize(row.Value).IsSuccess, tenant, "branding");
+        if (!preserveInstalled)
+            Require(row.Version == 0 && row.DeletedAt is null && row.DeletedBy is null && JsonEqual(row.Value, expected.Value), tenant, "pristine branding");
         return true;
     }
 

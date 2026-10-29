@@ -1,6 +1,12 @@
 using LearnStack.Infrastructure.Jobs;
 using LearnStack.Modules.Customization.Infrastructure;
 using LearnStack.Modules.Customization.Application.Contracts.Definitions;
+using LearnStack.Modules.Customization.Application.Contracts.Seeding;
+using LearnStack.Modules.Customization.Application.Seeding;
+using LearnStack.Modules.Education.Application.Contracts.Seeding;
+using LearnStack.Modules.Education.Application.Seeding;
+using LearnStack.Modules.Identity.Application.Contracts.Seeding;
+using LearnStack.Modules.Identity.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Application.Contracts.Locales;
 using LearnStack.Modules.Education.Application.Audit;
 using LearnStack.Infrastructure.Audit;
@@ -329,6 +335,15 @@ public static class PersistenceCompositionExtensions
         services.TryAddScoped<ITenantExistenceReader, TenantExistenceReader>();
         services.TryAddScoped<IOrganizationWriteStore, OrganizationWriteStore>();
         services.TryAddScoped<IPlatformHostMappingStore, PlatformHostMappingStore>();
+        services.TryAddSingleton<LearnStack.Modules.Tenancy.Application.Contracts.Seeding.ISeedTenantContinuationSource,
+            LearnStack.Modules.Tenancy.Application.Contracts.Seeding.DenyAllSeedTenantContinuationSource>();
+        services.TryAddScoped<LearnStack.Modules.Tenancy.Application.Seeding.SeedTenantWriteGuard>();
+        services.Replace(ServiceDescriptor.Scoped<LearnStack.Modules.Tenancy.Application.Contracts.Seeding.ISeedTenantContinuationGuard>(provider =>
+            provider.GetRequiredService<LearnStack.Modules.Tenancy.Application.Seeding.SeedTenantWriteGuard>()));
+        services.TryAddSingleton<LearnStack.Modules.Tenancy.Application.Contracts.Seeding.ISeedAdministrationOriginAdmission,
+            LearnStack.Modules.Tenancy.Application.Contracts.Seeding.DenyAllSeedAdministrationOriginAdmission>();
+        services.TryAddSingleton<LearnStack.Modules.Tenancy.Application.Contracts.Seeding.IFixedSeedOriginCompletionVerifier,
+            LearnStack.Modules.Tenancy.Application.Contracts.Seeding.DenyAllFixedSeedOriginCompletionVerifier>();
 
         // The same for Customization's two roots, plus the generation counter — which
         // is a port of its own precisely because it is NOT an aggregate: it derives
@@ -337,6 +352,15 @@ public static class PersistenceCompositionExtensions
         services.TryAddScoped<ITenantContentTypeStore, TenantContentTypeStore>();
         services.TryAddScoped<ITenantLevelTaxonomyStore, TenantLevelTaxonomyStore>();
         services.TryAddScoped<ICustomizationGenerationStore, CustomizationGenerationStore>();
+        services.TryAddSingleton<ISeedCustomizationContinuationSource, DenyAllSeedCustomizationContinuationSource>();
+        services.TryAddSingleton<ISeedEducationContinuationSource, DenyAllSeedEducationContinuationSource>();
+        services.TryAddScoped<ISeedCustomizationState, SeedCustomizationState>();
+        services.TryAddScoped<LearnStack.Modules.Education.Application.Abstractions.ISeedEducationState, SeedEducationState>();
+        services.TryAddScoped<ISeedIdentityStageReader, SeedIdentityStageReader>();
+        services.TryAddScoped<SeedCustomizationWriteGuard>();
+        services.TryAddScoped<ISeedCustomizationWriteGuard>(provider => provider.GetRequiredService<SeedCustomizationWriteGuard>());
+        services.TryAddScoped<ISeedCustomizationPrerequisiteReader>(provider => provider.GetRequiredService<SeedCustomizationWriteGuard>());
+        services.TryAddScoped<ISeedEducationWriteGuard, SeedEducationWriteGuard>();
 
         // And the catalogue an `x-taxonomy` resolves through, which is a read and
         // therefore not the write store: a content-type handler holding that store

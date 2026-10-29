@@ -214,8 +214,20 @@ public sealed class EducationWriterTests(SchemaFixture schema, ConstructionOnlyA
         _evidence = evidence;
         var context = await ProvisionAsync(source);
         var foreign = await ProvisionAsync(source);
-        var tenant = (await SendAsync(source, context, new GetTenantSeedStateQuery())).Value!.State!;
-        (await SendAsync(source, context, new AddTenantLocaleCommand(tenant.Version, "fr", false, false, 1))).IsSuccess.Should().BeTrue();
+        // Incidental disabled-locale setup; this case exercises Education's
+        // locale refusal, not the fixed Tenancy seed writer's admission.
+        await using (var app = await source.OpenConnectionAsync())
+        await using (var transaction = await app.BeginTransactionAsync())
+        {
+            await SchemaQueries.AssertApplicationRoleAsync(app, transaction);
+            await IdentityMembershipFixture.ScopeAsync(app, transaction, context.TenantId.Value);
+            await IdentityMembershipFixture.LockAsync(app, transaction, context.TenantId.Value, null, false);
+            await IdentityMembershipFixture.ExecuteAsync(app, transaction, """
+                INSERT INTO public.tenant_locales(tenant_id,locale,is_default,is_enabled,sort)
+                    VALUES(@tenant,'fr',false,false,1)
+                """, ("tenant", context.TenantId.Value));
+            await transaction.CommitAsync();
+        }
         var first = await CourseAsync(source, context, "first");
         var second = await CourseAsync(source, context, "second");
         var before = await CourseStateAsync(source, context, first.Id);
@@ -484,17 +496,13 @@ public sealed class EducationWriterTests(SchemaFixture schema, ConstructionOnlyA
             OperationPolicy.ForTrusted<RegisterTenantContentTypeCommand>("tests.component.education.register_tenant_content_type", AuthorizationSourceKind.Seed),
             OperationPolicy.ForTrusted<RegisterTenantLevelTaxonomyCommand>("tests.component.education.register_tenant_level_taxonomy", AuthorizationSourceKind.Seed));
 
-    private async Task<Context> ProvisionAsync(NpgsqlDataSource source)
+    private static async Task<Context> ProvisionAsync(NpgsqlDataSource source)
     {
         var tenant = TenantId.From(Guid.CreateVersion7());
         var first = OrganizationId.From(Guid.CreateVersion7());
         var second = OrganizationId.From(Guid.CreateVersion7());
-        (await SendAsync(source, null, new ProvisionTenantCommand(tenant, "writer-" + tenant.Value.ToString("N"), "Writer", first, "first", "First"))).IsSuccess.Should().BeTrue();
-        var context = new Context(tenant, first, second);
-        (await SendAsync(source, context, new CreateOrganizationCommand(second, "second", "Second"))).IsSuccess.Should().BeTrue();
-        var state = (await SendAsync(source, context, new GetTenantSeedStateQuery())).Value!.State!;
-        (await SendAsync(source, context, new AddTenantLocaleCommand(state.Version, "en", true, true, 0))).IsSuccess.Should().BeTrue();
-        return context;
+        await ContentComponentFixture.CreateTenantAsync(source, tenant, first, second, englishLocale: true);
+        return new(tenant, first, second);
     }
 
     private async Task TypeAsync(NpgsqlDataSource source, Context context, int version, string json)

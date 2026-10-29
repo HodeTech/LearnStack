@@ -41,7 +41,7 @@ public sealed class P02d2FoundationTests(SchemaFixture schema)
         // Isolate this writer proof from the shared fixture's exact audit row counts.
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using var dataSource = NpgsqlDataSource.Create(database.AppConnectionString);
-        await using var provider = SeedComposition.Build(dataSource, new Context(SchemaFixture.TenantA), NullLoggerFactory.Instance);
+        await using var provider = ContentComponentFixture.CreateCustomizationProvider(dataSource, new Context(SchemaFixture.TenantA));
         await using var scope = provider.CreateAsyncScope();
         var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
         await using var frame = await unit.BeginTransactionAsync();

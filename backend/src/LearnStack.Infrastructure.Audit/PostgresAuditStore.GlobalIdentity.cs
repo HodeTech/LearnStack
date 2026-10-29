@@ -13,6 +13,7 @@ public sealed partial class PostgresAuditStore
         GlobalIdentityCreationReference creation, CancellationToken cancellationToken = default)
     {
         JobApplicationSourceOwner.RefuseExternalEntry();
+        if (unitOfWork is IUnitOfWorkWriteGuard writeGuard) writeGuard.RequireWriteAllowed();
         ArgumentNullException.ThrowIfNull(creation);
         creation.RequireLive(unitOfWork);
         if (!_capture.HasOpenFrame || _capture.Intents.Count != 1

@@ -69,6 +69,7 @@ function seedFixture(root: string) {
   for (const file of [
     'seed.sh',
     'seed.mjs',
+    'seed-admin-origins.mjs',
     'connection-string.awk',
     'compose.mjs',
     'demo-database.mjs',
@@ -565,6 +566,7 @@ const seed = args.length === 1 && args[0] === join(${JSON.stringify(root)}, 'bac
 const forbidden = Object.keys(process.env).filter(key => /keycloak|outbox|migration|platform|debug/i.test(key));
 if ((!build && !seed) || process.cwd() !== ${JSON.stringify(join(root, 'backend'))} || forbidden.length || process.env.HOME !== '/seed-home' || !process.env.PATH || (build ? process.env.ConnectionStrings__Default !== undefined : process.env.ConnectionStrings__Default !== 'Username=learnstack_app')) process.exit(13);
 appendFileSync(${JSON.stringify(join(root, 'events'))}, (build ? 'build' : 'appseed') + '\\n');
+if (seed) process.stdout.write('seed-result: {"version":2,"freshTenantIds":[],"qualifiedOriginTenantIds":[]}\\n');
 `,
       { mode: 0o700 },
     );

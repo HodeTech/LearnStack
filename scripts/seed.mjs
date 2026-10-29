@@ -9,6 +9,7 @@ import { RealmError, realmFailureNotice, refuse } from './development-realm-erro
 import { readRealmEnvironmentFile, realmEnvironment, seedAuthorityEnvironment, validateLocalDockerContext } from './development-realm-owner.mjs';
 import { reconcileDevelopmentRealm } from './reconcile-development-realm.mjs';
 import { waitCompose } from './wait-compose.mjs';
+import { seedAdministrationOriginTenantIds, adoptSeedAdministrationOrigins } from './seed-admin-origins.mjs';
 
 const backendRoot = join(repositoryRoot, 'backend');
 const seederDll = join(backendRoot,
@@ -39,7 +40,7 @@ async function selectedConfiguration(selected) {
 }
 
 /** One selected stack and cancellation owner for readiness, application seed and identity. */
-export async function seedDevelopment({ selected, signal }) {
+export async function seedDevelopment({ selected, signal, adoptAdministrationOrigins = false }) {
   const values = await selectedConfiguration(selected);
   const prerequisites = { ...publicSeederEnvironment(), ...composeProcessEnvironment(selected.env) };
   const selectedPrerequisites = { ...prerequisites,
@@ -76,14 +77,16 @@ export async function seedDevelopment({ selected, signal }) {
     await run('dotnet', ['build', 'src/LearnStack.Tools.Seeder', '--configuration', 'Release', '--nologo'], {
       cwd: backendRoot, env: publicSeederEnvironment(), label: 'Release Seeder build', timeout: 180000,
     });
-    await run('dotnet', [seederDll], {
-      cwd: backendRoot, env: developmentSeederRuntimeEnvironment(values), label: 'Application seed', timeout: 180000,
+    const seedOutput = await run('dotnet', [seederDll], {
+      cwd: backendRoot, env: developmentSeederRuntimeEnvironment(values), label: 'Application seed', timeout: 180000, capture: true,
     });
+    const originTenants = seedAdministrationOriginTenantIds(seedOutput);
     const result = await reconcileDevelopmentRealm({ selected, signal, seedIdentityFoundation: true });
     preparationDispatched = result.preparationDispatched === true;
+    await adoptSeedAdministrationOrigins(processes, values, adoptAdministrationOrigins ? 'all' : originTenants, preparationDispatched);
     return result;
   } catch (error) {
-    preparationDispatched = error instanceof RealmError && error.preparationDispatched === true;
+    preparationDispatched ||= error instanceof RealmError && error.preparationDispatched === true;
     throw error;
   } finally {
     try { await processes.dispose(); }
@@ -99,12 +102,13 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const removeCancellation = installDemoCancellation(() => controller.abort());
   try {
     const args = process.argv.slice(2);
-    if (args.length > 1 || (args.length === 1 && args[0] !== '--validate-config'))
+    if (args.length > 1 || (args.length === 1 && !['--validate-config', '--adopt-admin-origins'].includes(args[0])))
       refuse('preflight', 'configuration');
     const selected = composeSelection(process.env.LEARNSTACK_COMPOSE_MODE ?? 'dev');
     if (args[0] === '--validate-config') await selectedConfiguration(selected);
     else {
-      const result = await seedDevelopment({ selected, signal: controller.signal });
+      const result = await seedDevelopment({ selected, signal: controller.signal,
+        adoptAdministrationOrigins: args[0] === '--adopt-admin-origins' });
       console.log(`seed: application data and development realm converged (${result.mutations} realm writes).`);
       console.log('seed: existing credentials are retained; account setup is documented in infra/keycloak/README.md.');
     }

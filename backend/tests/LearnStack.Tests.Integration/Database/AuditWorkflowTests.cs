@@ -6,8 +6,12 @@ using LearnStack.Modules.Customization.Application.Contracts.Seeding;
 using LearnStack.Modules.Customization.Domain;
 using LearnStack.Modules.Customization.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
+using LearnStack.Modules.Tenancy.Application.Abstractions;
+using LearnStack.Modules.Tenancy.Domain;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Identity;
+using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Localization;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Permissions;
@@ -17,6 +21,7 @@ using LearnStack.Tools.Seeder;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Xunit;
@@ -53,8 +58,8 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
     private static readonly Guid Actor = Guid.Parse("dddddddd-0000-7000-8000-00000000a0a0");
     private const string Correlation = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
 
-    // Audit workflows need only provisioning and built-ins, not the demo curriculum.
-    private static readonly SeedTenant Tenant = SeedData.English with { Curriculum = null };
+    // Incidental component setup below creates only the roots these audit cases need.
+    private static readonly SeedTenant Tenant = SeedData.English;
 
     private readonly SchemaFixture _schema;
     private DisposableSchemaDatabase _database = null!; // Initialized by the per-test fixture.
@@ -536,11 +541,13 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
 
     private static async Task SeedAsync(NpgsqlDataSource dataSource)
     {
-        var runner = new SeedRunner(
-            context => SeedComposition.Build(dataSource, context, NullLoggerFactory.Instance),
-            NullLogger<SeedRunner>.Instance);
-
-        (await runner.RunAsync(CancellationToken.None, [Tenant])).Should().Be(0);
+        await ContentComponentFixture.CreateTenantAsync(dataSource, Tenant.TenantId,
+            Tenant.DefaultOrganization.OrganizationId, Tenant.SecondOrganization.OrganizationId);
+        await using var provider = ContentComponentFixture.CreateCustomizationProvider(dataSource, new SeedTenantContext(Tenant.TenantId, null));
+        await using var scope = provider.CreateAsyncScope();
+        var sender = scope.ServiceProvider.GetRequiredService<ISender>();
+        (await sender.Send(new InitializeTenantContentTypeDefaultCommand())).IsSuccess.Should().BeTrue();
+        (await sender.Send(new InitializeTenantLevelTaxonomyDefaultCommand())).IsSuccess.Should().BeTrue();
     }
 
     private static async Task<Guid> BuiltInIdAsync(NpgsqlDataSource source, bool taxonomy)
@@ -569,7 +576,38 @@ public sealed class AuditWorkflowTests : IAsyncLifetime
             OperationPolicy.ForTrusted<MapHostToTenantCommand>("tests.component.audit.map_host", AuthorizationSourceKind.Seed),
             OperationPolicy.ForTrusted<GetActiveContentTypeSeedRevisionQuery>("tests.component.audit.read_content_revision", AuthorizationSourceKind.Seed),
             OperationPolicy.ForTrusted<GetActiveTaxonomySeedRevisionQuery>("tests.component.audit.read_taxonomy_revision", AuthorizationSourceKind.Seed));
+        services.Replace(ServiceDescriptor.Scoped<IRequestHandler<MapHostToTenantCommand, Result<HostMappingDto>>, AuditHostMappingHandler>());
         return services.BuildServiceProvider();
+    }
+
+    // Host key/audit component proof only: the production fixed-seed handler is
+    // deliberately closed to arbitrary hostnames and human-shaped attribution.
+    private sealed class AuditHostMappingHandler(IPlatformHostMappingStore mappings, ITenantContext context,
+        IIdentityMutationLocks locks, IOperationInvocationContext execution, IOperationPolicyCatalog catalog)
+        : IRequestHandler<MapHostToTenantCommand, Result<HostMappingDto>>
+    {
+        public async Task<Result<HostMappingDto>> Handle(MapHostToTenantCommand request, CancellationToken cancellationToken)
+        {
+            RequireCurrent(request);
+            var plan = new IdentityMutationLockPlan([], context.TenantId, IdentityTenantLockMode.Exclusive);
+            await locks.AcquireAsync(plan, cancellationToken);
+            RequireCurrent(request);
+            locks.RequireCurrent(plan);
+            var mapping = PlatformHostMapping.Create(request.Host, context.TenantId, request.OrganizationId, request.IsActive, request.IsPubliclyLive);
+            await mappings.AddAsync(mapping, cancellationToken);
+            return Result.Ok(new HostMappingDto(mapping.Host, mapping.TenantId, mapping.OrganizationId, mapping.IsActive, mapping.IsPubliclyLive));
+        }
+
+        private void RequireCurrent(MapHostToTenantCommand request)
+        {
+            if (execution.CurrentInvocation is not { IsActive: true, EntryKind: OperationEntryKind.Application } invocation
+                || !ReferenceEquals(invocation.Operation, request) || !ReferenceEquals(invocation.Context, context)
+                || !catalog.TryGet(request.GetType(), out var policy) || !ReferenceEquals(invocation.Policy, policy)
+                || policy.Id != "tests.component.audit.map_host" || policy.Kind != OperationPolicyKind.FiniteTrusted
+                || invocation.TrustedSource is not { SourceKind: AuthorizationSourceKind.Seed } source
+                || !source.Matches(request.GetType(), context) || !context.IsResolved)
+                throw new InvalidOperationException("Host audit fixture requires its exact component invocation.");
+        }
     }
 
     /// <summary>

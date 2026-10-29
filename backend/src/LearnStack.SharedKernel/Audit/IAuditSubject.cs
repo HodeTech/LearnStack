@@ -44,4 +44,14 @@ public interface IAuditSubject
     /// </remarks>
     void Designate<TId>(IAggregateRoot<TId> aggregate)
         where TId : struct, IStronglyTypedId<Guid>;
+
+    /// <summary>Names an actual natural-keyed projection without fabricating a tracked change.</summary>
+    void DesignateProjection(IAuditProjectionSubject projection) =>
+        throw new InvalidOperationException("This audit owner has no projection designation support.");
+}
+
+/// <summary>A projection's own stable key; designation supplies attribution, never write authority.</summary>
+public interface IAuditProjectionSubject
+{
+    string AuditProjectionKey { get; }
 }

@@ -209,11 +209,10 @@ public sealed class CustomizationPublicationConcurrencyTests(SchemaFixture schem
             OperationPolicy.ForTrusted<GetTaxonomySeedStateQuery>("tests.component.publication.get_taxonomy_seed_state", AuthorizationSourceKind.Seed),
             OperationPolicy.ForTrusted<ProvisionTenantCommand>("tests.component.publication.provision_tenant", AuthorizationSourceKind.Seed));
 
-    private async Task<SeedTenantContext> ProvisionAsync(NpgsqlDataSource source)
+    private static async Task<SeedTenantContext> ProvisionAsync(NpgsqlDataSource source)
     {
         var tenant = TenantId.From(Guid.CreateVersion7());
-        (await SendAsync(source, null, new ProvisionTenantCommand(tenant, "publication-proof", "Publication proof",
-            OrganizationId.From(Guid.CreateVersion7()), "main", "Main"))).IsSuccess.Should().BeTrue();
+        await ContentComponentFixture.CreateTenantAsync(source, tenant);
         return new(tenant, null);
     }
     private async Task<Result<T>> SendAsync<T>(NpgsqlDataSource source, ITenantContext? context, IRequest<Result<T>> command)

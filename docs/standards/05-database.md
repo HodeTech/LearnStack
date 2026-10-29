@@ -5256,6 +5256,14 @@ business/audit writes. Narrow ordinary query announcements remain allowed.
 `SeedVerification.Tenant` accepts retained 0/1/2 before the ordinary
 `SeedRunner` content-complete check, so `make seed` can preserve an already
 adopted installation and reach the same write-free runner shortcut.
+The successful content/Identity process emits a bounded version-2 selection
+result: newly created Tenant IDs and observed marker-2 Tenant IDs, each from the
+fixed two-Tenant population. The seed/demo wrapper passes their distinct union
+to the fixed origin runner. This ephemeral result selects work; it grants no
+completion authority. The runner freshly validates the actual marker/mapping.
+Thus a warm marker-2 repeat with a missing or disabled management mapping refuses
+instead of skipping verification. Retained marker 0/1 installations remain
+unselected unless the operator explicitly invokes the upgrade.
 
 The mapping remains a projection outside ADR-0042's aggregate count; Tenant is
 the only aggregate root changed. Fresh seed invokes the same qualified act after

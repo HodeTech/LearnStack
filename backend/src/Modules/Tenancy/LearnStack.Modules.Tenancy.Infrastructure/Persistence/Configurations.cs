@@ -22,6 +22,7 @@ internal sealed class TenantConfiguration : IEntityTypeConfiguration<Tenant>
         builder.Property(x => x.Slug).HasMaxLength(63).IsRequired();
         builder.Property(x => x.DisplayName).HasMaxLength(200).IsRequired();
         builder.Property(x => x.Status).HasEnumAsText().IsRequired();
+        builder.Property(x => x.AdoptedSeedOriginVersion).HasDefaultValue(0).IsRequired();
 
         builder.Property(x => x.DefaultOrganizationId)
             .HasConversion<OrganizationId.EfCoreValueConverter, OrganizationId.EfCoreValueComparer>();
@@ -36,7 +37,7 @@ internal sealed class TenantConfiguration : IEntityTypeConfiguration<Tenant>
         builder.DeclarePersonalData(PersonalDataCategory.None,
             "Institution registration, public naming, lifecycle and default branch routing.",
             nameof(Tenant.Id), nameof(Tenant.Slug), nameof(Tenant.DisplayName),
-            nameof(Tenant.Status), nameof(Tenant.DefaultOrganizationId));
+            nameof(Tenant.Status), nameof(Tenant.DefaultOrganizationId), nameof(Tenant.AdoptedSeedOriginVersion));
 
         // The containment the aggregate boundary decides, expressed for EF — and NOT as
         // owned types. An owned mapping looks like the natural way to say "part of the

@@ -24,7 +24,7 @@ public sealed class GetRoleSeedStateQueryHandler(ISeedStateReader reader, ITenan
             null, null, request.BuiltInKey, request.CapabilityScope, request.ManifestVersion, request.ExpectedFingerprint);
         if (!await SeedFoundationGate.AllowsAsync(context, admission, lifecycle, act,
             IdentityFoundationManifest.Version1.RoleFingerprint(context.TenantId, request.RoleId,
-                request.BuiltInKey, request.CapabilityScope), cancellationToken))
+                request.BuiltInKey, request.CapabilityScope), cancellationToken, verification: true))
             return Result<SeedLookup<RoleSeedDto>>.Fail(IdentityFailures.Refused());
         return Result<SeedLookup<RoleSeedDto>>.Ok(new(await reader.ReadRoleAsync(RoleId.From(request.RoleId), cancellationToken)));
     }
@@ -46,7 +46,7 @@ public sealed class GetMembershipSeedStateQueryHandler(ISeedStateReader reader, 
             request.UserId, request.RoleId, null, request.MembershipScope, request.ManifestVersion, request.ExpectedFingerprint);
         if (!await SeedFoundationGate.AllowsAsync(context, admission, lifecycle, act,
             IdentityFoundationManifest.Version1.MembershipFingerprint(context.TenantId, context.OrganizationId,
-                request.MembershipId, request.UserId, request.RoleId), cancellationToken))
+                request.MembershipId, request.UserId, request.RoleId), cancellationToken, verification: true))
             return Result<SeedLookup<MembershipSeedDto>>.Fail(IdentityFailures.Refused());
         return Result<SeedLookup<MembershipSeedDto>>.Ok(new(await reader.ReadMembershipAsync(
             MembershipId.From(request.MembershipId), cancellationToken)));

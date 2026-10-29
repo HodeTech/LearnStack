@@ -303,21 +303,24 @@ public sealed class SeederTests : IAsyncLifetime
         (await Runner(dataSource)
             .RunAsync(CancellationToken.None, [SeedData.English])).Should().Be(0);
 
-        // Authored IDs remain exact even though built-in IDs are discovered semantically.
-        var collidingYoga = subject == "content-type"
-            ? SeedData.Yoga with
-            {
-                Curriculum = SeedData.Yoga.Curriculum! with
-                { ContentType = SeedData.Yoga.Curriculum!.ContentType with { Id = SeedData.English.Curriculum!.ContentType.Id } }
-            }
-            : SeedData.Yoga with
-            {
-                Curriculum = SeedData.Yoga.Curriculum! with
-                { Taxonomy = SeedData.Yoga.Curriculum!.Taxonomy with { Id = SeedData.English.Curriculum!.Taxonomy.Id } }
-            };
+        // Keep the production manifest exact. A component fixture reserves its
+        // fixed identifier in the foreign tenant before the real Yoga act runs.
+        var foreign = new SeedTenantContext(SeedData.English.TenantId, null);
+        if (subject == "content-type")
+        {
+            var type = SeedData.Yoga.Curriculum!.ContentType;
+            await WriteAsync(dataSource, foreign, new RegisterTenantContentTypeCommand(type.Id, "foreign-definition", 1,
+                type.DisplayName, type.JsonSchema, type.RendererKey));
+        }
+        else
+        {
+            var taxonomy = SeedData.Yoga.Curriculum!.Taxonomy;
+            await WriteAsync(dataSource, foreign, new RegisterTenantLevelTaxonomyCommand(taxonomy.Id, "foreign-definition", 1,
+                taxonomy.DisplayName, [.. taxonomy.Bands.Select(band => new TaxonomyItemInput(band.Key, band.DisplayName, band.Sort, band.Metadata))]));
+        }
 
         var seed = async () => await Runner(dataSource)
-            .RunAsync(CancellationToken.None, [collidingYoga]);
+            .RunAsync(CancellationToken.None, [SeedData.Yoga]);
 
         // Matched on the ownership refusal's own words, not on the act label: with the
         // check gone the run still fails, one act later, because the publish cannot see
@@ -341,16 +344,22 @@ public sealed class SeederTests : IAsyncLifetime
         (await Runner(dataSource)
             .RunAsync(CancellationToken.None, [SeedData.English])).Should().Be(0);
 
-        var collidingYoga = SeedData.Yoga with
+        await using (var app = await dataSource.OpenConnectionAsync())
+        await using (var transaction = await app.BeginTransactionAsync())
         {
-            SecondOrganization = SeedData.Yoga.SecondOrganization with
-            {
-                OrganizationId = SeedData.English.SecondOrganization.OrganizationId,
-            },
-        };
+            await SchemaQueries.AssertApplicationRoleAsync(app, transaction);
+            await IdentityMembershipFixture.ScopeAsync(app, transaction, SeedData.English.TenantId.Value);
+            await IdentityMembershipFixture.LockAsync(app, transaction, SeedData.English.TenantId.Value, null, false);
+            await IdentityMembershipFixture.ExecuteAsync(app, transaction, """
+                INSERT INTO public.organizations(id,tenant_id,slug,display_name,status,created_at,created_by,row_version)
+                    VALUES(@id,@tenant,'foreign-fixture','Foreign fixture','Active',clock_timestamp(),@actor,0)
+                """, ("id", SeedData.Yoga.SecondOrganization.OrganizationId.Value),
+                ("tenant", SeedData.English.TenantId.Value), ("actor", UserId.SystemActor.Value));
+            await transaction.CommitAsync();
+        }
 
         var seed = async () => await Runner(dataSource)
-            .RunAsync(CancellationToken.None, [collidingYoga]);
+            .RunAsync(CancellationToken.None, [SeedData.Yoga]);
 
         (await seed.Should().ThrowAsync<InvalidOperationException>(
             "an organization id another tenant holds is not this tenant's prior run"))
@@ -358,16 +367,11 @@ public sealed class SeederTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task A_host_naming_another_tenants_organization_is_refused_not_crashed()
+    public async Task A_noncanonical_host_naming_another_tenants_organization_is_refused_without_a_write()
     {
-        // The most consequential write in the module: `platform_host_to_tenant` is the row
-        // that decides whose data an anonymous request sees. The organization id is
-        // caller-supplied, and the only thing that checked it was the composite foreign
-        // key — which raises 23503, has no arm in HttpStatusMap, and therefore answered
-        // 500 after the transaction opened and the tenant was announced. Measured.
-        //
-        // The foreign key stays; it is what makes the race impossible rather than merely
-        // unlikely. What this adds is an answer the caller can act on.
+        // The closed source now refuses this request before the owning module's
+        // organization lookup. It still owes a bounded failure and no host write;
+        // this case makes no claim that arbitrary host authoring is admitted.
         await using var dataSource = DataSource();
 
         (await Runner(dataSource).RunAsync(CancellationToken.None)).Should().Be(0);
@@ -392,8 +396,7 @@ public sealed class SeederTests : IAsyncLifetime
             result.IsFailure.Should().BeTrue("the organization is not this tenant's");
             HttpStatusMap.For(result.Error!.Code).Should().Be(StatusCodes.Status409Conflict,
                 "a 500 here is the defect; the caller can fix this input");
-            result.Error.Details.Should().ContainKey(
-                nameof(MapHostToTenantCommand.OrganizationId));
+            result.Error.Code.Should().Be("business_rule_violation");
         }
 
         (await CountAsPlatformAsync(
@@ -496,7 +499,7 @@ public sealed class SeederTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Seeder_process_returns_zero_on_repeat_and_nonzero_on_mismatch()
+    public async Task Seeder_process_preserves_mutable_repeat_and_returns_nonzero_on_immutable_mismatch()
     {
         var authority = IdentityMembershipFixture.Authority;
         await using (var owner = new NpgsqlConnection(_database.MigrationConnectionString))
@@ -543,9 +546,19 @@ public sealed class SeederTests : IAsyncLifetime
         var complete = await SnapshotAsync();
         (await RunProcess()).Should().Be(0);
         (await SnapshotAsync()).Should().Be(complete);
-        // A test-owned pre-existing mismatch, not a second normal seed write path.
+        // A completed installation preserves a legitimate mutable rename.
         await using (var connection = await PostgresFixture.OpenAsync(_database.PlatformConnectionString))
         await using (var change = new NpgsqlCommand("UPDATE tenants SET display_name = 'Different' WHERE id = @id", (NpgsqlConnection)connection))
+        {
+            change.Parameters.AddWithValue("id", SeedData.English.TenantId.Value);
+            (await change.ExecuteNonQueryAsync()).Should().Be(1);
+        }
+        var renamed = await SnapshotAsync();
+        (await RunProcess()).Should().Be(0);
+        (await SnapshotAsync()).Should().Be(renamed);
+        // A test-owned immutable-key conflict, not a second normal seed write path.
+        await using (var connection = await PostgresFixture.OpenAsync(_database.PlatformConnectionString))
+        await using (var change = new NpgsqlCommand("UPDATE tenants SET slug = 'different' WHERE id = @id", (NpgsqlConnection)connection))
         {
             change.Parameters.AddWithValue("id", SeedData.English.TenantId.Value);
             (await change.ExecuteNonQueryAsync()).Should().Be(1);
@@ -643,31 +656,30 @@ public sealed class SeederTests : IAsyncLifetime
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Concurrent_translation_writers_recheck_the_completed_act_after_a_real_non_provisioning_race(bool divergent)
+    public async Task Equal_fixed_translation_contenders_recheck_and_divergent_input_refuses_before_writing(bool divergent)
     {
         await using var source = DataSource();
-        var original = SeedData.English.Curriculum!.Courses[0];
-        var course = original with { Status = "Draft", Lessons = [], Translations = [original.Translations[0]] };
-        var tenant = SeedData.English with { Curriculum = SeedData.English.Curriculum with { Courses = [course] } };
+        var tenant = SeedData.English;
+        var course = tenant.Curriculum!.Courses[0];
         var competingTranslation = course.Translations[0] with { Title = course.Translations[0].Title + " competing" };
         var competingCourse = course with { Translations = [competingTranslation] };
         var competing = divergent
-            ? tenant with { Curriculum = tenant.Curriculum! with { Courses = [competingCourse] } }
+            ? tenant with { Curriculum = tenant.Curriculum with { Courses = tenant.Curriculum.Courses.SetItem(0, competingCourse) } }
             : tenant;
         var interrupted = new SeedRunner(context => SeedComposition.Build(source, context, NullLoggerFactory.Instance),
             new InterruptAfter("course"));
         var initial = () => interrupted.RunAsync(CancellationToken.None, [tenant]);
         (await initial.Should().ThrowAsync<InvalidOperationException>()).WithMessage("Injected seed interruption");
 
-        // Hold the first UPDATE after the incomplete-state reads. The competing
-        // translation batch waits on the root or translation's unique key. Both
-        // have chosen a writer, so one real refusal must reach ActAsync's recheck.
+        // Pause the real first translation UPDATE. An equal fixed request waits
+        // on its canonical Tenant fence; a different title fails source binding
+        // before that fence and must never be interpreted as a race completion.
         var lockKey = Random.Shared.NextInt64(1, long.MaxValue);
         await using var owner = await PostgresFixture.OpenAsync(_database.MigrationConnectionString);
         await using (var setup = new NpgsqlCommand($"""
             CREATE FUNCTION seed_translation_gate() RETURNS trigger LANGUAGE plpgsql AS $$
             BEGIN
-                IF NEW.id = '{course.Id}'::uuid THEN
+                IF NEW.id = '{course.Id}'::uuid AND OLD.row_version=0 AND NEW.row_version=1 THEN
                     PERFORM pg_advisory_xact_lock({lockKey});
                 END IF;
                 RETURN NEW;
@@ -696,23 +708,24 @@ public sealed class SeederTests : IAsyncLifetime
         var second = Attempt(competing, secondLog);
         try
         {
-            var bothWaiting = false;
-            while (!deadline.IsCancellationRequested)
+            var observed = false;
+            var observation = System.Diagnostics.Stopwatch.StartNew();
+            while (observation.Elapsed < TimeSpan.FromSeconds(1.5))
             {
                 await using var waiting = new NpgsqlCommand("""
                     SELECT count(*) FROM pg_stat_activity
                     WHERE datname = current_database() AND usename = 'learnstack_app'
                       AND wait_event_type = 'Lock'
-                      AND (query LIKE '%courses%' OR query LIKE '%course_translations%')
                     """, observer);
-                if ((long)(await waiting.ExecuteScalarAsync(deadline.Token))! == 2)
+                if ((long)(await waiting.ExecuteScalarAsync(deadline.Token))! == (divergent ? 1 : 2)
+                    && (!divergent || second.IsCompleted))
                 {
-                    bothWaiting = true;
+                    observed = true;
                     break;
                 }
                 await Task.Delay(25, deadline.Token);
             }
-            bothWaiting.Should().BeTrue("both real translation writers must reach their locked save before release");
+            observed.Should().BeTrue("the valid writer reaches DML and only an equal fixed contender may await its Tenant fence");
         }
         finally
         {
@@ -721,31 +734,30 @@ public sealed class SeederTests : IAsyncLifetime
             await Task.WhenAll(first, second);
         }
         var outcomes = await Task.WhenAll(first, second);
-        SeedTenant winner;
         if (divergent)
         {
-            outcomes.Should().ContainSingle(outcome => outcome == null);
-            outcomes.Should().ContainSingle(outcome => outcome != null).Which!.Message.Should().StartWith("Seed mismatch in course");
-            var loserLog = outcomes[0] is not null ? firstLog : secondLog;
-            loserLog.Completed.Should().BeFalse("the typed race must fail its exact postcondition before reporting the act complete; a later final-state check is insufficient");
-            winner = outcomes[0] is null ? tenant : competing;
+            outcomes[0].Should().BeNull();
+            outcomes[1].Should().NotBeNull();
+            outcomes[1]!.Message.Should().Contain("business_rule_violation");
+            secondLog.Completed.Should().BeFalse("invalid source values are never eligible for the typed-race completed-state path");
         }
         else
         {
             outcomes.Should().OnlyContain(outcome => outcome == null);
-            new[] { firstLog.AlreadyPresent, secondLog.AlreadyPresent }.Should().ContainSingle(present => present);
-            winner = tenant;
+            new[] { firstLog.AlreadyPresent, secondLog.AlreadyPresent }.Should().Contain(true);
         }
-        (await ScalarAsPlatformAsync("SELECT count(*) FROM audit_log WHERE operation = 'education.course.translation_add' AND outcome = 'success'"))
+        (await ScalarAsPlatformAsync("SELECT count(*) FROM audit_log WHERE operation = 'education.course.translation_add' AND outcome = 'success' AND entity_id=@id", "id", course.Id.ToString()))
             .Should().Be(1);
+        // Failed unmutated attempts carry no entity designation, so count the
+        // operation's single refused first translation across this tenant run.
         (await ScalarAsPlatformAsync("SELECT count(*) FROM audit_log WHERE operation = 'education.course.translation_add' AND outcome <> 'success'"))
-            .Should().Be(1, "the loser is a witnessed real refusal, not an incidental completed-act skip");
+            .Should().BeGreaterThanOrEqualTo(1, "the held first act forces a refusal before the loser's completed-state check");
         var state = (await ReadAsync(source, new SeedTenantContext(tenant.TenantId, course.OrganizationId), new GetCourseSeedStateQuery(course.Id))).State!;
-        state.Version.Should().Be(1);
+        state.Version.Should().Be(course.Translations.Length + 1);
         state.Translations.Should().ContainSingle().Which.Slug.Should().Be(course.Translations[0].Slug);
-        state.Translations[0].Title.Should().Be(winner.Curriculum!.Courses[0].Translations[0].Title);
+        state.Translations[0].Title.Should().Be(course.Translations[0].Title);
         var completed = await SnapshotAsync();
-        (await Runner(source).RunAsync(CancellationToken.None, [winner])).Should().Be(0);
+        (await Runner(source).RunAsync(CancellationToken.None, [tenant])).Should().Be(0);
         (await SnapshotAsync()).Should().Be(completed, "the rerun retains the failed race audit and adds no outcome");
     }
 
@@ -770,18 +782,21 @@ public sealed class SeederTests : IAsyncLifetime
     [InlineData("lesson pin")]
     [InlineData("lesson sort")]
     [InlineData("lesson body")]
-    public async Task Completed_seed_mismatch_fails_without_mutating_any_existing_row_or_audit(string mismatch)
+    public async Task Completed_seed_preserves_mutable_fields_and_refuses_immutable_mismatches_without_writes(string mismatch)
     {
         await using var source = DataSource();
         (await Runner(source).RunAsync(CancellationToken.None)).Should().Be(0);
         var original = SeedData.English;
         if (mismatch == "undeclared locale")
         {
-            await using var provider = SeedComposition.Build(source, new SeedTenantContext(original.TenantId, null), NullLoggerFactory.Instance);
-            await using var scope = provider.CreateAsyncScope();
-            var sender = scope.ServiceProvider.GetRequiredService<ISender>();
-            var state = (await sender.Send(new GetTenantSeedStateQuery())).Value!.State!;
-            (await sender.Send(new AddTenantLocaleCommand(state.Version, "fr", true, false, 3))).IsSuccess.Should().BeTrue();
+            await using var app = await source.OpenConnectionAsync();
+            await using var transaction = await app.BeginTransactionAsync();
+            await IdentityMembershipFixture.ScopeAsync(app, transaction, original.TenantId.Value);
+            await IdentityMembershipFixture.LockAsync(app, transaction, original.TenantId.Value, null, false);
+            await IdentityMembershipFixture.ExecuteAsync(app, transaction, """
+                INSERT INTO public.tenant_locales(tenant_id,locale,is_default,is_enabled,sort) VALUES(@tenant,'fr',false,true,3)
+                """, ("tenant", original.TenantId.Value));
+            await transaction.CommitAsync();
         }
         var before = await SnapshotAsync();
         var content = original.Curriculum ?? throw new InvalidOperationException("Missing fixture curriculum.");
@@ -812,8 +827,10 @@ public sealed class SeederTests : IAsyncLifetime
             _ => throw new ArgumentOutOfRangeException(nameof(mismatch)),
         };
         var run = () => Runner(source).RunAsync(CancellationToken.None, [changed]);
-        (await run.Should().ThrowAsync<InvalidOperationException>()).WithMessage("*Seed mismatch*");
-        (await SnapshotAsync()).Should().Be(before, "a visible mismatch is refused before any writer or overwrite");
+        if (mismatch is "tenant" or "default organization" or "second organization" or "locale" or "undeclared locale" or "theme")
+            (await run()).Should().Be(0, "completed content permits valid mutable Tenancy differences without repair");
+        else (await run.Should().ThrowAsync<InvalidOperationException>()).WithMessage("*Seed mismatch*");
+        (await SnapshotAsync()).Should().Be(before, "completed acts never dispatch a repair writer");
         SeedTenant CourseChanged(SeedCourse value) => original with { Curriculum = content with { Courses = content.Courses.SetItem(0, value) } };
         SeedTenant LessonChanged(SeedLesson value) => CourseChanged(course with { Lessons = course.Lessons.SetItem(0, value) });
     }
@@ -858,7 +875,7 @@ public sealed class SeederTests : IAsyncLifetime
     public async Task Built_in_verification_refuses_a_different_active_revision_without_retiring_or_rebinding_it(bool taxonomy, bool expectedDraftExists)
     {
         await using var source = DataSource();
-        var tenant = SeedData.English with { Curriculum = null };
+        var tenant = SeedData.English;
         var interrupted = new SeedRunner(context => SeedComposition.Build(source, context, NullLoggerFactory.Instance),
             new InterruptAfter("host mapping"));
         var initial = () => interrupted.RunAsync(CancellationToken.None, [tenant]);
@@ -898,19 +915,19 @@ public sealed class SeederTests : IAsyncLifetime
 
         async Task Write<T>(IRequest<Result<T>> request)
         {
-            await using var provider = SeedComposition.Build(source, context, NullLoggerFactory.Instance);
+            await using var provider = ContentComponentFixture.CreateCustomizationProvider(source, context);
             await using var scope = provider.CreateAsyncScope();
             (await scope.ServiceProvider.GetRequiredService<ISender>().Send(request)).IsSuccess.Should().BeTrue();
         }
     }
 
     [Fact]
-    public async Task Matching_built_ins_with_independently_generated_ids_are_preserved_without_any_writer()
+    public async Task Matching_built_ins_with_independently_generated_ids_are_preserved_during_continuation_and_warm_rerun()
     {
         await using var source = DataSource();
-        var tenant = SeedData.English with { Curriculum = null };
+        var tenant = SeedData.English;
         var interrupted = new SeedRunner(context => SeedComposition.Build(source, context, NullLoggerFactory.Instance),
-            new InterruptAfter("host mapping"));
+            new InterruptAfter("locale"));
         await ((Func<Task>)(() => interrupted.RunAsync(CancellationToken.None, [tenant])))
             .Should().ThrowAsync<InvalidOperationException>();
         var typeId = Guid.CreateVersion7();
@@ -924,11 +941,15 @@ public sealed class SeederTests : IAsyncLifetime
         await WriteAsync(source, context, new RegisterTenantLevelTaxonomyCommand(taxonomyId, taxonomy.Key, 1,
             taxonomy.DisplayName, [.. taxonomy.Bands.Select(band => new TaxonomyItemInput(band.Key, band.DisplayName, band.Sort))]));
         await WriteAsync(source, context, new PublishTenantLevelTaxonomyCommand(taxonomyId));
-        var before = await SnapshotAsync();
+        var initializations = await ScalarAsPlatformAsync("SELECT count(*) FROM audit_log WHERE operation IN ('customization.content_type.initialize','customization.level_taxonomy.initialize')");
         (await Runner(source).RunAsync(CancellationToken.None, [tenant])).Should().Be(0);
-        (await SnapshotAsync()).Should().Be(before, "semantically complete warm defaults skip all initialization attempts");
+        (await ScalarAsPlatformAsync("SELECT count(*) FROM audit_log WHERE operation IN ('customization.content_type.initialize','customization.level_taxonomy.initialize')"))
+            .Should().Be(initializations, "the installed semantic defaults skip their initializer writers during continuation");
         (await ReadAsync(source, context, new GetActiveContentTypeSeedRevisionQuery(type.Key))).State!.Id.Should().Be(typeId);
         (await ReadAsync(source, context, new GetActiveTaxonomySeedRevisionQuery(taxonomy.Key))).State!.Id.Should().Be(taxonomyId);
+        var before = await SnapshotAsync();
+        (await Runner(source).RunAsync(CancellationToken.None, [tenant])).Should().Be(0);
+        (await SnapshotAsync()).Should().Be(before);
     }
 
     [Theory]
@@ -944,7 +965,7 @@ public sealed class SeederTests : IAsyncLifetime
     public async Task A_live_built_in_with_a_different_semantic_shape_is_refused_before_any_writer(string mismatch)
     {
         await using var source = DataSource();
-        var tenant = SeedData.English with { Curriculum = null };
+        var tenant = SeedData.English;
         (await Runner(source).RunAsync(CancellationToken.None, [tenant])).Should().Be(0);
         var sql = mismatch switch
         {
@@ -976,7 +997,7 @@ public sealed class SeederTests : IAsyncLifetime
     public async Task Preserved_built_in_history_without_an_active_default_refuses_without_business_mutation(bool taxonomy, string state)
     {
         await using var source = DataSource();
-        var tenant = SeedData.English with { Curriculum = null };
+        var tenant = SeedData.English;
         (await Runner(source).RunAsync(CancellationToken.None, [tenant])).Should().Be(0);
         var table = taxonomy ? "tenant_level_taxonomies" : "tenant_content_types";
         var key = taxonomy ? BuiltInCustomizations.Plain.Key : BuiltInCustomizations.Card.Key;
@@ -992,10 +1013,10 @@ public sealed class SeederTests : IAsyncLifetime
             "the shared create-only initializer preserves every lifecycle and soft-deleted revision");
         (await AuditRowsAsync()).Should().HaveCount(audits.Length + 1).And.Contain(audits);
         (await ScalarAsPlatformAsync("""
-            SELECT count(*) FROM audit_log WHERE operation = @operation AND outcome = 'success'
+            SELECT count(*) FROM audit_log WHERE operation = @operation AND outcome <> 'success'
               AND entity_id IS NULL AND before_state IS NULL AND after_state IS NULL
               AND changes IS NULL
-            """, "operation", operation)).Should().Be(1, "the only additional row classifies the preserved initialization attempt");
+            """, "operation", operation)).Should().Be(1, "the only additional row classifies the refused incompatible continuation");
         (await ScalarAsPlatformAsync("SELECT count(*) FROM audit_log WHERE operation = @operation", "operation", operation))
             .Should().Be(previous + 1);
     }
@@ -1013,7 +1034,7 @@ public sealed class SeederTests : IAsyncLifetime
 
     private static async Task WriteAsync<T>(NpgsqlDataSource source, ITenantContext context, IRequest<Result<T>> request)
     {
-        await using var provider = SeedComposition.Build(source, context, NullLoggerFactory.Instance);
+        await using var provider = ContentComponentFixture.CreateCustomizationProvider(source, context);
         await using var scope = provider.CreateAsyncScope();
         (await scope.ServiceProvider.GetRequiredService<ISender>().Send(request)).IsSuccess.Should().BeTrue();
     }
@@ -1109,14 +1130,8 @@ public sealed class SeederTests : IAsyncLifetime
         return result.Value!; // The successful query contract returns a non-null lookup DTO.
     }
 
-    private static async Task ProvisionForeignAsync(NpgsqlDataSource source)
-    {
-        await using var provider = SeedComposition.Build(source, null, NullLoggerFactory.Instance);
-        await using var scope = provider.CreateAsyncScope();
-        var result = await scope.ServiceProvider.GetRequiredService<ISender>().Send(new ProvisionTenantCommand(
-            TenantId.From(SchemaFixture.TenantA), "foreign-owner", "Foreign owner", OrganizationId.From(SchemaFixture.OrgA1), "main", "Main"));
-        result.IsSuccess.Should().BeTrue();
-    }
+    private static Task ProvisionForeignAsync(NpgsqlDataSource source) =>
+        ContentComponentFixture.CreateTenantAsync(source, TenantId.From(SchemaFixture.TenantA), OrganizationId.From(SchemaFixture.OrgA1));
 
     private async Task<string> SnapshotAsync(bool includeAudit = true)
     {

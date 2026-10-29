@@ -1,7 +1,10 @@
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Application.Abstractions;
 using LearnStack.Modules.Tenancy.Domain;
+using LearnStack.SharedKernel.Tenancy;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
+using Npgsql;
 using static LearnStack.Infrastructure.Persistence.WriteStoreTracking;
 using static LearnStack.Modules.Tenancy.Infrastructure.Persistence.TenancyWriteStoreTracking;
 
@@ -47,6 +50,19 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 /// </remarks>
 public sealed class TenantWriteStore(TenancyDbContext db) : ITenantWriteStore
 {
+    public async Task<Tenant?> FindForUpdateAsync(LearnStack.SharedKernel.Identifiers.TenantId id,
+        CancellationToken cancellationToken = default)
+    {
+        PrepareLockedRead(db);
+        if (id != db.CurrentTenantId) throw new InvalidOperationException("Tenant root lock scope is invalid.");
+        await using var command = new NpgsqlCommand("SELECT id FROM public.tenants WHERE id=@id FOR NO KEY UPDATE",
+            (NpgsqlConnection)db.Database.GetDbConnection(), (NpgsqlTransaction)db.Database.CurrentTransaction!.GetDbTransaction())
+        { CommandTimeout = 10 };
+        command.Parameters.AddWithValue("id", id.Value);
+        if (await command.ExecuteScalarAsync(cancellationToken) is null) return null;
+        return await FindAsync(id, cancellationToken);
+    }
+
     public Task<Tenant?> FindAsync(LearnStack.SharedKernel.Identifiers.TenantId id,
         CancellationToken cancellationToken = default) => db.Tenants.AsSingleQuery()
         .Include(tenant => tenant.Locales).Include(tenant => tenant.FeatureFlags)
@@ -68,6 +84,23 @@ public sealed class TenantWriteStore(TenancyDbContext db) : ITenantWriteStore
 /// <summary>One tracked setting root, on the same announced ambient context.</summary>
 public sealed class TenantSettingWriteStore(TenancyDbContext db) : ITenantSettingWriteStore
 {
+    public async Task<TenantSetting?> FindForUpdateAsync(TenantSettingId id, CancellationToken cancellationToken = default)
+    {
+        PrepareLockedRead(db);
+        await using var command = new NpgsqlCommand("""
+            SELECT id FROM public.tenant_settings WHERE tenant_id=@tenant AND id=@id
+                AND organization_id IS NOT DISTINCT FROM @organization FOR NO KEY UPDATE
+            """, (NpgsqlConnection)db.Database.GetDbConnection(),
+            (NpgsqlTransaction)db.Database.CurrentTransaction!.GetDbTransaction())
+        { CommandTimeout = 10 };
+        command.Parameters.AddWithValue("tenant", db.CurrentTenantId.Value);
+        command.Parameters.AddWithValue("id", id.Value);
+        command.Parameters.AddWithValue("organization", NpgsqlTypes.NpgsqlDbType.Uuid,
+            db.CurrentOrganizationId is { } organization ? organization.Value : DBNull.Value);
+        if (await command.ExecuteScalarAsync(cancellationToken) is null) return null;
+        return await FindAsync(id, cancellationToken);
+    }
+
     private static readonly HashSet<string> OwnedConstraints = new(StringComparer.Ordinal)
     {
         "pk_tenant_settings", "ux_tenant_settings_tenant_id_organization_id_key",
@@ -118,6 +151,24 @@ public sealed class OrganizationWriteStore(TenancyDbContext db) : IOrganizationW
 /// </remarks>
 public sealed class PlatformHostMappingStore(TenancyDbContext db) : IPlatformHostMappingStore
 {
+    public async Task<PlatformHostMapping?> FindForUpdateAsync(string host, CancellationToken cancellationToken = default)
+    {
+        if (EffectiveHost.Normalize(host) != host) throw new ArgumentException("Projection host is not canonical.", nameof(host));
+        PrepareLockedRead(db, clearTracked: false);
+        foreach (var entry in db.ChangeTracker.Entries<PlatformHostMapping>().ToArray())
+            entry.State = EntityState.Detached;
+        await using var command = new NpgsqlCommand("""
+            SELECT host FROM public.platform_host_to_tenant WHERE tenant_id=@tenant AND host=@host FOR UPDATE
+            """, (NpgsqlConnection)db.Database.GetDbConnection(),
+            (NpgsqlTransaction)db.Database.CurrentTransaction!.GetDbTransaction())
+        { CommandTimeout = 10 };
+        command.Parameters.AddWithValue("tenant", db.CurrentTenantId.Value);
+        command.Parameters.AddWithValue("host", host);
+        if (await command.ExecuteScalarAsync(cancellationToken) is null) return null;
+        return await db.PlatformHostMappings.SingleOrDefaultAsync(mapping => mapping.Host == host
+            && mapping.TenantId == db.CurrentTenantId, cancellationToken);
+    }
+
     public Task AddAsync(
         PlatformHostMapping mapping, CancellationToken cancellationToken = default)
     {
@@ -136,6 +187,16 @@ public sealed class PlatformHostMappingStore(TenancyDbContext db) : IPlatformHos
 /// </remarks>
 internal static class TenancyWriteStoreTracking
 {
+    internal static void PrepareLockedRead(TenancyDbContext db, bool clearTracked = true)
+    {
+        if (db.Database.CurrentTransaction is null || db.ChangeTracker.Entries().Any(entry =>
+            entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted))
+            throw new InvalidOperationException("A retained Tenancy read needs its clean announced owner.");
+        // Fresh materialization after a wait must not reuse an earlier clean EF instance.
+        // The context guard validates the actual announcement on each SQL command.
+        if (clearTracked) db.ChangeTracker.Clear();
+    }
+
     private static readonly HashSet<string> LocaleConstraints = new(StringComparer.Ordinal)
     {
         "pk_tenant_locales", "ux_tenant_locales_tenant_id_is_default",

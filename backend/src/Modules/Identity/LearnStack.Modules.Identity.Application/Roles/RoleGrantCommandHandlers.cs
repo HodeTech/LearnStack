@@ -51,8 +51,7 @@ public abstract class RoleGrantCommandHandlerBase(IRoleWriteStore store, ITenant
         };
         if (!RoleGrantInput.ValidId(rawId) || version < 0) return Fail("lockey_validation_failed");
         if (request is AdoptRoleGrantManifestCommand manifest
-            && (manifest.ManifestVersion != IdentityFoundationManifest.Version1.Version
-                || manifest.ManifestFingerprint != IdentityFoundationManifest.Version1.Fingerprint)) return Fail("lockey_forbidden");
+            && !IdentityRoleRelease.Version2.IsExact(manifest.ManifestVersion, manifest.ManifestFingerprint)) return Fail("lockey_forbidden");
         if (request is ChangeRoleGrantsCommand { Grants.IsDefault: true }) return Fail("lockey_validation_failed");
         try
         {
@@ -65,6 +64,7 @@ public abstract class RoleGrantCommandHandlerBase(IRoleWriteStore store, ITenant
             if (check.Decision.Outcome != ProtectedOperationOutcome.Allowed) return Refused(gate, check);
             var plan = new IdentityMutationLockPlan([], context.TenantId, RequiredMode(before, desired));
             await locks.AcquireAsync(plan, cancellationToken);
+            await store.LockAsync(id, cancellationToken);
             var target = await store.FindAsync(id, cancellationToken);
             if (!Visible(target)) return Fail("lockey_not_found");
             if (target!.Version != version || target.BuiltInKey != before.BuiltInKey || target.PermissionScope != before.PermissionScope)
@@ -77,7 +77,9 @@ public abstract class RoleGrantCommandHandlerBase(IRoleWriteStore store, ITenant
             locks.RequireCurrent(plan);
             gate.ReportRecheck(check);
             subject.Designate(target);
-            var changed = target.ReplaceGrants(desired, clock.UtcNow, context.UserId!.Value);
+            var changed = request is AdoptRoleGrantManifestCommand adoption
+                ? target.AdoptRelease(adoption.ManifestVersion, adoption.ManifestFingerprint, clock.UtcNow, context.UserId!.Value)
+                : target.ReplaceGrants(desired, clock.UtcNow, context.UserId!.Value);
             if (changed.IsFailure) return Fail("lockey_forbidden");
             if (target.Version != version)
             {
@@ -94,12 +96,14 @@ public abstract class RoleGrantCommandHandlerBase(IRoleWriteStore store, ITenant
     }
 
     private bool Visible(Role? role) => role is { DeletedAt: null, DeletedBy: null } && role.TenantId == context.TenantId
-        && IdentityFoundationManifest.Version1.FindTemplate(role.BuiltInKey, role.PermissionScope) is not null;
+        && IdentityFoundationManifest.Version1.FindTemplate(role.BuiltInKey, role.PermissionScope) is not null
+        && IdentityRoleRelease.Version2.IsValidAdoptionState(role);
 
     private static ImmutableArray<PermissionDefinition> Desired(object request, Role role) => request switch
     {
         ChangeRoleGrantsCommand change => change.Grants,
-        AdoptRoleGrantManifestCommand => IdentityFoundationManifest.Version1.FindTemplate(role.BuiltInKey, role.PermissionScope)!.Grants,
+        AdoptRoleGrantManifestCommand => [.. role.Grants.Select(grant => new PermissionDefinition(grant.PermissionScope, grant.PermissionKey))
+            .Union(IdentityRoleRelease.Version2.TenantAdminDelta)],
         _ => throw new ArgumentException("Role grant request is invalid.", nameof(request)),
     };
 

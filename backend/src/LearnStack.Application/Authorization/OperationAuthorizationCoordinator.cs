@@ -95,6 +95,11 @@ public sealed class OperationAuthorizationCoordinator(
                     sourceFailure = TenantContextFactory.Refused;
                     break;
                 }
+                if (policy.RequiresOrganization && context.OrganizationId is null)
+                {
+                    sourceFailure = Forbidden;
+                    break;
+                }
                 var candidates = _candidateSources.Select(source => source.ForValidatedScope(context.TenantId, context.OrganizationId))
                     .Where(value => value is not null).Cast<AuthorizationCandidate>().Take(2).ToArray();
                 if (candidates.Length != 1 || !Matches(candidates[0])
@@ -123,14 +128,13 @@ public sealed class OperationAuthorizationCoordinator(
             {
                 var decision = await authorizer.AuthorizeAsync(invocation, policy, candidate, cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
-                if (decision is null || !ReferenceEquals(decision.Invocation, invocation) || !decision.IsActive)
+                if (decision is null || !ReferenceEquals(decision.Invocation, invocation) || !decision.IsActive
+                    || !HasMatchingDecisionAuthority(invocation, decision))
                     return Result.FailFor<TResponse>(Unavailable);
                 frame.Decision = decision;
                 evidence.Observe(invocation, decision);
                 var error = decision.Outcome switch
                 {
-                    ProtectedOperationOutcome.Allowed when policy.ReadScope == OperationReadScope.Tenant
-                        && decision.ReadWitness is null => Unavailable,
                     ProtectedOperationOutcome.Allowed => null,
                     ProtectedOperationOutcome.NotCovered => TenantContextFactory.Refused,
                     ProtectedOperationOutcome.Forbidden => Forbidden,
@@ -141,7 +145,8 @@ public sealed class OperationAuthorizationCoordinator(
                     evidence.RecordPolicyRefusal(invocation, decision, error);
                     return Result.FailFor<TResponse>(error);
                 }
-                if (policy.RequiresOrglessWrite && context.OrganizationId is not null)
+                if (policy.RequiresOrglessWrite && context.OrganizationId is not null
+                    || policy.RequiresOrganization && context.OrganizationId is null)
                 {
                     evidence.RecordPolicyRefusal(invocation, decision, Forbidden);
                     return Result.FailFor<TResponse>(Forbidden);
@@ -187,6 +192,20 @@ public sealed class OperationAuthorizationCoordinator(
     {
         Interlocked.Exchange(ref _closed, 1);
         GC.SuppressFinalize(this);
+    }
+
+    private static bool HasMatchingDecisionAuthority(OperationInvocation invocation, ProtectedOperationDecision decision)
+    {
+        if (decision.Outcome != ProtectedOperationOutcome.Allowed || invocation.Policy.Kind != OperationPolicyKind.Protected)
+            return decision.MatchedClause is null && decision.ReadWitness is null;
+        if (decision.MatchedClause is not { } clause
+            || !invocation.Policy.Alternatives.Any(alternative => ReferenceEquals(alternative, clause))) return false;
+        if (clause.ReadScope == OperationReadScope.Scoped) return decision.ReadWitness is null;
+        return decision.ReadWitness is { IsActive: true } witness
+            && ReferenceEquals(witness.Invocation, invocation) && ReferenceEquals(witness.Policy, invocation.Policy)
+            && ReferenceEquals(witness.MatchedClause, clause)
+            && witness.Actor == invocation.Actor && witness.TenantId == invocation.TenantId
+            && witness.OrganizationId == invocation.OrganizationId;
     }
 
     private bool Matches(AuthorizationCandidate candidate) => candidate.IsActive

@@ -1,3 +1,4 @@
+using LearnStack.Modules.Customization.Application.Seeding;
 using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Customization.Application.Contracts.Customization;
 using LearnStack.Modules.Customization.Domain;
@@ -16,7 +17,8 @@ internal sealed class InitializeTenantLevelTaxonomyDefaultCommandHandler(
     ICustomizationGenerationStore generations,
     ITenantContext tenantContext,
     IClock clock,
-    IGuidFactory guids)
+    IGuidFactory guids,
+    ISeedCustomizationWriteGuard seedGuard)
     : IRequestHandler<InitializeTenantLevelTaxonomyDefaultCommand, Result<None>>
 {
     public async Task<Result<None>> Handle(
@@ -25,12 +27,14 @@ internal sealed class InitializeTenantLevelTaxonomyDefaultCommandHandler(
         ArgumentNullException.ThrowIfNull(request);
         if (!tenantContext.IsResolved) return CustomizationFailures.Unresolved<None>();
 
+        if (!await seedGuard.PrepareAsync(request, cancellationToken)) return Result<None>.Fail(seedGuard.Failure);
+
         var definition = BuiltInCustomizations.Plain;
-        await taxonomies.LockConceptAsync(definition.Key, cancellationToken);
         if (await taxonomies.HasConceptHistoryAsync(definition.Key, cancellationToken))
             return Result.Ok(None.Value);
 
         var actor = tenantContext.UserId ?? UserId.SystemActor;
+        if (!seedGuard.IsCurrent(request)) return CustomizationFailures.BusinessRule<None>("Seed", "lockey_business_rule_violation");
         var root = TenantLevelTaxonomy.Create(
             TenantLevelTaxonomyId.From(guids.NewUuidV7()), tenantContext.TenantId,
             definition.Key, BuiltInCustomizations.SchemaVersion, LocalizedText.From(definition.DisplayName),

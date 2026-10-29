@@ -24,6 +24,38 @@ public sealed partial class IdentityAuditConventionTests
     private const string FrameBindings = "System.Collections.Generic.Dictionary`2<System.Int32,LearnStack.SharedKernel.Permissions.OperationInvocation>";
     private const string OrdinaryAuditOwner = "LearnStack.Application.Audit.AuditExecutionCoordinator";
     private static readonly string[] AuthorizationPrimaryKeyFilter = ["23505", "public", "audit_log", "audit_log_pkey"];
+    private const string SeedTenancyGuard = "LearnStack.Modules.Tenancy.Application.Seeding.SeedTenantWriteGuard";
+    private const string SeedCustomizationGuard = "LearnStack.Modules.Customization.Application.Seeding.SeedCustomizationWriteGuard";
+    private const string SeedEducationGuard = "LearnStack.Modules.Education.Application.Seeding.SeedEducationWriteGuard";
+    private const string SeedOriginHandler = "LearnStack.Modules.Tenancy.Application.Seeding.AdoptSeedAdministrationOriginCommandHandler";
+    private const string FixedPrerequisiteSource = "LearnStack.Tools.Seeder.FixedSeedPrerequisiteSource";
+    private const string FixedCompletionSource = "LearnStack.Tools.Seeder.FixedSeedCompletionSource";
+    private const string SeedStageReader = "LearnStack.Modules.Identity.Infrastructure.Persistence.SeedIdentityStageReader";
+    // These reads borrow the current invocation; they mint no decision or audit
+    // evidence. Keep the two fixed purposes and complete-writer guards explicit,
+    // including the one generated local lifetime check, rather than admitting a namespace.
+    private static readonly (string Owner, string Method, int Count)[] CurrentInvocationBorrowers =
+    [
+        (CentralEvidence, "Snapshot", 1),
+        (RoleAuthorization, "Matches", 1),
+        (RoleHandler, "ExecuteAsync", 1),
+        (FixedPrerequisiteSource, "Capture", 1),
+        (FixedPrerequisiteSource, "HasInvocation", 1),
+        (FixedCompletionSource, "Capture", 1),
+        (FixedCompletionSource, "HasInvocation", 1),
+        (SeedTenancyGuard, "AdmitAsync", 1),
+        (SeedTenancyGuard, "RequireCurrent", 1),
+        (SeedTenancyGuard, "AllowsIdentityContinuationAsync", 1),
+        (SeedTenancyGuard, "AllowsContentContinuationAsync", 1),
+        (SeedTenancyGuard, "<HasPristinePrerequisitesAsync>g__Current|13_0", 1),
+        (SeedOriginHandler, "HasCurrentSeedInvocation", 1),
+        (SeedCustomizationGuard, "PrepareAsync", 3),
+        (SeedCustomizationGuard, "IsCurrent", 1),
+        (SeedCustomizationGuard, "IsCompleteAsync", 3),
+        (SeedEducationGuard, "PrepareAsync", 2),
+        (SeedEducationGuard, "IsCurrent", 1),
+        (SeedStageReader, "HasNoRoleHistoryAsync", 2),
+    ];
 
     [Fact]
     public void Authorization_Evidence_Uses_Trusted_Bounded_Provenance()
@@ -63,9 +95,29 @@ public sealed partial class IdentityAuditConventionTests
                      (CentralEvidence, "BeginExecution"), (CentralEvidence, "Observe"),
                      (CentralEvidence, "RecordPolicyRefusal"), (CentralEvidence, "CaptureRefusalObservation"), (CentralEvidence, "RecordRefusalResult"),
                      ("LearnStack.Api.Tenancy.IClaimContextAssertionRecorder", "RecordAsync"),
+                     (InvocationContext, "get_CurrentInvocation"),
                      (CentralEvidence, "BeforeSuccessAsync") })
             foreach (var opcode in new[] { OpCodes.Call, OpCodes.Ldftn }) EvidenceDirty(census, EvidenceProvenanceOffenders,
                 () => EvidenceExtraCall(census, census.Method(type, method), opcode));
+        foreach (var opcode in new[] { OpCodes.Callvirt, OpCodes.Ldvirtftn })
+            EvidenceDirty(census, EvidenceProvenanceOffenders,
+                () => EvidenceExtraCall(census, census.Method(InvocationContext, "get_CurrentInvocation"), opcode));
+        foreach (var (owner, method, _) in CurrentInvocationBorrowers)
+        {
+            var borrowed = EvidenceCalls(census.Body(owner, method), InvocationContext, "get_CurrentInvocation").First();
+            EvidenceDirty(census, EvidenceProvenanceOffenders, () => EvidenceReplace(borrowed, OpCodes.Nop, null));
+        }
+        var guardedPreparation = census.Body(SeedCustomizationGuard, "PrepareAsync");
+        var retainedRead = EvidenceCalls(guardedPreparation, InvocationContext, "get_CurrentInvocation").First();
+        foreach (var opcode in new[] { OpCodes.Call, OpCodes.Ldftn, OpCodes.Ldvirtftn })
+            EvidenceDirty(census, EvidenceProvenanceOffenders,
+                () => EvidenceReplace(retainedRead, opcode, retainedRead.Operand));
+        EvidenceDirty(census, EvidenceProvenanceOffenders, () =>
+        {
+            var duplicate = Instruction.Create(OpCodes.Callvirt, (MethodReference)retainedRead.Operand);
+            guardedPreparation.Body.Instructions.Add(duplicate);
+            return () => guardedPreparation.Body.Instructions.Remove(duplicate);
+        });
         foreach (var (type, method, target, name) in new[]
         {
             (Occurrence, ".ctor", Occurrence, "CopyAddress"), (Occurrence, "get_Draft", Occurrence, "CopyAddress"),
@@ -187,7 +239,11 @@ public sealed partial class IdentityAuditConventionTests
         EvidenceCallers(census, errors, CentralEvidence, "RecordDenial", [(CentralEvidence, "ReportResourceRefusal", 1), (CentralEvidence, "RecordPolicyRefusal", 1)]);
         EvidenceCallers(census, errors, "LearnStack.SharedKernel.Audit.IAuditStateCapture", "AttachAuthorization",
             [(CentralEvidence, "Observe", 1), (CentralEvidence, "RecordObservedDenial", 1)]);
-        EvidenceCallers(census, errors, InvocationContext, "get_CurrentInvocation", [(CentralEvidence, "Snapshot", 1), (RoleAuthorization, "Matches", 1), (RoleHandler, "ExecuteAsync", 1)]);
+        EvidenceCallers(census, errors, InvocationContext, "get_CurrentInvocation", CurrentInvocationBorrowers);
+        if (census.Methods.SelectMany(method => method.Body.Instructions).Any(instruction =>
+                instruction.Operand is MethodReference target && target.DeclaringType.FullName == InvocationContext
+                && target.Name == "get_CurrentInvocation" && instruction.OpCode.Code != Code.Callvirt))
+            errors.Add("Current invocation borrowers use the exact interface callvirt, never a direct call or method alias");
         EvidenceCallers(census, errors, InvocationContext, "get_CurrentDecision", [(RoleAuthorization, "Matches", 1), (RoleHandler, "ExecuteAsync", 1),
             ("LearnStack.Modules.Identity.Application.Bindings.AdmitNativeSessionScopeCommandHandler", "Handle", 1)]);
         EvidenceCallers(census, errors, "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportRecheck", [(RoleAuthorization, "ReportRecheck", 1)]);

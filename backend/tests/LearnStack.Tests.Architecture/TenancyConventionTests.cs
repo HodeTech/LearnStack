@@ -155,12 +155,14 @@ public sealed partial class TenancyConventionTests
         // connections reach, so nothing but the statement stops a later edit from writing
         // under an announcement no request made.
         //
-        // Every file that calls set_config( is one of three kinds, and the kinds are the
-        // closed set Security Standards § The out-of-band setters enumerates: the ambient
-        // unit of work, the audit store's two writers — which must write — and the readers,
-        // each of which issues SET TRANSACTION READ ONLY before anything else. A setter this
-        // finds and no kind names is a new member of a closed set, and fails until the
-        // standard, and ADR-0040, say which kind it is.
+        // After the exact fixed-seed scope-only pair is accounted for, physical
+        // announcement carriers belong to the closed ambient/writing/reading set.
+        // ADR-0080/0081 reuse the existing ReadWrite unit of work for those two
+        // statements; its partial is not a new logical tenant setter or a reader
+        // opening a READ ONLY transaction. The ten logical setters stay unchanged.
+        // The shared sanitizer removes only the reviewed literal arguments after
+        // checking their owner, method, gates and SQL pair. Additional statements
+        // in that partial remain visible and receive no file-wide exemption.
         var announcing = Directory
             .EnumerateFiles(SourceScan.SourceRoot, "*.cs", SearchOption.AllDirectories)
             .Where(file => !file.Split(Path.DirectorySeparatorChar).Any(segment => segment is "bin" or "obj"))
@@ -170,14 +172,16 @@ public sealed partial class TenancyConventionTests
             // would be a setter this rule does not see, which is why the exclusion is by
             // directory rather than by pattern.
             .Where(file => !file.Contains($"{Path.DirectorySeparatorChar}Migrations{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
-            .Where(file => Announces(SourceText.WithoutComments(File.ReadAllText(file))))
-            .Select(file => Path.GetRelativePath(SourceScan.SourceRoot, file).Replace('\\', '/'))
+            .Select(file => (Relative: Path.GetRelativePath(SourceScan.SourceRoot, file).Replace('\\', '/'),
+                Source: File.ReadAllText(file)))
+            .Where(file => AnnouncesBeyondFixedSeedScope(file.Relative, file.Source))
+            .Select(file => file.Relative)
             .ToHashSet(StringComparer.Ordinal);
 
         announcing.Should().BeEquivalentTo(
             AmbientSetters.Concat(WritingSetters).Concat(ReadingSetters),
-            "every session-variable setter is one the standard names (Security Standards "
-            + "§ The out-of-band setters; ADR-0040 Amendments 3 and 7)");
+            "every remaining announcement carrier is one the standard names; the exact fixed-seed "
+            + "scope-only pair reuses the ambient owner (Security Standards § The out-of-band setters; ADR-0080/0081)");
 
         // Then the readers, method by method, from the IL. A text scan answers this one badly:
         // it cannot tell which method a statement belongs to, so a `SET TRANSACTION READ ONLY`
@@ -238,6 +242,20 @@ public sealed partial class TenancyConventionTests
         Announces("SELECT current_setting('app.tenant_id', true)").Should().BeFalse("a read is not a setter");
         Announces("USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)")
             .Should().BeFalse("a policy reads the variable it guards with");
+
+        const string FixedSeedOwner = "LearnStack.Infrastructure/Persistence/NpgsqlUnitOfWork.SeedPrerequisites.cs";
+        var fixedSeedSource = File.ReadAllText(Path.Combine(SourceScan.SourceRoot, FixedSeedOwner));
+        Announces(SourceText.WithoutComments(fixedSeedSource)).Should().BeTrue();
+        AnnouncesBeyondFixedSeedScope(FixedSeedOwner, fixedSeedSource).Should().BeFalse(
+            "only the exact reviewed scope-only pair belongs to the existing ambient owner");
+        AnnouncesBeyondFixedSeedScope("Unlisted.cs", fixedSeedSource).Should().BeTrue();
+        AnnouncesBeyondFixedSeedScope(FixedSeedOwner,
+            fixedSeedSource.Replace("_depth != 1", "false", StringComparison.Ordinal)).Should().BeTrue(
+                "a weakened same-owner gate loses the scope-only carrier recognition");
+        foreach (var statement in new[] { "SELECT set_config('app.tenant_id', @tenant, true)", "SET LOCAL app.scope = 'tenant'" })
+            AnnouncesBeyondFixedSeedScope(FixedSeedOwner, fixedSeedSource
+                + "\nclass ExtraSetter { void Run() { Execute(\"" + statement + "\"); } }").Should().BeTrue(
+                    "another announcement in the same partial is never hidden by the two reviewed sites");
     }
 
     /// <summary>Whether code announces a session variable, however the statement is spelled.</summary>
@@ -253,6 +271,10 @@ public sealed partial class TenancyConventionTests
     private static partial Regex SessionSetter();
 
     private static bool Announces(string code) => SessionSetter().IsMatch(code);
+
+    private static bool AnnouncesBeyondFixedSeedScope(string relative, string source) =>
+        Announces(SourceText.WithoutComments(
+            FixedSeedPrerequisiteConventionTests.WithoutFixedSeedScopeAnnouncements(relative, source)));
 
     /// <summary>The ambient unit of work, which sets the variables on the request's transaction.</summary>
     private static readonly string[] AmbientSetters =
@@ -407,9 +429,10 @@ public sealed partial class TenancyConventionTests
     public void Tenant_Scope_Widening_Is_Never_Set_From_Request_Input()
     {
         // app.scope = 'tenant' widens an organization-scoped read to the whole tenant, and
-        // ADR-0076 admits only the operation-bound witness overload of the existing logical
-        // setter. Its private core is recognized by exact signature, fixed forwarding flags
-        // and the one scope parameter expression; every other statement is still scanned.
+        // ADR-0076 admits the operation-bound witness overload of the existing logical
+        // setter; ADR-0080 adds exactly two scope-only sites on that same owner. Each
+        // carrier is recognized by its guarded method and exact SQL; every other
+        // statement is still scanned.
         //
         // The premise first, or the rule guards a variable nothing reads: the policies do
         // read it.
@@ -426,10 +449,11 @@ public sealed partial class TenancyConventionTests
             .Where(file => !file.Split(Path.DirectorySeparatorChar).Any(segment => segment is "bin" or "obj"))
             .Select(file => (Relative: Path.GetRelativePath(SourceScan.SourceRoot, file).Replace('\\', '/'),
                 Source: WithoutGlobalAuthorityClears(file, "app.scope")))
-            .Where(file => ScopeSetter().IsMatch(WithoutOperationReadAnnouncement(file.Relative, file.Source)))
+            .Where(file => ScopeSetter().IsMatch(FixedSeedPrerequisiteConventionTests.WithoutFixedSeedScopeAnnouncements(
+                file.Relative, WithoutOperationReadAnnouncement(file.Relative, file.Source))))
             .Select(file => file.Relative)
             .Should().BeEmpty(
-                "only the exact witness-consuming ordinary announcement sets app.scope (ADR-0076)");
+                "only the exact ordinary announcement and confined fixed-seed scope-only pair set app.scope (ADR-0076/0080)");
     }
 
     [Fact]

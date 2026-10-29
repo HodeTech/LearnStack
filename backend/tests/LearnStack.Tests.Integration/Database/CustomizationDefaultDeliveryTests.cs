@@ -9,6 +9,7 @@ using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.Modules.Customization.Application.Authorization;
 using LearnStack.Modules.Customization.Application.Contracts.Customization;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Identity;
 using LearnStack.SharedKernel.Messaging;
 using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Results;
@@ -61,9 +62,9 @@ public sealed class CustomizationDefaultDeliveryTests(SchemaFixture schema)
     {
         await using var fixture = await Fixture.CreateAsync(schema);
         if (!fresh) await fixture.ProvisionAsync();
-        fixture.StartApi(allowComponentProvisioning: fresh);
+        fixture.StartApi();
         fixture.AssertProductionSubscriptions();
-        if (fresh) await fixture.ProvisionAsync(fixture.ApiServices);
+        if (fresh) await fixture.ProvisionAsync();
 
         await fixture.WaitForBothDeliveriesAsync();
         await fixture.AssertCreatedDefaultsAsync();
@@ -119,7 +120,7 @@ public sealed class CustomizationDefaultDeliveryTests(SchemaFixture schema)
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public async Task Real_Seeder_and_real_subscriber_serialize_on_each_builtin_concept(bool taxonomy, bool consumerFirst)
+    public async Task Real_Seeder_and_real_subscriber_serialize_on_the_Tenant_fence_before_each_builtin_concept(bool taxonomy, bool consumerFirst)
     {
         await using var fixture = await Fixture.CreateAsync(schema);
         await fixture.ProvisionAsync();
@@ -140,7 +141,7 @@ public sealed class CustomizationDefaultDeliveryTests(SchemaFixture schema)
                 fixture.StartApi();
             }
 
-            await fixture.WaitForConceptLoserAsync();
+            await fixture.WaitForTenantLoserAsync();
             (await fixture.CountAsync(taxonomy ? "tenant_level_taxonomies" : "tenant_content_types",
                 taxonomy ? "key = 'plain'" : "key = 'card'")).Should().Be(0,
                 "the winning insert is still inside its uncommitted transaction");
@@ -154,7 +155,7 @@ public sealed class CustomizationDefaultDeliveryTests(SchemaFixture schema)
         seed.Should().NotBeNull();
         (await seed!).Should().Be(0);
         await fixture.WaitForBothDeliveriesAsync();
-        await fixture.AssertCreatedDefaultsAsync();
+        await fixture.AssertCreatedDefaultsAsync(fullSeed: true);
         (await fixture.CountAsync("tenant_content_types", "key = 'card'")).Should().Be(1);
         (await fixture.CountAsync("audit_log", "operation = 'customization.content_type.initialize' AND outcome = 'success' AND operation_type = 'Create' AND after_state IS NOT NULL")).Should().Be(1,
             "the first writer creates exactly one root; a preserved attempt may have a separate classified audit");
@@ -180,7 +181,7 @@ public sealed class CustomizationDefaultDeliveryTests(SchemaFixture schema)
             _database = database;
             _evidence = evidence;
             _seedSource = NpgsqlDataSource.Create(database.AppConnectionString);
-            _tenant = SeedData.English with { Curriculum = null };
+            _tenant = SeedData.English;
         }
 
         public IServiceProvider ApiServices => _api?.Services ?? throw new InvalidOperationException("API has not started.");
@@ -192,9 +193,9 @@ public sealed class CustomizationDefaultDeliveryTests(SchemaFixture schema)
             catch { await database.DisposeAsync(); throw; }
         }
 
-        public void StartApi(bool observeTrustedOperations = false, bool allowComponentProvisioning = false)
+        public void StartApi(bool observeTrustedOperations = false)
         {
-            _api = new ApiFactory(_database, _evidence, allowComponentProvisioning, observeTrustedOperations ? _trusted : null);
+            _api = new ApiFactory(_database, _evidence, observeTrustedOperations ? _trusted : null);
             _ = _api.Services;
         }
 
@@ -222,14 +223,12 @@ public sealed class CustomizationDefaultDeliveryTests(SchemaFixture schema)
             ApiServices.GetServices<IHostedService>().OfType<DeliveryProcessor>().Should().ContainSingle();
         }
 
-        public async Task ProvisionAsync(IServiceProvider? provider = null)
+        public async Task ProvisionAsync()
         {
-            if (provider is null)
-            {
-                await using var seed = SeedComposition.Build(_seedSource, null, NullLoggerFactory.Instance, authorizationEvidence: _evidence.Source);
-                await ProvisionInAsync(seed);
-            }
-            else await ProvisionInAsync(provider);
+            // Both backlog and fresh-after-start cases use the actual fixed Seeder
+            // producer. The API host receives only its real delivery authority.
+            await using var seed = SeedComposition.Build(_seedSource, null, NullLoggerFactory.Instance, authorizationEvidence: _evidence.Source);
+            await ProvisionInAsync(seed);
         }
 
         private async Task ProvisionInAsync(IServiceProvider provider)
@@ -300,14 +299,15 @@ public sealed class CustomizationDefaultDeliveryTests(SchemaFixture schema)
             await WaitUntilAsync(async () => await CountAsync("event_deliveries", "processed_at IS NOT NULL") == 2
                 && await CountAsync("inbox_messages", "recorded_at IS NOT NULL") == 2);
 
-        public async Task AssertCreatedDefaultsAsync()
+        public async Task AssertCreatedDefaultsAsync(bool fullSeed = false)
         {
             (await CountAsync("tenant_content_types", "key = 'card' AND status = 'Active' AND deleted_at IS NULL"))
                 .Should().Be(1);
             (await CountAsync("tenant_level_taxonomies", "key = 'plain' AND status = 'Active' AND deleted_at IS NULL"))
                 .Should().Be(1);
             (await CountAsync("tenant_level_taxonomy_items", "taxonomy_key = 'plain' AND schema_version = 1")).Should().Be(3);
-            (await GenerationAsync()).Should().Be(2, "each create-only initializer advances its own definition generation once");
+            (await GenerationAsync()).Should().Be(fullSeed ? SeedData.CustomizationGeneration(_tenant) : 2,
+                "delivery-only creates two defaults; the full fixed seed also registers and publishes its two authored definitions");
             (await CountAsync("audit_log", "operation = 'customization.content_type.initialize' AND operation_class = 'Must' AND outcome = 'success' AND operation_type = 'Create' AND after_state IS NOT NULL"))
                 .Should().Be(1);
             (await CountAsync("audit_log", "operation = 'customization.level_taxonomy.initialize' AND operation_class = 'Must' AND outcome = 'success' AND operation_type = 'Create' AND after_state IS NOT NULL"))
@@ -382,7 +382,7 @@ public sealed class CustomizationDefaultDeliveryTests(SchemaFixture schema)
         public async Task WaitForGateWinnerAsync() => await WaitUntilAsync(async () =>
             await BlockedByAsync(_gateOwnerPid) == 1);
 
-        public async Task WaitForConceptLoserAsync() => await WaitUntilAsync(async () =>
+        public async Task WaitForTenantLoserAsync() => await WaitUntilAsync(async () =>
         {
             await using var observer = (NpgsqlConnection)await PostgresFixture.OpenAsync(_database.AppConnectionString);
             await SchemaQueries.AssertApplicationRoleAsync(observer);
@@ -394,14 +394,16 @@ public sealed class CustomizationDefaultDeliveryTests(SchemaFixture schema)
                   AND held.objsubid = waiting.objsubid AND held.pid <> waiting.pid
                 JOIN pg_stat_activity loser ON loser.pid = waiting.pid
                 JOIN pg_stat_activity winner ON winner.pid = held.pid
-                WHERE waiting.locktype = 'advisory' AND NOT waiting.granted
+                WHERE waiting.locktype = 'advisory' AND NOT waiting.granted AND waiting.objsubid = 1
+                  AND (waiting.classid::bigint << 32 | waiting.objid::bigint) = @tenant_key
                   AND loser.datname = current_database() AND winner.datname = current_database()
                   AND loser.usename = 'learnstack_app' AND winner.usename = 'learnstack_app'
                   AND loser.wait_event_type = 'Lock' AND winner.wait_event_type = 'Lock'
                   AND @gate = ANY(pg_blocking_pids(winner.pid))
                 """, observer);
             query.Parameters.AddWithValue("gate", _gateOwnerPid);
-            return (long)(await query.ExecuteScalarAsync())! == 1;
+            query.Parameters.AddWithValue("tenant_key", IdentityAdvisoryLockKey.ForTenant(_tenant.TenantId));
+            return (long)(await query.ExecuteScalarAsync())! >= 1;
         });
 
         private async Task<long> BlockedByAsync(int blockerPid)
@@ -456,7 +458,7 @@ public sealed class CustomizationDefaultDeliveryTests(SchemaFixture schema)
             await _database.DisposeAsync();
         }
 
-        private sealed class ApiFactory(DisposableSchemaDatabase database, ComponentAuthorizationEvidence evidence, bool allowComponentProvisioning, TrustedObservation? trusted = null) : WebApplicationFactory<Program>
+        private sealed class ApiFactory(DisposableSchemaDatabase database, ComponentAuthorizationEvidence evidence, TrustedObservation? trusted = null) : WebApplicationFactory<Program>
         {
             protected override void ConfigureWebHost(IWebHostBuilder builder)
             {
@@ -466,11 +468,8 @@ public sealed class CustomizationDefaultDeliveryTests(SchemaFixture schema)
                 builder.UseSetting("ConnectionStrings:OutboxDispatcher", database.OutboxConnectionString);
                 builder.ConfigureTestServices(services =>
                 {
-                    // Only the fresh=true setup act dispatches provisioning through
-                    // this worker host. Real delivery provenance proofs get no
-                    // component minting source, so their wrong-request controls
-                    // exercise every actual registered source without exclusions.
-                    if (allowComponentProvisioning) AddComponentAuthority(services);
+                    // Provisioning belongs to the actual Seeder composition; this
+                    // host keeps only real delivery sources, including fresh events.
                     evidence.AddTo(services);
                     if (trusted is not null)
                     {
@@ -489,11 +488,6 @@ public sealed class CustomizationDefaultDeliveryTests(SchemaFixture schema)
             }
         }
     }
-
-    // Explicit admission for this component mechanism; this is not a live HTTP authorization proof.
-    private static void AddComponentAuthority(IServiceCollection services) =>
-        ComponentOperationRegistration.AddExactComponentAuthority(services,
-            OperationPolicy.ForTrusted<ProvisionTenantCommand>("tests.component.delivery_setup.provision", AuthorizationSourceKind.Seed));
 
     private sealed class TrustedObservation
     {

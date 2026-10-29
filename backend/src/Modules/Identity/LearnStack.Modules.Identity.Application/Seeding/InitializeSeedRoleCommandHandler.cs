@@ -13,7 +13,7 @@ namespace LearnStack.Modules.Identity.Application.Seeding;
 
 public sealed class InitializeSeedRoleCommandHandler(IRoleWriteStore store, ITenantContext context,
     ISeedIdentityFoundationAdmission admission, IIdentityScopeLifecycleReader lifecycle,
-    IIdentityMutationLocks locks, IClock clock) : IRequestHandler<InitializeSeedRoleCommand, Result<Guid>>
+    IIdentityMutationLocks locks, IClock clock, IFixedSeedPrerequisiteVerifier prerequisites) : IRequestHandler<InitializeSeedRoleCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(InitializeSeedRoleCommand request, CancellationToken cancellationToken)
     {
@@ -34,10 +34,12 @@ public sealed class InitializeSeedRoleCommandHandler(IRoleWriteStore store, ITen
             if (await store.FindAsync(id, cancellationToken) is not null
                 || await store.HasMembershipHistoryAsync(cancellationToken))
                 return Result<Guid>.Fail(IdentityFailures.Refused());
-            var plan = new IdentityMutationLockPlan([], context.TenantId, IdentityTenantLockMode.Shared);
+            var plan = new IdentityMutationLockPlan([], context.TenantId, IdentityTenantLockMode.Exclusive);
             await locks.AcquireAsync(plan, cancellationToken);
-            if (await store.FindAsync(id, cancellationToken) is not null
-                || await store.HasMembershipHistoryAsync(cancellationToken))
+            if (!await SeedFoundationGate.AllowsCurrentLifecycleAsync(context, lifecycle, cancellationToken)
+                || await store.FindAsync(id, cancellationToken) is not null
+                || await store.HasMembershipHistoryAsync(cancellationToken)
+                || !await prerequisites.VerifyAsync(request, plan, cancellationToken))
                 return Result<Guid>.Fail(IdentityFailures.Refused());
             locks.RequireCurrent(plan);
             var role = Role.Create(id, context.TenantId, request.BuiltInKey, request.CapabilityScope,

@@ -32,7 +32,8 @@ if (args is ["--identity-manifest"])
     }
 }
 var identityFoundation = args is ["--identity-foundation-stdin"];
-if (args.Length != 0 && !identityFoundation)
+var seedAdministrationOrigins = args is ["--seed-admin-origins-stdin"];
+if (args.Length != 0 && !identityFoundation && !seedAdministrationOrigins)
 {
     Console.Error.WriteLine("seed: unsupported arguments.");
     return 2;
@@ -73,6 +74,9 @@ using var hangup = OperatingSystem.IsWindows() ? null : PosixSignalRegistration.
 var sourceStartupQualified = false;
 try
 {
+    var originSelection = seedAdministrationOrigins
+        ? await SeedAdministrationOriginRunner.ReadSelectionAsync(Console.OpenStandardInput(), cancellation.Token)
+        : System.Collections.Immutable.ImmutableArray<TenantId>.Empty;
     if (!Guid.TryParseExact(Environment.GetEnvironmentVariable("Identity__AuthorityId"), "D", out var authorityId))
         throw new InvalidOperationException("Identity authority configuration is invalid.");
     var registration = new IdentityAuthorityRegistration(IdentityAuthorityId.From(authorityId),
@@ -97,6 +101,15 @@ try
     if (!string.Equals(qualification.QualifiedDatabaseName, evidence.QualifiedDatabaseName, StringComparison.Ordinal))
         throw new InvalidOperationException("Authorization evidence must use the qualified application database.");
     sourceStartupQualified = true;
+    if (seedAdministrationOrigins)
+    {
+        var originRunner = new SeedAdministrationOriginRunner(context => SeedComposition.Build(dataSource, context, loggerFactory,
+            identityAuthority: registration, authorizationEvidence: evidence,
+            seedOriginAdmission: new FixedSeedAdministrationOriginAdmission()));
+        var mutations = await originRunner.RunAsync(originSelection, cancellation.Token);
+        Console.WriteLine($"seed: administration origin adoption completed ({mutations} tenants changed).");
+        return 0;
+    }
     if (identityFoundation)
     {
         var witness = await SeedProviderWitness.ReadAsync(Console.OpenStandardInput(), registration, cancellation.Token);
@@ -111,7 +124,14 @@ try
         context => SeedComposition.Build(dataSource, context, loggerFactory,
             identityAuthority: registration, authorizationEvidence: evidence),
         loggerFactory.CreateLogger<SeedRunner>());
-    return await runner.RunAsync(cancellation.Token);
+    var result = await runner.RunAsync(cancellation.Token);
+    Console.WriteLine("seed-result: " + JsonSerializer.Serialize(new
+    {
+        version = 2,
+        freshTenantIds = runner.FreshlyCreatedTenantIds.Select(id => id.Value.ToString("D")).ToArray(),
+        qualifiedOriginTenantIds = runner.QualifiedOriginTenantIds.Select(id => id.Value.ToString("D")).ToArray(),
+    }));
+    return result;
 }
 catch (Exception failure)
 {
@@ -126,6 +146,13 @@ catch (Exception failure)
     if (identityFoundation)
     {
         Console.Error.WriteLine("seed: development identity foundation was refused.");
+        return 1;
+    }
+    if (seedAdministrationOrigins)
+    {
+        // Unknown COMMIT stays nonzero. A later explicit invocation performs
+        // the fresh marker/mapping observation; never print provider payloads.
+        Console.Error.WriteLine("seed: administration origin adoption was refused or not acknowledged.");
         return 1;
     }
     // Non-zero, and nothing else: `make seed` is a gate, and a seeder that reported

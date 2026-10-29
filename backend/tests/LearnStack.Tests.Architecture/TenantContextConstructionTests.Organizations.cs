@@ -15,6 +15,18 @@ public sealed partial class TenantContextConstructionTests
     private const string OrganizationOccurrences = "LearnStack.Infrastructure/Jobs/PostgresBackgroundJobControlStore.Occurrences.cs";
     private const string OrganizationIdentityLifecycle = "Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/Persistence/IdentityScopeLifecycleReader.cs";
     private const string OrganizationSelfDiscovery = "Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/Persistence/PreContextSelfDiscoveryScopeReader.cs";
+    private const string OrganizationOriginDdl = "Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/Persistence/SeedAdministrationOriginDdl.cs";
+    private static readonly string[] OrganizationOriginInstallers = ["Install", "InstallQualifiedCompletion"];
+    private const string OrganizationOriginCompositeSelect = """
+        SELECT 1 FROM public.organizations AS organization
+        WHERE organization.tenant_id=OLD.id AND organization.id=OLD.default_organization_id
+            AND organization.status='Active' AND organization.deleted_at IS NULL AND organization.deleted_by IS NULL
+        """;
+    private const string OrganizationOriginDeclarations = """
+        var declarations = string.Join(",", SeedAdministrationOriginManifest.All.Select(declaration =>
+            $"('{declaration.TenantId.Value:D}'::uuid,'{declaration.TenantSlug}','{declaration.Host}',"
+            + $"{IdentityAdvisoryLockKey.ForTenant(declaration.TenantId).ToString(CultureInfo.InvariantCulture)}::bigint)"));
+        """;
     private const string OrganizationPointSql = "SELECT status,deleted_at FROM organizations WHERE tenant_id=@tenant AND id=@organization";
     private const string OrganizationPageSql = """
         SELECT tenant_id,id,status,deleted_at FROM organizations
@@ -84,18 +96,21 @@ public sealed partial class TenantContextConstructionTests
     {
         var offenders = new List<string>();
         var found = new List<OrganizationSqlSubject>();
+        var foundInstallers = new List<string>();
         var roots = new Dictionary<string, SyntaxNode>(StringComparer.Ordinal);
         foreach (var (path, code) in sources)
         {
             // Parse only possible readers and the required owners. Comments do
             // not grant permission and SQL spelling cannot hide an extra reader.
-            if (!OrganizationSqlSubjects.Any(subject => subject.Path == path)
+            if (path != OrganizationOriginDdl && !OrganizationSqlSubjects.Any(subject => subject.Path == path)
                 && !Regex.IsMatch(code, "organizations", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)) continue;
             var root = CSharpSyntaxTree.ParseText(code).GetRoot();
             roots.Add(path, root);
             if (root.ContainsDiagnostics) { offenders.Add(path + ": invalid source"); continue; }
-            if (root.DescendantNodes().OfType<InterpolatedStringExpressionSyntax>().Any(value => ReadsOrganizations(value.ToString())))
-                offenders.Add(path + ": organization SQL must use its closed literal command shape");
+            var migrationArguments = OrganizationMigrationSqlArguments(path, root, foundInstallers);
+            if (root.DescendantNodes().OfType<InterpolatedStringExpressionSyntax>().Any(value =>
+                    ReadsOrganizations(value.ToString()) && !migrationArguments.Contains(value.SpanStart)))
+                offenders.Add(path + ": organization SQL must use its closed executed command shape");
             if (root.DescendantNodes().OfType<BinaryExpressionSyntax>().Any(value =>
                     value.IsKind(SyntaxKind.AddExpression) && OrganizationConstant(value) is { } sql && ReadsOrganizations(sql)))
                 offenders.Add(path + ": concatenated organization SQL is outside the closed query shapes");
@@ -116,6 +131,9 @@ public sealed partial class TenantContextConstructionTests
                     offenders.Add(path + ": the literal must be the exact executed SQL argument or page constant");
             }
         }
+        foreach (var installer in OrganizationOriginInstallers)
+            if (foundInstallers.Count(foundInstaller => foundInstaller == installer) != 1)
+                offenders.Add(OrganizationOriginDdl + ": missing/changed exact migration SQL owner " + installer);
         var expected = OrganizationSqlSubjects.Select(subject => subject with { Sql = NormalizeOrganizationSql(subject.Sql) }).ToArray();
         foreach (var group in expected.Concat(found).Distinct())
             if (found.Count(subject => subject == group) != expected.Count(subject => subject == group))
@@ -253,6 +271,70 @@ public sealed partial class TenantContextConstructionTests
         }
     }
 
+    // Migration SQL is installed by learnstack_migration, not a runtime reader.
+    // Recognize only the two executed argument spans; the containing DDL file and
+    // every other organization-bearing literal/interpolation remain in the census.
+    private static HashSet<int> OrganizationMigrationSqlArguments(string path, SyntaxNode root, List<string> found)
+    {
+        var accepted = new HashSet<int>();
+        if (path != OrganizationOriginDdl) return accepted;
+        var owners = root.DescendantNodes().OfType<ClassDeclarationSyntax>().Where(owner =>
+            OrganizationTypeIdentity(owner) == "LearnStack.Modules.Tenancy.Infrastructure.Persistence.SeedAdministrationOriginDdl").ToArray();
+        if (owners.Length != 1 || owners[0].TypeParameterList is not null || owners[0].Modifiers.Count != 2
+            || !owners[0].Modifiers.Any(SyntaxKind.PublicKeyword) || !owners[0].Modifiers.Any(SyntaxKind.StaticKeyword)
+            || owners[0].Parent is not BaseNamespaceDeclarationSyntax) return accepted;
+        foreach (var name in OrganizationOriginInstallers)
+        {
+            var methods = owners[0].Members.OfType<MethodDeclarationSyntax>()
+                .Where(method => method.Identifier.ValueText == name).ToArray();
+            if (methods.Length != 1) continue;
+            var method = methods[0];
+            if (method.TypeParameterList is not null || method.Modifiers.Count != 2
+                || !method.Modifiers.Any(SyntaxKind.PublicKeyword) || !method.Modifiers.Any(SyntaxKind.StaticKeyword)
+                || !SyntaxFactory.AreEquivalent(method.ReturnType, SyntaxFactory.ParseTypeName("void"))
+                || !SyntaxFactory.AreEquivalent(method.ParameterList, SyntaxFactory.ParseParameterList("(MigrationBuilder migration)"))
+                || method.Body is not { Statements.Count: 3 } body
+                || !SyntaxFactory.AreEquivalent(body.Statements[0], SyntaxFactory.ParseStatement("ArgumentNullException.ThrowIfNull(migration);"))
+                || !SyntaxFactory.AreEquivalent(body.Statements[1], SyntaxFactory.ParseStatement(OrganizationOriginDeclarations))
+                || body.Statements[2] is not ExpressionStatementSyntax { Expression: InvocationExpressionSyntax call }
+                || !SyntaxFactory.AreEquivalent(call.Expression, SyntaxFactory.ParseExpression("migration.Sql"))
+                || call.ArgumentList.Arguments.Count != 1
+                || call.ArgumentList.Arguments[0] is not { NameColon: null, Expression: InterpolatedStringExpressionSyntax argument } parameter
+                || !parameter.RefKindKeyword.IsKind(SyntaxKind.None)
+                || !OrganizationMigrationSqlIsExact(name, argument)) continue;
+            accepted.Add(argument.SpanStart);
+            found.Add(name);
+        }
+        return accepted;
+    }
+
+    private static bool OrganizationMigrationSqlIsExact(string owner, InterpolatedStringExpressionSyntax argument)
+    {
+        var holes = argument.Contents.OfType<InterpolationSyntax>().ToArray();
+        if (holes.Length != 3 || holes.Any(hole => hole.AlignmentClause is not null)
+            || !SyntaxFactory.AreEquivalent(holes[0].Expression, SyntaxFactory.ParseExpression("declarations"))
+            || holes[0].FormatClause is not null
+            || holes.Skip(1).Any(hole => !SyntaxFactory.AreEquivalent(hole.Expression, SyntaxFactory.ParseExpression("UserId.SystemActor.Value"))
+                || hole.FormatClause?.FormatStringToken.ValueText != "D")) return false;
+        var sql = string.Concat(argument.Contents.Select(part => part is InterpolatedStringTextSyntax text
+            ? text.TextToken.ValueText : "{fixed-pin}"));
+        // Comments cannot lend the executed guard an absent key or INVOKER clause.
+        sql = Regex.Replace(sql, @"--[^\r\n]*|/\*[\s\S]*?\*/", "", RegexOptions.CultureInvariant);
+        if (Regex.Matches(sql, @"\borganizations\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant).Count != 1) return false;
+        var normalized = NormalizeOrganizationSql(sql);
+        var composite = NormalizeOrganizationSql("OR NOT EXISTS (" + OrganizationOriginCompositeSelect + ")");
+        if (Regex.Matches(normalized, Regex.Escape(composite), RegexOptions.CultureInvariant).Count != 1) return false;
+        var header = owner == "Install" ? "CREATE FUNCTION" : "CREATE OR REPLACE FUNCTION";
+        string[] guard =
+        [
+            header + " public.fn_tenancy_seed_administration_origin_guard() RETURNS trigger LANGUAGE plpgsql VOLATILE SECURITY INVOKER SET search_path = pg_catalog",
+            "IF TG_TABLE_SCHEMA <> 'public' OR TG_TABLE_NAME <> 'tenants' THEN",
+            "OR current_setting('transaction_isolation')<>'read committed' OR OLD.id IS DISTINCT FROM NULLIF(current_setting('app.tenant_id',true),'')::uuid OR NULLIF(current_setting('app.organization_id',true),'') IS NOT NULL THEN",
+        ];
+        return guard.All(fragment => normalized.Contains(NormalizeOrganizationSql(fragment), StringComparison.Ordinal))
+            && !normalized.Contains("securitydefiner", StringComparison.Ordinal);
+    }
+
     private static bool ExecutedBinding(SyntaxNode call, MethodDeclarationSyntax owner)
     {
         if (call is InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax { Name.Identifier.ValueText: "AddWithValue" } }
@@ -344,7 +426,7 @@ public sealed partial class TenantContextConstructionTests
     public void Organization_reader_census_rejects_missing_keys_extra_readers_and_unbounded_pages()
     {
         var production = OrganizationSources();
-        OrganizationReadOffenders(production).Should().BeEmpty("all seven real SQL subjects and their bound keys must exist");
+        OrganizationReadOffenders(production).Should().BeEmpty("all seven runtime SQL subjects and both exact migration owners must exist");
         foreach (var subject in OrganizationSqlSubjects)
         {
             var source = production.Single(file => file.Path == subject.Path);
@@ -364,6 +446,43 @@ public sealed partial class TenantContextConstructionTests
             Dirty(source.Path, source.Code.Replace(subject.Member, "RemovedOrganizationSubject", StringComparison.Ordinal));
             Dirty(source.Path, source.Code + "\ninternal sealed class ExtraOrganizationRead { private string Sql() => \"SELECT * FROM organizations\"; }");
         }
+        var origin = production.Single(file => file.Path == OrganizationOriginDdl);
+        var originRoot = CSharpSyntaxTree.ParseText(origin.Code).GetRoot();
+        foreach (var installer in OrganizationOriginInstallers)
+        {
+            var method = originRoot.DescendantNodes().OfType<MethodDeclarationSyntax>()
+                .Single(item => item.Identifier.ValueText == installer);
+            var statement = (ExpressionStatementSyntax)method.Body!.Statements[2];
+            var call = (InvocationExpressionSyntax)statement.Expression;
+            var argument = (InterpolatedStringExpressionSyntax)call.ArgumentList.Arguments[0].Expression;
+            Dirty(origin.Path, originRoot.RemoveNode(method, SyntaxRemoveOptions.KeepNoTrivia)!.ToFullString());
+            Dirty(origin.Path, originRoot.ReplaceNode(statement,
+                SyntaxFactory.ParseStatement("var unusedSql = " + argument + ";")).ToFullString());
+            foreach (var (from, to) in new[]
+                     {
+                         ("organization.tenant_id=OLD.id AND ", ""),
+                         (" AND organization.id=OLD.default_organization_id", ""),
+                         ("organization.status='Active'", "organization.status='Suspended'"),
+                         ("AND organization.deleted_by IS NULL)", "AND organization.deleted_by IS NULL OR true)"),
+                         ("RETURN NEW;", "PERFORM 1 FROM public.organizations; RETURN NEW;"),
+                         ("{{declarations}}", "{{declarations + \"SELECT 1 FROM public.organizations\"}}"),
+                         ("UserId.SystemActor.Value:D", "UserId.SystemActor.Value:N"),
+                         ("SECURITY INVOKER", "SECURITY DEFINER"),
+                         ("current_setting('app.tenant_id',true)", "current_setting('app.other_tenant',true)"),
+                     })
+            {
+                var changed = argument.ToString().Replace(from, to, StringComparison.Ordinal);
+                changed.Should().NotBe(argument.ToString(), "each planted fault must change the actual migration argument");
+                Dirty(origin.Path, origin.Code.Remove(argument.SpanStart, argument.Span.Length).Insert(argument.SpanStart, changed));
+            }
+        }
+        Dirty(origin.Path, origin.Code.Replace("public static class SeedAdministrationOriginDdl",
+            "public static class UnreviewedOriginDdl", StringComparison.Ordinal));
+        Dirty(origin.Path, origin.Code.Replace("public static void Install(", "private static void Install(", StringComparison.Ordinal));
+        Dirty(origin.Path, origin.Code.Replace("SeedAdministrationOriginManifest.All", "UnreviewedDeclarations.All", StringComparison.Ordinal));
+        Dirty(origin.Path, origin.Code + "\ninternal static class ExtraOriginSql { const string Sql = \"SELECT 1 FROM public.organizations\"; }");
+        OrganizationReadOffenders(production.Append(("Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/Persistence/UnlistedOriginDdl.cs",
+            origin.Code))).Should().NotBeEmpty("a copied installer in another file has no organization SQL allowance");
         var page = production.Single(file => file.Path == OrganizationOccurrences);
         foreach (var (from, to) in new[]
                  {

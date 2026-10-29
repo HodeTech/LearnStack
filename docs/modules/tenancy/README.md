@@ -368,6 +368,9 @@ value refuses. The marker-2 branch mints no witness, opens no hatch and creates
 no MUST intent. Missing/disabled/conflicting mapping refuses without repair.
 Marker 2 records historical qualified adoption, not current mutable-graph or
 provider eligibility. Warm `make seed` accepts and preserves that marker.
+Its wrapper selects newly created and already marker-2 Tenants from the successful
+seed process result, so retained qualified mappings still reach this narrow
+runner verification. That result is selection data, not completion evidence.
 Ordinary completed warm seed requires the explicit upgrade for marker 0 or
 legacy marker 1; it never silently creates or repairs the origin. Standard 05
 owns the forward transition guards and unknown-COMMIT recovery contract.

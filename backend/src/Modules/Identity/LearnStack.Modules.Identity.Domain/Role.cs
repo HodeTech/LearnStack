@@ -15,6 +15,8 @@ public sealed class Role : AuditableEntity<RoleId>, IAggregateRoot<RoleId>, ITen
     public TenantId TenantId { get; private set; }
     public BuiltInRoleKey BuiltInKey { get; private set; }
     public PermissionScope PermissionScope { get; private set; }
+    public int AdoptedReleaseVersion { get; private set; } = IdentityFoundationManifest.Version1.Version;
+    public string AdoptedReleaseFingerprint { get; private set; } = IdentityFoundationManifest.Version1.Fingerprint;
     public IReadOnlyCollection<RolePermissionGrant> Grants => _grants.AsReadOnly();
 
     public static Result<Role> Create(RoleId id, TenantId tenantId, BuiltInRoleKey builtInKey,
@@ -34,7 +36,9 @@ public sealed class Role : AuditableEntity<RoleId>, IAggregateRoot<RoleId>, ITen
     public bool MatchesInitialTemplate()
     {
         var template = IdentityFoundationManifest.Version1.FindTemplate(BuiltInKey, PermissionScope);
-        return !IsDeleted && template is not null && _grants.Count == template.Grants.Length
+        return !IsDeleted && AdoptedReleaseVersion == IdentityFoundationManifest.Version1.Version
+            && AdoptedReleaseFingerprint == IdentityFoundationManifest.Version1.Fingerprint
+            && template is not null && _grants.Count == template.Grants.Length
             && template.Grants.All(definition => _grants.Any(grant => grant.PermissionScope == definition.Scope
                 && grant.PermissionKey == definition.Key));
     }
@@ -48,10 +52,11 @@ public sealed class Role : AuditableEntity<RoleId>, IAggregateRoot<RoleId>, ITen
     {
         ArgumentNullException.ThrowIfNull(definitions);
         var manifest = IdentityFoundationManifest.Version1;
-        return !IsDeleted && manifest.FindTemplate(BuiltInKey, PermissionScope) is not null
-            && definitions.Count <= manifest.Definitions.Length
+        var registry = IdentityRoleRelease.Version2;
+        return !IsDeleted && manifest.FindTemplate(BuiltInKey, PermissionScope) is not null && registry.IsValidAdoptionState(this)
+            && definitions.Count <= registry.Definitions.Length
             && definitions.All(definition => definition is { IsActive: true }
-                && definition.Scope == PermissionScope && manifest.IsActive(definition.Scope, definition.Key)
+                && definition.Scope == PermissionScope && registry.IsActive(definition.Scope, definition.Key)
                 && (definition.Key != IdentityFoundationManifest.RoleAdmin || BuiltInKey == BuiltInRoleKey.TenantAdmin))
             && definitions.Distinct().Count() == definitions.Count
             && (BuiltInKey != BuiltInRoleKey.TenantAdmin || IsTenantAdministrator
@@ -70,6 +75,25 @@ public sealed class Role : AuditableEntity<RoleId>, IAggregateRoot<RoleId>, ITen
         foreach (var definition in definitions)
             if (!_grants.Any(grant => grant.PermissionScope == definition.Scope && grant.PermissionKey == definition.Key))
                 _grants.Add(new RolePermissionGrant(this, definition));
+        return Result<None>.Ok(None.Value);
+    }
+
+    /// <summary>Adopts only the first exact release delta, preserving every prior grant removal.</summary>
+    public Result<None> AdoptRelease(int version, string fingerprint, DateTimeOffset at, UserId actor)
+    {
+        var release = IdentityRoleRelease.Version2;
+        if (!release.CanFirstAdopt(this, version, fingerprint)) return IdentityFailures.BusinessRule();
+        var desired = _grants.Select(grant => new PermissionDefinition(grant.PermissionScope, grant.PermissionKey))
+            .Union(release.TenantAdminDelta).ToArray();
+        if (!CanReplaceGrants(desired)) return IdentityFailures.BusinessRule();
+        // The marker itself is a real root change even if an ordinary authorized
+        // edit already installed all three keys before explicit adoption.
+        MarkUpdated(at, actor);
+        foreach (var definition in release.TenantAdminDelta)
+            if (!_grants.Any(grant => grant.PermissionScope == definition.Scope && grant.PermissionKey == definition.Key))
+                _grants.Add(new RolePermissionGrant(this, definition));
+        AdoptedReleaseVersion = release.Version;
+        AdoptedReleaseFingerprint = release.Fingerprint;
         return Result<None>.Ok(None.Value);
     }
 }

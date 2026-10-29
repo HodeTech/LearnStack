@@ -13,6 +13,7 @@ using LearnStack.Modules.Identity.Infrastructure.Authorization;
 using LearnStack.Modules.Identity.Infrastructure.Bindings;
 using LearnStack.Modules.Identity.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Application.Contracts.IdentityLifecycle;
+using LearnStack.Modules.Tenancy.Application.Authorization;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Caching;
@@ -94,6 +95,7 @@ internal sealed class RoleGrantPipelineHarness : IAsyncDisposable
         services.AddIdentityContextualFoundation();
         services.AddIdentityAuthorizationReader();
         services.AddIdentityOperationPolicies();
+        services.AddSingleton<IOperationPolicySource, TenancyOperationPolicySource>();
         services.AddScoped<IIdentityScopeLifecycleReader, IdentityScopeLifecycleReader>();
         services.AddSingleton<IOperationPolicyCatalog>(provider => new OperationPolicyCatalog(provider.GetServices<IOperationPolicySource>()));
         services.AddScoped<AuditStateCapture>();

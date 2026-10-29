@@ -128,28 +128,116 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                     || instruction.OpCode == OpCodes.Call && target.DeclaringType.FullName == "System.Runtime.InteropServices.ImmutableCollectionsMarshal"
                         && target.Name == "AsImmutableArray"
                     || instruction.OpCode == OpCodes.Newobj && target.FullName == constructors[0].FullName))) return false;
-        var constructorCalls = constructors[0].Body.Instructions.Where(instruction => instruction.Operand is MethodReference).ToArray();
-        foreach (var instruction in constructorCalls)
+        return DataOnlyPolicyConstructor(constructors[0], map);
+    }
+
+    // The exemption is for two literal metadata registrations, never for OperationPolicy
+    // as a whole. Follow only this constructor's clause comparisons and generated
+    // predicates; every reached body, captured field and metadata getter stays data-only.
+    private static bool DataOnlyPolicyConstructor(MethodDefinition constructor, Dictionary<string, TypeDefinition> map)
+    {
+        const string clause = "LearnStack.SharedKernel.Permissions.OperationPolicyClause";
+        const string permission = "LearnStack.SharedKernel.Permissions.PermissionDefinition";
+        const string source = "LearnStack.SharedKernel.Permissions.AuthorizationSourceKind";
+        var pending = new Queue<MethodDefinition>();
+        var visited = new HashSet<MethodDefinition>();
+        pending.Enqueue(constructor);
+
+        bool Closure(TypeReference type) => map.TryGetValue(Key(type), out var definition)
+            && definition.DeclaringType?.FullName == PolicyType && definition.IsNestedPrivate && definition.IsSealed
+            && definition.Name.StartsWith("<>c", StringComparison.Ordinal)
+            && definition.CustomAttributes.Any(attribute => attribute.AttributeType.FullName == "System.Runtime.CompilerServices.CompilerGeneratedAttribute");
+        bool Array(TypeReference type) => type is GenericInstanceType { GenericArguments.Count: 1 } generic
+            && generic.ElementType.FullName == "System.Collections.Immutable.ImmutableArray`1"
+            && generic.GenericArguments[0].FullName is clause or permission or source;
+        bool Predicate(TypeReference type) => type is GenericInstanceType { GenericArguments.Count: 2 } generic
+            && generic.ElementType.FullName == "System.Func`2" && generic.GenericArguments[1].FullName == "System.Boolean"
+            && generic.GenericArguments[0].FullName is "System.Char" or clause or permission or source;
+        bool Data(TypeReference type) => type.FullName is "System.Type" or "System.String" or "System.Boolean" or "System.Char"
+            or clause or permission or source or "LearnStack.SharedKernel.Permissions.OperationPolicyKind"
+            or "LearnStack.SharedKernel.Permissions.OperationReadScope" or "LearnStack.SharedKernel.Permissions.PermissionScope"
+            || Array(type) || Predicate(type) || Closure(type);
+        bool AddClosure(TypeReference reference)
         {
-            var target = (MethodReference)instruction.Operand;
-            if (target.DeclaringType.FullName == PolicyType + "/<>c" && target.Name is "<.ctor>b__0_0" or "<.ctor>b__0_1")
+            var type = map[Key(reference)];
+            if (type.Fields.Any(field => !Data(field.FieldType))) return false;
+            foreach (var initializer in type.Methods.Where(method => method.IsConstructor && method.IsStatic)) pending.Enqueue(initializer);
+            return true;
+        }
+        bool Getter(MethodReference reference)
+        {
+            if (!map.TryGetValue(Key(reference.DeclaringType), out var owner)
+                || owner.Methods.SingleOrDefault(method => method.FullName == reference.FullName) is not { HasBody: true } getter) return false;
+            var body = getter.Body.Instructions.Where(instruction => instruction.OpCode != OpCodes.Nop).ToArray();
+            return body is [{ OpCode.Code: Code.Ldarg_0 }, { OpCode.Code: Code.Ldfld, Operand: FieldReference field }, { OpCode.Code: Code.Ret }]
+                && field.DeclaringType.FullName == owner.FullName && Data(field.FieldType)
+                && owner.Fields.Any(candidate => candidate.FullName == field.FullName && candidate.IsPrivate && candidate.IsInitOnly);
+        }
+        while (pending.TryDequeue(out var body))
+        {
+            if (!visited.Add(body)) continue;
+            if (!body.HasBody) return false;
+            foreach (var instruction in body.Body.Instructions)
             {
-                if (instruction.OpCode != OpCodes.Ldftn || !map.TryGetValue(Key(target.DeclaringType), out var helper)
-                    || helper.Methods.SingleOrDefault(method => method.FullName == target.FullName) is not { HasBody: true } predicate
-                    || predicate.Body.Instructions.Any(item => item.Operand is MethodReference)) return false;
-                continue;
+                if (instruction.OpCode.Code is Code.Calli or Code.Jmp or Code.Ldtoken or Code.Ldvirtftn) return false;
+                if (instruction.Operand is FieldReference field)
+                {
+                    if (Closure(field.DeclaringType))
+                    {
+                        if (!AddClosure(field.DeclaringType) || !Data(field.FieldType)) return false;
+                    }
+                    else if (!(field.DeclaringType.FullName == PolicyType && Data(field.FieldType)
+                            && constructor.DeclaringType.Fields.Any(candidate => candidate.FullName == field.FullName && candidate.IsPrivate && candidate.IsInitOnly))
+                        && !(Array(field.DeclaringType) && field.Name == "Empty" && instruction.OpCode == OpCodes.Ldsfld)) return false;
+                }
+                if (instruction.Operand is not MethodReference target) continue;
+                if (Closure(target.DeclaringType))
+                {
+                    if (!AddClosure(target.DeclaringType)
+                        || map[Key(target.DeclaringType)].Methods.SingleOrDefault(method => method.FullName == target.FullName) is not { HasBody: true } helper
+                        || !(helper.IsConstructor && helper.Parameters.Count == 0 && instruction.OpCode == OpCodes.Newobj
+                            || instruction.OpCode == OpCodes.Ldftn && helper.ReturnType.FullName == "System.Boolean" && helper.Parameters.Count == 1
+                                && helper.Parameters[0].ParameterType.FullName is "System.Char" or clause or permission or source
+                                && (helper.Name.StartsWith("<.ctor>b__", StringComparison.Ordinal)
+                                    || helper.Name.StartsWith("<SameRequirements>b__", StringComparison.Ordinal)))) return false;
+                    pending.Enqueue(helper);
+                    continue;
+                }
+                if (target.DeclaringType.FullName == PolicyType && target.Name == "SameRequirements")
+                {
+                    var comparison = constructor.DeclaringType.Methods.SingleOrDefault(method => method.FullName == target.FullName);
+                    if (instruction.OpCode != OpCodes.Call || comparison is not { IsPrivate: true, IsStatic: true, Parameters.Count: 2 }
+                        || comparison.ReturnType.FullName != "System.Boolean" || comparison.Parameters.Any(parameter => parameter.ParameterType.FullName != clause)) return false;
+                    pending.Enqueue(comparison);
+                    continue;
+                }
+                if (instruction.OpCode.Code is not (Code.Call or Code.Callvirt or Code.Newobj)) return false;
+                if ((target.DeclaringType.FullName, target.Name) is (PolicyType, "get_Alternatives")
+                    or (clause, "get_RequiredPermissions") or (clause, "get_ReadScope")
+                    or (permission, "get_Scope") or (permission, "get_Key"))
+                {
+                    if (!Getter(target)) return false;
+                    continue;
+                }
+                if ((target.DeclaringType.FullName, target.Name) is ("System.Object", ".ctor")
+                    or ("System.ArgumentNullException", "ThrowIfNull") or ("System.ArgumentException", "ThrowIfNullOrWhiteSpace")
+                    or ("System.ArgumentException", ".ctor") or ("System.Type", "get_IsAbstract") or ("System.Type", "get_ContainsGenericParameters")
+                    or ("System.String", "get_Length") or ("System.String", "op_Equality")) continue;
+                if (target is GenericInstanceMethod generic && generic.GenericArguments.Count == 1)
+                {
+                    var argument = generic.GenericArguments[0].FullName;
+                    if (target.DeclaringType.FullName == "System.Enum" && target.Name == "IsDefined"
+                        && argument is "LearnStack.SharedKernel.Permissions.OperationPolicyKind" or "LearnStack.SharedKernel.Permissions.OperationReadScope") continue;
+                    if (target.DeclaringType.FullName is "System.Linq.Enumerable" or "System.Linq.ImmutableArrayExtensions"
+                        && (target.Name == "Any" && argument is "System.Char" or clause or permission or source
+                            || target.Name == "All" && argument == permission
+                            || target.Name == "Count" && argument is clause or source
+                            || target.Name == "Distinct" && argument == source)) continue;
+                }
+                if (Predicate(target.DeclaringType) && target.Name == ".ctor" && instruction.OpCode == OpCodes.Newobj
+                    || Array(target.DeclaringType) && target.Name is "get_IsDefault" or "get_IsDefaultOrEmpty" or "get_Length" or "get_Item" or "Contains") continue;
+                return false;
             }
-            if (!((target.DeclaringType.FullName, target.Name) is ("System.Object", ".ctor")
-                or ("System.ArgumentNullException", "ThrowIfNull") or ("System.ArgumentException", "ThrowIfNullOrWhiteSpace")
-                or ("System.ArgumentException", ".ctor") or ("System.Type", "get_IsAbstract") or ("System.Type", "get_ContainsGenericParameters")
-                or ("System.String", "get_Length") or ("System.Enum", "IsDefined")
-                or ("LearnStack.SharedKernel.Permissions.PermissionDefinition", "get_Scope")
-                or ("System.Linq.Enumerable", "Any") or ("System.Linq.Enumerable", "Distinct") or ("System.Linq.Enumerable", "Count")
-                or ("System.Linq.ImmutableArrayExtensions", "Any"))
-                && !(target.DeclaringType.FullName is "System.Func`2<System.Char,System.Boolean>"
-                        or "System.Func`2<LearnStack.SharedKernel.Permissions.AuthorizationSourceKind,System.Boolean>" && target.Name == ".ctor")
-                && !(target.DeclaringType.FullName == "System.Collections.Immutable.ImmutableArray`1<LearnStack.SharedKernel.Permissions.AuthorizationSourceKind>"
-                    && target.Name is "get_IsDefaultOrEmpty" or "get_Length" or "Contains")) return false;
         }
         return true;
     }
@@ -199,6 +287,34 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         var delegated = Instruction.Create(OpCodes.Newobj, policy.Module.ImportReference(handlerConstructor));
         factory.Body.Instructions.Add(delegated);
         try { Dirty(); } finally { factory.Body.Instructions.Remove(delegated); }
+        // Reaching a new clause helper must not turn the metadata exemption into a
+        // broad policy allowlist: both a named comparison and its generated predicate
+        // must lose the exemption if either starts acquiring a handler.
+        var comparison = policy.Methods.Single(method => method.Name == "SameRequirements");
+        var predicate = policy.NestedTypes.SelectMany(type => type.Methods)
+            .First(method => method.Name.StartsWith("<SameRequirements>b__", StringComparison.Ordinal));
+        foreach (var helper in new[] { comparison, predicate })
+        {
+            DataOnlyPolicyFactory(map).Should().BeTrue();
+            var executedComparison = Instruction.Create(OpCodes.Newobj, helper.Module.ImportReference(handlerConstructor));
+            helper.Body.Instructions.Add(executedComparison);
+            try
+            {
+                DataOnlyPolicyFactory(map).Should().BeFalse("metadata comparisons cannot acquire a handler");
+                Dirty();
+            }
+            finally { helper.Body.Instructions.Remove(executedComparison); }
+        }
+        var permissionsGetter = map.Values.Single(type => type.FullName == "LearnStack.SharedKernel.Permissions.OperationPolicyClause")
+            .Methods.Single(method => method.Name == "get_RequiredPermissions");
+        var executedGetter = Instruction.Create(OpCodes.Newobj, permissionsGetter.Module.ImportReference(handlerConstructor));
+        permissionsGetter.Body.Instructions.Add(executedGetter);
+        try
+        {
+            DataOnlyPolicyFactory(map).Should().BeFalse("an approved metadata getter must still be an immutable field read");
+            Dirty();
+        }
+        finally { permissionsGetter.Body.Instructions.Remove(executedGetter); }
         var off = map.Values.Single(type => type.FullName == "LearnStack.Infrastructure.Audit.AuditCatalogBuilder")
             .Methods.Single(method => method.Name == "Off");
         var executedRegistration = Instruction.Create(OpCodes.Newobj, off.Module.ImportReference(handlerConstructor));

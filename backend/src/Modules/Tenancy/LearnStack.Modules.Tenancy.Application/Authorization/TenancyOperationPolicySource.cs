@@ -12,11 +12,14 @@ public sealed class TenancyOperationPolicySource : IOperationPolicySource
 {
     public const string AccountSiteOperation = "tenancy.account_site.read";
     public static PermissionDefinition PublicSite { get; } = new(PermissionScope.Tenant, "tenancy.public_site.read");
-    public IEnumerable<PermissionRegistration> Definitions => [new(PublicSite, Assignable: false)];
+    public IEnumerable<PermissionRegistration> Definitions =>
+        BoundedTenancyAdministrationPermissions.Definitions.Select(definition => new PermissionRegistration(definition, Assignable: true))
+            .Append(new(PublicSite, Assignable: false));
     public IEnumerable<OperationPolicy> Policies =>
     [
         OperationPolicy.ForPublic<GetPublicSiteQuery>("tenancy.public_site.read", PublicSite),
         OperationPolicy.ForAccount<GetAccountSiteQuery>(AccountSiteOperation),
+        OperationPolicy.ForTrusted<AdoptSeedAdministrationOriginCommand>("tenancy.seed.adopt_admin_origin", AuthorizationSourceKind.Seed),
         OperationPolicy.ForTrusted<GetTenantSeedStateQuery>("tenancy.seed.read_tenant", AuthorizationSourceKind.Seed),
         OperationPolicy.ForTrusted<GetOrganizationSeedStateQuery>("tenancy.seed.read_organization", AuthorizationSourceKind.Seed),
         OperationPolicy.ForTrusted<GetHostMappingSeedStateQuery>("tenancy.seed.read_host", AuthorizationSourceKind.Seed),

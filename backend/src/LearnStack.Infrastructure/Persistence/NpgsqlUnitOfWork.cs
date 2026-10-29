@@ -48,7 +48,8 @@ namespace LearnStack.Infrastructure.Persistence;
 /// </para>
 /// </remarks>
 public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOperationReadScopeView,
-    IPreContextSelfDiscoveryUnitOfWork
+    IPreContextSelfDiscoveryUnitOfWork, IFixedSeedPrerequisiteUnitOfWork, IUnitOfWorkWriteGuard,
+    IUnitOfWorkContextEnrollment
 {
     private readonly NpgsqlDataSource _dataSource;
 
@@ -56,12 +57,15 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
     private readonly GlobalIdentityEnrollment _enrollment;
 
     public NpgsqlUnitOfWork(NpgsqlDataSource dataSource, ILogger<NpgsqlUnitOfWork> logger,
-        GlobalIdentityEnrollment? enrollment = null)
+        GlobalIdentityEnrollment? enrollment = null, ISeedPrerequisiteReadOperationResolver? seedPrerequisiteReads = null,
+        ISeedCompletionReadOperationResolver? seedCompletionReads = null)
     {
         _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _enrollment = enrollment ?? new GlobalIdentityEnrollment();
         _enrollment.Attach(this);
+        _seedPrerequisiteReads = seedPrerequisiteReads;
+        _seedCompletionReads = seedCompletionReads;
     }
 
     public IGlobalIdentityEnrollment GlobalIdentityEnrollment => _enrollment;
@@ -148,7 +152,7 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
 
     public TransactionMode? Mode => _mode;
 
-    public bool IsTenantWideRead => _tenantWideRead && ValidateOperationReadScope();
+    public bool IsTenantWideRead => IsSeedTenantWideRead || (_tenantWideRead && ValidateOperationReadScope());
 
     public Task<IUnitOfWorkScope> BeginTransactionAsync(CancellationToken cancellationToken = default) =>
         BeginTransactionAsync(TransactionMode.ReadWrite, cancellationToken);
@@ -162,6 +166,7 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
     {
         JobApplicationSourceOwner.RefuseExternalEntry();
         ObjectDisposedException.ThrowIf(_disposed, this);
+        RequireWriteAllowed();
 
         if (_selfDiscoveryWitness is not null)
             throw new InvalidOperationException("A transaction cannot join a self-discovery label owner.");
@@ -266,9 +271,10 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
     public async Task<IUnitOfWorkScope> BeginGlobalIdentityTransactionAsync(
         GlobalIdentityOwnerDescriptor descriptor, TransactionMode mode, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(descriptor);
         JobApplicationSourceOwner.RefuseExternalEntry();
         ObjectDisposedException.ThrowIf(_disposed, this);
+        RequireWriteAllowed();
+        ArgumentNullException.ThrowIfNull(descriptor);
         if (HasActiveTransaction || IsGlobalIdentityTransaction || _openingSelfDiscovery
             || _selfDiscoveryWitness is not null || _jobSourceOwner is not null
             || JobApplicationSourceOwner.Current is not null
@@ -320,6 +326,7 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
     public async Task AcquireGlobalIdentitySubjectLockAsync(GlobalIdentityOwnerDescriptor descriptor,
         CancellationToken cancellationToken = default)
     {
+        RequireWriteAllowed();
         RequireGlobalIdentityOwner(descriptor);
         if (_mode != TransactionMode.ReadWrite || _globalIdentityLocked || _globalIdentitySealed)
             throw new InvalidOperationException("The global identity subject lock belongs only to its fresh creation owner.");
@@ -341,6 +348,7 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
 
     public void EnrollGlobalIdentityContext(object context, GlobalIdentityOwnerDescriptor descriptor)
     {
+        RequireWriteAllowed();
         ArgumentNullException.ThrowIfNull(context);
         RequireGlobalIdentityOwner(descriptor);
         if (context.GetType() != descriptor.ContextType || _globalIdentitySealed
@@ -358,6 +366,7 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
     public async Task ValidateGlobalIdentityConstraintsAsync(GlobalIdentityOwnerDescriptor descriptor,
         CancellationToken cancellationToken = default)
     {
+        RequireWriteAllowed();
         RequireGlobalIdentityOwner(descriptor);
         if (_mode != TransactionMode.ReadWrite || !_globalIdentityLocked || _globalIdentitySealed)
             throw new InvalidOperationException("Global constraint validation requires the live unsealed creation owner.");
@@ -386,8 +395,9 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
         bool tenantWideRead, CancellationToken cancellationToken)
     {
         JobApplicationSourceOwner.RefuseExternalEntry();
-        ArgumentNullException.ThrowIfNull(context);
         ObjectDisposedException.ThrowIf(_disposed, this);
+        RequireWriteAllowed();
+        ArgumentNullException.ThrowIfNull(context);
 
         if (IsGlobalIdentityTransaction || _selfDiscoveryWitness is not null)
         {
@@ -543,6 +553,7 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
     {
         JobApplicationSourceOwner.RefuseExternalEntry();
         ObjectDisposedException.ThrowIf(_disposed, this);
+        RequireWriteAllowed();
 
         if (_tenantWideRead || _readScopeFaulted) RefuseOperationReadScope();
 
@@ -638,6 +649,7 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
 
     private bool ValidateOperationReadScope(bool requireCurrentFrame = true)
     {
+        if (!ValidateFixedSeedRead()) return false;
         if (_selfDiscoveryWitness is { } own && !own.IsBoundTo(this))
         {
             _rollbackOnly = true;
@@ -684,6 +696,7 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
 
     private void ClearTenantContextAnnouncement()
     {
+        ClearFixedSeedRead();
         _tenantContextIssued = false;
         _tenantContextAnnouncement = null;
         _tenantWideRead = false;
@@ -818,6 +831,12 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
 
     private async Task CommitFrameAsync(CancellationToken cancellationToken)
     {
+        if (_seedReadState != SeedReadState.Narrow)
+        {
+            PoisonFixedSeedRead();
+            await RollbackCoreAsync();
+            throw new InvalidOperationException("A fixed seed read cannot commit; the owner was rolled back.");
+        }
         if (!ValidateOperationReadScope())
         {
             await RollbackCoreAsync();

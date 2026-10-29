@@ -52,9 +52,17 @@ public sealed class RoleGrantAuthorization(IIdentityAuthorizationReader reader, 
             && IdentityFoundationManifest.Version1.TenantAdminKernel.All(definition => role.Grants.Contains(definition) && Registered(definition)));
         if (!eligible || !tenantGrants.Contains(IdentityOperationPolicySource.RoleAdministration))
             return Refused(ProtectedOperationOutcome.Forbidden, AuthorizationRefusalReason.Capability, members, roleIds);
+        var release = IdentityRoleRelease.Version2;
+        var firstAdoption = request is AdoptRoleGrantManifestCommand adoption
+            && release.CanFirstAdopt(target, adoption.ManifestVersion, adoption.ManifestFingerprint)
+            && desired.ToHashSet().SetEquals(target.Grants.Select(grant => new PermissionDefinition(grant.PermissionScope, grant.PermissionKey))
+                .Union(release.TenantAdminDelta));
+        if (request is AdoptRoleGrantManifestCommand && !firstAdoption)
+            return Refused(ProtectedOperationOutcome.Forbidden, AuthorizationRefusalReason.Delegation, members, roleIds);
         if (!target.CanReplaceGrants(desired) || desired.Any(definition => !Registered(definition))
             || desired.Where(definition => !target.Grants.Any(grant => grant.PermissionScope == definition.Scope && grant.PermissionKey == definition.Key))
-                .Any(definition => !tenantGrants.Any(held => held.Scope == PermissionScope.Tenant && held.Key == definition.Key)))
+                .Any(definition => !(firstAdoption && release.TenantAdminDelta.Contains(definition))
+                    && !tenantGrants.Any(held => held.Scope == PermissionScope.Tenant && held.Key == definition.Key)))
             return Refused(ProtectedOperationOutcome.Forbidden, AuthorizationRefusalReason.Delegation, members, roleIds);
         return new(ForDecision(invocation, candidate, ProtectedOperationOutcome.Allowed, members, roleIds), AuthorizationRefusalReason.Capability);
 
@@ -67,7 +75,7 @@ public sealed class RoleGrantAuthorization(IIdentityAuthorizationReader reader, 
     internal void ReportRefusal(RoleGrantAssessment assessment) => refusals.ReportResourceRefusal(assessment.Decision, assessment.Reason);
 
     private bool Registered(PermissionDefinition definition) => definition is { IsActive: true }
-        && IdentityFoundationManifest.Version1.IsActive(definition.Scope, definition.Key)
+        && IdentityRoleRelease.Version2.IsActive(definition.Scope, definition.Key)
         && catalog.TryGetDefinition(definition.Scope, definition.Key, out var registered)
         && registered.Assignable && registered.Definition == definition && registered.Definition.IsActive;
 }

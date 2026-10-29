@@ -1,5 +1,6 @@
 using LearnStack.Modules.Tenancy.Application.Abstractions;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
+using LearnStack.Modules.Tenancy.Application.Seeding;
 using LearnStack.Modules.Tenancy.Domain;
 using LearnStack.SharedKernel.Errors;
 using LearnStack.SharedKernel.Identifiers;
@@ -31,7 +32,7 @@ namespace LearnStack.Modules.Tenancy.Application.Tenant;
 internal sealed class CreateOrganizationCommandHandler(
     IOrganizationWriteStore organizations,
     ITenantContext tenantContext,
-    IClock clock)
+    IClock clock, SeedTenantWriteGuard seedGuard)
     : IRequestHandler<CreateOrganizationCommand, Result<OrganizationDto>>
 {
     public async Task<Result<OrganizationDto>> Handle(
@@ -53,6 +54,10 @@ internal sealed class CreateOrganizationCommandHandler(
                 new Error(new LocalizedMessage("lockey_tenant_mismatch")));
         }
 
+        var admission = await seedGuard.AdmitAsync(request, cancellationToken);
+        if (admission.IsFailure) return Result<OrganizationDto>.Fail(admission.Error);
+        if (await seedGuard.VerifyAsync(admission.Value, request, cancellationToken) is { IsFailure: true } changed)
+            return Result<OrganizationDto>.Fail(changed.Error);
         var organization = Organization.Create(
             request.OrganizationId,
             tenantContext.TenantId,

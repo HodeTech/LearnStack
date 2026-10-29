@@ -166,7 +166,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**325 test methods run in
+**327 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -785,7 +785,10 @@ otherwise).
   The guard reads identity literals from the authoritative `SeedData` declaration,
   not a second hard-coded list. Its source reader must observe the declared values
   and fail on an incomplete or unreadable declaration rather than report clean.
-- **Source:** [Phase 02d G20](../roadmap/phase-02d-delivery-log.md#p02d-2-accepted-answers).
+- **Source:** [Phase 02d G20](../roadmap/phase-02d-delivery-log.md#p02d-2-accepted-answers);
+  [ADR-0079](../decisions/0079-bounded-identity-administration.md) and
+  [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md)
+  select the closed fixed-origin security data.
 - **Scope:** P02d-2 accepted G20(a)'s source;
   [P02d-5](../roadmap/phase-02d-delivery-log.md#p02d-5-accepted-answers)
   accepted bounded seed/development/test exemptions, and
@@ -808,7 +811,16 @@ otherwise).
   verifies category coverage and exact frontend fixture drift. Canonical built-ins
   come from their owning declarations. Production census includes Seeder
   orchestration, frontend packages/messages/configuration/native code; only the
-  exact seed declaration and named test/development data are exempt. Complete
+  exact seed declaration and named test/development data are exempt. The
+  fixed-origin declarations remain inside that census: only the six literal
+  nodes of the two exact immutable `SeedAdministrationOriginManifest` records
+  receive bounded data admission. Their IDs/slugs and derived management hosts
+  match `SeedData`, with an independent fixed-pin test; exact compiled All/Find
+  callers are enumerated. Extra/computed records, executable branches, copied
+  management-host literals, aliases and unclassified conditional variants refuse.
+  This extension is qualified under the separately registered
+  [completion rule](#fixed_seed_origin_adoption_requires_completed_foundation).
+  Complete
   decoded values match ordinally; GUIDs match by value. C# conditional symbol
   configurations are parsed independently to a fixed point (at most eight symbols;
   excessive or unreadable configurations fail). UTF-8 literals and emitted JSX

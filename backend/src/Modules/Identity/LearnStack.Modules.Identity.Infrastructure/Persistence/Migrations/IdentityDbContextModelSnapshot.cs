@@ -257,6 +257,24 @@ namespace LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations
                         .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
                         .HasAnnotation("LearnStack:PersonalData:Purpose", "Institution-owned built-in authorization template identity and capability scope, without person fields.");
 
+                    b.Property<string>("AdoptedReleaseFingerprint")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasDefaultValue("ba16d2c21f2547f3dc7f9dce24e25a18f30103186739ea00a33e9edf43834794")
+                        .HasColumnName("adopted_release_fingerprint")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Institution-owned built-in authorization template identity and capability scope, without person fields.");
+
+                    b.Property<int>("AdoptedReleaseVersion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("adopted_release_version")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Institution-owned built-in authorization template identity and capability scope, without person fields.");
+
                     b.Property<string>("BuiltInKey")
                         .IsRequired()
                         .HasColumnType("text")

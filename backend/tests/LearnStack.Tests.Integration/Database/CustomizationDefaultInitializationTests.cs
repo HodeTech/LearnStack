@@ -282,12 +282,10 @@ public sealed class CustomizationDefaultInitializationTests(SchemaFixture schema
                     provider.GetRequiredService<IUnitOfWork>(), gate));
             }));
 
-    private async Task<Context> ProvisionAsync(NpgsqlDataSource source)
+    private static async Task<Context> ProvisionAsync(NpgsqlDataSource source)
     {
         var tenant = TenantId.From(Guid.CreateVersion7());
-        await using var provider = BuildProvider(source, null);
-        (await SendAsync(provider, null, new ProvisionTenantCommand(tenant, "default-" + tenant.Value.ToString("N"), "Default proof",
-            OrganizationId.From(Guid.CreateVersion7()), "main", "Main"))).IsSuccess.Should().BeTrue();
+        await ContentComponentFixture.CreateTenantAsync(source, tenant);
         return new(tenant);
     }
 

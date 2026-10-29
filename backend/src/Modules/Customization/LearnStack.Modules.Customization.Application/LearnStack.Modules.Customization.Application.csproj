@@ -9,6 +9,7 @@
     <ProjectReference Include="..\LearnStack.Modules.Customization.Domain\LearnStack.Modules.Customization.Domain.csproj" />
     <ProjectReference Include="..\LearnStack.Modules.Customization.Application.Contracts\LearnStack.Modules.Customization.Application.Contracts.csproj" />
     <ProjectReference Include="..\..\Tenancy\LearnStack.Modules.Tenancy.Application.Contracts\LearnStack.Modules.Tenancy.Application.Contracts.csproj" />
+    <ProjectReference Include="..\..\Identity\LearnStack.Modules.Identity.Application.Contracts\LearnStack.Modules.Identity.Application.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>

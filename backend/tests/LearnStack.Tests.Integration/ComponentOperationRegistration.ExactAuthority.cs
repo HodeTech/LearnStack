@@ -41,6 +41,7 @@ internal static partial class ComponentOperationRegistration
         // No ITenantContext dependency here: binding admission can resolve the graph
         // before it installs the actual context. Bind only at the first exact capture.
         services.AddScoped<ITrustedOperationSource>(_ => new ComponentSource(authority));
+        AddContentComponentGuards(services, authority);
     }
 
     private sealed class ComponentAuthority(OperationPolicy[] policies)

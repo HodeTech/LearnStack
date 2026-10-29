@@ -214,7 +214,7 @@ wait-postgres: ## Wait for the selected stack's PostgreSQL before migrations.
 	node scripts/wait-compose.mjs --postgres
 
 # ─── Seed ─────────────────────────────────────────────────────────────────
-.PHONY: seed seed-config
+.PHONY: seed seed-config seed-admin-origins
 seed-config: .env
 	./scripts/seed.sh --validate-config
 
@@ -222,6 +222,9 @@ seed: seed-config ## Start the selected stack, migrate, and converge application
 	@# The Node owner runs dev/wait/migrate with a credential allowlist. Making
 	@# them prerequisites here would leak inherited Keycloak secrets into EF.
 	./scripts/seed.sh
+
+seed-admin-origins: seed-config ## Explicitly adopt the two fixed administration hosts after verified warm seed.
+	./scripts/seed.sh --adopt-admin-origins
 
 # ─── Bootstrap ────────────────────────────────────────────────────────────
 .PHONY: install

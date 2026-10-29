@@ -22,6 +22,7 @@ public static class IdentityFoundationRegistration
     {
         ArgumentNullException.ThrowIfNull(services);
         services.TryAddScoped<IIdentityMutationLocks, IdentityMutationLocks>();
+        services.TryAddSingleton<IFixedSeedPrerequisiteVerifier, DenyAllFixedSeedPrerequisiteVerifier>();
         services.TryAddScoped<ContextualIdentityStorageControl>();
         services.TryAddScoped<IRoleWriteStore, RoleWriteStore>();
         services.TryAddScoped<IRoleReadStore, RoleReadStore>();

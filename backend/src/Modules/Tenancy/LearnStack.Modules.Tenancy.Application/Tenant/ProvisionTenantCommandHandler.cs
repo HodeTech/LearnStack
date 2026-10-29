@@ -1,5 +1,6 @@
 using LearnStack.Modules.Tenancy.Application.Abstractions;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
+using LearnStack.Modules.Tenancy.Application.Seeding;
 using LearnStack.Modules.Tenancy.Domain;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Errors;
@@ -53,13 +54,16 @@ internal sealed class ProvisionTenantCommandHandler(
     ITenantWriteStore tenants,
     IOrganizationWriteStore organizations,
     IClock clock,
-    IGuidFactory guids)
+    IGuidFactory guids, SeedTenantWriteGuard seedGuard)
     : IRequestHandler<ProvisionTenantCommand, Result<ProvisionedTenantDto>>
 {
     public async Task<Result<ProvisionedTenantDto>> Handle(
         ProvisionTenantCommand request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
+
+        var admission = await seedGuard.AdmitAsync(request, cancellationToken);
+        if (admission.IsFailure) return Result<ProvisionedTenantDto>.Fail(admission.Error);
 
         // The registry-assigned actor, not a resolved user: provisioning runs before any
         // membership exists, so there is nobody in the tenant to attribute it to. Phase
@@ -68,7 +72,7 @@ internal sealed class ProvisionTenantCommandHandler(
 
         try
         {
-            return await ProvisionAsync(request, actor, cancellationToken);
+            return await ProvisionAsync(request, actor, admission.Value, cancellationToken);
         }
         catch (AggregateConflictException conflict)
         {
@@ -94,8 +98,10 @@ internal sealed class ProvisionTenantCommandHandler(
 
     /// <summary>The three writes, in the one order the schema permits.</summary>
     private async Task<Result<ProvisionedTenantDto>> ProvisionAsync(
-        ProvisionTenantCommand request, UserId actor, CancellationToken cancellationToken)
+        ProvisionTenantCommand request, UserId actor, SeedTenantWriteAdmission admission, CancellationToken cancellationToken)
     {
+        if (seedGuard.RequireCurrent(admission, request) is { IsFailure: true } changed)
+            return Result<ProvisionedTenantDto>.Fail(changed.Error);
         var tenant = Domain.Tenant.Create(
             request.TenantId, request.Slug, request.DisplayName, clock, actor);
 
@@ -103,6 +109,8 @@ internal sealed class ProvisionTenantCommandHandler(
         // (tenant_id, id), so its row has nothing to reference until this one lands.
         await tenants.AddAsync(tenant, cancellationToken);
 
+        if (seedGuard.RequireCurrent(admission, request) is { IsFailure: true } changedAfterTenant)
+            return Result<ProvisionedTenantDto>.Fail(changedAfterTenant.Error);
         var organization = Organization.Create(
             request.DefaultOrganizationId,
             request.TenantId,
@@ -117,6 +125,8 @@ internal sealed class ProvisionTenantCommandHandler(
         // at a row that does not exist when the tenant is inserted, and the foreign key
         // behind it is MATCH SIMPLE — which skips the check only while the column is
         // null. Setting it on the insert would defeat that and fail.
+        if (seedGuard.RequireCurrent(admission, request) is { IsFailure: true } changedAfterOrganization)
+            return Result<ProvisionedTenantDto>.Fail(changedAfterOrganization.Error);
         tenant.AssignDefaultOrganization(request.DefaultOrganizationId, clock, guids, actor);
         await tenants.UpdateAsync(tenant, cancellationToken);
 

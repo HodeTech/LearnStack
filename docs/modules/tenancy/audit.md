@@ -144,7 +144,7 @@ unmarked row is one a shipped command already raises.
 | `Tenant` | `tenancy.tenant.create` | **MUST** | The root of a customer's data; its existence is a contractual fact |
 | `Tenant` | `tenancy.tenant.change_status` `(planned)` | **MUST** | Suspension withdraws access; an operator must be able to say who and when |
 | `Tenant` | `tenancy.tenant.rename` `(planned)` | SHOULD | Presentational |
-| `Tenant` | `tenancy.tenant.adopt_seed_origin` `(planned)` | **MUST** (`security-event`) | Closed `AdoptSeedAdministrationOriginCommand` advances only its fixed Tenant seed-origin marker; its separate hostmapping MUST intent shares the same transaction. |
+| `Tenant` | `tenancy.tenant.adopt_seed_origin` | **MUST** (`security-event`) | Closed `AdoptSeedAdministrationOriginCommand` advances only its fixed Tenant seed-origin marker; its separate hostmapping MUST intent shares the same transaction. |
 | `Organization` | `tenancy.organization.create` | **MUST** | Adds an isolation surface; every org-scoped row written afterwards is written under it |
 | `Organization` | `tenancy.organization.archive` `(planned)` | **MUST** | Withdraws that surface while every row it isolated stays behind, and the rows themselves say nothing about who archived the organization or when |
 | `Organization` | `tenancy.organization.rename` `(planned)` | SHOULD | Presentational |

@@ -35,6 +35,7 @@ function fixture() {
   for (const name of [
     'demo',
     'seed',
+    'seed-admin-origins',
     'compose',
     'demo-process',
     'demo-database',
@@ -299,6 +300,7 @@ DemoProcesses.prototype.run = async function(command, args, options = {}) {
   if (command === 'dotnet' && args.length === 1 && args[0].endsWith('/LearnStack.Tools.Seeder.dll')) {
     f.events.push('appseed');
     if (f.scenario === 'seed-failure') throw f.seedFailure;
+    return 'seed-result: {"version":2,"freshTenantIds":[],"qualifiedOriginTenantIds":[]}\\n';
   }
   if (command === 'pnpm' && args.at(-1) === 'build') { f.events.push('renderer'); throw f.boundary; }
   return '';
@@ -493,7 +495,10 @@ else if (JSON.stringify(args) === JSON.stringify(['build', 'src/LearnStack.Api',
 else if (JSON.stringify(args) === JSON.stringify(['build', 'src/LearnStack.Tools.IdentityAuthorityInstaller', '--configuration', 'Release', '--nologo'])) record('authority-build');
 else if (args[0] === 'ef' && args[1] === 'database' && args[2] === 'update') record('migration-ef', 'Migration', !args.includes('--connection') && !args.some(arg => arg.includes('Password=')));
 else if (JSON.stringify(args) === JSON.stringify(['build', 'src/LearnStack.Tools.Seeder', '--configuration', 'Release', '--nologo'])) record('seeder-build');
-else if (args.length === 1 && args[0] === ${JSON.stringify(join(f.root, 'backend/src/LearnStack.Tools.Seeder/bin/Release/net10.0/LearnStack.Tools.Seeder.dll'))}) record('appseed', 'Default');
+else if (args.length === 1 && args[0] === ${JSON.stringify(join(f.root, 'backend/src/LearnStack.Tools.Seeder/bin/Release/net10.0/LearnStack.Tools.Seeder.dll'))}) {
+  record('appseed', 'Default');
+  process.stdout.write('seed-result: {"version":2,"freshTenantIds":[],"qualifiedOriginTenantIds":[]}\\n');
+}
 else process.exit(19);
 `,
     { mode: 0o700 },

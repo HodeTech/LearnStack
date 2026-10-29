@@ -165,7 +165,7 @@ public static class ModuleDbContextRegistration
                 // module's registration. The interceptor takes THIS scope's unit of
                 // work, so it compares each command's transaction against the one
                 // this request actually announced a tenant on.
-                .AddInterceptors(new TenantContextGuardInterceptor(unitOfWork))
+                .AddInterceptors(new UnitOfWorkWriteBarrierInterceptor(unitOfWork), new TenantContextGuardInterceptor(unitOfWork))
                 // And whatever else the composition root registered as an
                 // ISaveChangesInterceptor, including audit and domain-event collection,
                 // which has to reach EVERY module's context because the capture is what
@@ -200,6 +200,8 @@ public static class ModuleDbContextRegistration
             }
 
             context.Database.UseTransaction(unitOfWork.Transaction);
+            if (unitOfWork is IUnitOfWorkContextEnrollment enrollment)
+                enrollment.RegisterModuleContext(context);
 
             return context;
         });

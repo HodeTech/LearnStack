@@ -20,12 +20,23 @@ internal static class SeedFoundationGate
 
     internal static async Task<bool> AllowsAsync(ITenantContext context, ISeedIdentityFoundationAdmission admission,
         IIdentityScopeLifecycleReader lifecycle, SeedIdentityFoundationAct act, string expectedFingerprint,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, bool verification = false)
     {
         if (act.ManifestVersion != IdentityFoundationManifest.Version1.Version
             || !string.Equals(act.ExpectedFingerprint, expectedFingerprint, StringComparison.Ordinal)
             || !await admission.AllowsFoundationAsync(act, cancellationToken)) return false;
+        // Verification may inspect retained inactive history; it supplies no write admission.
+        if (verification) return act.Operation is SeedIdentityFoundationOperation.VerifyRole
+            or SeedIdentityFoundationOperation.VerifyMembership;
         // Closed seed admission precedes any lifecycle SQL or lock acquisition.
+        var facts = await lifecycle.ReadAsync(context.TenantId, context.OrganizationId, cancellationToken);
+        return facts.TenantExistsAndNotDeleted && facts.TenantAllowsOrdinaryWork
+            && (context.OrganizationId is null || facts.OrganizationBelongsToTenant && facts.OrganizationAllowsOrdinaryWork);
+    }
+
+    internal static async Task<bool> AllowsCurrentLifecycleAsync(ITenantContext context,
+        IIdentityScopeLifecycleReader lifecycle, CancellationToken cancellationToken)
+    {
         var facts = await lifecycle.ReadAsync(context.TenantId, context.OrganizationId, cancellationToken);
         return facts.TenantExistsAndNotDeleted && facts.TenantAllowsOrdinaryWork
             && (context.OrganizationId is null || facts.OrganizationBelongsToTenant && facts.OrganizationAllowsOrdinaryWork);

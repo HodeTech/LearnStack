@@ -25,6 +25,7 @@ import { demoSource } from './demo-source.mjs';
 import { RealmError, realmFailureNotice } from './development-realm-errors.mjs';
 import { readRealmEnvironmentFile, realmEnvironment, seedAuthorityEnvironment, validateLocalDockerContext } from './development-realm-owner.mjs';
 import { reconcileDevelopmentRealm } from './reconcile-development-realm.mjs';
+import { seedAdministrationOriginTenantIds, adoptSeedAdministrationOrigins } from './seed-admin-origins.mjs';
 
 const appRoot = join(repositoryRoot, 'frontend/apps/web');
 const backendRoot = join(repositoryRoot, 'backend');
@@ -440,12 +441,15 @@ export async function startDemo(mode) {
       timeout: 300000,
     });
     await waitCompose(selected, processes, controller.signal);
-    await run('dotnet', [seederDll], 'Contextual seed convergence', {
+    const seedOutput = await run('dotnet', [seederDll], 'Contextual seed convergence', {
       cwd: backendRoot,
       env: developmentSeederRuntimeEnvironment(rawValues),
       timeout: 180000,
+      capture: true,
     });
-    await reconcileDevelopmentRealm({ selected, signal: controller.signal, seedIdentityFoundation: true });
+    const originTenants = seedAdministrationOriginTenantIds(seedOutput);
+    const realmResult = await reconcileDevelopmentRealm({ selected, signal: controller.signal, seedIdentityFoundation: true });
+    await adoptSeedAdministrationOrigins(processes, rawValues, originTenants, realmResult.preparationDispatched === true);
     if (mode === 'ci') {
       await compose(['stop', 'keycloak'], { timeout: 20000 });
       const rows = await compose(['ps', '--status', 'running', '--format', '{{.Service}}'], {

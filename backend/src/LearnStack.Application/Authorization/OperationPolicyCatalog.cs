@@ -35,13 +35,18 @@ public sealed class OperationPolicyCatalog : IOperationPolicyCatalog
         }
         foreach (var policy in policies.Values)
         {
-            if (policy.RequiredPermission is { } required
-                && (!definitions.TryGetValue((required.Scope, required.Key), out var registered)
+            IEnumerable<PermissionDefinition> requirements = policy.Kind == OperationPolicyKind.Protected
+                ? policy.Alternatives.SelectMany(clause => clause.RequiredPermissions)
+                : policy.RequiredPermission is { } permission ? [permission] : Enumerable.Empty<PermissionDefinition>();
+            foreach (var required in requirements)
+            {
+                if (!definitions.TryGetValue((required.Scope, required.Key), out var registered)
                     || registered.Definition != required
                     || registered.Assignable != (policy.Kind == OperationPolicyKind.Protected)
                     || (policy.Kind == OperationPolicyKind.PublicRead
-                        && (required.Scope != PermissionScope.Tenant || !required.Key.EndsWith(".read", StringComparison.Ordinal)))))
-                throw new InvalidOperationException("Operation policy references an unregistered or incompatible permission.");
+                        && (required.Scope != PermissionScope.Tenant || !required.Key.EndsWith(".read", StringComparison.Ordinal))))
+                    throw new InvalidOperationException("Operation policy references an unregistered or incompatible permission.");
+            }
         }
         if (policies.Values.Where(policy => policy.TrustedEventHandlerType is not null)
             .GroupBy(policy => policy.TrustedEventHandlerType).Any(group => group.Count() != 1))

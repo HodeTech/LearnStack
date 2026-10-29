@@ -167,6 +167,7 @@ describe('observational CI demo source checkpoints', () => {
       mkdirSync(join(f.root, 'scripts'));
       for (const name of [
         'demo',
+        'seed-admin-origins',
         'demo-process',
         'demo-source',
         'demo-observation',

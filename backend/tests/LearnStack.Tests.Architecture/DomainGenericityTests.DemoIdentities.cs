@@ -7,6 +7,8 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Xunit;
+using Mono.Cecil.Cil;
+using OriginManifestCensus = LearnStack.Tests.Architecture.TrustedOperationSourceConventionTests.Census;
 
 namespace LearnStack.Tests.Architecture;
 
@@ -18,6 +20,9 @@ public sealed partial class DomainGenericityTests
     {
         var vocabulary = DemoIdentities.Create();
         vocabulary.Values.Should().NotBeEmpty();
+        using var manifestCensus = OriginManifestCensus.Read();
+        FixedOriginManifestReferenceOffenders(manifestCensus).Should().BeEmpty(
+            "the closed topology manifest cannot become a symbolic demo identity source for ordinary production code");
         var allFiles = DemoProductionSourceCensus();
         var files = allFiles
             // Sole authoritative tenant declaration, never the whole Seeder project.
@@ -250,6 +255,8 @@ public sealed partial class DomainGenericityTests
         brokenConditional.Should().Throw<InvalidOperationException>("unreadable branches must not silently disappear");
         Action brokenDirective = () => _ = DemoLiteralViolations("Probe.cs", "#if NET10_0\nclass Probe {}", vocabulary);
         brokenDirective.Should().Throw<InvalidOperationException>("unbalanced directives must remain syntax failures");
+        AssertFixedOriginManifestDataFence(vocabulary);
+        AssertFixedOriginManifestCallerFence();
     }
 
     /// <summary>G20 also bans symbolic access to the Seeder from every production project.</summary>
@@ -304,12 +311,13 @@ public sealed partial class DomainGenericityTests
     {
         var ids = vocabulary.Values.Where(row => row.Kind == "id").Select(row => Guid.Parse(row.Value)).ToHashSet();
         var strings = vocabulary.Values.Where(row => row.Kind != "id").Select(row => row.Value)
-            .Except(vocabulary.PlatformValues, StringComparer.Ordinal).ToHashSet(StringComparer.Ordinal);
+            .Except(vocabulary.PlatformValues, StringComparer.Ordinal)
+            .Concat(SeedData.All.Select(tenant => "manage." + tenant.Host)).ToHashSet(StringComparer.Ordinal);
         return (Path.GetExtension(path) switch
         {
             ".json" => JsonValues(source),
             ".sql" => SqlLiteralValues(source),
-            _ => CSharpValues(source),
+            _ => CSharpValues(source, IsFixedOriginManifestPath(path)),
         })
             .Where(value => strings.Contains(value) || Guid.TryParse(value, out var id) && ids.Contains(id))
             .Distinct(StringComparer.Ordinal).ToArray();
@@ -345,11 +353,15 @@ public sealed partial class DomainGenericityTests
     [GeneratedRegex(@"--[^\r\n]*|/\*[\s\S]*?\*/|(?<escape>\b[Ee]|[Uu]&)?'(?<value>(?:''|[^'])*)'|\$(?<tag>[A-Za-z_][A-Za-z0-9_]*|)\$(?<dollar>[\s\S]*?)\$\k<tag>\$", RegexOptions.CultureInvariant)]
     private static partial Regex SqlSourceTokens();
 
-    private static IEnumerable<string> CSharpValues(string source)
+    private static IEnumerable<string> CSharpValues(string source, bool fixedOriginManifest = false)
     {
         foreach (var syntax in CSharpConditionalConfigurations(source))
-            foreach (var node in syntax.GetRoot().DescendantNodes())
+        {
+            var root = syntax.GetRoot();
+            var declared = fixedOriginManifest ? FixedOriginManifestDataLiterals(root) : [];
+            foreach (var node in root.DescendantNodes())
             {
+                if (declared.Contains(node)) continue;
                 var value = node switch
                 {
                     LiteralExpressionSyntax literal when literal.IsKind(SyntaxKind.StringLiteralExpression)
@@ -365,6 +377,172 @@ public sealed partial class DomainGenericityTests
                 try { nested = value.TrimStart().StartsWith('{') || value.TrimStart().StartsWith('[') ? JsonValues(value).ToArray() : []; }
                 catch (JsonException) { nested = []; } // Ordinary text/SQL may start with a bracket.
                 foreach (var inner in nested) yield return inner;
+            }
+        }
+    }
+
+    private const string FixedOriginManifestRelativePath =
+        "Modules/Tenancy/LearnStack.Modules.Tenancy.Application.Contracts/Seeding/SeedAdministrationOriginManifest.cs";
+    private const string FixedOriginManifestType =
+        "LearnStack.Modules.Tenancy.Application.Contracts.Seeding.SeedAdministrationOriginManifest";
+
+    private static bool IsFixedOriginManifestPath(string path) => string.Equals(Path.GetFullPath(path),
+        Path.GetFullPath(Path.Combine(RepositoryPaths.BackendSrc(), FixedOriginManifestRelativePath)), StringComparison.Ordinal);
+
+    // ADR-0079's fixed topology registry and ADR-0081's independently checked
+    // source are data-only security declarations, not business specialization.
+    // The production file stays in the census. Only these six validated syntax
+    // nodes are omitted from literal matching; every other node remains a subject.
+    private static HashSet<SyntaxNode> FixedOriginManifestDataLiterals(SyntaxNode root)
+    {
+        if (root is not CompilationUnitSyntax unit || unit.ContainsDirectives || unit.Externs.Count != 0
+            || unit.AttributeLists.Count != 0 || unit.Members.Count != 1
+            || !unit.Usings.Select(value => value.Name?.ToString() ?? string.Empty).Order(StringComparer.Ordinal)
+                .SequenceEqual(new[] { "LearnStack.SharedKernel.Identifiers", "System.Collections.Immutable" }, StringComparer.Ordinal)
+            || unit.Usings.Any(value => value.Alias is not null || value.StaticKeyword.RawKind != 0 || value.GlobalKeyword.RawKind != 0)
+            || unit.Members[0] is not FileScopedNamespaceDeclarationSyntax space
+            || space.Name.ToString() != "LearnStack.Modules.Tenancy.Application.Contracts.Seeding"
+            || space.Members.Count != 1 || space.Usings.Count != 0 || space.Externs.Count != 0
+            || space.Members[0] is not ClassDeclarationSyntax type || type.Identifier.ValueText != "SeedAdministrationOriginManifest"
+            || type.Modifiers.Count != 2 || !type.Modifiers.Any(SyntaxKind.PublicKeyword) || !type.Modifiers.Any(SyntaxKind.StaticKeyword)
+            || type.AttributeLists.Count != 0 || type.TypeParameterList is not null || type.BaseList is not null
+            || type.ConstraintClauses.Count != 0 || type.ParameterList is not null || type.Members.Count != 2
+            || type.Members[0] is not PropertyDeclarationSyntax all || all.Identifier.ValueText != "All"
+            || !SyntaxFactory.AreEquivalent(all.WithInitializer(null).WithSemicolonToken(default), SyntaxFactory.ParseMemberDeclaration(
+                "public static ImmutableArray<SeedAdministrationOriginDeclaration> All { get; }"))
+            || all.Initializer?.Value is not CollectionExpressionSyntax values || values.Elements.Count != 2
+            || type.Members[1] is not MethodDeclarationSyntax find
+            || !SyntaxFactory.AreEquivalent(find, SyntaxFactory.ParseMemberDeclaration("""
+                public static SeedAdministrationOriginDeclaration? Find(TenantId tenantId) =>
+                    All.SingleOrDefault(declaration => declaration.TenantId == tenantId);
+                """)))
+            throw InvalidFixedOriginManifest();
+
+        var expected = SeedData.All.ToArray();
+        if (expected.Length != 2) throw InvalidFixedOriginManifest();
+        var admitted = new HashSet<SyntaxNode>();
+        for (var index = 0; index < expected.Length; index++)
+        {
+            if (values.Elements[index] is not ExpressionElementSyntax element
+                || element.Expression is not ImplicitObjectCreationExpressionSyntax declaration
+                || declaration.Initializer is not null || declaration.ArgumentList.Arguments.Count != 3
+                || declaration.ArgumentList.Arguments.Any(argument => argument.NameColon is not null || argument.RefKindKeyword.RawKind != 0)
+                || !FixedOriginInvocationArgument(declaration.ArgumentList.Arguments[0].Expression, "TenantId", "From", out var from)
+                || !FixedOriginInvocationArgument(from!, "Guid", "Parse", out var parsed)
+                || parsed is not LiteralExpressionSyntax id || !id.IsKind(SyntaxKind.StringLiteralExpression)
+                || declaration.ArgumentList.Arguments[1].Expression is not LiteralExpressionSyntax slug
+                || !slug.IsKind(SyntaxKind.StringLiteralExpression)
+                || declaration.ArgumentList.Arguments[2].Expression is not LiteralExpressionSyntax host
+                || !host.IsKind(SyntaxKind.StringLiteralExpression)
+                || id.Token.ValueText != expected[index].TenantId.Value.ToString("D")
+                || slug.Token.ValueText != expected[index].Slug || host.Token.ValueText != "manage." + expected[index].Host)
+                throw InvalidFixedOriginManifest();
+            admitted.Add(id);
+            admitted.Add(slug);
+            admitted.Add(host);
+        }
+        return admitted;
+    }
+
+    private static bool FixedOriginInvocationArgument(ExpressionSyntax expression, string receiver, string name,
+        out ExpressionSyntax? argument)
+    {
+        argument = null;
+        if (expression is not InvocationExpressionSyntax invocation
+            || invocation.Expression is not MemberAccessExpressionSyntax member
+            || member.Expression is not IdentifierNameSyntax owner || owner.Identifier.ValueText != receiver
+            || member.Name is not IdentifierNameSyntax method || method.Identifier.ValueText != name
+            || invocation.ArgumentList.Arguments.Count != 1 || invocation.ArgumentList.Arguments[0].NameColon is not null
+            || invocation.ArgumentList.Arguments[0].RefKindKeyword.RawKind != 0) return false;
+        argument = invocation.ArgumentList.Arguments[0].Expression;
+        return true;
+    }
+
+    private static InvalidOperationException InvalidFixedOriginManifest() => new(
+        "The fixed origin manifest must retain only its two exact data declarations and generic lookup; review ADR-0079/0081 before extending it.");
+
+    private static void AssertFixedOriginManifestDataFence(DemoIdentities vocabulary)
+    {
+        var path = Path.Combine(RepositoryPaths.BackendSrc(), FixedOriginManifestRelativePath);
+        var source = File.ReadAllText(path);
+        var root = CSharpSyntaxTree.ParseText(source).GetCompilationUnitRoot();
+        var type = root.DescendantNodes().OfType<ClassDeclarationSyntax>().Single();
+        var all = type.Members.OfType<PropertyDeclarationSyntax>().Single();
+        var values = (CollectionExpressionSyntax)all.Initializer!.Value;
+        var firstId = SeedData.All[0].TenantId.Value.ToString("D");
+        DemoLiteralViolations(path, source, vocabulary).Should().BeEmpty();
+        DemoLiteralViolations(path, source + "\n// extra comment only", vocabulary).Should().BeEmpty();
+        DemoLiteralViolations("CopiedManifest.cs", source, vocabulary).Should().NotBeEmpty("data admission is confined to the exact production path");
+        var foreign = source.Replace(firstId, "01930000-0000-7000-8000-000000000099", StringComparison.Ordinal);
+        var computed = source.Replace("Guid.Parse(\"" + firstId + "\")", "Guid.Parse(\"" + firstId + "\".ToString())", StringComparison.Ordinal);
+        var extra = root.ReplaceNode(values, values.AddElements(values.Elements[0])).ToFullString();
+        var branch = source.Replace("All.SingleOrDefault(declaration => declaration.TenantId == tenantId)",
+            "tenantId == All[0].TenantId ? All[0] : All.SingleOrDefault(declaration => declaration.TenantId == tenantId)", StringComparison.Ordinal);
+        var extraMember = root.ReplaceNode(type, type.AddMembers(SyntaxFactory.ParseMemberDeclaration(
+            "public static bool Select(TenantId tenant) => tenant == All[0].TenantId;")!)).ToFullString();
+        var extraLiteral = root.ReplaceNode(type, type.AddMembers(SyntaxFactory.ParseMemberDeclaration(
+            "public static string Host => " + JsonSerializer.Serialize("manage." + SeedData.All[0].Host) + ";")!)).ToFullString();
+        foreach (var dirty in new[] { foreign, computed, extra, branch, extraMember, extraLiteral,
+            "#if FIXED_ORIGIN_CONTROL\n" + source + "\n#else\n" + extraMember + "\n#endif" })
+        {
+            dirty.Should().NotBe(source, "each planted control must change its actual input");
+            Action inspect = () => _ = DemoLiteralViolations(path, dirty, vocabulary);
+            inspect.Should().Throw<InvalidOperationException>("only the six verified data slots are admitted");
+        }
+        DemoLiteralViolations("OriginBranch.cs", "class Probe { bool Match(string host) => host == "
+            + JsonSerializer.Serialize("manage." + SeedData.All[0].Host) + "; }", vocabulary).Should().ContainSingle(
+                "the admitted management-host data cannot become a branch literal elsewhere");
+    }
+
+    private static string[] FixedOriginManifestReferenceOffenders(OriginManifestCensus census)
+    {
+        var observed = new List<string>();
+        foreach (var method in census.Methods)
+            foreach (var instruction in method.Body.Instructions)
+            {
+                if (instruction.Operand is not Mono.Cecil.MethodReference target || target.DeclaringType.FullName != FixedOriginManifestType) continue;
+                var owner = census.Owner(method);
+                // This one generated lambda implements the runner's fixed-selection
+                // Any predicate. Count it with RunAsync; additional calls still fail.
+                if (method.DeclaringType.FullName == "LearnStack.Tools.Seeder.SeedAdministrationOriginRunner/<>c"
+                    && method.Name.StartsWith("<RunAsync>b__", StringComparison.Ordinal))
+                    owner = "LearnStack.Tools.Seeder.SeedAdministrationOriginRunner::RunAsync";
+                observed.Add(owner + "|" + target.Name + "|" + instruction.OpCode.Code);
+            }
+        var expected = new[]
+        {
+            FixedOriginManifestType + "::Find|get_All|Call",
+            "LearnStack.Modules.Tenancy.Infrastructure.Persistence.SeedAdministrationOriginDdl::Install|get_All|Call",
+            "LearnStack.Modules.Tenancy.Infrastructure.Persistence.SeedAdministrationOriginDdl::InstallQualifiedCompletion|get_All|Call",
+            "LearnStack.Tools.Seeder.SeedAdministrationOriginRunner::ReadSelectionAsync|get_All|Call",
+            "LearnStack.Modules.Tenancy.Application.Seeding.AdoptSeedAdministrationOriginCommandHandler::Handle|Find|Call",
+            "LearnStack.Tools.Seeder.FixedSeedCompletionSource::Matches|Find|Call",
+            "LearnStack.Tools.Seeder.FixedSeedAdministrationOriginAdmission::ForTenant|Find|Call",
+            "LearnStack.Tools.Seeder.SeedAdministrationOriginRunner::RunAsync|Find|Call",
+            "LearnStack.Tools.Seeder.SeedAdministrationOriginRunner::RunAsync|Find|Call",
+            "LearnStack.Tools.Seeder.SeedAdministrationOriginRunner::ReadSelectionAsync|Find|Call",
+        };
+        return observed.Order(StringComparer.Ordinal).SequenceEqual(expected.Order(StringComparer.Ordinal), StringComparer.Ordinal)
+            ? [] : ["Fixed origin All/Find callers, call kind or multiplicity changed: " + string.Join(", ", observed)];
+    }
+
+    private static void AssertFixedOriginManifestCallerFence()
+    {
+        using var census = OriginManifestCensus.Read();
+        FixedOriginManifestReferenceOffenders(census).Should().BeEmpty();
+        var api = census.Type("LearnStack.Api.Composition.PersistenceCompositionExtensions");
+        foreach (var member in new[] { "get_All", "Find" })
+            foreach (var opcode in new[] { OpCodes.Call, OpCodes.Ldftn })
+            {
+                var method = new Mono.Cecil.MethodDefinition("UnownedFixedOriginControl",
+                    Mono.Cecil.MethodAttributes.Private | Mono.Cecil.MethodAttributes.Static, api.Module.TypeSystem.Void);
+                method.Body.Instructions.Add(Instruction.Create(opcode, api.Module.ImportReference(census.Method(FixedOriginManifestType, member))));
+                method.Body.Instructions.Add(Instruction.Create(OpCodes.Pop));
+                method.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+                api.Methods.Add(method);
+                try { FixedOriginManifestReferenceOffenders(census).Should().NotBeEmpty("ordinary API code cannot read or alias fixed origin pins"); }
+                finally { api.Methods.Remove(method); }
+                FixedOriginManifestReferenceOffenders(census).Should().BeEmpty();
             }
     }
 

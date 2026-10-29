@@ -6,9 +6,16 @@ using LearnStack.Modules.Customization.Application.Authorization;
 using LearnStack.Modules.Education.Application.Authorization;
 using LearnStack.Modules.Identity.Application.Contracts.Seeding;
 using LearnStack.Modules.Identity.Infrastructure.Bindings;
+using LearnStack.Modules.Identity.Infrastructure.Persistence;
+using LearnStack.Modules.Customization.Application.Contracts.Seeding;
+using LearnStack.Modules.Customization.Application.Seeding;
+using LearnStack.Modules.Education.Application.Contracts.Seeding;
+using LearnStack.Modules.Education.Application.Seeding;
 using LearnStack.Modules.Customization.Infrastructure;
 using LearnStack.Modules.Customization.Application.Contracts.Definitions;
 using LearnStack.Modules.Tenancy.Application.Contracts.Locales;
+using LearnStack.Modules.Tenancy.Application.Contracts.Seeding;
+using LearnStack.Modules.Tenancy.Application.Seeding;
 using LearnStack.Modules.Education.Application.Audit;
 using LearnStack.Application.Pipeline;
 using LearnStack.Infrastructure.MultiTenancy;
@@ -85,7 +92,8 @@ public static class SeedComposition
         IReservedHostRegistry? reservedHosts = null,
         IdentityAuthorityRegistration? identityAuthority = null,
         ISeedIdentityFoundationAdmission? seedAdmission = null,
-        IAuthorizationEvidenceSessionFactory? authorizationEvidence = null)
+        IAuthorizationEvidenceSessionFactory? authorizationEvidence = null,
+        ISeedAdministrationOriginAdmission? seedOriginAdmission = null)
     {
         ArgumentNullException.ThrowIfNull(dataSource);
         ArgumentNullException.ThrowIfNull(loggerFactory);
@@ -125,6 +133,22 @@ public static class SeedComposition
         services.AddScoped<LearnStack.Modules.Tenancy.Application.Contracts.IdentityLifecycle.IIdentityScopeLifecycleReader,
             IdentityScopeLifecycleReader>();
         services.AddScoped<IPlatformHostMappingStore, PlatformHostMappingStore>();
+        services.AddSingleton<ISeedTenantContinuationSource, FixedSeedTenantContinuationSource>();
+        services.AddScoped<FixedSeedPrerequisiteSource>();
+        services.AddScoped<IFixedSeedPrerequisiteVerifier, FixedSeedPrerequisiteVerifier>();
+        services.AddScoped<ISeedPrerequisiteReadOperationResolver, FixedSeedPrerequisiteReadOperationResolver>();
+        services.AddScoped<IFixedSeedIdentityPrerequisiteReader, FixedSeedIdentityPrerequisiteReader>();
+        services.AddScoped<FixedSeedCompletionSource>();
+        services.AddScoped<IFixedSeedOriginCompletionVerifier, FixedSeedCompletionVerifier>();
+        services.AddScoped<ISeedTenantCompletionReader, FixedSeedTenantCompletionReader>();
+        services.AddScoped<ISeedCustomizationCompletionReader, FixedSeedCustomizationCompletionReader>();
+        services.AddScoped<ISeedEducationCompletionReader, FixedSeedEducationCompletionReader>();
+        services.AddScoped<ISeedIdentityCompletionReader, FixedSeedIdentityCompletionReader>();
+        services.AddScoped<FixedSeedCompletionReadOperation>();
+        services.AddScoped<ISeedCompletionReadOperationResolver, FixedSeedCompletionReadOperationResolver>();
+        services.AddScoped<SeedTenantWriteGuard>();
+        services.AddScoped<ISeedTenantContinuationGuard>(provider => provider.GetRequiredService<SeedTenantWriteGuard>());
+        services.AddSingleton<ISeedAdministrationOriginAdmission>(seedOriginAdmission ?? new DenyAllSeedAdministrationOriginAdmission());
 
         // The Customization module, for act three. Its context goes through the same
         // helper for the same reason Tenancy's does: one connection per scope, enlisted
@@ -153,6 +177,18 @@ public static class SeedComposition
         services.AddScoped<LearnStack.Modules.Education.Application.Abstractions.IParentCourseReader, ParentCourseReader>();
         services.AddScoped<LearnStack.Modules.Education.Application.Abstractions.ITranslationCollisionReader, TranslationCollisionReader>();
         services.AddScoped<ICustomizationGenerationStore, CustomizationGenerationStore>();
+        services.AddSingleton<FixedSeedContentContinuationSource>();
+        services.AddSingleton<ISeedCustomizationContinuationSource>(provider =>
+            provider.GetRequiredService<FixedSeedContentContinuationSource>());
+        services.AddSingleton<ISeedEducationContinuationSource>(provider =>
+            provider.GetRequiredService<FixedSeedContentContinuationSource>());
+        services.AddScoped<ISeedCustomizationState, SeedCustomizationState>();
+        services.AddScoped<LearnStack.Modules.Education.Application.Abstractions.ISeedEducationState, SeedEducationState>();
+        services.AddScoped<ISeedIdentityStageReader, SeedIdentityStageReader>();
+        services.AddScoped<SeedCustomizationWriteGuard>();
+        services.AddScoped<ISeedCustomizationWriteGuard>(provider => provider.GetRequiredService<SeedCustomizationWriteGuard>());
+        services.AddScoped<ISeedCustomizationPrerequisiteReader>(provider => provider.GetRequiredService<SeedCustomizationWriteGuard>());
+        services.AddScoped<ISeedEducationWriteGuard, SeedEducationWriteGuard>();
 
         // The Audit module's context, on the same helper and for the same reason as the
         // other two. The registration is load-bearing rather than defensive: this root

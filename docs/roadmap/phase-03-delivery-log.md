@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 1,408 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 1,492 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -167,6 +167,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0081 proposal review round 2 and approval readiness (2026-10-29)](#adr-0081-proposal-review-round-2-and-approval-readiness-2026-10-29) — 39 lines
   - [P03-3 Step 3 independent seed regressions and typed race correction (2026-10-29)](#p03-3-step-3-independent-seed-regressions-and-typed-race-correction-2026-10-29) — 55 lines
   - [ADR-0081 maintainer corrections and acceptance (2026-10-29)](#adr-0081-maintainer-corrections-and-acceptance-2026-10-29) — 49 lines
+  - [P03-3 Step 3 implementation and qualification (2026-10-29)](#p03-3-step-3-implementation-and-qualification-2026-10-29) — 84 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -7118,3 +7119,87 @@ runner/warm/unknown-COMMIT paths and no-dispatch repeat; complete Step 3 source
 checks, commit and run its original two fresh implementation-review rounds.
 Steps4–10 retain their order. No local doc review closes full Architecture/
 Integration/provider/browser/manual-accessibility or final-source A/B obligations.
+
+### P03-3 Step 3 implementation and qualification (2026-10-29)
+
+Root implements the Accepted finite-policy, release-adoption and preserving-seed
+contracts, including ADR-0080 and ADR-0081. This record precedes the implementation
+commit and its two fresh independent review rounds; neither round is closed here.
+
+**Delivered boundaries.**
+
+- Finite All/Any permission clauses retain exact matched-clause read authority.
+  The registry has eight assignable scoped pairs and three virtual public pairs.
+  Version-2 adoption applies the exact three-key TenantAdmin delta once, with a
+  monotonic release marker/fingerprint; an ordinary seed rerun restores no grant.
+- All twenty-one v1 tenant-bound writers and the separate origin writer enter the
+  complete fence census. The eight pristine consumers use their closed metadata
+  verification purpose; twelve content writers retain their narrow prerequisite
+  contracts. Human and built-in delivery sources receive no seed witness.
+- Separate completion authority has one consumer, four immutable owning-module
+  declarations and an actual locked Tenant/mapping snapshot. Tenancy/Customization
+  read narrow; Education/Identity use the common owner's one private transition
+  and existing two scope-only SQL sites. No new connection, role, definer, Tenant
+  setter, context writer, table or column is introduced by completion.
+- The shared owner guards mutation, flush, nesting and commit during verification;
+  it releases Boolean evidence only after acknowledged narrow restoration. Source,
+  generation, clean-context and exact-plan checks remain mandatory. Failed cleanup
+  poisons and actually rolls back/disposes the owner before connector reuse.
+- Qualified origin adoption uses forward migration `20261029045617`, retaining old
+  marker 1 but permitting new transitions only from 0/1 to 2. Runner marker 2
+  validates the exact live mapping before skipping dispatch, intent declaration,
+  witness minting and scope SQL. Direct completed-command dispatch still refuses.
+  Successful adoption retains both central MUST rows on the business transaction.
+- Unknown-COMMIT attempts retain two indeterminate events and CLI exit 1. Only a
+  later explicit invocation observes/requalifies; it makes no rollback inference
+  from a fresh marker 0/1. Real lost-ACK and unsent-COMMIT controls cover both
+  physical outcomes and the later process/runner convergence.
+- The successful seed process's bounded version-2 result selects fresh and already
+  marker-2 Tenants for the fixed runner. Normal seed/demo repeats therefore verify
+  retained qualified mappings; legacy 0/1 still require the explicit upgrade.
+
+**Verified corrections during qualification.**
+
+| Finding | Correction and evidence |
+|---|---|
+| Normal wrapper selected only fresh Tenants | Add observed qualified IDs to the ephemeral selection, never as completion authority. Actual CLI plus actual JavaScript selection rejects missing/disabled marker-2 mappings without mutation or new audit. |
+| New proof counted a refused mapping intent only by host ID | Completion can refuse before projection designation. Assert both exact MUST operation/type/outcome tuples, including the legitimately null mapping entity ID; retain the exact Tenant target. No audit policy change. |
+| Test proxy cancellation escaped disposal | Recognize only the exact canceled session token while still joining both pumps; preserve unrelated protocol/fault failures. Real owner controls pass after the fixture correction. |
+| Old policy metadata purity model | Inspect the closed clause/comparison/getter graph; retain factory token/call checks and malicious constructor/helper/getter controls. Event handler metadata is not executable HTTP dispatch. |
+| New write guard caused a type-wide producer walk | Admit only the borrowed denial port after checking its sole implementation and exact pure helper closure. Connection, commit, publish, delegate and unknown-helper controls remain rejecting. |
+| Fixed origin security data tripped the old literal fence | Keep its file in the census, validate only six exact declaration nodes and the exact compiled caller set, and reject executable/extra/computed/copied data uses. ADR-0079/0081 supply this bounded data purpose; frozen Phase 02d history is unchanged. |
+| Stale lock/setter/Organization/evidence censuses | Enumerate eight acquisition and thirteen recheck owners; reuse the exact scope sanitizer without adding a logical setter; require both exact invoker migration arguments plus seven runtime Organization SQL subjects; retain nineteen invocation borrower methods/twenty-five callvirt sites and hostile alias/removal controls. |
+| Identity Infrastructure registered a foreign-module default | Remove that unused registration and default implementation. API and Seeder already compose the owning guard; the dependency rule stays intact. |
+| Three new pairs lacked the old registry proof map | Add real isolated-database v2 adoption, positive delegation and committed opposite-scope denial for each new pair. Retain the original five cases and all no-mutation/audit assertions. |
+| New fixture expected Education's typed enum spelling in SQL | Use the actual lowercase persisted `draft` values; rerun all seven graph cases. |
+| Existing demo fixtures omitted the imported helper/result | Copy the actual helper and emit bounded empty selections only from their recognized successful ordinary-Seeder fakes. Failure, cancellation, environment, provenance and cleanup assertions remain unchanged. |
+
+**Completed local checks.**
+
+| Population | Result and limit |
+|---|---|
+| CI-mode complete solution Release build | Passed, zero warnings/errors. |
+| Full Architecture population | Completed 599 cases: 585 passed, 14 failed, zero skips. These failures produced the verified corrections above; this initial run is not reported as green. |
+| Architecture correction families and corpus | 130/130 passed, zero skips; covers every failed family, the new denial-guard control and the 327-method catalogue count. |
+| Completion/CLI/owner/source/graph/registry PostgreSQL population | Initial 127 cases: 126 passed and one fixture-SQL spelling failure. All seven graph cases then passed after that correction; every distinct case is covered by a passing run. |
+| Legacy prerequisite, eight-consumer, twelve-content-writer, release and Seeder regressions | 183/183 passed, zero skips; includes real competing commits and interrupted/warm preservation. |
+| Complete Unit population | 3,182/3,182 passed, zero skips. |
+| Guarded frontend workspace | 2,481/2,481 passed in two packages, zero skips/todos; typecheck and lint passed. |
+| Served OpenAPI/SDK contract controls | 6/6 passed; no Step 3 HTTP contract regeneration is required. |
+| Seed tooling | 22/22 Node controls passed; actual CLI/script selection is separately covered above. |
+
+The graph controls cover provisioning-only refusal, real prerequisite audit
+interruptions in Customization/Education/Identity, final branch profile state,
+retained profile/nonkernel-grant/assignment/locale/theme/Organization edits, both
+observed Tenant-fence orders and the exact existing mapping's row lock. Fixture
+SQL for retained human-shaped edits does not qualify the future Step 4/5 handlers.
+The conflicting branch pin is deliberate invalid fixture state, not a newly
+admitted content mutation. Positive Membership version does not prove original
+profile initialization, and the local admin predicate does not read global/provider
+eligibility. Marker 2 remains historical adoption evidence, not a current graph
+certificate. Forged database history remains outside the admitted-writer proof.
+
+The new seed extension rules remain Registered through their pending Step 3
+implementation reviews. Full provider/native/browser/manual-accessibility and
+fresh final-source A/B qualification remain the already assigned later steps.
+There is no new approval wait, no push or PR, and no branch change.

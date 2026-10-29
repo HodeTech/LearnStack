@@ -311,7 +311,8 @@ public sealed class OperationReadScopeTests(SchemaFixture schema)
         internal Admission(ITenantContext context, CancellationToken cancellationToken = default)
         {
             var candidate = _candidate.Mint(context);
-            Witness = ForTenantRead(_invocation.Mint(context, candidate, cancellationToken), candidate);
+            var invocation = _invocation.Mint(context, candidate, cancellationToken);
+            Witness = ForTenantRead(invocation, candidate, invocation.Policy.Alternatives.Single());
         }
         public void Dispose() { _invocation.Close(); _candidate.Dispose(); }
     }

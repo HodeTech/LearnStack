@@ -85,6 +85,20 @@ public sealed class Tenant : AuditableEntity<TenantId>, IAggregateRoot<TenantId>
     /// </remarks>
     public OrganizationId? DefaultOrganizationId { get; private set; }
 
+    /// <summary>The qualified fixed development-origin adoption; 1 retains legacy unqualified history.</summary>
+    public int AdoptedSeedOriginVersion { get; private set; }
+
+    public bool AdoptSeedAdministrationOrigin(IClock clock, UserId updatedBy)
+    {
+        ArgumentNullException.ThrowIfNull(clock);
+        if (AdoptedSeedOriginVersion == 2) return false;
+        if (AdoptedSeedOriginVersion is not (0 or 1))
+            throw new InvalidOperationException("The development origin version is unsupported.");
+        MarkUpdated(clock.UtcNow, updatedBy);
+        AdoptedSeedOriginVersion = 2;
+        return true;
+    }
+
     /// <summary>
     /// Creates a tenant under an id its registry has already assigned.
     /// </summary>

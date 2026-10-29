@@ -70,6 +70,10 @@ public sealed class TenancyAuditCatalogSource : IAuditCatalogSource
 
             .MustAudit<MapHostToTenantCommand>(
                 "tenancy.hostmapping.write", OperationType.Create, typeof(PlatformHostMapping))
+            .MustAudit<AdoptSeedAdministrationOriginCommand>(
+                "tenancy.tenant.adopt_seed_origin", OperationType.SecurityEvent, typeof(Domain.Tenant))
+            .MustAudit<AdoptSeedAdministrationOriginCommand>(
+                "tenancy.hostmapping.write", OperationType.Create, typeof(PlatformHostMapping))
 
             // Off-path, by slug. Each is written by something that is not a handler, so
             // there is no type to key a registration on; each sits outside the request-type

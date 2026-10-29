@@ -2,6 +2,7 @@ using FluentAssertions;
 using FluentValidation;
 using LearnStack.Modules.Tenancy.Application.Abstractions;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
+using LearnStack.Modules.Tenancy.Application.Contracts.Seeding;
 using LearnStack.Modules.Tenancy.Application.Tenant;
 using LearnStack.Modules.Tenancy.Domain;
 using LearnStack.Modules.Tenancy.Domain.Events;
@@ -10,6 +11,8 @@ using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Time;
+using LearnStack.SharedKernel.Tenancy;
+using NSubstitute;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -424,6 +427,14 @@ public sealed class ProvisionTenantCommandTests
         services.AddSingleton<IOrganizationWriteStore>(recording);
         services.AddSingleton<IClock>(Clock);
         services.AddSingleton<IGuidFactory, SystemGuidFactory>();
+        var command = Command();
+        var declaration = new SeedTenantDeclaration(Tenant, command.Slug, command.DisplayName,
+            new(Organization, command.DefaultOrganizationSlug, command.DefaultOrganizationDisplayName),
+            new(OrganizationId.From(Guid.CreateVersion7()), "second", "Second"), [], "declared.example.test", null, null, null);
+        var state = Substitute.For<ISeedStateReader>();
+        state.ReadTenantAsync(Arg.Any<CancellationToken>()).Returns(_ => Task.FromException<TenantSeedDto?>(
+            new InvalidOperationException("Provisioning does not read a tenant.")));
+        TenancySeedHandlerOwner.Register(services, UnresolvedTenantContext.Instance, declaration, state, Clock);
 
         return services.BuildServiceProvider();
     }
