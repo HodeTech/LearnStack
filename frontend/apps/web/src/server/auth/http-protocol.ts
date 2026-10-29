@@ -19,6 +19,9 @@ import { bffActivity, bffForm, bffQuery, bffRoute, exactBffOrigin } from './http
 import type { BffHttpRequest } from './http-input.js';
 import { NativeApiError } from './native-contract.js';
 import type { NativeOperationResult } from './native-operation-contract.js';
+import type { NativeActionPage, NativeEntrySnapshot, ScopeChoices } from './page-contract.js';
+import type { NativePagePreparation } from './page-snapshot-contract.js';
+import { SnapshotAdmissionError } from './page-snapshot-pool.js';
 import { BffProviderError } from './provider-error.js';
 import { BffSessionError } from './session-contract.js';
 import type {
@@ -37,20 +40,13 @@ const cookieLife = 8 * 60 * 60;
 export type BffPage = Readonly<
   | { kind: 'signin'; csrfToken: string; returnPath: string; contextHint?: string }
   | { kind: 'entry'; entry: EntryProjection | null; cursor?: string }
+  | { kind: 'scope_choices'; selection: ScopeChoices; cursor?: string }
   | {
       kind: 'entry_error';
       reason: 'reauthenticate' | 'creation_disabled' | 'denied' | 'busy' | 'unavailable';
       retryAfterSeconds?: number;
     }
-  | {
-      kind: 'mutation_error';
-      action: string;
-      destination: string;
-      fields: readonly (readonly [string, string])[];
-      reason: 'denied' | 'stale' | 'in_progress' | 'key_reuse' | 'unavailable';
-      retryable: boolean;
-    }
-  | { kind: 'account_change'; csrfToken: string }
+  | NativeActionPage
   | { kind: 'error' }
 >;
 export type BffPageRenderer = (page: BffPage) => string;
@@ -58,6 +54,7 @@ type BffProjection = Readonly<{
   session: SessionProjection | null;
   cookies: readonly string[];
   unavailable: boolean;
+  refusalStatus?: 400 | 429 | 503;
 }>;
 function result(
   request: BffHttpRequest,
@@ -163,7 +160,83 @@ function input(request: BffHttpRequest) {
 }
 
 /** Called only after independent live-host bootstrap. No public SDK or browser bearer forwarding. */
-export function createBffHttpProtocol(store: BffSessionStore) {
+export function createBffHttpProtocol(store: BffSessionStore, preparation?: NativePagePreparation) {
+  const ticket = (request: BffHttpRequest) => {
+    if (!preparation) throw new SnapshotAdmissionError('unavailable');
+    return preparation.current({
+      host: request.host,
+      peer: request.source,
+      method: request.method,
+      target: request.target,
+    });
+  };
+  const entryDocument = (
+    request: BffHttpRequest,
+    render: BffPageRenderer | undefined,
+    snapshot: NativeEntrySnapshot,
+  ): Response => {
+    const view = snapshot.view;
+    if (view.kind === 'entry')
+      return document(
+        request,
+        render,
+        { kind: 'entry', entry: view.entry, cursor: view.cursor ?? undefined },
+        view.entry ?? { state: 'anonymous' },
+      );
+    if (view.kind === 'scopes')
+      return document(
+        request,
+        render,
+        { kind: 'scope_choices', selection: view.selection, cursor: view.cursor ?? undefined },
+        view.selection,
+      );
+    if (view.kind === 'mutation_error' || view.kind === 'account_change')
+      throw new SnapshotAdmissionError('unavailable');
+    const reason =
+      view.reason === 'not_found'
+        ? 'denied'
+        : view.reason === 'invalid_cursor'
+          ? 'unavailable'
+          : view.reason;
+    const response = document(
+      request,
+      render,
+      { kind: 'entry_error', reason, retryAfterSeconds: view.retryAfterSeconds ?? undefined },
+      { code: view.code ?? view.reason },
+      view.status ??
+        (reason === 'busy'
+          ? 429
+          : reason === 'denied' || reason === 'creation_disabled'
+            ? 403
+            : reason === 'reauthenticate'
+              ? 401
+              : 503),
+    );
+    response.headers.delete('retry-after');
+    if (view.retryAfterSeconds !== null)
+      response.headers.set('retry-after', String(view.retryAfterSeconds));
+    return response;
+  };
+  const actionDocument = async (
+    request: BffHttpRequest,
+    render: BffPageRenderer | undefined,
+    current: SessionBinding,
+    page: NativeActionPage,
+    value: unknown,
+    status: number,
+  ): Promise<Response> => {
+    const prepared = await store.preparePage(current, request.source, {
+      kind: 'response',
+      ticket: ticket(request),
+      page,
+    });
+    if (
+      'session' in prepared ||
+      (prepared.view.kind !== 'mutation_error' && prepared.view.kind !== 'account_change')
+    )
+      throw new SnapshotAdmissionError('unavailable');
+    return document(request, render, prepared.view, value, status);
+  };
   return Object.freeze({
     async project(
       request: BffHttpRequest,
@@ -187,13 +260,38 @@ export function createBffHttpProtocol(store: BffSessionStore) {
       const current = binding(request, cookies);
       if (!current) return anonymous();
       try {
-        const session = await store.admit(current, request.source, activity, request.signal);
+        const path = request.target.split('?', 1)[0]!;
+        const protectedPage = path !== '/' && isNativeReturnPath(path);
+        let session: SessionProjection | null;
+        if (protectedPage && request.method === 'GET') {
+          const native = ticket(request);
+          if (native.prefetch)
+            session = await store.admit(current, request.source, 'passive', request.signal);
+          else {
+            const page = await store.preparePage(current, request.source, {
+              kind: 'document',
+              ticket: native,
+            });
+            if (!('session' in page)) return anonymous([], store.peek(current) !== null);
+            session = page.session;
+          }
+        } else
+          session = await store.admit(
+            current,
+            request.source,
+            request.method === 'HEAD' ? 'passive' : activity,
+            request.signal,
+          );
         return Object.freeze({
           session,
           cookies: [],
           unavailable: false,
         });
       } catch (error) {
+        if (error instanceof BffInputError)
+          return Object.freeze({ ...anonymous([], false), refusalStatus: 400 });
+        if (error instanceof SnapshotAdmissionError)
+          return Object.freeze({ ...anonymous([], true), refusalStatus: error.status });
         if (!(error instanceof BffSessionError)) throw error;
         // A failed plain read may leave a live owner. Protected reads return 503;
         // public rendering stays anonymous without deleting that recoverable session.
@@ -289,16 +387,24 @@ export function createBffHttpProtocol(store: BffSessionStore) {
         }
         if (path === '/api/auth/entry') {
           const cursor = bffCursor(bffQuery(request.target, ['cursor']).get('cursor'));
-          const entry = entryBinding
-            ? await store.entry(entryBinding, request.source, cursor, request.signal)
-            : null;
+          const owner = entryBinding ?? current;
+          if (!owner)
+            return document(
+              request,
+              render,
+              { kind: 'entry', entry: null, cursor },
+              { state: 'anonymous' },
+            );
+          const native = ticket(request);
+          if (native.prefetch) return result(request, null);
+          const snapshot = await store.preparePage(owner, request.source, {
+            kind: entryBinding ? 'entry' : 'scopes',
+            ticket: native,
+            cursor,
+          });
           request.signal.throwIfAborted();
-          return document(
-            request,
-            render,
-            { kind: 'entry', entry, cursor },
-            entry ?? { state: 'anonymous' },
-          );
+          if ('session' in snapshot) throw new SnapshotAdmissionError('unavailable');
+          return entryDocument(request, render, snapshot);
         }
         if (path === '/api/auth/error') {
           bffQuery(request.target, []);
@@ -394,8 +500,15 @@ export function createBffHttpProtocol(store: BffSessionStore) {
           if (switching && !bffSecretEquals(csrf, store.peek(selectedBinding)?.csrfToken))
             return result(request, { code: 'csrf' }, 403);
           if (creating) {
-            await store.create(selectedBinding, request.source, csrf, request.signal);
+            const snapshot = await store.preparePage(selectedBinding, request.source, {
+              kind: 'create',
+              ticket: ticket(request),
+              csrf,
+              signal: request.signal,
+            });
             request.signal.throwIfAborted();
+            if ('session' in snapshot) throw new SnapshotAdmissionError('unavailable');
+            if (snapshot.view.kind === 'failure') return entryDocument(request, render, snapshot);
             return redirect(request, '/api/auth/entry', []);
           }
           const scope = bffScope(fields);
@@ -425,9 +538,10 @@ export function createBffHttpProtocol(store: BffSessionStore) {
           } catch (error) {
             const live = current && store.peek(current);
             if (error instanceof BffSessionError && error.reason === 'account_change' && live)
-              return document(
+              return await actionDocument(
                 request,
                 render,
+                current!,
                 { kind: 'account_change', csrfToken: live.csrfToken },
                 { code: 'account_change' },
                 409,
@@ -470,9 +584,10 @@ export function createBffHttpProtocol(store: BffSessionStore) {
                   (error.reason === 'cancelled' && !localDeadline)))
             )
               throw error;
-            return document(
+            return await actionDocument(
               request,
               render,
+              current,
               {
                 kind: 'mutation_error',
                 action: path,
@@ -503,9 +618,10 @@ export function createBffHttpProtocol(store: BffSessionStore) {
                   : [401, 403, 404].includes(status)
                     ? 'denied'
                     : 'unavailable';
-          return document(
+          return await actionDocument(
             request,
             render,
+            current,
             {
               kind: 'mutation_error',
               action: path,
@@ -556,6 +672,19 @@ export function createBffHttpProtocol(store: BffSessionStore) {
           '/api/auth/entry/create',
           '/api/auth/entry/select',
         ].includes(path);
+        if (error instanceof SnapshotAdmissionError) {
+          const response = entryRequest
+            ? document(
+                request,
+                render,
+                { kind: 'entry_error', reason: error.status === 429 ? 'busy' : 'unavailable' },
+                { code: 'unavailable' },
+                error.status,
+              )
+            : result(request, { code: 'unavailable' }, error.status);
+          response.headers.delete('retry-after');
+          return response;
+        }
         if (error instanceof BffSessionError || error instanceof BffProviderError) {
           const status =
             error instanceof NativeApiError && error.status !== undefined

@@ -2,10 +2,20 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 
 import { canonicalAddress, normalizeHost } from '../ingress.js';
 import { openEntryCursor, sealEntryCursor } from './entry-cursor.js';
+import { bffActionDocumentTarget } from './http-paths.js';
+import { BffInputError } from './input-error.js';
 import { NativeApiError } from './native-contract.js';
 import type { NativeScope, SelfContexts } from './native-contract.js';
 import type { NativeOperation, NativeOperationResult } from './native-operation-contract.js';
 import { nativeContextPage } from './native-session-client.js';
+import type { NativeEntrySnapshot, NativePageSnapshot, ScopeChoices } from './page-contract.js';
+import { nativeDocumentPlan, preloadPage } from './page-preload.js';
+import { bffCursor, bffQuery } from './page-query.js';
+import type {
+  NativePageLease,
+  NativePagePreparation,
+  NativeSnapshotTicket,
+} from './page-snapshot-contract.js';
 import { BffProviderError } from './provider-error.js';
 import type { LoginTransaction, ProviderCredentials } from './provider.js';
 import { BffSessionError } from './session-contract.js';
@@ -25,6 +35,7 @@ import type {
   SessionDependencies,
   SessionFailure,
   SessionProjection,
+  PagePreparation,
 } from './session-contract.js';
 import { isNativeReturnPath } from './session-path.js';
 
@@ -88,6 +99,9 @@ type Owner = {
   account?: AccountWitness;
   identity?: PublishedSessionIdentity;
   cursorKey?: Buffer;
+  pageCursorKey?: Buffer;
+  pageRevision?: object;
+  pageLeases?: Set<NativePageLease>;
   busy?: Promise<unknown>;
   transition?: Promise<SelectionCompletion>;
   absolute: number;
@@ -106,12 +120,14 @@ export class InMemoryBffSessionStore implements BffSessionStore {
   readonly #logoutStates = new Map<string, Owner>();
   readonly #groups = new Map<string, Group>();
   readonly #dependencies: SessionDependencies;
+  readonly #preparation: NativePagePreparation | undefined;
   readonly #timer: ReturnType<typeof setInterval>;
   #stopped = false;
   #stopping?: Promise<void>;
 
-  constructor(dependencies: SessionDependencies) {
+  constructor(dependencies: SessionDependencies, preparation?: NativePagePreparation) {
     this.#dependencies = dependencies;
+    this.#preparation = preparation;
     this.#timer = setInterval(() => this.sweep(), BFF_LIMITS.sweepMs);
     this.#timer.unref();
   }
@@ -174,6 +190,10 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     if (entry.phase !== 'closing' || entry.work.size || this.#owners.get(entry.id) !== entry)
       return;
     this.#clearCursorKey(entry);
+    this.#clearPageCursorKey(entry);
+    entry.pageLeases?.clear();
+    entry.pageLeases = undefined;
+    entry.pageRevision = undefined;
     this.#owners.delete(entry.id);
     if (entry.transaction) this.#states.delete(entry.transaction.state);
     if (entry.logoutState) this.#logoutStates.delete(entry.logoutState);
@@ -191,7 +211,9 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       this.#groups.delete(this.#groupKey(entry.group.host, entry.group.browser));
   }
   #close(entry: Owner) {
+    this.#abortPages(entry);
     this.#clearCursorKey(entry);
+    this.#clearPageCursorKey(entry);
     entry.phase = 'closing';
     entry.credentials = undefined;
     entry.account = undefined;
@@ -203,6 +225,315 @@ export class InMemoryBffSessionStore implements BffSessionStore {
   #clearCursorKey(entry: Owner) {
     entry.cursorKey?.fill(0);
     entry.cursorKey = undefined;
+  }
+  #clearPageCursorKey(entry: Owner) {
+    entry.pageCursorKey?.fill(0);
+    entry.pageCursorKey = undefined;
+  }
+  #abortPages(entry: Owner, pinnedOnly = true) {
+    for (const lease of entry.pageLeases ?? []) if (!pinnedOnly || lease.pinned) lease.abort();
+  }
+  #pageRevision(entry: Owner) {
+    return (entry.pageRevision ??= Object.freeze({}));
+  }
+  #pageValid(entry: Owner, phase: 'entry' | 'active', revision: object) {
+    try {
+      this.#assert(entry, phase);
+      return this.#pageRevision(entry) === revision && (phase === 'entry' || this.#live(entry));
+    } catch {
+      return false;
+    }
+  }
+  #pageCursorBinding(entry: Owner, purpose: 'members' | 'scopes') {
+    return { ...this.#cursorBinding(entry), purpose };
+  }
+  #wrapPageCursor(entry: Owner, purpose: 'members' | 'scopes', cursor: string) {
+    entry.pageCursorKey ??= randomBytes(32);
+    return sealEntryCursor(entry.pageCursorKey, this.#pageCursorBinding(entry, purpose), cursor);
+  }
+  #openPageCursor(entry: Owner, purpose: 'members' | 'scopes', cursor: string | undefined) {
+    if (cursor === undefined) return undefined;
+    if (!entry.pageCursorKey) throw new BffInputError();
+    return openEntryCursor(entry.pageCursorKey, this.#pageCursorBinding(entry, purpose), cursor);
+  }
+  #retainPage(entry: Owner, ticket: NativeSnapshotTicket) {
+    if (!this.#preparation) throw new BffSessionError('configuration');
+    const lease = this.#preparation.reserve(ticket, entry);
+    (entry.pageLeases ??= new Set()).add(lease);
+    const hold = this.#tracked(entry, () => lease.cleaned);
+    const release = () => entry.pageLeases?.delete(lease);
+    void hold.then(release, release);
+    return lease;
+  }
+  /** The only page producer. Reservation precedes authority/API work on the real owner. */
+  async preparePage(
+    binding: SessionBinding,
+    source: string,
+    input: PagePreparation,
+  ): Promise<NativePageSnapshot | NativeEntrySnapshot> {
+    this.#checkSource(binding.host, source);
+    const ticket = input.ticket;
+    if (
+      !this.#preparation ||
+      ticket.binding.host !== binding.host ||
+      ticket.binding.peer !== source ||
+      ticket.signal.aborted
+    )
+      throw new BffSessionError('configuration');
+    if (input.kind === 'response') {
+      const target = ticket.binding.target;
+      const page = input.page;
+      if (
+        ticket.binding.method !== 'POST' ||
+        !bffActionDocumentTarget(target) ||
+        (page.kind === 'mutation_error'
+          ? target !== page.action ||
+            target === '/api/auth/switch' ||
+            target === '/api/auth/entry/select'
+          : page.kind !== 'account_change' ||
+            !['/api/auth/switch', '/api/auth/entry/select'].includes(target))
+      )
+        throw new BffInputError();
+      const owner = this.#find(binding);
+      if (!owner) throw new BffSessionError('revoked');
+      const csrf =
+        page.kind === 'account_change'
+          ? page.csrfToken
+          : page.fields.filter(([name]) => name === 'csrfToken');
+      if (
+        !bffSecretEquals(
+          typeof csrf === 'string' ? csrf : csrf.length === 1 ? csrf[0]![1] : undefined,
+          owner.csrf,
+        )
+      )
+        throw new BffSessionError('csrf');
+      const lease = this.#retainPage(owner, ticket);
+      const revision = this.#pageRevision(owner);
+      lease.pin(
+        () => this.#pageValid(owner, 'active', revision),
+        this.#effective(owner) - this.#now(),
+      );
+      return lease.publishEntry({
+        site: ticket.site,
+        locale: ticket.site.defaultLocale,
+        view: page,
+      });
+    }
+    const path = ticket.binding.target.split('?', 1)[0];
+    if (input.kind === 'document') {
+      if (ticket.binding.method !== 'GET') throw new BffInputError();
+    } else {
+      if (
+        path !== (input.kind === 'create' ? '/api/auth/entry/create' : '/api/auth/entry') ||
+        ticket.binding.method !== (input.kind === 'create' ? 'POST' : 'GET')
+      )
+        throw new BffInputError();
+      const query = bffQuery(ticket.binding.target, input.kind === 'create' ? [] : ['cursor']);
+      if (input.kind !== 'create' && bffCursor(query.get('cursor')) !== input.cursor)
+        throw new BffInputError();
+    }
+    const plan =
+      input.kind === 'document' ? nativeDocumentPlan(ticket.binding.target, ticket.flight) : null;
+    const isEntry = input.kind === 'entry' || input.kind === 'create';
+    const owner = isEntry ? this.#findEntry(binding) : this.#find(binding);
+    if (!owner) throw new BffSessionError('revoked');
+    const rawCursor =
+      input.kind === 'entry'
+        ? input.cursor === undefined
+          ? undefined
+          : openEntryCursor(owner.cursorKey!, this.#cursorBinding(owner), input.cursor)
+        : input.kind === 'scopes'
+          ? this.#openPageCursor(owner, 'scopes', input.cursor)
+          : plan?.cursor
+            ? this.#openPageCursor(owner, 'members', plan.cursor)
+            : undefined;
+    if (input.kind === 'create') this.#entryProof(owner, input.csrf);
+    const lease = this.#retainPage(owner, ticket);
+    const pin = (phase: 'entry' | 'active') => {
+      const revision = this.#pageRevision(owner);
+      lease.pin(
+        () => this.#pageValid(owner, phase, revision),
+        (phase === 'active'
+          ? this.#effective(owner)
+          : Math.min(owner.deadline, owner.credentials!.refreshExpiresAt)) - this.#now(),
+      );
+      return revision;
+    };
+    const entryView = (entry: EntryProjection): NativeEntrySnapshot => ({
+      site: ticket.site,
+      locale: ticket.site.defaultLocale,
+      view: {
+        kind: 'entry',
+        entry,
+        cursor: input.kind === 'entry' ? (input.cursor ?? null) : null,
+      },
+    });
+    const failure = (error: unknown): NativeEntrySnapshot => {
+      if (lease.signal.aborted || this.#stopped) throw error;
+      if (!lease.pinned) lease.pin(() => !this.#stopped && !ticket.signal.aborted, 10_000);
+      const reason = this.#reason(error);
+      const supplied = error instanceof NativeApiError ? error.status : undefined;
+      const status =
+        supplied ??
+        (reason === 'csrf'
+          ? 403
+          : ['identity', 'invalid_grant', 'reauthenticate', 'expired', 'revoked'].includes(reason)
+            ? 400
+            : 503);
+      return lease.publishEntry({
+        site: ticket.site,
+        locale: ticket.site.defaultLocale,
+        view: {
+          kind: 'failure',
+          reason:
+            status === 401 ||
+            ['identity', 'invalid_grant', 'reauthenticate', 'expired', 'revoked'].includes(reason)
+              ? 'reauthenticate'
+              : status === 403 && input.kind === 'create' && error instanceof NativeApiError
+                ? 'creation_disabled'
+                : status === 403 || status === 404
+                  ? 'denied'
+                  : status === 429
+                    ? 'busy'
+                    : 'unavailable',
+          status,
+          code:
+            error instanceof BffSessionError || error instanceof BffProviderError
+              ? reason
+              : 'unavailable',
+          retryAfterSeconds:
+            error instanceof NativeApiError ? (error.retryAfterSeconds ?? null) : null,
+          returnPath: plan?.target ?? '/studio',
+        },
+      });
+    };
+    if (isEntry) {
+      pin('entry');
+      const work =
+        input.kind === 'create'
+          ? this.create(
+              binding,
+              source,
+              input.csrf,
+              input.signal ? AbortSignal.any([lease.signal, input.signal]) : lease.signal,
+            )
+          : this.#bounded(owner, lease.signal, (current) =>
+              this.#entryRead(owner, binding, source, rawCursor, current),
+            );
+      lease.track(work);
+      try {
+        return lease.publishEntry(entryView(await this.#wait(work, lease.signal)));
+      } catch (error) {
+        return failure(error);
+      }
+    }
+    let authorityFailure: unknown;
+    try {
+      const work = this.#bounded(owner, lease.signal, async (current) => {
+        this.#assert(owner, 'active');
+        if (owner.transition) throw new BffSessionError('transaction');
+        const refreshed =
+          ticket.activity === 'read'
+            ? await this.#ready(owner, binding, source, false, current, undefined, (actual) =>
+                lease.track(actual),
+              )
+            : false;
+        this.#assertSignal(current);
+        this.#assert(owner, 'active');
+        const credentials = owner.credentials!;
+        if (credentials.accessExpiresAt <= this.#now())
+          throw new BffSessionError('provider_refused');
+        if (!refreshed) {
+          try {
+            const account = await this.#dependencies.account(
+              credentials.accessToken,
+              this.#scoped(binding, source, owner.identity!),
+              current,
+            );
+            this.#assertSignal(current);
+            this.#assert(owner, 'active');
+            if (owner.credentials !== credentials) throw new BffSessionError('transaction');
+            this.#account(owner, account, owner.identity!);
+          } catch (error) {
+            if (this.#reason(error) === 'identity' && owner.phase !== 'logout') {
+              authorityFailure = error;
+              this.#close(owner);
+            }
+            throw error;
+          }
+          if (ticket.activity === 'read') owner.activity = this.#now();
+        }
+        const revision = pin('active');
+        const read = async (operation: NativeOperation) => {
+          this.#assertSignal(current);
+          if (!this.#pageValid(owner, 'active', revision)) throw new BffSessionError('revoked');
+          const result = await this.#dependencies.administration(
+            credentials.accessToken,
+            this.#scoped(binding, source, owner.identity!),
+            operation,
+            current,
+          );
+          this.#assertSignal(current);
+          if (!this.#pageValid(owner, 'active', revision)) throw new BffSessionError('revoked');
+          return result;
+        };
+        if (input.kind === 'scopes') {
+          const result = await read({
+            kind: 'getOwnContexts',
+            limit: 20,
+            ...(rawCursor ? { cursor: rawCursor } : {}),
+          });
+          if (result.kind === 'api-error')
+            throw new NativeApiError('provider_refused', result.status);
+          if (result.kind !== 'success') throw new BffSessionError('response');
+          const contexts = nativeContextPage(result.data, 20);
+          if (contexts.items.some((item) => item.tenantId !== owner.identity!.tenantId))
+            throw new BffSessionError('response');
+          const selection: ScopeChoices = {
+            session: this.#project(owner),
+            expiresAt: this.#project(owner).expiresAt,
+            contexts: {
+              items: contexts.items.map((item) => ({
+                ...item,
+                current:
+                  item.tenantId === owner.identity!.tenantId &&
+                  item.organizationId === owner.identity!.organizationId,
+              })),
+              endCursor:
+                contexts.endCursor === null
+                  ? null
+                  : this.#wrapPageCursor(owner, 'scopes', contexts.endCursor),
+              hasNextPage: contexts.hasNextPage,
+            },
+          };
+          return {
+            site: ticket.site,
+            locale: ticket.site.defaultLocale,
+            view: { kind: 'scopes', selection, cursor: input.cursor ?? null },
+          } as NativeEntrySnapshot;
+        }
+        return preloadPage(
+          { ...plan!, ...(rawCursor ? { cursor: rawCursor } : {}) },
+          {
+            target: plan!.target,
+            site: ticket.site,
+            session: this.#project(owner),
+            scopeKind: owner.identity!.organizationId === null ? 'tenant' : 'organization',
+            formKeys: Array.from({ length: 32 }, opaque),
+          },
+          owner.identity!.organizationId,
+          read,
+          (cursor) => this.#wrapPageCursor(owner, 'members', cursor),
+        );
+      });
+      lease.track(work);
+      const value = await this.#wait(work, lease.signal);
+      return 'target' in value ? lease.publish(value) : lease.publishEntry(value);
+    } catch (error) {
+      // Before positive authority, only public recovery may be returned. No cached
+      // session/profile/CSRF data enters this response after an uncertain refusal.
+      return failure(authorityFailure ?? error);
+    }
   }
   #cursorBinding(entry: Owner) {
     return { id: entry.id, host: entry.group.host, epoch: entry.epoch };
@@ -662,6 +993,8 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     this.#entryProof(entry, csrf);
     const idToken = entry.credentials!.idToken;
     // This entry owns its provider logout; an unrelated live destination remains published.
+    this.#abortPages(entry);
+    this.#clearPageCursorKey(entry);
     entry.phase = 'logout';
     entry.controller.abort();
     entry.csrf = '';
@@ -822,8 +1155,12 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     if (old && old.subject?.key !== entry.subject?.key) throw new BffSessionError('account_change');
     entry.phase = 'selecting';
     entry.group.publishing = entry;
+    this.#abortPages(entry, false);
+    const oldPages = [...(entry.pageLeases ?? [])].map((lease) => lease.cleaned);
     try {
       return await this.#bounded(entry, signal, async (current) => {
+        await Promise.allSettled(oldPages);
+        this.#assertSignal(current);
         const selected = await this.#chosen(entry, binding, source, scope, rawCursor, current);
         this.#assert(entry, 'selecting');
         if (!selected.canUseCurrentHost) {
@@ -854,6 +1191,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     this.#checkSource(binding.host, source);
     const old = this.#find(binding);
     if (!old || !bffSecretEquals(csrf, old.csrf)) throw new BffSessionError('revoked');
+    const rawCursor = this.#openPageCursor(old, 'scopes', cursor);
     if (old.transition || old.group.publishing) throw new BffSessionError('transaction');
     this.sweep();
     const pending = [...this.#owners.values()].filter((owner) => owner.pending);
@@ -902,7 +1240,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       const choice = await this.#dependencies.administration(
         entry.credentials!.accessToken,
         this.#scoped(binding, source, old.identity!),
-        { kind: 'getOwnContexts', limit: 20, ...(cursor ? { cursor } : {}) },
+        { kind: 'getOwnContexts', limit: 20, ...(rawCursor ? { cursor: rawCursor } : {}) },
         current,
       );
       this.#assertSignal(current);
@@ -1030,6 +1368,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     force: boolean,
     signal?: AbortSignal,
     transitionOwner?: Owner,
+    track?: (work: Promise<void>) => void,
   ): Promise<boolean> {
     this.#assert(entry, 'active');
     if (
@@ -1074,6 +1413,8 @@ export class InMemoryBffSessionStore implements BffSessionStore {
           this.#assert(entry, 'active');
           this.#account(entry, witnessed, entry.identity!);
           entry.credentials = next;
+          entry.pageRevision = Object.freeze({});
+          this.#abortPages(entry, true);
           entry.activity = this.#now();
           this.#assert(entry, 'active');
         } catch (error) {
@@ -1090,6 +1431,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       void work.then(settled, settled);
     }
     if (entry.refresh) {
+      track?.(entry.refresh);
       await this.#wait(entry.refresh, signal);
       this.#assert(entry, 'active');
       return true;
@@ -1151,6 +1493,8 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     entry.group.current = undefined;
     for (const pending of entry.group.members)
       if (pending !== entry && pending.pending) this.#close(pending);
+    this.#abortPages(entry);
+    this.#clearPageCursorKey(entry);
     entry.phase = 'logout';
     entry.controller.abort();
     entry.csrf = '';
@@ -1205,7 +1549,10 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     clearInterval(this.#timer);
     const entries = [...this.#owners.values()];
     const work = entries.flatMap((entry) => [...entry.work]);
-    for (const entry of entries) this.#close(entry);
+    for (const entry of entries) {
+      this.#abortPages(entry, false);
+      this.#close(entry);
+    }
     void Promise.allSettled(work).then(() => {
       for (const entry of entries) this.#release(entry);
       completed();
@@ -1224,6 +1571,12 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       operations: [...this.#owners.values()].reduce((count, entry) => count + entry.work.size, 0),
       credentialRecords: [...this.#owners.values()].filter((entry) => entry.credentials).length,
       identityRecords: [...this.#owners.values()].filter((entry) => entry.identity).length,
+      pageCursorKeyRecords: [...this.#owners.values()].filter((entry) => entry.pageCursorKey)
+        .length,
+      pageSnapshots: [...this.#owners.values()].reduce(
+        (count, entry) => count + (entry.pageLeases?.size ?? 0),
+        0,
+      ),
       cursorKeyRecords: [...this.#owners.values()].filter((entry) => entry.cursorKey).length,
       displayLabelRecords: [...this.#owners.values()].filter(
         (entry) => typeof entry.credentials?.identity.displayLabel === 'string',

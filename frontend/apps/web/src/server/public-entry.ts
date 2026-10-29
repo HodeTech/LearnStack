@@ -1,6 +1,6 @@
 import type { ServerSdk } from '@learnstack/sdk/server';
 
-import { bffPageQuery, bffQuery } from './auth/page-query';
+import { bffDocumentQuery } from './auth/page-query';
 import { isNativeReturnPath } from './auth/session-path';
 import { normalizeHost, PUBLIC_HTTPS_PORT, validTarget } from './ingress';
 
@@ -110,14 +110,7 @@ export function publicEntry(target: string, site: PublicSite, nativeFlight = fal
   }
   if (isNativeReturnPath(path)) {
     try {
-      const allowed = path === '/studio/members' ? ['cursor', 'limit'] : [];
-      const fields = bffQuery(target, nativeFlight ? [...allowed, '_rsc'] : allowed);
-      if (fields.has('_rsc')) {
-        const transport = fields.get('_rsc')!;
-        if (!/^[\x21-\x7e]{1,128}$/.test(transport)) return { kind: 'refuse', status: 404 };
-        fields.delete('_rsc');
-      }
-      bffPageQuery(fields);
+      bffDocumentQuery(target, nativeFlight);
       return { kind: 'continue', locale: null };
     } catch {
       return { kind: 'refuse', status: 404 };

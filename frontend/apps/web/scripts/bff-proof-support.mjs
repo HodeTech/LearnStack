@@ -37,6 +37,7 @@ export function bffProofCopy(locale, key) {
       'shell.account',
       'shell.portal',
       'session.extended',
+      'session.javascript_required',
       'entry.confirm',
     ].includes(key),
     'closed proof copy',
@@ -45,6 +46,24 @@ export function bffProofCopy(locale, key) {
   const value = catalogues[locale === 'en' ? 'en' : 'tr'][group][name];
   assert.ok(typeof value === 'string' && value.length > 0, 'nonempty proof copy');
   return value;
+}
+
+/** Private fixture selector only; application admission remains independent. */
+export function bffPageKind(path) {
+  const fixed = {
+    '/studio': 'studio',
+    '/portal': 'portal',
+    '/studio/members': 'members',
+    '/studio/roles': 'roles',
+    '/portal/profile': 'profile',
+  };
+  if (typeof path !== 'string') return null;
+  if (Object.hasOwn(fixed, path)) return fixed[path];
+  const detail =
+    /^\/studio\/(members|roles)\/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.exec(
+      path,
+    );
+  return detail ? (detail[1] === 'members' ? 'member' : 'role') : null;
 }
 
 /** Browser cookie jars default absent SameSite to Lax; inspect the actual header too. */

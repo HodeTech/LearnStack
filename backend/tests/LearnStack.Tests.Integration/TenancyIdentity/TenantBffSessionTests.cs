@@ -228,7 +228,9 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
                 .Should().Be("browser-launch_cleanup_failed");
             foreach (var stage in new[] { "browser-executable", "browser-spawn", "browser-devtools", "browser-devtools-inactive",
                          "browser-devtools-unreadable", "browser-devtools-missing", "browser-devtools-empty", "browser-devtools-malformed",
-                         "browser-not-live", "browser-connect", "browser-context", "browser-entry-confirmation" })
+                         "browser-not-live", "browser-connect", "browser-context", "browser-entry-confirmation",
+                         "browser-administration-pages", "browser-no-script",
+                         "browser-no-script-anonymous", "browser-no-script-signin", "browser-no-script-confirm", "browser-no-script-select", "browser-no-script-controls", "browser-no-script-submit", "browser-no-script-origin", "browser-no-script-result", "browser-no-script-cache", "browser-no-script-saved", "browser-no-script-privacy", "browser-no-script-signout", "browser-no-script-headers" })
             {
                 (await ClosedErrorAsync("BFF browser fixture failed: " + stage + "\n")).Should().Be(stage);
                 (await ClosedErrorAsync("BFF browser fixture failed: " + stage + "\nBFF browser cleanup failed.\n"))
@@ -328,6 +330,7 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
                 admitted.Rendered.Should().BeTrue();
                 admitted.PrivateFree.Should().BeTrue();
                 admitted.Cache.Should().Contain("no-store");
+                await AssertSelectedNativePagesAsync(database, native, api, identity, cookies);
                 var priorReads = api.Observed.Reads.Count(row => row.Actor is not null);
                 var other = SeedData.All.Single(site => site != tenant);
                 var cross = await native.RequestAsync(Host(other), "/studio", cookies.Header);
@@ -352,6 +355,9 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
                     otherAccount, passwords.GetValueOrDefault(otherAccount.Username) ?? KeycloakFixture.DemoPassword,
                     cookies, extended, database);
                 await AssertUnknownNativeProfileWriteAsync(database, native, api, identity, cookies, extended);
+                // Page reads and replacement/profile checks are one bounded
+                // journey; start switch/logout/clamp in the next real window.
+                await NextAnonymousWindowAsync(anonymousWindow);
                 var oldScopeCookie = cookies.Header;
                 var beforeSwitchAudit = await AuditCountsAsync(database);
                 var branch = tenant.DefaultOrganization.OrganizationId.Value;
@@ -406,7 +412,6 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
                 // clock or transport. A 22-second idle leaves room around each
                 // 10-second step; the second refresh exceeds the 35-second maximum
                 // without Keycloak's clamp. Committed 1800/36000 settings stay intact.
-                await NextAnonymousWindowAsync(anonymousWindow);
                 const int clampIdleSeconds = 22;
                 const int clampMaximumSeconds = 35;
                 (await admin.PutAsync("", new { ssoSessionIdleTimeout = clampIdleSeconds, ssoSessionMaxLifespan = clampMaximumSeconds }))
@@ -480,13 +485,13 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
                 (await admin.PostAsync("users/" + oppositeUser.GetProperty("id").GetString() + "/logout", new { }))
                     .Should().Be(HttpStatusCode.NoContent);
                 var authenticatedReads = api.Observed.Reads.Where(row => row.Actor is not null).ToArray();
-                authenticatedReads.Length.Should().Be(8, "three initial selections, three successful refreshes, one switch and the protected document read each require their own AccountSite witness");
+                authenticatedReads.Length.Should().Be(13, "three initial selections, three successful refreshes, one switch, the shell and five selected pages each require their own AccountSite witness");
                 authenticatedReads.All(row => row.Actor == identity.UserId.Value && row.Tenant == tenant.TenantId.Value
                     && row.HostTenant == tenant.TenantId.Value)
                     .Should().BeTrue("every BFF witness uses the actual actor and independently resolved tenant host");
                 authenticatedReads.Count(row => row.Organization == branch).Should().Be(1,
                     "only the explicit derived-branch switch changes the immutable native scope");
-                authenticatedReads.Count(row => row.Organization is null).Should().Be(7);
+                authenticatedReads.Count(row => row.Organization is null).Should().Be(12);
                 database.Observation.Reads.Should().BeGreaterThan(readsBefore,
                     "the retained physical ReadOnly application-role observer actually ran");
                 await NextAnonymousWindowAsync(anonymousWindow);
@@ -504,8 +509,8 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
                     "the actual BFF journey persists provider event type {0}", type);
             }
             (await AuditCountsAsync(database)).Should().Equal(SeedData.All.Select((site, index) =>
-                auditBefore[index] + 5 + (site.MapHostToDefaultOrganization ? 0 : 1)),
-                "NULL-org administrator selections plus original profile write/receipt emit MUST events; learner admission follows its exact scope and pre-resolution revocation creates no invented policy event");
+                auditBefore[index] + 11 + (site.MapHostToDefaultOrganization ? 0 : 1)),
+                "NULL-org administrator selections, six selected-page read events and original profile write/receipt emit MUST events; learner admission follows its exact scope and pre-resolution revocation creates no invented policy event");
             output.WriteLine("Real warm BFF proof: hosts=2; real refresh/maximum/logout/error/events/membership-revocation=true; zero-write rerun=true; fixture={0:F3}s; journey={1:F3}s.",
                 provider.StartupElapsed.TotalSeconds, journey.Elapsed.TotalSeconds);
         }

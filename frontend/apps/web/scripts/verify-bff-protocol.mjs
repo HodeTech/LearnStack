@@ -25,6 +25,8 @@ deadline.unref();
 const devMode = ['--dev', '--without-native-diagnostics'].includes(process.argv[2]);
 const uiMode = devMode || process.argv[2] === '--ui';
 let stage = 'setup';
+let releaseHeldRender;
+const pendingOwnedRequests = [];
 try {
   assert.ok(
     process.argv.length === 2 ||
@@ -38,29 +40,40 @@ try {
         ].includes(process.argv[2])),
     'closed proof mode',
   );
-  const { app, server, advance, get, scanners, cookieCanaries } = await startBffProof({
-    owner,
-    root,
-    privateValues,
-    secret,
-    marker,
-    fakeLogout:
-      'https://identity.example.test/realms/learnstack/protocol/openid-connect/logout?id_token_hint=' +
+  const { app, server, advance, renderControl, get, scanners, cookieCanaries } =
+    await startBffProof({
+      owner,
+      root,
+      privateValues,
+      secret,
       marker,
-    devMode,
-    uiMode,
-    mutation:
-      process.argv[2] === '--without-native-activity'
-        ? 'activity'
-        : process.argv[2] === '--without-native-diagnostics'
-          ? 'diagnostics'
-          : process.argv[2] === '--without-successful-native-stop'
-            ? 'shutdown'
-            : undefined,
-    mark: (value) => {
-      stage = value;
-    },
-  });
+      fakeLogout:
+        'https://identity.example.test/realms/learnstack/protocol/openid-connect/logout?id_token_hint=' +
+        marker,
+      devMode,
+      uiMode,
+      mutation:
+        process.argv[2] === '--without-native-activity'
+          ? 'activity'
+          : process.argv[2] === '--without-native-diagnostics'
+            ? 'diagnostics'
+            : process.argv[2] === '--without-successful-native-stop'
+              ? 'shutdown'
+              : undefined,
+      mark: (value) => {
+        stage = value;
+      },
+    });
+  async function settledPages() {
+    const until = Date.now() + 5000;
+    let state;
+    do {
+      state = await renderControl('status');
+      if (state.snapshots.active === 0) return;
+      assert.ok(Date.now() < until, 'actual page handler/body cleanup settles');
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    } while (state.snapshots.active !== 0);
+  }
   async function selectEntry(callback, host, destination) {
     stage = 'entry-cookie';
     assert.equal(callback.headers.location, 'https://' + host + '/api/auth/entry');
@@ -227,6 +240,7 @@ try {
     } else assert.ok(response.body.includes('authenticated'));
   }
   stage = 'rsc';
+  const beforeDocument = await advance(0);
   const document = await get('/studio', active);
   assert.equal(document.status, 200);
   if (uiMode) {
@@ -235,6 +249,13 @@ try {
     assert.ok(document.body.includes('bff-history'));
   } else assert.match(document.body, /<h1>authenticated<\/h1>/);
   assert.equal(document.body.includes(marker), false);
+  const afterDocument = await advance(0);
+  for (const kind of ['getOwnCapabilities', 'getOwnProfile'])
+    assert.equal(
+      afterDocument.administrations[kind],
+      (beforeDocument.administrations[kind] ?? 0) + 1,
+      'native preparation performs one common read per document',
+    );
   if (uiMode) {
     const ordinaryQuery = await get('/studio?_rsc=document', active, {
       headers: { Accept: 'text/html', 'Sec-Fetch-Dest': 'document' },
@@ -244,6 +265,53 @@ try {
       headers: { RSC: '1', Accept: '*/*', 'Sec-Fetch-Dest': 'empty' },
     });
     assert.equal(repeatedQuery.status, 404, 'native Flight still rejects duplicate query tokens');
+    await settledPages();
+    for (const [path, operation, visible] of [
+      ['/studio/members', 'listMemberships', 'Fixture member'],
+      ['/studio/members/019a154b-0000-7000-8000-000000000012', 'getMembership', 'Fixture member'],
+      ['/studio/roles', 'listRoles', '019a154b-0000-7000-8000-000000000013'],
+      ['/studio/roles/019a154b-0000-7000-8000-000000000013', 'getRole', 'role-grants-title'],
+      ['/portal/profile', 'getOwnProfile', 'Fixture member'],
+    ]) {
+      const phase = {
+        listMemberships: 'ui-members',
+        getMembership: 'ui-member',
+        listRoles: 'ui-roles',
+        getRole: 'ui-role',
+        getOwnProfile: 'ui-profile',
+      }[operation];
+      stage = phase + '-request';
+      const beforePage = await advance(0);
+      const page = await get(path, active);
+      stage = phase + '-status';
+      assert.equal(page.status, 200);
+      stage = phase + '-cache';
+      // Pinned Next's development renderer adds must-revalidate; both forms prohibit storage.
+      assert.equal(
+        page.headers['cache-control'],
+        devMode ? 'no-store, must-revalidate' : 'no-store',
+      );
+      stage = phase + '-content';
+      assert.ok(page.body.includes(visible));
+      stage = phase + '-privacy';
+      assert.equal(
+        page.body.includes('019a154b-0000-7000-8000-000000000011'),
+        false,
+        'API user identity is absent from protected views',
+      );
+      stage = phase + '-counts';
+      const afterPage = await advance(0);
+      assert.equal(
+        afterPage.administrations[operation],
+        (beforePage.administrations[operation] ?? 0) + 1,
+      );
+      assert.equal(
+        afterPage.administrations.getOwnCapabilities,
+        beforePage.administrations.getOwnCapabilities + 1,
+      );
+      stage = phase + '-cleanup';
+      await settledPages();
+    }
   }
   const before = await advance(901000);
   const prior = JSON.parse((await get('/api/auth/session', active)).body);
@@ -254,6 +322,12 @@ try {
   const after = await advance(0);
   assert.equal(after.refreshes, before.refreshes + 1, 'actual RSC refreshes expired access');
   assert.equal(after.accounts, before.accounts + 1, 'actual RSC validates AccountSite');
+  for (const kind of ['getOwnCapabilities', 'getOwnProfile'])
+    assert.equal(
+      after.administrations[kind],
+      before.administrations[kind] + 1,
+      'actual navigation receives one prepared common snapshot',
+    );
   const session = await get('/api/auth/session', active);
   const projection = JSON.parse(session.body);
   assert.equal(projection.expiresAt, prior.expiresAt + 901000, 'RSC advances effective idle');
@@ -267,6 +341,16 @@ try {
   // Pinned Next omits dynamic seed data for speculative prefetch. Actual
   // navigation above must contain the full admitted shell and session.
   assertFlightEnvelope(prefetched);
+  assert.equal(
+    prefetched.body.includes(projection.csrfToken),
+    false,
+    'prefetch discloses no session proof',
+  );
+  assert.equal(
+    prefetched.body.includes('Fixture member'),
+    false,
+    'prefetch discloses no own profile',
+  );
   const head = await get('/studio', active, { method: 'HEAD', headers: { Accept: 'text/html' } });
   assert.equal(head.status, 200);
   assert.equal(head.body, '');
@@ -278,6 +362,11 @@ try {
   const passive = await advance(0);
   assert.equal(passive.accounts, after.accounts);
   assert.equal(passive.refreshes, after.refreshes);
+  assert.deepEqual(
+    passive.administrations,
+    after.administrations,
+    'prefetch and HEAD do not load private page data',
+  );
   if (uiMode) {
     stage = 'ui-host-fence';
     const crossHost = await get('/portal', active, {
@@ -331,8 +420,27 @@ try {
     assert.equal(extended.status, 200);
     assert.ok(JSON.parse(extended.body).expiresAt > projection.expiresAt);
   }
+  let heldRender;
+  if (!uiMode) {
+    stage = 'registered-render';
+    await renderControl('arm');
+    releaseHeldRender = () => renderControl('release');
+    heldRender = get('/studio', active, { allowAborted: true });
+    pendingOwnedRequests.push(heldRender);
+    void heldRender.catch(() => {});
+    const until = Date.now() + 5000;
+    let retained;
+    do {
+      retained = await renderControl('status');
+      if (retained.held === 1) break;
+      assert.ok(Date.now() < until, 'actual Next reaches the registered render gate');
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    } while (retained.held !== 1);
+    assert.equal(retained.snapshots.active, 1);
+    assert.ok(retained.snapshots.bytes > 0);
+  }
   stage = 'logout';
-  const logout = await get('/api/auth/signout', active, {
+  const loggingOut = get('/api/auth/signout', active, {
     method: 'POST',
     headers: {
       origin: 'https://institution.example.test:3000',
@@ -340,6 +448,35 @@ try {
     },
     body: 'csrfToken=' + projection.csrfToken,
   });
+  pendingOwnedRequests.push(loggingOut);
+  void loggingOut.catch(() => {});
+  if (heldRender) {
+    stage = 'registered-render-invalidation';
+    const until = Date.now() + 5000;
+    while (JSON.parse((await get('/api/auth/session', active)).body).state !== 'anonymous') {
+      assert.ok(Date.now() < until, 'real signout invalidates the held snapshot owner');
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    const retained = await renderControl('status');
+    assert.equal(retained.held, 1);
+    assert.equal(
+      retained.snapshots.active,
+      1,
+      'logical signout and response close cannot release registered framework work',
+    );
+    await renderControl('release');
+    releaseHeldRender = undefined;
+    const withheld = await heldRender;
+    assert.equal(withheld.body.includes('Institution'), false);
+    assert.equal(withheld.body.includes('authenticated'), false);
+    assert.ok(withheld.aborted || withheld.status === 503, 'late private response is withheld');
+    const cleanedUntil = Date.now() + 5000;
+    while ((await renderControl('status')).snapshots.active !== 0) {
+      assert.ok(Date.now() < cleanedUntil, 'registered render cleanup releases its actual slot');
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  }
+  const logout = await loggingOut;
   assert.equal(logout.status, 303);
   assert.equal(
     logout.body.includes(marker),
@@ -415,10 +552,16 @@ try {
 } catch {
   let clean = true;
   try {
+    if (releaseHeldRender) await releaseHeldRender();
+  } catch {
+    clean = false;
+  }
+  try {
     await owner.dispose();
   } catch {
     clean = false;
   }
+  await Promise.allSettled(pendingOwnedRequests);
   clearTimeout(deadline);
   process.stderr.write('BFF native Next protocol failed: ' + stage + '\n');
   if (!clean) process.stderr.write('BFF protocol cleanup failed.\n');

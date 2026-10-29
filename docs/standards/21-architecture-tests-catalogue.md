@@ -2924,12 +2924,12 @@ Source: [ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md),
 [ADR-0079](../decisions/0079-bounded-identity-administration.md),
 [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md) and
 [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md). These are
-Accepted extensions have the individually recorded statuses below; shipped
+Accepted extensions with individually recorded statuses below; shipped
 populations above remain Implemented. A source census, proposed test name or
 document check does not qualify a new runtime population. The phase Status block
 owns delivery state, and later HTTP/native/browser consumers retain their own proof.
 
-| Existing canonical rule | P03-3 extension / planned proof owner |
+| Existing canonical rule | P03-3 extension / proof owner |
 |---|---|
 | `Global_Identity_Storage_Is_Subject_Confined` and `Global_Identity_Creation_Uses_The_Common_Audit_Owner` | Extend the exact applied function/body/ACL/caller census from five to eight; qualify actual attempt/capacity/discovery owners, no counter reset or general User projection. Existing central success/reconciliation seams remain sole writers. |
 | `Identity_Seed_Uses_Finite_Adopted_Manifests` | `IdentitySeederTests` and Tenancy seed controls: pristine-prefix versions, edited completed-state preservation, terminal/tombstone refusal, no individual grant restoration, per-write fence/version recheck and real held-seed locale/profile/grant competitors. Fixed origin adoption's qualified marker-2 transitions, warm preservation, legacy upgrade and zero-dispatch repeat belong to [the separate completion rule](#fixed_seed_origin_adoption_requires_completed_foundation). ADR-0080's [temporary read](#fixed_seed_prerequisites_use_a_closed_temporary_read_scope) and [complete writer census](#tenant_bound_seed_writes_recheck_under_ordered_fences) retain separate authority and proof populations; their own rows record status. |
@@ -6346,12 +6346,15 @@ C# architecture-test methods or a full WCAG/production-performance claim.
 ## P02b-7 tenant BFF obligations
 
 The maintainer accepted [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md)
-and the five-step package on 2026-10-23. Step 5 delivers the complete local
+and the five-step package on 2026-10-23. Step 5 delivers the local baseline
 controls below, including actual warm-provider/API and separate HTTPS browser
 evidence, failure cleanup and nonzero-shutdown counters, and the stopped-provider
 public demo. The phase Status and dated correction records own current review
 and exact-source hosted qualification; local implementation alone claims no
-hosted timing fit. Prior receipts do not qualify subsequent source changes.
+hosted timing fit. P03-3 extends these same canonical rules with native entry,
+administration and prepared-page controls; its
+[Status block](../roadmap/phase-03-identity-admin.md) owns their qualification.
+Prior receipts do not qualify subsequent source changes.
 
 #### `Bff_Credentials_And_Projections_Are_Confined`
 
@@ -6361,14 +6364,24 @@ hosted timing fit. Prior receipts do not qualify subsequent source changes.
   native observation exposes scalar logical occupancy only, never credential
   values, snapshots or a heap-zeroization claim. Browser-storage controls cover
   IndexedDB and Cookie Store; closed response-hook census includes not-found and
-  instrumentation entries.
-- **Source:** ADR-0070/0071; Security 11 § Tenant BFF sessions.
+  instrumentation entries. Native preparation publishes a complete immutable
+  page snapshot before rendering; the passive RSC facade exposes only that
+  snapshot and its liveness assertion, never a credential, API operation or
+  preparation capability. The exact seven protected page views and their shared
+  render helpers have source-census and AST dirty controls against additional
+  asynchronous work, IO and framework background work, including transitive
+  aliases. Entry, member-list and current-scope continuations conceal upstream
+  cursor material and authenticate their distinct purposes.
+- **Source:** ADR-0070/0071/0078/0079; Security 11 § Tenant BFF sessions and native entry.
 - **Type:** frontend source/production canaries. **Kind:** structural.
-- **Test owner:** `frontend/apps/web/src/test/bff-boundaries.test.ts` and existing
-  public boundary controls.
+- **Test owner:** `frontend/apps/web/src/test/bff-boundaries.test.ts` and
+  `src/test/public-boundaries.test.ts`, using the production graph and AST
+  analysis in `src/test/public-boundary-analysis.ts`; projection and cursor
+  controls in `src/server/auth/page-preload.test.ts` and
+  `src/server/auth/store-page-preload.test.ts`.
 - **Status:** **Implemented** — frontend boundary, native protocol/canary and
   fixture-output controls named above.
-- **Phase:** P02b-7 Steps 1/3–5.
+- **Phase:** P02b-7 Steps 1/3–5; P03-3 Steps 8–9 extend native entry and prepared views.
 
 #### `Bff_Session_Refresh_And_Revocation_Have_One_Owner`
 
@@ -6394,6 +6407,19 @@ hosted timing fit. Prior receipts do not qualify subsequent source changes.
   association material, authenticate the actual owner/host/epoch/purpose, and
   preserve concurrent tabs without a page registry. Key custody clears on
   publication/logout/expiry/stop, including before ignored work settles.
+  A separate private snapshot pool reserves before page API work and admits at
+  most 128 snapshots globally and eight per actual owner. Each complete UTF-8
+  JSON payload, including Site and common data, is bounded to 256 KiB: at most
+  32 MiB of serialized payload, not a heap-memory bound. Published copies are
+  deeply frozen and pinned to the actual request, owner epoch, credential revision
+  and effective expiry. Native mutation-recovery and account-change documents use
+  the same pool and output fence; invalidation withholds retained edits and CSRF
+  values even after the mutation itself has settled. Abort, finish and close
+  invalidate access but retain credit until actual API/shared-refresh work,
+  native handler, registered Next framework work and response-body/write-callback
+  cleanup settle. Stop joins these owners; delayed chunks cannot disclose an old
+  snapshot. The framework hook accounts for registered work, with the selected
+  RSC source controls above closing additional application work.
 - **Source:** ADR-0070/0071/0078/0079; Security 11 § Tenant BFF sessions and native entry.
 - **Type:** unit and actual response-owning routes. **Kind:** behavioural.
 - **Test owner:** `frontend/apps/web/src/server/auth/session-store.test.ts` and
@@ -6401,9 +6427,16 @@ hosted timing fit. Prior receipts do not qualify subsequent source changes.
   middleware controls in `src/server/auth/account-site-policy.test.ts` and real
   protocol cancellation in `src/server/auth/session-http-lifetime.test.ts` and
   authenticated cursor controls in `src/server/auth/entry-cursor.test.ts`.
+  Snapshot bounds and actual cleanup are exercised by
+  `src/server/auth/page-snapshot-lifecycle.test.ts`,
+  `src/server/auth/store-page-preload.test.ts`,
+  `src/server/auth/request-runtime-lifetime.test.ts` and
+  `src/server/auth/page-response.test.ts`; action recovery by
+  `src/server/auth/native-action-response.test.ts`; actual Next registered-work
+  retention and late output by `scripts/verify-bff-protocol.mjs`.
 - **Status:** **Implemented** — actual owner/route controls above and
   `TenantBffSessionTests` real refresh/maximum and shutdown/failure controls.
-- **Phase:** P02b-7 Steps 2–5; P03-3 Step 8 extends entry/operation ownership.
+- **Phase:** P02b-7 Steps 2–5; P03-3 Steps 8–9 extend entry, operation and snapshot ownership.
 
 #### `Bff_Auth_Admission_And_Csrf_Are_Closed`
 
@@ -6419,16 +6452,29 @@ hosted timing fit. Prior receipts do not qualify subsequent source changes.
   controls; fake-transport assertions run outside production exception conversion.
   Canonical cursor input refuses impossible lengths and nonzero pad bits before
   API work, while malformed upstream responses retain response-failure semantics.
+  Authenticated cursor tampering or cross-purpose reuse refuses before private
+  API work or snapshot reservation. The finite native preloader reads current
+  capabilities and the exact own profile before conditional page data; unavailable
+  Role-read capability causes zero Role API calls. A legitimate missing own
+  profile on a derived branch uses the site fallback. Failed AccountSite authority
+  publishes only public failure data, without cached private fields or CSRF.
+  The exact twelve HTTP entries include seven protected views; the twelve
+  POST actions remain closed. Ordinary passive documents still preload without
+  idle/refresh writes, while HEAD and speculative prefetch avoid private preload.
 - **Source:** ADR-0070/0078/0079; ADR-0054 dated auth extension; Security 11 § CSRF.
 - **Type:** native listener and actual Next route controls. **Kind:** behavioural.
 - **Test owner:** `frontend/apps/web/src/test/bff-auth-admission.test.ts` and
   `frontend/apps/web/src/test/bff-session-routes.test.ts`, with source census in
   `public-boundaries.test.ts` and raw TCP observation in
   `src/server/auth/logout-response.test.ts`, plus `src/server/ingress.test.ts`
-  and `src/server/auth/provider.test.ts`.
+  and `src/server/auth/provider.test.ts`. Prepared-page admission and conditional
+  reads use `src/server/auth/page-preload.test.ts`,
+  `src/server/auth/store-page-preload.test.ts` and `src/server/auth/auth.test.ts`;
+  exact en/tr catalogue and preferred-locale selection use
+  `src/i18n/administration-catalogues.test.ts` and `src/i18n/request.test.ts`.
 - **Status:** **Implemented** — native input/route controls above and the actual browser
   form/Origin and no-network startup cases in `TenantBffSessionTests`.
-- **Phase:** P02b-7 Steps 3–5; P03-3 Step 8 extends the exact native form set.
+- **Phase:** P02b-7 Steps 3–5; P03-3 Steps 8–9 extend native forms and finite page preparation.
 
 #### `Bff_Host_Cookies_And_History_Are_Isolated`
 
@@ -6439,15 +6485,28 @@ hosted timing fit. Prior receipts do not qualify subsequent source changes.
   stored provider events. Real paginated entry JSON/HTML, stock-browser next/Back
   URLs/history and second-page selection keep subject/authority material private;
   the original disclosure has a real old-source negative control. Stopped-provider
-  public rendering remains independent.
-- **Source:** ADR-0070/0078; Security 11 § Tenant BFF sessions and native entry.
+  public rendering remains independent. The seven prepared protected views retain
+  native forms when JavaScript is disabled. GET history restoration re-admits the
+  document; native POST recovery replaces history with a validated fixed GET
+  destination instead of resubmitting the mutation. Natural browser history
+  observations and explicit persisted-event dirty controls remain distinct.
+  Automated UI/browser checks do not qualify manual assistive-technology use;
+  separate observed evidence is required, with qualification recorded by the
+  [Phase 03 Status block](../roadmap/phase-03-identity-admin.md).
+- **Source:** ADR-0070/0078/0079; Security 11 § Tenant BFF sessions and native entry.
 - **Type:** native HTTPS browser and Docker integration. **Kind:** behavioural.
 - **Test owner:** `frontend/apps/web/scripts/verify-bff-session.mjs`,
   `frontend/apps/web/scripts/verify-bff-browser.mjs` and backend
   `TenancyIdentity/TenantBffSessionTests.cs` using the app-role API/database.
+  `src/components/auth/history.test.ts`, `src/components/auth/shell.test.tsx`
+  and `src/components/auth/session.test.tsx` cover fixed GET recovery, native forms
+  and session/unsaved-edit behavior; `scripts/verify-bff-protocol.mjs` exercises
+  the actual Next prepared views and `verify-bff-browser.mjs` the no-script flow.
 - **Status:** **Implemented** — `TenantBffSessionTests`, its real-chain/browser scripts
   and the stopped-provider public-demo lifecycle.
-- **Phase:** P02b-7 Step 5; Phase 06 retains full browser OIDC end-to-end expansion.
+- **Phase:** P02b-7 Step 5; P03-3 Step 9 extends selected views, no-script and history
+  controls. Phase 06 retains full browser OIDC end-to-end expansion. The Phase 03
+  Status block owns current P03-3 qualification and review state.
 
 ## P02b-4 background-job obligations
 

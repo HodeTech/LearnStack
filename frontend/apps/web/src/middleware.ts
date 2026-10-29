@@ -164,6 +164,10 @@ export async function middleware(request: NextRequest) {
             bff.response.status === 429 ? 'busy' : 'error',
             bff.response.status,
           );
+          // Preserve the actual producer's bounded hint, including its deliberate absence.
+          response.headers.delete('retry-after');
+          const retryAfter = bff.response.headers.get('retry-after');
+          if (retryAfter !== null) response.headers.set('retry-after', retryAfter);
           for (const cookie of bff.response.headers.getSetCookie())
             response.headers.append('set-cookie', cookie);
           return bffResponse(response);

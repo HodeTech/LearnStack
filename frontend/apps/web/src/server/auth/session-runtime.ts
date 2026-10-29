@@ -1,4 +1,5 @@
 import { createBffHttpProtocol } from './http-protocol.js';
+import type { NativePagePreparation } from './page-snapshot-contract.js';
 import type { BffSessionStore, SessionDependencies } from './session-contract.js';
 import { InMemoryBffSessionStore } from './session-store.js';
 
@@ -10,11 +11,20 @@ export type BffSessionHolder = Readonly<{
 }>;
 
 /** Called once by the native launcher. Bundled consumers never construct a fallback. */
-export function installBffSessionRuntime(dependencies: SessionDependencies) {
+export function installBffSessionRuntime(
+  dependencies: SessionDependencies,
+  preparation: NativePagePreparation,
+) {
   const key = Symbol.for(BFF_RUNTIME_KEY);
   if (Object.getOwnPropertyDescriptor(globalThis, key))
     throw new Error('BFF session owner already installed');
-  const owner = new InMemoryBffSessionStore(dependencies);
+  if (
+    !preparation ||
+    typeof preparation.current !== 'function' ||
+    typeof preparation.reserve !== 'function'
+  )
+    throw new Error('BFF page owner unavailable');
+  const owner = new InMemoryBffSessionStore(dependencies, preparation);
   const store: BffSessionStore = Object.freeze({
     start: owner.start.bind(owner),
     complete: owner.complete.bind(owner),
@@ -24,6 +34,7 @@ export function installBffSessionRuntime(dependencies: SessionDependencies) {
     switchScope: owner.switchScope.bind(owner),
     discardEntry: owner.discardEntry.bind(owner),
     operate: owner.operate.bind(owner),
+    preparePage: owner.preparePage.bind(owner),
     peek: owner.peek.bind(owner),
     admit: owner.admit.bind(owner),
     signout: owner.signout.bind(owner),
@@ -33,7 +44,7 @@ export function installBffSessionRuntime(dependencies: SessionDependencies) {
   const holder: BffSessionHolder = Object.freeze({
     version: 1,
     store,
-    http: createBffHttpProtocol(store),
+    http: createBffHttpProtocol(store, preparation),
   });
   Object.defineProperty(globalThis, key, {
     value: holder,

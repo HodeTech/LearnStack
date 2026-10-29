@@ -74,6 +74,45 @@ describe('entry cursor authenticated confidentiality', () => {
     },
   );
 
+  it.each([undefined, 'members', 'scopes'] as const)(
+    'isolates the %s cursor purpose from both other browser flows with the same owner and key',
+    (selected) => {
+      const key = randomBytes(32);
+      const owner = selected === undefined ? binding : { ...binding, purpose: selected };
+      const cursor = sealEntryCursor(key, owner, raw);
+      expect(openEntryCursor(key, owner, cursor)).toBe(raw);
+      for (const other of [undefined, 'members', 'scopes'] as const) {
+        if (other === selected) continue;
+        const otherOwner = other === undefined ? binding : { ...binding, purpose: other };
+        expect(() => openEntryCursor(key, otherOwner, cursor)).toThrow(BffInputError);
+      }
+      expect(openEntryCursor(key, owner, cursor)).toBe(raw);
+    },
+  );
+
+  it.each(['members', 'scopes'] as const)(
+    'authenticates the literal %s purpose domain independently of the encoder',
+    (selected) => {
+      const key = randomBytes(32);
+      const cursor = authenticated(key, Buffer.from(raw), [
+        'learnstack.identity.self-context-cursor.' + selected,
+        1,
+        binding.id,
+        binding.host,
+        binding.epoch,
+      ]);
+      expect(openEntryCursor(key, { ...binding, purpose: selected }, cursor)).toBe(raw);
+      expect(() => openEntryCursor(key, binding, cursor)).toThrow(BffInputError);
+      expect(() =>
+        openEntryCursor(
+          key,
+          { ...binding, purpose: selected === 'members' ? 'scopes' : 'members' },
+          cursor,
+        ),
+      ).toThrow(BffInputError);
+    },
+  );
+
   it.each([
     ['another-purpose', 1],
     [purpose, 2],

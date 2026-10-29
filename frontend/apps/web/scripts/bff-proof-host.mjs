@@ -99,6 +99,7 @@ export async function startBffProof({
   }
   function get(path, cookie, extra = {}) {
     return new Promise((resolve, reject) => {
+      let observed = { status: null, headers: {}, body: '' };
       const call = request(
         {
           hostname: '127.0.0.1',
@@ -115,6 +116,7 @@ export async function startBffProof({
           },
         },
         (response) => {
+          observed = { status: response.statusCode, headers: response.headers, body: '' };
           let body = '';
           let bytes = 0;
           response.setEncoding('utf8');
@@ -126,9 +128,22 @@ export async function startBffProof({
               return;
             }
             body += chunk;
+            observed.body = body;
           });
-          response.once('error', reject);
-          response.once('aborted', () => reject(new Error('owned response aborted')));
+          const interrupted = () =>
+            extra.allowAborted
+              ? resolve({
+                  status: response.statusCode,
+                  headers: response.headers,
+                  body,
+                  aborted: true,
+                })
+              : reject(new Error('owned response aborted'));
+          response.once('error', (error) => {
+            if (extra.allowAborted && error.code === 'ECONNRESET') interrupted();
+            else reject(error);
+          });
+          response.once('aborted', interrupted);
           response.once('end', () => {
             try {
               rememberBffCookies(response.headers['set-cookie'], cookieCanaries);
@@ -144,7 +159,11 @@ export async function startBffProof({
       call.setTimeout(external ? 35_000 : 10_000, () =>
         call.destroy(new Error('owned request deadline')),
       );
-      call.once('error', reject);
+      call.once('error', (error) => {
+        if (extra.allowAborted && error.code === 'ECONNRESET')
+          resolve({ ...observed, aborted: true });
+        else reject(error);
+      });
       call.end(extra.body);
     });
   }
@@ -176,6 +195,12 @@ export async function startBffProof({
     'provider-transport',
     'request-owner',
     'request-runtime',
+    'page',
+    'page-contract',
+    'page-snapshot-contract',
+    'page-snapshot-pool',
+    'page-response',
+    'page-preload',
     'session-contract',
     'session-path',
     'native-contract',
@@ -197,14 +222,10 @@ export async function startBffProof({
       join(app, 'src/server/auth', name + '.ts'),
     );
   if (mutation === 'activity') {
-    const path = join(app, 'src/server/auth/http-admission.ts');
+    const path = join(app, 'src/server/auth/request-runtime.ts');
     file(
       path,
-      replace(
-        readFileSync(path, 'utf8'),
-        'protocol.project(input, bffRequestOwner().activity(context))',
-        'protocol.project(input)',
-      ),
+      replace(readFileSync(path, 'utf8'), 'activity: frame.activity,', "activity: 'passive',"),
     );
   }
   symlinkSync(join(source, 'node_modules'), join(app, 'node_modules'), 'dir');
@@ -264,9 +285,9 @@ export async function startBffProof({
   );
   file(
     join(app, 'src/app/studio/page.tsx'),
-    `import { auth } from '@/server/auth/auth';
+    `import { optionalPreparedPage } from '@/server/auth/page';
 export const dynamic = 'force-dynamic'; export const revalidate = 0;
-export default async function Page() { const a = await auth(); const b = await auth(); if (a !== b) throw new Error('request snapshot identity'); return <main><h1>{a?.state ?? 'anonymous'}</h1><p>{a?.displayName}</p></main>; }`,
+export default async function Page() { const a = await optionalPreparedPage(); const b = await optionalPreparedPage(); a?.assertActive(); b?.assertActive(); if (a?.snapshot !== b?.snapshot) throw new Error('request snapshot identity'); const gate = Reflect.get(globalThis, Symbol.for('learnstack.proof-render-gate')); if (a && typeof gate === 'function') await gate(); return <main><h1>{a?.snapshot.session.state ?? 'anonymous'}</h1><p>{a?.snapshot.session.displayName}</p></main>; }`,
   );
   file(
     join(app, 'src/app/page.tsx'),
@@ -331,10 +352,53 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
       administration: createNativeAdministrationCaller(nativeConfiguration, globalThis.fetch),
       diagnostic: (reason) => console.warn('BFF session lifecycle', { reason }),
     };`,
-      `    let now = 0; let refreshes = 0; let accounts = 0;
-    process.on('message', async value => { if (value && value.kind === 'advance' && [0, 60000, 901000].includes(value.milliseconds)) { now += value.milliseconds; await (await import('next/dist/trace/index.js')).flushAllTraces(); process.send?.({ kind: 'snapshot', now, refreshes, accounts }); } });
+      `    let now = 0; let refreshes = 0; let accounts = 0; const administrations = {};
+    let renderArmed = false; const renderWork = new Set();
+    const releaseRender = () => { renderArmed = false; for (const release of renderWork) release(); };
+    Object.defineProperty(globalThis, Symbol.for('learnstack.proof-render-gate'), {value: () => {
+      if (!renderArmed) return;
+      renderArmed = false;
+      const framework = globalThis[Symbol.for('@next/request-context')]?.get();
+      if (!framework || typeof framework.waitUntil !== 'function') throw new Error('Owned framework context absent');
+      let release; const work = new Promise(resolve => { release = resolve; });
+      renderWork.add(release); framework.waitUntil(work);
+      return work.finally(() => renderWork.delete(release));
+    }});
+    for (const event of ['disconnect', 'SIGINT', 'SIGTERM', 'exit']) process.once(event, releaseRender);
+    process.on('message', value => { if (value?.kind === 'render-control' && ['arm', 'release', 'status'].includes(value.action)) {
+      if (value.action === 'arm') { if (renderArmed || renderWork.size) throw new Error('Owned render already held'); renderArmed = true; }
+      if (value.action === 'release') releaseRender();
+      process.send?.({kind: 'render-state', held: renderWork.size, frames: bffRequests?.counts() ?? 0, snapshots: bffRequests?.snapshotCounts() ?? null});
+    }});
+    process.on('message', async value => { if (value && value.kind === 'advance' && [0, 60000, 901000].includes(value.milliseconds)) { now += value.milliseconds; await (await import('next/dist/trace/index.js')).flushAllTraces(); process.send?.({ kind: 'snapshot', now, refreshes, accounts, administrations: {...administrations} }); } });
     const credentials = () => ({ accessToken: '${marker}', refreshToken: '${marker}', idToken: '${marker}', identity: { issuer: ${JSON.stringify(fakeIssuer)}, subject: 'owned-subject', actorId: '019a154b-0000-7000-8000-000000000011', tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null, displayLabel: 'Fixture account' }, accessExpiresAt: now + 900000, refreshExpiresAt: now + 3600000 });
-    const dependencies = { provider: { begin: async callbackUri => ({ transaction: { callbackUri, state: randomBytes(32).toString('base64url'), nonce: randomBytes(32).toString('base64url'), verifier: randomBytes(32).toString('base64url') }, redirectUrl: ${JSON.stringify(fakeIssuer + '/protocol/openid-connect/auth')} }), redeem: async () => credentials(), refresh: async () => { ++refreshes; return credentials(); }, logoutUrl: () => ${JSON.stringify(fakeLogout)} }, account: async (_token, binding) => { ++accounts; return ({ actorId: '019a154b-0000-7000-8000-000000000011', tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null, displayName: (${JSON.stringify(sites)}).find(site => site.host === binding.host).displayName }); }, native: { self: async () => ({state: 'active', association: {authorityId: '10000000-0000-4000-8000-000000000099', subjectKey: 'a'.repeat(64), actorId: '019a154b-0000-7000-8000-000000000011'}}), bootstrap: async () => {throw new Error('Unused fixture create');}, contexts: async (_token,binding) => ({items: [{tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null, tenantName: (${JSON.stringify(sites)}).find(site => site.host === binding.host).displayName, organizationName: null, entryOrigin: 'https://' + binding.host, canUseCurrentHost: true}], endCursor: null, hasNextPage: false}), admit: async (_token,binding) => ({authorityId: '10000000-0000-4000-8000-000000000099', subjectKey: 'a'.repeat(64), actorId: '019a154b-0000-7000-8000-000000000011', tenantId: binding.tenantId, organizationId: binding.organizationId}), verifyAssociation: () => {} }, administration: async () => ({kind: 'invalid-request'}), clock: { monotonic: () => now, utc: () => ${clockBase} + now } };`,
+    const member = {membershipId: '019a154b-0000-7000-8000-000000000012', userId: '019a154b-0000-7000-8000-000000000011', organizationId: null, status: 'Active', displayName: 'Fixture member', preferredLocale: null, roleIds: ['019a154b-0000-7000-8000-000000000013'], version: '0'};
+    const role = {roleId: '019a154b-0000-7000-8000-000000000013', builtInKey: 'TenantAdmin', capabilityScope: 'Tenant', version: '0', grants: [{scope: 'Tenant', key: 'identity.membership.admin'}], adoptedReleaseVersion: 1, adoptedReleaseFingerprint: 'a'.repeat(64)};
+    const ownProfile = {displayName: 'Fixture member', preferredLocale: null, version: '0'};
+    const pageInfo = {nextCursor: null, previousCursor: null, hasNext: false, hasPrevious: false};
+    const success = (data, version = false) => ({kind: 'success', status: 200, data: structuredClone(data), etag: version ? '"' + data.version + '"' : null, location: null, replayed: false});
+    const fixtureAdministration = async (_token, binding, operation) => {
+      administrations[operation.kind] = (administrations[operation.kind] ?? 0) + 1;
+      switch (operation.kind) {
+        case 'getOwnCapabilities': return success({canReadTenantMembers: true, canReadOrganizationMembers: true, canWriteMemberProfiles: true, canManageMemberships: true, canReadRoles: true, canChangeRoleGrants: true, canAdoptRoleRelease: true, canWriteOwnProfile: true, canManageOrganizations: true});
+        case 'getOwnProfile': return success(ownProfile, true);
+        case 'listMemberships':
+        case 'listOrganizationMemberships': { const {roleIds, version, ...item} = member; return success({items: [item], pageInfo}); }
+        case 'getMembership': return operation.id === member.membershipId ? success(member, true) : {kind: 'invalid-request'};
+        case 'listRoles': { const {grants, adoptedReleaseVersion, adoptedReleaseFingerprint, ...item} = role; return success({items: [item]}); }
+        case 'getRole': return operation.id === role.roleId ? success(role, true) : {kind: 'invalid-request'};
+        case 'getPermissions': return success({items: [{scope: 'Tenant', key: 'identity.membership.admin', labelKey: 'lockey_permission_identity_membership_admin', canGrant: true}], release: {version: 1, fingerprint: 'a'.repeat(64), tenantAdminDelta: []}});
+        case 'getOwnContexts': return success({items: [{tenantId: binding.tenantId, organizationId: binding.organizationId, tenantName: (${JSON.stringify(sites)}).find(site => site.host === binding.host).displayName, organizationName: null, entryOrigin: 'https://' + binding.host, canUseCurrentHost: true}], pageInfo});
+        case 'setOwnProfile': Object.assign(ownProfile, operation.profile); ownProfile.version = String(BigInt(ownProfile.version) + 1n); return success({version: ownProfile.version}, true);
+        case 'setMembershipProfile': if (operation.id !== member.membershipId) break; Object.assign(member, operation.profile); member.version = String(BigInt(member.version) + 1n); return success({version: member.version}, true);
+        case 'replaceMembershipRoles': if (operation.id !== member.membershipId) break; member.roleIds = [...operation.roleIds]; member.version = String(BigInt(member.version) + 1n); return success({version: member.version}, true);
+        case 'changeMembershipStatus': if (operation.id !== member.membershipId) break; member.status = operation.status; member.version = String(BigInt(member.version) + 1n); return success({version: member.version}, true);
+        case 'changeRoleGrants': if (operation.id !== role.roleId) break; role.grants = [...operation.grants]; role.version = String(BigInt(role.version) + 1n); return success({version: role.version}, true);
+        case 'adoptRoleManifest': if (operation.id !== role.roleId) break; role.adoptedReleaseVersion = operation.manifestVersion; role.adoptedReleaseFingerprint = operation.manifestFingerprint; role.version = String(BigInt(role.version) + 1n); return success({version: role.version}, true);
+      }
+      return {kind: 'invalid-request'};
+    };
+    const dependencies = { provider: { begin: async callbackUri => ({ transaction: { callbackUri, state: randomBytes(32).toString('base64url'), nonce: randomBytes(32).toString('base64url'), verifier: randomBytes(32).toString('base64url') }, redirectUrl: ${JSON.stringify(fakeIssuer + '/protocol/openid-connect/auth')} }), redeem: async () => credentials(), refresh: async () => { ++refreshes; return credentials(); }, logoutUrl: () => ${JSON.stringify(fakeLogout)} }, account: async (_token, binding) => { ++accounts; return ({ actorId: '019a154b-0000-7000-8000-000000000011', tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null, displayName: (${JSON.stringify(sites)}).find(site => site.host === binding.host).displayName }); }, native: { self: async () => ({state: 'active', association: {authorityId: '10000000-0000-4000-8000-000000000099', subjectKey: 'a'.repeat(64), actorId: '019a154b-0000-7000-8000-000000000011'}}), bootstrap: async () => {throw new Error('Unused fixture create');}, contexts: async (_token,binding) => ({items: [{tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null, tenantName: (${JSON.stringify(sites)}).find(site => site.host === binding.host).displayName, organizationName: null, entryOrigin: 'https://' + binding.host, canUseCurrentHost: true}], endCursor: null, hasNextPage: false}), admit: async (_token,binding) => ({authorityId: '10000000-0000-4000-8000-000000000099', subjectKey: 'a'.repeat(64), actorId: '019a154b-0000-7000-8000-000000000011', tenantId: binding.tenantId, organizationId: binding.organizationId}), verifyAssociation: () => {} }, administration: fixtureAdministration, clock: { monotonic: () => now, utc: () => ${clockBase} + now } };`,
     );
   }
   file(join(app, 'scripts/public-server.mjs'), launcher);
@@ -471,13 +535,24 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
       });
       server.process.send({ kind: 'advance', milliseconds });
     });
+  const renderControl = (action) =>
+    new Promise((resolve, reject) => {
+      assert.ok(['arm', 'release', 'status'].includes(action));
+      const timer = setTimeout(() => reject(new Error('owned render IPC deadline')), 5000);
+      server.process.once('message', (state) => {
+        clearTimeout(timer);
+        if (state?.kind !== 'render-state') reject(new Error('owned render IPC shape'));
+        else resolve(state);
+      });
+      server.process.send({ kind: 'render-control', action });
+    });
   const until = Date.now() + 20_000;
   while (!server.scanner.tail.includes('Public HTTPS listener ready on 127.0.0.1:3000')) {
     assert.equal(server.process.exitCode, null, 'native listener alive');
     assert.ok(Date.now() < until, 'listener startup deadline');
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
-  return { app, server, advance, get, scanners, cookieCanaries };
+  return { app, server, advance, renderControl, get, scanners, cookieCanaries };
 }
 export const jar = (response) =>
   (response.headers['set-cookie'] ?? [])

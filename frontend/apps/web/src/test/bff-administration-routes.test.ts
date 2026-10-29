@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { bffFixture, bffHost, bffOpaque, bffRequest, bffSource } from './bff-fixture';
+import { BFF_HISTORY_SOURCE } from '../components/auth/history';
 import { BFF_COOKIES } from '../server/auth/cookies';
 import { renderBffDocument } from '../server/auth/html';
 import { bffAdministrationForm, bffCursor, bffPageQuery } from '../server/auth/http-forms';
@@ -47,7 +48,14 @@ async function expectUnknownRecovery(response: Response, fields: Record<string, 
     );
     expect(document.body.textContent).toContain('The result could not be confirmed.');
     expect(document.querySelector('a[href="/portal/profile"]')).not.toBeNull();
-    expect(document.querySelector('script, img, [onerror], [autofocus]')).toBeNull();
+    expect(
+      document.querySelector('script:not(#bff-history), img, [onerror], [autofocus]'),
+    ).toBeNull();
+    expect(document.querySelectorAll('script')).toHaveLength(1);
+    expect(document.querySelector('#bff-history')?.textContent).toBe(BFF_HISTORY_SOURCE);
+    expect(document.documentElement.getAttribute('data-bff-history-recovery')).toBe(
+      '/portal/profile',
+    );
     expect(document.body.textContent).not.toContain('private-');
   } finally {
     dom.window.close();
@@ -645,8 +653,19 @@ describe('exact native administration forms', () => {
         expect(document.documentElement.lang).toBe(locale);
         expect([...document.querySelectorAll('textarea')].map((field) => field.value)).toEqual([
           fields.displayName,
-          fields.preferredLocale,
+          locale === 'en' ? 'Turkish' : 'Türkçe',
         ]);
+        const retained = [...document.querySelectorAll<HTMLInputElement>('input')];
+        expect(retained.map((field) => [field.type, field.name, field.value])).toEqual([
+          ['hidden', 'displayName', fields.displayName],
+          ['hidden', 'preferredLocale', fields.preferredLocale],
+        ]);
+        for (const field of retained) expect(field.closest('form')).toBeNull();
+        for (const field of document.querySelectorAll('textarea')) {
+          expect(field.readOnly).toBe(true);
+          expect(field.labels?.[0]?.textContent).toBeTruthy();
+          expect(field.closest('form, [hidden], [aria-hidden="true"]')).toBeNull();
+        }
         expect(document.body.textContent).toContain(
           locale === 'en' ? 'Submitted edits' : 'Gönderilen değişiklikler',
         );
@@ -654,8 +673,18 @@ describe('exact native administration forms', () => {
         expect(document.body.textContent).not.toContain(fields.idempotencyKey);
         expect(document.body.textContent).not.toContain(fields.version);
         expect(
-          document.querySelector('form, input, script, img, [onerror], [autofocus]'),
+          document.querySelector(
+            '[name="csrfToken"], [name="version"], [name="idempotencyKey"], [name="membershipId"], [name="roleId"], [name="manifestFingerprint"]',
+          ),
         ).toBeNull();
+        expect(
+          document.querySelector('form, script:not(#bff-history), img, [onerror], [autofocus]'),
+        ).toBeNull();
+        expect(document.querySelectorAll('script')).toHaveLength(1);
+        expect(document.querySelector('#bff-history')?.textContent).toBe(BFF_HISTORY_SOURCE);
+        expect(document.documentElement.getAttribute('data-bff-history-recovery')).toBe(
+          '/portal/profile',
+        );
         expect(document.querySelector('a[href="/portal/profile"]')).not.toBeNull();
       } finally {
         dom.window.close();

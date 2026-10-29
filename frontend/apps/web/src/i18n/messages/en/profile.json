@@ -1,0 +1,14 @@
+{
+  "title": "My membership profile",
+  "display_name": "Display name",
+  "display_name_hint": "Leave blank to remove the name from this membership profile.",
+  "preferred_locale": "Preferred language",
+  "locale_hint": "This preference applies to this membership's interface. It does not change institution content or account access.",
+  "site_default": "Use the institution's default language",
+  "fallback": "When a preferred language is unavailable, the institution's default language is used.",
+  "save": "Save profile",
+  "read_only": "Your profile is available to read. You do not currently have permission to edit it.",
+  "missing": "No exact membership profile is available for this account access. Other available views can still be used.",
+  "unavailable": "Your membership profile could not be checked. The institution's default language is being used.",
+  "no_name": "No display name set"
+}

@@ -3,13 +3,20 @@ import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import { BffInputError } from './input-error.js';
 import { BffSessionError } from './session-contract.js';
 
-type EntryCursorBinding = Readonly<{ id: string; host: string; epoch: string }>;
+type EntryCursorBinding = Readonly<{
+  id: string;
+  host: string;
+  epoch: string;
+  purpose?: 'members' | 'scopes';
+}>;
 const VERSION = 1;
 const MAX_PLAINTEXT_BYTES = 739;
 const aad = (binding: EntryCursorBinding) =>
   Buffer.from(
     JSON.stringify([
-      'learnstack.identity.self-context-cursor',
+      binding.purpose
+        ? 'learnstack.identity.self-context-cursor.' + binding.purpose
+        : 'learnstack.identity.self-context-cursor',
       VERSION,
       binding.id,
       binding.host,

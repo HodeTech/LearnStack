@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { renderBffDocument } from './html';
+import { BFF_HISTORY_SOURCE } from '../../components/auth/history';
 import type { PublicSite } from '../public-entry';
 
 const site = (): PublicSite => ({
@@ -33,7 +34,7 @@ describe('bounded localized BFF documents', () => {
           '/api/auth/signin?returnTo=' + encodeURIComponent(returnPath),
           '/' + locale + '/courses',
         ]);
-        expect(document.querySelector('script, form, input')).toBeNull();
+        expect(document.querySelector('script:not(#bff-history), form, input')).toBeNull();
         expect(document.body.textContent).not.toContain('Institution');
       }
     },
@@ -62,7 +63,7 @@ describe('bounded localized BFF documents', () => {
         'A'.repeat(43),
       );
       expect(document.querySelector('[name="returnTo"]')?.getAttribute('value')).toBe('/studio');
-      expect(document.querySelector('input[type="password"], script')).toBeNull();
+      expect(document.querySelector('input[type="password"], script:not(#bff-history)')).toBeNull();
       expect(document.querySelector('button')?.textContent).toMatch(
         locale === 'en' ? /Continue/ : /devam/,
       );
@@ -80,7 +81,9 @@ describe('bounded localized BFF documents', () => {
       ),
       'text/html',
     );
-    expect(document.querySelector('img, script, [autofocus], [onfocus]')).toBeNull();
+    expect(
+      document.querySelector('img, script:not(#bff-history), [autofocus], [onfocus]'),
+    ).toBeNull();
     expect(document.body.textContent).toContain('<img src=x');
     expect(document.querySelector('style')?.textContent).not.toContain('private');
   });
@@ -124,7 +127,7 @@ it.each(['en', 'tr'])(
       'text/html',
     );
     expect(document.documentElement.lang).toBe(locale);
-    expect(document.querySelector('img, script, [onerror]')).toBeNull();
+    expect(document.querySelector('img, script:not(#bff-history), [onerror]')).toBeNull();
     expect(document.body.textContent).toContain('<img src=x');
     expect(document.body.textContent).toContain('<School>');
     expect(document.body.textContent).not.toContain(tenantId);
@@ -185,7 +188,7 @@ it('uncertain mutation recovery keeps the original key and edits escaped in a de
     }),
     'text/html',
   );
-  expect(document.querySelector('script')).toBeNull();
+  expect(document.querySelector('script:not(#bff-history)')).toBeNull();
   expect(document.querySelector('form')?.getAttribute('action')).toBe('/api/account/profile');
   expect([...document.querySelectorAll('input')].map((input) => [input.name, input.value])).toEqual(
     fields,
@@ -234,7 +237,34 @@ it.each([
       'text/html',
     );
     const copies = [...document.querySelectorAll('textarea')];
-    expect(copies.map((field) => field.value)).toEqual(edits.map(([, value]) => value));
+    expect(copies.map((field) => field.value)).toEqual(
+      locale === 'en'
+        ? [
+            edits[0][1],
+            "Use the institution's default language",
+            'Suspended',
+            'The names of the submitted roles are unavailable. Check the current item before preparing a new selection.',
+            'Manage institution roles',
+            '2',
+          ]
+        : [
+            edits[0][1],
+            'Kurumun varsayılan dilini kullan',
+            'Askıda',
+            'Gönderilen rollerin adları kullanılamıyor. Yeni bir seçim hazırlamadan önce mevcut öğeyi kontrol edin.',
+            'Kurum rollerini yönetme',
+            '2',
+          ],
+    );
+    expect(
+      [...document.querySelectorAll<HTMLInputElement>('input[type="hidden"]')].map((field) => [
+        field.name,
+        field.value,
+      ]),
+    ).toEqual(edits);
+    for (const field of document.querySelectorAll('input'))
+      expect(field.closest('form')).toBeNull();
+    expect(document.body.textContent).not.toContain('019a154b-0000-7000-8000-000000000022');
     expect(copies.map((field) => field.labels?.[0]?.textContent)).toEqual(
       locale === 'en'
         ? [
@@ -268,7 +298,9 @@ it.each([
         : 'Öğeyi kontrol etmeden önce bu değerleri kopyalayın.',
     );
     for (const [, value] of internal) expect(document.body.textContent).not.toContain(value);
-    expect(document.querySelector('form, input, script, [onerror], [autofocus]')).toBeNull();
+    expect(
+      document.querySelector('form, script:not(#bff-history), [onerror], [autofocus]'),
+    ).toBeNull();
     expect(document.querySelector('a[href="/portal/profile"]')).not.toBeNull();
   },
 );
@@ -284,7 +316,7 @@ it.each(['en', 'tr'])(
       'text/html',
     );
     expect(reauthentication.documentElement.lang).toBe(locale);
-    expect(reauthentication.querySelector('form, input, script')).toBeNull();
+    expect(reauthentication.querySelector('form, input, script:not(#bff-history)')).toBeNull();
     expect(reauthentication.querySelector('a[href="/api/auth/signin"]')).not.toBeNull();
     expect(reauthentication.querySelector('a[href="/api/auth/entry"]')).toBeNull();
     const busy = new DOMParser().parseFromString(
@@ -295,7 +327,7 @@ it.each(['en', 'tr'])(
       'text/html',
     );
     expect(busy.body.textContent).toContain('37');
-    expect(busy.querySelector('form, script')).toBeNull();
+    expect(busy.querySelector('form, script:not(#bff-history)')).toBeNull();
     expect(busy.querySelector('a[href="/api/auth/entry"]')).not.toBeNull();
     expect(busy.body.textContent).not.toContain('provider_refused');
   },
@@ -339,7 +371,7 @@ it.each(['en', 'tr'])(
 
 it.each([
   ['reauthenticate', 'This sign-in can no longer be used.'],
-  ['creation_disabled', 'Creating a LearnStack identity is not available right now.'],
+  ['creation_disabled', 'Creating a LearnStack account is not available right now.'],
   ['denied', 'This account access is not available.'],
   ['busy', 'Too many account access requests.'],
   ['unavailable', 'The result could not be confirmed.'],
@@ -351,11 +383,163 @@ it.each([
   expect(document.querySelector('main > p')?.textContent).toContain(expected);
 });
 
+it.each(['en', 'tr'])(
+  'active scope selection in %s preserves current access and posts only another selection',
+  (locale) => {
+    const tenantId = '10000000-0000-4000-8000-000000000001';
+    const organizationId = '019a154b-0000-7000-8000-000000000011';
+    const document = new DOMParser().parseFromString(
+      renderBffDocument(
+        { ...site(), defaultLocale: locale },
+        {
+          kind: 'scope_choices',
+          cursor: 'YQ',
+          selection: {
+            session: {
+              state: 'authenticated',
+              displayName: 'Institution',
+              csrfToken: 'A'.repeat(43),
+              expiresAt: 123,
+              limitedByAbsolute: false,
+            },
+            expiresAt: 123,
+            contexts: {
+              items: [
+                {
+                  tenantId,
+                  organizationId: null,
+                  tenantName: '<Institution>',
+                  organizationName: null,
+                  entryOrigin: 'https://private.example',
+                  canUseCurrentHost: true,
+                  current: true,
+                },
+                {
+                  tenantId,
+                  organizationId,
+                  tenantName: '<Institution>',
+                  organizationName: '<Branch>',
+                  entryOrigin: 'https://private.example',
+                  canUseCurrentHost: true,
+                  current: false,
+                },
+                {
+                  tenantId: '20000000-0000-4000-8000-000000000002',
+                  organizationId: null,
+                  tenantName: 'Other institution',
+                  organizationName: null,
+                  entryOrigin: 'https://other.example',
+                  canUseCurrentHost: false,
+                  current: false,
+                },
+              ],
+              endCursor: 'Yg',
+              hasNextPage: true,
+            },
+          },
+        },
+      ),
+      'text/html',
+    );
+    expect(document.documentElement.lang).toBe(locale);
+    expect(
+      document.querySelector('[aria-current]')?.closest('li')?.querySelector('form'),
+    ).toBeNull();
+    const forms = [
+      ...document.querySelectorAll<HTMLFormElement>('form[action="/api/auth/switch"]'),
+    ];
+    expect(forms).toHaveLength(2);
+    expect(forms.map((form) => form.method)).toEqual(['post', 'post']);
+    expect([...new FormData(forms[0]!).entries()]).toEqual([
+      ['csrfToken', 'A'.repeat(43)],
+      ['tenantId', tenantId],
+      ['organizationId', organizationId],
+      ['cursor', 'YQ'],
+    ]);
+    expect(forms[1]!.querySelector('button')?.textContent).toBe(
+      locale === 'en' ? 'Sign in at this institution' : 'Bu kurumda giriş yap',
+    );
+    expect(document.body.textContent).toContain('<Branch>');
+    for (const hidden of [tenantId, organizationId, 'private.example', 'other.example'])
+      expect(document.body.textContent).not.toContain(hidden);
+    expect(document.querySelector('a[href="/api/auth/entry?cursor=Yg"]')).not.toBeNull();
+    expect(document.querySelectorAll('script')).toHaveLength(1);
+    expect(document.querySelector('#bff-history')?.textContent).toBe(BFF_HISTORY_SOURCE);
+    expect(document.documentElement.getAttribute('data-bff-history-recovery')).toBe(
+      '/api/auth/entry',
+    );
+    expect(document.querySelector('noscript')?.textContent).toContain('JavaScript');
+  },
+);
+
+it.each(['en', 'tr'])(
+  'uses authorized role names in %s stale recovery without visible IDs or a rebase form',
+  (locale) => {
+    const roleId = '019a154b-0000-7000-8000-000000000022';
+    const fields = [['roleIds', JSON.stringify([roleId])]] as const;
+    const document = new DOMParser().parseFromString(
+      renderBffDocument(
+        { ...site(), defaultLocale: locale },
+        {
+          kind: 'mutation_error',
+          action: '/api/studio/membership-roles',
+          destination: '/studio/members/019a154b-0000-7000-8000-000000000011',
+          reason: 'stale',
+          retryable: false,
+          fields,
+          roleLabels: [{ roleId, builtInKey: 'Instructor', capabilityScope: 'Tenant' }],
+        },
+      ),
+      'text/html',
+    );
+    expect(document.querySelector('textarea')?.value).toBe(
+      locale === 'en' ? 'Institution instructor' : 'Kurum eğitmeni',
+    );
+    expect(document.body.textContent).not.toContain(roleId);
+    expect(document.querySelector<HTMLInputElement>('input[name="roleIds"]')?.value).toBe(
+      fields[0][1],
+    );
+    expect(document.querySelector('form')).toBeNull();
+    expect(document.documentElement.getAttribute('data-bff-history-recovery')).toBe(
+      '/studio/members/019a154b-0000-7000-8000-000000000011',
+    );
+    expect(document.querySelector('#bff-history')?.textContent).toBe(BFF_HISTORY_SOURCE);
+  },
+);
+
+it('all native POST error documents expose only a fixed GET history recovery, never their POST action', () => {
+  const pages = [
+    {
+      kind: 'mutation_error' as const,
+      action: '/api/account/profile',
+      destination: '/portal/profile',
+      reason: 'unavailable' as const,
+      retryable: true,
+      fields: [['csrfToken', 'A'.repeat(43)]],
+    },
+    { kind: 'entry_error' as const, reason: 'unavailable' as const },
+    { kind: 'account_change' as const, csrfToken: 'A'.repeat(43) },
+    { kind: 'error' as const },
+  ];
+  for (const [index, page] of pages.entries()) {
+    const document = new DOMParser().parseFromString(
+      renderBffDocument(site(), page as Parameters<typeof renderBffDocument>[1]),
+      'text/html',
+    );
+    expect(document.documentElement.getAttribute('data-bff-history-recovery')).toBe(
+      ['/portal/profile', '/api/auth/entry', '/api/auth/entry', '/api/auth/signin'][index],
+    );
+    expect(document.querySelectorAll('script')).toHaveLength(1);
+    expect(document.querySelector('#bff-history')?.textContent).toBe(BFF_HISTORY_SOURCE);
+    expect(document.querySelector('#bff-history')?.textContent).not.toContain('A'.repeat(43));
+  }
+});
+
 it.each([
   ['denied', 'This change is not available in your current account access.'],
   ['stale', 'This item changed.'],
   ['in_progress', 'This request is still in progress.'],
-  ['key_reuse', 'This request key was already used for a different change.'],
+  ['key_reuse', 'This form was already used for a different change.'],
   ['unavailable', 'The result could not be confirmed.'],
 ] as const)('renders the specific mutation recovery for %s', (reason, expected) => {
   const document = new DOMParser().parseFromString(

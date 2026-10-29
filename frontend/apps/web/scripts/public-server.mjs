@@ -70,8 +70,8 @@ try {
       administration: createNativeAdministrationCaller(nativeConfiguration, globalThis.fetch),
       diagnostic: (reason) => console.warn('BFF session lifecycle', { reason }),
     };
-    bffRequests = installBffRequestRuntime();
-    bffSessions = installBffSessionRuntime(dependencies);
+    bffRequests = installBffRequestRuntime(admission.holder);
+    bffSessions = installBffSessionRuntime(dependencies, bffRequests.preparation);
   }
   // Next reads the same values; root/projection conflicts were refused before prepare.
   for (const key of PUBLIC_ENV_KEYS) process.env[key] = values[key];
@@ -124,19 +124,13 @@ try {
     delegateDevelopmentHmr(request, socket, head, upgradeSink);
   });
   server.on('connect', (_request, socket) => socket.destroy());
-  server.on('error', () => {
-    admission.shutdown();
-    bffRequests?.stop();
-    void bffSessions?.stop();
-    console.error('Public HTTPS listener failed');
-    process.exit(1);
-  });
   let stopping = false;
+  let listenerFailed = false;
   const shutdown = async () => {
     if (stopping) return;
     stopping = true;
     admission.shutdown();
-    bffRequests?.stop();
+    const requestsStopped = bffRequests?.stop();
     const sessionsStopped = bffSessions?.stop();
     // Node excludes upgraded sockets from closeAllConnections; Next's custom
     // server also leaves development handles alive after app.close().
@@ -152,12 +146,22 @@ try {
     );
     server.closeAllConnections();
     upgradeSink.close();
-    const results = await Promise.allSettled([closed, app.close(), sessionsStopped]);
+    const results = await Promise.allSettled([
+      closed,
+      app.close(),
+      sessionsStopped,
+      requestsStopped,
+    ]);
     clearTimeout(deadline);
-    const failed = results.some((result) => result.status === 'rejected');
+    const failed = listenerFailed || results.some((result) => result.status === 'rejected');
     if (failed) console.error('Public server shutdown failed');
     process.exit(failed ? 1 : 0);
   };
+  server.on('error', () => {
+    listenerFailed = true;
+    console.error('Public HTTPS listener failed');
+    void shutdown();
+  });
   process.once('SIGTERM', shutdown);
   process.once('SIGINT', shutdown);
   server.listen(PUBLIC_HTTPS_PORT, '127.0.0.1', () => {

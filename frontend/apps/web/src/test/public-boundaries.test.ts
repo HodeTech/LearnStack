@@ -32,6 +32,7 @@ import {
   navigationFindings,
   omittedProductionDirectory,
   privateServerFiles,
+  preparedPageRenderFindings,
   publicLayoutPolicyFindings,
   PUBLIC_LAYOUT,
   rawAuthorityFindings,
@@ -352,8 +353,13 @@ describe('ADR-0053 production public boundaries', () => {
       expect.arrayContaining([
         'apps/web/src/app/(studio)/layout.tsx',
         'apps/web/src/app/(studio)/studio/page.tsx',
+        'apps/web/src/app/(studio)/studio/members/page.tsx',
+        'apps/web/src/app/(studio)/studio/members/[membershipId]/page.tsx',
+        'apps/web/src/app/(studio)/studio/roles/page.tsx',
+        'apps/web/src/app/(studio)/studio/roles/[roleId]/page.tsx',
         'apps/web/src/app/(portal)/layout.tsx',
         'apps/web/src/app/(portal)/portal/page.tsx',
+        'apps/web/src/app/(portal)/portal/profile/page.tsx',
       ]),
     );
     expect(reachable(production, [I18N_REQUEST])).toEqual(
@@ -580,6 +586,10 @@ describe('ADR-0053 production public boundaries', () => {
       'provider-transport',
       'logout-response',
       'request-runtime',
+      'entry-cursor',
+      'page-snapshot-pool',
+      'page-response',
+      'page-preload',
       'http-protocol',
     ]) {
       expect(bundled).not.toContain('apps/web/src/server/auth/' + name + '.ts');
@@ -613,7 +623,132 @@ describe('ADR-0053 production public boundaries', () => {
         ),
       ).some((item) => item.file === probe),
     ).toBe(true);
+    const pageFacade = 'apps/web/src/server/auth/page.ts';
+    expect(hasServerOnlyMarker(production.files.get(pageFacade)!)).toBe(true);
+    const pageRead = graphWith(
+      probe,
+      'import { preparedPage } from "@/server/auth/page"; export const read = () => preparedPage();',
+    );
+    const pageClosure = reachable(pageRead, [probe]);
+    expect(pageClosure).toContain(pageFacade);
+    expect(pageClosure).toContain('apps/web/src/server/auth/request-owner.ts');
+    for (const native of [
+      NATIVE_API_TRANSPORT,
+      SDK_ADMINISTRATION,
+      'apps/web/src/server/auth/session-store.ts',
+      'apps/web/src/server/auth/request-runtime.ts',
+      'apps/web/src/server/auth/page-snapshot-pool.ts',
+      'apps/web/src/server/auth/page-response.ts',
+    ])
+      expect(pageClosure).not.toContain(native);
+    expect(
+      clientBoundaryFindings(
+        graphWith(
+          probe,
+          '\'use client\'; import { preparedPage } from "@/server/auth/page"; export const read = preparedPage;',
+        ),
+      ).some((item) => item.file === probe),
+    ).toBe(true);
   }, 20_000); // Rebuilds the complete graph for each planted native transport and bundle edge.
+  it('selected protected RSCs consume prepared pages without creating later IO or framework work', () => {
+    clean(
+      preparedPageRenderFindings(production, scaffoldRoots),
+      'Fix: native preparation owns work; selected protected RSCs only read and render.',
+    );
+    const shell = 'apps/web/src/components/auth/shell.tsx';
+    const source = sources[shell]!;
+    for (const addition of [
+      '\nasync function late() { await Promise.resolve(); }',
+      '\nconst hidden = [1].map(async () => 1);',
+      '\nPromise.resolve().then(() => undefined);',
+      '\nqueueMicrotask(() => undefined);',
+      '\nsetTimeout(() => undefined, 0);',
+      '\nconst later = queueMicrotask; later(() => undefined);',
+      '\nimport { after as later } from "next/server"; later(() => undefined);',
+      '\nimport { readFile } from "node:fs/promises"; void readFile("private");',
+      '\nvoid import("./unmodeled-work");',
+    ])
+      expect(
+        preparedPageRenderFindings(graphWith(shell, source + addition), scaffoldRoots).some(
+          (item) => item.file === shell,
+        ),
+      ).toBe(true);
+    const helper = 'apps/web/src/components/auth/late-work.ts';
+    const dirty = buildSourceGraph({
+      ...sources,
+      [shell]: source + '\nimport "./late-work";',
+      [helper]: 'export const result = new Promise(resolve => resolve(1));',
+    });
+    expect(
+      preparedPageRenderFindings(dirty, scaffoldRoots).some((item) => item.file === helper),
+    ).toBe(true);
+  });
+  it('admits only the exact passive provenance edge, rejecting aliased native IO and ingress re-exports', () => {
+    const facade = 'apps/web/src/server/auth/page.ts';
+    const source = sources[facade]!;
+    for (const changed of [
+      source.replace(
+        'INGRESS_HEADER, verifyProvenance',
+        'INGRESS_HEADER, loadLocalEnvironment as verifyProvenance',
+      ),
+      source + '\nimport { readFileSync as check } from "node:fs"; check("private");',
+      source + '\nexport { mintProvenance as checked } from "../ingress";',
+      source + '\nconst native = require("../ingress"); native.mintProvenance({});',
+    ]) {
+      expect(changed).not.toBe(source);
+      expect(
+        preparedPageRenderFindings(graphWith(facade, changed), scaffoldRoots).some(
+          (item) => item.file === facade,
+        ),
+      ).toBe(true);
+    }
+    const shell = 'apps/web/src/components/auth/shell.tsx';
+    expect(
+      preparedPageRenderFindings(
+        graphWith(
+          shell,
+          sources[shell]! +
+            '\nimport { verifyProvenance as inspect } from "@/server/ingress"; inspect(null, undefined);',
+        ),
+        scaffoldRoots,
+      ).some((item) => item.file === shell),
+    ).toBe(true);
+  });
+  it('follows the trusted provenance function dependencies and rejects IO introduced through local or module aliases', () => {
+    const ingress = sources[INGRESS]!;
+    const marker = 'const parts = /^v1\\.';
+    expect(ingress).toContain(marker);
+    const changed = ingress.replace(marker, 'const io = readFileSync; io("private");\n  ' + marker);
+    expect(
+      preparedPageRenderFindings(graphWith(INGRESS, changed), scaffoldRoots).some(
+        (item) => item.file === INGRESS && item.reason.includes('arbitrary IO'),
+      ),
+    ).toBe(true);
+    expect(
+      preparedPageRenderFindings(
+        graphWith(INGRESS, ingress + '\nconst leak = readFileSync("private");'),
+        scaffoldRoots,
+      ).some((item) => item.file === INGRESS && item.reason.includes('arbitrary IO')),
+    ).toBe(true);
+    const helper = 'apps/web/src/server/provenance-io.ts';
+    const graph = buildSourceGraph({
+      ...sources,
+      [INGRESS]:
+        'import { inspect as validate } from "./provenance-io";\n' +
+        ingress.replace(marker, 'validate();\n  ' + marker),
+      [helper]:
+        'import { readFileSync as load } from "node:fs"; export function inspect() { return load("private"); }',
+    });
+    const findings = preparedPageRenderFindings(graph, scaffoldRoots);
+    expect(
+      findings.some(
+        (item) => item.file === INGRESS && item.reason.includes('provenance leaf imports exact'),
+      ),
+    ).toBe(true);
+    expect(
+      findings.some((item) => item.file === helper && item.reason.includes('protected IO')),
+    ).toBe(true);
+  });
   it('confines browser fetch to the exact same-origin no-store BFF extension action', () => {
     const source = sources[BFF_BROWSER_ADAPTER]!;
     expect(source).toContain("fetch('/api/auth/extend'");

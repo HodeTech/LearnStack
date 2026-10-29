@@ -300,7 +300,7 @@ describe('native public admission lifetime and concurrent ownership', () => {
     const root = mkdtempSync(join(tmpdir(), 'learnstack-admission-gc-'));
     try {
       writeFileSync(join(root, 'package.json'), '{"type":"module"}');
-      // Compile only the three native sources, independently of build:ingress or
+      // Compile the exact native dependency closure, independently of build:ingress or
       // an existing .server directory. The child owns its explicit GC capability.
       mkdirSync(join(root, 'auth'));
       for (const name of [
@@ -309,6 +309,7 @@ describe('native public admission lifetime and concurrent ownership', () => {
         'ingress',
         'auth/http-paths',
         'auth/page-query',
+        'auth/session-path',
         'auth/input-error',
       ]) {
         const source = readFileSync(new URL(`./${name}.ts`, import.meta.url), 'utf8');

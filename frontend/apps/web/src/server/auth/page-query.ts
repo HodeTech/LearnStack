@@ -1,4 +1,5 @@
 import { BffInputError } from './input-error.js';
+import { isNativeReturnPath } from './session-path.js';
 
 export const MAX_TARGET_BYTES = 8192;
 
@@ -80,4 +81,17 @@ export function bffPageQuery(fields: URLSearchParams) {
   if (raw !== null && (!/^[1-9][0-9]{0,9}$/.test(raw) || Number(raw) > 2147483647))
     throw new BffInputError();
   return Object.freeze({ cursor, limit: raw === null ? undefined : Math.min(Number(raw), 100) });
+}
+
+/** One grammar for public admission and native protected-page preparation. */
+export function bffDocumentQuery(target: string, nativeFlight = false) {
+  const path = target.split('?', 1)[0]!;
+  if (path === '/' || !isNativeReturnPath(path)) throw new BffInputError();
+  const allowed = path === '/studio/members' ? ['cursor', 'limit'] : [];
+  const fields = bffQuery(target, nativeFlight ? [...allowed, '_rsc'] : allowed);
+  if (fields.has('_rsc')) {
+    if (!/^[\x21-\x7e]{1,128}$/.test(fields.get('_rsc')!)) throw new BffInputError();
+    fields.delete('_rsc');
+  }
+  return Object.freeze({ target: path, ...bffPageQuery(fields) });
 }

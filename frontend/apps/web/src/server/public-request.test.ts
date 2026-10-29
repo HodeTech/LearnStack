@@ -164,7 +164,7 @@ describe('shared verified public request admission', () => {
           });
         });
       } finally {
-        native.stop();
+        await native.stop();
       }
       expect(native.counts()).toBe(0);
     },
@@ -194,7 +194,7 @@ describe('shared verified public request admission', () => {
           });
         });
       } finally {
-        native.stop();
+        await native.stop();
       }
       expect(native.counts()).toBe(0);
     },

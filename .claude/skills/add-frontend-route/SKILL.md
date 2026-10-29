@@ -19,7 +19,7 @@ Land a new route in `frontend/apps/web` that respects route-group conventions,
 API-owned tenant/organization resolution, Server Component rendering and the typed
 SDK contract per
 [14-frontend-architecture.md](../../../docs/architecture/14-frontend-architecture.md)
-+ [07-frontend-architecture.md](../../../docs/standards/07-frontend-architecture.md).
+and [07-frontend-architecture.md](../../../docs/standards/07-frontend-architecture.md).
 
 ## When to use
 
@@ -40,23 +40,23 @@ SDK contract per
 
 ## Inputs
 
-| Input | Required | Description |
-|-------|----------|-------------|
-| Path | Yes | Public URL `/{locale}/courses/{slug}`; future authenticated paths follow their owning phase. |
-| Route group | Yes | `(public)` / `(studio)` / `(portal)`. |
-| Auth | Yes | Anonymous (public) / authenticated tenant / org-scoped. |
-| Permission key | If guarded | `{module}.{resource}.{action}` from the closed set. |
-| Server / Client | Yes | Default Server; Client only for interactivity. |
+| Input           | Required   | Description                                                                                                                                  |
+| --------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Path            | Yes        | Public URL `/{locale}/courses/{slug}` or one of the closed protected paths below; additions require their owning phase's admission decision. |
+| Route group     | Yes        | `(public)` / `(studio)` / `(portal)`.                                                                                                        |
+| Auth            | Yes        | Anonymous (public) / authenticated tenant / org-scoped.                                                                                      |
+| Permission key  | If guarded | `{module}.{resource}.{action}` from the closed set.                                                                                          |
+| Server / Client | Yes        | Default Server; Client only for interactivity.                                                                                               |
 
 ## Workflow
 
 ### Step 1: Pick the route group
 
-| Group | Purpose | Auth | Default render |
-|-------|---------|------|----------------|
-| `(public)` | Tenant public site (marketing, catalog, blog). | Anonymous by default; auth optional. | Dynamic SSR, no-store per ADR-0053; see Step 8. |
-| `(studio)` | Current `/studio` account scaffold; future admin screens. | Native BFF session admission; permission-sensitive screens require Phase 03's real authorization. | SSR, no cache (always fresh). |
-| `(portal)` | Current `/portal` account scaffold; future learner/instructor screens. | Native BFF session admission; the current projection proves no membership or permission. | SSR shell + Client Component for interactivity. |
+| Group      | Purpose                                           | Auth                                                                     | Default render                                                    |
+| ---------- | ------------------------------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| `(public)` | Tenant public site (marketing, catalog, blog).    | Anonymous by default; auth optional.                                     | Dynamic SSR, no-store per ADR-0053; see Step 8.                   |
+| `(studio)` | Account shell and membership/Role administration. | Native session admission and fresh operation-specific API authorization. | Native prepared snapshot, synchronous server view, no-store.      |
+| `(portal)` | Account shell and own contextual profile.         | Native session admission and exact current-membership profile policy.    | Native prepared snapshot plus bounded session controls, no-store. |
 
 ### Step 2: Create the route folder
 
@@ -72,13 +72,21 @@ localized section names.
 frontend/apps/web/src/app/
   (studio)/
     studio/page.tsx
+    studio/members/page.tsx
+    studio/members/[membershipId]/page.tsx
+    studio/roles/page.tsx
+    studio/roles/[roleId]/page.tsx
   (portal)/
     portal/page.tsx
+    portal/profile/page.tsx
 ```
 
-These exact paths are the current authenticated scaffold census. New screens
-need their owning phase's admission/authorization decision and matching route
-census controls; a route-group folder alone grants no access.
+These are the closed protected screen owners. Match
+[`session-path.ts`](../../../frontend/apps/web/src/server/auth/session-path.ts)
+and the route-census controls when changing the tree. The policy is
+[Standard 07 § Native entry and administration](../../../docs/standards/07-frontend-architecture.md#native-entry-and-administration);
+packet qualification lives only in [Phase 03](../../../docs/roadmap/phase-03-identity-admin.md).
+A route-group folder alone grants no access.
 
 Use the `layout.tsx` already present in the route group; do not add a new layout
 unless the screen genuinely needs one.
@@ -87,21 +95,27 @@ unless the screen genuinely needs one.
 
 ```tsx
 // app/(public)/[locale]/courses/page.tsx
-import { notFound } from 'next/navigation';
-import { PublicCatalog } from '@/components/public/catalog';
-import { PublicState } from '@/components/public/state';
-import { requirePublicResource } from '@/server/public-resource';
-import { getPublicUi } from '@/server/public-ui';
+import { notFound } from "next/navigation";
+import { PublicCatalog } from "@/components/public/catalog";
+import { PublicState } from "@/components/public/state";
+import { requirePublicResource } from "@/server/public-resource";
+import { getPublicUi } from "@/server/public-ui";
 
 export default async function CoursesPage() {
   const resource = await requirePublicResource();
   const ui = await getPublicUi();
-  if (resource.kind === 'failure') {
-    return <PublicState state={resource.state}
-      recoveryPath={resource.request.route.path}
-      locale={ui.locale} direction={ui.direction} t={ui.t} />;
+  if (resource.kind === "failure") {
+    return (
+      <PublicState
+        state={resource.state}
+        recoveryPath={resource.request.route.path}
+        locale={ui.locale}
+        direction={ui.direction}
+        t={ui.t}
+      />
+    );
   }
-  if (resource.kind !== 'catalog') notFound();
+  if (resource.kind !== "catalog") notFound();
   return <PublicCatalog resource={resource} ui={ui} />;
 }
 ```
@@ -124,10 +138,13 @@ Rules:
   Authenticated callers stay in the native BFF response owner; P03-3's Accepted
   exact forms/page-snapshot extension is defined in
   [Standard 07](../../../docs/standards/07-frontend-architecture.md#native-entry-and-administration).
-  neither a page nor the SDK selects credentials, host or tenancy headers.
+  Neither a page nor the SDK selects credentials, host or tenancy headers.
   Hand-rolled `fetch('/v1/...')` is blocked by lint.
 - Pass typed primitives across the RSC → Client boundary — no class instances, no
-  closures.
+  credential/operation closures. Protected pages consume `preparedPage()` from
+  `server/auth/page.ts`, call `assertActive()` after that await, then render
+  synchronously. Their route parameters and pagination are already represented in
+  the snapshot; do not read Next `params`/`searchParams` or initiate API work there.
 
 ### Step 4: Tenant + organization context (automatic)
 
@@ -153,43 +170,51 @@ through bootstrap and the configured caller; Phase 11 owns participation/samplin
 **ADR-0054 native/URL controls delivered — 2026-10-09.**
 [The replacement contract](../../../docs/decisions/0054-bounded-public-renderer-admission.md)
 requires native GET/HEAD admission on every HTTP callback path, including
-middleware-exempt health/assets/scaffolds. ADR-0070 adds POST only on exact
-`/api/auth/signin/keycloak`, `/api/auth/signout` and `/api/auth/extend`,
-with their closed Origin/CSRF/body controls. Other methods retain masked
+middleware-exempt health/assets/protected paths. The native POST census and its
+closed Origin/CSRF/body controls are defined in
+[Standard 07 § Native entry and administration](../../../docs/standards/07-frontend-architecture.md#native-entry-and-administration).
+Other methods retain masked
 no-store refusal; HEAD remains bodyless. Production upgrades close; development
 retains only validated GET HMR. The [remediation record](../../../docs/roadmap/phase-02d-delivery-log.md#remediation-step-2--native-ingress-and-url-boundary)
 owns validation and both independent review rounds. Do not add
 Server Actions/write routes or WebSocket consumers without an explicit owning
-owning packet's admission decision. ADR-0078/0079 supply P03-3's exact native
-entry/admin form and protected response-snapshot contract, with implementation
-qualification pending; they admit no generic Server Action/proxy. Pages consume
+packet's admission decision. ADR-0078/0079 supply the exact native entry/admin form
+and protected response-snapshot contract; they admit no generic Server Action/proxy. Pages consume
 the response owner's immutable snapshot, never credentials or submitted scope.
 Preserve signed raw-target route/locale authority when
 accounting for pinned Next's URL projection. Redirects retain inert query values,
 duplicates and order with equivalent percent encoding; only verified live host,
-accepted HTTPS port and local path select the destination.
+accepted HTTPS port and local path select the destination. Native entry/admin POST
+paths remain the exact closed forms in Standard 07; adding a page does not add a
+write route or transport capability.
 
 ### Step 5: Authentication + permission gating
 
 P02b-7 implements the optional native BFF under
 [ADR-0070](../../../docs/decisions/0070-owned-tenant-bff-sessions.md).
 Host bootstrap precedes cookie/provider work. Disabled mode refuses auth paths
-with 404 and the exact `/studio` and `/portal` shells with 503. Enabled mode
-redirects anonymous shell requests to `/api/auth/signin` with a closed local
+with 404 and the closed protected screens with 503. Enabled mode
+redirects anonymous protected requests to `/api/auth/signin` with a closed local
 return destination. Add no generic proxy or new auth action.
 
-The app-local `auth()` is a passive safe projection lookup in the admitted native
-request; it does not parse cookies, refresh or mutate idle state. Layout and page
-consumers still check their own admission after awaits. Follow the actual
+The app-local `auth()` remains a passive session projection. Protected page data
+comes from `preparedPage()`; root layout and i18n use `optionalPreparedPage()`.
+These readers never parse cookies, refresh, mutate idle state or expose an API
+operation closure. Native preparation owns the finite reads and response lifetime;
+consumers check `assertActive()` after awaits. Follow the actual
 [`components/auth/shell.tsx`](../../../frontend/apps/web/src/components/auth/shell.tsx)
-owner for those checks and the exact `/studio` or `/portal` return destination,
+owner for those checks and the snapshot's closed return destination,
 rather than constructing a second authentication path in a page.
 
-Never touch tokens in a Client Component. The projection has no permissions or
-roles. Phase 03 owns permission-based screens and their mirror-only UI checks;
-the API remains authoritative. Current shells grant no authoring capability.
+Never touch tokens in a Client Component. Only the safe session projection and
+translated session labels reach session controls, with server-rendered children;
+the complete private snapshot is not a client-provider value. UI capabilities are
+advisory; API authorization and exact target scope remain authoritative. Native
+forms use the snapshot's exact version and an independent unused form key. Role
+and permission toggles submit complete desired arrays and work without JavaScript.
 Use full document anchors, no-store responses and the protected history guard;
-do not introduce prefetch/Router Cache reuse for protected navigation.
+do not introduce prefetch/Router Cache reuse for protected navigation. Native POST
+result history recovery uses a checked GET destination, never a POST reload.
 
 ### Step 6: Feature gating (entitlement-aware UI)
 
@@ -201,7 +226,7 @@ import { useFeatureFlag } from "@learnstack/sdk/hooks";
 
 export function CustomDomainTab() {
   const enabled = useFeatureFlag(FeatureKeys.CustomDomain);
-  if (!enabled) return null;   // hide the tab entirely
+  if (!enabled) return null; // hide the tab entirely
   return <CustomDomainSettings />;
 }
 ```
@@ -227,19 +252,26 @@ export default async function CoursesPage() {
 
 Messages live in `frontend/apps/web/src/i18n/messages/<locale>/<namespace>.json`;
 P02d-6 supplies complete `en/public.json` and `tr/public.json`; P02b-7 supplies
-`en/auth.json` and `tr/auth.json` through the same catalogue guard. General UI keys
+`en/auth.json` and `tr/auth.json` through the same catalogue guard. Protected
+administration/profile messages use complete `admin.json` and `profile.json`
+catalogues for both languages, statically mounted in `request.ts`. General UI keys
 are dotted feature identifiers, distinct from backend `lockey_*` wire keys. The
 web app owns closed page-outcome mappings; the SDK supplies no translations.
 See [add-i18n-key](../add-i18n-key/SKILL.md).
 
 `src/i18n/request.ts` uses the same server-only, request-cached verified admission
-loader as document/layout/page consumers. It re-verifies the ingress envelope,
+loader as public document/layout/page consumers. It re-verifies the ingress envelope,
 reads the canonical locale from the signed target and checks live enabled-locale
 membership. The loader neither imports next-intl nor reads messages. No i18n
 routing middleware, preference cookie, locale header or callsite override supplies
 authority. Only whole-catalogue fallback is allowed for unauthored UI languages;
 missing used keys in supported catalogues fail validation. Preserve exact content
 locale, document language and actual resolved-label language.
+
+Protected UI reads only the actor's exact own-profile preference from the passive
+snapshot. An enabled preference selects the whole UI catalogue; otherwise use the
+site default explicitly. A viewed member's preference never changes the editor's
+UI language. This does not change Education's signed content-locale authority.
 
 The guarded frontend suite supplies ICU, argument and callsite checks; there is
 no separate `lint:i18n` command. The full Playwright/axe suite belongs to Phase 06.
@@ -296,13 +328,15 @@ status composition is distinct from the framework's thrown `notFound()` behavior
 - Unexpected framework errors keep pre-stream 500 / post-stream 200 behavior;
   `error.tsx` cannot set arbitrary status.
 
-ADR-0055's implemented single bootstrap costs two API calls per completed product
-document, one per fixed status/scaffold document and three per followed missing
+ADR-0055's public single bootstrap costs two API calls per completed product
+document, one per fixed public status document and three per followed missing
 document. Metadata/layout/page/UI share the admitted snapshot without another
 bootstrap or cross-request cache. HEAD/RSC/prefetch and Flight fallback require
 separately proven counts. The
 [Step 3 record](../../../docs/roadmap/phase-02d-delivery-log.md#adr-0055-step-3--production-admission-proof-and-closeout)
 records passing production replacement proofs, completed reviews and verified fixes.
+Protected page preparation has its separate finite native read set; do not apply
+the public Education call budget to membership/Role/profile snapshots.
 
 ### Step 10: Tests
 
@@ -335,9 +369,9 @@ records passing production replacement proofs, completed reviews and verified fi
   which bans a direct `fetch` call outside the SDK.
 - The route renders under the resolved tenant/org/locale and rejects mismatched
   authn.
-- Current `/studio` and `/portal` follow the native enabled/disabled session
-  outcomes, with no authoring permission implied. Before adding a screen that
-  requires permission, Phase 03's API authorization must refuse unauthorized work;
+- All seven protected screen owners follow native enabled/disabled session
+  outcomes and operation-specific page preparation. Before adding a screen that
+  requires permission, API authorization must refuse unauthorized work;
   a hidden button or successful session projection is insufficient.
 - The public-route budgets in
   [Performance Standards](../../../docs/standards/15-performance.md) hold on
@@ -347,10 +381,12 @@ records passing production replacement proofs, completed reviews and verified fi
 ## Common pitfalls
 
 - **Mounting under the wrong route group.** Public institution routes are dynamic
-  and no-store under ADR-0053; exact Studio/Portal scaffolds use ADR-0070's native
-  BFF session admission. Future screens do not inherit permission from that shell.
+  and no-store under ADR-0053; closed Studio/Portal screens use native
+  session admission and prepared snapshots. Screens do not inherit permission from
+  an authenticated shell.
 - **Hand-rolled `fetch`.** Only the configured server adapter has an API transport
-  exemption. Page consumers call its SDK; no second header setter is permitted.
+  exemption. Public loaders call its SDK; protected pages consume the native
+  snapshot. No second header setter or RSC API caller is permitted.
 - **Reading `host` inside a page.** The API resolves authority. The native ingress
   authenticates connection provenance; middleware only bootstraps and selects the
   enabled route locale. Plain internal headers are not authority.

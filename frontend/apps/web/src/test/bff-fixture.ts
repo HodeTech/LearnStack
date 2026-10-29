@@ -2,13 +2,19 @@ import { randomBytes } from 'node:crypto';
 
 import { vi } from 'vitest';
 
+import { snapshotRequest, SnapshotWire } from './page-response-fixture';
+import { BFF_ADMIN_FORMS } from '../server/auth/http-forms';
 import type { BffHttpRequest } from '../server/auth/http-input';
 import { createBffHttpProtocol } from '../server/auth/http-protocol';
 import type { NativeSessionApi } from '../server/auth/native-contract';
 import type { NativeAdministrationCaller } from '../server/auth/native-operation-contract';
 import type { ProviderIdentity } from '../server/auth/provider';
+import { createBffRequestRuntime } from '../server/auth/request-runtime';
 import type { SessionDependencies } from '../server/auth/session-contract';
+import { isNativeReturnPath } from '../server/auth/session-path';
 import { InMemoryBffSessionStore } from '../server/auth/session-store';
+import type { IngressContext } from '../server/ingress';
+import { createPublicAdmissionRuntime } from '../server/public-admission-runtime';
 
 export const bffHost = 'institution.example.test:3000';
 export const bffSource = '203.0.113.71';
@@ -76,6 +82,34 @@ export function bffFixture(options: { account?: SessionDependencies['account'] }
     verifyAssociation: vi.fn<NativeSessionApi['verifyAssociation']>(),
   };
   const administration = vi.fn<NativeAdministrationCaller>(async (_token, binding, operation) => {
+    if (operation.kind === 'getOwnCapabilities')
+      return {
+        kind: 'success',
+        status: 200,
+        etag: null,
+        location: null,
+        replayed: false,
+        data: {
+          canReadTenantMembers: true,
+          canReadOrganizationMembers: true,
+          canWriteMemberProfiles: true,
+          canManageMemberships: true,
+          canReadRoles: true,
+          canChangeRoleGrants: true,
+          canAdoptRoleRelease: true,
+          canWriteOwnProfile: true,
+          canManageOrganizations: true,
+        },
+      };
+    if (operation.kind === 'getOwnProfile')
+      return {
+        kind: 'success',
+        status: 200,
+        etag: '"1"',
+        location: null,
+        replayed: false,
+        data: { displayName: 'Current actor', preferredLocale: null, version: '1' },
+      };
     if (operation.kind === 'getOwnContexts')
       return {
         kind: 'success',
@@ -106,14 +140,104 @@ export function bffFixture(options: { account?: SessionDependencies['account'] }
       replayed: false,
     };
   });
-  const store = new InMemoryBffSessionStore({
-    provider,
-    native,
-    administration,
-    account: options.account ?? account,
-    clock: { monotonic: () => now, utc: () => 1_800_000_000_000 + now },
-  });
-  const http = createBffHttpProtocol(store);
+  const publicAdmission = createPublicAdmissionRuntime(true);
+  const requestRuntime = createBffRequestRuntime(publicAdmission.holder);
+  const store = new InMemoryBffSessionStore(
+    {
+      provider,
+      native,
+      administration,
+      account: options.account ?? account,
+      clock: { monotonic: () => now, utc: () => 1_800_000_000_000 + now },
+    },
+    requestRuntime.preparation,
+  );
+  const protocol = createBffHttpProtocol(store, requestRuntime.preparation);
+  const site = {
+    displayName: 'Institution',
+    defaultLocale: 'en',
+    enabledLocales: ['en', 'tr'],
+    theme: null,
+    showPlatformAttribution: true,
+  };
+  function runNative<T>(
+    wire: SnapshotWire,
+    binding: IngressContext,
+    action: () => T,
+    request = snapshotRequest(),
+  ): T {
+    return publicAdmission.run(binding, request, wire.native, () => {
+      publicAdmission.holder.begin(binding).publish(site);
+      return requestRuntime.run(binding, request, wire.native, action);
+    });
+  }
+  async function request<T>(input: BffHttpRequest, action: () => Promise<T>): Promise<T> {
+    const wire = new SnapshotWire();
+    const native = snapshotRequest();
+    Object.assign(native.headers, Object.fromEntries(input.headers));
+    const abort = () => {
+      native.aborted = true;
+      native.emit('aborted');
+    };
+    input.signal.addEventListener('abort', abort, { once: true });
+    if (input.signal.aborted) native.aborted = true;
+    try {
+      return await runNative(
+        wire,
+        {
+          host: input.host,
+          peer: input.source,
+          method: input.method,
+          target: input.target,
+        },
+        async () => {
+          const result = await action();
+          // Serialize the actual protocol response before ending the native body.
+          // The returned copy is the test client's already-received payload.
+          if (result instanceof Response) {
+            const body = await result.text();
+            wire.native.end(body);
+            return new Response([204, 205, 304].includes(result.status) ? null : body, {
+              status: result.status,
+              headers: result.headers,
+            }) as T;
+          }
+          wire.native.end();
+          return result;
+        },
+        native,
+      );
+    } finally {
+      input.signal.removeEventListener('abort', abort);
+      if (!wire.writableEnded && !wire.destroyed) wire.destroy();
+      wire.drainCallbacks();
+      // The client receives this copy after the actual handler, native body and
+      // write callbacks have settled. Drain their frame/pool/Owner fixed-point
+      // continuations without stopping neighboring frames or resolving API work.
+      for (let turn = 0; turn < 16; ++turn) await Promise.resolve();
+    }
+  }
+  const http = {
+    handle: (...args: Parameters<typeof protocol.handle>) => {
+      const path = args[0].target.split('?', 1)[0];
+      const action = () => protocol.handle(...args);
+      return (args[0].method === 'GET' && path === '/api/auth/entry') ||
+        (args[0].method === 'POST' &&
+          path !== undefined &&
+          (['/api/auth/entry/create', '/api/auth/entry/select', '/api/auth/switch'].includes(
+            path,
+          ) ||
+            Object.hasOwn(BFF_ADMIN_FORMS, path)))
+        ? request(args[0], action)
+        : action();
+    },
+    project: (...args: Parameters<typeof protocol.project>) => {
+      const action = () => protocol.project(...args);
+      return isNativeReturnPath(args[0].target.split('?', 1)[0]!)
+        ? request(args[0], action)
+        : action();
+    },
+  };
   async function enter(extra: Partial<Parameters<typeof store.start>[0]> = {}) {
     const started = await store.start({
       host: bffHost,
@@ -157,12 +281,16 @@ export function bffFixture(options: { account?: SessionDependencies['account'] }
   return {
     store,
     http,
+    protocol,
     provider,
     account,
     login,
     enter,
     native,
     administration,
+    requestRuntime,
+    publicAdmission,
+    runNative,
     scope,
     advance: (ms: number) => {
       now += ms;

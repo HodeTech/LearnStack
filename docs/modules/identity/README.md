@@ -12,13 +12,15 @@ owns current qualification and review state. Jointly Accepted
 [ADR-0077](../../decisions/0077-trusted-authorization-evidence.md) define P03-2 live
 authorization and one administrative directory GET. Its confined reader,
 canonical policy/evaluator, central denial evidence and HTTP directory are wired
-in the API composition. New-user/native editing
-activation remains P03-3.
+in the API composition.
 The additional [ADR-0078](../../decisions/0078-native-session-scope-and-self-entry.md)
 and [ADR-0079](../../decisions/0079-bounded-identity-administration.md) contracts are
-Accepted. Their self-entry storage/HTTP and native source/context core is
-implemented; the [phase Status block](../../roadmap/phase-03-identity-admin.md)
-owns remaining administration, provider/native and browser qualification. The
+Accepted. Self-entry storage/HTTP, deliberate native account creation and context
+selection, bounded administration routes and native forms are implemented.
+Selected protected views consume immutable snapshots prepared by the native
+response owner; RSC rendering holds no credential or API-operation capability.
+The [phase Status block](../../roadmap/phase-03-identity-admin.md) alone owns current
+packet, qualification and review state. The
 [bounded contract](#bounded-entry-and-administration-contract) separates these
 obligations without treating acceptance as runtime proof.
 The ordered admission timing/observation contract additionally derives from
@@ -188,10 +190,12 @@ The target must match an already trusted, announced owner scope. The Tenancy
 implementation reads its own tables in one fresh READ COMMITTED statement on
 that app-role transaction; no cached lifecycle result, additional setter,
 cross-module SQL join or Organization FK is admitted. P03-1 Step 4 supplies the
-port/implementation and seed controls; P03-2 executes it for live admission at
-the declared per-act snapshot. P03-3 owns lifecycle-transition/last/default-org
-concurrency before Tenancy endpoints. G3's foundation contract does not qualify
-those later live checks or archive races.
+port/implementation and seed controls; live admission executes it at the declared
+per-act snapshot. Implemented Membership transitions and Organization lifecycle
+commands enforce last-admin/default-organization invariants under fresh ordered
+locks and are exposed through protected HTTP routes. The
+[Phase 03 Status block](../../roadmap/phase-03-identity-admin.md) owns qualification;
+the foundation port alone does not establish those concurrency proofs.
 
 ### First-admin and seed sequence
 
@@ -348,7 +352,10 @@ with contained grants, expected version, current post-lock authority and same-
 transaction MUST audit. [Permissions](permissions.md) owns their exact bindings
 and delegation ceiling; unknown manifest, self-escalation or kernel removal
 refuses. The accepted warm contract preserves valid differing adopted state.
-Human-facing grant-editing/adoption routes remain P03-3 work.
+Protected HTTP grant-editing/adoption routes and their native forms are
+implemented. They retain current authorization, expected-version and protected
+idempotent-receipt checks; the
+[Phase 03 Status block](../../roadmap/phase-03-identity-admin.md) owns qualification.
 
 [Standard 05](../../standards/05-database.md#authorization-and-evidence-source-ledger)
 owns the dedicated four/two authorization/evidence lanes, tracked job ownership,
@@ -361,8 +368,9 @@ No pool, crash, permission or disclosure proof is claimed by acceptance alone.
 ### Bounded entry and administration contract
 
 **Accepted under ADR-0078/0079.** The
-[phase Status block](../../roadmap/phase-03-identity-admin.md) records delivery and
-qualification of the entry core and later administration/native/browser work.
+[phase Status block](../../roadmap/phase-03-identity-admin.md) records current
+delivery, qualification and review state for the implemented entry,
+administration and native presentation mechanisms.
 Keycloak authenticates the provider subject. Native scope evidence remains a
 separate immutable source; it never rewrites provider claims. The API binds the
 User, validates actual host and live Membership/lifecycle, then applies each
@@ -573,21 +581,22 @@ permission cache/session grant cannot replace a fresh check.
 ## Risks and open questions
 
 Branch-specific Role configuration reopens ADR-0073. Accepted ADR-0076/0077 own
-live delegation, default deny/revocation, reader handoff and trusted evidence;
-P03-2 implements/proves them; P03-3 scope transitions/DTOs; P03-4
-invitations; P03-5 dynamic values; P03-9 production first-admin/recovery; P03-10
-closure/locators. These are named later writers, not implicit foundation authority.
+live delegation, default deny/revocation, reader handoff and trusted evidence.
+Those mechanisms and the bounded scope transitions/DTOs are implemented;
+[Phase 03 Status](../../roadmap/phase-03-identity-admin.md) owns qualification.
+P03-4 invitations, P03-5 dynamic values, P03-9 production first-admin/recovery and
+P03-10 closure/locators remain named later writers, not implicit foundation authority.
 
 | Subject/control | Current state | Owner / scope |
 |---|---|---|
 | Models, commands and registry | Global and contextual foundation implemented | P03-1 Steps 3/4; live authorization P03-2 |
 | Canonical marker/filter/RLS/FK/unique/aggregate/audit controls | Identity extensions implemented with populated positive/dirty controls | P03-1 Step 4; [catalogue](../../standards/21-architecture-tests-catalogue.md#pending-identity-extensions-to-implemented-rules) owns the individual obligations |
-| `Permission_Definitions_DeclareScope` | Implemented for the finite foundation | `IdentityFoundationConventionTests` and actual command metadata; broader enforcement P03-2 |
+| `Permission_Definitions_DeclareScope` | Implemented for the finite foundation and live operation contracts | `IdentityFoundationConventionTests`, `OperationPermissionConventionTests` and actual command metadata; [catalogue](../../standards/21-architecture-tests-catalogue.md) owns live authorization controls |
 | `Mapped_Properties_Have_Explicit_Personal_Data_Classification` | Implemented for all current models, including contextual Identity | `DataProtectionConventionTests`; complete census and neutral-name omission controls |
-| `Identity_Seed_Uses_Finite_Adopted_Manifests` | Implemented; no-write/interrupted/conflict actual seed controls | `IdentityFoundationConventionTests` / `IdentitySeederTests`; combined final provider/browser qualification Step 6 |
-| `Identity_Membership_Invariants_Use_Fresh_Ordered_Locks` | Implemented actual app-role races and closed helper/caller controls | `IdentityMembershipTests`, `IdentityMutationLockTests`, `IdentityFoundationConventionTests`; live transition/archive ownership remains P03-3/10 |
+| `Identity_Seed_Uses_Finite_Adopted_Manifests` | Implemented; no-write/interrupted/conflict actual seed controls | `IdentityFoundationConventionTests` / `IdentitySeederTests`; [Phase 03 Status](../../roadmap/phase-03-identity-admin.md) owns qualification |
+| `Identity_Membership_Invariants_Use_Fresh_Ordered_Locks` | Implemented actual app-role races, live Membership transitions and Organization lifecycle/default invariants | `IdentityMembershipTests`, `IdentityMutationLockTests`, `IdentityFoundationConventionTests`, `MembershipAdministrationRaceTests` and `TenancyAdministrationRaceTests`; broader closure/locators remain P03-10 |
 | Per-sink PII canaries/child audit/MUST rollback | Implemented actual child snapshots/redacted diffs, MUST rollback and value-bearing diagnostic controls | `IdentitySeederTests`, `IdentityDiagnosticSinkTests`, `TenantExistingBindingAdmissionTests` and canonical [data-protection proof ownership](../../architecture/23-data-protection.md#identity-foundation-and-classification-ownership); classification alone does not establish sink safety |
-| `Global_Identity_Storage_Is_Subject_Confined` / `Global_Identity_Creation_Uses_The_Common_Audit_Owner` | Implemented global proofs; Step 3 completed both review rounds | `GlobalIdentitySchemaTests`, `IdentityAuditConventionTests` / `GlobalIdentityBootstrapTests`; P03-3 owns HTTP/new-user BFF activation |
+| `Global_Identity_Storage_Is_Subject_Confined` / `Global_Identity_Creation_Uses_The_Common_Audit_Owner` | Implemented global storage/creation, exact self-entry HTTP and deliberate native activation | `GlobalIdentitySchemaTests`, `IdentityAuditConventionTests`, `GlobalIdentityBootstrapTests`, `IdentitySelfEntryHttpTests` and native `session-store.test.ts`; [Phase 03 Status](../../roadmap/phase-03-identity-admin.md) owns qualification and reviews |
 
 Registered means an actual catalogue entry exists. Until then a new control is
 planned/unregistered; later Registered is not Implemented. No empty census,

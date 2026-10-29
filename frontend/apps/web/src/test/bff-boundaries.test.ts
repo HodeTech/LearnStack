@@ -49,28 +49,31 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
       first.response.emit('finish');
       expect(() => escaped.assertActive()).toThrow();
     });
+    await runtime.stop();
     expect(runtime.counts()).toBe(0);
-    runtime.stop();
   });
   it.each(['aborted', 'finish', 'close'])(
-    'actual %s closes request authority and removes native listeners',
-    (event) => {
+    'actual %s closes authority immediately and removes listeners after actual handler/body cleanup',
+    async (event) => {
       const runtime = createBffRequestRuntime();
       const { request, response } = lifetime();
       runtime.run(context, request, response, () => {
         runtime.holder.publish(context, null);
         (event === 'aborted' ? request : response).emit(event);
         expect(() => runtime.holder.read(context)).toThrow();
-        expect(
-          request.listenerCount('aborted') +
-            response.listenerCount('finish') +
-            response.listenerCount('close'),
-        ).toBe(0);
+        expect(runtime.counts()).toBe(1);
+        if (event === 'aborted') response.emit('close');
       });
+      await runtime.stop();
       expect(runtime.counts()).toBe(0);
+      expect(
+        request.listenerCount('aborted') +
+          response.listenerCount('finish') +
+          response.listenerCount('close'),
+      ).toBe(0);
     },
   );
-  it('copies only safe fields and denies re-publication, wrong bindings and publication after stop', () => {
+  it('copies only safe fields and denies re-publication, wrong bindings and publication after stop', async () => {
     const runtime = createBffRequestRuntime();
     const { request, response } = lifetime();
     const value = {
@@ -99,10 +102,12 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
       expect(() => runtime.holder.read({ ...context, host: 'other.example.test:3000' })).toThrow();
       runtime.stop();
       expect(() => runtime.holder.read(context)).toThrow();
+      response.emit('close');
     });
     expect(() => runtime.run(context, request, response, () => null)).toThrow();
+    await runtime.stop();
   });
-  it('captures activity and Flight scalars before Next removes or mutates their native headers', () => {
+  it('captures activity and Flight scalars before Next removes or mutates their native headers', async () => {
     const runtime = createBffRequestRuntime();
     for (const prefetch of [false, true]) {
       const owner = lifetime();
@@ -142,8 +147,8 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
       expect(() => read.assertActive()).toThrow();
       expect(() => runtime.holder.read(context)).toThrow();
     });
+    await runtime.stop();
     expect(runtime.counts()).toBe(0);
-    runtime.stop();
   });
   it.each([
     { csrfToken: 'not-an-opaque-secret' },
@@ -153,7 +158,7 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
     { limitedByAbsolute: 'true' },
     { state: 'anonymous' },
     undefined,
-  ])('invalid projection publication closes request authority: %j', (patch) => {
+  ])('invalid projection publication closes request authority: %j', async (patch) => {
     const runtime = createBffRequestRuntime();
     const { request, response } = lifetime();
     runtime.run(context, request, response, () => {
@@ -162,7 +167,10 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
         runtime.holder.publish(context, invalid as ReturnType<typeof projection>),
       ).toThrow();
       expect(() => runtime.holder.read(context)).toThrow();
+      expect(runtime.counts()).toBe(1);
+      response.emit('close');
     });
+    await runtime.stop();
     expect(runtime.counts()).toBe(0);
     expect(
       request.listenerCount('aborted') +
@@ -172,7 +180,7 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
   });
   it.each([{ peer: '203.0.113.72' }, { method: 'HEAD' }, { target: '/portal' }])(
     'denies a different request binding %j without changing the correct snapshot',
-    (patch) => {
+    async (patch) => {
       const runtime = createBffRequestRuntime();
       const { request, response } = lifetime();
       runtime.run(context, request, response, () => {
@@ -182,6 +190,7 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
         expect(runtime.holder.read(context).session).toEqual(session);
         response.emit('finish');
       });
+      await runtime.stop();
       expect(runtime.counts()).toBe(0);
     },
   );
@@ -200,6 +209,8 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
       ).toThrow();
       expect(entered).toBe(false);
       expect(runtime.counts()).toBe(0);
+      expect(runtime.snapshotCounts()).toEqual({ active: 0, owners: 0, bytes: 0 });
+      expect(runtime.framework.get()).toBeUndefined();
       expect(
         request.listenerCount('aborted') +
           response.listenerCount('finish') +
@@ -207,7 +218,7 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
       ).toBe(0);
     },
   );
-  it('synchronous work failure relinquishes native listeners and active authority', () => {
+  it('synchronous work failure closes authority but retains listeners until the native body closes', async () => {
     const runtime = createBffRequestRuntime();
     const { request, response } = lifetime();
     const failure = new Error('owned-work-failure');
@@ -216,6 +227,9 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
         throw failure;
       }),
     ).toThrow(failure);
+    expect(runtime.counts()).toBe(1);
+    response.emit('close');
+    await runtime.stop();
     expect(runtime.counts()).toBe(0);
     expect(
       request.listenerCount('aborted') +
@@ -286,8 +300,8 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
       'const context = { host: "institution.example.test:3000", peer: "203.0.113.1", method: "GET", target: "/studio" };',
       'const request = Object.assign(new EventEmitter(), { aborted: false, headers: {} }); const response = Object.assign(new EventEmitter(), { destroyed: false, writableEnded: false });',
       'const next = new NextRequest("https://" + context.host + context.target); assert.equal(next.method, context.method);',
-      'await runtime.run(context, request, response, async () => { assert.equal(runtime.holder.flight(context), false); runtime.holder.publish(context, null); await Promise.resolve(); const read = runtime.holder.read(context); assert.deepEqual(Object.keys(read).sort(), ["assertActive", "flight", "session"]); assert.equal(read.session, null); assert.equal(read.flight, false); assert.equal(Object.isFrozen(read), true); response.emit("finish"); assert.throws(() => runtime.holder.read(context)); });',
-      'assert.equal(runtime.counts(), 0); runtime.stop();',
+      'await runtime.run(context, request, response, async () => { assert.equal(runtime.holder.flight(context), false); runtime.holder.publish(context, null); await Promise.resolve(); const read = runtime.holder.read(context); assert.deepEqual(Object.keys(read).sort(), ["assertActive", "flight", "page", "session"]); assert.equal(read.session, null); assert.equal(read.page, null); assert.equal(read.flight, false); assert.equal(Object.isFrozen(read), true); response.emit("finish"); assert.throws(() => runtime.holder.read(context)); });',
+      'await runtime.stop(); assert.equal(runtime.counts(), 0);',
     ].join('\n');
     expect(
       execFileSync(process.execPath, ['--input-type=module', '-e', program, moduleUrl], {
@@ -306,7 +320,7 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
       }),
     ).toBe('BFF native Next protocol: passed\n');
   }, 160_000);
-  it('the same actual Next proof rejects a copy that drops native activity at the middleware handoff', () => {
+  it('the same actual Next proof rejects a copy that drops native page activity at preparation', () => {
     const script = new URL('../../scripts/verify-bff-protocol.mjs', import.meta.url);
     let failure: unknown;
     try {

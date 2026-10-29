@@ -1,0 +1,14 @@
+{
+  "title": "Üyelik profilim",
+  "display_name": "Görünen ad",
+  "display_name_hint": "Bu üyelik profilindeki adı kaldırmak için boş bırakın.",
+  "preferred_locale": "Tercih edilen dil",
+  "locale_hint": "Bu tercih bu üyeliğin arayüzünde geçerlidir. Kurum içeriğini veya hesap erişimini değiştirmez.",
+  "site_default": "Kurumun varsayılan dilini kullan",
+  "fallback": "Tercih edilen dil kullanılamadığında kurumun varsayılan dili kullanılır.",
+  "save": "Profili kaydet",
+  "read_only": "Profilinizi okuyabilirsiniz. Şu anda düzenleme yetkiniz bulunmuyor.",
+  "missing": "Bu hesap erişimi için tam eşleşen bir üyelik profili bulunmuyor. Diğer kullanılabilir görünümleri kullanabilirsiniz.",
+  "unavailable": "Üyelik profiliniz kontrol edilemedi. Kurumun varsayılan dili kullanılıyor.",
+  "no_name": "Görünen ad belirtilmemiş"
+}

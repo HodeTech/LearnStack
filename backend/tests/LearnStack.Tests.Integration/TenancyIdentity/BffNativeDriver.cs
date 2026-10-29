@@ -8,7 +8,9 @@ internal sealed class BffNativeDriver : IAsyncDisposable
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private static readonly string[] ErrorStages = (new[] { "input", "input-issuer", "input-api", "input-secrets", "input-sites", "setup", "compile", "build", "start", "command", "request", "request-deadline", "request-connect", "request-tls", "request-socket", "response-json", "cleanup", "privacy", "native-stop",
-                     "browser-launch", "browser-anonymous", "browser-signin-document", "browser-submit", "browser-entry-confirmation", "browser-origin-null", "browser-origin-absent", "browser-origin-other", "browser-storage", "browser-extension", "browser-logout-submit", "browser-logout-origin", "browser-logout-origin-null", "browser-logout-origin-other", "browser-logout-response", "browser-logout-location", "browser-logout-navigation", "browser-logout-cookie-header", "browser-logout-cookie", "browser-back-revalidation", "browser-history-setup", "browser-history-revalidation", "browser-headers",
+                     "browser-administration-pages", "browser-no-script",
+                     "browser-no-script-hidden-render", "browser-no-script-missing-form", "browser-no-script-invisible-form", "browser-no-script-native-buttons", "browser-no-script-native-profile-form",
+                     "browser-no-script-anonymous", "browser-no-script-signin", "browser-no-script-confirm", "browser-no-script-select", "browser-no-script-controls", "browser-no-script-submit", "browser-no-script-origin", "browser-no-script-result", "browser-no-script-cache", "browser-no-script-saved", "browser-no-script-privacy", "browser-no-script-signout", "browser-no-script-headers", "browser-launch", "browser-anonymous", "browser-signin-document", "browser-submit", "browser-entry-confirmation", "browser-origin-null", "browser-origin-absent", "browser-origin-other", "browser-storage", "browser-extension", "browser-logout-submit", "browser-logout-origin", "browser-logout-origin-null", "browser-logout-origin-other", "browser-logout-response", "browser-logout-location", "browser-logout-navigation", "browser-logout-cookie-header", "browser-logout-cookie", "browser-back-revalidation", "browser-history-setup", "browser-history-revalidation", "browser-headers",
                      "browser-executable", "browser-spawn", "browser-devtools", "browser-devtools-inactive",
                      "browser-devtools-unreadable", "browser-devtools-missing", "browser-devtools-empty", "browser-devtools-malformed",
                      "browser-not-live", "browser-connect", "browser-context" }
@@ -139,7 +141,8 @@ internal sealed class BffNativeDriver : IAsyncDisposable
             if (status is < 100 or > 599 || cookies.Length > 32 || cookies.Sum(value => value.Length) > 32768
                 || (location?.Length ?? 0) > 32768) throw new InvalidOperationException();
             return new(status, cookies, location, cache, reply.GetProperty("data").Clone(),
-                reply.GetProperty("rendered").GetBoolean(), reply.GetProperty("privateFree").GetBoolean());
+                reply.GetProperty("rendered").GetBoolean(), reply.GetProperty("privateFree").GetBoolean(),
+                reply.TryGetProperty("pageReady", out var pageReady) ? pageReady.GetBoolean() : null);
         }
         catch { throw new InvalidOperationException("BFF native fixture response has an invalid closed shape."); }
     }
@@ -329,7 +332,7 @@ internal sealed class BffNativeDriver : IAsyncDisposable
 }
 
 internal sealed record BffWireResponse(int Status, string[] Cookies, string? Location, string? Cache,
-    JsonElement Data, bool Rendered, bool PrivateFree);
+    JsonElement Data, bool Rendered, bool PrivateFree, bool? PageReady = null);
 internal sealed record BffBrowserReceipt(string Version, int NaturalRestores, string? CounterWitness);
 internal sealed record BffEntryBrowserReceipt(int FirstItems, int SecondItems, int RestoredItems, int HistoryEntries,
     bool HtmlPrivateFree, bool BrowserPrivateFree, bool HistoryPrivateFree, bool NetworkPrivateFree);

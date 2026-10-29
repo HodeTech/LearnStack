@@ -5,33 +5,79 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { generateMetadata as portalMetadata } from '@/app/(portal)/portal/page';
 import { generateMetadata as studioMetadata } from '@/app/(studio)/studio/page';
 
-import { AccountShell } from './shell';
+import { AccountPage, AccountShell, accountPageMetadata } from './shell';
 import { extendBffSession } from '../../client/bff-session';
 import en from '../../i18n/messages/en/auth.json';
 import tr from '../../i18n/messages/tr/auth.json';
+import { administrationSnapshot } from '../../test/administration-ui-fixture';
 
-const { resource, session } = vi.hoisted(() => ({ resource: vi.fn(), session: vi.fn() }));
-const state = vi.hoisted(() => ({ locale: 'en', active: vi.fn() }));
-vi.mock('@/server/public-resource', () => ({ requirePublicResource: resource }));
-vi.mock('@/server/public-request', () => ({ assertPublicRequestActive: state.active }));
-vi.mock('@/server/auth/auth', () => ({ auth: session }));
+const { prepared } = vi.hoisted(() => ({ prepared: vi.fn() }));
+const state = vi.hoisted(() => ({
+  locale: 'en',
+  kind: 'studio' as 'studio' | 'portal',
+  active: vi.fn(),
+}));
+vi.mock('@/server/auth/page', () => ({ optionalPreparedPage: prepared }));
 vi.mock('@/client/bff-session', () => ({ extendBffSession: vi.fn() }));
 vi.mock('next/navigation', () => ({ redirect: vi.fn() }));
 
 beforeEach(() => {
   vi.clearAllMocks();
-  resource.mockImplementation(async () => ({ request: { site: { defaultLocale: state.locale } } }));
-  session.mockResolvedValue({
-    state: 'authenticated',
-    displayName: 'Admitted institution',
-    expiresAt: Date.now() + 180_000,
-    csrfToken: 'A'.repeat(43),
-    limitedByAbsolute: false,
-  });
+  prepared.mockImplementation(async () => ({
+    snapshot: administrationSnapshot(
+      { kind: state.kind },
+      {
+        site: {
+          displayName: 'Institution',
+          defaultLocale: state.locale,
+          enabledLocales: [state.locale],
+          theme: null,
+          showPlatformAttribution: true,
+        },
+        ownProfile: null,
+        profileState: 'missing',
+      },
+    ),
+    assertActive: state.active,
+  }));
   vi.mocked(extendBffSession).mockRejectedValue(new Error('private-provider-canary'));
 });
 
 describe('protected shell document metadata', () => {
+  it('renders no private content when speculative admission has no prepared snapshot', async () => {
+    prepared.mockResolvedValue(null);
+    for (const kind of [
+      'studio',
+      'portal',
+      'members',
+      'member',
+      'roles',
+      'role',
+      'profile',
+    ] as const) {
+      expect(await AccountPage({ kind })).toBeNull();
+    }
+    expect(prepared).toHaveBeenCalledTimes(7);
+    expect(state.active).not.toHaveBeenCalled();
+    expect(extendBffSession).not.toHaveBeenCalled();
+  });
+  it('returns only noindex metadata without a private title when no snapshot was prepared', async () => {
+    prepared.mockResolvedValue(null);
+    for (const kind of [
+      'studio',
+      'portal',
+      'members',
+      'member',
+      'roles',
+      'role',
+      'profile',
+    ] as const) {
+      expect(await accountPageMetadata(kind)).toEqual({ robots: { index: false, follow: false } });
+    }
+    expect(prepared).toHaveBeenCalledTimes(7);
+    expect(state.active).not.toHaveBeenCalled();
+    expect(extendBffSession).not.toHaveBeenCalled();
+  });
   it.each([
     ['en', 'Studio', 'Your portal'],
     ['tr-TR', 'Stüdyo', 'Portalınız'],
@@ -60,7 +106,8 @@ it.each([
 ] as const)(
   'keeps %s recovery on its closed route and %s locale after failure',
   async (kind, locale) => {
-    resource.mockResolvedValue({ request: { site: { defaultLocale: locale } } });
+    state.locale = locale;
+    state.kind = kind;
     const copy = locale === 'en' ? en : tr;
     const element = await AccountShell({ kind });
     const html = renderToStaticMarkup(element);

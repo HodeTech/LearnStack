@@ -280,35 +280,38 @@ try {
   const headerChecks = [];
   const cookiesSeen = [];
   const origin = (site) => 'https://' + site.host;
-  context.on('request', (request) => {
-    if (request.resourceType() === 'document') documents.push(request.url());
-  });
-  context.on('response', (response) => {
-    if (input.sites.some((site) => new URL(response.url()).origin === origin(site)))
-      headerChecks.push(
-        (async () => {
-          try {
-            const cookies = (await response.headersArray()).filter(
-              (header) => header.name.toLowerCase() === 'set-cookie',
-            );
-            rememberBffCookies(
-              cookies.map((cookie) => cookie.value),
-              host.cookieCanaries,
-            );
-            assertBffCookieAttributes(cookies.map((cookie) => cookie.value));
-            return (
-              cookies.every((cookie) => !/;\s*domain=/i.test(cookie.value)) &&
-              (await response.request().allHeaders()).authorization === undefined
-            );
-          } catch {
-            return false;
-          }
-        })(),
-      );
-    const path = new URL(response.url()).pathname;
-    if (path === '/api/auth/signin/keycloak') authStatus = response.status();
-    if (path === '/api/auth/callback/keycloak') callbackStatus = response.status();
-  });
+  function observeContext(observedContext) {
+    observedContext.on('request', (request) => {
+      if (request.resourceType() === 'document') documents.push(request.url());
+    });
+    observedContext.on('response', (response) => {
+      if (input.sites.some((site) => new URL(response.url()).origin === origin(site)))
+        headerChecks.push(
+          (async () => {
+            try {
+              const cookies = (await response.headersArray()).filter(
+                (header) => header.name.toLowerCase() === 'set-cookie',
+              );
+              rememberBffCookies(
+                cookies.map((cookie) => cookie.value),
+                host.cookieCanaries,
+              );
+              assertBffCookieAttributes(cookies.map((cookie) => cookie.value));
+              return (
+                cookies.every((cookie) => !/;\s*domain=/i.test(cookie.value)) &&
+                (await response.request().allHeaders()).authorization === undefined
+              );
+            } catch {
+              return false;
+            }
+          })(),
+        );
+      const path = new URL(response.url()).pathname;
+      if (path === '/api/auth/signin/keycloak') authStatus = response.status();
+      if (path === '/api/auth/callback/keycloak') callbackStatus = response.status();
+    });
+  }
+  observeContext(context);
   await context.exposeBinding('ownedRestored', (_source, value) => {
     restoresVeiled &&= value === 'hidden';
     ++naturalRestores;
@@ -320,6 +323,7 @@ try {
     });
   });
   let currentSite;
+  let authorizingContext = context;
   let wrongHostChecked = false;
   // Only provider grant/account operations are fake. The browser fetches both
   // provider documents over owned HTTPS; native callbacks and cookies remain real.
@@ -327,7 +331,7 @@ try {
   authorize = async (response) => {
     try {
       ++authorizeCalls;
-      const cookies = await context.cookies(origin(currentSite));
+      const cookies = await authorizingContext.cookies(origin(currentSite));
       const transaction = cookies.find((cookie) => cookie.name.startsWith('__Host-ls-login-'));
       assert.ok(transaction);
       const state = transaction.name.slice('__Host-ls-login-'.length);
@@ -335,13 +339,13 @@ try {
       if (!wrongHostChecked) {
         wrongHostChecked = true;
         const other = input.sites.find((site) => site.host !== currentSite.host);
-        const negative = await context.newPage();
+        const negative = await authorizingContext.newPage();
         const refusal = await negative.goto(
           origin(other) + '/api/auth/callback/keycloak?state=' + state + '&code=' + code,
         );
         assert.equal(refusal.status(), 400);
         assert.equal(
-          (await context.cookies(origin(currentSite))).some(
+          (await authorizingContext.cookies(origin(currentSite))).some(
             (cookie) => cookie.name === transaction.name,
           ),
           true,
@@ -481,6 +485,31 @@ try {
     await page.keyboard.press('Enter');
     await page.getByText(bffProofCopy(site.locale, 'session.extended')).waitFor();
     assert.equal((await host.advance(0)).refreshes, before + 1);
+    stage = 'browser-administration-pages';
+    for (const path of [
+      '/studio/members',
+      '/studio/members/019a154b-0000-7000-8000-000000000012',
+      '/studio/roles',
+      '/studio/roles/019a154b-0000-7000-8000-000000000013',
+      '/portal/profile',
+    ]) {
+      const response = await page.goto(origin(site) + path);
+      assert.equal(response.status(), 200);
+      assert.equal(await response.headerValue('cache-control'), 'no-store');
+      await page.locator('[data-bff-protected]').waitFor();
+      assert.equal(await page.getByRole('heading', { level: 1 }).count(), 1);
+      const body = await page.content();
+      assert.equal(body.includes(marker), false);
+      assert.equal(body.includes('019a154b-0000-7000-8000-000000000011'), false);
+      assert.equal(
+        await page.locator('html').getAttribute('lang'),
+        site.locale === 'tr-TR' ? 'tr' : site.locale,
+      );
+    }
+    // Preserve the exact existing GET history mutation witness below.
+    await page.goto(origin(site) + '/studio');
+    await page.locator('[data-bff-protected]').waitFor();
+    await page.waitForLoadState('networkidle');
   }
   assert.notEqual(
     cookiesSeen[0],
@@ -599,13 +628,113 @@ try {
     { timeout: 10_000 },
   );
   assert.equal(await otherPage.locator('[data-bff-protected]').count(), 0);
+  stage = 'browser-no-script';
+  const noScript = await browser.newContext({ javaScriptEnabled: false });
+  observeContext(noScript);
+  authorizingContext = noScript;
+  currentSite = first;
+  const nativePage = await noScript.newPage();
+  stage = 'browser-no-script-anonymous';
+  const anonymousNoScript = await nativePage.goto(origin(first) + '/api/auth/session');
+  assert.equal((await anonymousNoScript.json()).state, 'anonymous');
+  stage = 'browser-no-script-signin';
+  await nativePage.goto(origin(first) + '/api/auth/signin?returnTo=%2Fportal%2Fprofile');
+  await nativePage.getByRole('button').click();
+  await nativePage.waitForURL(origin(first) + '/api/auth/entry');
+  stage = 'browser-no-script-confirm';
+  await nativePage.getByText(bffProofCopy(first.locale, 'entry.confirm')).waitFor();
+  stage = 'browser-no-script-select';
+  await nativePage.locator('form[action="/api/auth/entry/select"] button').click();
+  await nativePage.waitForURL(origin(first) + '/portal/profile');
+  stage = 'browser-no-script-controls';
+  const noScriptProfile = nativePage.locator('form[action="/api/account/profile"]');
+  if ((await noScriptProfile.count()) !== 1) {
+    stage = 'browser-no-script-missing-form';
+    assert.fail('The no-script document needs one profile form');
+  }
+  if (!(await noScriptProfile.isVisible())) {
+    stage =
+      (await nativePage.locator('[hidden] form[action="/api/account/profile"]').count()) === 1
+        ? 'browser-no-script-hidden-render'
+        : 'browser-no-script-invisible-form';
+    assert.fail('The no-script profile form must be visible');
+  }
+  // Playwright's text engine skips NOSCRIPT and its descendants. Observe the
+  // actual no-script element directly, preserving visibility and exact-copy checks.
+  const noScriptNotice = nativePage.locator('[data-bff-protected] noscript > p');
+  await noScriptNotice.waitFor({ state: 'visible' });
+  assert.equal(await noScriptNotice.count(), 1);
+  assert.equal(
+    await noScriptNotice.textContent(),
+    bffProofCopy(first.locale, 'session.javascript_required'),
+  );
+  stage = 'browser-no-script-native-buttons';
+  assert.equal(
+    await nativePage.locator('button[type="button"]').count(),
+    0,
+    'no JavaScript-dependent extension control is presented as usable',
+  );
+  stage = 'browser-no-script-native-profile-form';
+  const profileForm = nativePage.locator('form[action="/api/account/profile"]');
+  assert.equal(await profileForm.count(), 1);
+  await profileForm.locator('input[name="displayName"]').fill('Saved without JavaScript');
+  stage = 'browser-no-script-submit';
+  const [nativeWrite, nativeResult] = await withProofWaiters(
+    [
+      nativePage.waitForRequest(
+        (request) =>
+          request.method() === 'POST' && new URL(request.url()).pathname === '/api/account/profile',
+      ),
+      nativePage.waitForResponse(
+        (response) =>
+          response.request().method() === 'POST' &&
+          new URL(response.url()).pathname === '/api/account/profile',
+      ),
+    ],
+    () => profileForm.getByRole('button').click(),
+  );
+  stage = 'browser-no-script-origin';
+  assert.equal(await nativeWrite.headerValue('origin'), origin(first));
+  stage = 'browser-no-script-result';
+  assert.equal(nativeResult.status(), 303);
+  assert.equal(await nativeResult.headerValue('location'), origin(first) + '/portal/profile');
+  stage = 'browser-no-script-cache';
+  assert.equal(await nativeResult.headerValue('cache-control'), 'no-store');
+  stage = 'browser-no-script-saved';
+  await nativePage.goto(origin(first) + '/portal/profile');
+  assert.equal(
+    await nativePage.locator('input[name="displayName"]').inputValue(),
+    'Saved without JavaScript',
+  );
+  stage = 'browser-no-script-privacy';
+  const noScriptCookies = await noScript.cookies(origin(first));
+  assert.ok(noScriptCookies.some((cookie) => cookie.name === '__Host-ls-session'));
+  const nativeBody = await nativePage.content();
+  for (const cookie of noScriptCookies.filter((cookie) => cookie.name !== '__Host-ls-csrf'))
+    assert.equal(nativeBody.includes(cookie.value), false);
+  stage = 'browser-no-script-signout';
+  await nativePage.locator('form[action="/api/auth/signout"] button').click();
+  await nativePage.waitForURL(
+    (url) => url.origin === new URL(logoutTarget).origin && url.pathname === logoutPath,
+  );
+  assert.equal(
+    (await noScript.cookies(origin(first))).some((cookie) => cookie.name === '__Host-ls-session'),
+    false,
+  );
+  stage = 'browser-no-script-headers';
+  assert.ok(
+    (await Promise.all(headerChecks)).every(Boolean),
+    'actual no-script response headers settle before closing their browser context',
+  );
+  await noScript.close();
+  authorizingContext = context;
   stage = 'browser-headers';
   assert.equal(restoresVeiled, true, 'naturally restored protected documents are already veiled');
   assert.equal(routeFailed, false, 'fake authorization control completed');
   assert.equal(
     authorizeCalls,
-    input.sites.length,
-    'both logins fetch the owned HTTPS authorization endpoint',
+    input.sites.length + 1,
+    'both hosts and the separate no-script login fetch the owned HTTPS authorization endpoint',
   );
   assert.ok(headerChecks.length > 0 && (await Promise.all(headerChecks)).every(Boolean));
   stage = 'cleanup';

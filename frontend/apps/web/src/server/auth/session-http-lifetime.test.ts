@@ -331,7 +331,8 @@ describe('HTTP protocol cancellation reaches the real session owner', () => {
     await vi.waitFor(() => expect(f.account).toHaveBeenCalledTimes(2));
     controller.abort();
     expect(await pending).toEqual({ session: null, cookies: [], unavailable: true });
-    expect(f.store.counts()).toMatchObject({ owners: 1, operations: 1 });
+    // Both actual AccountSite work and its retained snapshot still own credit.
+    expect(f.store.counts()).toMatchObject({ owners: 1, operations: 2, pageSnapshots: 1 });
     held.release();
     await vi.waitFor(() => expect(f.store.counts().operations).toBe(0));
     expect(f.store.peek(active.binding)).not.toBeNull();

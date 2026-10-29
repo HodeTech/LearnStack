@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 2,585 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 2,667 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -185,6 +185,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 8 — Native session ownership (2026-10-29)](#p03-3-step-8--native-session-ownership-2026-10-29) — 112 lines
   - [P03-3 Step 8 review round 1 and recovery corrections (2026-10-29)](#p03-3-step-8-review-round-1-and-recovery-corrections-2026-10-29) — 88 lines
   - [P03-3 Step 8 review round 2 and cursor confidentiality closeout (2026-10-29)](#p03-3-step-8-review-round-2-and-cursor-confidentiality-closeout-2026-10-29) — 91 lines
+  - [P03-3 Step 9 implementation and automated qualification (2026-10-30)](#p03-3-step-9-implementation-and-automated-qualification-2026-10-30) — 82 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -8313,3 +8314,85 @@ Its current-session context pages must likewise preserve the API cursor's privat
 identity binding; no global fallback or authority follows from a continuation.
 Step 10 retains complete final-source populations, public demo and hosted A/B
 qualification plus the reviewable PR. No production-readiness claim follows.
+
+### P03-3 Step 9 implementation and automated qualification (2026-10-30)
+
+**Scope.** The Accepted Step 9 adds five selected screens to the existing two
+account shells: member list/detail, Role list/detail and exact own contextual
+profile. Native preparation obtains fresh capabilities, own-profile locale and
+the finite authorized page reads before rendering. Scope and capability flags
+control the available forms; every submitted operation still independently
+reauthorizes in the API. No new API route, permission, grant, schema or provider
+privilege follows from these screens.
+
+**Ownership.** A native ticket is bound to the actual request frame and complete
+signed ingress, rather than a submitted owner identifier. It reserves one of 128
+global/eight actual-owner snapshot credits before API work. Full deep-copied,
+frozen UTF-8 JSON is limited to 256 KiB; aggregate serialized custody is at most
+32 MiB, excluding rendering/runtime overhead. Session/entry requests, context
+choices and private mutation/account-change recovery share this pool. Current
+scope paging encrypts upstream member/context cursors with separate owner,
+host/epoch and purpose binding; the browser receives no upstream identity digest.
+
+A token-free revision pins output to the held credentials and effective expiry.
+Logout, scope/revision replacement, cancellation and expiry invalidate output
+before release. Before headers, invalid output becomes an empty no-store 503;
+after headers, the connection closes. Native backpressure/callback behavior is
+preserved. Cleanup joins actual API/shared refresh, the native handler, registered
+Next request-context `waitUntil` work and response/write settlement, including
+nested registrations. Timeout/finish alone never releases retained credits.
+This is a registered-work guarantee, not discovery of arbitrary detached React
+work. The selected RSC dependency fence refutes application API/IO/background
+work and aliases/transitive imports; after its one passive lookup, view rendering
+is synchronous.
+
+Ordinary passive documents still preload current data without refresh/idle touch.
+HEAD and captured prefetch obtain no private page snapshot. A missing passive
+snapshot renders no private title/content and does not count as positive document
+proof. Ordinary uncertain AccountSite failure withholds protected data; the
+separate existing retain/revoke/publication policies remain authoritative.
+
+**Experience.** Native forms use current string versions and independent form
+keys, work without JavaScript and preserve complete desired Role/grant arrays.
+Readable/noneditable scope, missing own profile, release adoption and immutable
+kernel restrictions have separate states. Equal en/tr administration/profile
+catalogues use only the actor's enabled own-profile UI preference, otherwise the
+site default; a viewed member cannot select the editor's language. Stale/key-reuse
+recovery shows escaped submitted edits without a resubmission form or visible
+resource UUIDs. Unknown-outcome recovery retains the exact bounded original body
+and key for deliberate retry. Nothing automatically rebases or repeats a write.
+DOM-local dirty-form identities provide localized unsaved guidance and native
+navigation warning without caching field values. Fixed POST-result history
+recovery uses a checked GET destination rather than repeating the POST.
+
+**Automated evidence.** Workspace typecheck/lint and guarded frontend pass:
+3,236/3,236 cases in two packages, zero skips/todos. The full guard includes real
+Next production/development document/Flight, prefetch/HEAD, registered held-render,
+body-lifetime and source-dirty controls. Strict integration compilation has zero
+warnings/errors. The relevant authentication/policy/replay/corpus/Docker-trait
+architecture population passes 39/39, zero skips, in 1m46s after a strict Release
+build with zero warnings/errors. The corrected real PostgreSQL/Keycloak native main passes in
+4m44s: both hosts' five ready page documents produce the exact per-document MUST
+sensitive-read counts 1/2/1/2/0 under distinct verified traces, totaling six per
+host. It preserves the existing refresh/logout proofs. All nine current-source native/
+provider/browser cases also pass together, zero skips, in 7m02s. Initial count/pacing
+failures remain failed attempts: the corrected fixture counts authenticated
+AccountSite calls separately from public bootstrap and moves an existing window
+boundary before the next independent flow without increasing the 60/minute
+policy, number of waits or driver deadline.
+
+The separate stock Brave 156.0.8078.48 proof passes on both owned HTTPS hosts with
+fake provider/API data: five new pages, script-enabled history and a JavaScript-
+disabled native profile save/sign-out. Natural BFCache restores observed: zero;
+the persisted-event dirty control is separate and is not reported as a natural
+restore. The no-script notice is observed through its actual DOM element because
+the pinned text selector deliberately excludes `noscript` descendants.
+
+**Manual gate and review boundary.** Actual manual keyboard/focus/reflow/contrast
+and VoiceOver evidence is pending. Computer-use `getApp` and inventory both fail
+with `Sky Computer Use native pipe startup failed`; no UI interaction, VoiceOver
+setting change or passing assistive-technology claim follows. The maintainer has
+been asked to restore the connection or perform the prepared checklist. This
+implementation record does not close Step 9 or P03-3. Both fresh postcommit review
+rounds, verified corrections and Step 10 final-source/public-demo/hosted A/B
+qualification remain explicit obligations; Phase 03's Status block owns progress.

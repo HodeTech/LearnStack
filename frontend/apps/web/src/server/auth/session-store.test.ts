@@ -1942,7 +1942,7 @@ describe('scoped switch choices use current tenant discovery', () => {
       pageInfo: { nextCursor: null, previousCursor: null, hasNext: false, hasPrevious: false },
     },
   });
-  it('uses the old scope, held token and scoped cursor for a derived branch omitted by global discovery', async () => {
+  it('uses the old scope and held token for a derived branch omitted by global discovery', async () => {
     const f = fixture();
     f.setIdentity({ tenantId: null });
     const active = await f.login();
@@ -1950,14 +1950,12 @@ describe('scoped switch choices use current tenant discovery', () => {
     f.native.contexts.mockClear();
     f.setAccount({ organizationId: branch });
     f.administration.mockResolvedValueOnce(page());
-    const cursor = Buffer.from('scoped-actor-tenant-coverage-position').toString('base64url');
     const candidate = { ...scope };
     const pending = f.store.switchScope(
       active.binding,
       source,
       active.finished.session.csrfToken,
       candidate,
-      cursor,
     );
     candidate.organizationId = '10000000-0000-4000-8000-000000000003';
     const result = await pending;
@@ -1965,7 +1963,7 @@ describe('scoped switch choices use current tenant discovery', () => {
     expect(f.administration).toHaveBeenCalledWith(
       heldToken,
       { host, source, tenantId: identity.tenantId!, organizationId: null },
-      { kind: 'getOwnContexts', cursor, limit: 20 },
+      { kind: 'getOwnContexts', limit: 20 },
       expect.any(AbortSignal),
     );
     expect(f.native.contexts).not.toHaveBeenCalled();

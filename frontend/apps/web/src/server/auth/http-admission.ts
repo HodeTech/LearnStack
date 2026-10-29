@@ -71,6 +71,14 @@ export async function admitBffHttp(
   }
   const projected = await protocol.project(input, bffRequestOwner().activity(context));
   active();
+  if (projected.refusalStatus !== undefined)
+    return Object.freeze({
+      ...projected,
+      response: new NextResponse(null, {
+        status: projected.refusalStatus,
+        headers: { 'cache-control': 'no-store' },
+      }),
+    });
   bffRequestOwner().publish(context, projected.session);
   return Object.freeze({ response: null, ...projected });
 }

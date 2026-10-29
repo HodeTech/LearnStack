@@ -8,6 +8,7 @@ import {
   assertBffCookieAttributes,
   bffDevToolsFailureStage,
   bffProofCopy,
+  bffPageKind,
   createBffCookieScanner,
   rememberBffCookies,
   withProofWaiters,
@@ -16,6 +17,36 @@ import en from '../i18n/messages/en/auth.json';
 import tr from '../i18n/messages/tr/auth.json';
 
 describe('BFF proof observation ownership', () => {
+  it.each([
+    ['/studio', 'studio'],
+    ['/portal', 'portal'],
+    ['/studio/members', 'members'],
+    ['/studio/roles', 'roles'],
+    ['/portal/profile', 'profile'],
+    ['/studio/members/019a154b-0000-7000-8000-000000000012', 'member'],
+    ['/studio/roles/019a154b-0000-7000-8000-000000000013', 'role'],
+  ])('selects only the closed page kind for %s', (path, kind) => {
+    expect(bffPageKind(path)).toBe(kind);
+  });
+  it.each([
+    '/',
+    '/api/account/profile',
+    '/api/auth/entry',
+    '/en/courses',
+    '/studio/settings',
+    '/studio/members/',
+    '/studio/roles/',
+    '/studio/members?cursor=AA',
+    '/portal/profile/child',
+    '__proto__',
+    '/studio/members/019a154b-0000-4000-8000-000000000012',
+    '/studio/roles/019A154B-0000-7000-8000-000000000013',
+    'https://other.invalid/studio',
+    null,
+    undefined,
+  ])('refuses an unowned page selector %s', (path) => {
+    expect(bffPageKind(path)).toBeNull();
+  });
   it('retains actual branded readiness observations without exporting forged or private error fields', async () => {
     vi.useFakeTimers();
     try {
@@ -147,6 +178,9 @@ describe('BFF proof observation ownership', () => {
       expect(bffProofCopy(locale, 'shell.portal')).toBe(catalogue.shell.portal);
       expect(bffProofCopy(locale, 'session.extended')).toBe(catalogue.session.extended);
       expect(bffProofCopy(locale, 'entry.confirm')).toBe(catalogue.entry.confirm);
+      expect(bffProofCopy(locale, 'session.javascript_required')).toBe(
+        catalogue.session.javascript_required,
+      );
     }
     expect(bffProofCopy('en', 'signin.continue')).not.toBe(bffProofCopy('tr', 'signin.continue'));
     expect(bffProofCopy('en', 'session.extended')).not.toBe(bffProofCopy('tr', 'session.extended'));

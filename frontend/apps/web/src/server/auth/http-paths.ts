@@ -18,3 +18,14 @@ export const BFF_POST_PATHS = Object.freeze([
 export function bffPostTarget(method: string, target: string): boolean {
   return method === 'POST' && BFF_POST_PATHS.includes(target);
 }
+
+/** Closed private HTML results; the finite POST census remains the authority. */
+export function bffActionDocumentTarget(target: string): boolean {
+  return (
+    BFF_POST_PATHS.includes(target) &&
+    (target.startsWith('/api/studio/') ||
+      target === '/api/account/profile' ||
+      target === '/api/auth/switch' ||
+      target === '/api/auth/entry/select')
+  );
+}

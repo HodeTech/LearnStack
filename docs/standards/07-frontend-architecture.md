@@ -21,8 +21,8 @@ The existing-session Identity foundation boundary derives from Accepted
 [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md).
 Native entry, scoped publication and bounded administration derive from
 [ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md) and
-[ADR-0079](../decisions/0079-bounded-identity-administration.md). Their accepted
-contracts below require implementation/qualification; the
+[ADR-0079](../decisions/0079-bounded-identity-administration.md). The mechanisms
+and boundaries below implement those contracts; the
 [Phase 03 Status block](../roadmap/phase-03-identity-admin.md) owns progress.
 
 Next.js App Router layout, tenant resolution, SDK shape, and runtime concerns for the
@@ -284,7 +284,8 @@ owns the source, pin, diff policy, bootstrap exception and required-check rollou
 
 ## Native Entry and Administration
 
-**Derives from:** ADR-0078/0079; accepted contract, qualification required.
+**Derives from:** ADR-0078/0079. Qualification and packet status remain in
+[Phase 03](../roadmap/phase-03-identity-admin.md).
 Native Studio/Portal uses admitted tenant/organization origins. Fixed management
 origins map to tenants with NULL organization; PlatformHost does not acquire
 native AccountSite/session entry. The source credential, subject association,
@@ -319,7 +320,10 @@ non-authorizing candidate. Versions are canonical Int64 decimal strings converte
 to exact strong If-Match, never JavaScript numbers. Idempotency nonces survive
 deliberate same-request unknown-outcome retry; edited requests need new keys.
 
-GET `/api/auth/entry` serves the own-entry/confirmation/recovery document. The
+GET `/api/auth/entry` serves own-entry confirmation/recovery, or fresh context
+choices for the current session when no entry owner is present. The current
+context is identified without another selection form; other choices use the
+closed switch operation. The
 protected document set is exactly `/studio`, `/studio/members`,
 `/studio/members/{MembershipId}`, `/studio/roles`, `/studio/roles/{RoleId}`,
 `/portal` and `/portal/profile`, with canonical resource IDs. Only member-list
@@ -332,13 +336,34 @@ The API directory is selected by current admitted capability; a URL never widens
 scope. Organization CRUD is API/SDK-only in this packet; full editors are Phase 06.
 
 Use plain anchors and native forms with fixed same-host 303 destinations and
-pessimistic fresh reads. No protected SPA/TanStack cache, prefetch or Server Action
-is admitted. The response owner holds one credential revision and performs only
-the exact generated operations, with one ten-second refresh/API/body deadline and
+pessimistic fresh reads. No protected SPA/TanStack cache, automatic prefetch
+navigation or Server Action is admitted. The response owner holds one credential
+revision and performs only the exact generated operations, with one ten-second refresh/API/body deadline and
 256-KiB decoded response ceiling. RSC `auth()` remains passive and exposes no API
 operation closure; response owners perform refresh, idle/epoch/cookie decisions
 and prepare immutable page data before protected output can stream.
 No raw identity, credentials or grant graph enters SessionProjection/client props.
+
+Native preparation chooses the finite read set for each selected page. Common
+reads obtain current advisory capabilities and the actor's own contextual profile;
+exact profile 404 means absence, not permission to create a profile or use the
+viewed member's preferences. Member detail derives edit controls from both current
+capabilities and exact target scope. Role choices require Role-read admission;
+readable Roles need not be editable. No additional label or authority lookup is
+performed by the RSC. Browser continuation cursors remain opaque and are bound to
+their owner and purpose before the raw API cursor is used.
+
+An admitted current session's non-prefetch protected GET prepares its page,
+including a GET classified as passive activity. Passive activity does not refresh
+or extend idle life; it is not a shortcut to unchecked page data. HEAD stays bodyless and captured prefetch uses
+passive admission without page-data preparation. Selected page and metadata
+consumers use `optionalPreparedPage()`: an absent prepared value renders no private
+content or title and retains noindex/nofollow metadata. This is not an API fallback
+or a successful full-document rendering claim. Positive document proofs must still
+assert the expected nonempty page. The facade re-verifies the signed request,
+reads the existing native frame and checks snapshot identity/liveness; it does not
+create an owner, reserve credit or expose an operation closure. After this passive
+await, selected view composition is synchronous.
 
 The pre-entry owner retains its original five-minute deadline and existing
 pending/global/per-subject capacity. Callback returns an entry handle before
@@ -357,8 +382,29 @@ exhaustion returns no-store 503; per-owner exhaustion 429; no queue/live evictio
 The 32-MiB serialized bound excludes runtime/rendering/protocol overhead. Freeze
 the exact page DTO/capability snapshot to the actual request, host, epoch and
 credential revision; RSC only reads it. Actual API/render/body settlement releases
-credit, including cancelled/closing work and joined shutdown. Logical timeout or
-response finish alone is no proof that retained work ended.
+credit, including cancelled/closing work and joined shutdown. The native frame
+joins the handler, actual response finish/close, pending write/end callbacks and
+work registered through its pinned Next request-context `waitUntil` adapter. The
+snapshot lease separately joins tracked provider/API work, including work that
+settles after cancellation. Nested registered cleanup must reach settlement before
+credit is released. Logical timeout or response finish alone is no proof that
+retained work ended.
+
+This guarantee covers those owned and registered lifetimes. It does not discover
+arbitrary detached promises, timers or unregistered framework work. The selected
+RSC dependency census therefore rejects additional application async work, API
+calls, schedulers and framework background hooks, including planted alias and
+transitive cases. Its bounded analysis is not a JavaScript interpreter or a proof
+about arbitrary third-party internals. The passive provenance dependency remains
+an exact checked edge, not a general exception for I/O in rendering.
+
+The same response lifetime covers native entry, context and action-recovery
+documents. Mutation-error and account-change pages reserve and pin a current
+session lease before private recovery content is published. They recheck current
+CSRF and exact action binding; they do not repeat the mutation or acquire new
+authority. Checks precede native header flush, write and end. Invalidated output
+becomes an empty no-store 503 before headers; after headers, the connection is
+destroyed. Original native backpressure and write callbacks remain intact.
 
 The own-capability read is Off/no-store/no-ETag and returns exactly nine advisory
 flags: canReadTenantMembers, canReadOrganizationMembers, canWriteMemberProfiles,
@@ -378,6 +424,35 @@ Recoverable localized states include 403/404, 409 conflict/key cases, 429, 503,
 unknown commit, expiry and no Membership. Do not assert rollback or automatically
 retry mutations. PreferredLocale uses only the exact current Membership's enabled
 UI preference, else site default; it never changes content locale or scope.
+Unknown outcomes keep the original body/version/key only for a deliberate same-
+request retry. Stale-version and key-reuse recovery has no resubmission form: it
+shows escaped, localized submitted edits for review, with bounded original intent
+outside any form. Role names require authorized metadata; absent labels produce a
+truthful unavailable message, not visible resource UUIDs. Current CSRF, internal
+versions, target IDs and idempotency nonces are not displayed as edit copy. A fresh
+GET supplies a new form/version/key; there is no automatic rebase or retry.
+
+Role and grant Add/Remove buttons submit the complete desired finite array in a
+native form. Existing assignments/grants are preserved when adding another item;
+`canGrant` controls additions, while existing nonkernel grants can be removed.
+TenantAdmin kernel removals remain unavailable. Separate forms carry independent
+unused keys, and release adoption remains a distinct deliberate action.
+
+Session controls track only the DOM identities of edited enabled forms. A localized
+unsaved-edit notice and native `beforeunload` warning remain until that edited
+form submits, or private content expires, is replaced or unmounts. Sign-out and
+unrelated form submission do not clear another form's warning. This guard never
+copies field values into client state, storage, logs or history. Browser-controlled
+prompt wording is not application copy. Without JavaScript, forms still work and the
+document explicitly states that unsaved-edit warnings and session extension need
+JavaScript.
+
+The fixed protected history guard veils a leaving/restored document. Next GET
+documents obtain fresh admission by reload; native POST-result documents use a
+checked fixed GET recovery destination with `location.replace`, never a reload
+that could resubmit a mutation. Ordinary anchors and native forms preserve full
+navigation. Natural history navigation and a synthetic persisted-page event are
+separate evidence, and neither supplies a no-script expiry guarantee.
 Equal en/tr namespaces and actual keyboard/focus/error/reflow/contrast/assistive-
 technology evidence are required. Veiled restoration and no-script recovery need
 real browser proof; a script-disabled browser has no script-based expiry promise.

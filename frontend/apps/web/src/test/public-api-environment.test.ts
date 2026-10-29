@@ -367,6 +367,7 @@ function launcher() {
     'ingress.js',
     'auth/http-paths.js',
     'auth/page-query.js',
+    'auth/session-path.js',
     'auth/input-error.js',
   ])
     writeFileSync(

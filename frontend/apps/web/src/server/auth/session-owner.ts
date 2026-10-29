@@ -36,6 +36,7 @@ function holder(): BffSessionHolder {
       'switchScope',
       'discardEntry',
       'operate',
+      'preparePage',
       'peek',
       'admit',
       'signout',

@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 
 import { extendBffSession } from '@/client/bff-session';
+import type { NativeReturnPath } from '@/server/auth/session-contract';
 import type { SessionProjection } from '@/server/auth/session-projection';
 
 export type SessionLabels = Readonly<{
@@ -21,6 +22,7 @@ export type SessionLabels = Readonly<{
   reauthenticate: string;
   retry: string;
   javascript_required: string;
+  unsaved: string;
 }>;
 
 /** Only a safe projection and already translated labels cross this client boundary. */
@@ -36,7 +38,7 @@ export function SessionControls({
   readonly locale: string;
   readonly labels: SessionLabels;
   readonly children: ReactNode;
-  readonly returnTo: '/studio' | '/portal';
+  readonly returnTo: NativeReturnPath;
   readonly recoveryActions?: ReactNode;
 }) {
   const [session, setSession] = useState(initial);
@@ -47,6 +49,7 @@ export function SessionControls({
   const [interactive, setInteractive] = useState(false);
   const [outcome, setOutcome] = useState<'extended' | 'unchanged' | 'failed' | null>(null);
   const [failure, setFailure] = useState(0);
+  const [dirty, setDirty] = useState(false);
   const inFlight = useRef(false);
   const alive = useRef(true);
   const generation = useRef(0);
@@ -74,6 +77,62 @@ export function SessionControls({
       clearInterval(timer);
     };
   }, []);
+  useEffect(() => {
+    const root = container.current;
+    setDirty(false);
+    if (!root || ended) return;
+    // Keep only DOM identities: field values stay in their native controls.
+    // Replacing the admitted content discards this set and every listener.
+    const forms = new Set<HTMLFormElement>();
+    let listening = false;
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (forms.size === 0) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    const synchronize = () => {
+      const changed = forms.size > 0;
+      setDirty(changed);
+      if (changed && !listening) window.addEventListener('beforeunload', beforeUnload);
+      if (!changed && listening) window.removeEventListener('beforeunload', beforeUnload);
+      listening = changed;
+    };
+    const edit = (event: Event) => {
+      const control = event.target;
+      const editable =
+        control instanceof HTMLSelectElement
+          ? !control.disabled
+          : control instanceof HTMLTextAreaElement
+            ? !control.disabled && !control.readOnly
+            : control instanceof HTMLInputElement &&
+              !control.disabled &&
+              !control.readOnly &&
+              !['hidden', 'button', 'submit', 'reset', 'image'].includes(control.type);
+      if (!editable) return;
+      const form = (control as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement).form;
+      if (!form || !root.contains(form)) return;
+      forms.add(form);
+      synchronize();
+    };
+    const submit = (event: Event) => {
+      if (
+        !event.defaultPrevented &&
+        event.target instanceof HTMLFormElement &&
+        forms.delete(event.target)
+      )
+        synchronize();
+    };
+    root.addEventListener('input', edit);
+    root.addEventListener('change', edit);
+    root.addEventListener('submit', submit);
+    return () => {
+      root.removeEventListener('input', edit);
+      root.removeEventListener('change', edit);
+      root.removeEventListener('submit', submit);
+      window.removeEventListener('beforeunload', beforeUnload);
+      forms.clear();
+    };
+  }, [initial, children, ended]);
   useEffect(() => {
     const changed =
       ended !== previousView.current.ended ||
@@ -119,6 +178,7 @@ export function SessionControls({
         {warning && <p>{labels.warning}</p>}
         {busy && <p>{labels.extending}</p>}
         {!ended && !warning && !busy && outcome === 'extended' && <p>{labels.extended}</p>}
+        {!ended && dirty && <p>{labels.unsaved}</p>}
       </div>
       <p>
         {labels.until}:{' '}

@@ -9,6 +9,8 @@ import type {
   NativeOperation,
   NativeOperationResult,
 } from './native-operation-contract.js';
+import type { NativeActionPage, NativeEntrySnapshot, NativePageSnapshot } from './page-contract.js';
+import type { NativeSnapshotTicket } from './page-snapshot-contract.js';
 import type { LoginTransaction, ProviderCredentials, ProviderIdentity } from './provider.js';
 import type { SessionProjection } from './session-projection.js';
 export type { SessionProjection } from './session-projection.js';
@@ -65,6 +67,11 @@ export type EntryProjection = Readonly<{
   contextHint: string | null;
 }>;
 export type SessionActivity = 'passive' | 'read' | 'extend';
+export type PagePreparation =
+  | Readonly<{ kind: 'document'; ticket: NativeSnapshotTicket }>
+  | Readonly<{ kind: 'entry' | 'scopes'; ticket: NativeSnapshotTicket; cursor?: string }>
+  | Readonly<{ kind: 'create'; ticket: NativeSnapshotTicket; csrf: string; signal?: AbortSignal }>
+  | Readonly<{ kind: 'response'; ticket: NativeSnapshotTicket; page: NativeActionPage }>;
 export type LoginStart = Readonly<{
   state: string;
   proof: string;
@@ -199,6 +206,11 @@ export interface BffSessionStore {
     csrf?: string,
     signal?: AbortSignal,
   ): Promise<NativeOperationResult>;
+  preparePage(
+    binding: SessionBinding,
+    source: string,
+    input: PagePreparation,
+  ): Promise<NativePageSnapshot | NativeEntrySnapshot>;
   peek(binding: SessionBinding): SessionProjection | null;
   admit(
     binding: SessionBinding,

@@ -15,6 +15,10 @@ The ordinary CI window derives from
 [ADR-0075](../decisions/0075-ordinary-ci-job-window.md).
 UI localization controls derive from [ADR-0027](../decisions/0027-frontend-i18n.md)
 and the [Accepted P02d-6 package](../roadmap/phase-02d-delivery-log.md#p02d-6-decision-package-2026-10-09).
+Protected native page/form lifetime and scoped UI controls derive from
+[ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md) and
+[ADR-0079](../decisions/0079-bounded-identity-administration.md). Their qualification
+and packet status live in [Phase 03](../roadmap/phase-03-identity-admin.md).
 
 Test pyramid, conventions, and what every change must cover.
 
@@ -386,6 +390,63 @@ Rules:
 - Playwright covers the same golden flows the backend E2E covers, from the user's perspective.
 - Visual regression covers the public renderer and page-builder block output.
 
+Protected page and form proofs follow
+[Frontend Architecture § Native Entry and Administration](07-frontend-architecture.md#native-entry-and-administration).
+Keep the following evidence distinct:
+
+- Pure/component controls cover all seven selected views, current capability and
+  exact-target scope, string versions, independent form keys, complete-array
+  Role/grant buttons, kernel restrictions and release adoption. Missing exact own
+  profile and disabled preferences use the declared fallback; a viewed member's
+  locale never changes the editor's UI. Stale/key-reuse recovery preserves bounded
+  original intent without a resubmit form or visible internal IDs. Unknown-outcome
+  recovery preserves the exact original retry body/key. Escaping and private-field
+  absence are assertions, not snapshot-review assumptions.
+- Actual native/Next HTML and Flight controls assert the finite page-read set,
+  no-store behavior and nonempty authorized documents across hosts/locales.
+  Exercise a passive GET separately from HEAD and captured prefetch: the former
+  still prepares page data without idle/refresh activity; the latter produce no
+  private page snapshot. Null passive reads emit no private page/title, not a
+  fabricated fallback. A passing blank speculative render cannot stand in for a
+  positive full-document proof.
+- Lifetime controls reserve actual snapshot credits and hold provider/API task
+  promises, the handler, registered `waitUntil` work and native write callbacks.
+  Exercise disconnect, timeout, expiry, logout/scope/revision change, concurrent
+  hosts, overflow and shutdown. Credits remain held until actual registered
+  cleanup settles, including nested registrations. Assert refusal before headers
+  and connection closure after headers without invented backpressure or completed
+  callbacks. Native entry and mutation/account-change recovery documents use the
+  same output fence; test late recovery output as well as successful page output.
+- The source fence refutes added application awaits, schedulers, API/IO aliases,
+  transitive imports and framework background hooks in the selected RSC closure.
+  It permits only the passive page/provenance seam. This is bounded source analysis;
+  the lifetime owner joins registered work and does not claim to discover arbitrary
+  detached asynchronous work. Keep planted dirty twins alongside each exception.
+- DOM-local dirty-form controls assert a visible localized notice and a cancellable
+  navigation warning only while an editable form is dirty. Submitting one edited
+  form must not erase another form's warning; sign-out, cancelled submission,
+  expiry, replacement and unmount have separate controls. No field-value cache or
+  automatic submission is introduced by the warning mechanism.
+
+The native HTTPS stock-browser proof uses separate host cookie jars and the real
+five new page routes, native forms and session/history controls with fake grants
+and API responses. Its JavaScript-disabled context must observe visible profile
+controls, submit the native form, follow its fresh GET and sign out. Assert the
+visible no-script notice by a DOM locator and exact text; a text-selector engine
+that excludes `noscript` is not evidence that the browser hid that notice. This
+fixture proves browser behavior, not the real provider/API chain or manual
+assistive-technology conformance.
+
+Keep natural Back navigation and the explicit persisted-event counter separate.
+A stock browser can perform fresh network navigation with zero natural BFCache
+restores. Do not report the synthetic event as a natural restore. Native POST error
+history must navigate to its checked GET recovery rather than repeat the POST;
+the GET history dirty twin must still exercise the actual reload branch. No-script
+success establishes usable forms/recovery, not script-based expiry/history
+withholding. Record actual browser/version and observed counters with the owning
+phase evidence. Keyboard/focus, reflow/zoom, contrast and real assistive-technology
+checks retain their separate evidence requirements below.
+
 **P02d-6 G38(b,c)/G43 — Steps 1–4 implemented, 2026-10-10.** Vitest
 covers synchronous views and pure mappings; all 31 active recommended JSX
 accessibility rules have blocking actual-config dirty/clean controls. Async pages
@@ -407,10 +468,11 @@ inventory exceeds the page bound; test-owned enabled RTL content proves directio
 and labelled UI fallback without rewriting historical seed inventory. Verify the
 approved local 307→404 chain, changed status URL, no direct internal bypass and
 HTTP 200 noindex known content-failure states. Under ADR-0055, completed product
-documents cost two API calls, fixed status/scaffold documents one and followed
+documents cost two API calls, fixed public status documents one and followed
 missing documents three. Metadata/layout/page/UI reuse adds no bootstrap; the next
 document re-reads. HEAD/RSC/prefetch and Flight fallback need separately proven
-counts. The
+counts. Protected native snapshots have their own finite read sets and are not
+covered by the public Education call budget. The
 [Step 3 record](../roadmap/phase-02d-delivery-log.md#adr-0055-step-3--production-admission-proof-and-closeout)
 records passing production replacement proofs; both independent Step 3 review
 rounds are complete. These HTTP/HTML/RSC proofs are not browser E2E evidence.

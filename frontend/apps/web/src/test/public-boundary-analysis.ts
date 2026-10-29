@@ -45,7 +45,12 @@ export function closedHttpSurfaceFindings(sources: SourceCensus): Finding[] {
   const entries = new Set([
     'apps/web/src/app/api/healthz/route.ts',
     'apps/web/src/app/(studio)/studio/page.tsx',
+    'apps/web/src/app/(studio)/studio/members/page.tsx',
+    'apps/web/src/app/(studio)/studio/members/[membershipId]/page.tsx',
+    'apps/web/src/app/(studio)/studio/roles/page.tsx',
+    'apps/web/src/app/(studio)/studio/roles/[roleId]/page.tsx',
     'apps/web/src/app/(portal)/portal/page.tsx',
+    'apps/web/src/app/(portal)/portal/profile/page.tsx',
     'apps/web/src/app/(public)/[locale]/courses/page.tsx',
     'apps/web/src/app/(public)/[locale]/courses/[slug]/page.tsx',
     'apps/web/src/app/(public)/[locale]/courses/[slug]/lessons/[lessonSlug]/page.tsx',
@@ -740,6 +745,259 @@ export function reachable(graph: SourceGraph, roots: readonly string[]): string[
   };
   roots.forEach(visit);
   return [...seen].sort();
+}
+
+/** Selected protected RSCs may read the prepared value, never start continuation work. */
+export function preparedPageRenderFindings(
+  graph: SourceGraph,
+  roots: readonly string[],
+): Finding[] {
+  const findings: Finding[] = [];
+  const seen = new Set<string>();
+  const facade = 'apps/web/src/server/auth/page.ts';
+  const shell = 'apps/web/src/components/auth/shell.tsx';
+  const ingressImports: Readonly<Record<string, readonly string[]>> = {
+    'node:crypto': ['createHmac', 'timingSafeEqual'],
+    'node:fs': ['readFileSync'],
+    'node:net': ['isIP'],
+    'node:path': ['resolve'],
+    './auth/http-paths.js': ['AUTH_INPUT_LIMIT', 'BFF_POST_PATHS', 'bffPostTarget'],
+    './auth/page-query.js': ['validTarget'],
+  };
+  const namedImports = (statement: ts.ImportDeclaration): string[] | null => {
+    const clause = statement.importClause;
+    const bindings = clause?.namedBindings;
+    if (clause?.name || !bindings || !ts.isNamedImports(bindings)) return null;
+    return bindings.elements
+      .filter((binding) => !binding.isTypeOnly)
+      .map((binding) =>
+        binding.propertyName
+          ? binding.propertyName.text + ':' + binding.name.text
+          : binding.name.text,
+      )
+      .sort();
+  };
+  const checkProvenanceLeaf = (file: ts.SourceFile) => {
+    const imported = new Map<string, { specifier: string; member: string }>();
+    for (const statement of file.statements) {
+      if (
+        !ts.isImportDeclaration(statement) ||
+        !runtimeImport(statement) ||
+        !ts.isStringLiteral(statement.moduleSpecifier)
+      )
+        continue;
+      const specifier = statement.moduleSpecifier.text;
+      const expected = ingressImports[specifier];
+      if (
+        !expected ||
+        JSON.stringify(namedImports(statement)) !== JSON.stringify([...expected].sort())
+      )
+        findings.push(
+          finding(
+            statement,
+            'Fix: keep the provenance leaf imports exact; it is not an IO exemption.',
+          ),
+        );
+      const bindings = statement.importClause?.namedBindings;
+      if (bindings && ts.isNamedImports(bindings))
+        for (const binding of bindings.elements)
+          imported.set(binding.name.text, {
+            specifier,
+            member: binding.propertyName?.text ?? binding.name.text,
+          });
+    }
+    const allowed = new Set([
+      'node:crypto#createHmac',
+      'node:crypto#timingSafeEqual',
+      'node:net#isIP',
+      './auth/page-query.js#validTarget',
+    ]);
+    const inspected = new Set<ts.Node>();
+    const inspect = (declaration: ts.Node): void => {
+      if (inspected.has(declaration)) return;
+      inspected.add(declaration);
+      walk(declaration, (node) => {
+        if (!ts.isIdentifier(node)) return;
+        const binding = imported.get(node.text);
+        if (binding && !allowed.has(binding.specifier + '#' + binding.member))
+          findings.push(
+            finding(
+              node,
+              'Fix: the passive provenance call cannot reach configuration or arbitrary IO.',
+            ),
+          );
+        for (const next of declarations(node, graph.checker))
+          if (
+            next.getSourceFile() === file &&
+            (ts.isFunctionDeclaration(next) || ts.isVariableDeclaration(next))
+          )
+            inspect(next);
+      });
+    };
+    for (const statement of file.statements)
+      if (
+        (ts.isFunctionDeclaration(statement) && statement.name?.text === 'verifyProvenance') ||
+        ts.isVariableStatement(statement) ||
+        ts.isExpressionStatement(statement)
+      )
+        inspect(statement);
+  };
+  const visit = (name: string): void => {
+    if (seen.has(name)) return;
+    seen.add(name);
+    const file = graph.files.get(name);
+    if (!file || hasDirective(file, 'use client') || file.flags & ts.NodeFlags.JsonFile) return;
+    if (name === INGRESS) checkProvenanceLeaf(file);
+    const passiveCalls = new Set<string>();
+    for (const statement of file.statements) {
+      if (
+        !ts.isImportDeclaration(statement) ||
+        !runtimeImport(statement) ||
+        !ts.isStringLiteral(statement.moduleSpecifier)
+      )
+        continue;
+      const specifier = statement.moduleSpecifier.text;
+      const bindings = statement.importClause?.namedBindings;
+      if (
+        graph.resolveModule(specifier, name) === INGRESS &&
+        (name !== facade ||
+          JSON.stringify(namedImports(statement)) !==
+            JSON.stringify(['INGRESS_HEADER', 'verifyProvenance']))
+      )
+        findings.push(
+          finding(
+            statement,
+            'Fix: protected rendering reaches ingress only through the exact passive provenance edge.',
+          ),
+        );
+      if (bindings && ts.isNamedImports(bindings)) {
+        for (const binding of bindings.elements) {
+          const imported = binding.propertyName?.text ?? binding.name.text;
+          if (
+            (graph.resolveModule(specifier, name) === facade &&
+              ['preparedPage', 'optionalPreparedPage'].includes(imported)) ||
+            (name === facade && specifier === 'next/headers' && imported === 'headers')
+          )
+            passiveCalls.add(binding.name.text);
+          if (['after', 'unstable_after'].includes(imported))
+            findings.push(
+              finding(binding, 'Fix: protected rendering cannot register background work.'),
+            );
+        }
+      }
+      if (
+        name !== INGRESS &&
+        /^(?:node:)?(?:fs|http|https|net|tls|child_process|worker_threads)(?:\/|$)/.test(specifier)
+      )
+        findings.push(finding(statement, 'Fix: native preparation owns protected IO.'));
+    }
+    if (name === facade) passiveCalls.add('optionalPreparedPage');
+    walk(file, (node) => {
+      if (
+        ts.isExportDeclaration(node) &&
+        node.moduleSpecifier &&
+        runtimeExport(node) &&
+        constantString(node.moduleSpecifier, graph.checker) !== undefined &&
+        graph.resolveModule(constantString(node.moduleSpecifier, graph.checker)!, name) === INGRESS
+      )
+        findings.push(
+          finding(node, 'Fix: do not re-export native ingress authority into protected rendering.'),
+        );
+      if (
+        ts.isIdentifier(node) &&
+        ['setTimeout', 'setInterval', 'setImmediate', 'queueMicrotask'].includes(node.text)
+      )
+        findings.push(
+          finding(node, 'Fix: protected rendering cannot borrow a background scheduler.'),
+        );
+      if (
+        ts.isAwaitExpression(node) &&
+        (!ts.isCallExpression(node.expression) ||
+          !ts.isIdentifier(node.expression.expression) ||
+          !passiveCalls.has(node.expression.expression.text))
+      )
+        findings.push(
+          finding(node, 'Fix: protected rendering awaits only its passive prepared page lookup.'),
+        );
+      if (
+        (ts.isFunctionDeclaration(node) ||
+          ts.isFunctionExpression(node) ||
+          ts.isArrowFunction(node) ||
+          ts.isMethodDeclaration(node)) &&
+        node.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.AsyncKeyword)
+      ) {
+        const method =
+          'name' in node && node.name && ts.isIdentifier(node.name) ? node.name.text : '';
+        if (
+          !(name === facade && ['preparedPage', 'optionalPreparedPage'].includes(method)) &&
+          !(
+            name === shell &&
+            ['AccountPage', 'AccountShell', 'accountPageMetadata'].includes(method)
+          )
+        )
+          findings.push(
+            finding(
+              node,
+              'Fix: keep selected protected views synchronous after their passive read.',
+            ),
+          );
+      }
+      if (
+        ts.isNewExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        node.expression.text === 'Promise'
+      )
+        findings.push(
+          finding(node, 'Fix: protected rendering cannot create unowned promise work.'),
+        );
+      if (ts.isCallExpression(node)) {
+        const call = node.expression;
+        if (
+          ts.isIdentifier(call) &&
+          call.text === 'require' &&
+          constantString(node.arguments[0], graph.checker) !== undefined &&
+          graph.resolveModule(constantString(node.arguments[0], graph.checker)!, name) === INGRESS
+        )
+          findings.push(
+            finding(
+              node,
+              'Fix: protected rendering reaches ingress only through the exact passive provenance edge.',
+            ),
+          );
+        const method = ts.isIdentifier(call)
+          ? call.text
+          : ts.isPropertyAccessExpression(call)
+            ? call.name.text
+            : ts.isElementAccessExpression(call) && ts.isStringLiteralLike(call.argumentExpression)
+              ? call.argumentExpression.text
+              : undefined;
+        if (
+          method &&
+          [
+            'then',
+            'catch',
+            'finally',
+            'after',
+            'unstable_after',
+            'waitUntil',
+            'setTimeout',
+            'setInterval',
+            'setImmediate',
+            'queueMicrotask',
+            'fetch',
+          ].includes(method)
+        )
+          findings.push(
+            finding(node, 'Fix: protected rendering cannot schedule API or continuation work.'),
+          );
+        if (call.kind === ts.SyntaxKind.ImportKeyword)
+          findings.push(finding(node, 'Fix: keep the protected render dependency closure static.'));
+      }
+    });
+    for (const next of graph.edges.get(name) ?? []) visit(next);
+  };
+  roots.forEach(visit);
+  return findings;
 }
 
 export function hasDirective(file: ts.SourceFile, directive: string): boolean {

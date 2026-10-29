@@ -14,7 +14,7 @@ import {
   withBrowserCleanup,
 } from './admission-browser.mjs';
 import { startBffProof } from './bff-proof-host.mjs';
-import { createBffCookieScanner, withProofWaiters } from './bff-proof-support.mjs';
+import { bffPageKind, createBffCookieScanner, withProofWaiters } from './bff-proof-support.mjs';
 import {
   createFixtureOwner,
   createPrivateScanner,
@@ -492,7 +492,7 @@ try {
         '/api/auth/entry/select',
         '/api/auth/switch',
         '/api/account/profile',
-      ].includes(path.pathname),
+      ].includes(path.pathname) || bffPageKind(path.pathname) !== null,
     );
     assert.ok(
       typeof command.cookie === 'string' &&
@@ -512,8 +512,10 @@ try {
         body: command.body || undefined,
         headers: {
           host: site.host,
+          traceparent:
+            '00-' + randomBytes(16).toString('hex') + '-' + randomBytes(8).toString('hex') + '-00',
           accept: path.pathname === '/api/auth/entry' ? 'application/json' : 'text/html',
-          ...(command.method === 'GET' && ['/studio', '/portal'].includes(path.pathname)
+          ...(command.method === 'GET' && bffPageKind(path.pathname) !== null
             ? { 'sec-fetch-dest': 'document' }
             : {}),
           ...(command.method === 'POST'
@@ -559,6 +561,12 @@ try {
       cache: response.headers['cache-control'] ?? null,
       data,
       rendered: response.body.includes(site.displayName),
+      pageReady:
+        response.status === 200 &&
+        bffPageKind(path.pathname) !== null &&
+        response.body.includes(site.displayName) &&
+        response.body.includes('data-bff-page-view="' + bffPageKind(path.pathname) + '"') &&
+        !response.body.includes('data-dgst='),
       privateFree: !createPrivateScanner(privateValues).contains(response.body),
     });
   }

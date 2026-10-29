@@ -7,10 +7,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { bffFixture, bffHost, bffOpaque, bffSource } from '../../test/bff-fixture';
 import { admitIncomingRequest, INGRESS_HEADER, mintProvenance, verifyProvenance } from '../ingress';
-import { createPublicAdmissionRuntime } from '../public-admission-runtime';
 import { BFF_COOKIES } from './cookies';
 import { admitBffHttp } from './http-admission';
-import { createBffRequestRuntime } from './request-runtime';
 
 const fixtures: ReturnType<typeof bffFixture>[] = [];
 const fixture = () => {
@@ -26,8 +24,8 @@ afterEach(async () => {
 });
 function harness(f: ReturnType<typeof bffFixture>) {
   vi.stubEnv('LEARNSTACK_PUBLIC_HOP_SECRET', secret);
-  const publicRuntime = createPublicAdmissionRuntime(true);
-  const requestRuntime = createBffRequestRuntime();
+  const publicRuntime = f.publicAdmission;
+  const requestRuntime = f.requestRuntime;
   const original = Object.getOwnPropertyDescriptor;
   vi.spyOn(Object, 'getOwnPropertyDescriptor').mockImplementation((object, key) => {
     const holder =
@@ -36,7 +34,7 @@ function harness(f: ReturnType<typeof bffFixture>) {
         : key === Symbol.for('learnstack.bff-request.v1')
           ? requestRuntime.holder
           : key === Symbol.for('learnstack.bff-sessions.v1')
-            ? Object.freeze({ version: 1, store: Object.freeze(f.store), http: f.http })
+            ? Object.freeze({ version: 1, store: Object.freeze(f.store), http: f.protocol })
             : null;
     return object === globalThis && holder
       ? { value: holder, configurable: false, writable: false, enumerable: false }
@@ -50,6 +48,7 @@ function harness(f: ReturnType<typeof bffFixture>) {
       cookie?: string;
       known?: boolean;
       observed?: string;
+      observedMethod?: string;
       extra?: HeadersInit;
     } = {},
   ) {
@@ -64,7 +63,7 @@ function harness(f: ReturnType<typeof bffFixture>) {
       headers.set('origin', 'https://' + bffHost);
     }
     const next = new NextRequest('https://' + bffHost + (options.observed ?? target), {
-      method: context.method,
+      method: options.observedMethod ?? context.method,
       headers,
       body: options.body,
     });
@@ -83,8 +82,12 @@ function harness(f: ReturnType<typeof bffFixture>) {
               showPlatformAttribution: true,
             });
           const result = await admitBffHttp(next, context, new AbortController().signal);
-          if (!result.response)
-            expect(requestRuntime.holder.read(context).session).toEqual(result.session);
+          if (!result.response) {
+            const admitted = requestRuntime.holder.read(context);
+            expect(admitted.session).toEqual(result.session);
+            if (context.target === '/studio' && result.session)
+              expect(admitted.page?.outcome).toEqual({ kind: 'ready', view: { kind: 'studio' } });
+          }
           return result;
         }),
       );
@@ -159,14 +162,37 @@ describe('pinned Next / native BFF admission seam', () => {
       await expect(h.run('/api/auth/csrf', { observed: '/api/auth/session' })).rejects.toThrow(
         'BFF request context unavailable',
       );
+      await expect(h.run('/api/auth/csrf', { observedMethod: 'POST' })).rejects.toThrow(
+        'BFF request context unavailable',
+      );
       const active = await f.login();
-      const result = await h.run('/studio?inert=a%20b', {
+      const result = await h.run('/en/courses?inert=a%20b', {
         cookie: active.cookie,
-        observed: '/studio?inert=a+b',
+        observed: '/en/courses?inert=a+b',
         extra: { 'sec-fetch-dest': 'document' },
       });
       expect(result.session?.state).toBe('authenticated');
       expect(f.account).toHaveBeenCalledTimes(2);
+      const invalidProtected = await h.run('/studio?inert=a%20b', {
+        cookie: active.cookie,
+        observed: '/studio?inert=a+b',
+        extra: { 'sec-fetch-dest': 'document' },
+      });
+      expect(invalidProtected.response?.status).toBe(400);
+      expect(invalidProtected.session).toBeNull();
+      expect(f.account).toHaveBeenCalledTimes(2);
+      expect(f.administration).not.toHaveBeenCalled();
+      const protectedPage = await h.run('/studio', {
+        cookie: active.cookie,
+        extra: { 'sec-fetch-dest': 'document' },
+      });
+      expect(protectedPage.response).toBeNull();
+      expect(protectedPage.session?.state).toBe('authenticated');
+      expect(f.account).toHaveBeenCalledTimes(3);
+      expect(f.administration.mock.calls.map((call) => call[2].kind)).toEqual([
+        'getOwnCapabilities',
+        'getOwnProfile',
+      ]);
     } finally {
       h.stop();
     }

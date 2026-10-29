@@ -1,17 +1,13 @@
 // @vitest-environment node
-import { IncomingMessage, ServerResponse } from 'node:http';
-import { Socket } from 'node:net';
-
 import { NextRequest } from 'next/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createAccountSiteCaller } from './account-client';
 import { BFF_COOKIES } from './cookies';
-import { createBffRequestRuntime } from './request-runtime';
 import { middleware } from '../../middleware';
 import { bffFixture, bffHost, bffRequest, bffSource } from '../../test/bff-fixture';
+import { snapshotRequest, SnapshotWire } from '../../test/page-response-fixture';
 import { INGRESS_HEADER, mintProvenance } from '../ingress';
-import { createPublicAdmissionRuntime } from '../public-admission-runtime';
 
 const { getSite } = vi.hoisted(() => ({ getSite: vi.fn() }));
 vi.mock('../configured-public-client', () => ({
@@ -107,10 +103,10 @@ function policyFixture() {
 function middlewareHarness(f: ReturnType<typeof policyFixture>) {
   vi.stubEnv('LEARNSTACK_PUBLIC_HOP_SECRET', secret);
   getSite.mockResolvedValue({ kind: 'success', status: 200, data: site });
-  const publicRuntime = createPublicAdmissionRuntime(true);
-  const requestRuntime = createBffRequestRuntime();
+  const publicRuntime = f.publicAdmission;
+  const requestRuntime = f.requestRuntime;
   const original = Object.getOwnPropertyDescriptor;
-  const holder = Object.freeze({ version: 1, store: Object.freeze(f.store), http: f.http });
+  const holder = Object.freeze({ version: 1, store: Object.freeze(f.store), http: f.protocol });
   vi.spyOn(Object, 'getOwnPropertyDescriptor').mockImplementation((object, key) => {
     const selected =
       key === Symbol.for('learnstack.public-admission.v1')
@@ -132,26 +128,34 @@ function middlewareHarness(f: ReturnType<typeof policyFixture>) {
         cookie,
         'sec-fetch-dest': 'document',
       });
-      const request = new IncomingMessage(new Socket());
+      const request = snapshotRequest();
       request.headers = Object.fromEntries(headers);
-      const response = new ServerResponse(request);
+      const response = new SnapshotWire();
       try {
-        return await publicRuntime.run(context, request, response, () =>
-          requestRuntime.run(context, request, response, async () => {
+        return await publicRuntime.run(context, request, response.native, () =>
+          requestRuntime.run(context, request, response.native, async () => {
             const result = await middleware(
               new NextRequest('https://' + bffHost + target, { headers }),
             );
-            return { response: result, session: requestRuntime.holder.read(context).session };
+            const session = requestRuntime.holder.read(context).session;
+            response.native.end(await result.text());
+            return { response: result, session };
           }),
         );
       } finally {
-        response.emit('finish');
+        if (!response.writableEnded && !response.destroyed) response.destroy();
+        response.drainCallbacks();
         request.socket.destroy();
+        await vi.waitFor(() => {
+          expect(requestRuntime.counts()).toBe(0);
+          expect(requestRuntime.snapshotCounts()).toEqual({ active: 0, owners: 0, bytes: 0 });
+          expect(f.store.counts()).toMatchObject({ operations: 0, pageSnapshots: 0 });
+        });
       }
     },
-    stop() {
-      requestRuntime.stop();
+    async stop() {
       publicRuntime.shutdown();
+      await requestRuntime.stop();
     },
   };
 }
@@ -176,8 +180,18 @@ describe('AccountSite authority status through caller, owner and HTTP response',
       const h = middlewareHarness(f);
       try {
         const pending = h.run(target, current.cookie);
+        void pending.catch(() => {});
         await vi.waitFor(() => expect(f.transport).toHaveBeenCalledTimes(2));
-        expect(f.store.counts()).toMatchObject({ owners: 1, credentialRecords: 1, operations: 1 });
+        expect(f.store.counts()).toMatchObject({
+          owners: 1,
+          credentialRecords: 1,
+          operations: target === '/studio' ? 2 : 1,
+          pageSnapshots: target === '/studio' ? 1 : 0,
+        });
+        expect(f.requestRuntime.snapshotCounts()).toMatchObject({
+          active: target === '/studio' ? 1 : 0,
+          owners: target === '/studio' ? 1 : 0,
+        });
         f.advance(30_000);
         held.release();
         const refused = await pending;
@@ -209,7 +223,8 @@ describe('AccountSite authority status through caller, owner and HTTP response',
         expect(f.provider.redeem).toHaveBeenCalledTimes(1);
         expect(f.provider.refresh).not.toHaveBeenCalled();
       } finally {
-        h.stop();
+        held.release();
+        await h.stop();
       }
     },
   );
