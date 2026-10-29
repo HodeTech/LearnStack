@@ -16,6 +16,7 @@ namespace LearnStack.Tests.Integration.Database;
 public sealed class TenancyAdministrationMigrationTests(SchemaFixture schema)
 {
     private const string Predecessor = "20261029045617_qualify_seed_administration_origins";
+    private const string InitialGuardMigration = "20261029101520_enforce_tenancy_administration";
 
     [Theory]
     [InlineData("Suspended", false)]
@@ -70,12 +71,14 @@ public sealed class TenancyAdministrationMigrationTests(SchemaFixture schema)
         migration.Database.HasPendingModelChanges().Should().BeFalse();
     }
 
-    [Fact]
-    public async Task Invoker_guards_have_no_runtime_execute_grant_and_fresh_and_upgrade_definitions_match()
+    [Theory]
+    [InlineData(Predecessor)]
+    [InlineData(InitialGuardMigration)]
+    public async Task Invoker_guards_have_no_runtime_execute_grant_and_fresh_and_upgrade_definitions_match(string predecessor)
     {
         await using var upgrade = await DisposableSchemaDatabase.CreateAsync(schema.Postgres, applyMigrations: false);
         await using var migration = Context(upgrade);
-        await migration.GetService<IMigrator>().MigrateAsync(Predecessor);
+        await migration.GetService<IMigrator>().MigrateAsync(predecessor);
         await migration.Database.MigrateAsync();
         var upgraded = await GuardDefinitionsAsync(upgrade);
         upgraded.Should().HaveCount(2);
@@ -84,6 +87,57 @@ public sealed class TenancyAdministrationMigrationTests(SchemaFixture schema)
         await migration.Database.MigrateAsync();
         (await GuardDefinitionsAsync(upgrade)).Should().Equal(upgraded);
         await AssertForcedRlsAsync(upgrade);
+    }
+
+    [Fact]
+    public async Task Forward_guard_upgrade_preserves_a_retained_incomplete_root_and_fences_its_next_update()
+    {
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres, applyMigrations: false);
+        await using var migration = Context(database);
+        await migration.GetService<IMigrator>().MigrateAsync(InitialGuardMigration);
+        var tenant = Guid.CreateVersion7();
+        var organization = Guid.CreateVersion7();
+        await using (var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.AppConnectionString))
+        await using (var transaction = await app.BeginTransactionAsync())
+        {
+            await SchemaQueries.AssertApplicationRoleAsync(app, transaction);
+            await AnnounceAsync(app, transaction, tenant);
+            await ExecuteAsync(app, transaction, """
+                INSERT INTO public.tenants(id,slug,display_name,status,created_at,created_by,row_version,updated_at,updated_by)
+                    VALUES(@tenant,'retained-upgrade','Retained upgrade','Trial',clock_timestamp(),@actor,7,clock_timestamp(),@actor);
+                INSERT INTO public.organizations(id,tenant_id,slug,display_name,status,created_at,created_by,row_version)
+                    VALUES(@organization,@tenant,'main','Main','Active',clock_timestamp(),@actor,0);
+                SET CONSTRAINTS ALL IMMEDIATE;
+                """, ("tenant", tenant), ("organization", organization), ("actor", UserId.SystemActor.Value));
+            await transaction.CommitAsync();
+        }
+        var before = await SnapshotAsync(database, tenant);
+        await migration.Database.MigrateAsync();
+        (await SnapshotAsync(database, tenant)).Should().Be(before);
+        await AssertForcedRlsAsync(database);
+        await using var retained = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.AppConnectionString);
+        await SchemaQueries.AssertApplicationRoleAsync(retained);
+        await using (var transaction = await retained.BeginTransactionAsync())
+        {
+            await AnnounceAsync(retained, transaction, tenant);
+            var forge = async () => await ExecuteAsync(retained, transaction,
+                "UPDATE public.tenants SET row_version=0,updated_at=NULL,updated_by=NULL WHERE id=@tenant", ("tenant", tenant));
+            (await forge.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be("P0311");
+            await transaction.RollbackAsync();
+        }
+        (await SnapshotAsync(database, tenant)).Should().Be(before);
+        await using (var transaction = await retained.BeginTransactionAsync())
+        {
+            await AnnounceAsync(retained, transaction, tenant);
+            await ExecuteAsync(retained, transaction, "SELECT pg_catalog.pg_advisory_xact_lock(@key)",
+                ("key", IdentityAdvisoryLockKey.ForTenant(TenantId.From(tenant))));
+            await ExecuteAsync(retained, transaction, """
+                UPDATE public.tenants SET default_organization_id=@organization,row_version=row_version+1 WHERE id=@tenant;
+                SET CONSTRAINTS ALL IMMEDIATE;
+                """, ("organization", organization), ("tenant", tenant));
+            await transaction.CommitAsync();
+        }
+        (await SnapshotAsync(database, tenant)).Should().Contain(organization.ToString("D"));
     }
 
     [Theory]

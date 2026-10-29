@@ -3146,7 +3146,9 @@ owns delivery state, and later HTTP/native/browser consumers retain their own pr
   selection and archive write their single declared root, require orgless current
   Tenant capability and fresh post-wait lifecycle/authorization. Held competing
   branch mutations/default changes/archives prove both winner orders, timeouts,
-  direct app-role refusal and central MUST rollback. Locale/default/theme human
+  direct app-role refusal and central MUST rollback. Retained NULL-default
+  no-op/reset and competing archive controls cannot manufacture INSERT-first
+  initiality; real untouched provisioning remains allowed. Locale/default/theme human
   wrappers cannot manufacture Seed provenance or bypass root versions.
 - **Source:** ADR-0079; [Tenancy specification](../modules/tenancy/README.md).
 - **Type:** actual app-role races/guard/fault controls and finite policy/source
@@ -3154,7 +3156,8 @@ owns delivery state, and later HTTP/native/browser consumers retain their own pr
 - **Test owners:** `TenancyAdministrationTests`,
   `TenancyAdministrationRaceTests`, `TenancyAdministrationBranchRaceTests`,
   `TenancyAdministrationAdditionalProofTests`, `TenancyAdministrationMigrationTests`,
-  `TenancyWriterTests`, `TenancySchemaTests`, and their protected HTTP counterparts.
+  `TenancyDefaultInitialityTests`, `TenancyWriterTests`, `TenancySchemaTests`, and
+  their protected HTTP counterparts.
 - **Status:** **Registered.**
 - **Phase:** P03-3 Steps 3/5/7.
 

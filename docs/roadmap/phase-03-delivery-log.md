@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 1,857 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 1,917 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -174,6 +174,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 4 review round 1 and scoped read correction (2026-10-29)](#p03-3-step-4-review-round-1-and-scoped-read-correction-2026-10-29) — 41 lines
   - [P03-3 Step 4 review round 2 and closeout (2026-10-29)](#p03-3-step-4-review-round-2-and-closeout-2026-10-29) — 37 lines
   - [P03-3 Step 5 — Tenancy administration and lifecycle guards (2026-10-29)](#p03-3-step-5--tenancy-administration-and-lifecycle-guards-2026-10-29) — 91 lines
+  - [P03-3 Step 5 review round 1 and verified corrections (2026-10-29)](#p03-3-step-5-review-round-1-and-verified-corrections-2026-10-29) — 60 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -7574,3 +7575,63 @@ provider/native/browser/manual accessibility and hosted A/B remain later step
 obligations. This record accompanies the implementation commit; both fresh
 postcommit review rounds and any verified correction remain required before
 Step 6. No branch switch, push or PR occurs here.
+
+### P03-3 Step 5 review round 1 and verified corrections (2026-10-29)
+
+Three fresh independent reviewers inspected `3cca247a..b1a7efe6` through
+authority/application, SQL/migration/owner and quality/privacy/operability
+lenses. These were source reviews; they made no independent execution claim.
+The combined verdict contained one Major, one Minor and two proof suggestions.
+The completed reviewers then changed roles explicitly to author only their
+assigned regression files; Root owned reproduction, runtime correction and
+execution.
+
+**Major — retained incomplete roots.** An unchanged-default UPDATE returned
+before the Tenant-fence check. It could give a retained NULL-default tuple the
+current transaction's `xmin`; a following default selection then borrowed the
+INSERT-first exception. A nonzero-version/stamped root could first reset those
+fields through the same early return. The actual app-role competing schedule
+committed an unfenced default and a properly fenced archive, leaving the
+established default Archived. The clean seven-case reproduction had three
+positive passes and four expected failures: both unfenced no-op/reset cases,
+the committed race and forward-page metadata.
+
+`20261029112940_guard_retained_tenancy_defaults` corrects the function
+forward, preserving the original migration/installer. Every retained
+NULL-default UPDATE reaches the exclusive Tenant check before any
+unchanged-default return. A properly fenced incomplete root may remain NULL;
+actual untouched same-transaction INSERT provisioning keeps its exemption.
+Forward-upgrade tests preserve retained data, refuse the next unfenced reset
+and allow fenced completion. Fresh/immediate-predecessor definitions and exact
+invoker owner/ACL/search-path remain equal; deployment refuses invalid
+established defaults without repair and restores FORCE RLS on rollback.
+
+**Minor and proof suggestions.** Forward-only pages now keep `PreviousCursor =
+null` and `HasPrevious = false`, including following and empty terminal pages.
+A different authorized Tenant Admin and an authorized branch context each
+succeed with a fresh cursor and reject the original context's cursor,
+separating cursor binding from capability denial. Real PostgreSQL BEFORE
+UPDATE faults exercise tracked EF and the human writer pipeline, fixed source
+exceptions/events, unchanged persisted state and serialized log/trace/Sentry
+controls. Raw dirty twins establish detector sensitivity; the projected
+L1/local archive check is explicitly separate from the normal Result-returning
+human path.
+
+**Local validation.** The strict complete Release build has zero
+warnings/errors; full Unit passes 3,234/3,234 and the 93 affected architecture
+cases pass, all with zero skips. The first corrected Tenancy population passes
+39/39. The expanded adjacent population completes 358 cases, with 353 passes
+and five failures confined to old Identity reader fixture lifecycle writes
+against retained NULL-default roots. Their dedicated app-role
+preparation/restoration now takes the canonical exclusive Tenant/root plan;
+assertions and production guards are unchanged. The final combined
+Tenancy/initiality/Identity-reader rerun passes 68/68, closing those five
+failures. The original failed attempt remains recorded rather than being
+relabeled successful. Fragment/roadmap/index/Corpus and whitespace checks
+accompany this correction commit. These are local step populations, not the
+full discovered integration suite or hosted final-source qualification.
+
+Step 5 still requires its second fresh independent postcommit review round.
+Full discovered/provider/native/browser/manual-accessibility and hosted
+final-source A/B qualification remain Step 10 obligations. No branch switch,
+push or PR occurs here.

@@ -259,13 +259,12 @@ public sealed class IdentityAuthorizationReaderTests(IdentityAuthorizationReader
         using var minter = new CandidateSource();
         try
         {
-            await MutateAsync(null, null, "UPDATE public.tenants SET status=@status WHERE id=@tenant",
-                ("status", status), ("tenant", SchemaFixture.TenantA));
+            await MutateTenantLifecycleAsync(status);
             (await harness.Reader.ReadAsync(minter.For(PersonA, SchemaFixture.TenantA))).Covers.Should().Be(covers);
         }
         finally
         {
-            await MutateAsync(null, null, "UPDATE public.tenants SET status='Trial' WHERE id=@tenant", ("tenant", SchemaFixture.TenantA));
+            await MutateTenantLifecycleAsync("Trial");
         }
     }
 
@@ -310,8 +309,7 @@ public sealed class IdentityAuthorizationReaderTests(IdentityAuthorizationReader
     public async Task Separate_lifecycle_statement_observes_a_commit_after_the_grant_statement()
     {
         await using var harness = await AuthorizationReaderHarness.CreateAsync(fixture, inner => new LifecycleProbe(inner,
-            async (_, _, _) => await MutateAsync(null, null, "UPDATE public.tenants SET status='Suspended' WHERE id=@tenant",
-                ("tenant", SchemaFixture.TenantA))));
+            async (_, _, _) => await MutateTenantLifecycleAsync("Suspended")));
         using var minter = new CandidateSource();
         try
         {
@@ -319,7 +317,7 @@ public sealed class IdentityAuthorizationReaderTests(IdentityAuthorizationReader
         }
         finally
         {
-            await MutateAsync(null, null, "UPDATE public.tenants SET status='Trial' WHERE id=@tenant", ("tenant", SchemaFixture.TenantA));
+            await MutateTenantLifecycleAsync("Trial");
         }
     }
 
@@ -511,6 +509,19 @@ public sealed class IdentityAuthorizationReaderTests(IdentityAuthorizationReader
         await frame.CompleteAsync();
         await FluentActions.Awaiting(() => reader.ReadAuthorizationAsync(unit, minter.For(PersonA, SchemaFixture.TenantA)))
             .Should().ThrowAsync<IdentityScopeLifecycleReadException>();
+    }
+
+    private async Task MutateTenantLifecycleAsync(string status)
+    {
+        await using var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(fixture.AppConnectionString);
+        await using var transaction = await app.BeginTransactionAsync();
+        await ScopeAsync(app, transaction, SchemaFixture.TenantA);
+        // This fixture retains an incomplete NULL-default root. Every UPDATE,
+        // including status setup/restoration, must obey its exclusive fence.
+        await TenancyLifecycleFixture.LockAsync(app, transaction, SchemaFixture.TenantA);
+        await ExecuteAsync(app, transaction, "UPDATE public.tenants SET status=@status WHERE id=@tenant",
+            ("status", status), ("tenant", SchemaFixture.TenantA));
+        await transaction.CommitAsync();
     }
 
     private async Task MutateAsync(Guid? organization, Guid? actor, string sql, params (string Name, object? Value)[] values)

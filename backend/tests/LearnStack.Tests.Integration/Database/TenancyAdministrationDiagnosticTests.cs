@@ -4,9 +4,14 @@ using System.Text.Json;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Application.Abstractions;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
+using LearnStack.Modules.Tenancy.Domain;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
+using LearnStack.SharedKernel.Domain;
+using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Identity;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
+using LearnStack.SharedKernel.Time;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
@@ -94,8 +99,124 @@ public sealed class TenancyAdministrationDiagnosticTests(TenancyAdministrationFi
             foreach (var canary in canaries)
             {
                 Assert.Contains(canary, captured.Log, StringComparison.Ordinal);
+                Assert.Contains(canary, captured.Local, StringComparison.Ordinal);
+                Assert.Contains(canary, captured.Sentry, StringComparison.Ordinal);
                 Assert.Contains(canary, captured.Trace, StringComparison.Ordinal);
             }
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Actual_write_provider_payload_has_dirty_and_human_protected_diagnostic_sink_twins(bool protectedWriter)
+    {
+        var canaries = new[] { "write-neutral-63c19", "write-nested-8da21", "write-secret-379bc" };
+        var payload = JsonSerializer.Serialize(new { value = canaries[0], items = new[] { new { value = canaries[1], token = canaries[2] } } });
+        Assert.InRange(payload.Length, 1, MappedLength.DisplayName);
+        var create = await fixture.SendAsync(new CreateManagedOrganizationCommand(
+            "write-diagnostic-" + Guid.NewGuid().ToString("N"), "Unchanged write diagnostic target"), "tenancy-write-diagnostic-create");
+        Assert.True(create.IsSuccess);
+        var id = create.Value!.OrganizationId;
+        var before = await OrganizationSnapshotAsync(id);
+        await using var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(fixture.OwnerConnectionString);
+        using var sinks = new IdentityDiagnosticSinks();
+        using var callers = new ActivitySource("learnstack.identity.storage-qualification");
+        using var caller = callers.StartActivity("tenancy-administration-write");
+        Assert.NotNull(caller);
+        var witness = new SaveFailureWitness();
+        Exception failure;
+        await ExecuteAsync(owner, null, $$"""
+            CREATE FUNCTION tenancy_administration_write_sink_fault() RETURNS trigger
+            LANGUAGE plpgsql SECURITY INVOKER SET search_path=pg_catalog AS $$
+            BEGIN
+                RAISE EXCEPTION USING ERRCODE='P0399',MESSAGE=NEW.display_name;
+            END $$;
+            REVOKE ALL ON FUNCTION tenancy_administration_write_sink_fault() FROM PUBLIC;
+            CREATE TRIGGER tenancy_administration_write_sink_fault BEFORE UPDATE ON organizations
+            FOR EACH ROW WHEN (OLD.id='{{id.Value:D}}'::uuid)
+            EXECUTE FUNCTION tenancy_administration_write_sink_fault();
+            """);
+        try
+        {
+            if (protectedWriter)
+            {
+                SourceFailureStore? observed = null;
+                await using var harness = await fixture.CreateAsync("tenancy-write-diagnostic-protected", configure: services =>
+                {
+                    services.AddSingleton<ILoggerFactory>(sinks.Loggers);
+                    services.AddSingleton<ISaveChangesInterceptor>(witness);
+                    services.AddScoped<IOrganizationWriteStore>(provider => observed = new SourceFailureStore(
+                        ActivatorUtilities.CreateInstance<OrganizationWriteStore>(provider)));
+                });
+                var result = await harness.Sender.Send(new RenameOrganizationCommand(id, create.Value.Version, payload));
+                Assert.Equal("dependency_unavailable", result.Error!.Code);
+                Assert.NotNull(observed);
+                var translated = Assert.IsType<TenancyAdministrationStorageException>(observed.Failure);
+                Assert.Equal(TenancyAdministrationStorageFailure.Provider, translated.Failure);
+                Assert.Null(translated.InnerException);
+                failure = translated;
+            }
+            else
+            {
+                // The dirty twin intentionally bypasses the human store boundary,
+                // while retaining actual tracked EF writes and an announced app owner.
+                await using var contextHarness = await fixture.CreateAsync("tenancy-write-diagnostic-context");
+                var context = contextHarness.Services.GetRequiredService<ITenantContext>();
+                await using var source = ApplicationDataSource.Build(fixture.AppConnectionString, sinks.Loggers);
+                await using var unit = new NpgsqlUnitOfWork(source, sinks.Loggers.CreateLogger<NpgsqlUnitOfWork>());
+                await using var frame = await unit.BeginTransactionAsync(TransactionMode.ReadWrite);
+                await unit.SetTenantContextAsync(context);
+                await SchemaQueries.AssertApplicationRoleAsync(unit.Connection, unit.Transaction!);
+                await new IdentityMutationLocks(unit).AcquireAsync(new([], context.TenantId, IdentityTenantLockMode.Shared));
+                await using var db = new TenancyDbContext(new DbContextOptionsBuilder<TenancyDbContext>().UseNpgsql(unit.Connection)
+                    .UseLoggerFactory(sinks.Loggers).AddInterceptors(witness).Options, new StaticTenantContextAccessor(context));
+                await db.Database.UseTransactionAsync(unit.Transaction);
+                var target = await db.Organizations.SingleAsync(row => row.Id == id);
+                target.Rename(payload, new SystemClock(), context.UserId!.Value);
+                failure = await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+                await frame.FailAsync();
+            }
+            Assert.Equal(1, witness.Failures);
+            var provider = Assert.IsType<PostgresException>(Assert.IsType<DbUpdateException>(witness.Failure).InnerException);
+            Assert.Equal("P0399", provider.SqlState);
+            Assert.Equal(payload, provider.MessageText);
+        }
+        finally
+        {
+            await ExecuteAsync(owner, null, "DROP TRIGGER tenancy_administration_write_sink_fault ON organizations; DROP FUNCTION tenancy_administration_write_sink_fault()");
+        }
+        Assert.Equal(before, await OrganizationSnapshotAsync(id));
+        caller!.Stop();
+        sinks.AssertCompleteEfTraceCoverage();
+        IdentityDiagnosticSinks.AssertEfCallerAncestry(sinks.Traces, caller);
+        var errors = sinks.Traces.Where(trace => trace.Source == IdentityDiagnosticSinks.EfSource
+            && trace.Status == ActivityStatusCode.Error).ToArray();
+        Assert.NotEmpty(errors);
+        // The human handler normally returns a fixed Result. Project its actual
+        // intercepted source exception through L1 to qualify those serialized sinks;
+        // this does not claim that the normal Result path invokes L1 or error tracking.
+        await sinks.CaptureThroughL1Async(failure, expectedStatus: 500);
+        var captured = await sinks.ReadAsync();
+        captured.AssertPositiveControls("internal_error");
+        if (protectedWriter)
+        {
+            Assert.Contains("TenancyAdministrationStorageFailed", captured.Log, StringComparison.Ordinal);
+            Assert.Contains("3292", captured.Log, StringComparison.Ordinal);
+            Assert.All(errors, trace => Assert.Equal("Tenancy administration storage failed.", trace.Description));
+            captured.AssertExcludes(canaries);
+        }
+        else
+        {
+            foreach (var canary in canaries)
+            {
+                Assert.Contains(canary, captured.Log, StringComparison.Ordinal);
+                Assert.Contains(canary, captured.Sentry, StringComparison.Ordinal);
+                Assert.Contains(canary, captured.Trace, StringComparison.Ordinal);
+            }
+            // LocalFileErrorTracker serializes only the outer DbUpdateException
+            // message and the inner type. The raw read twin above independently
+            // proves that this sink detects provider values when they reach it.
         }
     }
 
@@ -116,6 +237,47 @@ public sealed class TenancyAdministrationDiagnosticTests(TenancyAdministrationFi
         var actual = await Record.ExceptionAsync(() => reader.ReadTenantAsync());
         Assert.Same(expected, actual);
         await frame.FailAsync();
+    }
+
+    private async Task<string> OrganizationSnapshotAsync(OrganizationId id)
+    {
+        await using var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(fixture.AppConnectionString);
+        await SchemaQueries.AssertApplicationRoleAsync(app);
+        await using var transaction = await app.BeginTransactionAsync();
+        await ScopeAsync(app, transaction, SchemaFixture.TenantA);
+        return await ScalarAsync<string>(app, transaction, "SELECT to_jsonb(o)::text FROM organizations o WHERE id=@id", ("id", id.Value));
+    }
+
+    private sealed class SaveFailureWitness : SaveChangesInterceptor
+    {
+        public Exception? Failure { get; private set; }
+        public int Failures { get; private set; }
+        public override Task SaveChangesFailedAsync(DbContextErrorEventData eventData, CancellationToken cancellationToken = default)
+        {
+            if (eventData.Context is TenancyDbContext)
+            {
+                Failure = eventData.Exception;
+                Failures++;
+            }
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class SourceFailureStore(IOrganizationWriteStore inner) : IOrganizationWriteStore
+    {
+        public TenancyAdministrationStorageException? Failure { get; private set; }
+        public Task<Organization?> FindForUpdateAsync(OrganizationId id, CancellationToken cancellationToken = default) =>
+            inner.FindForUpdateAsync(id, cancellationToken);
+        public Task AddAsync(Organization aggregate, CancellationToken cancellationToken = default) => inner.AddAsync(aggregate, cancellationToken);
+        public async Task UpdateAsync(Organization aggregate, CancellationToken cancellationToken = default)
+        {
+            try { await inner.UpdateAsync(aggregate, cancellationToken); }
+            catch (TenancyAdministrationStorageException failure)
+            {
+                Failure = failure;
+                throw;
+            }
+        }
     }
 
     private sealed class FailureWitness : DbCommandInterceptor

@@ -66,7 +66,7 @@ public sealed class TenancyAdministrationReader(TenancyDbContext db, IUnitOfWork
                 Map(row.Status), row.Id == rows[0].DefaultOrganizationId, row.Version)).ToImmutableArray();
             return new OrganizationDirectoryPage(items, rows[0].DefaultOrganizationId, rows[0].TenantVersion,
                 new PageInfo(hasNext ? TenancyOrganizationCursor.Encode(scope, items[^1].OrganizationId) : null,
-                    null, hasNext, cursor is not null));
+                    null, hasNext, false));
         });
     }
 

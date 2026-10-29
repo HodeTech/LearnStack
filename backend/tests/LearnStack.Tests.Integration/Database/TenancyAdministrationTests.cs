@@ -6,6 +6,7 @@ using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.Modules.Tenancy.Domain;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
@@ -123,6 +124,8 @@ public sealed class TenancyAdministrationTests(TenancyAdministrationFixture fixt
             Assert.All(next.Value!.Items, row => Assert.True(seen.Add(row.OrganizationId)));
             Assert.Equal(first.Value.DefaultOrganizationId, next.Value.DefaultOrganizationId);
             Assert.Equal(first.Value.TenantVersion, next.Value.TenantVersion);
+            Assert.Null(next.Value.PageInfo.PreviousCursor);
+            Assert.False(next.Value.PageInfo.HasPrevious);
             cursor = next.Value.PageInfo.NextCursor;
         }
         var wrongActor = await fixture.SendAsync(new ListOrganizationsQuery(first.Value.PageInfo.NextCursor, 1), "tenancy-page-wrong-actor", PersonA);
@@ -148,8 +151,40 @@ public sealed class TenancyAdministrationTests(TenancyAdministrationFixture fixt
         Assert.Equal(first.Value.DefaultOrganizationId, empty.DefaultOrganizationId);
         Assert.Equal(first.Value.TenantVersion, empty.TenantVersion);
         Assert.False(empty.PageInfo.HasNext);
+        Assert.Null(empty.PageInfo.PreviousCursor);
+        Assert.False(empty.PageInfo.HasPrevious);
         Assert.Empty(harness.Services.GetRequiredService<TenancyDbContext>().ChangeTracker.Entries());
         await frame.FailAsync();
+    }
+
+    [Fact]
+    public async Task An_authorized_actor_or_branch_change_refuses_another_contexts_cursor()
+    {
+        var first = await fixture.SendAsync(new ListOrganizationsQuery(null, 1), "tenancy-cursor-context-source");
+        Assert.True(first.IsSuccess);
+        Assert.NotNull(first.Value!.PageInfo.NextCursor);
+        var cursor = first.Value.PageInfo.NextCursor;
+
+        // Tenant authority remains eligible in a branch. This fresh success proves
+        // the following refusal reaches cursor validation rather than capability denial.
+        var branch = await fixture.SendAsync(new ListOrganizationsQuery(null, 1),
+            "tenancy-cursor-branch-positive", organization: SchemaFixture.OrgA1);
+        Assert.True(branch.IsSuccess);
+        Assert.NotEmpty(branch.Value!.Items);
+        var wrongBranch = await fixture.SendAsync(new ListOrganizationsQuery(cursor, 1),
+            "tenancy-cursor-branch-refusal", organization: SchemaFixture.OrgA1);
+        Assert.Equal("validation_failed", wrongBranch.Error!.Code);
+        Assert.Equal("lockey_invalid_value", Assert.Single(wrongBranch.Error.Details!["Cursor"]).Key);
+
+        var other = await fixture.Membership.AddMemberAsync(role: BuiltInRoleKey.TenantAdmin);
+        var actor = await fixture.SendAsync(new ListOrganizationsQuery(null, 1),
+            "tenancy-cursor-actor-positive", other.Actor);
+        Assert.True(actor.IsSuccess);
+        Assert.NotEmpty(actor.Value!.Items);
+        var wrongActor = await fixture.SendAsync(new ListOrganizationsQuery(cursor, 1),
+            "tenancy-cursor-actor-refusal", other.Actor);
+        Assert.Equal("validation_failed", wrongActor.Error!.Code);
+        Assert.Equal("lockey_invalid_value", Assert.Single(wrongActor.Error.Details!["Cursor"]).Key);
     }
 
     [Fact]

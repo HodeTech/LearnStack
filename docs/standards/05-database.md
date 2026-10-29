@@ -5177,7 +5177,11 @@ the existing caller/transaction controls retain those obligations.
 The deferred guard validates an established serving Tenant default against the
 same Tenant's Active, nondeleted Organization. Initial provisioning retains its
 untouched version-zero creation shape and temporary NULL/default sequence in
-one transaction. Deployment preflight refuses an invalid established default
+one transaction. Every retained NULL-default Tenant UPDATE, including an
+unchanged-default no-op or version/stamp reset, requires the exclusive fence
+before returning. A tuple's current-transaction `xmin` alone does not prove
+INSERT-first origin; the preceding retained update cannot manufacture that
+exception without the fence. Deployment preflight refuses an invalid established default
 without repair. The migration owner temporarily disables the two tables' RLS
 under transaction-held DDL locks to inspect retained rows, restores ENABLE/FORCE
 before commit, and rolls the whole change back on refusal. Runtime queries never
