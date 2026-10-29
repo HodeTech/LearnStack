@@ -152,12 +152,13 @@ Run its trust step yourself, then create the local leaf certificate:
 mkcert -install
 mkdir -p .data/tls
 mkcert -cert-file .data/tls/public.pem -key-file .data/tls/public-key.pem \
-  localhost demo-english.learnstack.local demo-yoga.learnstack.local
+  localhost demo-english.learnstack.local demo-yoga.learnstack.local \
+  manage.demo-english.learnstack.local manage.demo-yoga.learnstack.local
 ```
 
-Manually map the two seeded names to `127.0.0.1` in your hosts file. Repository
-commands never edit that file or install trust. Keep the CA private key local;
-only the ignored leaf/key paths belong in `.env`.
+Manually map the four public and management names listed above to `127.0.0.1` in
+your hosts file. Repository commands never edit that file or install trust. Keep
+the CA private key local; only the ignored leaf/key paths belong in `.env`.
 
 ```bash
 make demo

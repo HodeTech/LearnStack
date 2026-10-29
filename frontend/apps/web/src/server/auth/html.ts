@@ -71,6 +71,29 @@ function entryFailureContent(
   };
   return `<p>${escape(messages[page.reason])}</p>${hint}${recovery}`;
 }
+function mutationEdits(
+  fields: Extract<BffPage, { kind: 'mutation_error' }>['fields'],
+  copy: AuthCopy,
+) {
+  const labels = {
+    displayName: copy('mutation.edit_display_name'),
+    preferredLocale: copy('mutation.edit_preferred_locale'),
+    status: copy('mutation.edit_status'),
+    roleIds: copy('mutation.edit_role_ids'),
+    grants: copy('mutation.edit_grants'),
+    manifestVersion: copy('mutation.edit_manifest_version'),
+  };
+  const edits = fields
+    .filter(([name]) => Object.hasOwn(labels, name))
+    .map(
+      ([name, value]) =>
+        `<p><label for="mutation-edit-${escape(name)}">${escape(labels[name as keyof typeof labels])}</label><br><textarea id="mutation-edit-${escape(name)}" readonly>${escape(value)}</textarea></p>`,
+    )
+    .join('');
+  return edits
+    ? `<section aria-labelledby="submitted-edits"><h2 id="submitted-edits">${escape(copy('mutation.edits_title'))}</h2><p>${escape(copy('mutation.edits_copy'))}</p>${edits}</section>`
+    : '';
+}
 function mutationContent(
   page: Extract<BffPage, { kind: 'mutation_error' }>,
   copy: AuthCopy,
@@ -85,7 +108,9 @@ function mutationContent(
     key_reuse: copy('mutation.key_reuse'),
     unavailable: copy('mutation.unavailable'),
   };
-  return `<p>${escape(messages[page.reason])}</p><p><a href="${escape(page.destination)}">${escape(copy('mutation.lookup'))}</a></p>${retry}`;
+  const edits =
+    page.reason === 'stale' || page.reason === 'key_reuse' ? mutationEdits(page.fields, copy) : '';
+  return `<p>${escape(messages[page.reason])}</p>${edits}<p><a href="${escape(page.destination)}">${escape(copy('mutation.lookup'))}</a></p>${retry}`;
 }
 
 /** Closed middleware document, with every text/attribute escaped. No user HTML or script. */

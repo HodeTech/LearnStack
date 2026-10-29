@@ -150,7 +150,7 @@ public sealed partial class TenantBffSessionTests
         var callback = await browser.CompleteBffLoginAsync(PrivateLocation(begin), username, KeycloakFixture.DemoPassword);
         var completed = await native.RequestAsync(host, callback.PathAndQuery, cookies.Header);
         completed.Status.Should().Be(303);
-        completed.Cookies.Should().NotContain(value => value.StartsWith("__Host-ls-session=", StringComparison.Ordinal));
+        RequireCookieAbsent(completed.Cookies, value => value.StartsWith("__Host-ls-session=", StringComparison.Ordinal));
         cookies.Apply(completed);
         var entry = await native.RequestAsync(host, "/api/auth/entry", cookies.Header);
         entry.Status.Should().Be(200);
@@ -162,7 +162,7 @@ public sealed partial class TenantBffSessionTests
         api.Faults.Arm("/api/v1/identity/self/bootstrap");
         var unknown = await native.RequestAsync(host, "/api/auth/entry/create", cookies.Header, "POST", body);
         unknown.Status.Should().Be(503, "the real creation committed, but its response was deliberately withheld");
-        unknown.Cookies.Should().BeEmpty();
+        RequireCookiesEmpty(unknown.Cookies);
         unknown.PrivateFree.Should().BeTrue();
         api.Faults.Suppressed.Should().Be(suppressed + 1);
         api.Faults.BootstrapRequests.Should().Be(before + 1);
@@ -184,7 +184,7 @@ public sealed partial class TenantBffSessionTests
         await AnonymousAsync(native, tenant, cookies);
         var discard = await native.RequestAsync(host, "/api/auth/signout", cookies.Header, "POST", body);
         discard.Status.Should().Be(303);
-        discard.Cookies.Should().Contain(value => value.StartsWith("__Host-ls-entry=;", StringComparison.Ordinal));
+        RequireCookiePresent(discard.Cookies, value => value.StartsWith("__Host-ls-entry=;", StringComparison.Ordinal));
         cookies.Apply(discard);
         var returned = await browser.CompleteBffLogoutAsync(PrivateLocation(discard));
         var finished = await native.RequestAsync(host, returned.PathAndQuery, cookies.Header);
@@ -277,7 +277,7 @@ public sealed partial class TenantBffSessionTests
         var unknown = await native.RequestAsync(Host(identity.Tenant), "/api/account/profile", cookies.Header, "POST", body);
         unknown.Status.Should().Be(503);
         unknown.PrivateFree.Should().BeTrue();
-        unknown.Cookies.Should().BeEmpty();
+        RequireCookiesEmpty(unknown.Cookies);
         api.Faults.Suppressed.Should().Be(suppressed + 1);
         var committed = await NativeProfileAsync(database, membership);
         committed.Should().Be((prior.Version + 1, label));
@@ -333,7 +333,7 @@ public sealed partial class TenantBffSessionTests
         var callback = await otherProviderBrowser.CompleteBffLoginAsync(PrivateLocation(started), different.Username, differentPassword);
         var completed = await native.RequestAsync(host, callback.PathAndQuery, cookies.Header);
         completed.Status.Should().Be(303);
-        completed.Cookies.Should().NotContain(value => value.StartsWith("__Host-ls-session=", StringComparison.Ordinal));
+        RequireCookieAbsent(completed.Cookies, value => value.StartsWith("__Host-ls-session=", StringComparison.Ordinal));
         cookies.Apply(completed);
         var entry = await native.RequestAsync(host, "/api/auth/entry", cookies.Header);
         entry.Status.Should().Be(200);
@@ -343,15 +343,15 @@ public sealed partial class TenantBffSessionTests
             + Form("tenantId", different.Tenant.TenantId.Value.ToString("D")));
         replacement.Status.Should().Be(409, "a different verified subject cannot replace the live destination, even with explicit confirmation");
         replacement.PrivateFree.Should().BeTrue();
-        replacement.Cookies.Should().BeEmpty();
+        RequireCookiesEmpty(replacement.Cookies);
         var retained = await native.RequestAsync(host, "/api/auth/session", cookies.Header);
-        retained.Data.GetProperty("csrfToken").GetString().Should().Be(session.GetProperty("csrfToken").GetString());
+        RequirePrivateEqual(retained.Data.GetProperty("csrfToken").GetString(), session.GetProperty("csrfToken").GetString());
         api.Observed.Reads.Count(row => row.Actor is not null).Should().Be(beforeReads);
         (await AuditCountsAsync(database)).Should().Equal(before, "the subject fence refuses before API scope admission");
         var logout = await native.RequestAsync(host, "/api/auth/signout", cookies.Header, "POST",
             Form("csrfToken", entry.Data.GetProperty("csrfToken").GetString()!));
         logout.Status.Should().Be(303);
-        logout.Cookies.Should().NotContain(value => value.StartsWith("__Host-ls-session=", StringComparison.Ordinal)
+        RequireCookieAbsent(logout.Cookies, value => value.StartsWith("__Host-ls-session=", StringComparison.Ordinal)
             || value.StartsWith("__Host-ls-browser=", StringComparison.Ordinal));
         cookies.Apply(logout);
         var returned = await otherProviderBrowser.CompleteBffLogoutAsync(PrivateLocation(logout));
@@ -359,7 +359,7 @@ public sealed partial class TenantBffSessionTests
         finish.Status.Should().Be(303);
         cookies.Apply(finish);
         var after = await native.RequestAsync(host, "/api/auth/session", cookies.Header);
-        after.Data.GetProperty("csrfToken").GetString().Should().Be(session.GetProperty("csrfToken").GetString(),
+        RequirePrivateEqual(after.Data.GetProperty("csrfToken").GetString(), session.GetProperty("csrfToken").GetString(),
             "entry provider logout and its late return never rotate the unrelated active native owner");
     }
 }

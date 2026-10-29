@@ -116,9 +116,16 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
         expect(runtime.holder.activity(context)).toBe(prefetch ? 'passive' : 'read');
         expect(runtime.holder.flight(context)).toBe(true);
         runtime.holder.publish(context, null);
+        const read = runtime.holder.read(context);
+        expect(read.flight).toBe(true);
+        expect(Object.isFrozen(read)).toBe(true);
+        expect(Reflect.set(read, 'flight', false)).toBe(false);
+        expect(runtime.holder.read(context).flight).toBe(true);
         expect(() => runtime.holder.activity(context)).toThrow();
         expect(() => runtime.holder.flight(context)).toThrow();
         owner.response.emit('finish');
+        expect(() => read.assertActive()).toThrow();
+        expect(() => runtime.holder.read(context)).toThrow();
       });
     }
     const ordinary = lifetime();
@@ -126,7 +133,14 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
       Object.assign(ordinary.request.headers, { rsc: '1' });
       expect(runtime.holder.flight(context)).toBe(false);
       runtime.holder.publish(context, null);
+      const read = runtime.holder.read(context);
+      expect(read.flight).toBe(false);
+      expect(Object.isFrozen(read)).toBe(true);
+      expect(Reflect.set(read, 'flight', true)).toBe(false);
+      expect(runtime.holder.read(context).flight).toBe(false);
       ordinary.response.emit('finish');
+      expect(() => read.assertActive()).toThrow();
+      expect(() => runtime.holder.read(context)).toThrow();
     });
     expect(runtime.counts()).toBe(0);
     runtime.stop();
@@ -272,7 +286,7 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
       'const context = { host: "institution.example.test:3000", peer: "203.0.113.1", method: "GET", target: "/studio" };',
       'const request = Object.assign(new EventEmitter(), { aborted: false, headers: {} }); const response = Object.assign(new EventEmitter(), { destroyed: false, writableEnded: false });',
       'const next = new NextRequest("https://" + context.host + context.target); assert.equal(next.method, context.method);',
-      'await runtime.run(context, request, response, async () => { assert.equal(runtime.holder.flight(context), false); runtime.holder.publish(context, null); await Promise.resolve(); const read = runtime.holder.read(context); assert.deepEqual(Object.keys(read).sort(), ["assertActive", "session"]); assert.equal(read.session, null); response.emit("finish"); assert.throws(() => runtime.holder.read(context)); });',
+      'await runtime.run(context, request, response, async () => { assert.equal(runtime.holder.flight(context), false); runtime.holder.publish(context, null); await Promise.resolve(); const read = runtime.holder.read(context); assert.deepEqual(Object.keys(read).sort(), ["assertActive", "flight", "session"]); assert.equal(read.session, null); assert.equal(read.flight, false); assert.equal(Object.isFrozen(read), true); response.emit("finish"); assert.throws(() => runtime.holder.read(context)); });',
       'assert.equal(runtime.counts(), 0); runtime.stop();',
     ].join('\n');
     expect(

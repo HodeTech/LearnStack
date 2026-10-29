@@ -10,6 +10,7 @@ import { isBffOpaque } from './session-store.js';
 
 export type BffRequestRead = Readonly<{
   session: SessionProjection | null;
+  flight: boolean;
   assertActive: () => void;
 }>;
 export type BffRequestHolder = Readonly<{
@@ -87,6 +88,7 @@ export function createBffRequestRuntime() {
       const store = current(binding, 'ready');
       return Object.freeze({
         session: store.session,
+        flight: store.flight,
         assertActive() {
           if (current(binding, 'ready') !== store) unavailable();
         },

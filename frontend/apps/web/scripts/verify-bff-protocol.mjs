@@ -207,6 +207,25 @@ try {
     'callback never invokes AccountSite',
   );
   const active = await selectEntry(callback, 'institution.example.test:3000', '/studio');
+  function assertFlightEnvelope(response) {
+    assert.equal(response.status, 200);
+    assert.match(response.headers['content-type'], /text\/x-component/);
+    assert.equal(/(?:^|\n)[0-9a-f]+:E\{/.test(response.body), false, 'Flight has no error frame');
+    assert.equal(response.body.includes(marker), false);
+  }
+  function assertProtectedFlight(response) {
+    assertFlightEnvelope(response);
+    assert.ok(response.body.includes('Institution'), 'Flight contains the admitted display name');
+    if (uiMode) {
+      assert.ok(response.body.includes('auth-shell'), 'Flight contains the protected shell');
+      assert.ok(response.body.includes(bffProofCopy('en', 'shell.studio')));
+      assert.ok(response.body.includes(bffProofCopy('en', 'shell.account')));
+      assert.ok(
+        response.body.includes('"state":"authenticated"'),
+        'Flight contains the session projection',
+      );
+    } else assert.ok(response.body.includes('authenticated'));
+  }
   stage = 'rsc';
   const document = await get('/studio', active);
   assert.equal(document.status, 200);
@@ -216,14 +235,22 @@ try {
     assert.ok(document.body.includes('bff-history'));
   } else assert.match(document.body, /<h1>authenticated<\/h1>/);
   assert.equal(document.body.includes(marker), false);
+  if (uiMode) {
+    const ordinaryQuery = await get('/studio?_rsc=document', active, {
+      headers: { Accept: 'text/html', 'Sec-Fetch-Dest': 'document' },
+    });
+    assert.equal(ordinaryQuery.status, 404, 'document query cannot assert native Flight intent');
+    const repeatedQuery = await get('/studio?_rsc=one&_rsc=two', active, {
+      headers: { RSC: '1', Accept: '*/*', 'Sec-Fetch-Dest': 'empty' },
+    });
+    assert.equal(repeatedQuery.status, 404, 'native Flight still rejects duplicate query tokens');
+  }
   const before = await advance(901000);
   const prior = JSON.parse((await get('/api/auth/session', active)).body);
   const flight = await get('/studio?_rsc=probe', active, {
     headers: { RSC: '1', Accept: '*/*', 'Sec-Fetch-Dest': 'empty' },
   });
-  assert.equal(flight.status, 200);
-  assert.match(flight.headers['content-type'], /text\/x-component/);
-  assert.equal(flight.body.includes(marker), false);
+  assertProtectedFlight(flight);
   const after = await advance(0);
   assert.equal(after.refreshes, before.refreshes + 1, 'actual RSC refreshes expired access');
   assert.equal(after.accounts, before.accounts + 1, 'actual RSC validates AccountSite');
@@ -237,7 +264,9 @@ try {
   const prefetched = await get('/studio?_rsc=prefetch', active, {
     headers: { RSC: '1', 'Next-Router-Prefetch': '1', Accept: '*/*', 'Sec-Fetch-Dest': 'empty' },
   });
-  assert.equal(prefetched.status, 200);
+  // Pinned Next omits dynamic seed data for speculative prefetch. Actual
+  // navigation above must contain the full admitted shell and session.
+  assertFlightEnvelope(prefetched);
   const head = await get('/studio', active, { method: 'HEAD', headers: { Accept: 'text/html' } });
   assert.equal(head.status, 200);
   assert.equal(head.body, '');

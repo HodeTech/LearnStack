@@ -194,6 +194,85 @@ it('uncertain mutation recovery keeps the original key and edits escaped in a de
   expect(document.querySelector('a[href="/portal/profile"]')).not.toBeNull();
 });
 
+it.each([
+  ['en', 'stale'],
+  ['en', 'key_reuse'],
+  ['tr', 'stale'],
+  ['tr', 'key_reuse'],
+] as const)(
+  '%s %s recovery visibly preserves bounded edits for copying without a stale resubmission',
+  (locale, reason) => {
+    const edits = [
+      ['displayName', '"><script>edited-name</script>'],
+      ['preferredLocale', ''],
+      ['status', 'Suspended'],
+      ['roleIds', '["019a154b-0000-7000-8000-000000000022"]'],
+      ['grants', '[{"scope":"Tenant","key":"identity.role.admin"}]'],
+      ['manifestVersion', '2'],
+    ] as const;
+    const internal = [
+      ['csrfToken', 'A'.repeat(43)],
+      ['version', '9223372036854775807'],
+      ['idempotencyKey', 'private-nonce-canary'],
+      ['membershipId', '019a154b-0000-7000-8000-000000000011'],
+      ['roleId', '019a154b-0000-7000-8000-000000000033'],
+      ['manifestFingerprint', 'c'.repeat(64)],
+      ['unknownProof', 'private-proof-canary'],
+    ] as const;
+    const document = new DOMParser().parseFromString(
+      renderBffDocument(
+        { ...site(), defaultLocale: locale },
+        {
+          kind: 'mutation_error',
+          action: '/api/account/profile',
+          destination: '/portal/profile',
+          fields: [...internal, ...edits],
+          reason,
+          retryable: false,
+        },
+      ),
+      'text/html',
+    );
+    const copies = [...document.querySelectorAll('textarea')];
+    expect(copies.map((field) => field.value)).toEqual(edits.map(([, value]) => value));
+    expect(copies.map((field) => field.labels?.[0]?.textContent)).toEqual(
+      locale === 'en'
+        ? [
+            'Display name',
+            'Preferred language',
+            'Membership status',
+            'Role assignment data',
+            'Permission grant data',
+            'Release version',
+          ]
+        : [
+            'Ad',
+            'Tercih edilen dil',
+            'Üyelik durumu',
+            'Rol atama verileri',
+            'Yetki verileri',
+            'Yayın sürümü',
+          ],
+    );
+    for (const field of copies) {
+      expect(field.readOnly).toBe(true);
+      expect(field.disabled).toBe(false);
+      expect(field.closest('form, [hidden], [aria-hidden="true"]')).toBeNull();
+    }
+    expect(document.querySelector('h2')?.textContent).toBe(
+      locale === 'en' ? 'Submitted edits' : 'Gönderilen değişiklikler',
+    );
+    expect(document.body.textContent).toContain(
+      locale === 'en'
+        ? 'Copy these values before checking the item.'
+        : 'Öğeyi kontrol etmeden önce bu değerleri kopyalayın.',
+    );
+    for (const [, value] of internal) expect(document.body.textContent).not.toContain(value);
+    expect(document.querySelector('form, input, script, [onerror], [autofocus]')).toBeNull();
+    expect(document.querySelector('a[href="/portal/profile"]')).not.toBeNull();
+  },
+);
+
 it.each(['en', 'tr'])(
   'entry failure recovery in %s contains no creation or selection mutation and only fixed navigation',
   (locale) => {

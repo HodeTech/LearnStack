@@ -304,7 +304,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
         actorId: next.identity.actorId,
         tenantId: next.identity.tenantId,
         organizationId: next.identity.organizationId,
-        displayLabel: next.identity.displayLabel,
+        displayLabel: previous ? null : next.identity.displayLabel,
       }),
       accessExpiresAt: next.accessExpiresAt,
       refreshExpiresAt: next.refreshExpiresAt,
@@ -749,6 +749,10 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     entry.pending = false;
     entry.source = '';
     entry.replacement = undefined;
+    entry.credentials = Object.freeze({
+      ...entry.credentials!,
+      identity: Object.freeze({ ...entry.credentials!.identity, displayLabel: null }),
+    });
     entry.phase = 'active';
     // Switch inherits its source absolute cap; initial publication starts its own eight-hour cap.
     if (phase === 'selecting') entry.absolute = this.#now() + BFF_LIMITS.absoluteMs;
@@ -957,7 +961,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       this.#assertSignal(current);
       this.#assert(entry, 'active');
       if (entry.credentials !== credentials || entry.identity !== identity)
-        throw new BffSessionError('revoked');
+        throw new BffSessionError('response');
       // Operation refusals withhold their bytes, never reinterpret 401/403/404 as session revocation.
       if (result.kind === 'success') entry.activity = this.#now();
       return result;
@@ -1132,6 +1136,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     } finally {
       entry.credentials = undefined;
       entry.account = undefined;
+      entry.identity = undefined;
     }
     this.#diagnostic('revoked');
     return Object.freeze({ state: entry.logoutState, proof: entry.logoutProof, redirectUrl });
@@ -1182,6 +1187,10 @@ export class InMemoryBffSessionStore implements BffSessionStore {
         .size,
       operations: [...this.#owners.values()].reduce((count, entry) => count + entry.work.size, 0),
       credentialRecords: [...this.#owners.values()].filter((entry) => entry.credentials).length,
+      identityRecords: [...this.#owners.values()].filter((entry) => entry.identity).length,
+      displayLabelRecords: [...this.#owners.values()].filter(
+        (entry) => typeof entry.credentials?.identity.displayLabel === 'string',
+      ).length,
       transactionRecords: [...this.#owners.values()].filter((entry) => entry.transaction).length,
       proofRecords: [...this.#owners.values()].filter((entry) => entry.proof || entry.logoutProof)
         .length,

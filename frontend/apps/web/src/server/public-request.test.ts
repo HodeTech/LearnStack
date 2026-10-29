@@ -6,6 +6,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { createBffRequestRuntime } from './auth/request-runtime';
 import { createConfiguredPublicClient } from './configured-public-client';
 import type { ConfiguredPublicClient, publicTraceparent } from './configured-public-client';
 import { INGRESS_HEADER, mintProvenance, verifyProvenance } from './ingress';
@@ -17,8 +18,12 @@ import { assertPublicRequestActive, getPublicRequest } from './public-request';
 const mocks = vi.hoisted(() => ({
   headers: vi.fn<() => Promise<Headers>>(),
   readAdmission: vi.fn(),
+  bffEnabled: vi.fn<() => boolean>(),
+  bffOwner: vi.fn(),
 }));
 vi.mock('next/headers', () => ({ headers: mocks.headers }));
+vi.mock('./auth/session-owner', () => ({ bffSessionEnabled: mocks.bffEnabled }));
+vi.mock('./auth/request-owner', () => ({ bffRequestOwner: mocks.bffOwner }));
 vi.mock('./public-admission', () => ({ readPublicAdmission: mocks.readAdmission }));
 vi.mock('./configured-public-client', async (importOriginal) => ({
   ...(await importOriginal<{ publicTraceparent: typeof publicTraceparent }>()),
@@ -123,6 +128,8 @@ beforeEach(() => {
   mocks.readAdmission
     .mockReset()
     .mockImplementation((binding: IngressContext) => runtime.holder.read(binding));
+  mocks.bffEnabled.mockReset().mockReturnValue(false);
+  mocks.bffOwner.mockReset();
   createClient.mockReset().mockImplementation(() => client());
 });
 afterEach(() => {
@@ -131,6 +138,68 @@ afterEach(() => {
 });
 
 describe('shared verified public request admission', () => {
+  it.each([false, true])(
+    'uses captured native Flight intent after header stripping (prefetch: %s)',
+    async (prefetch) => {
+      const headers = incoming('/studio?_rsc=owned');
+      const binding = verifyProvenance(headers.get(INGRESS_HEADER), secret)!;
+      const native = createBffRequestRuntime();
+      mocks.bffEnabled.mockReturnValue(true);
+      mocks.bffOwner.mockReturnValue(native.holder);
+      try {
+        await admitted(headers, site(), async (owner) => {
+          owner.request.headers = {
+            rsc: '1',
+            ...(prefetch ? { 'next-router-prefetch': '1' } : {}),
+          };
+          await native.run(binding, owner.request, owner.response, async () => {
+            delete owner.request.headers.rsc;
+            delete owner.request.headers['next-router-prefetch'];
+            native.holder.publish(binding, null);
+            const request = await getPublicRequest();
+            expect(request?.context.target).toBe('/studio?_rsc=owned');
+            expect(request?.site.displayName).toBe('First institution');
+            expect(request?.locale).toBe('tr-TR');
+            expect(createClient.mock.results[0]!.value!.getSite).not.toHaveBeenCalled();
+          });
+        });
+      } finally {
+        native.stop();
+      }
+      expect(native.counts()).toBe(0);
+    },
+  );
+
+  it.each([
+    ['/studio?_rsc=owned', false],
+    ['/studio?_rsc=', true],
+    ['/studio?_rsc=one&_rsc=two', true],
+    ['/studio?_rsc=owned&tenantId=forged', true],
+  ] as const)(
+    'refuses unadmitted Flight query %s (native capture: %s)',
+    async (target, captured) => {
+      const headers = incoming(target);
+      headers.set('rsc', '1');
+      const binding = verifyProvenance(headers.get(INGRESS_HEADER), secret)!;
+      const native = createBffRequestRuntime();
+      mocks.bffEnabled.mockReturnValue(true);
+      mocks.bffOwner.mockReturnValue(native.holder);
+      try {
+        await admitted(headers, site(), async (owner) => {
+          owner.request.headers = captured ? { rsc: '1' } : {};
+          await native.run(binding, owner.request, owner.response, async () => {
+            owner.request.headers.rsc = '1';
+            native.holder.publish(binding, null);
+            await expect(getPublicRequest()).rejects.toThrow(unavailable);
+          });
+        });
+      } finally {
+        native.stop();
+      }
+      expect(native.counts()).toBe(0);
+    },
+  );
+
   it('consumes the immutable middleware snapshot and authentic signed locale with zero site calls', async () => {
     const headers = incoming();
     const configured = client();

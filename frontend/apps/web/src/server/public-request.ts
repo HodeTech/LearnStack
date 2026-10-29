@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { bffRequestOwner } from './auth/request-owner';
 import { bffSessionEnabled } from './auth/session-owner';
 import { createConfiguredPublicClient, publicTraceparent } from './configured-public-client';
 import type { ConfiguredPublicClient } from './configured-public-client';
@@ -36,14 +37,16 @@ const loadPublicRequest = requestMemo(async (incoming): Promise<PublicRequest | 
       signal: admission.signal,
     });
     if (!client) throw new Error('Public admission context unavailable');
-    const entry = publicEntry(context.target, admission.site);
+    const nativeEnabled = bffSessionEnabled();
+    const nativeFlight = nativeEnabled ? bffRequestOwner().read(context).flight : false;
+    const entry = publicEntry(context.target, admission.site, nativeFlight);
     if (entry.kind !== 'continue') throw new Error('Public admission context unavailable');
     admission.assertActive();
     return {
       context,
       client,
       site: admission.site,
-      locale: entry.locale ?? (bffSessionEnabled() ? admission.site.defaultLocale : null),
+      locale: entry.locale ?? (nativeEnabled ? admission.site.defaultLocale : null),
       route: publicRoute(context.target),
     };
   } catch {

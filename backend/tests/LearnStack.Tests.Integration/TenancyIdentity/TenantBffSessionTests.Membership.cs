@@ -75,7 +75,7 @@ public sealed partial class TenantBffSessionTests
             "passive projections cannot replay API authority checks after local revocation");
         var retainedProviderSession = await admin.GetAsync(sessionsPath);
         retainedProviderSession.GetArrayLength().Should().Be(1);
-        retainedProviderSession[0].GetProperty("id").GetString().Should().Be(providerSessionId,
+        RequirePrivateEqual(retainedProviderSession[0].GetProperty("id").GetString(), providerSessionId,
             "membership revocation, not provider logout or expiry, ended local authority");
         (await admin.PostAsync("users/" + user.GetProperty("id").GetString() + "/logout", new { }))
             .Should().Be(HttpStatusCode.NoContent);

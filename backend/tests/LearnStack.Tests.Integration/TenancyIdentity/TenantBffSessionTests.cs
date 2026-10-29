@@ -161,6 +161,53 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
         unavailable.Connections.Should().Be(0, "enabled native construction and successful joined stop must not discover the issuer or bootstrap an unsolicited request");
     }
 
+    private static void RequirePrivateEqual(string? actual, string? expected, string because = "") =>
+        string.Equals(actual, expected, StringComparison.Ordinal).Should().BeTrue(because);
+
+    private static void RequirePrivateDifferent(string? actual, string? expected, string because = "") =>
+        string.Equals(actual, expected, StringComparison.Ordinal).Should().BeFalse(because);
+
+    private static void RequireCookiePresent(string[] cookies, Func<string, bool> predicate, string because = "") =>
+        cookies.Any(predicate).Should().BeTrue(because);
+
+    private static void RequireCookieAbsent(string[] cookies, Func<string, bool> predicate, string because = "") =>
+        cookies.Any(predicate).Should().BeFalse(because);
+
+    private static void RequireCookiesEmpty(string[] cookies, string because = "") =>
+        cookies.Length.Should().Be(0, because);
+
+    private static (string Name, bool ExpectedFailure, bool Failed, bool PrivateFree)[] ObservePrivateAssertionOutput()
+    {
+        var firstToken = WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
+        var secondToken = WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
+        var firstCookie = WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
+        var secondCookie = WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
+        string[] canaries = [firstToken, secondToken, firstCookie, secondCookie];
+        string[] cookies = ["__Host-ls-session=" + firstCookie + "; Path=/", "__Host-ls-browser=" + secondCookie + "; Path=/"];
+        (string Name, bool ExpectedFailure, Action Check)[] controls =
+        [
+            ("equal_positive", false, () => RequirePrivateEqual(firstToken, firstToken)),
+            ("equal_negative", true, () => RequirePrivateEqual(firstToken, secondToken)),
+            ("different_positive", false, () => RequirePrivateDifferent(firstToken, secondToken)),
+            ("different_negative", true, () => RequirePrivateDifferent(firstToken, firstToken)),
+            ("present_positive", false, () => RequireCookiePresent(cookies, value => value.StartsWith("__Host-ls-session=", StringComparison.Ordinal))),
+            ("present_negative", true, () => RequireCookiePresent(cookies, value => value.StartsWith("__Host-ls-entry=", StringComparison.Ordinal))),
+            ("absent_positive", false, () => RequireCookieAbsent(cookies, value => value.StartsWith("__Host-ls-entry=", StringComparison.Ordinal))),
+            ("absent_negative", true, () => RequireCookieAbsent(cookies, value => value.StartsWith("__Host-ls-session=", StringComparison.Ordinal))),
+            ("empty_positive", false, () => RequireCookiesEmpty([])),
+            ("empty_negative", true, () => RequireCookiesEmpty(cookies)),
+        ];
+        // Capture before any outer assertion scope: only closed names and Boolean
+        // observations reach assertion formatting, never the deliberate canaries.
+        return controls.Select(control =>
+        {
+            var error = Record.Exception(control.Check);
+            var diagnostic = error?.ToString() ?? "";
+            return (control.Name, control.ExpectedFailure, Failed: error is not null,
+                PrivateFree: canaries.All(canary => !diagnostic.Contains(canary, StringComparison.Ordinal)));
+        }).ToArray();
+    }
+
     /// <summary>Catalogue: Bff_Host_Cookies_And_History_Are_Isolated (ADR-0070).</summary>
     [Fact]
     public async Task Native_https_browser_stores_host_cookies_and_revalidates_logout_history_with_a_live_counter_control()
@@ -171,23 +218,29 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
             using var reader = new StreamReader(bytes);
             return await BffNativeDriver.ReadErrorsAsync(reader, CancellationToken.None);
         }
-        (await ClosedErrorAsync("BFF browser fixture failed: browser-launch\n")).Should().Be("browser-launch");
-        (await ClosedErrorAsync("BFF browser fixture failed: browser-launch\nBFF browser cleanup failed.\n"))
-            .Should().Be("browser-launch_cleanup_failed");
-        foreach (var stage in new[] { "browser-executable", "browser-spawn", "browser-devtools", "browser-devtools-inactive",
-                     "browser-devtools-unreadable", "browser-devtools-missing", "browser-devtools-empty", "browser-devtools-malformed",
-                     "browser-not-live", "browser-connect", "browser-context" })
+        var privateAssertions = ObservePrivateAssertionOutput();
+        using (new FluentAssertions.Execution.AssertionScope())
         {
-            (await ClosedErrorAsync("BFF browser fixture failed: " + stage + "\n")).Should().Be(stage);
-            (await ClosedErrorAsync("BFF browser fixture failed: " + stage + "\nBFF browser cleanup failed.\n"))
-                .Should().Be(stage + "_cleanup_failed");
+            privateAssertions.Should().OnlyContain(control => control.Failed == control.ExpectedFailure && control.PrivateFree,
+                "the real fixture assertion helpers must retain their guards without printing private values on failure");
+            (await ClosedErrorAsync("BFF browser fixture failed: browser-launch\n")).Should().Be("browser-launch");
+            (await ClosedErrorAsync("BFF browser fixture failed: browser-launch\nBFF browser cleanup failed.\n"))
+                .Should().Be("browser-launch_cleanup_failed");
+            foreach (var stage in new[] { "browser-executable", "browser-spawn", "browser-devtools", "browser-devtools-inactive",
+                         "browser-devtools-unreadable", "browser-devtools-missing", "browser-devtools-empty", "browser-devtools-malformed",
+                         "browser-not-live", "browser-connect", "browser-context", "browser-entry-confirmation" })
+            {
+                (await ClosedErrorAsync("BFF browser fixture failed: " + stage + "\n")).Should().Be(stage);
+                (await ClosedErrorAsync("BFF browser fixture failed: " + stage + "\nBFF browser cleanup failed.\n"))
+                    .Should().Be(stage + "_cleanup_failed");
+            }
+            (await ClosedErrorAsync("BFF browser fixture failed: browser-launch\nPRIVATE-CANARY\n"))
+                .Should().Be("browser-launch_unexpected_output");
+            (await ClosedErrorAsync("BFF session fixture failed: native-stop\nBFF session cleanup failed.\n"))
+                .Should().Be("native-stop_cleanup_failed");
+            (await ClosedErrorAsync("BFF session fixture failed: native-stop\nBFF browser cleanup failed.\n"))
+                .Should().Be("native-stop_unexpected_output");
         }
-        (await ClosedErrorAsync("BFF browser fixture failed: browser-launch\nPRIVATE-CANARY\n"))
-            .Should().Be("browser-launch_unexpected_output");
-        (await ClosedErrorAsync("BFF session fixture failed: native-stop\nBFF session cleanup failed.\n"))
-            .Should().Be("native-stop_cleanup_failed");
-        (await ClosedErrorAsync("BFF session fixture failed: native-stop\nBFF browser cleanup failed.\n"))
-            .Should().Be("native-stop_unexpected_output");
         var input = new
         {
             protocol = 1,
@@ -280,7 +333,7 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
                 var cross = await native.RequestAsync(Host(other), "/studio", cookies.Header);
                 cross.Status.Should().Be(303);
                 cross.Location.Should().Be("https://" + Host(other) + "/api/auth/signin?returnTo=%2Fstudio");
-                cross.Cookies.Should().BeEmpty("a copied host cookie cannot authorize edits on the other host");
+                RequireCookiesEmpty(cross.Cookies, "a copied host cookie cannot authorize edits on the other host");
                 cross.PrivateFree.Should().BeTrue();
                 cross.Cache.Should().Contain("no-store");
                 api.Observed.Reads.Count(row => row.Actor is not null).Should().Be(priorReads,
@@ -313,7 +366,7 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
                 await AnonymousAsync(native, tenant, oldScopeCookie);
                 var switchedSession = await native.RequestAsync(Host(tenant), "/api/auth/session", cookies.Header);
                 switchedSession.Data.GetProperty("state").GetString().Should().Be("authenticated");
-                switchedSession.Data.GetProperty("csrfToken").GetString().Should().NotBe(extended.GetProperty("csrfToken").GetString());
+                RequirePrivateDifferent(switchedSession.Data.GetProperty("csrfToken").GetString(), extended.GetProperty("csrfToken").GetString());
                 switchedSession.Data.GetProperty("expiresAt").GetDouble().Should().BeLessThanOrEqualTo(extended.GetProperty("expiresAt").GetDouble());
                 extended = switchedSession.Data;
                 (await AuditCountsAsync(database)).Should().Equal(beforeSwitchAudit,
@@ -394,7 +447,7 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
                 var oppositeCompleted = await native.RequestAsync(Host(tenant), oppositeCallback.PathAndQuery, oppositeCookies.Header);
                 oppositeCompleted.Status.Should().Be(303);
                 oppositeCompleted.Location.Should().Be("https://" + Host(tenant) + "/api/auth/entry");
-                oppositeCompleted.Cookies.Should().NotContain(value => value.StartsWith("__Host-ls-session=", StringComparison.Ordinal),
+                RequireCookieAbsent(oppositeCompleted.Cookies, value => value.StartsWith("__Host-ls-session=", StringComparison.Ordinal),
                     "tenantless identity alone cannot publish a tenant session");
                 oppositeCookies.Apply(oppositeCompleted);
                 var oppositeEntry = await native.RequestAsync(Host(tenant), "/api/auth/entry", oppositeCookies.Header);
@@ -416,7 +469,7 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
                 var destinationQuery = QueryHelpers.ParseQuery(destinationLocation.Query);
                 destinationQuery.Keys.Should().BeEquivalentTo(["returnTo", "contextHint"]);
                 destinationQuery["contextHint"].ToString().Should().Be("tenant");
-                destination.Cookies.Should().BeEmpty("cross-host entry transfers no cookie or provider credential");
+                RequireCookiesEmpty(destination.Cookies, "cross-host entry transfers no cookie or provider credential");
                 destination.PrivateFree.Should().BeTrue();
                 await AnonymousAsync(native, tenant, oppositeCookies.Header);
                 api.Observed.Reads.Count(row => row.Actor is not null).Should().Be(beforeOppositeReads,
@@ -494,7 +547,7 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
         completed.PrivateFree.Should().BeTrue();
         cookies.Apply(completed);
         completed.Location.Should().Be("https://" + host + "/api/auth/entry");
-        completed.Cookies.Should().NotContain(value => value.StartsWith("__Host-ls-session=", StringComparison.Ordinal),
+        RequireCookieAbsent(completed.Cookies, value => value.StartsWith("__Host-ls-session=", StringComparison.Ordinal),
             "provider callback creates entry custody, never a tenant session");
         var entry = await native.RequestAsync(host, "/api/auth/entry", cookies.Header);
         entry.Status.Should().Be(200);

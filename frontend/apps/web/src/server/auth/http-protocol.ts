@@ -201,6 +201,8 @@ export function createBffHttpProtocol(store: BffSessionStore) {
       }
     },
     async handle(request: BffHttpRequest, render?: BffPageRenderer): Promise<Response | null> {
+      const httpSignal = request.signal;
+      let postDeadline: AbortSignal | undefined;
       const path = request.target.split('?', 1)[0]!;
       // An inert public query is not a logout action. Only an owned proof-cookie
       // family selects the root return protocol; unrecognized states touch nothing.
@@ -220,11 +222,13 @@ export function createBffHttpProtocol(store: BffSessionStore) {
           ? result(request, { code: 'not_found' }, 404)
           : null;
       try {
-        if (request.method === 'POST')
+        if (request.method === 'POST') {
+          postDeadline = AbortSignal.timeout(10_000);
           request = {
             ...request,
-            signal: AbortSignal.any([request.signal, AbortSignal.timeout(10_000)]),
+            signal: AbortSignal.any([httpSignal, postDeadline]),
           };
+        }
         if (
           request.method !== 'POST' &&
           (request.body !== null ||
@@ -450,20 +454,20 @@ export function createBffHttpProtocol(store: BffSessionStore) {
               csrf!,
               request.signal,
             );
+            // A deadline after API settlement is still an unconfirmed mutation.
+            request.signal.throwIfAborted();
           } catch (error) {
+            const live = store.peek(current);
+            const localDeadline = postDeadline?.aborted === true && !httpSignal.aborted;
             if (
-              request.signal.aborted ||
-              !store.peek(current) ||
+              httpSignal.aborted ||
+              !live ||
+              !bffSecretEquals(csrf, live.csrfToken) ||
               (error instanceof BffSessionError &&
-                [
-                  'revoked',
-                  'expired',
-                  'cancelled',
-                  'transaction',
-                  'csrf',
-                  'identity',
-                  'stopped',
-                ].includes(error.reason))
+                (['revoked', 'expired', 'transaction', 'csrf', 'identity', 'stopped'].includes(
+                  error.reason,
+                ) ||
+                  (error.reason === 'cancelled' && !localDeadline)))
             )
               throw error;
             return document(
@@ -481,7 +485,6 @@ export function createBffHttpProtocol(store: BffSessionStore) {
               503,
             );
           }
-          request.signal.throwIfAborted();
           if (outcome.kind === 'success') return redirect(request, form.destination, []);
           const status =
             outcome.kind === 'api-error'

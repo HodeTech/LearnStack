@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 2,406 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 2,494 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -183,6 +183,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 7 review round 1 and own-navigation diagnostics correction (2026-10-29)](#p03-3-step-7-review-round-1-and-own-navigation-diagnostics-correction-2026-10-29) — 36 lines
   - [P03-3 Step 7 review round 2, protocol bounds and closeout (2026-10-29)](#p03-3-step-7-review-round-2-protocol-bounds-and-closeout-2026-10-29) — 52 lines
   - [P03-3 Step 8 — Native session ownership (2026-10-29)](#p03-3-step-8--native-session-ownership-2026-10-29) — 112 lines
+  - [P03-3 Step 8 review round 1 and recovery corrections (2026-10-29)](#p03-3-step-8-review-round-1-and-recovery-corrections-2026-10-29) — 88 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -8132,3 +8133,91 @@ A/B/CI qualification or production readiness. Step 9 owns native preloaded bound
 page snapshots, the selected screens and actual browser/history/no-script/en/tr
 and manual accessibility proof; Step 10 owns complete final-source qualification
 and the reviewable PR. Both fresh postcommit Step 8 review rounds still follow.
+
+### P03-3 Step 8 review round 1 and recovery corrections (2026-10-29)
+
+**Independent review.** Three new reviewers (`gpt-6-astra`, xhigh) reviewed
+`75f974502a4f443f0fda6b8b073758a78546f9c3` through
+`ddfa54b97928b12b0eb4ff7abd24da8b3fa34e94` with separate owner/provider,
+HTTP/protocol/lifetime and integration/configuration/documentation lenses.
+They performed source review, not independent runtime qualification. No Blocker
+was established in those lenses. Four Major and four Minor findings were
+verified and corrected; the verdict did not close Step 8 or approve the packet.
+
+**Verified corrections.**
+
+- The POST owner preserves the original HTTP signal separately from its local
+  deadline. A connected browser receives bounded 503 unknown-outcome recovery
+  after actual operation cleanup, including when the deadline fires just after
+  mutation settlement. Actual disconnect, logout, replacement, expiry, changed
+  CSRF and other terminal owner states still withhold publication. No automatic
+  mutation retry or asserted rollback is introduced.
+- A successful concurrent refresh of the same live scope withholds the old
+  mutation revision as unavailable rather than falsely classifying the owner as
+  revoked. The recovery retains the original request/body/version/key and fixed
+  lookup while the live session remains usable.
+- Stale/key-reuse 409 documents retain six closed editable field kinds as escaped,
+  localized readonly copy fields. Proofs, versions, internal fingerprints and
+  unknown fields are excluded. No stale resubmission, silent rebase or extra API
+  read is offered; the full editor remains Step 9 work.
+- Native C# fixture assertions pass only ordinal-equality Booleans, cookie
+  presence Booleans or counts to assertion formatting. Ten deliberately failing
+  and positive fake-canary controls exercise the five actual shared helpers,
+  retaining all fifteen sensitive callers without exposing private values.
+- Ordinary logout removes the stored actor/context projection immediately while
+  retaining only the existing subject/return/work ownership. Parsed advisory
+  provider labels are scrubbed at publication and remain absent after refresh;
+  entry labels and necessary signed logout ID tokens retain their separate rules.
+- The new browser entry stage belongs to the closed C# diagnostic allowlist,
+  including cleanup-failure classification. The canonical manual HTTPS/hosts
+  recipe lists all four exact public/management names and changes no system trust.
+
+**Additional qualification finding.** Read-only Step 9 preparation identified an
+existing Step 8 Flight rendering mismatch: middleware admitted its captured
+native Flight query, while RSC repeated `publicEntry` with its default false
+flag. Status/MIME-only checks accepted an error payload. Two positive unit
+controls failed (39/41 passing, zero skips), and the real production-mode Next
+UI proof failed at its closed `rsc` stage when required to contain the actual
+protected shell/session content without Flight error frames. The correction
+carries only the immutable native-captured Flight Boolean through the passive
+request reader. Exact reader/holder censuses, header-stripping capture, forged
+header/query refusals and actual Flight/prefetch content controls are retained.
+No request header, tenant selector or API operation becomes RSC authority.
+The first complete frontend attempt failed five cases on an overbroad digest
+property assertion. Closed Boolean diagnostics and the pinned Next/React sources
+confirmed successful metadata contains `digest: undefined`, serialized as
+`$undefined`; actual errors use distinct hexadecimal `:E` frames. The corrected
+proof rejects those error frames and requires real shell/session/display content.
+A second attempt reached passive prefetch and exposed another test expectation:
+pinned Next deliberately omits dynamic seed data on this speculative path.
+Prefetch retains strict envelope/error/private-value and no-refresh/no-idle
+checks; actual navigation must contain the full protected content. The old
+implementation still fails the corrected actual navigation proof. No raw wire
+or private credential values were persisted.
+
+**Red/green evidence.** Root executed the controls on frozen source. Before fixes,
+owner tests had 122 passing/six failing cases of 128; protocol/HTML had 90
+passing/11 failing cases of 101, with actual-disconnect positive control passing.
+The private-output/stage Browser Fact failed before Chrome launch, displaying only
+closed Boolean observations. After fixes, owner tests pass 128/128 and protocol/
+HTML pass 101/101, zero skips. The strict integration Release build passes with
+zero warnings/errors. All eight real Keycloak/PostgreSQL/native HTTPS cases pass
+with zero skips in 6m27s, including actual Chrome, private-output canary helpers,
+entry/logout, independent SSO contexts and both-host refresh/write journeys. This
+run precedes the additional Flight correction recorded below; complete frontend
+qualification follows before the normal correction commit.
+
+**Final correction evidence.** Guarded frontend passes 2,981/2,981 across web and
+SDK, zero skips/todos, including all actual Next production/development and dirty
+protocol controls. Workspace typecheck and lint pass; lint also builds the native
+web/SDK output. Its only corrective change is import ordering in one test file.
+Markdown/roadmap/index checks and the normal commit hooks accompany this record.
+The real eight-case run above and complete frontend qualification have distinct
+source scopes; complete final-source backend/provider/native and hosted A/B
+populations remain Step 10 obligations.
+
+**Boundary.** These corrections implement the Accepted contracts without a new
+permission, ADR or runtime authority. A fresh independent second review round
+follows the correction commit; Step 9 still owns bounded page snapshots/screens
+and actual browser/no-script/localization/manual accessibility. Step 10 retains
+complete final-source and hosted A/B qualification.

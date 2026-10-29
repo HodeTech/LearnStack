@@ -1,10 +1,57 @@
 // @vitest-environment node
+import { createRequire } from 'node:module';
+
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { bffFixture, bffHost, bffOpaque, bffRequest, bffSource } from './bff-fixture';
 import { BFF_COOKIES } from '../server/auth/cookies';
+import { renderBffDocument } from '../server/auth/html';
 import { bffAdministrationForm, bffCursor, bffPageQuery } from '../server/auth/http-forms';
 import { BffSessionError } from '../server/auth/session-contract';
+import type { PublicSite } from '../server/public-entry';
+
+const { JSDOM } = createRequire(import.meta.url)('jsdom') as {
+  JSDOM: new (html: string) => { window: { document: Document; close(): void } };
+};
+const recoverySite: PublicSite = {
+  displayName: 'Institution',
+  enabledLocales: ['en', 'tr'],
+  defaultLocale: 'en',
+  theme: null,
+  showPlatformAttribution: true,
+};
+
+function deferred() {
+  let release!: () => void;
+  const promise = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  return { promise, release };
+}
+
+async function expectUnknownRecovery(response: Response, fields: Record<string, string>) {
+  expect(response.status).toBe(503);
+  expect(response.headers.get('cache-control')).toBe('no-store');
+  expect(response.headers.get('content-type')).toBe('text/html; charset=utf-8');
+  expect(response.headers.get('location')).toBeNull();
+  expect(response.headers.getSetCookie()).toEqual([]);
+  const dom = new JSDOM(await response.text());
+  try {
+    const document = dom.window.document;
+    const form = document.querySelector('form')!;
+    expect(form?.getAttribute('action')).toBe('/api/account/profile');
+    expect(form?.getAttribute('method')).toBe('post');
+    expect([...form.querySelectorAll('input')].map((field) => [field.name, field.value])).toEqual(
+      Object.entries(fields),
+    );
+    expect(document.body.textContent).toContain('The result could not be confirmed.');
+    expect(document.querySelector('a[href="/portal/profile"]')).not.toBeNull();
+    expect(document.querySelector('script, img, [onerror], [autofocus]')).toBeNull();
+    expect(document.body.textContent).not.toContain('private-');
+  } finally {
+    dom.window.close();
+  }
+}
 
 const fixtures: ReturnType<typeof bffFixture>[] = [];
 function fixture() {
@@ -306,6 +353,260 @@ describe('exact native administration forms', () => {
     expect(render).toHaveBeenCalledWith(expect.objectContaining({ retryable: true }));
     expect(f.administration).toHaveBeenCalledTimes(1);
   });
+
+  it.each(['deadline', 'disconnect'] as const)(
+    'distinguishes a connected POST deadline from an actual %s while retaining held API cleanup',
+    async (interruption) => {
+      const f = fixture();
+      const active = await f.login();
+      const browser = new AbortController();
+      const deadline = new AbortController();
+      const timeout = vi.spyOn(AbortSignal, 'timeout').mockImplementationOnce((milliseconds) => {
+        expect(milliseconds).toBe(10_000);
+        return deadline.signal;
+      });
+      const fields = {
+        csrfToken: active.finished.session.csrfToken,
+        ...write,
+        displayName: '"><img src=x onerror=alert(1)>',
+        preferredLocale: '',
+      };
+      const formStarted = deferred();
+      const finishForm = deferred();
+      const apiStarted = deferred();
+      const apiAborted = deferred();
+      const finishApi = deferred();
+      let apiSignal: AbortSignal | undefined;
+      const success = f.administration.getMockImplementation()!;
+      f.administration.mockImplementationOnce(async (...args) => {
+        apiSignal = args[3];
+        apiSignal.addEventListener('abort', apiAborted.release, { once: true });
+        apiStarted.release();
+        await apiAborted.promise;
+        // Actual transport/body cleanup still owns the operation after logical abort.
+        await finishApi.promise;
+        return success(...args);
+      });
+      const render = vi.fn((page: Parameters<typeof renderBffDocument>[1]) =>
+        renderBffDocument(recoverySite, page),
+      );
+      const request = bffRequest('/api/account/profile', {
+        method: 'POST',
+        cookie: active.cookie,
+        form: new URLSearchParams(fields).toString(),
+        signal: browser.signal,
+      });
+      const pending = f.http.handle(
+        {
+          ...request,
+          body: new ReadableStream({
+            async pull(controller) {
+              formStarted.release();
+              await finishForm.promise;
+              controller.enqueue(new TextEncoder().encode(new URLSearchParams(fields).toString()));
+              controller.close();
+            },
+          }),
+        },
+        render,
+      );
+      let settled = false;
+      void pending.then(() => {
+        settled = true;
+      });
+      try {
+        await formStarted.promise;
+        expect(timeout).toHaveBeenNthCalledWith(1, 10_000);
+        expect(f.administration).not.toHaveBeenCalled();
+        expect(f.store.counts().operations).toBe(0);
+        finishForm.release();
+        await apiStarted.promise;
+        expect(f.store.counts()).toMatchObject({ owners: 1, operations: 1 });
+        (interruption === 'deadline' ? deadline : browser).abort();
+        await apiAborted.promise;
+        expect(browser.signal.aborted).toBe(interruption === 'disconnect');
+        expect(apiSignal?.aborted).toBe(true);
+        expect(settled).toBe(false);
+        expect(render).not.toHaveBeenCalled();
+        expect(f.store.counts()).toMatchObject({ owners: 1, operations: 1 });
+        expect(f.store.peek(active.binding)).not.toBeNull();
+        finishApi.release();
+        const response = (await pending)!;
+        expect(f.store.counts()).toMatchObject({ owners: 1, operations: 0 });
+        expect(f.administration).toHaveBeenCalledTimes(1);
+        expect(f.provider.refresh).not.toHaveBeenCalled();
+        expect(f.store.peek(active.binding)).not.toBeNull();
+        if (interruption === 'deadline') {
+          await expectUnknownRecovery(response, fields);
+          expect(render).toHaveBeenCalledTimes(1);
+        } else {
+          expect(render).not.toHaveBeenCalled();
+          expect(response.status).not.toBe(303);
+          expect(response.headers.get('location')).toBeNull();
+          expect(response.headers.getSetCookie()).toEqual([]);
+          expect(await response.text()).not.toContain(fields.idempotencyKey);
+        }
+      } finally {
+        finishForm.release();
+        browser.abort();
+        finishApi.release();
+        await pending;
+      }
+    },
+  );
+
+  it('a connected deadline after real mutation settlement still withholds success and preserves recovery', async () => {
+    const f = fixture();
+    const active = await f.login();
+    const browser = new AbortController();
+    const deadline = new AbortController();
+    vi.spyOn(AbortSignal, 'timeout').mockImplementationOnce((milliseconds) => {
+      expect(milliseconds).toBe(10_000);
+      return deadline.signal;
+    });
+    const operate = f.store.operate.bind(f.store);
+    vi.spyOn(f.store, 'operate').mockImplementationOnce(async (...args) => {
+      const outcome = await operate(...args);
+      expect(f.store.counts().operations).toBe(0);
+      deadline.abort();
+      return outcome;
+    });
+    const fields = {
+      csrfToken: active.finished.session.csrfToken,
+      ...write,
+      displayName: 'Settled but unconfirmed <edit>',
+      preferredLocale: 'tr',
+    };
+    const response = await f.http.handle(
+      bffRequest('/api/account/profile', {
+        method: 'POST',
+        cookie: active.cookie,
+        form: new URLSearchParams(fields).toString(),
+        signal: browser.signal,
+      }),
+      (page) => renderBffDocument(recoverySite, page),
+    );
+    expect(browser.signal.aborted).toBe(false);
+    expect(f.administration).toHaveBeenCalledTimes(1);
+    expect(f.store.peek(active.binding)).not.toBeNull();
+    await expectUnknownRecovery(response!, fields);
+  });
+
+  it('a concurrent credential refresh withholds a held mutation success but keeps exact live-owner recovery', async () => {
+    const f = fixture();
+    const active = await f.login();
+    const apiStarted = deferred();
+    const finishApi = deferred();
+    const success = f.administration.getMockImplementation()!;
+    f.administration.mockImplementationOnce(async (...args) => {
+      apiStarted.release();
+      await finishApi.promise;
+      return success(...args);
+    });
+    const browser = new AbortController();
+    const fields = {
+      csrfToken: active.finished.session.csrfToken,
+      ...write,
+      displayName: 'Preserve across refresh <edit>',
+      preferredLocale: '',
+    };
+    const pending = f.http.handle(
+      bffRequest('/api/account/profile', {
+        method: 'POST',
+        cookie: active.cookie,
+        form: new URLSearchParams(fields).toString(),
+        signal: browser.signal,
+      }),
+      (page) => renderBffDocument(recoverySite, page),
+    );
+    try {
+      await apiStarted.promise;
+      expect(f.store.counts().operations).toBe(1);
+      const refreshed = await f.store.admit(active.binding, bffSource, 'extend');
+      expect(f.provider.refresh).toHaveBeenCalledTimes(1);
+      expect(refreshed.csrfToken).toBe(active.finished.session.csrfToken);
+      expect(f.store.peek(active.binding)).toEqual(refreshed);
+      expect(f.store.counts().operations).toBe(1);
+      finishApi.release();
+      const response = (await pending)!;
+      expect(browser.signal.aborted).toBe(false);
+      expect(f.administration).toHaveBeenCalledTimes(1);
+      expect(f.store.counts().operations).toBe(0);
+      expect(f.store.peek(active.binding)).toEqual(refreshed);
+      await expectUnknownRecovery(response, fields);
+    } finally {
+      finishApi.release();
+      await pending;
+    }
+  });
+
+  it.each([
+    ['en', 'concurrency_conflict'],
+    ['en', 'idempotency_key_reuse'],
+    ['tr', 'concurrency_conflict'],
+    ['tr', 'idempotency_key_reuse'],
+  ] as const)(
+    '%s %s preserves visible submitted edits through the real protocol renderer',
+    async (locale, code) => {
+      const f = fixture();
+      const active = await f.login();
+      f.administration.mockResolvedValueOnce({
+        kind: 'api-error',
+        status: 409,
+        error: { code },
+        problem: {
+          type: 'https://errors.example.test/' + code,
+          title: 'Conflict',
+          status: 409,
+          instance: '/api/v1/identity/me/profile',
+          code,
+          messageKey: 'error.' + code,
+          correlationId: '019a154b-0000-7000-8000-000000000055',
+        },
+      });
+      const fields = {
+        csrfToken: active.finished.session.csrfToken,
+        ...write,
+        displayName: '"><img src=x onerror=alert(1)>',
+        preferredLocale: 'tr',
+      };
+      const response = (await f.http.handle(
+        bffRequest('/api/account/profile', {
+          method: 'POST',
+          cookie: active.cookie,
+          form: new URLSearchParams(fields).toString(),
+        }),
+        (page) => renderBffDocument({ ...recoverySite, defaultLocale: locale }, page),
+      ))!;
+      expect(response.status).toBe(409);
+      expect(response.headers.get('cache-control')).toBe('no-store');
+      expect(response.headers.get('location')).toBeNull();
+      expect(response.headers.getSetCookie()).toEqual([]);
+      const dom = new JSDOM(await response.text());
+      try {
+        const document = dom.window.document;
+        expect(document.documentElement.lang).toBe(locale);
+        expect([...document.querySelectorAll('textarea')].map((field) => field.value)).toEqual([
+          fields.displayName,
+          fields.preferredLocale,
+        ]);
+        expect(document.body.textContent).toContain(
+          locale === 'en' ? 'Submitted edits' : 'Gönderilen değişiklikler',
+        );
+        expect(document.body.textContent).not.toContain(fields.csrfToken);
+        expect(document.body.textContent).not.toContain(fields.idempotencyKey);
+        expect(document.body.textContent).not.toContain(fields.version);
+        expect(
+          document.querySelector('form, input, script, img, [onerror], [autofocus]'),
+        ).toBeNull();
+        expect(document.querySelector('a[href="/portal/profile"]')).not.toBeNull();
+      } finally {
+        dom.window.close();
+      }
+      expect(f.administration).toHaveBeenCalledTimes(1);
+      expect(f.store.peek(active.binding)).not.toBeNull();
+    },
+  );
 });
 
 describe('entry and scope HTTP publication', () => {

@@ -879,11 +879,19 @@ describe('logout, actual settlement and shutdown', () => {
   it('reports one closed local signout transition without logging invalid or repeated attempts', async () => {
     const f = fixture();
     const { binding, finished } = await f.login();
+    expect(f.store.counts()).toMatchObject({ identityRecords: 1, credentialRecords: 1 });
     expect(() => f.store.signout(binding, secret())).toThrow(BffSessionError);
     expect(f.diagnostic).not.toHaveBeenCalled();
     const logout = f.store.signout(binding, finished.session.csrfToken);
     expect(f.diagnostic.mock.calls).toEqual([['revoked']]);
-    expect(f.store.counts()).toMatchObject({ credentialRecords: 0, logoutStates: 1 });
+    expect(f.store.counts()).toMatchObject({
+      owners: 1,
+      subjects: 1,
+      identityRecords: 0,
+      credentialRecords: 0,
+      proofRecords: 1,
+      logoutStates: 1,
+    });
     expect(() => f.store.signout(binding, finished.session.csrfToken)).toThrow(BffSessionError);
     expect(f.store.consumeLogout({ ...binding, ...logout })).toBe(true);
     expect(f.store.consumeLogout({ ...binding, ...logout })).toBe(false);
@@ -931,6 +939,7 @@ describe('logout, actual settlement and shutdown', () => {
   it('a provider logout URL failure still revokes locally, drops credentials and keeps only the bounded return', async () => {
     const f = fixture();
     const { binding } = await f.login();
+    expect(f.store.counts()).toMatchObject({ identityRecords: 1, credentialRecords: 1 });
     vi.mocked(f.provider.logoutUrl).mockImplementation(() => {
       throw new Error(privateCanary);
     });
@@ -938,7 +947,15 @@ describe('logout, actual settlement and shutdown', () => {
     expect(output.redirectUrl).toBeNull();
     expect(f.store.peek(binding)).toBeNull();
     expect(f.diagnostics).toEqual(['response', 'revoked']);
-    expect(f.store.counts()).toMatchObject({ owners: 1, pending: 0, subjects: 1 });
+    expect(f.store.counts()).toMatchObject({
+      owners: 1,
+      pending: 0,
+      subjects: 1,
+      identityRecords: 0,
+      credentialRecords: 0,
+      proofRecords: 1,
+      logoutStates: 1,
+    });
   });
 
   it('stop closes all gates immediately and joins actual work without claiming timeout settlement', async () => {
@@ -1511,6 +1528,60 @@ describe('native entry, selection and private operation ownership', () => {
     expect(f.store.counts()).toMatchObject({ owners: 0, pending: 0, subjects: 0 });
   });
 
+  it('retains the decoded display label only until the five-minute entry publishes an active session', async () => {
+    const f = fixture();
+    const entry = await f.enter(await f.start());
+    const binding = entryBinding(entry);
+    expect(entry.entry.displayLabel).toBe(identity.displayLabel);
+    expect(f.store.counts()).toMatchObject({
+      pending: 1,
+      identityRecords: 0,
+      displayLabelRecords: 1,
+      credentialRecords: 1,
+    });
+    f.advance(BFF_LIMITS.transactionMs - 1);
+    expect((await f.store.entry(binding, source)).displayLabel).toBe(identity.displayLabel);
+    const selected = await f.store.select(binding, source, entry.entry.csrfToken, scope);
+    expect(selected.kind).toBe('session');
+    if (selected.kind !== 'session') throw new Error('Expected local session');
+    expect(selected.session.displayName).toBe('Institution');
+    expect(f.store.counts()).toMatchObject({
+      owners: 1,
+      pending: 0,
+      identityRecords: 1,
+      displayLabelRecords: 0,
+      credentialRecords: 1,
+    });
+    f.store.signout({ ...binding, handle: selected.handle }, selected.session.csrfToken);
+    expect(f.provider.logoutUrl).toHaveBeenCalledWith(
+      privateCanary,
+      'https://' + host + '/',
+      expect.any(String),
+    );
+  });
+
+  it('does not retain a new decoded display label when refreshing an active credential bundle', async () => {
+    const f = fixture();
+    const active = await f.login();
+    f.setIdentity({ displayLabel: 'New advisory label' });
+    const refreshed = await f.store.admit(active.binding, source, 'extend');
+    expect(f.provider.refresh).toHaveBeenCalledTimes(1);
+    expect(f.store.peek(active.binding)).toEqual(refreshed);
+    expect(refreshed.displayName).toBe('Institution');
+    expect(f.store.counts()).toMatchObject({
+      owners: 1,
+      identityRecords: 1,
+      displayLabelRecords: 0,
+      credentialRecords: 1,
+    });
+    f.store.signout(active.binding, refreshed.csrfToken);
+    expect(f.provider.logoutUrl).toHaveBeenCalledWith(
+      privateCanary,
+      'https://' + host + '/',
+      expect.any(String),
+    );
+  });
+
   it.each(['Identical name', 'é', 'e\u0301', null])(
     'preserves a live destination for another exact subject regardless of label %s',
     async (label) => {
@@ -1663,6 +1734,57 @@ describe('native entry, selection and private operation ownership', () => {
     );
   });
 
+  it('withholds a held mutation result after successful independent extension as recoverable response failure', async () => {
+    const f = fixture();
+    const active = await f.login();
+    const held = deferred<void>();
+    releases.push(() => held.resolve());
+    f.administration.mockImplementationOnce(async () => {
+      await held.promise;
+      return {
+        kind: 'success',
+        status: 200,
+        data: { version: '2' },
+        etag: '"2"',
+        location: null,
+        replayed: false,
+      };
+    });
+    const mutation = {
+      kind: 'setOwnProfile' as const,
+      profile: { displayName: 'Changed', preferredLocale: null },
+      version: '1',
+      idempotencyKey: 'retained-mutation-key',
+    };
+    const pending = f.store.operate(
+      active.binding,
+      source,
+      mutation,
+      active.finished.session.csrfToken,
+    );
+    const outcome = pending.then(
+      (result) => ({ result }),
+      (error: unknown) => ({ error }),
+    );
+    await vi.waitFor(() => expect(f.administration).toHaveBeenCalledTimes(1));
+    const originalToken = f.administration.mock.calls[0]![0];
+    f.advance(1_000);
+    const extended = await f.store.admit(active.binding, source, 'extend');
+    expect(f.provider.refresh).toHaveBeenCalledTimes(1);
+    expect(f.account.mock.calls.at(-1)![0]).not.toBe(originalToken);
+    expect(f.store.peek(active.binding)).toEqual(extended);
+    expect(f.store.counts()).toMatchObject({ owners: 1, subjects: 1, operations: 1 });
+    held.resolve();
+    const settled = await outcome;
+    expect(f.store.peek(active.binding)).toEqual(extended);
+    expect(f.store.counts()).toMatchObject({ owners: 1, subjects: 1, operations: 0 });
+    expect(f.administration).toHaveBeenCalledTimes(1);
+    expect(f.administration.mock.calls[0]![2]).toEqual(mutation);
+    expect(settled).toMatchObject({ error: { reason: 'response' } });
+    expect(settled).not.toHaveProperty('result');
+    expect(f.diagnostics).not.toContain('revoked');
+  });
+
   it('requires current session CSRF before any mutation work, including refresh', async () => {
     const f = fixture();
     const active = await f.login();
@@ -1705,6 +1827,7 @@ describe('native entry, selection and private operation ownership', () => {
   it('retains actual operation custody through logout until the ignored cancellation settles', async () => {
     const f = fixture();
     const active = await f.login();
+    expect(f.store.counts()).toMatchObject({ identityRecords: 1, credentialRecords: 1 });
     const held = deferred<void>();
     releases.push(() => held.resolve());
     let signal: AbortSignal | undefined;
@@ -1725,6 +1848,15 @@ describe('native entry, selection and private operation ownership', () => {
     await vi.waitFor(() => expect(signal).toBeDefined());
     const logout = f.store.signout(active.binding, active.finished.session.csrfToken);
     expect(signal!.aborted).toBe(true);
+    expect(f.store.counts()).toMatchObject({
+      owners: 1,
+      subjects: 1,
+      operations: 1,
+      identityRecords: 0,
+      credentialRecords: 0,
+      proofRecords: 1,
+      logoutStates: 1,
+    });
     f.store.consumeLogout({ ...active.binding, ...logout });
     expect(f.store.counts()).toMatchObject({
       owners: 1,
