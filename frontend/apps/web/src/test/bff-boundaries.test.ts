@@ -73,12 +73,28 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
   it('copies only safe fields and denies re-publication, wrong bindings and publication after stop', () => {
     const runtime = createBffRequestRuntime();
     const { request, response } = lifetime();
-    const value = { ...projection(), token: 'private-canary' };
+    const value = {
+      ...projection(),
+      token: 'private-canary',
+      association: {
+        authorityId: 'private-authority',
+        subjectKey: 'private-subject',
+        actorId: 'private-actor',
+      },
+      contexts: [{ tenantId: 'private-tenant', organizationId: 'private-organization' }],
+    };
     runtime.run(context, request, response, () => {
       runtime.holder.publish(context, value);
       value.displayName = 'mutated';
       expect(runtime.holder.read(context).session?.displayName).toBe('School');
-      expect(JSON.stringify(runtime.holder.read(context))).not.toContain('private-canary');
+      expect(Object.keys(runtime.holder.read(context).session!).sort()).toEqual([
+        'csrfToken',
+        'displayName',
+        'expiresAt',
+        'limitedByAbsolute',
+        'state',
+      ]);
+      expect(JSON.stringify(runtime.holder.read(context))).not.toContain('private-');
       expect(() => runtime.holder.publish(context, null)).toThrow();
       expect(() => runtime.holder.read({ ...context, host: 'other.example.test:3000' })).toThrow();
       runtime.stop();
@@ -86,7 +102,7 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
     });
     expect(() => runtime.run(context, request, response, () => null)).toThrow();
   });
-  it('captures only the activity scalar before Next removes or mutates Flight headers', () => {
+  it('captures activity and Flight scalars before Next removes or mutates their native headers', () => {
     const runtime = createBffRequestRuntime();
     for (const prefetch of [false, true]) {
       const owner = lifetime();
@@ -98,11 +114,20 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
         delete (owner.request.headers as Record<string, string>).rsc;
         delete (owner.request.headers as Record<string, string>)['next-router-prefetch'];
         expect(runtime.holder.activity(context)).toBe(prefetch ? 'passive' : 'read');
+        expect(runtime.holder.flight(context)).toBe(true);
         runtime.holder.publish(context, null);
         expect(() => runtime.holder.activity(context)).toThrow();
+        expect(() => runtime.holder.flight(context)).toThrow();
         owner.response.emit('finish');
       });
     }
+    const ordinary = lifetime();
+    runtime.run(context, ordinary.request, ordinary.response, () => {
+      Object.assign(ordinary.request.headers, { rsc: '1' });
+      expect(runtime.holder.flight(context)).toBe(false);
+      runtime.holder.publish(context, null);
+      ordinary.response.emit('finish');
+    });
     expect(runtime.counts()).toBe(0);
     runtime.stop();
   });
@@ -235,7 +260,7 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
         expect(locked(lock + '\n  ' + quote + name + '@0.41.3' + quote + ':\n', name)).toBe(true);
     }
   });
-  it('the actual separately compiled native module and pinned NextRequest share only the immutable projection', () => {
+  it('the compiled native request owner exposes only its immutable projection to readers', () => {
     const moduleUrl = new URL('../../.server/auth/request-runtime.js', import.meta.url).href;
     const program = [
       "import assert from 'node:assert/strict';",
@@ -243,10 +268,11 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
       "import { NextRequest } from 'next/server.js';",
       'const { installBffRequestRuntime } = await import(process.argv[1]);',
       'const runtime = installBffRequestRuntime();',
+      'assert.deepEqual(Object.keys(runtime.holder).sort(), ["activity", "flight", "publish", "read", "version"]);',
       'const context = { host: "institution.example.test:3000", peer: "203.0.113.1", method: "GET", target: "/studio" };',
       'const request = Object.assign(new EventEmitter(), { aborted: false, headers: {} }); const response = Object.assign(new EventEmitter(), { destroyed: false, writableEnded: false });',
       'const next = new NextRequest("https://" + context.host + context.target); assert.equal(next.method, context.method);',
-      'await runtime.run(context, request, response, async () => { runtime.holder.publish(context, null); await Promise.resolve(); assert.equal(runtime.holder.read(context).session, null); response.emit("finish"); assert.throws(() => runtime.holder.read(context)); });',
+      'await runtime.run(context, request, response, async () => { assert.equal(runtime.holder.flight(context), false); runtime.holder.publish(context, null); await Promise.resolve(); const read = runtime.holder.read(context); assert.deepEqual(Object.keys(read).sort(), ["assertActive", "session"]); assert.equal(read.session, null); response.emit("finish"); assert.throws(() => runtime.holder.read(context)); });',
       'assert.equal(runtime.counts(), 0); runtime.stop();',
     ].join('\n');
     expect(

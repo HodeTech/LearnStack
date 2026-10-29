@@ -257,17 +257,55 @@ public sealed partial class AuthenticationAuthorityTests
             && empty.FullName == "System.Boolean System.String::IsNullOrEmpty(System.String)"
             && reads[0].Next.Next is { OpCode.Code: Code.Brtrue or Code.Brtrue_S, Operand: Instruction admitted } branch
             && branch.Next?.OpCode == OpCodes.Ldc_I4_1 && branch.Next.Next?.OpCode == OpCodes.Ret
-            && admitted.OpCode == OpCodes.Ldarg_2 && admitted.Next?.OpCode.Code is Code.Ldloc or Code.Ldloc_S or Code.Ldloc_0 or Code.Ldloc_1 or Code.Ldloc_2 or Code.Ldloc_3
-            && admitted.Next.Next?.OpCode == OpCodes.Stind_Ref && admitted.Next.Next.Next?.OpCode == OpCodes.Ldc_I4_2
-            && admitted.Next.Next.Next.Next?.OpCode == OpCodes.Ret;
+            && HasClosedMetadataAdmission(call.Source.Definition, admitted);
+    }
+
+    // Empty Roles only reaches the canonical key-metadata gate. Its false path
+    // refuses before the same found policy can be published as Application.
+    private static bool HasClosedMetadataAdmission(MethodDefinition method, Instruction admitted)
+    {
+        const string policyType = "LearnStack.SharedKernel.Permissions.OperationPolicy";
+        const string descriptorType = "LearnStack.Api.Idempotency.ProtectedAdministrationDescriptor";
+        var tail = method.Body.Instructions.SkipWhile(instruction => instruction != admitted).ToArray();
+        if (tail.Length != 16 || LoadedLocal(method, tail[0]) is not { } policy
+            || policy.VariableType.FullName != policyType
+            || LoadedLocal(method, tail[5])?.VariableType.FullName != "Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor"
+            || LoadedLocal(method, tail[6]) is not { } descriptor || descriptor.VariableType.FullName != descriptorType)
+            return false;
+        return tail[1] is { OpCode.Code: Code.Callvirt, Operand: MethodReference request }
+            && request.FullName == Signature(policyType, "get_RequestType", "System.Type")
+            && tail[2] is { OpCode.Code: Code.Call, Operand: MethodReference lookup }
+            && lookup.FullName == Signature(descriptorType, "ForRequest", descriptorType, "System.Type")
+            && StoresLocal(tail[3], descriptor) && tail[4].OpCode == OpCodes.Ldarg_1
+            && tail[7] is { OpCode.Code: Code.Call, Operand: MethodReference gate }
+            && gate.FullName == Signature(Authentication + "OperationHttpClassifier", "HasCanonicalKeyMetadata", "System.Boolean",
+                "Microsoft.AspNetCore.Http.Endpoint", "Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor", descriptorType)
+            && tail[8].OpCode.Code is Code.Brtrue or Code.Brtrue_S && tail[8].Operand == tail[11]
+            && tail[9].OpCode == OpCodes.Ldc_I4_1 && tail[10].OpCode == OpCodes.Ret
+            && tail[11].OpCode == OpCodes.Ldarg_2 && LoadedLocal(method, tail[12]) == policy
+            && tail[13].OpCode == OpCodes.Stind_Ref && tail[14].OpCode == OpCodes.Ldc_I4_2
+            && tail[15].OpCode == OpCodes.Ret;
+    }
+
+    private static VariableDefinition? LoadedLocal(MethodDefinition method, Instruction instruction)
+    {
+        var index = instruction.OpCode.Code switch
+        {
+            Code.Ldloc or Code.Ldloc_S when instruction.Operand is VariableDefinition local => local.Index,
+            Code.Ldloc_0 => 0,
+            Code.Ldloc_1 => 1,
+            Code.Ldloc_2 => 2,
+            Code.Ldloc_3 => 3,
+            _ => -1
+        };
+        return index >= 0 && index < method.Body.Variables.Count ? method.Body.Variables[index] : null;
     }
 
     // CheckHttp's opaque argument is exactly the selected Endpoint from the same
     // HttpContext as its cancellation token, never a projection or caller object.
     private static bool IsClosedHttpEndpointForwarding(Method method, Instruction instruction, MethodReference target)
     {
-        if (method.Site != ApprovedSites[Authentication + "OperationAuthorizationHandler.HandleAsync"]
-            && method.Site != ApprovedSites[Authentication + "OperationClassificationMiddleware.InvokeAsync"]
+        if (method.Site != ApprovedSites[Authentication + "OperationClassificationMiddleware.InvokeAsync"]
             || instruction.OpCode != OpCodes.Callvirt
             || target.FullName != "System.Threading.Tasks.Task`1<LearnStack.SharedKernel.Results.Result`1<LearnStack.SharedKernel.Results.None>> LearnStack.Application.Authorization.OperationAuthorizationCoordinator::CheckHttpAsync(System.Type,System.Object,System.Threading.CancellationToken)"
             || instruction.Previous?.Operand is not MethodReference cancellation

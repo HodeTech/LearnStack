@@ -83,6 +83,8 @@ export function fixtureEnvironment({
   }
   if (bffValues !== undefined) {
     const expected = [
+      'Identity__AuthorityId',
+      'Identity__NativeSession__CurrentSecret',
       'KEYCLOAK_WEB_CLIENT_SECRET',
       'LEARNSTACK_BFF_ENABLED',
       'LEARNSTACK_BFF_ISSUER',

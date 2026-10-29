@@ -1,11 +1,13 @@
 import { isDeepStrictEqual } from 'node:util';
 import { refuse } from './development-realm-errors.mjs';
-import { identityClaims, mergeOwnedMappers, validateEffectiveMappers } from './development-realm-mappers.mjs';
+import { identityClaims, mergeOwnedMappers, validateEffectiveMappers, validateNativeSessionMappers } from './development-realm-mappers.mjs';
 import { readRealmGroups, readUserGroupIds } from './development-realm-groups.mjs';
 import { exactCreatedAccountAccess, planAccountSelfService } from './development-realm-account.mjs';
 import { planRealmEvents, requiredDevelopmentEvents, developmentEventRetentionSeconds } from './development-realm-events.mjs';
 
 const managedScope = 'learnstack-tenant-api';
+const nativeScope = 'learnstack-native-session';
+const nativeDetachmentPaths = new WeakMap();
 const namedClients = ['learnstack-web', 'learnstack-api'];
 const pageSize = 100;
 const pageLimit = 10;
@@ -315,7 +317,7 @@ async function snapshot(admin, desired, manifest, stage, { preparationProfile, p
   const scopeByName = new Map(scopes.map(scope => [scope.name, scope]));
   const clients = new Map();
   for (const name of namedClients) clients.set(name, await readClient(admin, name, stage));
-  const effectiveNames = new Set([managedScope, 'basic']);
+  const effectiveNames = new Set([managedScope, nativeScope, 'basic']);
   for (const name of namedClients) {
     const client = desired.clients.find(value => value.clientId === name);
     for (const scopeName of [...client.defaultClientScopes, ...client.optionalClientScopes]) effectiveNames.add(scopeName);
@@ -416,6 +418,22 @@ function matchesFields(actual, expected) {
   return Object.entries(expected).every(([key, value]) => equal(actual[key], value));
 }
 
+function clientReadbackMatches(actual, expected) {
+  const actualUris = actual.redirectUris;
+  const expectedUris = expected.redirectUris;
+  // ClientResource returns redirect registrations as a set. A successful PUT
+  // may reorder that field; duplicates, missing/extra values and every other
+  // client representation difference remain readback conflicts.
+  return Array.isArray(actualUris) && Array.isArray(expectedUris)
+    && actualUris.every(value => typeof value === 'string')
+    && expectedUris.every(value => typeof value === 'string')
+    && actualUris.length === expectedUris.length
+    && new Set(actualUris).size === actualUris.length
+    && new Set(expectedUris).size === expectedUris.length
+    && equal(new Set(actualUris), new Set(expectedUris))
+    && equal(omit(actual, ['redirectUris']), omit(expected, ['redirectUris']));
+}
+
 async function exactNewUser(admin, declaration, wanted, stage) {
   const values = array(await admin.get(`users?username=${encode(declaration.username)}&exact=true&max=2&briefRepresentation=false`), stage, 2);
   if (values.length !== 1 || values[0].username !== declaration.username || !values[0].id) refuse(stage, 'identity_conflict');
@@ -510,6 +528,13 @@ async function assemblePlan({ admin, desired, manifest, webSecret, before, event
           (wanted.protocolMappers ?? []).map(mapper => omit(mapper, ['id'])).sort(byName))) refuse('apply', 'mapper_conflict');
         scopeIds.set(name, found[0].id);
       }, wanted);
+    } else if (name === nativeScope) {
+      // This newly reserved scope is created or exactly retained, never adopted
+      // by overwriting an administrator's conflicting mapper/configuration.
+      if (!matchesFields(current, omit(wanted, ['protocolMappers']))
+        || !equal((before.scopeMappers.get(name) ?? []).map(mapper => omit(mapper, ['id'])).sort(byName),
+          (wanted.protocolMappers ?? []).map(mapper => omit(mapper, ['id'])).sort(byName)))
+        refuse('plan', 'mapper_conflict');
     } else if (name === managedScope || name === 'basic') {
       const currentMappers = before.scopeMappers.get(name) ?? [];
       const merged = mergeOwnedMappers(currentMappers, wanted.protocolMappers, 'plan');
@@ -568,6 +593,19 @@ async function assemblePlan({ admin, desired, manifest, webSecret, before, event
     }
     const defaults = new Set(baseline.defaults.map(scope => scope.name));
     const optional = new Set(baseline.optional.map(scope => scope.name));
+    if (name === 'learnstack-web') {
+      // Only the legacy default attachment is owned. An optional legacy scope
+      // remains requestable and is an administrator conflict, not a second
+      // detachable route. Every other effective mapper is checked below.
+      if (optional.has(managedScope) || optional.has(nativeScope)) refuse('plan', 'mapper_conflict');
+      if (defaults.has(managedScope)) {
+        const legacy = baseline.defaults.find(scope => scope.name === managedScope);
+        defaults.delete(managedScope);
+        const binding = Object.freeze({});
+        nativeDetachmentPaths.set(binding, `clients/${encode(baseline.client.id)}/default-client-scopes/${encode(legacy.id)}`);
+        add('detach_web_legacy_scope', () => admin.detachNativeWebScope(binding));
+      }
+    }
     for (const scopeName of wanted.defaultClientScopes) {
       if (optional.has(scopeName)) refuse('plan', 'unsupported');
       defaults.add(scopeName);
@@ -586,7 +624,7 @@ async function assemblePlan({ admin, desired, manifest, webSecret, before, event
       if (!mappers) refuse('plan', 'unsupported');
       return mappers;
     });
-    validateEffectiveMappers([...baseline.mappers, ...effective]);
+    (name === 'learnstack-web' ? validateNativeSessionMappers : validateEffectiveMappers)([...baseline.mappers, ...effective]);
   }
   // Mapper qualification precedes inherited-source reads, so an unsafe
   // aggregation customization always refuses without being silently repaired.
@@ -734,14 +772,16 @@ async function assemblePlan({ admin, desired, manifest, webSecret, before, event
       const actual = after.clients.get(name);
       const baseline = before.clients.get(name);
       const wanted = desired.clients.find(client => client.clientId === name);
-      check(equal(omit(actual.client, ['secret', 'defaultClientScopes', 'optionalClientScopes']),
+      check(clientReadbackMatches(omit(actual.client, ['secret', 'defaultClientScopes', 'optionalClientScopes']),
         omit(expectedClients.get(name), ['secret', 'defaultClientScopes', 'optionalClientScopes'])));
       check(actual.secret === (name === 'learnstack-web' ? webSecret : baseline.secret));
       check(equal(actual.mappers, baseline.mappers));
       for (const [kind, required] of [['defaults', wanted.defaultClientScopes], ['optional', wanted.optionalClientScopes]]) {
         const names = new Set(actual[kind].map(scope => scope.name));
         check(equal(names, expectedAssignments.get(name)[kind]));
-        check(baseline[kind].every(scope => actual[kind].some(value => value.id === scope.id)));
+        check(baseline[kind].every(scope => name === 'learnstack-web' && kind === 'defaults' && scope.name === managedScope
+          ? !actual[kind].some(value => value.id === scope.id)
+          : actual[kind].some(value => value.id === scope.id)));
         check(required.every(scopeName => names.has(scopeName)
           || (kind === 'optional' && actual.defaults.some(scope => scope.name === scopeName))));
       }
@@ -775,3 +815,9 @@ async function assemblePlan({ admin, desired, manifest, webSecret, before, event
 }
 
 function byName(left, right) { return left.name.localeCompare(right.name); }
+
+/** An opaque full-plan binding can name only the web client's legacy default. */
+export function nativeWebScopeDetachmentPath(binding, stage = 'apply') {
+  if (!object(binding) || !nativeDetachmentPaths.has(binding)) refuse(stage, 'unsupported');
+  return nativeDetachmentPaths.get(binding);
+}

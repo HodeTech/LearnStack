@@ -35,11 +35,16 @@ different selected provider port needs the same explicit change in both owners.
 [ADR-0070](../../../docs/decisions/0070-owned-tenant-bff-sessions.md) selects a
 native openid-client session owner. Set `LEARNSTACK_BFF_ENABLED=true`, a canonical
 `LEARNSTACK_BFF_ISSUER` in `/realms/learnstack`, and the existing confidential
-`KEYCLOAK_WEB_CLIENT_SECRET`. Root `.env`, optional web `.env.local` and process
+`KEYCLOAK_WEB_CLIENT_SECRET`. Enabled native mode also requires the API-matching
+stable `Identity__AuthorityId` and `Identity__NativeSession__CurrentSecret`: a
+separate, canonical base64url encoding of 32 random bytes. This native source
+secret differs from the public hop secret; both remain server-only. Root `.env`, optional web `.env.local` and process
 values must agree. To enable sign-in, change the root example's existing `false`
 to `true` and make every supplied process/web projection match; a web value does
 not override the root source. The optional web `.env.local` is unnecessary and
-can be omitted. Enabled mode requires regular, single-link, owner-private
+can be omitted. A web/process projection declaring `Identity__AuthorityId` also
+replicates the matching `Authentication__Tenant__Issuer` when used by the local
+API launcher; its existing issuer/authority pair rule remains atomic. Enabled mode requires regular, single-link, owner-private
 source files (`chmod 600`); startup never repairs permissions or rotates secrets.
 Existing source files must always be regular, nonsymlink, valid bounded files,
 including in public-only mode; unsafe input is refused rather than ignored.
@@ -63,14 +68,23 @@ document with 503. Enabled mode exposes the closed `/api/auth` actions in native
 middleware and requires a session for those two shells. The shells show the
 read-only AccountSite projection, not future authoring or role permissions.
 
-Accepted [ADR-0076](../../../docs/decisions/0076-live-scoped-authorization.md)
-adds live AccountSite membership admission and one administrative directory GET
-at the API. It does not extend this native caller's AccountSite-only allowlist
-or expose the directory in these shells. Native authenticated operations and
-member/role UI remain P03-3; backend authorization/evidence source keys belong
-to API configuration, never the web runtime or browser. The
-[Phase 03 Status block](../../../docs/roadmap/phase-03-identity-admin.md) owns
-implementation and qualification; acceptance activates no new web operation.
+[ADR-0078](../../../docs/decisions/0078-native-session-scope-and-self-entry.md)
+separates the verified provider identity from API-admitted application scope.
+Callback publishes a five-minute entry cookie, and explicit context confirmation
+obtains the audited admission and AccountSite witness before a tenant session.
+Tenant-wide management uses the exact `manage.demo-english.learnstack.local` and
+`manage.demo-yoga.learnstack.local` mappings/callbacks; public Yoga retains its
+branch mapping. Creation is opt-in at the API and creates neither Membership nor
+session. Ordinary refresh rechecks self association and the existing scope; it
+never dispatches the admission POST.
+
+[ADR-0079](../../../docs/decisions/0079-bounded-identity-administration.md)
+confines native administration to generated operations under the current
+credential owner, exact forms and same-origin/CSRF controls. Protected page results must be loaded by the native response owner before streaming;
+RSC may consume only the admitted immutable snapshot, and `auth()` remains a read-only
+session projection. Authorization/evidence database connection strings
+remain API-only. The [Phase 03 Status block](../../../docs/roadmap/phase-03-identity-admin.md)
+owns implementation and qualification, including the selected screen work.
 
 The browser receives only host-only opaque cookies and a safe session projection.
 The warning uses the actual effective expiry; an explicit extension refreshes the

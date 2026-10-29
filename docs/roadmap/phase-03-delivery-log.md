@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 2,294 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 2,406 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -182,6 +182,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 7 — Closed administration HTTP and generated SDK (2026-10-29)](#p03-3-step-7--closed-administration-http-and-generated-sdk-2026-10-29) — 84 lines
   - [P03-3 Step 7 review round 1 and own-navigation diagnostics correction (2026-10-29)](#p03-3-step-7-review-round-1-and-own-navigation-diagnostics-correction-2026-10-29) — 36 lines
   - [P03-3 Step 7 review round 2, protocol bounds and closeout (2026-10-29)](#p03-3-step-7-review-round-2-protocol-bounds-and-closeout-2026-10-29) — 52 lines
+  - [P03-3 Step 8 — Native session ownership (2026-10-29)](#p03-3-step-8--native-session-ownership-2026-10-29) — 112 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -8019,3 +8020,115 @@ real browser/history/no-script/localization/manual accessibility. Step 10 retain
 complete discovered zero-skip suites, public-demo preservation, final-source
 hosted A/B, final review and PR. No selected consumer moves to another phase;
 there is no branch switch, push or PR before the ten-step implementation closes.
+
+### P03-3 Step 8 — Native session ownership (2026-10-29)
+
+**Scope.** Implements the Accepted ADR-0078/0079 native credential/entry/context
+and closed administration-operation owner. The existing API/SDK contracts from
+Step 7 remain the authority. No new decision or HTTP API permission is introduced.
+The implementation baseline is `75f974502a4f443f0fda6b8b073758a78546f9c3` on
+`development`; fresh postcommit review rounds follow this implementation record.
+
+**Implementation.**
+
+- Provider validation accepts tenantless/actorless identity with bounded advisory
+  display label and separate optional compatibility claims. Native web issuance
+  replaces only the web client's legacy scope attachment with the closed native
+  scope; API client scope/mapper/subject-account graphs are preserved. Repeated
+  qualified reconciliation is write-free. Four exact callbacks/logout targets
+  agree with the independently mapped public and management origins.
+- Callback retains the original bounded five-minute entry and subject credit;
+  it creates neither User nor tenant session. Explicit create/select, exact
+  issuer/subject live-destination replacement, fresh API admission/AccountSite,
+  unknown-creation lookup and independent entry-provider logout share the native
+  owner. Actual settlement retains credits through abort/closing/logout work.
+- Same-host switching reserves a distinct owner, captures the original credential
+  revision/lifetime, reads current-tenant choices under the old published scope,
+  and waits for old work before rotating handle/CSRF. Entry discovery and scoped
+  discovery keep different cursor populations; a scoped refusal never falls back
+  to global discovery. Cross-host navigation preserves only an API-verified
+  destination and non-authorizing hint, leaving source custody independent.
+- Refresh checks Off self association and unchanged scoped AccountSite with the
+  new held token, never another admission POST. The closed generated-operation
+  dispatcher owns administration credentials, one refresh/API/body deadline and
+  response bounds; ordinary administration failures retain live custody. RSC
+  auth stays passive and has no operation/credential closure.
+- The exact native form set enforces captured host/source, Origin, current CSRF,
+  bounded strict UTF-8 fields/JSON arrays, canonical version/nonce and fixed 303
+  navigation before API work. Unknown mutation results retain deliberate
+  same-request retry rather than asserting rollback. en/tr entry/recovery text,
+  cookies/history/path/query censuses and public/native dependency controls move
+  with the boundary. Private API/native configuration is selected explicitly;
+  no ambient secret or bootstrap opt-in is synthesized.
+
+**Verified corrections during qualification.**
+
+- A switch initially consulted pre-session global Membership tuples, omitting
+  tenant-wide derived branches. It now uses the exact current-scope generated
+  own-context operation and common validated navigation projection. Controls
+  exercise held token/scope/cursor, foreign tenant, no fallback, captured input
+  and independent cross-host source retention.
+- Real Keycloak readback reordered callback URI/client-scope arrays. Only fields
+  with set semantics compare exact unique sets/cardinality; all other fields,
+  IDs and mapper configurations retain exact graph comparison. Dirty controls
+  reject duplicates, missing/replaced IDs and altered unrelated fields.
+- The old revocation helper expected a resolved-policy denial event. ADR-0078
+  rejects invalid native coverage before context publication; ADR-0077 excludes
+  generic resolver 404 auditing. Native controls retain 404/no handler/local
+  revocation/provider-SSO checks and assert no invented policy event. The actual
+  legacy resolved-policy MUST denial case is independently retained and passing.
+- Real fixtures now admit the four exact callback hosts, honor the unchanged
+  visitor windows, use the realm's email-as-username contract, and compare
+  cross-host navigation to its exact API-verified destination. They do not alter
+  production quotas, skip a case or treat a censored run as qualification.
+
+**Local evidence.**
+
+- Guarded frontend: 2,960/2,960 across web/SDK, zero skips/todos, including actual
+  Next/native protocol counters. Scoped switch/parser targets: 275/275; final
+  typecheck passes. Final web lint and its native web/SDK build pass with no
+  warnings/errors. The complete CI-mode Release solution builds with zero
+  warnings/errors; all 3,432 backend unit cases pass with zero skips.
+- Real isolated provider graph preservation: 1/1, with six previously failing warm
+  fixtures corrected and passing; full final-source provider population remains
+  explicitly separate from these local corrective reruns.
+- Real native/API boundaries:21/21 passing distinct cases from the combined run,
+  including actual HTTPS browser/startup/cleanup, self entry, admission durability
+  and legacy resolved-policy MUST evidence. The combined run itself failed on a
+  subsequently corrected actorless fixture; it is not claimed as a passing run.
+- Real actorless unknown creation: 1/1; acknowledged commit with withheld response,
+  fresh existing-binding recovery, no repeated bootstrap POST, one User, no tenant
+  session and actual entry provider logout.
+- Real shared-SSO independent contexts: 1/1. One validated form callback and one
+  actual SSO callback establish the same provider session across two native hosts;
+  the scoped witness sequence is NULL/NULL/branch/NULL/branch/NULL through an
+  explicit switch and three real refreshes. Refresh adds no admission event;
+  copied host cookies remain anonymous and both original owners stay live.
+- Full both-host/clamp/logout/revocation main: 1/1, zero skips, 4m43s. Both real
+  hosts qualify explicit selection, true refresh/provider maximum/logout/error
+  events, unknown-profile receipt, derived-branch scope and local revocation.
+- Realm Node controls: 415/415 across nine files, zero skips.
+- Relevant architecture: 39/39, zero skips, including raw-authority dirty controls,
+  policy/replay ownership, Docker-trait census and corpus consistency. The
+  initial36-case run failed29 times on the one stale role-absence shape; it is
+  not counted as passing. Corrected architecture builds with zero warnings.
+- Markdown/roadmap/generated-index and staged-diff checks accompany the normal
+  commit. Complete final-source suites and hosted A/B remain Step 10 obligations.
+
+**Architecture correction.** The existing raw-role guard allowed the HTTP
+classifier's role-metadata read only for immediate refusal, but still pinned its
+empty branch directly to policy publication. Step 7's canonical idempotency
+metadata gate moved between those instructions. The corrected bounded IL shape
+retains immediate nonempty refusal, requires the exact descriptor/metadata gate,
+and publishes the same found policy only after its success. Six dirty mutations
+cover predicate replacement, inverted/unconditional admission, failure-as-success,
+gate skipping and null policy publication. Both HTTP adapters retain identity-
+formatting controls; classification alone directly forwards the opaque endpoint,
+while the protected-replay owner has its own candidate/HTTP branch census. No
+runtime role-based authority or production policy changed.
+
+**Boundary and next work.** This record does not establish complete final-source
+A/B/CI qualification or production readiness. Step 9 owns native preloaded bounded
+page snapshots, the selected screens and actual browser/history/no-script/en/tr
+and manual accessibility proof; Step 10 owns complete final-source qualification
+and the reviewable PR. Both fresh postcommit Step 8 review rounds still follow.

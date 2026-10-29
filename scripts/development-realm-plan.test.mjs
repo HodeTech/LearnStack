@@ -1104,7 +1104,7 @@ test('projected scopes, profile definitions and mapper counts stay within the re
   }
 });
 
-test('assignment and profile-group exact boundaries remain supported and excess groups refuse before writes', async () => {
+test('largest compatible assignments and exact profile-group boundaries remain supported', async () => {
   const assigned = provider();
   const web = assigned.state.clients.find(client => client.clientId === 'learnstack-web');
   assigned.state.scopes = assigned.state.scopes.filter(scope => scope.protocol === 'openid-connect');
@@ -1112,7 +1112,9 @@ test('assignment and profile-group exact boundaries remain supported and excess 
   web.defaultClientScopes = assigned.state.scopes.filter(scope => scope.name !== 'learnstack-tenant-api').map(scope => scope.name);
   web.optionalClientScopes = [];
   await apply(await plan(assigned));
-  assert.equal(web.defaultClientScopes.length, 200);
+  // Both fixed scopes exist inside the 200-scope inventory, but the native
+  // client cannot also attach the scoped API declaration.
+  assert.equal(web.defaultClientScopes.length, 199);
   assert.equal((await plan(assigned)).actions.length, 0);
   for (const count of [200, 201]) {
     const fixture = provider(); fixture.state.realm.accessTokenLifespan = 1800;

@@ -66,6 +66,173 @@ const keys = [
   'ConnectionStrings__IdentityAuthorization',
   'ConnectionStrings__AuthorizationEvidence',
 ] as const;
+const apiIdentity = {
+  Authentication__Tenant__Issuer: 'http://localhost:8080/realms/learnstack',
+  Identity__AuthorityId: '01930000-0000-7000-8000-000000009001',
+};
+const nativeKeys = [
+  'Identity__NativeSession__CurrentSecret',
+  'Identity__NativeSession__PreviousSecret',
+  'Identity__NativeSession__PreviousRetiresAt',
+  'Identity__NativeSession__HttpsPort',
+  'Identity__SelfBootstrap__Enabled',
+] as const;
+function nativeSettings() {
+  return {
+    Identity__NativeSession__CurrentSecret: randomBytes(32).toString('base64url'),
+    Identity__NativeSession__PreviousSecret: randomBytes(32).toString('base64url'),
+    Identity__NativeSession__PreviousRetiresAt: new Date(Date.now() + 300_000).toISOString(),
+    Identity__NativeSession__HttpsPort: '4443',
+    Identity__SelfBootstrap__Enabled: 'true',
+  };
+}
+function writeEnvironment(root: string, relative: string, values: Record<string, string>) {
+  writeFileSync(
+    join(root, relative),
+    Object.entries(values)
+      .map(([key, value]) => `${key}=${value}`)
+      .join('\n'),
+    { mode: 0o600 },
+  );
+}
+
+describe('selected native API environment', () => {
+  it.each(['root', 'projection', 'process'] as const)(
+    'selects exact native settings from %s only for API startup',
+    (source) => {
+      const root = temporary();
+      mkdirSync(join(root, 'frontend/apps/web'), { recursive: true });
+      const native = nativeSettings();
+      writeEnvironment(root, '.env', { ...apiIdentity, ...(source === 'root' ? native : {}) });
+      if (source === 'projection') writeEnvironment(root, 'frontend/apps/web/.env.local', native);
+      const environment = source === 'process' ? native : {};
+      const selectedValues = loadLocalEnvironment(root, environment, { apiAuthentication: true });
+      expect(selectedValues).toMatchObject({ ...apiIdentity, ...native });
+      const publicValues = loadLocalEnvironment(root, environment);
+      for (const key of nativeKeys) expect(publicValues).not.toHaveProperty(key);
+    },
+  );
+
+  it('requires native values to agree across root, optional web projection and process', () => {
+    const root = temporary();
+    mkdirSync(join(root, 'frontend/apps/web'), { recursive: true });
+    const native = nativeSettings();
+    writeEnvironment(root, '.env', { ...apiIdentity, ...native });
+    writeEnvironment(root, 'frontend/apps/web/.env.local', native);
+    expect(loadLocalEnvironment(root, native, { apiAuthentication: true })).toMatchObject(native);
+    for (const key of nativeKeys) {
+      expect(() =>
+        loadLocalEnvironment(
+          root,
+          { [key]: 'conflicting-private-canary' },
+          { apiAuthentication: true },
+        ),
+      ).toThrow('Conflicting API native configuration');
+      writeEnvironment(root, 'frontend/apps/web/.env.local', {
+        ...native,
+        [key]: 'conflicting-private-canary',
+      });
+      expect(() => loadLocalEnvironment(root, {}, { apiAuthentication: true })).toThrow(
+        'Conflicting API native configuration',
+      );
+      // Public-only selection does not consume or validate these private settings.
+      for (const name of nativeKeys)
+        expect(loadLocalEnvironment(root, native)).not.toHaveProperty(name);
+      writeEnvironment(root, 'frontend/apps/web/.env.local', native);
+    }
+  });
+
+  it('keeps the issuer and authority atomic in a web projection that declares the authority', () => {
+    const root = temporary();
+    mkdirSync(join(root, 'frontend/apps/web'), { recursive: true });
+    const native = nativeSettings();
+    writeEnvironment(root, '.env', apiIdentity);
+    writeEnvironment(root, 'frontend/apps/web/.env.local', {
+      ...native,
+      Identity__AuthorityId: apiIdentity.Identity__AuthorityId,
+    });
+    expect(() => loadLocalEnvironment(root, {}, { apiAuthentication: true })).toThrow(
+      'Incomplete API authentication configuration',
+    );
+    writeEnvironment(root, 'frontend/apps/web/.env.local', { ...native, ...apiIdentity });
+    expect(loadLocalEnvironment(root, {}, { apiAuthentication: true })).toMatchObject({
+      ...native,
+      ...apiIdentity,
+    });
+  });
+
+  it.each(['public-api', 'demo'] as const)(
+    'forwards only selected native keys and the identity pair to %s',
+    (launch) => {
+      const native = nativeSettings();
+      const values = { ...selected(), ...apiIdentity, ...native };
+      const ambient = {
+        ...nativeSettings(),
+        Identity__NativeSession__PreviousRetiresAtUtc: 'unselected-alias',
+      };
+      const environment =
+        launch === 'demo'
+          ? publicDemoApiEnvironment(values, configuration, temporary(), ambient)
+          : publicApiEnvironment(values, configuration, ambient);
+      expect(environment).toMatchObject({ ...apiIdentity, ...native });
+      expect(environment).not.toHaveProperty('Identity__NativeSession__PreviousRetiresAtUtc');
+    },
+  );
+
+  it('does not inherit ambient native secrets or enable the baseline and keeps web/Seeder credentials separate', () => {
+    const native = nativeSettings();
+    const values = { ...selected(), ...apiIdentity, ...native };
+    for (const environment of [
+      publicApiEnvironment(selected(), configuration, native),
+      publicDemoApiEnvironment(selected(), configuration, temporary(), native),
+    ]) {
+      expect(environment.Identity__NativeSession__HttpsPort).toBe('3000');
+      for (const key of nativeKeys.filter((key) => key !== 'Identity__NativeSession__HttpsPort'))
+        expect(environment).not.toHaveProperty(key);
+    }
+    for (const environment of [
+      publicWebEnvironment(values, temporary(), native),
+      publicSeederEnvironment(undefined, native),
+      developmentSeederRuntimeEnvironment(values, native),
+    ])
+      for (const key of nativeKeys) expect(environment).not.toHaveProperty(key);
+  });
+
+  it('checks bounded nonempty selected values without taking over API option-format validation', () => {
+    const root = temporary();
+    for (const key of nativeKeys) {
+      for (const invalid of [
+        '',
+        ' ',
+        '\t',
+        '\0private-canary',
+        'private-canary\n',
+        'x'.repeat(257),
+      ]) {
+        expect(() =>
+          loadLocalEnvironment(root, { [key]: invalid }, { apiAuthentication: true }),
+        ).toThrow('Invalid API native configuration');
+        expect(() =>
+          publicApiEnvironment({ ...selected(), [key]: invalid }, configuration, {}),
+        ).toThrow('Invalid API native configuration');
+      }
+    }
+    const deferred = { Identity__NativeSession__CurrentSecret: 'API-validates-the-secret-format' };
+    expect(loadLocalEnvironment(root, deferred, { apiAuthentication: true })).toMatchObject(
+      deferred,
+    );
+    expect(publicApiEnvironment({ ...selected(), ...deferred }, configuration, {})).toMatchObject(
+      deferred,
+    );
+    expect(
+      publicApiEnvironment(
+        { ...selected(), Identity__NativeSession__HttpsPort: '443' },
+        configuration,
+        {},
+      ).Identity__NativeSession__HttpsPort,
+    ).toBe('443');
+  });
+});
 
 describe('selected API auxiliary source environment', () => {
   it.each([
@@ -196,7 +363,12 @@ function launcher() {
       join(root, 'scripts', name),
       readFileSync(new URL(`../../../../../scripts/${name}`, import.meta.url)),
     );
-  for (const name of ['ingress.js', 'auth/http-paths.js'])
+  for (const name of [
+    'ingress.js',
+    'auth/http-paths.js',
+    'auth/page-query.js',
+    'auth/input-error.js',
+  ])
     writeFileSync(
       join(root, 'frontend/apps/web/.server', name),
       readFileSync(new URL(`../../.server/${name}`, import.meta.url)),
@@ -239,6 +411,46 @@ function launch(
 }
 
 describe('actual public-api child admission', () => {
+  it.each(['file', 'projection', 'process'] as const)(
+    'passes selected native settings from %s to the actual API child',
+    (source) => {
+      const fixture = launcher();
+      const native = nativeSettings();
+      const values = { ...fixture.values, ...apiIdentity, ...(source === 'file' ? native : {}) };
+      if (source === 'projection')
+        writeEnvironment(fixture.root, 'frontend/apps/web/.env.local', {
+          ...apiIdentity,
+          ...native,
+        });
+      const result = launch(fixture, values, source === 'process' ? native : {});
+      expect(result.error).toBeUndefined();
+      expect(result.status, result.stderr).toBe(0);
+      const child = JSON.parse(readFileSync(fixture.marker, 'utf8')) as {
+        env: Record<string, string>;
+      };
+      expect(child.env).toMatchObject({ ...apiIdentity, ...native });
+      expect(result.stdout).toBe('');
+      expect(result.stderr).toBe('');
+    },
+  );
+
+  it('refuses a root/process native conflict before creating the API child', () => {
+    const fixture = launcher();
+    const native = nativeSettings();
+    const result = launch(
+      fixture,
+      { ...fixture.values, ...apiIdentity, ...native },
+      {
+        Identity__NativeSession__CurrentSecret: randomBytes(32).toString('base64url'),
+      },
+    );
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(1);
+    expect(existsSync(fixture.marker)).toBe(false);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toBe('Local public configuration or launch failed\n');
+  });
+
   it.each(['file', 'process'] as const)(
     'passes the selected auxiliary pair from %s into the actual child environment',
     (source) => {
@@ -254,6 +466,9 @@ describe('actual public-api child admission', () => {
       expect(child.args).toEqual(['run', '--no-launch-profile', '--project', 'src/LearnStack.Api']);
       for (const key of keys)
         expect(child.env[key]).toBe(source === 'process' ? explicit[key] : fixture.values[key]);
+      expect(child.env.Identity__NativeSession__HttpsPort).toBe('3000');
+      for (const key of nativeKeys.filter((key) => key !== 'Identity__NativeSession__HttpsPort'))
+        expect(child.env).not.toHaveProperty(key);
       expect(result.stdout).toBe('');
       expect(result.stderr).toBe('');
     },

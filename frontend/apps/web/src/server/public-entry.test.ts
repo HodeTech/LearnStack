@@ -97,7 +97,16 @@ describe('membership-first public entry', () => {
     });
   });
 
-  it.each(['/studio', '/portal'])('continues the exact live-host scaffold only: %s', (target) => {
+  it.each([
+    '/studio',
+    '/portal',
+    '/studio/members',
+    '/studio/roles',
+    '/portal/profile',
+    '/studio/members/019a154b-0000-7000-8000-000000000011',
+    '/studio/roles/019a154b-0000-7000-8000-000000000022',
+    '/studio/members?cursor=abc_123&limit=100',
+  ])('continues the exact live-host scaffold only: %s', (target) => {
     expect(publicEntry(target, site())).toEqual({ kind: 'continue', locale: null });
   });
 
@@ -108,6 +117,18 @@ describe('membership-first public entry', () => {
     '/%74r/courses',
     '/en%2dUS/courses',
     '/studio/admin',
+    '/studio?cursor=abc',
+    '/portal/profile?cursor=abc',
+    '/studio/roles?limit=1',
+    '/studio/members?cursor=',
+    '/studio/members?cursor=a&cursor=b',
+    '/studio/members?limit=1&limit=2',
+    '/studio/members?scope=tenant',
+    '/studio/members?limit=0',
+    '/studio/members?limit=2147483648',
+    '/studio/members/019A154B-0000-7000-8000-000000000011',
+    '/studio/members/10000000-0000-4000-8000-000000000001',
+    '/studio/roles/019a154b-0000-7000-8000-000000000022?limit=1',
     '/portal/account',
     '/studio/',
     '/portal/',
@@ -222,5 +243,35 @@ describe('membership-first public entry', () => {
     );
     expect(() => publicRedirect('Tenant.Example', '/tr/courses')).toThrow();
     expect(() => publicRedirect('tenant.example', '//evil.example/tr/courses')).toThrow();
+  });
+});
+
+it('accepts one bounded Flight transport token only with independently captured native RSC admission', () => {
+  for (const target of [
+    '/studio?_rsc=probe',
+    '/portal/profile?_rsc=x',
+    '/studio/members?cursor=page_1&limit=200&_rsc=probe',
+  ]) {
+    expect(publicEntry(target, site(), true)).toEqual({ kind: 'continue', locale: null });
+    expect(publicEntry(target, site())).toEqual({ kind: 'refuse', status: 404 });
+  }
+  for (const query of [
+    '_rsc=',
+    '_rsc=a&_rsc=b',
+    '_rsc=a&%5frsc=b',
+    '_rsc=' + 'x'.repeat(129),
+    '_rsc=%0d%0a',
+    '_rsc=%20',
+    '_rsc=%C3%A9',
+    '_rsc=a&scope=tenant',
+  ])
+    expect(publicEntry('/studio?' + query, site(), true)).toEqual({ kind: 'refuse', status: 404 });
+  expect(publicEntry('/studio/members?cursor=one&cursor=two&_rsc=x', site(), true)).toEqual({
+    kind: 'refuse',
+    status: 404,
+  });
+  expect(publicEntry('/studio/members?limit=0&_rsc=x', site(), true)).toEqual({
+    kind: 'refuse',
+    status: 404,
   });
 });

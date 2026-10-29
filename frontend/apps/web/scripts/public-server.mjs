@@ -45,17 +45,29 @@ try {
     const [
       { createTenantProvider },
       { createAccountSiteCaller },
+      { createNativeSessionApi },
+      { createNativeAdministrationCaller },
       { installBffSessionRuntime },
       { installBffRequestRuntime },
     ] = await Promise.all([
       import('../.server/auth/provider-core.js'),
       import('../.server/auth/account-client.js'),
+      import('../.server/auth/native-session-client.js'),
+      import('../.server/auth/native-administration-client.js'),
       import('../.server/auth/session-runtime.js'),
       import('../.server/auth/request-runtime.js'),
     ]);
+    const nativeConfiguration = {
+      ...configuration,
+      nativeSourceSecret: bff.nativeSourceSecret,
+      authorityId: bff.authorityId,
+      issuer: bff.issuer,
+    };
     const dependencies = {
       provider: createTenantProvider(bff, globalThis.fetch),
-      account: createAccountSiteCaller(configuration, globalThis.fetch),
+      account: createAccountSiteCaller(nativeConfiguration, globalThis.fetch),
+      native: createNativeSessionApi(nativeConfiguration, globalThis.fetch),
+      administration: createNativeAdministrationCaller(nativeConfiguration, globalThis.fetch),
       diagnostic: (reason) => console.warn('BFF session lifecycle', { reason }),
     };
     bffRequests = installBffRequestRuntime();

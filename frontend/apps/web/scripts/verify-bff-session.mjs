@@ -82,7 +82,7 @@ try {
   assert.ok(config && config.protocol === 1 && config.mode === 'real');
   assert.equal(
     Object.keys(config).sort().join(','),
-    'apiOrigin,authority,clientSecret,issuer,mode,protocol,secret,sites',
+    'apiOrigin,authority,authorityId,clientSecret,issuer,mode,nativeSourceSecret,protocol,secret,sites',
   );
   const issuer = new URL(config.issuer);
   const api = new URL(config.apiOrigin);
@@ -109,6 +109,17 @@ try {
   );
   stage = 'input-secrets';
   assert.match(config.secret, /^[a-z0-9]{48,64}$/);
+  assert.match(
+    config.authorityId,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+  );
+  assert.notEqual(config.authorityId, '00000000-0000-0000-0000-000000000000');
+  assert.match(config.nativeSourceSecret, /^[A-Za-z0-9_-]{43}$/);
+  assert.equal(
+    Buffer.from(config.nativeSourceSecret, 'base64url').toString('base64url'),
+    config.nativeSourceSecret,
+  );
+  assert.notEqual(config.nativeSourceSecret, config.secret);
   assert.ok(
     typeof config.clientSecret === 'string' &&
       config.clientSecret.length > 0 &&
@@ -121,7 +132,7 @@ try {
       config.authority.startsWith('-----BEGIN CERTIFICATE-----'),
   );
   stage = 'input-sites';
-  assert.ok(Array.isArray(config.sites) && config.sites.length === 2);
+  assert.ok(Array.isArray(config.sites) && config.sites.length === 4);
   for (const site of config.sites) {
     assert.equal(Object.keys(site).sort().join(','), 'displayName,host,locale');
     assert.match(site.host, /^[a-z0-9-]+(?:\.[a-z0-9-]+)+:3000$/);
@@ -132,9 +143,9 @@ try {
     );
     assert.ok(['en', 'tr', 'tr-TR'].includes(site.locale));
   }
-  assert.notEqual(config.sites[0].host, config.sites[1].host);
+  assert.equal(new Set(config.sites.map((site) => site.host)).size, 4);
   stage = 'setup';
-  const privateValues = [config.secret, config.clientSecret];
+  const privateValues = [config.secret, config.clientSecret, config.nativeSourceSecret];
   const host = await startBffProof({
     owner,
     root,
@@ -192,6 +203,11 @@ try {
         '/api/auth/callback/keycloak',
         '/api/auth/signout',
         '/api/auth/extend',
+        '/api/auth/entry',
+        '/api/auth/entry/create',
+        '/api/auth/entry/select',
+        '/api/auth/switch',
+        '/api/account/profile',
       ].includes(path.pathname),
     );
     assert.ok(
@@ -212,7 +228,7 @@ try {
         body: command.body || undefined,
         headers: {
           host: site.host,
-          accept: 'text/html',
+          accept: path.pathname === '/api/auth/entry' ? 'application/json' : 'text/html',
           ...(command.method === 'GET' && ['/studio', '/portal'].includes(path.pathname)
             ? { 'sec-fetch-dest': 'document' }
             : {}),

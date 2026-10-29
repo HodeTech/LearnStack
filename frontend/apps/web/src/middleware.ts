@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 import { renderBffDocument } from '@/server/auth/html';
 import { admitBffHttp } from '@/server/auth/http-admission';
+import { BFF_POST_PATHS } from '@/server/auth/http-paths';
+import { bffRequestOwner } from '@/server/auth/request-owner';
 import { bffSessionEnabled } from '@/server/auth/session-owner';
 import { createConfiguredPublicClient, publicTraceparent } from '@/server/configured-public-client';
 import { INGRESS_HEADER, verifyNextProvenance } from '@/server/ingress';
@@ -96,15 +98,20 @@ export async function middleware(request: NextRequest) {
       return finish(refusal(request.method, 503));
     }
     const path = url.pathname;
-    const authPath = path === '/api/auth' || path.startsWith('/api/auth/');
+    const authPath =
+      path === '/api/auth' || path.startsWith('/api/auth/') || BFF_POST_PATHS.includes(path);
     // Even authentication actions need the independently resolved live site and
     // a valid locale catalogue before any cookie, reservation or provider work.
-    const entry = publicEntry(authPath ? '/' : context.target, bootstrap.data);
+    const enabled = bffSessionEnabled();
+    const entry = publicEntry(
+      authPath ? '/' : context.target,
+      bootstrap.data,
+      enabled && bffRequestOwner().flight(context),
+    );
     if (entry.kind === 'refuse') return finish(refusal(request.method, entry.status));
     // An enabled locale named studio/portal still takes precedence over the
     // unlocalized shell, exactly as in public entry admission.
     const protectedPath = entry.kind === 'continue' && entry.locale === null;
-    const enabled = bffSessionEnabled();
     const document = (
       kind: 'unavailable' | 'error' | 'busy' | 'account_unavailable',
       status: number,
@@ -115,7 +122,7 @@ export async function middleware(request: NextRequest) {
           : renderBffDocument(
               bootstrap.data,
               kind === 'account_unavailable'
-                ? { kind, returnPath: path === '/studio' ? '/studio' : '/portal' }
+                ? { kind, returnPath: path.startsWith('/studio') ? '/studio' : '/portal' }
                 : { kind },
             ),
         {
@@ -148,6 +155,7 @@ export async function middleware(request: NextRequest) {
         if (
           bff.response.status >= 400 &&
           bff.response.status !== 404 &&
+          !bff.response.headers.get('content-type')?.startsWith('text/html') &&
           !path.endsWith('/session') &&
           !path.endsWith('/csrf') &&
           request.headers.get('accept')?.includes('text/html')

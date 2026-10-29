@@ -5551,9 +5551,14 @@ structural test proves — and what it does not.
   subjects and same-owner additional writes fail independently.
   The HTTP classifier's single `IAuthorizeData.Roles` read is confined to an
   immediate null/empty check that refuses nonempty metadata. Removed/reversed
-  rejection controls preserve the raw-role ban. The two HTTP policy adapters may
-  forward only the actual same-request endpoint; extra identity formatting still
-  fails inside those approved callers.
+  rejection controls preserve the raw-role ban. Its empty branch must still
+  derive and pass the exact canonical key-metadata gate, refuse on false, and
+  publish that same policy only on success; substituted/bypassed/reversed gates
+  and null policy publication have independent dirty controls. Classification
+  forwards only the actual same-request endpoint. The authorization handler
+  delegates to the separately enumerated protected-replay owner; both adapters
+  still reject extra identity formatting. The policy/receipt censuses close the
+  replay owner's actual candidate and three HTTP decision branches.
 - **Status:** **Implemented** (`AuthenticationAuthorityTests`).
 - **Phase:** P02b-5 Step 1 profile constraints; Step 5 complete production census.
 
@@ -6378,8 +6383,15 @@ hosted timing fit. Prior receipts do not qualify subsequent source changes.
   windows isolate every availability category's no-idle-touch rule; publication
   clocks, caller cancellation and once-only local expiry/revocation diagnostics
   have separate controls. Session CSRF and logout state/proof remain independently
-  random, rather than aliases of another capability.
-- **Source:** ADR-0070/0071; Security 11 § Tenant BFF sessions.
+  random, rather than aliases of another capability. Entry-only callback and
+  deliberate creation/selection never publish a tenant session prematurely.
+  Switch choices use the old held scope's own-context API, including derived
+  branch choices, with no global fallback. Fresh admission/AccountSite and actual
+  old-work settlement precede handle/CSRF replacement; original lifetime stays.
+  Same-label or Unicode-lookalike different subjects cannot replace a live owner;
+  entry provider logout preserves the primary local owner and retains its own
+  credit through actual settlement.
+- **Source:** ADR-0070/0071/0078/0079; Security 11 § Tenant BFF sessions and native entry.
 - **Type:** unit and actual response-owning routes. **Kind:** behavioural.
 - **Test owner:** `frontend/apps/web/src/server/auth/session-store.test.ts` and
   `frontend/apps/web/src/test/bff-session-routes.test.ts`, with composed caller/
@@ -6387,7 +6399,7 @@ hosted timing fit. Prior receipts do not qualify subsequent source changes.
   protocol cancellation in `src/server/auth/session-http-lifetime.test.ts`.
 - **Status:** **Implemented** — actual owner/route controls above and
   `TenantBffSessionTests` real refresh/maximum and shutdown/failure controls.
-- **Phase:** P02b-7 Steps 2–5.
+- **Phase:** P02b-7 Steps 2–5; P03-3 Step 8 extends entry/operation ownership.
 
 #### `Bff_Auth_Admission_And_Csrf_Are_Closed`
 
@@ -6401,7 +6413,7 @@ hosted timing fit. Prior receipts do not qualify subsequent source changes.
   write/end and a foreign origin with the same logout path. Fixed native port,
   POST return paths and exact provider/PKCE/logout wire parameters have isolated
   controls; fake-transport assertions run outside production exception conversion.
-- **Source:** ADR-0070; ADR-0054 dated auth extension; Security 11 § CSRF.
+- **Source:** ADR-0070/0078/0079; ADR-0054 dated auth extension; Security 11 § CSRF.
 - **Type:** native listener and actual Next route controls. **Kind:** behavioural.
 - **Test owner:** `frontend/apps/web/src/test/bff-auth-admission.test.ts` and
   `frontend/apps/web/src/test/bff-session-routes.test.ts`, with source census in
@@ -6410,7 +6422,7 @@ hosted timing fit. Prior receipts do not qualify subsequent source changes.
   and `src/server/auth/provider.test.ts`.
 - **Status:** **Implemented** — native input/route controls above and the actual browser
   form/Origin and no-network startup cases in `TenantBffSessionTests`.
-- **Phase:** P02b-7 Steps 3–5.
+- **Phase:** P02b-7 Steps 3–5; P03-3 Step 8 extends the exact native form set.
 
 #### `Bff_Host_Cookies_And_History_Are_Isolated`
 

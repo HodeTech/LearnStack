@@ -12,7 +12,11 @@ export function protectBffLogoutResponse(response: ServerResponse, issuer: strin
     if (response.statusCode !== 303) return;
     protectedRedirect = true;
     const location = response.getHeader('location');
-    let allowed = location === '/' || location === 'https://' + host + '/';
+    let allowed =
+      location === '/' ||
+      location === 'https://' + host + '/' ||
+      location === '/api/auth/signin' ||
+      location === 'https://' + host + '/api/auth/signin';
     if (typeof location === 'string' && !allowed) {
       try {
         const url = new URL(location);

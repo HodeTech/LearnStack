@@ -93,10 +93,13 @@ describe('P02d-7 exact demo identity boundary', () => {
       'frontend/apps/web/src/server/ingress.ts',
       'frontend/apps/web/src/server/auth/session-runtime.ts',
       'frontend/apps/web/src/server/auth/session-store.ts',
+      'frontend/apps/web/src/server/auth/native-session-client.ts',
+      'frontend/apps/web/src/server/auth/native-administration-client.ts',
       'frontend/apps/web/src/server/configured-public-client.ts',
       'frontend/apps/web/src/components/public/lesson.tsx',
       'frontend/apps/web/src/i18n/messages/en/public.json',
       'frontend/packages/sdk/src/server.ts',
+      'frontend/packages/sdk/src/administration-server.ts',
       'frontend/apps/web/scripts/public-server.mjs',
       'frontend/apps/web/scripts/development-hmr.mjs',
       'frontend/apps/web/scripts/stop-test-child.mjs',
@@ -520,6 +523,8 @@ describe('P02d-7 exact demo identity boundary', () => {
     const entry = 'scripts/demo.mjs';
     const source = 'frontend/apps/web/src/server/ingress.ts';
     const nested = 'frontend/apps/web/src/server/auth/session-runtime.ts';
+    const native = 'frontend/apps/web/src/server/auth/native-administration-client.ts';
+    const sdk = 'frontend/packages/sdk/src/administration-server.ts';
     const helper = 'frontend/apps/web/src/server/auth/owned-helper.ts';
     const config = {
       compilerOptions: { rootDir: 'src/server', outDir: '.server' },
@@ -530,6 +535,8 @@ describe('P02d-7 exact demo identity boundary', () => {
         'src/server/auth/configuration.ts',
         'src/server/auth/http-protocol.ts',
         'src/server/auth/logout-response.ts',
+        'src/server/auth/native-administration-client.ts',
+        'src/server/auth/native-session-client.ts',
         'src/server/auth/provider-core.ts',
         'src/server/auth/request-runtime.ts',
         'src/server/auth/session-runtime.ts',
@@ -538,16 +545,54 @@ describe('P02d-7 exact demo identity boundary', () => {
     const files = new Map([
       [
         entry,
-        "import '../frontend/apps/web/.server/ingress.js'; import '../frontend/apps/web/.server/auth/session-runtime.js'; import '../frontend/apps/web/src/app/globals.css';",
+        "import '../frontend/apps/web/.server/ingress.js'; import '../frontend/apps/web/.server/auth/session-runtime.js'; import '../frontend/apps/web/.server/auth/native-administration-client.js'; import '../frontend/apps/web/src/app/globals.css';",
       ],
       [source, 'export const clean = true;'],
       [nested, "import './owned-helper.js';"],
       [helper, 'export const owned = true;'],
+      [native, "import '@learnstack/sdk/administration-server';"],
+      [sdk, `export const special = ${JSON.stringify(identity)};`],
+      [
+        'frontend/packages/sdk/package.json',
+        JSON.stringify({
+          name: '@learnstack/sdk',
+          exports: { './administration-server': './dist/administration-server.js' },
+        }),
+      ],
+      [
+        'frontend/packages/sdk/tsconfig.native.json',
+        JSON.stringify({
+          compilerOptions: { rootDir: 'src', outDir: 'dist' },
+          include: ['src/authenticated-server.ts', 'src/administration-server.ts'],
+        }),
+      ],
       ['frontend/apps/web/src/app/globals.css', ':root { color: black }'],
       ['frontend/apps/web/tsconfig.server.json', JSON.stringify(config)],
     ]);
     const selected = productionDemoSources(files);
-    for (const input of [source, nested, helper]) expect(selected.has(input)).toBe(true);
+    for (const input of [source, nested, helper, native, sdk])
+      expect(selected.has(input)).toBe(true);
+    expect(demoIdentityFindings(sdk, selected.get(sdk)!, vocabulary)).toEqual([identity]);
+    for (const patch of [
+      {
+        compilerOptions: { rootDir: 'src', outDir: 'unmodeled' },
+        include: ['src/authenticated-server.ts', 'src/administration-server.ts'],
+      },
+      {
+        compilerOptions: { rootDir: 'src', outDir: 'dist' },
+        include: ['src/authenticated-server.ts', 'src/administration-server.ts', 'src/hidden.ts'],
+      },
+      {
+        compilerOptions: { rootDir: 'src', outDir: 'dist' },
+        include: ['src/authenticated-server.ts'],
+      },
+    ]) {
+      const dirty = new Map(files);
+      dirty.set('frontend/packages/sdk/tsconfig.native.json', JSON.stringify(patch));
+      expect(() => productionDemoSources(dirty)).toThrow(
+        'Unmodeled runtime import: tsconfig.native.json',
+      );
+    }
     const unknown = new Map(files);
     unknown.set(
       'frontend/apps/web/tsconfig.server.json',

@@ -34,6 +34,7 @@ it.each([
   ['configuration', 503],
   ['response', 503],
   ['transaction', 400],
+  ['csrf', 403],
   ['expired', 400],
   ['revoked', 400],
   ['cancelled', 400],
@@ -55,7 +56,9 @@ it.each([
     expect(response!.status).toBe(status);
     expect(await response!.json()).toEqual({ code: reason });
     expect(response!.headers.getSetCookie()).toEqual([]);
-    expect(response!.headers.get('retry-after')).toBe(status === 400 ? null : '30');
+    expect(response!.headers.get('retry-after')).toBe(
+      status === 429 || status === 503 ? '30' : null,
+    );
   },
 );
 
@@ -216,7 +219,7 @@ describe('closed BFF routes with the actual owner', () => {
     const csrf = await f.http.handle(bffRequest('/api/auth/csrf'));
     expect(csrf!.headers.get('referrer-policy')).toBe('no-referrer');
   });
-  it('presession CSRF → redirect → bound callback → safe session, then local-first logout and own return', async () => {
+  it('presession CSRF → redirect → bound callback → entry confirmation → safe session, then local-first logout and own return', async () => {
     const f = fixture();
     const csrf = await f.http.handle(bffRequest('/api/auth/csrf'));
     expectCookies(csrf!, { [BFF_COOKIES.csrf]: 300 });
@@ -239,13 +242,41 @@ describe('closed BFF routes with the actual owner', () => {
     const callback = await f.http.handle(
       bffRequest('/api/auth/callback/keycloak?state=' + state + '&code=owned', { cookie: cookies }),
     );
-    expect(callback!.headers.get('location')).toBe('/studio');
+    expect(callback!.headers.get('location')).toBe('/api/auth/entry');
+    expect(f.account).not.toHaveBeenCalled();
+    expect(f.native.self).not.toHaveBeenCalled();
     expectCookies(callback!, {
-      [BFF_COOKIES.session]: 28_800,
+      [BFF_COOKIES.entry]: 300,
       [BFF_COOKIES.browser]: 28_800,
       [name]: 0,
     });
-    const active = jar(callback!)
+    const entryCookie = jar(callback!)
+      .split('; ')
+      .filter((value) => !value.endsWith('='))
+      .join('; ');
+    expect(
+      await (await f.http.handle(bffRequest('/api/auth/session', { cookie: entryCookie })))!.json(),
+    ).toEqual({ state: 'anonymous' });
+    const entry = await (await f.http.handle(
+      bffRequest('/api/auth/entry', { cookie: entryCookie }),
+    ))!.json();
+    const selected = await f.http.handle(
+      bffRequest('/api/auth/entry/select', {
+        method: 'POST',
+        cookie: entryCookie,
+        form: new URLSearchParams({
+          csrfToken: entry.csrfToken,
+          tenantId: f.scope.tenantId,
+        }).toString(),
+      }),
+    );
+    expect(selected!.headers.get('location')).toBe('/studio');
+    expectCookies(selected!, {
+      [BFF_COOKIES.session]: 28_800,
+      [BFF_COOKIES.browser]: 28_800,
+      [BFF_COOKIES.entry]: 0,
+    });
+    const active = jar(selected!)
       .split('; ')
       .filter((value) => !value.endsWith('='))
       .join('; ');
@@ -357,7 +388,7 @@ describe('closed BFF routes with the actual owner', () => {
       browser: old.binding.browser,
       returnPath: '/',
     });
-    const next = await f.store.complete({
+    const nextEntry = await f.store.complete({
       host: bffHost,
       source: '203.0.113.1',
       browser: nextStart.browser,
@@ -370,6 +401,13 @@ describe('closed BFF routes with the actual owner', () => {
         nextStart.state +
         '&code=owned',
     });
+    const next = await f.store.select(
+      { host: bffHost, browser: nextEntry.browser, handle: nextEntry.handle },
+      '203.0.113.1',
+      nextEntry.entry.csrfToken,
+      f.scope,
+    );
+    if (next.kind !== 'session') throw new Error('Expected replacement session');
     const proof = logout!.headers
       .getSetCookie()
       .find((value) => value.startsWith(BFF_COOKIES.logout))!

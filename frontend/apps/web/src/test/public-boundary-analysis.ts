@@ -20,6 +20,7 @@ export type SourceGraph = {
 };
 
 export const ACCOUNT_ADAPTER = 'apps/web/src/server/auth/account-client.ts';
+export const NATIVE_API_TRANSPORT = 'apps/web/src/server/auth/native-api-transport.ts';
 export const BFF_BROWSER_ADAPTER = 'apps/web/src/client/bff-session.ts';
 export const ADAPTER = 'apps/web/src/server/configured-public-client.ts';
 export const INGRESS = 'apps/web/src/server/ingress.ts';
@@ -30,6 +31,7 @@ export const REQUEST_MEMO = 'apps/web/src/server/request-memo.ts';
 export const ADMISSION_RUNTIME = 'apps/web/src/server/public-admission-runtime.ts';
 export const ADMISSION_FACADE = 'apps/web/src/server/public-admission.ts';
 export const SDK_AUTHENTICATED = 'packages/sdk/src/authenticated-server.ts';
+export const SDK_ADMINISTRATION = 'packages/sdk/src/administration-server.ts';
 export const SDK_SERVER = 'packages/sdk/src/server.ts';
 
 /** Only these test roots are outside the production inventory; names are not authority. */
@@ -317,10 +319,16 @@ export function admissionBoundaryFindings(graph: SourceGraph): Finding[] {
   });
   return [...findings, ...cacheFindings(graph, [ADMISSION_FACADE])];
 }
-const HOP_HEADERS = new Set([
+const PUBLIC_HOP_HEADERS = new Set([
   'x-learnstack-host',
   'x-learnstack-hop-secret',
   'x-learnstack-visitor-address',
+]);
+const HOP_HEADERS = new Set([
+  ...PUBLIC_HOP_HEADERS,
+  'x-learnstack-native-session-secret',
+  'x-learnstack-native-tenant-id',
+  'x-learnstack-native-organization-id',
 ]);
 const RAW_AUTHORITY_HEADERS = new Set([
   'host',
@@ -570,8 +578,8 @@ export function resolutionCensusFindings(
             value !== `./src/${subpath}.tsx` &&
             !(
               directory === 'packages/sdk' &&
-              subpath === 'authenticated-server' &&
-              value === './dist/authenticated-server.js'
+              ['authenticated-server', 'administration-server'].includes(subpath) &&
+              value === `./dist/${subpath}.js`
             ))
         );
       }) ||
@@ -790,9 +798,11 @@ export function publicLayoutPolicyFindings(graph: SourceGraph): Finding[] {
 export function transportFindings(graph: SourceGraph): Finding[] {
   const findings: Finding[] = [];
   for (const [name, file] of graph.files) {
-    if (name === ADAPTER) continue;
+    const allowedHeader = (header: string) =>
+      name === NATIVE_API_TRANSPORT || (name === ADAPTER && PUBLIC_HOP_HEADERS.has(header));
     walk(file, (node) => {
       if (
+        name !== ADAPTER &&
         ts.isCallExpression(node) &&
         globalFetch(node.expression, graph) &&
         !(name === BFF_BROWSER_ADAPTER && fixedBffExtension(node, file))
@@ -800,7 +810,11 @@ export function transportFindings(graph: SourceGraph): Finding[] {
         findings.push(
           finding(node, 'Fix: call the configured public SDK adapter instead of global fetch.'),
         );
-      if (ts.isCallExpression(node) && node.arguments.some((value) => globalFetch(value, graph)))
+      if (
+        name !== ADAPTER &&
+        ts.isCallExpression(node) &&
+        node.arguments.some((value) => globalFetch(value, graph))
+      )
         findings.push(
           finding(
             node,
@@ -808,6 +822,7 @@ export function transportFindings(graph: SourceGraph): Finding[] {
           ),
         );
       if (
+        name !== ADAPTER &&
         (ts.isVariableDeclaration(node) || ts.isParameter(node) || ts.isPropertyAssignment(node)) &&
         node.initializer &&
         globalFetch(node.initializer, graph)
@@ -818,7 +833,7 @@ export function transportFindings(graph: SourceGraph): Finding[] {
             'Fix: inject transport; do not store or default to global fetch outside the configured adapter.',
           ),
         );
-      if (ts.isExportAssignment(node) && globalFetch(node.expression, graph))
+      if (name !== ADAPTER && ts.isExportAssignment(node) && globalFetch(node.expression, graph))
         findings.push(
           finding(
             node,
@@ -842,13 +857,17 @@ export function transportFindings(graph: SourceGraph): Finding[] {
           for (const pair of pairs.elements)
             if (ts.isArrayLiteralExpression(pair)) {
               const header = constantString(pair.elements[0], graph.checker);
-              if (name !== ACCOUNT_ADAPTER && header && HOP_HEADERS.has(header.toLowerCase()))
+              if (
+                header &&
+                HOP_HEADERS.has(header.toLowerCase()) &&
+                !allowedHeader(header.toLowerCase())
+              )
                 findings.push(
                   finding(pair, 'Fix: construct API-hop headers only in the configured adapter.'),
                 );
             }
       }
-      if (name !== ACCOUNT_ADAPTER && key && HOP_HEADERS.has(key.toLowerCase()))
+      if (key && HOP_HEADERS.has(key.toLowerCase()) && !allowedHeader(key.toLowerCase()))
         findings.push(
           finding(node, 'Fix: construct API-hop headers only in the configured adapter.'),
         );
@@ -979,6 +998,7 @@ export function privateServerFiles(graph: SourceGraph): string[] {
         (name.startsWith('apps/web/src/i18n/messages/') && name.endsWith('.json')) ||
         name === SDK_SERVER ||
         name === SDK_AUTHENTICATED ||
+        name === SDK_ADMINISTRATION ||
         hasServerOnlyMarker(file)
       )
         return true;

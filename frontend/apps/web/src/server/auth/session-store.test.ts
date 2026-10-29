@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { NativeAdministrationCaller } from './native-operation-contract';
 import type { ProviderCredentials, ProviderIdentity } from './provider';
 import { BffProviderError } from './provider-error';
 import { BffSessionError } from './session-contract';
@@ -25,6 +26,7 @@ const identity: ProviderIdentity = {
   actorId: '019a154b-0000-7000-8000-000000000011',
   tenantId: '10000000-0000-4000-8000-000000000001',
   organizationId: null,
+  displayLabel: 'Confirmed account',
 };
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -88,16 +90,94 @@ function fixture(options: { initialTime?: number; utcJitter?: () => number } = {
     await accounting?.promise;
     const validated = tokens.get(token)!;
     return {
-      actorId: validated.actorId,
-      tenantId: validated.tenantId,
+      actorId: validated.actorId ?? identity.actorId!,
+      tenantId: validated.tenantId ?? identity.tenantId!,
       organizationId: validated.organizationId,
       displayName: 'Institution',
       ...accountPatch,
     };
   });
+  const association = (token: string) => ({
+    authorityId: '10000000-0000-4000-8000-000000000099',
+    subjectKey: 'a'.repeat(64),
+    actorId: tokens.get(token)!.actorId ?? identity.actorId!,
+  });
+  const native = {
+    self: vi.fn(async (token: string, _binding: unknown, _signal: AbortSignal) => ({
+      state: 'active' as const,
+      association: association(token),
+    })),
+    bootstrap: vi.fn(async (token: string, _binding: unknown, _signal: AbortSignal) =>
+      association(token),
+    ),
+    contexts: vi.fn(
+      async (_token: string, binding: { host: string }, _page: unknown, _signal: AbortSignal) => ({
+        items: [
+          {
+            tenantId: identity.tenantId!,
+            organizationId: accountPatch.organizationId ?? currentIdentity.organizationId,
+            tenantName: 'Institution',
+            organizationName: null,
+            entryOrigin: 'https://' + binding.host,
+            canUseCurrentHost: true,
+          },
+        ],
+        endCursor: null,
+        hasNextPage: false,
+      }),
+    ),
+    admit: vi.fn(
+      async (
+        token: string,
+        binding: { tenantId: string; organizationId: string | null },
+        _signal: AbortSignal,
+      ) => ({
+        ...association(token),
+        tenantId: binding.tenantId,
+        organizationId: binding.organizationId,
+      }),
+    ),
+    verifyAssociation: vi.fn((value: ProviderIdentity, witness: { actorId: string }) => {
+      if (value.actorId !== null && value.actorId !== witness.actorId)
+        throw new BffSessionError('identity');
+    }),
+  };
+  const administration = vi.fn<NativeAdministrationCaller>(async (_token, binding, operation) => {
+    if (operation.kind === 'getOwnContexts')
+      return {
+        kind: 'success',
+        status: 200,
+        etag: null,
+        location: null,
+        replayed: false,
+        data: {
+          items: [
+            {
+              tenantId: identity.tenantId!,
+              organizationId: accountPatch.organizationId ?? currentIdentity.organizationId,
+              tenantName: 'Institution',
+              organizationName: null,
+              entryOrigin: 'https://' + binding.host,
+              canUseCurrentHost: true,
+            },
+          ],
+          pageInfo: { nextCursor: null, previousCursor: null, hasNext: false, hasPrevious: false },
+        },
+      };
+    return {
+      kind: 'success',
+      status: 200,
+      data: { version: '1' },
+      etag: '"1"',
+      location: null,
+      replayed: false,
+    };
+  });
   const store = new InMemoryBffSessionStore({
     provider,
     account,
+    native,
+    administration,
     clock: {
       monotonic: () => now,
       utc: () => 1_800_000_000_000 + now + (options.utcJitter?.() ?? 0),
@@ -108,7 +188,7 @@ function fixture(options: { initialTime?: number; utcJitter?: () => number } = {
   async function start(extra: Partial<Parameters<typeof store.start>[0]> = {}) {
     return store.start({ host, source, returnPath: '/studio', ...extra });
   }
-  async function complete(
+  async function enter(
     login: Awaited<ReturnType<typeof start>>,
     atHost = host,
     callbackSource = source,
@@ -129,6 +209,27 @@ function fixture(options: { initialTime?: number; utcJitter?: () => number } = {
       signal,
     });
   }
+  async function complete(
+    login: Awaited<ReturnType<typeof start>>,
+    atHost = host,
+    callbackSource = source,
+    signal?: AbortSignal,
+  ) {
+    const entry = await enter(login, atHost, callbackSource, signal);
+    const selected = await store.select(
+      { host: atHost, browser: entry.browser, handle: entry.handle },
+      callbackSource,
+      entry.entry.csrfToken,
+      {
+        tenantId: identity.tenantId!,
+        organizationId: accountPatch.organizationId ?? currentIdentity.organizationId,
+      },
+      undefined,
+      signal,
+    );
+    if (selected.kind !== 'session') throw new Error('Fixture expected a same-host session');
+    return selected;
+  }
   async function login(extra: Partial<Parameters<typeof store.start>[0]> = {}) {
     const started = await start(extra);
     const finished = await complete(started, extra.host ?? host);
@@ -142,10 +243,14 @@ function fixture(options: { initialTime?: number; utcJitter?: () => number } = {
     store,
     provider,
     account,
+    native,
+    administration,
+    identity: () => currentIdentity,
     diagnostics,
     diagnostic,
     start,
     complete,
+    enter,
     login,
     credentials,
     advance(ms: number) {
@@ -227,7 +332,7 @@ describe('Bff_Session_Refresh_And_Revocation_Have_One_Owner', () => {
   });
 
   it.each(['redeem', 'account'] as const)(
-    'propagates callback cancellation during %s without publishing or releasing unfinished work',
+    'propagates %s cancellation through callback or selection without publishing or releasing unfinished work',
     async (stage) => {
       const f = fixture();
       const started = await f.start();
@@ -236,7 +341,7 @@ describe('Bff_Session_Refresh_And_Revocation_Have_One_Owner', () => {
       const pending = f.complete(started, host, source, controller.signal);
       const refused = expect(pending).rejects.toMatchObject({
         reason: 'cancelled',
-        clearTransaction: started.state,
+        clearTransaction: stage === 'redeem' ? started.state : null,
       });
       await vi.waitFor(() =>
         expect(stage === 'redeem' ? f.provider.redeem : f.account).toHaveBeenCalledTimes(1),
@@ -252,11 +357,19 @@ describe('Bff_Session_Refresh_And_Revocation_Have_One_Owner', () => {
         owners: 1,
         pending: 1,
         operations: 1,
-        credentialRecords: 0,
+        credentialRecords: stage === 'redeem' ? 0 : 1,
       });
       held.resolve();
       await refused;
-      expect(Object.values(f.store.counts()).every((count) => count === 0)).toBe(true);
+      if (stage === 'redeem')
+        expect(Object.values(f.store.counts()).every((count) => count === 0)).toBe(true);
+      else
+        expect(f.store.counts()).toMatchObject({
+          owners: 1,
+          pending: 1,
+          operations: 0,
+          credentialRecords: 1,
+        });
     },
   );
 
@@ -334,21 +447,26 @@ describe('Bff_Session_Refresh_And_Revocation_Have_One_Owner', () => {
         const login = await f.start();
         await expect(f.complete(login)).rejects.toMatchObject({
           reason: 'identity',
-          clearTransaction: login.state,
+          clearTransaction: null,
         });
         await flush();
-        expect(f.store.counts()).toMatchObject({ owners: 0, groups: 0 });
+        expect(f.store.counts()).toMatchObject({ owners: 1, groups: 1, pending: 1 });
+        expect(f.store.counts().loginStates).toBe(0);
       },
     );
   }
 
-  it('permits API host-resolved organization only when the protected ID claim is absent', async () => {
+  it('permits API-selected organization for tenantless identity and refuses conflicting complete provider scope', async () => {
     const f = fixture();
     const organization = '30000000-0000-4000-8000-000000000003';
+    f.setIdentity({ tenantId: null });
     f.setAccount({ organizationId: organization });
     const first = await f.login();
     expect(f.store.peek(first.binding)).not.toBeNull();
-    f.setIdentity({ organizationId: '40000000-0000-4000-8000-000000000004' });
+    f.setIdentity({
+      tenantId: identity.tenantId,
+      organizationId: '40000000-0000-4000-8000-000000000004',
+    });
     await expect(f.login()).rejects.toMatchObject({ reason: 'identity' });
     expect(f.store.peek(first.binding)).not.toBeNull();
   });
@@ -458,8 +576,8 @@ describe('browser elections and explicit replacement', () => {
     const a = f.complete(first);
     const b = f.complete(second);
     const rejected = expect(b).rejects.toMatchObject({
-      reason: 'revoked',
-      clearTransaction: second.state,
+      reason: 'transaction',
+      clearTransaction: null,
     });
     await flush();
     gate.resolve();
@@ -480,6 +598,7 @@ describe('browser elections and explicit replacement', () => {
       f.login({ browser: old.binding.browser, handle: old.binding.handle }),
     ).rejects.toMatchObject({ reason: 'subject_capacity' });
     expect(f.store.peek(old.binding)).not.toBeNull();
+    f.setIdentity({ subject: identity.subject });
     f.setAccount({ tenantId: '20000000-0000-4000-8000-000000000002' });
     await expect(
       f.login({ browser: old.binding.browser, handle: old.binding.handle }),
@@ -490,7 +609,7 @@ describe('browser elections and explicit replacement', () => {
   it('replaces only its verified same-browser primary, holding subject credit until old I/O settles', async () => {
     const f = fixture();
     const old = await f.login();
-    for (let i = 0; i < 7; ++i) await f.login();
+    for (let i = 0; i < 6; ++i) await f.login();
     const gate = f.blockRefresh();
     const refresh = f.store.admit(old.binding, source, 'extend');
     const ended = expect(refresh).rejects.toBeInstanceOf(BffSessionError);
@@ -501,17 +620,17 @@ describe('browser elections and explicit replacement', () => {
       published = true;
       return value;
     });
-    await flush();
+    await vi.waitFor(() => expect(f.store.peek(old.binding)).toBeNull());
     expect(published).toBe(false);
     expect(f.store.peek(old.binding)).toBeNull();
-    expect(f.store.counts()).toMatchObject({ owners: 9, pending: 1, subjects: 8 });
+    expect(f.store.counts()).toMatchObject({ owners: 8, pending: 1, subjects: 8 });
     await expect(f.login()).rejects.toMatchObject({ reason: 'subject_capacity' });
     gate.resolve();
     await ended;
     const next = await replacement;
     expect(f.store.peek({ host, browser: next.browser, handle: next.handle })).not.toBeNull();
     expect(f.store.peek(old.binding)).toBeNull();
-    expect(f.store.counts()).toMatchObject({ owners: 8, subjects: 8 });
+    expect(f.store.counts()).toMatchObject({ owners: 7, subjects: 7 });
   });
 
   it('a browser binding without its primary cookie cannot retire that primary', async () => {
@@ -979,7 +1098,12 @@ describe('current callback visitor provenance', () => {
     gate.resolve();
     await completing;
     expect(f.account).toHaveBeenCalledTimes(1);
-    expect(f.account.mock.calls[0]![1]).toEqual({ host, source: callbackSource });
+    expect(f.account.mock.calls[0]![1]).toEqual({
+      host,
+      source: callbackSource,
+      tenantId: identity.tenantId,
+      organizationId: null,
+    });
   });
 
   it('refuses a malformed callback source before consuming a valid transaction', async () => {
@@ -1314,5 +1438,540 @@ describe('independent lifetime and logical custody controls', () => {
       f.advance(0.125);
       expect(f.store.peek(binding)!.expiresAt).toBe(first);
     }
+  });
+});
+
+describe('native entry, selection and private operation ownership', () => {
+  const scope = { tenantId: identity.tenantId!, organizationId: null };
+  const entryBinding = (entry: Awaited<ReturnType<ReturnType<typeof fixture>['enter']>>) => ({
+    host,
+    browser: entry.browser,
+    handle: entry.handle,
+  });
+
+  it('reserves an independent subject credit before any API work and publishes only an entry projection', async () => {
+    const f = fixture();
+    f.setIdentity({ actorId: null, tenantId: null, organizationId: null });
+    const started = await f.start();
+    const result = await f.enter(started);
+    expect(result.kind).toBe('entry');
+    expect(result.entry).toMatchObject({
+      state: 'entry',
+      identityState: 'unavailable',
+      contexts: null,
+    });
+    expect(f.store.peek(entryBinding(result))).toBeNull();
+    expect(f.native.self).not.toHaveBeenCalled();
+    expect(f.native.admit).not.toHaveBeenCalled();
+    expect(f.account).not.toHaveBeenCalled();
+    expect(f.store.counts()).toMatchObject({
+      owners: 1,
+      pending: 1,
+      subjects: 1,
+      credentialRecords: 1,
+    });
+    expect(JSON.stringify(result)).not.toContain(privateCanary);
+    expect(JSON.stringify(result)).not.toContain(identity.subject);
+    const page = await f.store.entry(entryBinding(result), source);
+    expect(page.identityState).toBe('active');
+    expect(page.contexts?.items).toHaveLength(1);
+    const selected = await f.store.select(entryBinding(result), source, page.csrfToken, scope);
+    expect(selected.kind).toBe('session');
+    expect(f.native.admit).toHaveBeenCalledTimes(1);
+    expect(f.account).toHaveBeenLastCalledWith(
+      expect.any(String),
+      { host, source, ...scope },
+      expect.any(AbortSignal),
+    );
+  });
+
+  it('refuses the ninth verified entry before self, creation or admission and does not evict any owner', async () => {
+    const f = fixture();
+    for (let i = 0; i < 8; ++i) await f.enter(await f.start());
+    await expect(f.enter(await f.start())).rejects.toMatchObject({ reason: 'subject_capacity' });
+    expect(f.store.counts()).toMatchObject({ owners: 8, pending: 8, subjects: 8 });
+    expect(f.native.self).not.toHaveBeenCalled();
+    expect(f.native.bootstrap).not.toHaveBeenCalled();
+    expect(f.native.admit).not.toHaveBeenCalled();
+    expect(f.account).not.toHaveBeenCalled();
+  });
+
+  it('keeps the original five-minute entry and source credits without extending them on repeated discovery', async () => {
+    const f = fixture();
+    const started = await f.start();
+    f.advance(120_000);
+    const result = await f.enter(started);
+    const binding = entryBinding(result);
+    const first = await f.store.entry(binding, source);
+    f.advance(179_999);
+    expect((await f.store.entry(binding, source)).expiresAt).toBe(first.expiresAt);
+    f.advance(1);
+    await expect(f.store.entry(binding, source)).rejects.toMatchObject({ reason: 'expired' });
+    f.store.sweep();
+    expect(f.store.counts()).toMatchObject({ owners: 0, pending: 0, subjects: 0 });
+  });
+
+  it.each(['Identical name', 'é', 'e\u0301', null])(
+    'preserves a live destination for another exact subject regardless of label %s',
+    async (label) => {
+      const f = fixture();
+      const active = await f.login();
+      f.setIdentity({ subject: 'different-subject', displayLabel: label });
+      const replacement = await f.enter(
+        await f.start({ browser: active.binding.browser, handle: active.binding.handle }),
+      );
+      await expect(
+        f.store.select(entryBinding(replacement), source, replacement.entry.csrfToken, scope),
+      ).rejects.toMatchObject({ reason: label === null ? 'reauthenticate' : 'account_change' });
+      expect(f.store.peek(active.binding)).not.toBeNull();
+      expect(f.native.admit).toHaveBeenCalledTimes(1);
+      const logout = f.store.discardEntry(entryBinding(replacement), replacement.entry.csrfToken);
+      expect(f.store.peek(active.binding)).not.toBeNull();
+      expect(f.store.counts().owners).toBe(2);
+      expect(f.store.consumeLogout({ ...entryBinding(replacement), ...logout })).toBe(true);
+      expect(f.store.peek(active.binding)).not.toBeNull();
+      expect(f.store.counts().owners).toBe(1);
+    },
+  );
+
+  it('retains an unknown creation outcome and resolves a deliberate retry without automatically repeating POST', async () => {
+    const f = fixture();
+    const entry = await f.enter(await f.start());
+    const binding = entryBinding(entry);
+    f.native.self.mockResolvedValueOnce({ state: 'missing' } as never);
+    f.native.bootstrap.mockRejectedValueOnce(new BffProviderError('transport'));
+    await expect(f.store.create(binding, source, entry.entry.csrfToken)).rejects.toMatchObject({
+      reason: 'transport',
+    });
+    expect(f.native.bootstrap).toHaveBeenCalledTimes(1);
+    expect(f.store.counts()).toMatchObject({ owners: 1, pending: 1, credentialRecords: 1 });
+    const retry = await f.store.create(binding, source, entry.entry.csrfToken);
+    expect(retry.identityState).toBe('active');
+    expect(f.native.bootstrap).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses Off self plus unchanged scoped AccountSite after refresh, never the audited admission endpoint', async () => {
+    const f = fixture();
+    f.setIdentity({ actorId: null, tenantId: null });
+    const active = await f.login();
+    f.native.self.mockClear();
+    f.native.admit.mockClear();
+    await f.store.admit(active.binding, source, 'extend');
+    expect(f.native.self).toHaveBeenCalledTimes(1);
+    expect(f.native.self).toHaveBeenLastCalledWith(
+      expect.any(String),
+      { host, source },
+      expect.any(AbortSignal),
+    );
+    expect(f.account).toHaveBeenLastCalledWith(
+      expect.any(String),
+      { host, source, ...scope },
+      expect.any(AbortSignal),
+    );
+    expect(f.native.admit).not.toHaveBeenCalled();
+  });
+
+  it('waits for actual old operation cleanup before publishing a fresh switch handle and withholds late old bytes', async () => {
+    const f = fixture();
+    const active = await f.login();
+    const held = deferred<void>();
+    releases.push(() => held.resolve());
+    f.administration.mockImplementationOnce(async () => {
+      await held.promise;
+      return {
+        kind: 'success',
+        status: 200,
+        data: { version: '1' },
+        etag: '"1"',
+        location: null,
+        replayed: false,
+      };
+    });
+    const operation = f.store.operate(active.binding, source, { kind: 'getOwnProfile' });
+    const oldRefused = expect(operation).rejects.toMatchObject({ reason: 'cancelled' });
+    await vi.waitFor(() => expect(f.administration).toHaveBeenCalledTimes(1));
+    let published = false;
+    const switching = f.store
+      .switchScope(active.binding, source, active.finished.session.csrfToken, scope)
+      .then((value) => {
+        published = true;
+        return value;
+      });
+    await vi.waitFor(() => expect(f.account).toHaveBeenCalledTimes(2));
+    expect(f.store.peek(active.binding)).toBeNull();
+    expect(published).toBe(false);
+    expect(f.store.counts()).toMatchObject({ owners: 2, subjects: 2 });
+    held.resolve();
+    await oldRefused;
+    const switched = await switching;
+    expect(switched.kind).toBe('session');
+    if (switched.kind !== 'session') throw new Error('Expected local switch');
+    expect(switched.handle).not.toBe(active.binding.handle);
+    expect(switched.session.csrfToken).not.toBe(active.finished.session.csrfToken);
+    expect(f.store.peek({ ...active.binding, handle: switched.handle })).not.toBeNull();
+    expect(f.store.counts()).toMatchObject({ owners: 1, subjects: 1 });
+  });
+
+  it('failed target admission preserves the source session and its independent operation capability', async () => {
+    const f = fixture();
+    const active = await f.login();
+    f.native.admit.mockRejectedValueOnce(new BffProviderError('provider_refused'));
+    await expect(
+      f.store.switchScope(active.binding, source, active.finished.session.csrfToken, scope),
+    ).rejects.toMatchObject({ reason: 'provider_refused' });
+    expect(f.store.peek(active.binding)).toEqual(active.finished.session);
+    expect(f.store.counts()).toMatchObject({ owners: 1, pending: 0, subjects: 1 });
+    await expect(
+      f.store.operate(active.binding, source, { kind: 'getOwnProfile' }),
+    ).resolves.toMatchObject({ kind: 'success' });
+  });
+
+  it('reserves an eighth-plus-one switch owner without a same-person capacity bypass', async () => {
+    const f = fixture();
+    const active = await f.login();
+    for (let i = 0; i < 7; ++i) await f.login();
+    f.native.admit.mockClear();
+    await expect(
+      f.store.switchScope(active.binding, source, active.finished.session.csrfToken, scope),
+    ).rejects.toMatchObject({ reason: 'subject_capacity' });
+    expect(f.native.admit).not.toHaveBeenCalled();
+    expect(f.store.peek(active.binding)).not.toBeNull();
+    expect(f.store.counts()).toMatchObject({ owners: 8, subjects: 8 });
+  });
+
+  it('captures the closed operation before a refresh await so caller mutation cannot turn a read into a write', async () => {
+    const f = fixture();
+    const active = await f.login();
+    f.advance(840_000);
+    const held = f.blockRefresh();
+    const input = { kind: 'getOwnProfile' as const };
+    const pending = f.store.operate(active.binding, source, input);
+    await vi.waitFor(() => expect(f.provider.refresh).toHaveBeenCalledTimes(1));
+    Object.assign(input, {
+      kind: 'setOwnProfile',
+      profile: { displayName: 'Changed', preferredLocale: null },
+      version: '1',
+      idempotencyKey: 'misleading-key',
+    });
+    held.resolve();
+    await pending;
+    expect(f.administration).toHaveBeenLastCalledWith(
+      expect.any(String),
+      { host, source, ...scope },
+      { kind: 'getOwnProfile' },
+      expect.any(AbortSignal),
+    );
+  });
+
+  it('requires current session CSRF before any mutation work, including refresh', async () => {
+    const f = fixture();
+    const active = await f.login();
+    f.advance(840_000);
+    await expect(
+      f.store.operate(
+        active.binding,
+        source,
+        {
+          kind: 'setOwnProfile',
+          profile: { displayName: null, preferredLocale: null },
+          version: '1',
+          idempotencyKey: 'fixed-key',
+        },
+        secret(),
+      ),
+    ).rejects.toMatchObject({ reason: 'csrf' });
+    expect(f.provider.refresh).not.toHaveBeenCalled();
+    expect(f.administration).not.toHaveBeenCalled();
+  });
+
+  it.each([401, 403, 404, 429, 503])(
+    'keeps an otherwise-live session after an administration %s outcome',
+    async (status) => {
+      const f = fixture();
+      const active = await f.login();
+      f.administration.mockResolvedValueOnce({
+        kind: 'api-error',
+        status,
+        error: { code: 'not_found' },
+        problem: { status, code: 'not_found' },
+      } as never);
+      await expect(
+        f.store.operate(active.binding, source, { kind: 'getOwnProfile' }),
+      ).resolves.toMatchObject({ kind: 'api-error', status });
+      expect(f.store.peek(active.binding)).not.toBeNull();
+    },
+  );
+
+  it('retains actual operation custody through logout until the ignored cancellation settles', async () => {
+    const f = fixture();
+    const active = await f.login();
+    const held = deferred<void>();
+    releases.push(() => held.resolve());
+    let signal: AbortSignal | undefined;
+    f.administration.mockImplementationOnce(async (_token, _binding, _operation, current) => {
+      signal = current;
+      await held.promise;
+      return {
+        kind: 'success',
+        status: 200,
+        data: { version: '1' },
+        etag: '"1"',
+        location: null,
+        replayed: false,
+      };
+    });
+    const pending = f.store.operate(active.binding, source, { kind: 'getOwnProfile' });
+    const refused = expect(pending).rejects.toMatchObject({ reason: 'cancelled' });
+    await vi.waitFor(() => expect(signal).toBeDefined());
+    const logout = f.store.signout(active.binding, active.finished.session.csrfToken);
+    expect(signal!.aborted).toBe(true);
+    f.store.consumeLogout({ ...active.binding, ...logout });
+    expect(f.store.counts()).toMatchObject({
+      owners: 1,
+      subjects: 1,
+      operations: 1,
+      credentialRecords: 0,
+    });
+    held.resolve();
+    await refused;
+    expect(Object.values(f.store.counts()).every((count) => count === 0)).toBe(true);
+  });
+});
+
+describe('native switch refresh and lifetime boundaries', () => {
+  const scope = { tenantId: identity.tenantId!, organizationId: null };
+  it('refreshes one near-expiry revision before switch and keeps the original eight-hour absolute ceiling', async () => {
+    const f = fixture();
+    f.setTokens({ refreshExpiresAt: 24 * 60 * 60_000 });
+    const active = await f.login();
+    for (let i = 0; i < 23; ++i) {
+      f.advance(20 * 60_000);
+      await f.store.admit(active.binding, source, 'extend');
+    }
+    f.advance(14 * 60_000);
+    const priorRefreshes = vi.mocked(f.provider.refresh).mock.calls.length;
+    const switched = await f.store.switchScope(
+      active.binding,
+      source,
+      f.store.peek(active.binding)!.csrfToken,
+      scope,
+    );
+    expect(f.provider.refresh).toHaveBeenCalledTimes(priorRefreshes + 1);
+    expect(f.native.admit).toHaveBeenCalledTimes(2);
+    if (switched.kind !== 'session') throw new Error('Expected local scope');
+    expect(switched.session.expiresAt).toBe(1_800_000_000_000 + 8 * 60 * 60_000);
+    expect(switched.session.limitedByAbsolute).toBe(true);
+    f.advance(6 * 60_000);
+    expect(f.store.peek({ ...active.binding, handle: switched.handle })).toBeNull();
+  });
+  it('a failed post-refresh self check closes the source and shadow rather than retaining consumed grant uncertainty', async () => {
+    const f = fixture();
+    const active = await f.login();
+    f.advance(840_000);
+    f.native.self.mockRejectedValueOnce(new BffProviderError('provider_refused'));
+    await expect(
+      f.store.switchScope(active.binding, source, active.finished.session.csrfToken, scope),
+    ).rejects.toMatchObject({ reason: 'provider_refused' });
+    expect(f.provider.refresh).toHaveBeenCalledTimes(1);
+    expect(f.native.admit).toHaveBeenCalledTimes(1);
+    expect(f.store.peek(active.binding)).toBeNull();
+    expect(f.store.counts()).toMatchObject({ owners: 0, subjects: 0, pending: 0 });
+  });
+});
+
+describe('scoped switch choices use current tenant discovery', () => {
+  const branch = '10000000-0000-4000-8000-000000000002';
+  const scope = { tenantId: identity.tenantId!, organizationId: branch };
+  const page = (patch = {}) => ({
+    kind: 'success' as const,
+    status: 200 as const,
+    etag: null,
+    location: null,
+    replayed: false,
+    data: {
+      items: [
+        {
+          ...scope,
+          tenantName: 'Institution',
+          organizationName: 'Branch',
+          entryOrigin: 'https://' + host,
+          canUseCurrentHost: true,
+          ...patch,
+        },
+      ],
+      pageInfo: { nextCursor: null, previousCursor: null, hasNext: false, hasPrevious: false },
+    },
+  });
+  it('uses the old scope, held token and scoped cursor for a derived branch omitted by global discovery', async () => {
+    const f = fixture();
+    f.setIdentity({ tenantId: null });
+    const active = await f.login();
+    const heldToken = f.account.mock.calls[0]![0];
+    f.native.contexts.mockClear();
+    f.setAccount({ organizationId: branch });
+    f.administration.mockResolvedValueOnce(page());
+    const cursor = Buffer.from('scoped-actor-tenant-coverage-position').toString('base64url');
+    const candidate = { ...scope };
+    const pending = f.store.switchScope(
+      active.binding,
+      source,
+      active.finished.session.csrfToken,
+      candidate,
+      cursor,
+    );
+    candidate.organizationId = '10000000-0000-4000-8000-000000000003';
+    const result = await pending;
+    expect(result.kind).toBe('session');
+    expect(f.administration).toHaveBeenCalledWith(
+      heldToken,
+      { host, source, tenantId: identity.tenantId!, organizationId: null },
+      { kind: 'getOwnContexts', cursor, limit: 20 },
+      expect.any(AbortSignal),
+    );
+    expect(f.native.contexts).not.toHaveBeenCalled();
+    expect(f.native.admit).toHaveBeenLastCalledWith(
+      heldToken,
+      { host, source, ...scope },
+      expect.any(AbortSignal),
+    );
+    expect(f.account).toHaveBeenLastCalledWith(
+      heldToken,
+      { host, source, ...scope },
+      expect.any(AbortSignal),
+    );
+    expect(f.store.peek(active.binding)).toBeNull();
+  });
+  it('does not fall back to global discovery after a scoped read refusal', async () => {
+    const f = fixture();
+    const active = await f.login();
+    f.native.contexts.mockClear();
+    f.native.admit.mockClear();
+    f.administration.mockResolvedValueOnce({ kind: 'transport-error' });
+    await expect(
+      f.store.switchScope(active.binding, source, active.finished.session.csrfToken, scope),
+    ).rejects.toMatchObject({ reason: 'transport' });
+    expect(f.native.contexts).not.toHaveBeenCalled();
+    expect(f.native.admit).not.toHaveBeenCalled();
+    expect(f.store.peek(active.binding)).toEqual(active.finished.session);
+    expect(f.store.counts()).toMatchObject({ owners: 1, pending: 0, subjects: 1 });
+  });
+  it('refuses a foreign-tenant scoped page before target admission and preserves the source', async () => {
+    const f = fixture();
+    const active = await f.login();
+    f.native.admit.mockClear();
+    f.administration.mockResolvedValueOnce(
+      page({ tenantId: '10000000-0000-4000-8000-000000000099' }),
+    );
+    await expect(
+      f.store.switchScope(active.binding, source, active.finished.session.csrfToken, scope),
+    ).rejects.toMatchObject({ reason: 'response' });
+    expect(f.native.admit).not.toHaveBeenCalled();
+    expect(f.store.peek(active.binding)).toEqual(active.finished.session);
+  });
+  it('returns only the verified cross-host destination without transferring or replacing the source owner', async () => {
+    const f = fixture();
+    const active = await f.login();
+    f.native.admit.mockClear();
+    f.administration.mockResolvedValueOnce(
+      page({ entryOrigin: 'https://' + secondHost, canUseCurrentHost: false }),
+    );
+    await expect(
+      f.store.switchScope(active.binding, source, active.finished.session.csrfToken, scope),
+    ).resolves.toEqual({
+      kind: 'destination',
+      origin: 'https://' + secondHost,
+      returnPath: '/studio',
+      contextHint: branch,
+    });
+    expect(f.native.admit).not.toHaveBeenCalled();
+    expect(f.provider.redeem).toHaveBeenCalledTimes(1);
+    expect(f.store.peek(active.binding)).toEqual(active.finished.session);
+    expect(f.store.counts()).toMatchObject({ owners: 1, pending: 0, subjects: 1 });
+  });
+});
+
+describe('entry provider logout is a separate retained owner', () => {
+  const binding = (entry: Awaited<ReturnType<ReturnType<typeof fixture>['enter']>>) => ({
+    host,
+    browser: entry.browser,
+    handle: entry.handle,
+  });
+  it('uses only the entry ID token and independent proofs while retaining a live primary across the return', async () => {
+    const f = fixture();
+    const active = await f.login();
+    f.setTokens({ idToken: 'entry-only-id-token-canary' });
+    const entry = await f.enter(
+      await f.start({ browser: active.binding.browser, handle: active.binding.handle }),
+    );
+    const logout = f.store.discardEntry(binding(entry), entry.entry.csrfToken);
+    expect(f.provider.logoutUrl).toHaveBeenLastCalledWith(
+      'entry-only-id-token-canary',
+      'https://' + host + '/',
+      logout.state,
+    );
+    expect(logout.state).not.toBe(logout.proof);
+    expect(logout.proof).not.toBe(entry.entry.csrfToken);
+    expect(f.store.peek(active.binding)).toEqual(active.finished.session);
+    expect(f.store.counts()).toMatchObject({
+      owners: 2,
+      subjects: 2,
+      credentialRecords: 1,
+      logoutStates: 1,
+    });
+    expect(f.store.consumeLogout({ ...binding(entry), ...logout, proof: secret() })).toBe(false);
+    expect(f.store.consumeLogout({ ...binding(entry), ...logout, host: secondHost })).toBe(false);
+    expect(f.store.consumeLogout({ ...binding(entry), ...logout })).toBe(true);
+    expect(f.store.consumeLogout({ ...binding(entry), ...logout })).toBe(false);
+    expect(f.store.peek(active.binding)).toEqual(active.finished.session);
+    expect(f.store.counts()).toMatchObject({ owners: 1, subjects: 1, credentialRecords: 1 });
+  });
+  it('cancels an in-flight selection without publishing or retiring an otherwise-live primary, retaining actual work after return', async () => {
+    const f = fixture();
+    const active = await f.login();
+    const entry = await f.enter(
+      await f.start({ browser: active.binding.browser, handle: active.binding.handle }),
+    );
+    const held = deferred<void>();
+    releases.push(() => held.resolve());
+    const original = f.native.admit.getMockImplementation()!;
+    f.native.admit.mockImplementationOnce(async (...args) => {
+      await held.promise;
+      return original(...args);
+    });
+    const selection = f.store.select(binding(entry), source, entry.entry.csrfToken, {
+      tenantId: identity.tenantId!,
+      organizationId: null,
+    });
+    const refused = expect(selection).rejects.toMatchObject({ reason: 'cancelled' });
+    await vi.waitFor(() => expect(f.native.admit).toHaveBeenCalledTimes(2));
+    const logout = f.store.discardEntry(binding(entry), entry.entry.csrfToken);
+    expect(f.store.peek(active.binding)).not.toBeNull();
+    expect(f.store.consumeLogout({ ...binding(entry), ...logout })).toBe(true);
+    expect(f.store.counts()).toMatchObject({
+      owners: 2,
+      subjects: 2,
+      operations: 1,
+      credentialRecords: 1,
+    });
+    held.resolve();
+    await refused;
+    expect(f.store.peek(active.binding)).toEqual(active.finished.session);
+    expect(f.store.counts()).toMatchObject({ owners: 1, subjects: 1, operations: 0 });
+  });
+  it('a provider logout URL failure clears entry credentials but preserves its bounded return and the live primary', async () => {
+    const f = fixture();
+    const active = await f.login();
+    const entry = await f.enter(
+      await f.start({ browser: active.binding.browser, handle: active.binding.handle }),
+    );
+    vi.mocked(f.provider.logoutUrl).mockImplementationOnce(() => {
+      throw new BffProviderError('transport');
+    });
+    const logout = f.store.discardEntry(binding(entry), entry.entry.csrfToken);
+    expect(logout.redirectUrl).toBeNull();
+    expect(f.store.counts()).toMatchObject({ owners: 2, credentialRecords: 1, logoutStates: 1 });
+    expect(f.store.peek(active.binding)).toEqual(active.finished.session);
+    expect(f.store.consumeLogout({ ...binding(entry), ...logout })).toBe(true);
+    expect(f.store.counts().owners).toBe(1);
   });
 });

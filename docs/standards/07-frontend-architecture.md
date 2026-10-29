@@ -306,8 +306,10 @@ Only these additional native POST paths are admitted:
 | `/api/account/profile` | Exact current own Membership preferences |
 
 Existing `/api/auth/signin/keycloak`, `/api/auth/signout` and `/api/auth/extend`
-retain their contracts. New forms require verified exact same Origin and current
-entry/session CSRF before work. Strict UTF-8 form input is at most 16 KiB before
+remain in the closed POST set. Sign-out also accepts the current entry proof for the bounded
+[entry logout](11-security.md#native-entry-and-publication). New forms require
+verified exact same Origin and current entry/session CSRF before work.
+Strict UTF-8 form input is at most 16 KiB before
 Next, with single-valued named fields and duplicate/unknown fields refused. Only
 the declared Role/grant field contains strict finite JSON arrays, at most eight
 items. Form decoding, extra fields, canonical identifiers and bounds get real
@@ -322,6 +324,10 @@ protected document set is exactly `/studio`, `/studio/members`,
 `/studio/members/{MembershipId}`, `/studio/roles`, `/studio/roles/{RoleId}`,
 `/portal` and `/portal/profile`, with canonical resource IDs. Only member-list
 GET accepts cursor/limit; exact route/query/history censuses reject alternatives.
+An actual native-captured `RSC: 1` request may additionally carry one nonblank
+safe-ASCII `_rsc` transport value of at most 128 characters. Remove only that
+field for route-query validation; keep the signed raw target and the native
+request's captured activity classification. It provides no credential or operation authority.
 The API directory is selected by current admitted capability; a URL never widens
 scope. Organization CRUD is API/SDK-only in this packet; full editors are Phase 06.
 
@@ -329,13 +335,16 @@ Use plain anchors and native forms with fixed same-host 303 destinations and
 pessimistic fresh reads. No protected SPA/TanStack cache, prefetch or Server Action
 is admitted. The response owner holds one credential revision and performs only
 the exact generated operations, with one ten-second refresh/API/body deadline and
-256-KiB decoded response ceiling. RSC `auth()` remains passive; response owners
-perform refresh, idle/epoch/cookie decisions before protected output can stream.
+256-KiB decoded response ceiling. RSC `auth()` remains passive and exposes no API
+operation closure; response owners perform refresh, idle/epoch/cookie decisions
+and prepare immutable page data before protected output can stream.
 No raw identity, credentials or grant graph enters SessionProjection/client props.
 
 The pre-entry owner retains its original five-minute deadline and existing
-pending/global/per-subject capacity. Callback alone creates no User or tenant
-session. Zero Membership gives localized recovery; a destination with a live
+pending/global/per-subject capacity. Callback returns an entry handle before
+self-discovery; it creates no User or tenant session. Entry GET resolves current
+self/context choices, and explicit creation or selection uses the current entry
+proof. Zero Membership gives localized recovery; a destination with a live
 session accepts replacement only for the exact verified issuer/sub. A different
 subject needs explicit sign-out/fresh sign-in; advisory display names cannot
 authorize account replacement. Cross-host entry is independent destination OIDC,

@@ -13,7 +13,7 @@ namespace LearnStack.Tests.Integration.TenancyIdentity;
 public sealed partial class TenantRealmApiTests
 {
     private static async Task AccountAsync(HttpResponseMessage response, SeedIdentity identity,
-        TenantRealmApiObservation observation)
+        TenantRealmApiObservation observation, TenantContextOrigin origin = TenantContextOrigin.HostAndClaim)
     {
         response.StatusCode.Should().Be(HttpStatusCode.OK,
             "a real provider access token must reach the existing production AccountSite route");
@@ -28,7 +28,7 @@ public sealed partial class TenantRealmApiTests
         else account.GetProperty("organizationId").ValueKind.Should().Be(JsonValueKind.Null);
         AssertSite(account.GetProperty("site"), identity.Tenant);
         observation.Reads.Should().NotBeEmpty("the real configuration reader must have executed");
-        AssertContext(observation.Reads.Last(), identity.Tenant, identity.UserId.Value, TenantContextOrigin.HostAndClaim);
+        AssertContext(observation.Reads.Last(), identity.Tenant, identity.UserId.Value, origin);
     }
 
     private static async Task PublicSiteAsync(HttpResponseMessage response, SeedTenant tenant)

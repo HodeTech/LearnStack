@@ -402,7 +402,48 @@ try {
       throw new Error('Browser form must retain its exact same-origin proof');
     }
     stage = 'browser-callback';
+    await page.waitForURL(origin(site) + '/api/auth/entry');
+    stage = 'browser-entry-confirmation';
+    await page.getByText(bffProofCopy(site.locale, 'entry.confirm')).waitFor();
+    const entryCookies = await context.cookies(origin(site));
+    assert.ok(entryCookies.some((cookie) => cookie.name === '__Host-ls-entry'));
+    assert.equal(
+      entryCookies.some((cookie) => cookie.name === '__Host-ls-session'),
+      false,
+      'callback has no tenant session',
+    );
+    for (const cookie of entryCookies.filter((cookie) => cookie.name !== '__Host-ls-csrf'))
+      assert.equal(
+        (await page.content()).includes(cookie.value),
+        false,
+        'entry cookie stays out of HTML',
+      );
+    const choice = page.locator('form[action="/api/auth/entry/select"] button');
+    assert.equal(await choice.count(), 1, 'one independently discovered fixture context');
+    await choice.focus();
+    const [selectionRequest, selectionResponse] = await withProofWaiters(
+      [
+        page.waitForRequest(
+          (request) =>
+            request.method() === 'POST' &&
+            new URL(request.url()).pathname === '/api/auth/entry/select',
+        ),
+        page.waitForResponse(
+          (response) =>
+            response.request().method() === 'POST' &&
+            new URL(response.url()).pathname === '/api/auth/entry/select',
+        ),
+      ],
+      () => page.keyboard.press('Enter'),
+    );
+    assert.equal(await selectionRequest.headerValue('origin'), origin(site));
+    assert.equal(selectionResponse.status(), 303);
+    assert.equal(await selectionResponse.headerValue('location'), origin(site) + '/studio');
     await page.waitForURL(origin(site) + '/studio');
+    assert.equal(
+      (await context.cookies(origin(site))).some((cookie) => cookie.name === '__Host-ls-entry'),
+      false,
+    );
     stage = 'browser-storage';
     await page.locator('[data-bff-protected]').waitFor();
     await page.waitForLoadState('networkidle');

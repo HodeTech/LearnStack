@@ -104,24 +104,27 @@ describe('native logout redirect containment', () => {
       expect(callback).toHaveBeenCalledTimes(2);
     },
   );
-  it.each([destination, '/', 'https://' + host + '/'])(
-    'retains the allowed Location but removes the Next redirect body: %s',
-    async (location) => {
-      const result = await observe((response) => {
-        response.statusCode = 303;
-        response.setHeader('location', location);
-        response.setHeader('set-cookie', ['__Host-owned=; Max-Age=0; Path=/; Secure']);
-        response.end(location);
-      });
-      expect(result.status).toBe(303);
-      expect(result.headers.get('location')).toBe(location);
-      expect(result.headers.get('content-length')).toBe('0');
-      expect(result.headers.get('referrer-policy')).toBe('no-referrer');
-      expect(result.headers.get('cache-control')).toBe('no-store');
-      expect(result.headers.getSetCookie()).toHaveLength(1);
-      expect(result.body).toBe('');
-    },
-  );
+  it.each([
+    destination,
+    '/',
+    'https://' + host + '/',
+    '/api/auth/signin',
+    'https://' + host + '/api/auth/signin',
+  ])('retains the allowed Location but removes the Next redirect body: %s', async (location) => {
+    const result = await observe((response) => {
+      response.statusCode = 303;
+      response.setHeader('location', location);
+      response.setHeader('set-cookie', ['__Host-owned=; Max-Age=0; Path=/; Secure']);
+      response.end(location);
+    });
+    expect(result.status).toBe(303);
+    expect(result.headers.get('location')).toBe(location);
+    expect(result.headers.get('content-length')).toBe('0');
+    expect(result.headers.get('referrer-policy')).toBe('no-referrer');
+    expect(result.headers.get('cache-control')).toBe('no-store');
+    expect(result.headers.getSetCookie()).toHaveLength(1);
+    expect(result.body).toBe('');
+  });
 
   it('suppresses streamed chunks and preserves write/end callbacks after explicit header publication', async () => {
     const written = vi.fn();

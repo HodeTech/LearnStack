@@ -5,6 +5,15 @@ export const BFF_POST_PATHS = Object.freeze([
   '/api/auth/signin/keycloak',
   '/api/auth/signout',
   '/api/auth/extend',
+  '/api/auth/entry/create',
+  '/api/auth/entry/select',
+  '/api/auth/switch',
+  '/api/studio/membership-profile',
+  '/api/studio/membership-roles',
+  '/api/studio/membership-status',
+  '/api/studio/role-grants',
+  '/api/studio/role-manifest-adoption',
+  '/api/account/profile',
 ]);
 export function bffPostTarget(method: string, target: string): boolean {
   return method === 'POST' && BFF_POST_PATHS.includes(target);

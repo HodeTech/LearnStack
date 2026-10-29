@@ -18,6 +18,12 @@ export function installBffSessionRuntime(dependencies: SessionDependencies) {
   const store: BffSessionStore = Object.freeze({
     start: owner.start.bind(owner),
     complete: owner.complete.bind(owner),
+    entry: owner.entry.bind(owner),
+    create: owner.create.bind(owner),
+    select: owner.select.bind(owner),
+    switchScope: owner.switchScope.bind(owner),
+    discardEntry: owner.discardEntry.bind(owner),
+    operate: owner.operate.bind(owner),
     peek: owner.peek.bind(owner),
     admit: owner.admit.bind(owner),
     signout: owner.signout.bind(owner),

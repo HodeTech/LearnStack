@@ -237,6 +237,8 @@ export function productionDemoSources(
       'src/server/auth/configuration.ts',
       'src/server/auth/http-protocol.ts',
       'src/server/auth/logout-response.ts',
+      'src/server/auth/native-administration-client.ts',
+      'src/server/auth/native-session-client.ts',
       'src/server/auth/provider-core.ts',
       'src/server/auth/request-runtime.ts',
       'src/server/auth/session-runtime.ts',
@@ -258,17 +260,19 @@ export function productionDemoSources(
   const sdkConfig = all.get('frontend/packages/sdk/tsconfig.native.json');
   if (sdkConfig) {
     const config = JSON.parse(sdkConfig);
+    const expected = ['src/authenticated-server.ts', 'src/administration-server.ts'];
     if (
       config.compilerOptions?.rootDir !== 'src' ||
       config.compilerOptions?.outDir !== 'dist' ||
-      JSON.stringify(config.include) !== JSON.stringify(['src/authenticated-server.ts'])
+      JSON.stringify(config.include) !== JSON.stringify(expected)
     )
       refused('tsconfig.native.json');
-    for (const extension of ['js', 'd.ts'])
-      generated.set(
-        'frontend/packages/sdk/dist/authenticated-server.' + extension,
-        'frontend/packages/sdk/src/authenticated-server.ts',
-      );
+    for (const input of expected)
+      for (const extension of ['js', 'd.ts'])
+        generated.set(
+          'frontend/packages/sdk/dist/' + posix.basename(input, '.ts') + '.' + extension,
+          'frontend/packages/sdk/' + input,
+        );
   }
   const candidates = (base: string) => [
     base,

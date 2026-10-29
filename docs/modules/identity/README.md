@@ -337,7 +337,9 @@ branch session. It returns current undeleted Active/Suspended Memberships and
 only MembershipId, UserId, OrganizationId, status, contextual DisplayName and
 PreferredLocale. Provider subject, email, global profile and grant graph are
 excluded. The [API contract](../../standards/04-api-design.md) owns exact route,
-DTO/cursor/no-store rules; the native BFF operation allowlist remains P03-3 work.
+DTO/cursor/no-store rules. The native BFF's closed operation union selects the
+generated directory operation using its held credential and admitted context;
+it exposes no arbitrary method, path, headers or browser scope selector.
 
 Its MUST `identity.membership.list` row commits on the ordinary ReadWrite owner
 before disclosure; it is not a physical ReadOnly-catalogue query. The implemented

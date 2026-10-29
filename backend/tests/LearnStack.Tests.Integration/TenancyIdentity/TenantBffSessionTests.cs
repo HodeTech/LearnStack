@@ -5,6 +5,10 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using FluentAssertions;
 using LearnStack.Api.Authentication;
+using LearnStack.Infrastructure.Persistence;
+using LearnStack.Modules.Tenancy.Application.Contracts.Seeding;
+using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Extensions.Logging.Abstractions;
 using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
@@ -149,12 +153,9 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
             authority = authority.RootCertificate.ExportCertificatePem(),
             apiOrigin = new UriBuilder("http", "127.0.0.1", new Uri(unavailable.Issuer).Port).Uri.GetLeftPart(UriPartial.Authority),
             secret = Convert.ToHexString(RandomNumberGenerator.GetBytes(24)).ToLowerInvariant(),
-            sites = SeedData.All.Select(site => new
-            {
-                host = site.Host + ":3000",
-                displayName = site.DisplayName,
-                locale = site.Curriculum!.Locales.Single(locale => locale.IsDefault).Locale
-            }),
+            authorityId = Guid.CreateVersion7().ToString("D"),
+            nativeSourceSecret = WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32)),
+            sites = NativeSites(),
         });
         await native.CompleteAsync();
         unavailable.Connections.Should().Be(0, "enabled native construction and successful joined stop must not discover the issuer or bootstrap an unsolicited request");
@@ -248,31 +249,20 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
             events.GetProperty("eventsEnabled").GetBoolean().Should().BeTrue();
             events.GetProperty("eventsExpiration").GetInt64().Should().Be(604800);
             await using var database = await KeycloakIdentityDatabase.CreateAsync(publicDatabase, provider);
+            await SeedAdministrationOriginsAsync(database);
             var auditBefore = await AuditCountsAsync(database);
             foreach (var tenant in SeedData.All)
             {
                 var identity = SeedData.IdentityUsers.First(user => user.Tenant == tenant);
                 var password = passwords.GetValueOrDefault(identity.Username) ?? KeycloakFixture.DemoPassword;
                 var secret = Convert.ToHexString(RandomNumberGenerator.GetBytes(24)).ToLowerInvariant();
-                await using var api = StartApi(database, secret, provider);
+                var nativeSourceSecret = WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
+                await using var api = StartApi(database, secret, nativeSourceSecret, provider);
                 var readsBefore = database.Observation.Reads;
                 var started = Stopwatch.StartNew();
-                await using var native = await BffNativeDriver.StartAsync(root, new
-                {
-                    protocol = 1,
-                    mode = "real",
-                    issuer = provider.Issuer,
-                    clientSecret = KeycloakFixture.WebClientSecret,
-                    authority = provider.RootCertificate.ExportCertificatePem(),
-                    apiOrigin = api.Origin,
-                    secret,
-                    sites = SeedData.All.Select(site => new
-                    {
-                        host = site.Host + ":3000",
-                        displayName = site.DisplayName,
-                        locale = site.Curriculum!.Locales.Single(locale => locale.IsDefault).Locale
-                    }),
-                });
+                await using var native = await BffNativeDriver.StartAsync(root,
+                    NativeConfiguration(provider, database, api, secret, nativeSourceSecret));
+                var anonymousWindow = Stopwatch.StartNew();
                 using var browser = provider.Browser();
                 var user = await admin.UserAsync(identity.Username);
                 var userPath = "users/" + user.GetProperty("id").GetString();
@@ -298,9 +288,38 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
                 var initialProviderSession = await admin.GetAsync(userPath + "/sessions");
                 initialProviderSession.GetArrayLength().Should().Be(1);
                 await WaitForProviderClockAsync(provider, initialProviderSession[0].GetProperty("lastAccess").GetInt64() + 1000);
+                var beforeRefreshAudit = await AuditCountsAsync(database);
                 var extended = await ExtendAsync(native, tenant, cookies, session, api.Observed);
+                (await AuditCountsAsync(database)).Should().Equal(beforeRefreshAudit,
+                    "ordinary refresh uses Off self/AccountSite, never the audited admission POST");
                 extended.GetProperty("expiresAt").GetDouble().Should().BeGreaterThan(session.GetProperty("expiresAt").GetDouble(),
                     "an explicit fresh-access extension must actually renew provider idle");
+                var otherAccount = SeedData.IdentityUsers.First(person => person.Tenant != tenant);
+                await AssertDifferentProviderAccountCannotReplaceLiveDestinationAsync(provider, native, api, identity,
+                    otherAccount, passwords.GetValueOrDefault(otherAccount.Username) ?? KeycloakFixture.DemoPassword,
+                    cookies, extended, database);
+                await AssertUnknownNativeProfileWriteAsync(database, native, api, identity, cookies, extended);
+                var oldScopeCookie = cookies.Header;
+                var beforeSwitchAudit = await AuditCountsAsync(database);
+                var branch = tenant.DefaultOrganization.OrganizationId.Value;
+                var beforeBranchAdmissions = await ScopeAdmissionCountAsync(database, tenant, branch);
+                var switched = await native.RequestAsync(Host(tenant), "/api/auth/switch", cookies.Header, "POST",
+                    Form("csrfToken", extended.GetProperty("csrfToken").GetString()!) + "&"
+                    + Form("tenantId", tenant.TenantId.Value.ToString("D")) + "&" + Form("organizationId", branch.ToString("D")));
+                switched.Status.Should().Be(303);
+                switched.PrivateFree.Should().BeTrue();
+                cookies.Apply(switched);
+                (cookies.Header != oldScopeCookie).Should().BeTrue("scope publication rotates the private handle");
+                await AnonymousAsync(native, tenant, oldScopeCookie);
+                var switchedSession = await native.RequestAsync(Host(tenant), "/api/auth/session", cookies.Header);
+                switchedSession.Data.GetProperty("state").GetString().Should().Be("authenticated");
+                switchedSession.Data.GetProperty("csrfToken").GetString().Should().NotBe(extended.GetProperty("csrfToken").GetString());
+                switchedSession.Data.GetProperty("expiresAt").GetDouble().Should().BeLessThanOrEqualTo(extended.GetProperty("expiresAt").GetDouble());
+                extended = switchedSession.Data;
+                (await AuditCountsAsync(database)).Should().Equal(beforeSwitchAudit,
+                    "the derived branch switch adds no NULL-org admission event");
+                (await ScopeAdmissionCountAsync(database, tenant, branch)).Should().Be(beforeBranchAdmissions + 1,
+                    "the explicit switch adds exactly one MUST admission at the actual derived branch");
                 var beforeLogoutCookies = cookies.Header;
                 var logout = await native.RequestAsync(Host(tenant), "/api/auth/signout", beforeLogoutCookies, "POST",
                     Form("csrfToken", extended.GetProperty("csrfToken").GetString()!));
@@ -334,6 +353,7 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
                 // clock or transport. A 22-second idle leaves room around each
                 // 10-second step; the second refresh exceeds the 35-second maximum
                 // without Keycloak's clamp. Committed 1800/36000 settings stay intact.
+                await NextAnonymousWindowAsync(anonymousWindow);
                 const int clampIdleSeconds = 22;
                 const int clampMaximumSeconds = 35;
                 (await admin.PutAsync("", new { ssoSessionIdleTimeout = clampIdleSeconds, ssoSessionMaxLifespan = clampMaximumSeconds }))
@@ -372,30 +392,51 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
                 var oppositeCallback = await oppositeBrowser.CompleteBffLoginAsync(PrivateLocation(oppositeBegin), opposite.Username,
                     passwords.GetValueOrDefault(opposite.Username) ?? KeycloakFixture.DemoPassword);
                 var oppositeCompleted = await native.RequestAsync(Host(tenant), oppositeCallback.PathAndQuery, oppositeCookies.Header);
-                oppositeCompleted.Status.Should().Be(400);
-                oppositeCompleted.Data.ValueKind.Should().Be(JsonValueKind.Null,
-                    "the real browser request asks for HTML; closed JSON reason mapping is covered separately");
-                oppositeCompleted.Rendered.Should().BeFalse("refusal cannot render the admitted institution view");
-                oppositeCompleted.Cache.Should().Contain("no-store");
+                oppositeCompleted.Status.Should().Be(303);
+                oppositeCompleted.Location.Should().Be("https://" + Host(tenant) + "/api/auth/entry");
                 oppositeCompleted.Cookies.Should().NotContain(value => value.StartsWith("__Host-ls-session=", StringComparison.Ordinal),
-                    "the mismatched grant cannot publish a new session handle");
-                oppositeCompleted.PrivateFree.Should().BeTrue();
+                    "tenantless identity alone cannot publish a tenant session");
+                oppositeCookies.Apply(oppositeCompleted);
+                var oppositeEntry = await native.RequestAsync(Host(tenant), "/api/auth/entry", oppositeCookies.Header);
+                oppositeEntry.Status.Should().Be(200);
+                var ownContext = oppositeEntry.Data.GetProperty("contexts").GetProperty("items").EnumerateArray()
+                    .Single(item => item.GetProperty("tenantId").GetString() == other.TenantId.Value.ToString("D")
+                        && item.GetProperty("organizationId").ValueKind == JsonValueKind.Null);
+                ownContext.GetProperty("canUseCurrentHost").GetBoolean().Should().BeFalse();
+                var destination = await native.RequestAsync(Host(tenant), "/api/auth/entry/select", oppositeCookies.Header, "POST",
+                    Form("csrfToken", oppositeEntry.Data.GetProperty("csrfToken").GetString()!) + "&"
+                    + Form("tenantId", other.TenantId.Value.ToString("D")));
+                destination.Status.Should().Be(303);
+                var destinationLocation = PrivateLocation(destination);
+                var admittedDestination = ownContext.GetProperty("entryOrigin").GetString();
+                admittedDestination.Should().BeOneOf("https://" + Host(other), "https://" + other.Host + ":3000");
+                destinationLocation.GetLeftPart(UriPartial.Authority).Should().Be(admittedDestination,
+                    "navigation preserves the API's independently verified destination instead of choosing a host in the BFF");
+                destinationLocation.AbsolutePath.Should().Be("/api/auth/signin");
+                var destinationQuery = QueryHelpers.ParseQuery(destinationLocation.Query);
+                destinationQuery.Keys.Should().BeEquivalentTo(["returnTo", "contextHint"]);
+                destinationQuery["contextHint"].ToString().Should().Be("tenant");
+                destination.Cookies.Should().BeEmpty("cross-host entry transfers no cookie or provider credential");
+                destination.PrivateFree.Should().BeTrue();
                 await AnonymousAsync(native, tenant, oppositeCookies.Header);
                 api.Observed.Reads.Count(row => row.Actor is not null).Should().Be(beforeOppositeReads,
-                    "a real opposite-tenant persona is refused before the authenticated AccountSite reader and publication");
-                (await AuditCountsAsync(database)).Should().Equal(SeedData.All.Select((site, index) => beforeOpposite[index] + (site == tenant ? 1 : 0)),
-                    "the authenticated JWT mismatch writes exactly one security audit under the defended host tenant");
+                    "own navigation and cross-host recovery grant no scoped AccountSite authority");
+                (await AuditCountsAsync(database)).Should().Equal(beforeOpposite,
+                    "Off discovery and a fresh destination sign-in link do not dispatch an admission POST");
                 var oppositeUser = await admin.UserAsync(opposite.Username);
                 (await admin.PostAsync("users/" + oppositeUser.GetProperty("id").GetString() + "/logout", new { }))
                     .Should().Be(HttpStatusCode.NoContent);
                 var authenticatedReads = api.Observed.Reads.Where(row => row.Actor is not null).ToArray();
-                authenticatedReads.Length.Should().Be(7, "three actual grants, three successful refreshes and the protected document read each require their own AccountSite witness");
+                authenticatedReads.Length.Should().Be(8, "three initial selections, three successful refreshes, one switch and the protected document read each require their own AccountSite witness");
                 authenticatedReads.All(row => row.Actor == identity.UserId.Value && row.Tenant == tenant.TenantId.Value
-                    && row.HostTenant == tenant.TenantId.Value
-                    && row.Organization == (tenant.MapHostToDefaultOrganization ? tenant.DefaultOrganization.OrganizationId.Value : null))
-                    .Should().BeTrue("every BFF witness uses actual JWT actor and independently resolved host/organization");
+                    && row.HostTenant == tenant.TenantId.Value)
+                    .Should().BeTrue("every BFF witness uses the actual actor and independently resolved tenant host");
+                authenticatedReads.Count(row => row.Organization == branch).Should().Be(1,
+                    "only the explicit derived-branch switch changes the immutable native scope");
+                authenticatedReads.Count(row => row.Organization is null).Should().Be(7);
                 database.Observation.Reads.Should().BeGreaterThan(readsBefore,
                     "the retained physical ReadOnly application-role observer actually ran");
+                await NextAnonymousWindowAsync(anonymousWindow);
                 var learner = SeedData.IdentityMemberships.Single(member => member.Identity.Tenant == tenant && !member.IsFirstAdmin);
                 await AssertLearnerMembershipRevocationAsync(database, provider, admin, native, api, learner,
                     passwords.GetValueOrDefault(learner.Identity.Username) ?? KeycloakFixture.DemoPassword);
@@ -410,8 +451,8 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
                     "the actual BFF journey persists provider event type {0}", type);
             }
             (await AuditCountsAsync(database)).Should().Equal(SeedData.All.Select((site, index) =>
-                auditBefore[index] + 1 + (site.MapHostToDefaultOrganization ? 0 : 1)),
-                "each host mismatch is tenant scoped; the additional learner denial follows its exact scope, so the organization denial is proved separately by correlation");
+                auditBefore[index] + 5 + (site.MapHostToDefaultOrganization ? 0 : 1)),
+                "NULL-org administrator selections plus original profile write/receipt emit MUST events; learner admission follows its exact scope and pre-resolution revocation creates no invented policy event");
             output.WriteLine("Real warm BFF proof: hosts=2; real refresh/maximum/logout/error/events/membership-revocation=true; zero-write rerun=true; fixture={0:F3}s; journey={1:F3}s.",
                 provider.StartupElapsed.TotalSeconds, journey.Elapsed.TotalSeconds);
         }
@@ -424,12 +465,22 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
         }
     }
 
+    // These independent journeys deliberately exceed the real 60/min visitor
+    // budget. Pace their boundaries instead of enlarging or bypassing it.
+    private static async Task NextAnonymousWindowAsync(Stopwatch elapsed)
+    {
+        var remaining = LearnStack.Api.Tenancy.RateLimitingExtensions.Window
+            + TimeSpan.FromSeconds(1) - elapsed.Elapsed;
+        if (remaining > TimeSpan.Zero) await Task.Delay(remaining);
+        elapsed.Restart();
+    }
+
     private static async Task<JsonElement> LoginAsync(BffNativeDriver native, KeycloakBrowserFlow browser,
         SeedIdentity identity, string password, BffWireCookies cookies, TenantRealmApiObservation observation,
-        string returnPath = "/studio")
+        string returnPath = "/studio", string? atHost = null)
     {
         var before = observation.Reads.Count(row => row.Actor is not null);
-        var host = Host(identity.Tenant);
+        var host = atHost ?? Host(identity.Tenant);
         var csrf = await native.RequestAsync(host, "/api/auth/csrf", cookies.Header);
         csrf.Status.Should().Be(200);
         cookies.Apply(csrf);
@@ -442,6 +493,23 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
         completed.Status.Should().Be(303);
         completed.PrivateFree.Should().BeTrue();
         cookies.Apply(completed);
+        completed.Location.Should().Be("https://" + host + "/api/auth/entry");
+        completed.Cookies.Should().NotContain(value => value.StartsWith("__Host-ls-session=", StringComparison.Ordinal),
+            "provider callback creates entry custody, never a tenant session");
+        var entry = await native.RequestAsync(host, "/api/auth/entry", cookies.Header);
+        entry.Status.Should().Be(200);
+        entry.Data.GetProperty("state").GetString().Should().Be("entry");
+        entry.Data.GetProperty("identityState").GetString().Should().Be("active");
+        var membership = SeedData.IdentityMemberships.Single(value => value.Identity == identity);
+        var selectionBody = Form("csrfToken", entry.Data.GetProperty("csrfToken").GetString()!)
+            + "&" + Form("tenantId", identity.Tenant.TenantId.Value.ToString("D"));
+        if (membership.OrganizationId is { } organization)
+            selectionBody += "&" + Form("organizationId", organization.Value.ToString("D"));
+        var selected = await native.RequestAsync(host, "/api/auth/entry/select", cookies.Header, "POST", selectionBody);
+        selected.Status.Should().Be(303);
+        selected.Location.Should().Be("https://" + host + returnPath);
+        selected.PrivateFree.Should().BeTrue();
+        cookies.Apply(selected);
         var session = await native.RequestAsync(host, "/api/auth/session", cookies.Header);
         session.Status.Should().Be(200);
         session.PrivateFree.Should().BeTrue();
@@ -450,10 +518,11 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
         return session.Data;
     }
 
-    private static async Task<JsonElement> ExtendAsync(BffNativeDriver native, SeedTenant tenant, BffWireCookies cookies, JsonElement session, TenantRealmApiObservation observation)
+    private static async Task<JsonElement> ExtendAsync(BffNativeDriver native, SeedTenant tenant, BffWireCookies cookies, JsonElement session, TenantRealmApiObservation observation,
+        string? atHost = null)
     {
         var before = observation.Reads.Count(row => row.Actor is not null);
-        var response = await native.RequestAsync(Host(tenant), "/api/auth/extend", cookies.Header, "POST",
+        var response = await native.RequestAsync(atHost ?? Host(tenant), "/api/auth/extend", cookies.Header, "POST",
             Form("csrfToken", session.GetProperty("csrfToken").GetString()!));
         response.Status.Should().Be(200);
         response.PrivateFree.Should().BeTrue();
@@ -484,18 +553,23 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
         }
     }
 
-    private static ApiHost StartApi(IdentityPublicReadFixture database, string secret, KeycloakFixture provider)
+    private static ApiHost StartApi(IdentityPublicReadFixture database, string secret, string nativeSourceSecret, KeycloakFixture provider)
     {
         var observation = new TenantRealmApiObservation();
         var accountResponses = new AccountResponseObservation();
+        var faults = new NativeResponseFaults();
         var factory = database.WithWebHostBuilder(builder =>
         {
             builder.UseSetting("Tenancy:TrustedHop:Networks:0", "127.0.0.1/32");
             builder.UseSetting("Tenancy:TrustedHop:Secrets:0", secret);
             builder.UseSetting(TenantAuthenticationOptions.IssuerConfigurationKey, provider.Issuer);
+            builder.UseSetting("Identity:NativeSession:CurrentSecret", nativeSourceSecret);
+            builder.UseSetting("Identity:NativeSession:HttpsPort", "3000");
+            builder.UseSetting("Identity:SelfBootstrap:Enabled", "true");
             builder.ConfigureTestServices(services =>
             {
                 services.AddSingleton<IStartupFilter>(accountResponses);
+                services.AddSingleton<IStartupFilter>(faults);
                 services.Replace(ServiceDescriptor.Singleton(_ => new TenantAuthenticationBackchannel(KeycloakHttp.CreateHandler(provider.RootCertificate))));
                 services.AddScoped<ObservedPublicConfigurationReader>();
                 services.AddScoped<IPublicTenantConfigurationReader>(scope => new TenantRealmContextReader(
@@ -506,7 +580,7 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
         factory.UseKestrel(options => options.Listen(IPAddress.Loopback, 0));
         var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
         var address = factory.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
-        return new(factory, client, address, observation, accountResponses);
+        return new(factory, client, address, observation, accountResponses, faults);
     }
 
     private static async Task<long[]> AuditCountsAsync(PublicReadFixture database) => [await database.AuditCountAsync(SeedData.English), await database.AuditCountAsync(SeedData.Yoga)];
@@ -519,14 +593,22 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
         authority = authority.RootCertificate.ExportCertificatePem(),
         apiOrigin = new UriBuilder("http", "127.0.0.1", new Uri(unavailable.Issuer).Port).Uri.GetLeftPart(UriPartial.Authority),
         secret = Convert.ToHexString(RandomNumberGenerator.GetBytes(24)).ToLowerInvariant(),
-        sites = SeedData.All.Select(site => new
-        {
-            host = site.Host + ":3000",
-            displayName = site.DisplayName,
-            locale = site.Curriculum!.Locales.Single(locale => locale.IsDefault).Locale
-        }),
+        authorityId = Guid.CreateVersion7().ToString("D"),
+        nativeSourceSecret = WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32)),
+        sites = NativeSites(),
     };
-    private static string Host(SeedTenant tenant) => tenant.Host + ":3000";
+    private static string Host(SeedTenant tenant) => SeedAdministrationOriginManifest.Find(tenant.TenantId)!.Host + ":3000";
+    private static IEnumerable<object> NativeSites() => SeedData.All.SelectMany(site => new[] { site.Host + ":3000", Host(site) }
+        .Select(host => new { host, displayName = site.DisplayName, locale = site.Curriculum!.Locales.Single(locale => locale.IsDefault).Locale }));
+    private static async Task SeedAdministrationOriginsAsync(IdentityPublicReadFixture database)
+    {
+        await using var source = ApplicationDataSource.Build(database.AppConnectionString);
+        var runner = new SeedAdministrationOriginRunner(context => SeedComposition.Build(source, context,
+            NullLoggerFactory.Instance, identityAuthority: database.Registration,
+            seedOriginAdmission: new FixedSeedAdministrationOriginAdmission()));
+        (await runner.RunAsync(SeedData.All.Select(tenant => tenant.TenantId))).Should().Be(2);
+        (await runner.RunAsync(SeedData.All.Select(tenant => tenant.TenantId))).Should().Be(0);
+    }
     private static string Form(string key, string value) => key + "=" + Uri.EscapeDataString(value);
     private static Uri PrivateLocation(BffWireResponse response) => Uri.TryCreate(response.Location, UriKind.Absolute, out var uri)
         ? uri : throw new InvalidOperationException("BFF fixture lacks its expected private redirect.");
@@ -537,7 +619,7 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
         throw new InvalidOperationException("Cannot find BFF session fixture source.");
     }
     private sealed record ApiHost(WebApplicationFactory<Program> Factory, HttpClient Client, string Origin,
-        TenantRealmApiObservation Observed, AccountResponseObservation AccountResponses) : IAsyncDisposable
+        TenantRealmApiObservation Observed, AccountResponseObservation AccountResponses, NativeResponseFaults Faults) : IAsyncDisposable
     {
         public async ValueTask DisposeAsync() { Client.Dispose(); await Factory.DisposeAsync(); }
     }

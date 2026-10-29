@@ -12,8 +12,10 @@ import { describe, expect, it } from 'vitest';
 import {
   ADAPTER,
   ACCOUNT_ADAPTER,
+  NATIVE_API_TRANSPORT,
   BFF_BROWSER_ADAPTER,
   SDK_AUTHENTICATED,
+  SDK_ADMINISTRATION,
   ADMISSION_RUNTIME,
   ADMISSION_FACADE,
   admissionBoundaryFindings,
@@ -405,8 +407,9 @@ describe('ADR-0053 production public boundaries', () => {
         expect(production.resolveModule(specifier, MIDDLEWARE)).toBe(
           directory +
             '/' +
-            (directory === 'packages/sdk' && key === './authenticated-server'
-              ? 'src/authenticated-server.ts'
+            (directory === 'packages/sdk' &&
+            ['./authenticated-server', './administration-server'].includes(key)
+              ? 'src/' + key.slice(2) + '.ts'
               : value.slice(2)),
         );
       }
@@ -499,7 +502,7 @@ describe('ADR-0053 production public boundaries', () => {
       'Fix: retain the dynamic/no-store public layout and request-local public data.',
     );
   });
-  it('global fetch remains public-only; hop setters stay in the two exact SDK adapters', () => {
+  it('global fetch remains public-only; hop setters stay in the exact public and native transports', () => {
     clean(transportFindings(production), 'Fix: use the configured public adapter.');
     // Allowed code must contain actual transport/setters: renaming it removes the exception.
     const renamed = Object.fromEntries(
@@ -512,20 +515,20 @@ describe('ADR-0053 production public boundaries', () => {
   it('confines authenticated hop setters without granting global fetch or a client SDK escape', () => {
     const renamed = Object.fromEntries(
       Object.entries(sources).map(([name, source]) => [
-        name === ACCOUNT_ADAPTER ? probe : name,
+        name === NATIVE_API_TRANSPORT ? probe : name,
         source,
       ]),
     );
     expect(
       transportFindings(buildSourceGraph(renamed)).filter((item) => item.file === probe),
-    ).toHaveLength(3);
+    ).toHaveLength(6);
     expect(
       transportFindings(
         graphWith(
-          ACCOUNT_ADAPTER,
-          sources[ACCOUNT_ADAPTER]! + '\nfetch("https://unowned.invalid");',
+          NATIVE_API_TRANSPORT,
+          sources[NATIVE_API_TRANSPORT]! + '\nfetch("https://unowned.invalid");',
         ),
-      ).some((item) => item.file === ACCOUNT_ADAPTER && item.reason.includes('global fetch')),
+      ).some((item) => item.file === NATIVE_API_TRANSPORT && item.reason.includes('global fetch')),
     ).toBe(true);
     const client = graphWith(
       probe,
@@ -533,10 +536,43 @@ describe('ADR-0053 production public boundaries', () => {
     );
     expect(clientBoundaryFindings(client).some((item) => item.file === probe)).toBe(true);
     expect(privateServerFiles(production)).toContain(SDK_AUTHENTICATED);
+    expect(privateServerFiles(production)).toContain(SDK_ADMINISTRATION);
+    const administration = graphWith(
+      probe,
+      '\'use client\'; import { createAdministrationServerSdk } from "@learnstack/sdk/administration-server"; export const unsafe = createAdministrationServerSdk;',
+    );
+    expect(clientBoundaryFindings(administration).some((item) => item.file === probe)).toBe(true);
+    const nativeHeaders = [
+      'X-LearnStack-Native-Session-Secret',
+      'X-LearnStack-Native-Tenant-Id',
+      'X-LearnStack-Native-Organization-Id',
+    ];
+    for (const file of [ADAPTER, ACCOUNT_ADAPTER, probe]) {
+      const setters = nativeHeaders
+        .map((header) => `new Headers().set('${header}', 'forged');`)
+        .join('\n');
+      expect(
+        transportFindings(graphWith(file, (sources[file] ?? '') + '\n' + setters)).filter(
+          (item) => item.file === file && item.reason.includes('API-hop headers'),
+        ),
+      ).toHaveLength(3);
+    }
+    const rawNative = graphWith(
+      probe,
+      nativeHeaders.map((header) => `request.headers.get('${header}');`).join('\n'),
+    );
+    expect(rawAuthorityFindings(rawNative, [probe])).toHaveLength(3);
     // Native implementation modules must not become bundled middleware/RSC dependencies.
     const bundled = reachable(production, renderRoots);
     for (const name of [
       'account-client',
+      'cookies',
+      'http-forms',
+      'http-input',
+      'native-api-transport',
+      'native-session-client',
+      'native-administration-client',
+      'native-contract',
       'configuration',
       'session-runtime',
       'session-store',
@@ -553,7 +589,31 @@ describe('ADR-0053 production public boundaries', () => {
       );
       expect(reachable(dirty, renderRoots)).toContain('apps/web/src/server/auth/' + name + '.ts');
     }
-  });
+    const facade = 'apps/web/src/server/auth/auth.ts';
+    expect(hasServerOnlyMarker(production.files.get(facade)!)).toBe(true);
+    const facadeRead = graphWith(
+      probe,
+      'import { auth } from "@/server/auth/auth"; export const read = () => auth();',
+    );
+    const facadeClosure = reachable(facadeRead, [probe]);
+    expect(facadeClosure).toContain(facade);
+    expect(facadeClosure).toContain('apps/web/src/server/auth/request-owner.ts');
+    for (const native of [
+      NATIVE_API_TRANSPORT,
+      SDK_ADMINISTRATION,
+      'apps/web/src/server/auth/session-store.ts',
+      'apps/web/src/server/auth/request-runtime.ts',
+    ])
+      expect(facadeClosure).not.toContain(native);
+    expect(
+      clientBoundaryFindings(
+        graphWith(
+          probe,
+          '\'use client\'; import { auth } from "@/server/auth/auth"; export const read = auth;',
+        ),
+      ).some((item) => item.file === probe),
+    ).toBe(true);
+  }, 20_000); // Rebuilds the complete graph for each planted native transport and bundle edge.
   it('confines browser fetch to the exact same-origin no-store BFF extension action', () => {
     const source = sources[BFF_BROWSER_ADAPTER]!;
     expect(source).toContain("fetch('/api/auth/extend'");
@@ -1918,6 +1978,14 @@ describe('remediation source resolution census controls', () => {
     ['remapped subpath', { '.': './src/index.ts', './server': './src/other.ts' }],
     ['wildcard exports', { '.': './src/index.ts', './*': './src/*.ts' }],
     ['missing root export', { './server': './src/server.ts' }],
+    [
+      'remapped native administration export',
+      { '.': './src/index.ts', './administration-server': './dist/authenticated-server.js' },
+    ],
+    [
+      'unselected native export',
+      { '.': './src/index.ts', './other-native': './dist/other-native.js' },
+    ],
   ])('refuses %s through the production workspace predicate', (_name, exports) => {
     const { configs, packages } = resolutionCensus();
     expect(

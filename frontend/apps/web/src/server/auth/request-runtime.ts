@@ -15,12 +15,14 @@ export type BffRequestRead = Readonly<{
 export type BffRequestHolder = Readonly<{
   version: 1;
   activity: (binding: IngressContext) => 'read' | 'passive';
+  flight: (binding: IngressContext) => boolean;
   publish: (binding: IngressContext, session: SessionProjection | null) => void;
   read: (binding: IngressContext) => BffRequestRead;
 }>;
 type Store = {
   binding: IngressContext;
   activity: 'read' | 'passive';
+  flight: boolean;
   phase: 'pending' | 'ready' | 'closed';
   session: SessionProjection | null;
   close: () => void;
@@ -67,6 +69,9 @@ export function createBffRequestRuntime() {
     version: 1,
     activity(binding) {
       return current(binding, 'pending').activity;
+    },
+    flight(binding) {
+      return current(binding, 'pending').flight;
     },
     publish(binding, session) {
       const store = current(binding, 'pending');
@@ -129,6 +134,7 @@ export function createBffRequestRuntime() {
       }
       const store: Store = {
         activity: bffActivity(binding.method, headers),
+        flight: request.headers.rsc === '1',
         binding: Object.freeze({ ...binding }),
         phase: 'pending',
         session: null,

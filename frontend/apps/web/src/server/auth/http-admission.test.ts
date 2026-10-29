@@ -171,7 +171,7 @@ describe('pinned Next / native BFF admission seam', () => {
       h.stop();
     }
   });
-  it('actual native HTTP admission defaults closed and its explicit opt-in grants only three exact POST targets', async () => {
+  it('actual native HTTP admission defaults closed and its explicit opt-in grants only twelve exact POST targets', async () => {
     let enabled = false;
     const server = createServer((request, response) => {
       const admitted = admitIncomingRequest(request, secret, enabled);
@@ -214,7 +214,20 @@ describe('pinned Next / native BFF admission seam', () => {
     try {
       expect((await send('/api/auth/signout')).status).toBe(404);
       enabled = true;
-      for (const path of ['/api/auth/signin/keycloak', '/api/auth/signout', '/api/auth/extend']) {
+      for (const path of [
+        '/api/auth/signin/keycloak',
+        '/api/auth/signout',
+        '/api/auth/extend',
+        '/api/auth/entry/create',
+        '/api/auth/entry/select',
+        '/api/auth/switch',
+        '/api/studio/membership-profile',
+        '/api/studio/membership-roles',
+        '/api/studio/membership-status',
+        '/api/studio/role-grants',
+        '/api/studio/role-manifest-adoption',
+        '/api/account/profile',
+      ]) {
         const result = await send(path);
         expect(result.status).toBe(200);
         expect(JSON.parse(result.body)).toEqual({
@@ -232,6 +245,10 @@ describe('pinned Next / native BFF admission seam', () => {
         '/api/auth/extend?x=1',
         '/api/auth/callback/keycloak',
         '/api/auth/session',
+        '/api/studio/arbitrary',
+        '/api/account/arbitrary',
+        '/api/account/profile/',
+        '/api/studio/role-grants?x=1',
       ])
         expect((await send(path)).status).toBe(404);
     } finally {

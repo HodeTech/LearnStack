@@ -61,6 +61,67 @@ try {
       stage = value;
     },
   });
+  async function selectEntry(callback, host, destination) {
+    stage = 'entry-cookie';
+    assert.equal(callback.headers.location, 'https://' + host + '/api/auth/entry');
+    assert.ok(callback.headers['set-cookie'].some((value) => value.startsWith('__Host-ls-entry=')));
+    assert.equal(
+      callback.headers['set-cookie'].some((value) => value.startsWith('__Host-ls-session=')),
+      false,
+    );
+    const entryCookie = jar(callback);
+    assert.equal(
+      JSON.parse((await get('/api/auth/session', entryCookie, { headers: { host } })).body).state,
+      'anonymous',
+    );
+    stage = 'entry-confirmation';
+    const response = await get('/api/auth/entry', entryCookie, { headers: { host } });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers['cache-control'], 'no-store');
+    assert.equal(response.headers['set-cookie'], undefined);
+    let csrfToken;
+    let tenantId;
+    if (uiMode) {
+      const locale = host.startsWith('other.') ? 'tr' : 'en';
+      assert.ok(response.body.includes(bffProofCopy(locale, 'entry.confirm')));
+      const form =
+        /<form action="\/api\/auth\/entry\/select" method="post">([\s\S]*?)<\/form>/.exec(
+          response.body,
+        );
+      assert.ok(form, 'real entry selection form');
+      csrfToken = /name="csrfToken" value="([A-Za-z0-9_-]{43})"/.exec(form[1])?.[1];
+      tenantId = /name="tenantId" value="([0-9a-f-]{36})"/.exec(form[1])?.[1];
+    } else {
+      const entry = JSON.parse(response.body);
+      assert.equal(entry.state, 'entry');
+      assert.equal(entry.identityState, 'active');
+      assert.equal(entry.contexts.items.length, 1);
+      csrfToken = entry.csrfToken;
+      tenantId = entry.contexts.items[0].tenantId;
+    }
+    assert.match(csrfToken, /^[A-Za-z0-9_-]{43}$/);
+    assert.match(tenantId, /^[0-9a-f-]{36}$/);
+    privateValues.push(csrfToken);
+    stage = 'entry-selection';
+    const selected = await get('/api/auth/entry/select', entryCookie, {
+      method: 'POST',
+      headers: {
+        host,
+        origin: 'https://' + host,
+        'content-type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({ csrfToken, tenantId }).toString(),
+    });
+    assert.equal(selected.status, 303);
+    assert.equal(selected.headers.location, 'https://' + host + destination);
+    assert.ok(
+      selected.headers['set-cookie'].some((value) => value.startsWith('__Host-ls-session=')),
+    );
+    assert.ok(
+      selected.headers['set-cookie'].some((value) => value.startsWith('__Host-ls-entry=;')),
+    );
+    return jar(selected);
+  }
   if (uiMode) {
     stage = 'ui-signin';
     for (const [host, locale] of [
@@ -112,6 +173,7 @@ try {
   const state = transaction.slice('__Host-ls-login-'.length).split('=')[0];
   privateValues.push(state);
   stage = 'callback';
+  const beforeCallback = await advance(0);
   const callback = await get(
     '/api/auth/callback/keycloak?state=' + state + '&code=' + callbackCode,
     jar(signIn),
@@ -139,7 +201,12 @@ try {
     process.stderr.write(JSON.stringify({ status: callback.status, reason }) + '\n');
   }
   assert.equal(callback.status, 303);
-  const active = jar(callback);
+  assert.equal(
+    (await advance(0)).accounts,
+    beforeCallback.accounts,
+    'callback never invokes AccountSite',
+  );
+  const active = await selectEntry(callback, 'institution.example.test:3000', '/studio');
   stage = 'rsc';
   const document = await get('/studio', active);
   assert.equal(document.status, 200);
@@ -214,7 +281,8 @@ try {
       { headers: { host: 'other.example.test:3000' } },
     );
     assert.equal(callbackB.status, 303);
-    const portal = await get('/portal', jar(callbackB), {
+    const activeB = await selectEntry(callbackB, 'other.example.test:3000', '/portal');
+    const portal = await get('/portal', activeB, {
       headers: { host: 'other.example.test:3000' },
     });
     assert.equal(portal.status, 200);

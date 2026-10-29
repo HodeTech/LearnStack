@@ -48,7 +48,7 @@ describe('exclusive store work follows its caller lifetime', () => {
     expect(f.store.counts().owners).toBe(0);
   });
   it.each(['redeem', 'account'] as const)(
-    'aborted %s retains actual work and cannot publish late credentials',
+    'aborted %s retains actual work and cannot publish late tenant credentials',
     async (phase) => {
       const f = fixture();
       const held = gate();
@@ -67,7 +67,7 @@ describe('exclusive store work follows its caller lifetime', () => {
           return original();
         });
       }
-      const pending = f.store.complete({
+      const completionInput = {
         host: bffHost,
         source: bffSource,
         browser: started.browser,
@@ -79,11 +79,22 @@ describe('exclusive store work follows its caller lifetime', () => {
           '/api/auth/callback/keycloak?state=' +
           started.state +
           '&code=owned',
-        signal: controller.signal,
-      });
+        signal: phase === 'redeem' ? controller.signal : undefined,
+      };
+      const entered = phase === 'account' ? await f.store.complete(completionInput) : undefined;
+      const pending = entered
+        ? f.store.select(
+            { host: bffHost, browser: entered.browser, handle: entered.handle },
+            bffSource,
+            entered.entry.csrfToken,
+            f.scope,
+            undefined,
+            controller.signal,
+          )
+        : f.store.complete(completionInput);
       const refused = expect(pending).rejects.toMatchObject({
         reason: 'cancelled',
-        clearTransaction: started.state,
+        ...(phase === 'redeem' ? { clearTransaction: started.state } : {}),
       });
       await vi.waitFor(() =>
         expect(phase === 'redeem' ? f.provider.redeem : f.account).toHaveBeenCalledTimes(1),
@@ -92,10 +103,14 @@ describe('exclusive store work follows its caller lifetime', () => {
       expect(f.store.counts().owners).toBe(1);
       held.release();
       await refused;
-      expect(f.store.counts().owners).toBe(0);
+      expect(f.store.counts().owners).toBe(phase === 'redeem' ? 0 : 1);
+      if (entered)
+        expect(
+          f.store.peek({ host: bffHost, browser: entered.browser, handle: entered.handle }),
+        ).toBeNull();
     },
   );
-  it('carries only the current callback/read trace to AccountSite, never a stored login request trace', async () => {
+  it('carries only the current selection/read trace to AccountSite, never a stored login request trace', async () => {
     const f = fixture();
     const started = await f.store.start({ host: bffHost, source: bffSource, returnPath: '/' });
     const finished = await f.store.complete({
@@ -108,16 +123,29 @@ describe('exclusive store work follows its caller lifetime', () => {
       responseUrl:
         'https://' + bffHost + '/api/auth/callback/keycloak?state=' + started.state + '&code=owned',
     });
+    expect(f.account).not.toHaveBeenCalled();
+    const selected = await f.store.select(
+      {
+        host: bffHost,
+        browser: finished.browser,
+        handle: finished.handle,
+        traceparent: 'selection-trace',
+      },
+      '203.0.113.4',
+      finished.entry.csrfToken,
+      f.scope,
+    );
+    if (selected.kind !== 'session') throw new Error('Expected session');
     expect(f.account).toHaveBeenLastCalledWith(
       'private-access-canary',
-      { host: bffHost, source: '203.0.113.2', traceparent: 'callback-trace' },
+      { host: bffHost, source: '203.0.113.4', traceparent: 'selection-trace', ...f.scope },
       expect.any(AbortSignal),
     );
     await f.store.admit(
       {
         host: bffHost,
-        browser: finished.browser,
-        handle: finished.handle,
+        browser: selected.browser,
+        handle: selected.handle,
         traceparent: 'read-trace',
       },
       '203.0.113.3',
@@ -125,7 +153,7 @@ describe('exclusive store work follows its caller lifetime', () => {
     );
     expect(f.account).toHaveBeenLastCalledWith(
       'private-access-canary',
-      { host: bffHost, source: '203.0.113.3', traceparent: 'read-trace' },
+      { host: bffHost, source: '203.0.113.3', traceparent: 'read-trace', ...f.scope },
       expect.any(AbortSignal),
     );
   });
@@ -162,7 +190,7 @@ describe('HTTP protocol cancellation reaches the real session owner', () => {
   });
 
   it.each(['redeem', 'account'] as const)(
-    'callback abort during %s cannot publish a session or leave an orphan owner',
+    'abort during %s withholds publication and retains entry work only as applicable',
     async (phase) => {
       const f = fixture();
       const started = await f.store.start({
@@ -186,17 +214,44 @@ describe('HTTP protocol cancellation reaches the real session owner', () => {
           return original();
         });
       }
+      const entered =
+        phase === 'account'
+          ? await f.store.complete({
+              host: bffHost,
+              source: bffSource,
+              browser: started.browser,
+              state: started.state,
+              proof: started.proof,
+              responseUrl:
+                'https://' +
+                bffHost +
+                '/api/auth/callback/keycloak?state=' +
+                started.state +
+                '&code=owned',
+            })
+          : undefined;
       const pending = f.http.handle(
-        bffRequest('/api/auth/callback/keycloak?state=' + started.state + '&code=owned', {
-          cookie:
-            '__Host-ls-browser=' +
-            started.browser +
-            '; __Host-ls-login-' +
-            started.state +
-            '=' +
-            started.proof,
-          signal: controller.signal,
-        }),
+        entered
+          ? bffRequest('/api/auth/entry/select', {
+              method: 'POST',
+              cookie:
+                '__Host-ls-browser=' + entered.browser + '; __Host-ls-entry=' + entered.handle,
+              form: new URLSearchParams({
+                csrfToken: entered.entry.csrfToken,
+                tenantId: f.scope.tenantId,
+              }).toString(),
+              signal: controller.signal,
+            })
+          : bffRequest('/api/auth/callback/keycloak?state=' + started.state + '&code=owned', {
+              cookie:
+                '__Host-ls-browser=' +
+                started.browser +
+                '; __Host-ls-login-' +
+                started.state +
+                '=' +
+                started.proof,
+              signal: controller.signal,
+            }),
       );
       await vi.waitFor(() => expect(collaborator).toHaveBeenCalledTimes(1));
       controller.abort();
@@ -204,19 +259,24 @@ describe('HTTP protocol cancellation reaches the real session owner', () => {
         owners: 1,
         pending: 1,
         operations: 1,
-        credentialRecords: 0,
+        credentialRecords: phase === 'redeem' ? 0 : 1,
       });
       held.release();
       const response = (await pending)!;
       expect(response.status).toBe(400);
       expect(await response.json()).toEqual({ code: 'cancelled' });
-      expect(response.headers.getSetCookie()).toHaveLength(1);
-      expect(response.headers.getSetCookie()[0]).toContain(
-        '__Host-ls-login-' + started.state + '=;',
-      );
+      expect(response.headers.getSetCookie()).toHaveLength(phase === 'redeem' ? 1 : 0);
+      if (phase === 'redeem')
+        expect(response.headers.getSetCookie()[0]).toContain(
+          '__Host-ls-login-' + started.state + '=;',
+        );
       expect(response.headers.getSetCookie().join(';')).not.toContain('__Host-ls-session=');
       expect(response.headers.getSetCookie().join(';')).not.toContain('__Host-ls-browser=');
-      expect(f.store.counts()).toMatchObject({ owners: 0, transactionRecords: 0, loginStates: 0 });
+      expect(f.store.counts()).toMatchObject({
+        owners: phase === 'redeem' ? 0 : 1,
+        transactionRecords: 0,
+        loginStates: 0,
+      });
     },
   );
 

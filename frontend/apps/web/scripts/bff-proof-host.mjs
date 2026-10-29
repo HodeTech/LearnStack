@@ -177,6 +177,15 @@ export async function startBffProof({
     'request-owner',
     'request-runtime',
     'session-contract',
+    'session-path',
+    'native-contract',
+    'native-operation-contract',
+    'native-api-transport',
+    'native-session-client',
+    'native-administration-client',
+    'http-forms',
+    'input-error',
+    'page-query',
     'session-projection',
     'session-owner',
     'session-runtime',
@@ -316,13 +325,15 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
       launcher,
       `    const dependencies = {
       provider: createTenantProvider(bff, globalThis.fetch),
-      account: createAccountSiteCaller(configuration, globalThis.fetch),
+      account: createAccountSiteCaller(nativeConfiguration, globalThis.fetch),
+      native: createNativeSessionApi(nativeConfiguration, globalThis.fetch),
+      administration: createNativeAdministrationCaller(nativeConfiguration, globalThis.fetch),
       diagnostic: (reason) => console.warn('BFF session lifecycle', { reason }),
     };`,
       `    let now = 0; let refreshes = 0; let accounts = 0;
     process.on('message', async value => { if (value && value.kind === 'advance' && [0, 60000, 901000].includes(value.milliseconds)) { now += value.milliseconds; await (await import('next/dist/trace/index.js')).flushAllTraces(); process.send?.({ kind: 'snapshot', now, refreshes, accounts }); } });
-    const credentials = () => ({ accessToken: '${marker}', refreshToken: '${marker}', idToken: '${marker}', identity: { issuer: ${JSON.stringify(fakeIssuer)}, subject: 'owned-subject', actorId: '019a154b-0000-7000-8000-000000000011', tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null }, accessExpiresAt: now + 900000, refreshExpiresAt: now + 3600000 });
-    const dependencies = { provider: { begin: async callbackUri => ({ transaction: { callbackUri, state: randomBytes(32).toString('base64url'), nonce: randomBytes(32).toString('base64url'), verifier: randomBytes(32).toString('base64url') }, redirectUrl: ${JSON.stringify(fakeIssuer + '/protocol/openid-connect/auth')} }), redeem: async () => credentials(), refresh: async () => { ++refreshes; return credentials(); }, logoutUrl: () => ${JSON.stringify(fakeLogout)} }, account: async (_token, binding) => { ++accounts; return ({ actorId: '019a154b-0000-7000-8000-000000000011', tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null, displayName: (${JSON.stringify(sites)}).find(site => site.host === binding.host).displayName }); }, clock: { monotonic: () => now, utc: () => ${clockBase} + now } };`,
+    const credentials = () => ({ accessToken: '${marker}', refreshToken: '${marker}', idToken: '${marker}', identity: { issuer: ${JSON.stringify(fakeIssuer)}, subject: 'owned-subject', actorId: '019a154b-0000-7000-8000-000000000011', tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null, displayLabel: 'Fixture account' }, accessExpiresAt: now + 900000, refreshExpiresAt: now + 3600000 });
+    const dependencies = { provider: { begin: async callbackUri => ({ transaction: { callbackUri, state: randomBytes(32).toString('base64url'), nonce: randomBytes(32).toString('base64url'), verifier: randomBytes(32).toString('base64url') }, redirectUrl: ${JSON.stringify(fakeIssuer + '/protocol/openid-connect/auth')} }), redeem: async () => credentials(), refresh: async () => { ++refreshes; return credentials(); }, logoutUrl: () => ${JSON.stringify(fakeLogout)} }, account: async (_token, binding) => { ++accounts; return ({ actorId: '019a154b-0000-7000-8000-000000000011', tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null, displayName: (${JSON.stringify(sites)}).find(site => site.host === binding.host).displayName }); }, native: { self: async () => ({state: 'active', association: {authorityId: '10000000-0000-4000-8000-000000000099', subjectKey: 'a'.repeat(64), actorId: '019a154b-0000-7000-8000-000000000011'}}), bootstrap: async () => {throw new Error('Unused fixture create');}, contexts: async (_token,binding) => ({items: [{tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null, tenantName: (${JSON.stringify(sites)}).find(site => site.host === binding.host).displayName, organizationName: null, entryOrigin: 'https://' + binding.host, canUseCurrentHost: true}], endCursor: null, hasNextPage: false}), admit: async (_token,binding) => ({authorityId: '10000000-0000-4000-8000-000000000099', subjectKey: 'a'.repeat(64), actorId: '019a154b-0000-7000-8000-000000000011', tenantId: binding.tenantId, organizationId: binding.organizationId}), verifyAssociation: () => {} }, administration: async () => ({kind: 'invalid-request'}), clock: { monotonic: () => now, utc: () => ${clockBase} + now } };`,
     );
   }
   file(join(app, 'scripts/public-server.mjs'), launcher);
@@ -393,6 +404,8 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
       LEARNSTACK_BFF_ENABLED: 'true',
       LEARNSTACK_BFF_ISSUER: external?.issuer ?? fakeIssuer,
       KEYCLOAK_WEB_CLIENT_SECRET: external?.clientSecret ?? marker,
+      Identity__AuthorityId: external?.authorityId ?? '10000000-0000-4000-8000-000000000099',
+      Identity__NativeSession__CurrentSecret: external?.nativeSourceSecret ?? marker,
     },
     privateValues: {
       LEARNSTACK_PUBLIC_API_ORIGIN:

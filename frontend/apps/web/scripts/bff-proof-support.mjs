@@ -37,6 +37,7 @@ export function bffProofCopy(locale, key) {
       'shell.account',
       'shell.portal',
       'session.extended',
+      'entry.confirm',
     ].includes(key),
     'closed proof copy',
   );
@@ -117,7 +118,10 @@ export function rememberBffCookies(headers, canaries) {
     assert.match(value, /^[A-Za-z0-9_-]{43}$/);
     const transaction = /^(?:__Host-ls-login-|__Host-ls-logout-)([A-Za-z0-9_-]{43})$/.exec(name);
     assert.ok(
-      transaction || ['__Host-ls-session', '__Host-ls-browser', '__Host-ls-csrf'].includes(name),
+      transaction ||
+        ['__Host-ls-session', '__Host-ls-browser', '__Host-ls-csrf', '__Host-ls-entry'].includes(
+          name,
+        ),
     );
     for (const secret of transaction ? [transaction[1], value] : [value]) {
       if (canaries.includes(secret)) continue;

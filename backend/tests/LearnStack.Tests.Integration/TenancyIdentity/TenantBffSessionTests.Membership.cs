@@ -29,7 +29,7 @@ public sealed partial class TenantBffSessionTests
         positive.PrivateFree.Should().BeTrue();
         positive.Cache.Should().Contain("no-store");
         api.AccountResponses.Responses.Skip(beforeResponses).Select(row => row.Status).Should().Equal([200, 200],
-            "both real provider callback and protected learner document obtain actual AccountSite success");
+            "both explicit selection and protected learner document obtain actual AccountSite success");
         var learnerReads = api.Observed.Reads.Where(row => row.Actor is not null).Skip(beforeLogin).ToArray();
         learnerReads.Should().HaveCount(2);
         learnerReads.Should().OnlyContain(row => row.Actor == identity.UserId.Value
@@ -60,14 +60,13 @@ public sealed partial class TenantBffSessionTests
         apiRefusal.Cache.Should().Contain("no-store");
         api.Observed.Reads.Count(row => row.Actor is not null).Should().Be(beforeRefusedRead,
             "revocation refuses before protected configuration disclosure");
-        var audit = (await AccountHttpAudit.Read(database, tenant, apiRefusal.Correlation,
-            tenant.MapHostToDefaultOrganization ? tenant.DefaultOrganization.OrganizationId : null))
-            .Should().ContainSingle().Subject;
-        audit.Operation.Should().Be("identity.authorization.deny");
-        audit.Outcome.Should().Be("denied");
-        audit.Actor.Should().Be(identity.UserId.Value);
-        audit.Tenant.Should().Be(tenant.TenantId.Value);
-        audit.Organization.Should().Be(tenant.MapHostToDefaultOrganization ? tenant.DefaultOrganization.OrganizationId.Value : null);
+        // ADR-0078 confirms the native candidate before publishing a tenant
+        // context. Unlike the legacy resolved policy refusal, revoked coverage
+        // stops in the resolver: ADR-0077 forbids inventing a generic 404 audit.
+        // AccountSiteHttpTests separately retains resolved-policy MUST evidence.
+        (await AccountHttpAudit.Read(database, tenant, apiRefusal.Correlation,
+            membership.OrganizationId)).Should().BeEmpty(
+                "native coverage refused before context publication and protected-policy invocation");
 
         await AnonymousAsync(native, tenant, originalCookies);
         cookies.Apply(refused);

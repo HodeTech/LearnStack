@@ -308,6 +308,8 @@ describe('native public admission lifetime and concurrent ownership', () => {
         'public-api-limits',
         'ingress',
         'auth/http-paths',
+        'auth/page-query',
+        'auth/input-error',
       ]) {
         const source = readFileSync(new URL(`./${name}.ts`, import.meta.url), 'utf8');
         const output = ts.transpileModule(source, {

@@ -1,16 +1,21 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { MAX_PUBLIC_RESPONSE_BYTES } from '../public-api-limits';
 import { createAccountSiteCaller } from './account-client';
+import { NATIVE_API_MAX_BYTES } from './native-api-transport';
 
 const configuration = {
   apiOrigin: 'http://127.0.0.1:5100',
   secret: 'private-hop-'.padEnd(48, 'x'),
+  nativeSourceSecret: Buffer.from(Array.from({ length: 32 }, (_, index) => index + 1)).toString(
+    'base64url',
+  ),
 };
 const binding = {
   host: 'institution.example.test:3000',
   source: '203.0.113.19',
+  tenantId: '10000000-0000-4000-8000-000000000001',
+  organizationId: null,
   traceparent: '00-' + 'a'.repeat(32) + '-' + 'b'.repeat(16) + '-01',
 };
 const actorId = '019a154b-0000-7000-8000-000000000011';
@@ -50,6 +55,8 @@ describe('configured exact AccountSite capability', () => {
       authorization: 'Bearer private-access-canary',
       'x-learnstack-host': binding.host,
       'x-learnstack-hop-secret': configuration.secret,
+      'x-learnstack-native-session-secret': configuration.nativeSourceSecret,
+      'x-learnstack-native-tenant-id': tenantId,
       'x-learnstack-visitor-address': binding.source,
       traceparent: binding.traceparent,
     });
@@ -70,7 +77,7 @@ describe('configured exact AccountSite capability', () => {
   ])('rejects invalid binding %j before transport', async (bad) => {
     const transport = vi.fn();
     await expect(
-      createAccountSiteCaller(configuration, transport)('token', bad, signal()),
+      createAccountSiteCaller(configuration, transport)('token', { ...binding, ...bad }, signal()),
     ).rejects.toMatchObject({ reason: 'configuration' });
     expect(transport).not.toHaveBeenCalled();
   });
@@ -154,14 +161,14 @@ describe('configured exact AccountSite capability', () => {
       createAccountSiteCaller(configuration, async () => bad)('token', binding, signal()),
     ).rejects.toMatchObject({ reason: 'response' });
   });
-  it('bounds decoded body bytes at the existing API ceiling and cancels oversize consumption', async () => {
+  it('bounds decoded body bytes at the native 256 KiB ceiling and cancels oversize consumption', async () => {
     let cancelled = false;
     const transport = vi.fn(
       async () =>
         new Response(
           new ReadableStream({
             start(controller) {
-              controller.enqueue(new Uint8Array(MAX_PUBLIC_RESPONSE_BYTES + 1));
+              controller.enqueue(new Uint8Array(NATIVE_API_MAX_BYTES + 1));
             },
             cancel() {
               cancelled = true;
@@ -174,6 +181,13 @@ describe('configured exact AccountSite capability', () => {
       createAccountSiteCaller(configuration, transport)('token', binding, signal()),
     ).rejects.toMatchObject({ reason: 'response' });
     expect(cancelled).toBe(true);
+  });
+  it('refuses a positive AccountSite response for a different native scope', async () => {
+    await expect(
+      createAccountSiteCaller(configuration, async () =>
+        response({ ...account, organizationId: '019a154b-0000-7000-8000-000000000012' }),
+      )('token', binding, signal()),
+    ).rejects.toMatchObject({ reason: 'identity' });
   });
   it('distinguishes caller cancellation and its finite deadline with no replay', async () => {
     vi.useFakeTimers();

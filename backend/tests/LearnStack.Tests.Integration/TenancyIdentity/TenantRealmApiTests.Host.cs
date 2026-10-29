@@ -20,7 +20,7 @@ namespace LearnStack.Tests.Integration.TenancyIdentity;
 public sealed partial class TenantRealmApiTests
 {
     private HttpClient Client(SeedTenant tenant, out TenantRealmApiObservation observation,
-        X509Certificate2? authority = null, string? issuer = null, PublicReadFixture? sourceDatabase = null)
+        X509Certificate2? authority = null, string? issuer = null, PublicReadFixture? sourceDatabase = null, bool native = false)
     {
         var observed = new TenantRealmApiObservation();
         observation = observed;
@@ -33,7 +33,49 @@ public sealed partial class TenantRealmApiTests
             services.AddScoped<IPublicTenantConfigurationReader>(serviceProvider => new TenantRealmContextReader(
                 serviceProvider.GetRequiredService<ObservedPublicConfigurationReader>(),
                 serviceProvider.GetRequiredService<ITenantContext>(), serviceProvider.GetRequiredService<IUnitOfWork>(), observed));
-        }, builder => builder.UseSetting(TenantAuthenticationOptions.IssuerConfigurationKey, issuer ?? _provider.Issuer));
+            if (native) services.AddSingleton<IStartupFilter, WarmNativePeer>();
+        }, builder =>
+        {
+            builder.UseSetting(TenantAuthenticationOptions.IssuerConfigurationKey, issuer ?? _provider.Issuer);
+            if (native)
+            {
+                builder.UseSetting("Tenancy:TrustedHop:Networks:0", "127.0.0.1/32");
+                builder.UseSetting("Tenancy:TrustedHop:Secrets:0", _warmHopSecret);
+                builder.UseSetting(NativeSessionSourcePolicy.CurrentSecretKey, _warmNativeSecret);
+            }
+        });
+    }
+
+    private readonly string _warmHopSecret = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+    private readonly string _warmNativeSecret = Microsoft.AspNetCore.WebUtilities.WebEncoders.Base64UrlEncode(
+        System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+
+    private sealed class WarmNativePeer : IStartupFilter
+    {
+        public Action<Microsoft.AspNetCore.Builder.IApplicationBuilder> Configure(Action<Microsoft.AspNetCore.Builder.IApplicationBuilder> next) => app =>
+        {
+            Microsoft.AspNetCore.Builder.UseExtensions.Use(app, async (context, continuation) =>
+            {
+                context.Connection.RemoteIpAddress = IPAddress.Loopback;
+                await continuation();
+            });
+            next(app);
+        };
+    }
+
+    private async Task<HttpResponseMessage> SendNativeAsync(HttpClient client, SeedTenant tenant, string token)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, TenantAuthenticationHttpRequest.AccountPath);
+        request.Headers.Host = tenant.Host;
+        request.Headers.Authorization = new("Bearer", token);
+        request.Headers.Add(LearnStack.Api.Tenancy.TrustedHopOptions.HostHeaderName, tenant.Host);
+        request.Headers.Add(LearnStack.Api.Tenancy.TrustedHopOptions.SecretHeaderName, _warmHopSecret);
+        request.Headers.Add("X-LearnStack-Visitor-Address", "198.51.100.24");
+        request.Headers.Add(NativeSessionSourcePolicy.SecretHeader, _warmNativeSecret);
+        request.Headers.Add(NativeSessionSourcePolicy.TenantHeader, tenant.TenantId.Value.ToString("D"));
+        if (Organization(tenant) is { } organization)
+            request.Headers.Add(NativeSessionSourcePolicy.OrganizationHeader, organization.ToString("D"));
+        return await client.SendAsync(request);
     }
 
     private static TenantAuthenticationBackchannel Backchannel(X509Certificate2 authority)

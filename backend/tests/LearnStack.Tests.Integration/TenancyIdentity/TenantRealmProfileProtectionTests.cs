@@ -230,7 +230,7 @@ public sealed class TenantRealmProfileProtectionTests(KeycloakFixture fixture) :
         var exchange = await browser.RedeemAsync(authorization);
         exchange.StatusCode.Should().Be(HttpStatusCode.OK);
         var token = await KeycloakTokenVerifier.ValidateAsync(fixture, exchange.AccessToken, "learnstack-api");
-        TokenIdentityMatches(token, identity).Should().BeTrue("fresh BFF issuance still uses exactly the typed seed authority");
+        TokenIdentityMatches(token, identity).Should().BeTrue("fresh native web issuance retains the typed actor without provider context");
     }
 
     private static async Task<JsonElement> AccountAsync(HttpClient client)
@@ -293,10 +293,8 @@ public sealed class TenantRealmProfileProtectionTests(KeycloakFixture fixture) :
 
     private static bool TokenIdentityMatches(JsonElement token, SeedIdentity identity) =>
         Scalar(token, "user_id", identity.UserId.Value.ToString("D"))
-        && Scalar(token, "tenant_id", identity.Tenant.TenantId.Value.ToString("D"))
-        && (identity.Tenant.MapHostToDefaultOrganization
-            ? Scalar(token, "organization_id", identity.Tenant.DefaultOrganization.OrganizationId.Value.ToString("D"))
-            : !token.TryGetProperty("organization_id", out _));
+        && !token.TryGetProperty("tenant_id", out _)
+        && !token.TryGetProperty("organization_id", out _);
 
     private static bool Scalar(JsonElement payload, string name, string expected) => payload.TryGetProperty(name, out var value)
         && value.ValueKind == JsonValueKind.String && value.GetString() == expected;

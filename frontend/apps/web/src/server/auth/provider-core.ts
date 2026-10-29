@@ -6,9 +6,10 @@ import { providerOperation } from './provider-transport.js';
 export type ProviderIdentity = Readonly<{
   issuer: string;
   subject: string;
-  actorId: string;
-  tenantId: string;
+  actorId: string | null;
+  tenantId: string | null;
   organizationId: string | null;
+  displayLabel: string | null;
 }>;
 
 /** Server-only grant result; never a session/client/RSC projection. */
@@ -37,6 +38,24 @@ type Operation = ReturnType<typeof providerOperation>;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const allZero = '00000000-0000-0000-0000-000000000000';
 
+function optionalId(value: unknown): string | null {
+  if (value === undefined) return null;
+  if (typeof value !== 'string' || !uuid.test(value) || value === allZero)
+    throw new BffProviderError('identity');
+  return value.toLowerCase();
+}
+
+function displayLabel(claims: oidc.IDToken): string | null {
+  const value = claims.name ?? claims.preferred_username;
+  return typeof value === 'string' &&
+    value.length > 0 &&
+    value.length <= 128 &&
+    !/^[\s\u0085]+$/u.test(value) &&
+    !/[\0\ud800-\udfff]/u.test(value)
+    ? value
+    : null;
+}
+
 function identity(claims: oidc.IDToken | undefined, issuer: string): ProviderIdentity {
   if (
     !claims ||
@@ -47,26 +66,20 @@ function identity(claims: oidc.IDToken | undefined, issuer: string): ProviderIde
     /^[\t\n\v\f\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$/u.test(
       claims.sub,
     ) ||
-    /[\0\r\n\ud800-\udfff]/u.test(claims.sub) ||
-    typeof claims.user_id !== 'string' ||
-    !uuid.test(claims.user_id) ||
-    claims.user_id === allZero ||
-    typeof claims.tenant_id !== 'string' ||
-    !uuid.test(claims.tenant_id) ||
-    claims.tenant_id === allZero ||
-    (claims.organization_id !== undefined &&
-      (typeof claims.organization_id !== 'string' ||
-        !uuid.test(claims.organization_id) ||
-        claims.organization_id === allZero))
+    /[\0\r\n\ud800-\udfff]/u.test(claims.sub)
   )
     throw new BffProviderError('identity');
+  const actorId = optionalId(claims.user_id);
+  const tenantId = optionalId(claims.tenant_id);
+  const organizationId = optionalId(claims.organization_id);
+  if (organizationId !== null && tenantId === null) throw new BffProviderError('identity');
   return Object.freeze({
     issuer,
     subject: claims.sub,
-    actorId: claims.user_id.toLowerCase(),
-    tenantId: claims.tenant_id.toLowerCase(),
-    organizationId:
-      typeof claims.organization_id === 'string' ? claims.organization_id.toLowerCase() : null,
+    actorId,
+    tenantId,
+    organizationId,
+    displayLabel: displayLabel(claims),
   });
 }
 
@@ -182,8 +195,8 @@ export function createTenantProvider(input: ProviderInput, transport: typeof fet
     const current = identity(result.claims(), expectedIssuer);
     if (
       previous &&
-      Object.keys(current).some(
-        (key) => current[key as keyof ProviderIdentity] !== previous[key as keyof ProviderIdentity],
+      (['issuer', 'subject', 'actorId', 'tenantId', 'organizationId'] as const).some(
+        (key) => current[key] !== previous[key],
       )
     )
       throw new BffProviderError('identity');

@@ -229,8 +229,8 @@ Use 256-bit random opaque `__Host-` session cookies: HttpOnly, Secure,
 SameSite=Lax, Path=/, no Domain. Credentials and raw profiles enter no browser
 projection. Verified host, browser binding, epoch and server state are required.
 The delivered opaque session/browser cookie format uses an eight-hour Max-Age;
-the standalone form-CSRF and login/logout proof cookies use 300 seconds, with
-Max-Age zero for an authorized deletion. These browser retention bounds never
+the entry, standalone form-CSRF and login/logout proof cookies use 300 seconds,
+with Max-Age zero for an authorized deletion. These browser retention bounds never
 extend server idle, provider or absolute authority and do not make restart
 survivable. The real cookie controls compare emitted headers, not browser defaults.
 
@@ -243,8 +243,8 @@ survivable. The real cookie controls compare emitted headers, not browser defaul
   provider returns an unchanged deadline. Full document navigation and the
   protected-document history veil require fresh network admission on return.
 - Retain 1,024 total owners, including unsettled work; 128 pending for five minutes,
-  16 pending per verified visitor IP, eight session/logout-return owners per
-  validated issuer/subject. Same-browser replacement settles old work first.
+  16 pending per verified visitor IP, eight verified entry/session/logout-return
+  owners per validated issuer/subject. Same-browser replacement settles old work first.
   No live other-device eviction or capacity bypass; source/subject refusal is
   429 and global capacity refusal is 503. Full expiry scans precede global refusal.
   AccountSite also remains subject to the API's shared peer/visitor limits under
@@ -268,22 +268,26 @@ survivable. The real cookie controls compare emitted headers, not browser defaul
   The [route failure classification](../decisions/0070-owned-tenant-bff-sessions.md#amendment-3--implementation-controls-and-diagnostic-scope-2026-10-24)
   separates malformed input from unavailable upstream/server work; it does not
   change grant-publication or revocation rules.
-- Return destinations are the closed local set `/`, `/studio` and `/portal`.
+- Return destinations are `/` and the exact local
+  [protected document set](07-frontend-architecture.md#native-entry-and-administration),
+  with canonical detail IDs and no query or fragment.
   No browser URL, unverified Host/forwarded header, provider error or callback
   query chooses the issuer, API origin, provider endpoint or post-logout authority.
   Callback/logout origins use only the independently verified native host/port.
   Fixed discovery/token/JWKS purposes use the private issuer, no redirects, one
   operation-wide deadline through body consumption and a decoded-byte bound.
-- Only the native AccountSite caller attaches its owned bearer to the fixed
-  authenticated endpoint. The public caller stays credential-free; neither
-  forwards browser Authorization or tenant/organization selectors. Source
+- Only the native configured callers attach owned bearers to the exact
+  AccountSite, self/admission and bounded administration operations. The public
+  caller stays credential-free; none forwards browser Authorization or
+  tenant/organization selectors. Source
   admission uses the verified socket provenance, not a browser-supplied address.
   Proxy deployment requires Phase 11's provenance qualification first.
 - BFF diagnostics emit only their closed lifecycle/failure categories. Do not
   expose raw provider exceptions, responses, URLs, subjects, handles or tokens.
   A category such as `provider_refused` is an observation, not a causal verdict,
   proof of settled cleanup or a durable application session-audit record.
-- Explicit BFF opt-in validates issuer/secret together. Disabled mode keeps public
+- Explicit BFF opt-in validates issuer/client secret, stable AuthorityId and the
+  separate native source secret together. Disabled mode keeps public
   requests independent of Keycloak; auth paths are 404 and protected shells 503.
   Restart signs sessions out. Multiple web processes require Phase 11's distributed
   adapter and actual refresh/revocation/interruption qualification first.
@@ -788,7 +792,9 @@ for the native controls and their delivery/review boundary.
 - Cookie sessions use `SameSite=Lax`.
 - BFF sign-in POST requires exact Origin and a random host-only double-submit
   proof; authenticated sign-out/extension requires exact Origin and a random
-  constant-time checked session-bound token. Apply admission before allocation.
+  constant-time checked session-bound token. Entry creation/selection/sign-out
+  uses the current entry-bound token; switch and administration forms use the
+  current session token. Apply admission before allocation or API work.
 - Sign-in HTML uses `same-origin` referrer policy so native forms retain that
   Origin proof. Provider redirects and the ID-token-hint logout exception retain
   `no-referrer`. Missing or `null` Origin remains a refusal.
@@ -798,7 +804,8 @@ for the native controls and their delivery/review boundary.
   auth POST admission requires a bounded Content-Length and no transfer encoding
   before Next can clone a body; the form parser independently bounds actual bytes,
   UTF-8, declared scalar fields and duplicates.
-- Only the exact auth POST set is open. SameSite and implicit framework checks
+- Only the [exact native auth/administration POST set](07-frontend-architecture.md#native-entry-and-administration)
+  is open. SameSite and implicit framework checks
   authorize neither sibling origins nor Server Actions.
 - Webhook endpoints verify signatures, not CSRF tokens.
 
@@ -1161,10 +1168,11 @@ withhold authenticated content, retain the ordinary live owner without idle
 renewal, and add no automatic retry/refresh. Initial and refreshed publication
 still require the independently verified ID-token identity and matching positive
 AccountSite actor/scope witness, with existing late-publication fences. A failed
-post-refresh check revokes. The native provider identity still requires complete
-actor/tenant claims, and `LoginCompletion` still represents a published session.
-Align native opaque subject validation to the API's 255-character bound; no
-pre-session optional-actor/tenant projection is introduced here.
+post-refresh check revokes. The original P03-1 boundary required complete native
+actor/tenant claims and immediate session completion. ADR-0078 supersedes that
+projection with the separate verified-provider, entry and published-session
+types in [Native entry and publication](#native-entry-and-publication).
+Native opaque subject validation retains the API's 255-character bound.
 
 P03-1 adds no POST, SDK operation or endpoint-census entry. Its source changes
 must cover the actual handoffs rather than only relaxing a claim parser:
@@ -1477,6 +1485,13 @@ Keep the witness only in the corresponding entry/credential revision; clear it
 with actual owner cleanup, refresh replacement, expiry and logout. It remains
 linkable personal data, not a browser projection or anonymous identifier.
 
+Entry selection freshly checks global-self `/identity/self/contexts`. A published
+same-host switch instead freshly reads `/identity/me/contexts` with the old held
+credential and immutable current scope, so tenant-wide coverage can suggest its
+eligible derived branches. Each API retains its own opaque cursor binding; a
+scoped refusal never falls back to global discovery. Destination hints remain
+non-authorizing suggestions and never bypass destination discovery/confirmation.
+
 Initial selection/explicit switch uses ordinary ReadWrite
 `POST /api/v1/identity/session-scope/admissions`, with MUST
 `identity.membership.admit_session_scope` before its witness and positive
@@ -1491,10 +1506,13 @@ single-flight, epoch and original lifetime rules remain.
 
 `ProviderIdentity`, the pre-session projection, separates verified issuer/sub and
 optional compatibility actor from `PublishedSessionIdentity`'s stored actor and API-admitted tenant/org.
-Typed entry/no-Membership completion never fabricates a tenant-bearing
-`LoginCompletion`. Credentials stay in existing bounded server owners; browser
-receives only opaque host cookies and entry/session-bound CSRF. RSC projections
-and immutable page snapshots carry no bearer, provider subject or association
+`LoginCompletion` carries only an entry; `SessionCompletion` requires explicit
+selection and positive API authority. Callback reserves the verified subject's
+owner capacity before self-discovery and publishes only the separate opaque
+`__Host-ls-entry` handle, never a tenant session. Credentials stay in existing
+bounded server owners; browser receives only opaque host cookies and
+entry/session-bound CSRF. RSC projections and immutable page snapshots carry no
+bearer, provider subject or association
 witness. Snapshot admission is 128 global/eight per owner and at most 256 KiB each;
 retain reservations through actual request/render/body cleanup, not timeout.
 
@@ -1505,6 +1523,15 @@ verified issuer/sub equality. A different subject keeps the old owner and uses
 explicit sign-out/re-entry recovery. Cross-host navigation supplies no
 source-person continuity or credential transfer. Same-host switching retains
 the original verified subject and absolute/provider deadlines.
+
+Entry sign-out uses the current entry CSRF and the held ID token to start provider
+logout, clearing only the entry cookie and setting an independent bounded logout
+proof. It preserves the old live session, sibling login transactions and their
+epoch. Actual selection work is aborted and joined; the entry/logout owner keeps
+its capacity until cleanup and return/expiry settle. If provider logout URL
+construction fails, return only to local `/api/auth/signin`; do not restore the
+discarded credentials. Provider SSO logout may affect other institution tabs, so
+localized recovery explains that scope without promising their continued login.
 
 An Off capability preview supplies nine finite Booleans with the exact predicates
 in the Identity specification. False previews produce no denial event and do

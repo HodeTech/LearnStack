@@ -93,7 +93,7 @@ public sealed partial class TenantRealmApiTests
             var first = await KeycloakReconciliationDriver.RunAsync(warm);
             first.Success.Should().BeTrue("closed historical reconciliation outcome: {0}/{1}", first.Stage, first.Reason);
             first.PreparationDispatched.Should().BeTrue();
-            first.Mutations.Should().Be(18, "one preparation, sixteen prior ordinary writes and one ADR-0070 event-policy PUT; the unrelated account needs no grant");
+            first.Mutations.Should().Be(19, "one preparation, sixteen prior ordinary writes, one event-policy PUT and the additional native scope creation; the unrelated account needs no grant");
             output.WriteLine("Historical journey stage: automatic reconciliation completed.");
             var accountsAfter = await WarmAccountsAsync(admin, usernames);
             WarmSame(expectedProfile, WarmNode(await admin.GetAsync("users/profile"))).Should().BeTrue(
@@ -125,9 +125,11 @@ public sealed partial class TenantRealmApiTests
                 var password = passwords.GetValueOrDefault(identity.Username) ?? KeycloakFixture.DemoPassword;
                 var tokens = await WarmWebTokensAsync(warm, identity, password,
                     identity.Username == mfaIdentity.Username ? otp : null);
-                using var client = Client(identity.Tenant, out var observation, warm.RootCertificate, warm.Issuer, warmDatabase);
-                using var response = await Send(client, identity.Tenant, tokens.AccessToken);
-                await AccountAsync(response, identity, observation);
+                using var client = Client(identity.Tenant, out var observation, warm.RootCertificate, warm.Issuer, warmDatabase, native: true);
+                using (var missingSource = await Send(client, identity.Tenant, tokens.AccessToken))
+                    await TenantAuthenticationHttpTests.Problem(missingSource, HttpStatusCode.NotFound, "not_found");
+                using var response = await SendNativeAsync(client, identity.Tenant, tokens.AccessToken);
+                await AccountAsync(response, identity, observation, LearnStack.SharedKernel.Tenancy.TenantContextOrigin.HostAndNativeSessionScope);
                 observation.Reads.Should().HaveCount(1);
             }
             warmDatabase.Observation.Reads.Should().Be(reads + 4,
@@ -441,7 +443,7 @@ public sealed partial class TenantRealmApiTests
         foreach (var payload in new[] { access, id })
         {
             (payload.GetProperty("sub").GetString() == WarmId(account)).Should().BeTrue();
-            WarmIdentityMatches(payload, identity).Should().BeTrue("fresh signed user/tenant/organization values agree exactly with typed SeedData");
+            WarmIdentityMatches(payload, identity).Should().BeTrue("fresh signed actor agrees with typed SeedData while provider context remains absent");
             exchange.Window.AcceptsFresh(payload, 900).Should().BeTrue();
         }
         HasAudience(id, "learnstack-api").Should().BeFalse();
@@ -685,9 +687,8 @@ public sealed partial class TenantRealmApiTests
     {
         bool Scalar(string name, string expected) => payload.TryGetProperty(name, out var value)
             && value.ValueKind == JsonValueKind.String && value.GetString() == expected;
-        return Scalar("user_id", identity.UserId.Value.ToString("D")) && Scalar("tenant_id", identity.Tenant.TenantId.Value.ToString("D"))
-            && (identity.Tenant.MapHostToDefaultOrganization ? Scalar("organization_id", identity.Tenant.DefaultOrganization.OrganizationId.Value.ToString("D"))
-                : !payload.TryGetProperty("organization_id", out _));
+        return Scalar("user_id", identity.UserId.Value.ToString("D"))
+            && !payload.TryGetProperty("tenant_id", out _) && !payload.TryGetProperty("organization_id", out _);
     }
 
     private static JsonObject WarmClaims(JsonElement payload, bool ordinaryNameChanged = false)

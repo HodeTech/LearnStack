@@ -181,6 +181,10 @@ describe('fixture positive environment', () => {
       LEARNSTACK_BFF_ENABLED: 'true',
       LEARNSTACK_BFF_ISSUER: 'https://identity.example/realms/learnstack',
       KEYCLOAK_WEB_CLIENT_SECRET: 'owned-private',
+      Identity__AuthorityId: '10000000-0000-4000-8000-000000000099',
+      Identity__NativeSession__CurrentSecret: Buffer.from(
+        Array.from({ length: 32 }, (_, index) => index + 1),
+      ).toString('base64url'),
     };
     expect(fixtureEnvironment({ root, bffValues })).toMatchObject(bffValues);
     for (const key of Object.keys(bffValues)) {

@@ -121,23 +121,38 @@ must match the root private source. README Quickstart owns the
 [closed local demo database grammar](../../../README.md#3-prepare-local-https-and-start-the-applications)
 and its supported field aliases; it does not promise general Npgsql parsing.
 
-**Accepted P03-3 setup extension; apply after its runtime activation.**
+**Native entry configuration.**
 [ADR-0078's exact callback/origin contract](../../../docs/decisions/0078-native-session-scope-and-self-entry.md#selection-refresh-and-host-transition)
 adds management hosts to the existing two public hosts. Explicit local hosts
 aliases and trusted TLS leaves must cover `demo-english.learnstack.local`,
 `demo-yoga.learnstack.local`, `manage.demo-english.learnstack.local` and
 `manage.demo-yoga.learnstack.local`; no script installs system aliases or CA
 trust. Provider callback/post-logout registrations and native origin admission
-must match those exact HTTPS origins, without wildcards. Follow the realm guide
-and activated launcher configuration rather than assuming the current baseline
-commands already supply this extension.
+must match those exact HTTPS origins, without wildcards. Follow the
+[realm guide](../../../infra/keycloak/README.md#tenant-client-contract) for the
+fixed native web scope and bounded warm reconciliation.
 
-Enabled native scope also requires its separate API/web purpose secret and
-private stable AuthorityId projection matching the installed authority; neither
-may be copied into public configuration, build inputs or browser code. Preserve
-existing values and use [Security's qualified rotation contract](../../../docs/standards/11-security.md#native-scope-and-global-self-admission).
-The phase Status block owns activation. Until then these are prerequisites to
-the pending extension, not new commands or a claim that management login works.
+With `LEARNSTACK_BFF_ENABLED=true`, the native loader requires
+`LEARNSTACK_BFF_ISSUER`, `KEYCLOAK_WEB_CLIENT_SECRET`, `Identity__AuthorityId` and
+`Identity__NativeSession__CurrentSecret`. Defined values in the private root
+`.env`, optional web `.env.local` and process environment must agree. The native
+source secret is a separate random 32-byte canonical base64url value, distinct
+from `LEARNSTACK_PUBLIC_HOP_SECRET`; the AuthorityId must match the installed API
+authority. Preserve existing values. These are private runtime inputs, never
+public configuration, build inputs or browser code.
+
+`make public-api` selects the exact native API keys from those same sources:
+`Identity__NativeSession__CurrentSecret`, `Identity__NativeSession__PreviousSecret`,
+`Identity__NativeSession__PreviousRetiresAt`, `Identity__NativeSession__HttpsPort`
+and `Identity__SelfBootstrap__Enabled`. Conflicting or blank supplied values
+refuse before launch; the API validates their formats and relationships.
+The launcher supplies HTTPS port 3000 when absent, but generates no native secret
+and does not enable self-bootstrap. The issuer/AuthorityId pair must also be
+complete in each source that supplies either key. Use
+[Security's qualified rotation contract](../../../docs/standards/11-security.md#native-scope-and-global-self-admission)
+for current/previous secret handling. The
+[phase Status block](../../../docs/roadmap/phase-03-identity-admin.md) owns native
+activation and qualification; configuration alone proves neither.
 
 **Ordinary API startup.** `dotnet run` does not load `.env`. For an API-only
 session, supply `ConnectionStrings:Default` (`learnstack_app`) and

@@ -146,6 +146,7 @@ describe('BFF proof observation ownership', () => {
       expect(bffProofCopy(locale, 'shell.account')).toBe(catalogue.shell.account);
       expect(bffProofCopy(locale, 'shell.portal')).toBe(catalogue.shell.portal);
       expect(bffProofCopy(locale, 'session.extended')).toBe(catalogue.session.extended);
+      expect(bffProofCopy(locale, 'entry.confirm')).toBe(catalogue.entry.confirm);
     }
     expect(bffProofCopy('en', 'signin.continue')).not.toBe(bffProofCopy('tr', 'signin.continue'));
     expect(bffProofCopy('en', 'session.extended')).not.toBe(bffProofCopy('tr', 'session.extended'));
@@ -187,12 +188,13 @@ describe('BFF proof observation ownership', () => {
   it('learns session, browser, CSRF and transaction secrets for existing output scanners', () => {
     const canaries: string[] = [];
     const scanner = createBffCookieScanner(canaries);
-    const values = ['A', 'B', 'C', 'D', 'E'].map((value) => value.repeat(43));
+    const values = ['A', 'B', 'C', 'D', 'E', 'F'].map((value) => value.repeat(43));
     rememberBffCookies(
       [
         '__Host-ls-session=' + values[0] + '; HttpOnly; Secure',
         '__Host-ls-browser=' + values[1] + '; HttpOnly; Secure',
         '__Host-ls-csrf=' + values[2] + '; HttpOnly; Secure',
+        '__Host-ls-entry=' + values[5] + '; HttpOnly; Secure',
         '__Host-ls-login-' + values[3] + '=' + values[4] + '; HttpOnly; Secure',
         '__Host-ls-session=; Max-Age=0',
         'ordinary=public',
@@ -206,7 +208,7 @@ describe('BFF proof observation ownership', () => {
     scanner.finish();
     expect(scanner.leaked).toBe(true);
     rememberBffCookies(['__Host-ls-session=' + values[0]], canaries);
-    expect(canaries).toHaveLength(5);
+    expect(canaries).toHaveLength(6);
   });
 
   it('rechecks output emitted before the response disclosed its cookie, beyond the old rolling window', () => {

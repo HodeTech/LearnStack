@@ -72,7 +72,16 @@ function policyFixture() {
       },
     );
   });
-  const caller = createAccountSiteCaller({ apiOrigin: 'http://127.0.0.1:5100', secret }, transport);
+  const caller = createAccountSiteCaller(
+    {
+      apiOrigin: 'http://127.0.0.1:5100',
+      secret,
+      nativeSourceSecret: Buffer.from(Array.from({ length: 32 }, (_, index) => index + 1)).toString(
+        'base64url',
+      ),
+    },
+    transport,
+  );
   const f = bffFixture({ account: caller });
   fixtures.push(f);
   for (const method of ['redeem', 'refresh'] as const) {
@@ -206,7 +215,7 @@ describe('AccountSite authority status through caller, owner and HTTP response',
   );
 
   it.each([false, true])(
-    'initial callback 401 refuses publication and preserves any prior replacement: %s',
+    'initial explicit selection 401 refuses publication and preserves any prior replacement: %s',
     async (replacing) => {
       const f = policyFixture();
       const prior = replacing ? await f.login() : null;
@@ -217,19 +226,36 @@ describe('AccountSite authority status through caller, owner and HTTP response',
         returnPath: '/studio',
         ...(prior ? { browser: prior.binding.browser, handle: prior.binding.handle } : {}),
       });
+      const completed = await f.store.complete({
+        host: bffHost,
+        source: bffSource,
+        browser: started.browser,
+        state: started.state,
+        proof: started.proof,
+        responseUrl:
+          'https://' +
+          bffHost +
+          '/api/auth/callback/keycloak?state=' +
+          started.state +
+          '&code=owned',
+      });
       const held = gate();
       f.response(401, held);
       const pending = f.http.handle(
-        bffRequest('/api/auth/callback/keycloak?state=' + started.state + '&code=owned', {
+        bffRequest('/api/auth/entry/select', {
+          method: 'POST',
           cookie:
             BFF_COOKIES.browser +
             '=' +
-            started.browser +
+            completed.browser +
             '; ' +
-            BFF_COOKIES.login +
-            started.state +
+            BFF_COOKIES.entry +
             '=' +
-            started.proof,
+            completed.handle,
+          form: new URLSearchParams({
+            csrfToken: completed.entry.csrfToken,
+            tenantId: account.tenantId,
+          }).toString(),
         }),
       );
       await vi.waitFor(() => expect(f.transport).toHaveBeenCalledTimes(prior ? 2 : 1));
@@ -237,21 +263,19 @@ describe('AccountSite authority status through caller, owner and HTTP response',
         owners: prior ? 2 : 1,
         pending: 1,
         operations: 1,
-        credentialRecords: prior ? 1 : 0,
+        credentialRecords: prior ? 2 : 1,
       });
       held.release();
       const response = (await pending)!;
       expect(response.status).toBe(503);
       expect(response.headers.get('retry-after')).toBe('30');
       expect(await response.json()).toEqual({ code: 'provider_refused' });
-      expect(response.headers.getSetCookie()).toEqual([
-        BFF_COOKIES.login + started.state + '=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax',
-      ]);
+      expect(response.headers.getSetCookie()).toEqual([]);
       expect(f.store.counts()).toMatchObject({
-        owners: prior ? 1 : 0,
-        pending: 0,
+        owners: prior ? 2 : 1,
+        pending: 1,
         operations: 0,
-        credentialRecords: prior ? 1 : 0,
+        credentialRecords: prior ? 2 : 1,
         transactionRecords: 0,
         proofRecords: 0,
         loginStates: 0,

@@ -4,11 +4,13 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { isIP } from 'node:net';
 import { resolve } from 'node:path';
 
-import { AUTH_INPUT_LIMIT, bffPostTarget } from './auth/http-paths.js';
+import { AUTH_INPUT_LIMIT, BFF_POST_PATHS, bffPostTarget } from './auth/http-paths.js';
+import { validTarget } from './auth/page-query.js';
+
+export { MAX_TARGET_BYTES, validTarget } from './auth/page-query.js';
 
 export const INGRESS_HEADER = 'x-learnstack-ingress-provenance';
 export const PUBLIC_HTTPS_PORT = 3000;
-export const MAX_TARGET_BYTES = 8192;
 const MAX_ENVELOPE_BYTES = 12288;
 const MAC_DOMAIN = 'learnstack.public-ingress.v1\0';
 export const PUBLIC_ENV_KEYS = [
@@ -80,33 +82,6 @@ export function normalizeHost(value: string): string | null {
       return null;
   }
   return name + (port ? ':' + port : '');
-}
-
-export function validTarget(value: string): boolean {
-  if (
-    Buffer.byteLength(value) > MAX_TARGET_BYTES ||
-    !value.startsWith('/') ||
-    value.startsWith('//') ||
-    containsControl(value) ||
-    /[\s\\"<>#]/.test(value) ||
-    [...value].some((character) => character.charCodeAt(0) > 126)
-  )
-    return false;
-  const path = value.split('?')[0] ?? '';
-  // Next emits this redirect before middleware, independent of normalization flags.
-  if (path.includes('//')) return false;
-  // Refuse path identities that URL normalization would turn into another route.
-  if (/%(?:2f|5c|00|0a|0d)/i.test(path)) return false;
-  try {
-    const decoded = decodeURIComponent(path);
-    return (
-      !decoded.split('/').some((segment) => segment === '.' || segment === '..') &&
-      !containsControl(decoded) &&
-      !decoded.includes('\\')
-    );
-  } catch {
-    return false;
-  }
 }
 
 export function validSecret(value: string | undefined): value is string {
@@ -225,8 +200,11 @@ export function admitIncomingRequest(
   const bffAuthority =
     path === '/api/auth' ||
     path?.startsWith('/api/auth/') ||
+    (path !== undefined && BFF_POST_PATHS.includes(path)) ||
     path === '/studio' ||
-    path === '/portal';
+    path?.startsWith('/studio/') ||
+    path === '/portal' ||
+    path?.startsWith('/portal/');
   // Public Host syntax normalization remains unchanged. Credential flows must
   // use the actual native HTTPS authority, not a caller-selected callback port
   // or a trailing-dot origin that cannot pass the exact POST Origin check.
@@ -352,6 +330,32 @@ export function loadLocalEnvironment(
       );
       if (new Set(values).size > 1) throw new Error('Conflicting API authentication configuration');
       if (values[0] !== undefined) result[key] = values[0];
+    }
+  }
+  const nativeKeys = [
+    'Identity__NativeSession__CurrentSecret',
+    'Identity__NativeSession__PreviousSecret',
+    'Identity__NativeSession__PreviousRetiresAt',
+    'Identity__NativeSession__HttpsPort',
+    'Identity__SelfBootstrap__Enabled',
+  ];
+  for (const key of nativeKeys) delete result[key];
+  if (options.apiAuthentication) {
+    for (const key of nativeKeys) {
+      const values = [source[key], projection[key], environment[key]].filter(
+        (value): value is string => value !== undefined,
+      );
+      if (new Set(values).size > 1) throw new Error('Conflicting API native configuration');
+      const value = values[0];
+      if (value === undefined) continue;
+      if (
+        typeof value !== 'string' ||
+        !value.trim() ||
+        containsControl(value) ||
+        Buffer.byteLength(value) > 256
+      )
+        throw new Error('Invalid API native configuration');
+      result[key] = value;
     }
   }
   return result;

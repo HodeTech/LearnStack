@@ -835,6 +835,7 @@ describe('demo runtime boundaries', () => {
       ConnectionStrings__Default: 'application',
       ConnectionStrings__OutboxDispatcher: 'dispatcher',
       ASPNETCORE_ENVIRONMENT: 'Development',
+      Identity__NativeSession__HttpsPort: '3000',
       ASPNETCORE_URLS: 'http://127.0.0.1:5080',
       Tenancy__TrustedHop__Networks__0: '127.0.0.1/32',
       Tenancy__TrustedHop__Secrets__0: 'private',

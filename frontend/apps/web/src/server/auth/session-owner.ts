@@ -27,9 +27,21 @@ function holder(): BffSessionHolder {
     !store ||
     typeof store !== 'object' ||
     !Object.isFrozen(store) ||
-    !['start', 'complete', 'peek', 'admit', 'signout', 'consumeLogout', 'stop'].every(
-      (key) => key in store && typeof (store as Record<string, unknown>)[key] === 'function',
-    )
+    ![
+      'start',
+      'complete',
+      'entry',
+      'create',
+      'select',
+      'switchScope',
+      'discardEntry',
+      'operate',
+      'peek',
+      'admit',
+      'signout',
+      'consumeLogout',
+      'stop',
+    ].every((key) => key in store && typeof (store as Record<string, unknown>)[key] === 'function')
   )
     throw new Error('BFF session owner unavailable');
   const http = (holder as BffSessionHolder).http;

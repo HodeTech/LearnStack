@@ -200,6 +200,7 @@ describe('inactive tenant RP boundary', () => {
       actorId,
       tenantId,
       organizationId: null,
+      displayLabel: null,
     });
     expect(result.accessToken).toBe(privateCanary);
     expect(result.accessExpiresAt).toBeGreaterThanOrEqual(beforeGrant + 900_000);
@@ -276,6 +277,54 @@ describe('inactive tenant RP boundary', () => {
     );
   });
 
+  it.each([
+    [{ user_id: undefined, tenant_id: undefined }, null, null, null],
+    [{ tenant_id: undefined }, actorId, null, null],
+    [{ user_id: undefined, organization_id: actorId }, null, tenantId, actorId],
+  ] as const)(
+    'accepts optional compatibility identity and a complete optional scope (%#)',
+    async (claims, actor, tenant, organization) => {
+      const f = await fixture();
+      f.setClaims(claims);
+      const { result } = await f.login();
+      expect(result.identity).toEqual({
+        issuer,
+        subject: 'external-subject',
+        actorId: actor,
+        tenantId: tenant,
+        organizationId: organization,
+        displayLabel: null,
+      });
+      expect((await f.provider.refresh(result.refreshToken!, result.identity)).identity).toEqual(
+        result.identity,
+      );
+    },
+  );
+
+  it.each([
+    [{ name: 'Full Name', preferred_username: 'username' }, 'Full Name'],
+    [{ preferred_username: 'username' }, 'username'],
+    [{ name: 'n'.repeat(128) }, 'n'.repeat(128)],
+    [{ name: 'n'.repeat(129) }, null],
+    [{ name: ['not-scalar'] }, null],
+    [{ name: '\0private' }, null],
+    [{ name: '\ud800' }, null],
+    [{ name: '   ' }, null],
+    [{ name: '\u0085' }, null],
+    [{}, null],
+  ] as const)(
+    'keeps optional bounded display text separate from binding and refresh continuity (%#)',
+    async (claims, label) => {
+      const f = await fixture();
+      f.setClaims(claims);
+      const { result } = await f.login();
+      expect(result.identity.displayLabel).toBe(label);
+      f.setClaims({ name: 'Updated Name' });
+      const refreshed = await f.provider.refresh(result.refreshToken!, result.identity);
+      expect(refreshed.identity).toEqual({ ...result.identity, displayLabel: 'Updated Name' });
+    },
+  );
+
   it('retains the qualified loopback allowance for logout and closes malformed return errors', async () => {
     const f = await fixture('http://127.0.0.1:8099/realms/learnstack');
     const { result } = await f.login();
@@ -301,7 +350,9 @@ describe('inactive tenant RP boundary', () => {
     ['non-scalar actor', { user_id: [actorId] }],
     ['invalid actor UUID', { user_id: 'not-a-uuid' }],
     ['nil actor UUID', { user_id: '00000000-0000-0000-0000-000000000000' }],
-    ['missing tenant', { tenant_id: null }],
+    ['null actor', { user_id: null }],
+    ['null tenant', { tenant_id: null }],
+    ['organization without tenant', { tenant_id: undefined, organization_id: actorId }],
     ['invalid organization', { organization_id: 'private-profile-canary' }],
   ] as const) {
     it(`rejects ${name} through the actual signed grant without leaking upstream details`, async () => {
@@ -378,6 +429,8 @@ describe('inactive tenant RP boundary', () => {
     { user_id: '019a154b-0000-7000-8000-000000000012' },
     { tenant_id: '20000000-0000-4000-8000-000000000002' },
     { organization_id: tenantId },
+    { user_id: undefined },
+    { tenant_id: undefined },
   ]) {
     it(`refuses refresh identity reassignment of ${Object.keys(patch)[0]}`, async () => {
       const f = await fixture();
