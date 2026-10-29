@@ -484,7 +484,7 @@ this contract before activation; acceptance alone advances no runtime proof.
 
 ## Bounded administration and version-2 adoption
 
-**Accepted contract; new consumers and proofs pending P03-3 implementation.**
+**Accepted contract.**
 Derived from [ADR-0079](../decisions/0079-bounded-identity-administration.md).
 The finite registry has these versioned additions; the version-1 table and grant
 manifest above remain historical inputs, not a seed repair target.

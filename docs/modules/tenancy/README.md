@@ -309,7 +309,7 @@ owns the strongest complete fences, fresh lifecycle reads and invoker guards.
 
 ### Warm seed and administration origins
 
-**Accepted contract; implementation and races pending P03-3.** Ordinary warm seed
+**Accepted contract.** Ordinary warm seed
 verifies immutable installed root identities and current valid graphs rather than
 original mutable showcase values. Legitimate names, status/default, locales,
 theme and Identity administration remain unchanged. Removed locales or child

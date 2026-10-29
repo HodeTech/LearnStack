@@ -66,11 +66,11 @@ Accepted live-authorization extensions additionally derive from
 [ADR-0076](../decisions/0076-live-scoped-authorization.md) and
 [ADR-0077](../decisions/0077-trusted-authorization-evidence.md).
 Accepted fixed-seed prerequisite extensions derive from
-[ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md); their new
-obligations remain Registered below.
+[ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md); their
+separate obligations are tracked below.
 Accepted fixed-origin completion extensions derive from
 [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md);
-their separate new obligations also remain Registered.
+its separate obligations are tracked below.
 The implemented Identity obligations and extensions name their actual proof
 owners below; the [phase Status block](../roadmap/phase-03-identity-admin.md) owns
 current qualification and review state.
@@ -207,7 +207,7 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**251 rules in this catalogue are Implemented, and 146 of them are in that assembly.**
+**254 rules in this catalogue are Implemented, and 149 of them are in that assembly.**
 The other 105 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
@@ -2908,15 +2908,16 @@ Source: [ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md),
 [ADR-0079](../decisions/0079-bounded-identity-administration.md),
 [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md) and
 [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md). These are
-Accepted, **Registered** extensions; the shipped populations above remain
-Implemented. A source census, proposed test name or document check does not
-qualify a new runtime population. The phase Status block owns delivery state.
+Accepted extensions have the individually recorded statuses below; shipped
+populations above remain Implemented. A source census, proposed test name or
+document check does not qualify a new runtime population. The phase Status block
+owns delivery state, and later HTTP/native/browser consumers retain their own proof.
 
 | Existing canonical rule | P03-3 extension / planned proof owner |
 |---|---|
 | `Global_Identity_Storage_Is_Subject_Confined` and `Global_Identity_Creation_Uses_The_Common_Audit_Owner` | Extend the exact applied function/body/ACL/caller census from five to eight; qualify actual attempt/capacity/discovery owners, no counter reset or general User projection. Existing central success/reconciliation seams remain sole writers. |
-| `Identity_Seed_Uses_Finite_Adopted_Manifests` | `IdentitySeederTests` and Tenancy seed controls: pristine-prefix versions, edited completed-state preservation, terminal/tombstone refusal, no individual grant restoration, per-write fence/version recheck and real held-seed locale/profile/grant competitors. Fixed origin adoption's qualified marker-2 transitions, warm marker-2 preservation, legacy upgrade and zero-dispatch repeat are separately Registered under [the completion rule](#fixed_seed_origin_adoption_requires_completed_foundation). ADR-0080's [temporary read](#fixed_seed_prerequisites_use_a_closed_temporary_read_scope) and [complete writer census](#tenant_bound_seed_writes_recheck_under_ordered_fences) remain separately Registered, not additional Implemented manifest coverage. |
-| `Tenant_Scope_Widening_Is_Never_Set_From_Request_Input`, `Permission_Scope_Matches_Resource_Scope`, `Out_Of_Band_Setters_Open_Read_Only_Transactions`, `Protected_Operations_Require_Explicit_Live_Policies` and `Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork` | Existing human witness, scope-carrier and source/attachment owners gain the exact separate fixed-seed producers and reader populations under [the eight-consumer prerequisite rule](#fixed_seed_prerequisites_use_a_closed_temporary_read_scope) and [one-consumer completion rule](#fixed_seed_origin_adoption_requires_completed_foundation). Their private typed transition shares the same two scope-only enable/clear SQL sites. Preserve Protected-human minters, current owner/source enrollment, ten Tenant setters and four context writers; no new physical owner or READ ONLY claim. Both extensions remain Registered with their named owners. |
+| `Identity_Seed_Uses_Finite_Adopted_Manifests` | `IdentitySeederTests` and Tenancy seed controls: pristine-prefix versions, edited completed-state preservation, terminal/tombstone refusal, no individual grant restoration, per-write fence/version recheck and real held-seed locale/profile/grant competitors. Fixed origin adoption's qualified marker-2 transitions, warm preservation, legacy upgrade and zero-dispatch repeat belong to [the separate completion rule](#fixed_seed_origin_adoption_requires_completed_foundation). ADR-0080's [temporary read](#fixed_seed_prerequisites_use_a_closed_temporary_read_scope) and [complete writer census](#tenant_bound_seed_writes_recheck_under_ordered_fences) retain separate authority and proof populations; their own rows record status. |
+| `Tenant_Scope_Widening_Is_Never_Set_From_Request_Input`, `Permission_Scope_Matches_Resource_Scope`, `Out_Of_Band_Setters_Open_Read_Only_Transactions`, `Protected_Operations_Require_Explicit_Live_Policies` and `Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork` | Existing human witness, scope-carrier and source/attachment owners gain the exact separate fixed-seed producers and reader populations under [the eight-consumer prerequisite rule](#fixed_seed_prerequisites_use_a_closed_temporary_read_scope) and [one-consumer completion rule](#fixed_seed_origin_adoption_requires_completed_foundation). Their private typed transition shares the same two scope-only enable/clear SQL sites. Preserve Protected-human minters, current owner/source enrollment, ten Tenant setters and four context writers; no new physical owner or READ ONLY claim. Their separate rule rows record qualification under the named owners. |
 | `Permission_Definitions_DeclareScope` and `Permission_Registry_Has_DeniedTest` | `OperationPermissionConventionTests` and actual command controls: exact v1 five Identity pairs plus v2 three Tenant Tenancy pairs; finite Any/All alternatives, disabled default, explicit additive adoption and independent denied coverage. No blanket key/scope implication. |
 | `Identity_Membership_Invariants_Use_Fresh_Ordered_Locks` | Actual member profile/status/assignment commands, retained Role-root grant locks and fresh post-wait delegation; no extra User fence for profile/removal. Existing deferred/MUST rollback and last-admin guarantees remain. |
 | `Authenticated_Http_Surface_Is_Enumerated_And_ReadOnly` and `Authentication_Middleware_Order_Is_Enforced` | Exact protected write/global-self descriptors supplement the historical read-only union. Source admission follows verified-subject quota, separate native evidence never rewrites provider facts, and both HTTP/direct application entry retain independent policy checks. Wrong-method/masking, legacy/public and OpenAPI/SDK caller controls cover the complete union. |
@@ -2949,9 +2950,9 @@ qualify a new runtime population. The phase Status block owns delivery state.
   preservation and narrow reads after restoration. The held Yoga profile-edit
   race, both commit orders, untouched interrupted resume and completed no-write
   repeat must observe real target state and successful profile counts.
-  Refactor `FixedSeedPrerequisiteConventionTests`' owner/caller checks and scope
-  sanitizer to the shared private transition while still exempting exactly the
-  two reviewed SQL sites. Planted extra sites and cross-purpose substitutions
+  `FixedSeedPrerequisiteConventionTests`' owner/caller checks and scope sanitizer
+  follow the shared private transition while exempting exactly the two reviewed
+  SQL sites. Planted extra sites and cross-purpose substitutions
   remain failures; completion has its own independent census below.
 - **Source:** [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md);
   [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md);
@@ -2960,9 +2961,10 @@ qualify a new runtime population. The phase Status block owns delivery state.
 - **Type:** exact production source/caller/statement census plus real app-role
   PostgreSQL lifetime, fault and competing-commit controls.
   **Kind:** structural and behavioural.
-- **Planned test owners:** `FixedSeedPrerequisiteConventionTests`,
+- **Test owners:** `FixedSeedPrerequisiteConventionTests`,
   `FixedSeedPrerequisiteReadTests`.
-- **Status:** **Registered.**
+- **Status:** **Implemented** — `FixedSeedPrerequisiteConventionTests`, `FixedSeedPrerequisiteReadTests`;
+  [Step 3 closeout](../roadmap/phase-03-delivery-log.md#p03-3-step-3-review-round-2-and-closeout-2026-10-29).
 - **Phase:** P03-3 Step 3.
 
 #### `Fixed_Seed_Origin_Adoption_Requires_Completed_Foundation`
@@ -3009,9 +3011,11 @@ qualify a new runtime population. The phase Status block owns delivery state.
 - **Type:** exact compiled source/consumer/projection and shared SQL-site census,
   plus real app-role PostgreSQL completion, transition, fault and race controls.
   **Kind:** structural and behavioural.
-- **Planned test owners:** `SeedOriginCompletionConventionTests`,
+- **Test owners:** `SeedOriginCompletionConventionTests`,
   `SeedOriginCompletionTests`.
-- **Status:** **Registered.**
+- **Status:** **Implemented** — `SeedOriginCompletionConventionTests`, `SeedCompletionReadTests`,
+  `SeedOriginCompletionTests` and `SeedOriginCompletionGraphTests`;
+  [Step 3 closeout](../roadmap/phase-03-delivery-log.md#p03-3-step-3-review-round-2-and-closeout-2026-10-29).
 - **Phase:** P03-3 Step 3; Phase 06 reopens the admitted content-writer premise.
 
 #### `Tenant_Bound_Seed_Writes_Recheck_Under_Ordered_Fences`
@@ -3051,10 +3055,12 @@ qualify a new runtime population. The phase Status block owns delivery state.
   PostgreSQL interruption, preservation and competing-commit controls.
   **Kind:** structural and behavioural.
 - **Test owners:** `SeedContinuationConventionTests`, `SeedContentContinuationTests`,
-  `IdentitySeederTests` and `SeedAdministrationOriginTests`. Full family qualification
-  remains open; the [Phase 03 Status block](../roadmap/phase-03-identity-admin.md)
-  distinguishes implemented local controls from completion qualification.
-- **Status:** **Registered.**
+  `IdentitySeederTests` and `SeedAdministrationOriginTests`. The
+  [Phase 03 Status block](../roadmap/phase-03-identity-admin.md) distinguishes these
+  local controls from later HTTP/native/browser and final A/B qualification.
+- **Status:** **Implemented** — `SeedContinuationConventionTests`, `SeedContentContinuationTests`,
+  `IdentitySeederTests` and `SeedAdministrationOriginTests`;
+  [Step 3 closeout](../roadmap/phase-03-delivery-log.md#p03-3-step-3-review-round-2-and-closeout-2026-10-29).
 - **Phase:** P03-3 Step 3; Phase 06 reopens staging before mutable content administration.
 
 #### `Native_Scope_Evidence_Is_Separate_And_Host_Bound`

@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 1,549 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 1,608 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -169,6 +169,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0081 maintainer corrections and acceptance (2026-10-29)](#adr-0081-maintainer-corrections-and-acceptance-2026-10-29) — 49 lines
   - [P03-3 Step 3 implementation and qualification (2026-10-29)](#p03-3-step-3-implementation-and-qualification-2026-10-29) — 84 lines
   - [P03-3 Step 3 review round 1 and seed frontier corrections (2026-10-29)](#p03-3-step-3-review-round-1-and-seed-frontier-corrections-2026-10-29) — 57 lines
+  - [P03-3 Step 3 review round 2 and closeout (2026-10-29)](#p03-3-step-3-review-round-2-and-closeout-2026-10-29) — 59 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -7261,3 +7262,62 @@ separately exercised by the 61 passing PostgreSQL cases above. Markdown links,
 roadmap structure and generated indexes pass, and `git diff --check` is clean.
 Full final-source suite/A–B qualification remains Step 10; it is not inferred
 from these local targeted architecture and database controls.
+
+### P03-3 Step 3 review round 2 and closeout (2026-10-29)
+
+**Reviewed source:** `10eaa361`, full Step 3 since `23869e91`. Three new independent
+read-only reviewers (`gpt-6-astra`, extra-high effort), none of the first-round
+reviewers, inspect authority/delegation, owner/lifetime/audit, and seed/origin/
+continuation/tooling. Each reports no additional concrete Blocker/Major/Minor/
+Suggestion in its assigned implementation slice. Their source/test inspections
+are not runtime checks or blanket PR approval.
+
+**Independent qualification correction.** Root's combined current-source
+PostgreSQL run completes **320 cases: 319 passed, one failed, zero skips**. The
+failure is the older integration expectation that v1 manifest adoption restores
+a removed Organization Learner profile grant. The Accepted operation matrix
+selects only the explicit first-v2 exception; historical v1 inputs grant no
+repair path. The authority reviewer independently confirms this disposition
+against ADR-0079, Standard 19 and the already-correct unit test. Production code
+is unchanged by the correction.
+
+`Historical_and_unknown_adoption_cannot_restore_retained_Organization_grants`
+now checks both historical v1 and mismatched v2 requests: fixed forbidden result,
+unchanged Role version/grants/adopted version/fingerprint, exactly one denied
+MUST Role event with no fabricated target ID or changes, and exactly one central
+capability-denial event. The complete actual Role-grant/release population then
+passes **18/18**, zero skips, including the corrected case and the separate
+positive first-v2/monotonic-marker/no-repeat controls. Every distinct case in the
+320-case population therefore has passing current coverage; the failed combined
+run is not relabeled successful.
+
+The combined run includes real four-module completion graphs, both Tenant-fence
+orders, actual target locks, eight pristine consumers, twelve content writers,
+interruption/resume/preservation, source/lifetime/cleanup faults, plural MUST
+rollback, marker-2 zero-dispatch repeats, and actual CLI lost/unsent-COMMIT plus
+later explicit convergence. It uses disposable PostgreSQL/app-role owners.
+R1 already records the current strict build, 3,184 passing Unit cases, all 86
+relevant architecture subjects' passing coverage and document checks. Those
+results remain bounded local evidence, not final-source hosted A/B or provider/
+native/browser/manual-accessibility qualification.
+
+**Closeout.** Both fresh independent review rounds, their verified corrections
+and local Step 3 controls are complete. The three separately tracked seed rules
+now record Implemented with their actual structural and behavioral owners; later
+consumer rules retain Registered status. Current canonical text drops stale
+blanket pending-seed/adoption wording and points to the phase-owned state.
+No Accepted ADR body is rewritten, no new grant/authority decision is introduced,
+and no push/PR or branch change occurs. Step 4 proceeds automatically with
+Membership detail, exact own/admin profile, lifecycle and assignment acts; Steps
+5–10 retain their approved scope and review/qualification requirements.
+
+**Final closeout checks.** The authority reviewer reads the actual integration
+correction and confirms no weakened assertion or missing outcome/state check.
+All five corpus controls pass after recording the three new Implemented rules'
+actual test classes and recomputing 254 Implemented entries, 149 in the
+architecture assembly and 105 outside it; the assembly still has 327 test
+methods. The initial count failure is corrected rather than suppressed.
+Markdown fragment/roadmap/index checks and `git diff --check` pass before the
+closeout commit. No full combined 320-case rerun or final-source A/B is claimed:
+the unchanged 319 passing cases and the corrected replacement test have the
+current passing coverage described above.

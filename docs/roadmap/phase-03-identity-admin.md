@@ -11,10 +11,10 @@
 > canonical adoption and both fresh review rounds are closed; Step 2's storage/
 > entry/native-source core, local controls and both fresh postcommit review rounds
 > are closed. Step 3's finite policies, v2 adoption, preserving warm seed and
-> qualified origin completion are implemented and locally checked. Its first
-> fresh review finds two seed frontier issues, corrected with real negative and
-> resume proofs; the [review record](phase-03-delivery-log.md#p03-3-step-3-review-round-1-and-seed-frontier-corrections-2026-10-29)
-> distinguishes findings and passing controls. The second fresh round is pending.
+> qualified origin completion are closed after both fresh review rounds and
+> verified corrections. Its [closeout](phase-03-delivery-log.md#p03-3-step-3-review-round-2-and-closeout-2026-10-29)
+> distinguishes local passing coverage from full final-source qualification.
+> Step 4 delivers Membership detail, own/admin profile, lifecycle and assignments.
 > [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md) and
 > [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md)
 > are Accepted. Their separate eight-consumer prerequisite and one-consumer
