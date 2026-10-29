@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 2,061 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 2,087 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -176,7 +176,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 5 — Tenancy administration and lifecycle guards (2026-10-29)](#p03-3-step-5--tenancy-administration-and-lifecycle-guards-2026-10-29) — 91 lines
   - [P03-3 Step 5 review round 1 and verified corrections (2026-10-29)](#p03-3-step-5-review-round-1-and-verified-corrections-2026-10-29) — 60 lines
   - [P03-3 Step 5 review round 2 and closeout (2026-10-29)](#p03-3-step-5-review-round-2-and-closeout-2026-10-29) — 62 lines
-  - [P03-3 Step 6 — Durable protected outcomes and receipt disclosure (2026-10-29)](#p03-3-step-6--durable-protected-outcomes-and-receipt-disclosure-2026-10-29) — 82 lines
+  - [P03-3 Step 6 — Durable protected outcomes and receipt disclosure (2026-10-29)](#p03-3-step-6--durable-protected-outcomes-and-receipt-disclosure-2026-10-29) — 83 lines
+  - [P03-3 Step 6 review round 1 and permission-matrix correction (2026-10-29)](#p03-3-step-6-review-round-1-and-permission-matrix-correction-2026-10-29) — 25 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -7781,3 +7782,29 @@ Role/permission/own-navigation reads and all HTTP/OpenAPI/SDK activation; Steps
 8/9 retain native/provider/browser/manual accessibility, and Step 10 retains
 full discovered suites and hosted final-source A/B evidence. No selected work
 moves to another phase and no branch switch, push or PR occurs here.
+
+
+### P03-3 Step 6 review round 1 and permission-matrix correction (2026-10-29)
+
+Three fresh independent reviewers inspect `e343be56..c33381ff` through
+SQL/concurrency/lifecycle, authorization/audit/module-boundary and
+API/privacy/evidence/quality lenses. They execute read-only source/evidence
+reviews, not independent test runs. Storage and API reviewers approve with no
+findings. Authority approves with one verified Minor: the canonical permission
+matrices omit the six implemented receipt reads and Identity still calls all
+replay pending.
+
+Identity now names its four exact request/capability/scoped/own/audit bindings;
+Tenancy names its two original Organization/Tenant receipt reads. The stale
+pending sentence now distinguishes the internal mechanism from still-required
+production HTTP/native qualification. No runtime, grant, policy or authority
+changes. Document/index/fragment/Corpus and whitespace checks qualify this
+correction; execution results from the implementation record remain unchanged.
+
+Both review and implementation explicitly retain Step 7's integration boundary:
+ordinary endpoint authorization currently checks its mutation policy before the
+resource filter. Production replay must admit its separately declared current
+disclosure policy and still perform the audited application read before bytes,
+without pre-authorizing a new mutation or taking capacity from an unauthorized
+claim. That selected HTTP consumer is not activated by this step. A fresh second
+review round follows this correction commit; Step 6 remains open until it closes.

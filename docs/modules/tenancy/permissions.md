@@ -123,6 +123,8 @@ Organization editor capabilities require a separate Phase 06 decision/consumer.
 |---|---|---|
 | `ListOrganizationsQuery` | `tenancy.organization.admin` | Detached bounded page; current Tenant default/version metadata |
 | `GetOrganizationDetailQuery` | Same | Detached Organization and current default association |
+| `ReadOrganizationReceiptQuery` | `tenancy.organization.admin` | Exact original retained Organization; Scoped ordinary ReadWrite with fresh MUST disclosure audit, no original mutation rerun |
+| `ReadDefaultOrganizationReceiptQuery` | Same | Original Tenant default-outcome resource, not the selected Organization; current disclosure capability and MUST read audit |
 | `CreateManagedOrganizationCommand` | `tenancy.organization.admin` | Organization |
 | `RenameOrganizationCommand` | Same | Organization |
 | `ArchiveOrganizationCommand` | Same | Organization |
@@ -138,7 +140,8 @@ dispatching them or obtaining Seed provenance. `TenancyOperationPolicySource`
 classifies each human request separately; [audit](audit.md#bounded-administration-bindings)
 owns the exact event/class bindings. Organization reads require the same Tenant
 administration capability and MUST configuration-read audit; reads do not imply
-an orgless mutation. Default selection writes only Tenant's reference/version,
+an orgless mutation. Receipt reads permit terminal target facts only for their
+original outcome, leaving ordinary list/detail filters unchanged. Default selection writes only Tenant's reference/version,
 not the target Organization. Locale writes capture Tenant's contained navigation.
 
 The new `AdoptSeedAdministrationOriginCommand` is instead a closed Seed-only act,
