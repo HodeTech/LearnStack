@@ -2779,7 +2779,14 @@ promotes an unrun proof.
   Tenant clause may widen reads; its Organization clause and all writes stay
   scoped. Exact current-invocation borrowers and the separate Membership target
   decision source join the compiled census with missing/extra/alias controls.
+  Pure protected MUST-sensitive reads retain no payload on failed physical
+  audit COMMIT and report audit_unavailable for both scoped and Tenant clauses.
+  The exact current application decision/request gates this mapping; ordinary
+  mutations, cancellations and unrelated owners retain their primary failure
+  and original uncertain completion state.
 - **Source:** [ADR-0076](../decisions/0076-live-scoped-authorization.md);
+  [ADR-0077](../decisions/0077-trusted-authorization-evidence.md);
+  [ADR-0079](../decisions/0079-bounded-identity-administration.md);
   [Permissions](19-permissions.md#live-permission-enforcement-contract).
 - **Type:** complete compiled metadata/caller census, real direct dispatch and
   administrative-directory HTTP/database controls. **Kind:** behavioural and structural.
@@ -2789,6 +2796,7 @@ promotes an unrun proof.
   `RoleGrantCommandTests`, `RoleGrantCommandIntegrationTests`,
   `MembershipAdministrationProfileTests`, `MembershipAdministrationAssignmentTests`,
   `MembershipAdministrationRaceTests`,
+  `MembershipDetailCommitFailureTests`,
   `IdentityAuthorizationHttpTests`, `UndeclaredHttpOperationTests`.
 - **Status:** **Implemented** — `OperationPolicyOwnershipTests`; actual composition and
   caller controls complement the direct/HTTP proofs above.

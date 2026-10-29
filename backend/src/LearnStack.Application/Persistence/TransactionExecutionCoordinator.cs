@@ -301,13 +301,16 @@ public sealed partial class TransactionExecutionCoordinator(
                 }
                 authorizationEvidence?.RecordOwnerOutcome(evidenceBatch, committed: false);
 
-                // The new audited tenant-wide read discloses nothing until its
-                // evidence commits. Keep the actual completion state/cause, but
+                // An admitted protected sensitive read, scoped or tenant-wide,
+                // discloses nothing until evidence commits. Keep the actual completion state/cause, but
                 // report unavailable evidence rather than a generic database 500.
                 // Ordinary mutations and cancellation retain their primary failure.
                 if (scope.IsOwner && commitFailure is DbException && globalOwner is null
-                    && authorization?.CurrentReadWitness is { } readWitness
-                    && readWitness.Policy.RequestType == operationType
+                    && authorization?.CurrentDecision is { Outcome: ProtectedOperationOutcome.Allowed, IsActive: true } decision
+                    && decision.Invocation.EntryKind == OperationEntryKind.Application
+                    && decision.Invocation.Policy.Kind == OperationPolicyKind.Protected
+                    && decision.Invocation.Policy.RequestType == operationType
+                    && ReferenceEquals(decision.Invocation.Operation, operation)
                     && !invocation.HasProducedWork && capture.Changes.Count == 0
                     && capture.Intents.Count != 0 && capture.Intents.All(intent =>
                         intent.OperationClass == OperationClass.Must && intent.OperationType == OperationType.ReadSensitive))

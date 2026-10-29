@@ -115,6 +115,7 @@ public sealed partial class IdentityAuditConventionTests
                      (CentralEvidence, "RecordPolicyRefusal"), (CentralEvidence, "CaptureRefusalObservation"), (CentralEvidence, "RecordRefusalResult"),
                      ("LearnStack.Api.Tenancy.IClaimContextAssertionRecorder", "RecordAsync"),
                      (InvocationContext, "get_CurrentInvocation"), (InvocationContext, "get_CurrentDecision"),
+                     (PolicyOwner, "get_CurrentDecision"),
                      ("LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportRecheck"),
                      ("LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportResourceRefusal"),
                      (CentralEvidence, "BeforeSuccessAsync") })
@@ -134,6 +135,12 @@ public sealed partial class IdentityAuditConventionTests
             var borrowed = EvidenceCalls(census.Body(owner, method), InvocationContext, "get_CurrentDecision").Single();
             EvidenceDirty(census, EvidenceProvenanceOffenders, () => EvidenceReplace(borrowed, OpCodes.Nop, null));
         }
+        var commitDecision = EvidenceCalls(census.Body("LearnStack.Application.Persistence.TransactionExecutionCoordinator", "ExecuteFrameAsync"),
+            PolicyOwner, "get_CurrentDecision").Single();
+        commitDecision.OpCode.Should().Be(OpCodes.Call, "the common owner reads its concrete null-checked coordinator");
+        EvidenceDirty(census, EvidenceProvenanceOffenders, () => EvidenceReplace(commitDecision, OpCodes.Nop, null));
+        foreach (var opcode in new[] { OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
+            EvidenceDirty(census, EvidenceProvenanceOffenders, () => EvidenceReplace(commitDecision, opcode, commitDecision.Operand));
         var guardedPreparation = census.Body(SeedCustomizationGuard, "PrepareAsync");
         var retainedRead = EvidenceCalls(guardedPreparation, InvocationContext, "get_CurrentInvocation").First();
         foreach (var opcode in new[] { OpCodes.Call, OpCodes.Ldftn, OpCodes.Ldvirtftn })
@@ -270,10 +277,15 @@ public sealed partial class IdentityAuditConventionTests
             [(CentralEvidence, "Observe", 1), (CentralEvidence, "RecordObservedDenial", 1)]);
         EvidenceCallers(census, errors, InvocationContext, "get_CurrentInvocation", CurrentInvocationBorrowers);
         if (census.Methods.SelectMany(method => method.Body.Instructions).Any(instruction =>
-                instruction.Operand is MethodReference target && target.DeclaringType.FullName == InvocationContext
-                && (target.Name is "get_CurrentInvocation" or "get_CurrentDecision") && instruction.OpCode.Code != Code.Callvirt))
-            errors.Add("Current invocation and decision borrowers use the exact interface callvirt, never a direct call or method alias");
+                instruction.Operand is MethodReference target
+                && (target.DeclaringType.FullName == InvocationContext && (target.Name is "get_CurrentInvocation" or "get_CurrentDecision")
+                        && instruction.OpCode.Code != Code.Callvirt
+                    || target.DeclaringType.FullName == PolicyOwner && target.Name == "get_CurrentDecision"
+                        && instruction.OpCode.Code != Code.Call)))
+            errors.Add("Current decision borrowers keep the exact interface callvirt or concrete owner call, never an executable alias");
         EvidenceCallers(census, errors, InvocationContext, "get_CurrentDecision", CurrentDecisionBorrowers);
+        EvidenceCallers(census, errors, PolicyOwner, "get_CurrentDecision",
+            [("LearnStack.Application.Persistence.TransactionExecutionCoordinator", "ExecuteFrameAsync", 1)]);
         EvidenceCallers(census, errors, "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportRecheck",
             [(RoleAuthorization, "ReportRecheck", 1), (MemberAuthorization, "ReportRecheck", 1)]);
         EvidenceCallers(census, errors, "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportResourceRefusal",

@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 1,688 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 1,729 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -171,6 +171,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 3 review round 1 and seed frontier corrections (2026-10-29)](#p03-3-step-3-review-round-1-and-seed-frontier-corrections-2026-10-29) — 57 lines
   - [P03-3 Step 3 review round 2 and closeout (2026-10-29)](#p03-3-step-3-review-round-2-and-closeout-2026-10-29) — 59 lines
   - [P03-3 Step 4 — Contextual Membership administration (2026-10-29)](#p03-3-step-4--contextual-membership-administration-2026-10-29) — 80 lines
+  - [P03-3 Step 4 review round 1 and scoped read correction (2026-10-29)](#p03-3-step-4-review-round-1-and-scoped-read-correction-2026-10-29) — 41 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -7402,3 +7403,44 @@ fresh independent postcommit review rounds, verified fixes and normal commits
 remain mandatory before Step 5. Full discovered suites, actual provider/native
 HTTPS/browser/manual accessibility and final-source A/B remain Steps 8–10; these
 local populations do not qualify those later consumers or production capacity.
+
+### P03-3 Step 4 review round 1 and scoped read correction (2026-10-29)
+
+**Reviewed source:** `57d469de..4043328a`. Three fresh independent
+`gpt-6-astra` / `xhigh` reviewers covered authority/scope, persistence/concurrency,
+and diagnostics/test/corpus respectively. None authored the step. All walked
+security, correctness, performance, cleanup/structure and proof sufficiency.
+Authority and diagnostic reviewers returned no actionable findings; persistence
+reported one Major. Their inspection was read-only and claimed no independent
+runtime execution.
+
+**Verified Major.** Organization-authorized Membership detail deliberately has
+no Tenant read witness. The common physical-COMMIT failure mapping incorrectly
+required that witness, so a deferred MUST audit failure withheld the DTO but
+escaped as raw PostgresException / 500. Accepted ADR-0077 requires 503
+`audit_unavailable`. An actual app-role deferred constraint-trigger control
+reproduced one passing Tenant case and one failing Organization case before the
+fix. The existing BEFORE INSERT proof did not exercise this completion boundary.
+
+**Correction.** The common owner now requires its active Allowed Protected
+application decision, exact policy request type and identical actual request
+object. It retains owner-only, DbException, non-global, no produced work, no
+captured changes and all-MUST-sensitive-read predicates. Mutation, cancellation,
+refusal and unrelated/ancestor decisions gain no new mapping. It records the
+original indeterminate cause before wrapping; no COMMIT rejection is called a
+rollback. The exact concrete decision getter has one named caller and opcode,
+with missing/extra/wrong-opcode/executable-alias controls. Interface borrowers
+retain their own callvirt census.
+
+**Proof.** Both new clause variants now assert 503, no DTO, original provider
+cause, unchanged persisted Membership, a real standalone indeterminate audit
+row and healthy recovery. Eight actual new/directory/HTTP MUST INSERT/COMMIT
+controls pass; full Unit remains 3,202/3,202 and the strict whole-solution Release
+build has zero warnings/errors. Affected architecture has 83 distinct passing cases: 82/83 in the first run and the corrected evidence-census case 1/1.. The final combined actual PostgreSQL run passes 209/209 with zero skips, including new clause controls, Member/directory/Role paths, evidence barriers, legacy migrations, seed, Education and public locales..
+
+The first evidence-census run passed 82/83: its one failure expected callvirt
+for the concrete null-checked getter, whose compiled opcode is call. The corrected
+rule pins only that exact caller/opcode and rejects aliases; it broadens no
+namespace/type allowance. The existing architectural method count stays 327.
+Fragment, roadmap, generated-index and whitespace checks pass.. A normal correction commit precedes the second fresh independent
+review round. Step 5 remains behind that closeout.
