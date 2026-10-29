@@ -17,6 +17,7 @@ public static class TenantSiteRegistration
         services.AddSingleton(new ExplicitReadOnlyRequest(typeof(GetAccountSiteQuery)));
         services.TryAddScoped<IPublicTenantConfigurationReader, PublicTenantConfigurationReader>();
         services.TryAddScoped<IOwnMembershipScopeLabels, PreContextSelfDiscoveryScopeReader>();
+        services.TryAddScoped<IOwnTenantNavigationReader, OwnTenantNavigationReader>();
         return services;
     }
 }

@@ -180,8 +180,10 @@ public sealed partial class OpenApiContractTests(DevelopmentWebApplicationFactor
     {
         var errors = new List<string>();
         var paths = document["paths"]!.AsObject();
-        if (!paths.Select(path => path.Key).ToHashSet(StringComparer.Ordinal).SetEquals(Operations.Keys.Concat(NativeOperations.Keys))) errors.Add("operations");
+        if (!paths.Select(path => path.Key).ToHashSet(StringComparer.Ordinal)
+            .SetEquals(Operations.Keys.Concat(NativeOperations.Keys).Concat(AdministrationOperations.Select(operation => operation.Path)))) errors.Add("operations");
         errors.AddRange(NativeContractErrors(document));
+        errors.AddRange(AdministrationContractErrors(document));
         var count = 0;
         foreach (var (path, ids) in Operations)
         {
@@ -362,7 +364,9 @@ public sealed partial class OpenApiContractTests(DevelopmentWebApplicationFactor
         var expectedNames = Dtos.Keys.Concat(["PublicCourseAccess", "PublicDisplayState", "ProblemDetails"]);
         if (!schemas.Select(schema => schema.Key).ToHashSet(StringComparer.Ordinal)
             .SetEquals(expectedNames.Concat(AccountSchemaNames).Concat(DirectorySchemaNames)
-                .Concat(["IdentitySelfActive", "IdentitySelfMissing", "IdentitySelfState", "NativeSessionScopeAdmission", "SelfContextItem", "SelfContextPage"]))) errors.Add("schema-census");
+                .Concat(["IdentitySelfActive", "IdentitySelfMissing", "IdentitySelfState", "NativeSessionScopeAdmission", "SelfContextItem", "SelfContextPage"])
+                .Concat(AdministrationSchemas.Keys).Append("AdministrationGrantResponse"))) errors.Add("schema-census");
+        errors.AddRange(AdministrationSchemaErrors(document));
         foreach (var (name, descriptor) in Dtos)
         {
             if (schemas[name] is not JsonObject schema) { errors.Add(name); continue; }

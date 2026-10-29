@@ -1,5 +1,6 @@
 using LearnStack.Api.Authentication;
 using LearnStack.Api.Versioning;
+using LearnStack.Api.Common;
 
 namespace LearnStack.Api.PublicReads;
 
@@ -11,6 +12,21 @@ public static class PublicResponsePolicy
         ArgumentNullException.ThrowIfNull(app);
         return app.Use(async (context, next) =>
         {
+            if (AdministrationHttpSurface.IsPath(context.Request.Path))
+            {
+                context.Response.Headers.CacheControl = "no-store";
+                context.Response.OnStarting(() =>
+                {
+                    context.Response.Headers.CacheControl = "no-store";
+                    context.Response.Headers.Remove("Last-Modified");
+                    return Task.CompletedTask;
+                });
+                var administrationBody = context.Response.Body;
+                if (HttpMethods.IsHead(context.Request.Method)) context.Response.Body = Stream.Null;
+                try { await next(context); }
+                finally { context.Response.Body = administrationBody; }
+                return;
+            }
             if (!TenantSurfaceAdmissionMiddleware.IsAccountSitePath(context.Request.Path)
                 && GlobalSelfOperation.ForPath(context.Request.Path) is null
                 && !TenantSurfaceAdmissionMiddleware.IsNativeSessionAdmissionPath(context.Request.Path)

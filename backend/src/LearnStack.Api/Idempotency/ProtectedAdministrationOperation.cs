@@ -23,6 +23,16 @@ public enum ProtectedAdministrationOperation
 internal sealed record ProtectedAdministrationDescriptor(
     ProtectedAdministrationOperation Operation, Type RequestType, IdempotencyReplayTargetKind TargetKind, bool Creates = false)
 {
+    private static readonly ProtectedAdministrationDescriptor[] Descriptors =
+        Enum.GetValues<ProtectedAdministrationOperation>().Select(For).ToArray();
+
+    internal static ProtectedAdministrationDescriptor? ForRequest(Type requestType)
+    {
+        foreach (var descriptor in Descriptors)
+            if (descriptor.RequestType == requestType) return descriptor;
+        return null;
+    }
+
     internal static ProtectedAdministrationDescriptor For(ProtectedAdministrationOperation operation) => operation switch
     {
         ProtectedAdministrationOperation.SetMembershipProfile => new(operation, typeof(SetMembershipProfileCommand), IdempotencyReplayTargetKind.Membership),

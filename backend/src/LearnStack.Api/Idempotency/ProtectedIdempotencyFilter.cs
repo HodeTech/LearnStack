@@ -17,7 +17,7 @@ namespace LearnStack.Api.Idempotency;
 
 /// <summary>ADR-0079's closed successful-receipt path, separate from generic idempotency semantics.</summary>
 internal sealed partial class ProtectedIdempotencyFilter(IIdempotencyStore store, ITenantContext tenantContext,
-    IIdempotencyBusinessOwnerCleanup cleanup, ISender sender, ILogger<IdempotencyFilter> genericLogger,
+    IIdempotencyBusinessOwnerCleanup cleanup, ISender sender,
     ILogger<ProtectedIdempotencyFilter> logger, ProtectedAdministrationOperation operation) : IAsyncResourceFilter
 {
     internal const int MaxReceiptBytes = 1024;
@@ -52,7 +52,21 @@ internal sealed partial class ProtectedIdempotencyFilter(IIdempotencyStore store
         }
         if (!_descriptor.Creates) expected = version;
         var cancellationToken = context.HttpContext.RequestAborted;
+        await AdministrationHttpInput.ReadBodyBytesAsync(context.HttpContext);
         var fingerprint = await ComputeFingerprintAsync(context.HttpContext, expected, cancellationToken);
+        var admission = ProtectedReplayHttpAdmission.Consume(context.HttpContext, tenantContext, _descriptor, key, fingerprint, expected);
+        if (admission.Kind == ProtectedHttpAdmissionKind.Refused)
+        {
+            context.Result = Problem("lockey_forbidden");
+            return;
+        }
+        if (admission.Kind == ProtectedHttpAdmissionKind.Replay)
+        {
+            // The retained snapshot is an as-of-read result. Expiry/recycling
+            // after HTTP admission never turns disclosure authority into a claim.
+            await ReplayAsync(context, admission.Response, cancellationToken);
+            return;
+        }
         IdempotencyClaimResult claim;
         try { claim = await store.TryClaimAsync(tenantContext.TenantId, key, fingerprint, cancellationToken); }
         catch (IdempotencyStoreException)
@@ -84,15 +98,18 @@ internal sealed partial class ProtectedIdempotencyFilter(IIdempotencyStore store
     }
 
     internal async Task<string> ComputeFingerprintAsync(HttpContext context, long? expected, CancellationToken cancellationToken)
+        => await ComputeFingerprintAsync(context, tenantContext, _descriptor, expected, cancellationToken);
+
+    internal static async Task<string> ComputeFingerprintAsync(HttpContext context, ITenantContext tenantContext,
+        ProtectedAdministrationDescriptor descriptor, long? expected, CancellationToken cancellationToken)
     {
         // The historical digest is deliberately unchanged, including its exact
         // actor/scope/method/path/query/body byte framing. Protected inputs wrap
         // it in a separate versioned domain and canonical precondition.
-        var original = await new IdempotencyFilter(store, tenantContext, genericLogger, cleanup)
-            .ComputeFingerprintAsync(context, cancellationToken);
+        var original = await IdempotencyFilter.ComputeFingerprintAsync(context, tenantContext, cancellationToken);
         using var digest = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         Append("learnstack.idempotency.protected.v1");
-        Append(_descriptor.Operation.ToString());
+        Append(descriptor.Operation.ToString());
         Append(expected is { } version ? EntityTag.For(version) : string.Empty);
         Append(original);
         return Convert.ToHexStringLower(digest.GetHashAndReset());

@@ -36,6 +36,29 @@ public sealed class InMemoryIdempotencyStoreTests
     private const string Fingerprint = "fingerprint-a";
 
     [Fact]
+    public async Task Completed_lookup_is_detached_and_does_not_extend_retention_or_create_a_claim()
+    {
+        var (store, clock) = NewStore();
+        (await store.ReadCompletedAsync(Tenant, Key, Fingerprint, default)).Should().BeNull();
+        var claim = await store.TryClaimAsync(Tenant, Key, Fingerprint, default);
+        (await store.ReadCompletedAsync(Tenant, Key, Fingerprint, default)).Should().BeNull();
+        await store.CompleteAsync(Tenant, Key, claim.Token, Response(200), default);
+        (await store.ReadCompletedAsync(OtherTenant, Key, Fingerprint, default)).Should().BeNull();
+        (await store.ReadCompletedAsync(Tenant, Key, "different", default)).Should().BeNull();
+        clock.Advance(InMemoryIdempotencyStore.Retention - TimeSpan.FromSeconds(1));
+        var first = await store.ReadCompletedAsync(Tenant, Key, Fingerprint, default);
+        first.Should().NotBeNull();
+        first!.Body[0] = 99;
+        (await store.ReadCompletedAsync(Tenant, Key, Fingerprint, default))!.Body[0].Should().Be(1);
+        clock.Advance(TimeSpan.FromSeconds(1));
+        (await store.ReadCompletedAsync(Tenant, Key, Fingerprint, default)).Should().BeNull();
+        var next = await store.TryClaimAsync(Tenant, Key, Fingerprint, default);
+        next.Outcome.Should().Be(IdempotencyClaim.Acquired);
+        await store.CompleteAsync(Tenant, Key, next.Token, null, default);
+        (await store.ReadCompletedAsync(Tenant, Key, Fingerprint, default)).Should().BeNull();
+    }
+
+    [Fact]
     public async Task A_Fresh_Key_Is_Acquired_With_A_Token()
     {
         var (store, _) = NewStore();

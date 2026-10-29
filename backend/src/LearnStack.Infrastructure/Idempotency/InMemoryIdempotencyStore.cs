@@ -85,6 +85,25 @@ public sealed class InMemoryIdempotencyStore(IClock clock) : IIdempotencyStore
     private long _lastSweepTicks;
     private Census _census = Census.Empty;
 
+    public Task<IdempotentResponse?> ReadCompletedAsync(
+        TenantId tenantId, string key, string fingerprint, CancellationToken cancellationToken)
+    {
+        Guard(tenantId, key);
+        ArgumentNullException.ThrowIfNull(fingerprint);
+        cancellationToken.ThrowIfCancellationRequested();
+        // No sweep, claim, expiry extension or capacity mutation belongs to this read.
+        var response = _entries.TryGetValue((tenantId, key), out var current)
+            && current.IsUsable(clock.UtcNow) && current.State == EntryState.Completed
+            && string.Equals(current.Fingerprint, fingerprint, StringComparison.Ordinal)
+            ? current.Response : null;
+        return Task.FromResult(response is null ? null : response with
+        {
+            Headers = response.Headers.ToDictionary(item => item.Key,
+                item => (IReadOnlyList<string>)item.Value.ToArray(), StringComparer.OrdinalIgnoreCase),
+            Body = response.Body.ToArray(),
+        });
+    }
+
     public Task<IdempotencyClaimResult> TryClaimAsync(
         TenantId tenantId, string key, string fingerprint, CancellationToken cancellationToken)
     {

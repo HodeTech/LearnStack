@@ -84,6 +84,10 @@ public sealed partial class OperationPermissionConventionTests
         (Type Request, bool Orgless, OperationPolicyClause[] Clauses)[] expected =
         [
             (typeof(ListMembershipsQuery), false, [new([membershipAdmin], OperationReadScope.Tenant)]),
+            (typeof(ListOrganizationMembershipsQuery), false, [new([membershipAdmin]), new([organizationAdmin])]),
+            (typeof(ListRolesQuery), false, [new([roleAdmin])]),
+            (typeof(GetRoleDetailQuery), false, [new([roleAdmin])]),
+            (typeof(GetPermissionRegistryQuery), false, [new([roleAdmin])]),
             (typeof(ListOrganizationsQuery), false, [new([BoundedTenancyAdministrationPermissions.OrganizationAdministration])]),
             (typeof(GetOrganizationDetailQuery), false, [new([BoundedTenancyAdministrationPermissions.OrganizationAdministration])]),
             (typeof(ReadOrganizationReceiptQuery), false, [new([BoundedTenancyAdministrationPermissions.OrganizationAdministration])]),
@@ -114,15 +118,16 @@ public sealed partial class OperationPermissionConventionTests
         catalog.All.Where(policy => policy.Kind == OperationPolicyKind.Protected).Select(policy => policy.RequestType)
             .Should().BeEquivalentTo(expected.Select(item => item.Request));
         catalog.All.Where(policy => policy.Kind == OperationPolicyKind.OwnMembershipRead).Select(policy => policy.RequestType)
-            .Should().BeEquivalentTo([typeof(GetOwnMembershipProfileQuery), typeof(ReadOwnMembershipProfileReceiptQuery)],
-                "the current profile and exact historical receipt share coverage-only admission without sharing a target lookup or audit mode");
+            .Should().BeEquivalentTo([typeof(GetOwnMembershipProfileQuery), typeof(ReadOwnMembershipProfileReceiptQuery),
+                typeof(GetOwnMembershipContextsQuery), typeof(GetOwnCapabilitiesQuery)],
+                "exact own reads share coverage-only admission without sharing target lookup or audit mode");
         foreach (var policy in catalog.All)
         {
             if (policy.Kind == OperationPolicyKind.Protected)
             {
                 var declaration = expected.Single(item => item.Request == policy.RequestType);
                 policy.RequiresOrglessWrite.Should().Be(declaration.Orgless);
-                policy.RequiresOrganization.Should().BeFalse();
+                policy.RequiresOrganization.Should().Be(declaration.Request == typeof(ListOrganizationMembershipsQuery));
                 policy.AllowedSources.Should().BeEmpty();
                 policy.TrustedEventHandlerType.Should().BeNull();
                 policy.Alternatives.Should().HaveCount(declaration.Clauses.Length);
@@ -149,8 +154,14 @@ public sealed partial class OperationPermissionConventionTests
                 else policy.RequiredPermission.Should().BeNull("finite source authority, AccountSite and own Membership coverage are not stored grants");
                 if (policy.Kind == OperationPolicyKind.OwnMembershipRead)
                 {
-                    policy.Id.Should().Be(policy.RequestType == typeof(GetOwnMembershipProfileQuery)
-                        ? "identity.membership_profile.read_own" : "identity.membership_profile.read_own_receipt");
+                    (Type Request, string Id)[] ownReads =
+                    [
+                        (typeof(GetOwnMembershipProfileQuery), "identity.membership_profile.read_own"),
+                        (typeof(ReadOwnMembershipProfileReceiptQuery), "identity.membership_profile.read_own_receipt"),
+                        (typeof(GetOwnMembershipContextsQuery), "identity.membership.list_own_contexts"),
+                        (typeof(GetOwnCapabilitiesQuery), "identity.membership.read_own_capabilities"),
+                    ];
+                    policy.Id.Should().Be(ownReads.Single(read => read.Request == policy.RequestType).Id);
                     policy.Alternatives.Should().BeEmpty();
                     policy.AllowedSources.Should().BeEmpty();
                     policy.RequiresOrglessWrite.Should().BeFalse();
@@ -172,12 +183,13 @@ public sealed partial class OperationPermissionConventionTests
             .Methods.Single(method => method.Name == "get_Policies");
         var factories = owner.Body.Instructions.Where(instruction => instruction.Operand is MethodReference target
             && target.DeclaringType.FullName == typeof(OperationPolicy).FullName && target.Name == "ForOwnMembershipRead").ToArray();
-        factories.Should().HaveCount(2);
+        factories.Should().HaveCount(4);
         foreach (var factory in factories)
         {
             var factoryTarget = (GenericInstanceMethod)factory.Operand;
             var original = factoryTarget.GenericArguments[0];
-            foreach (var replacement in new[] { typeof(ListMembershipsQuery), typeof(GetOwnMembershipProfileQuery), typeof(ReadOwnMembershipProfileReceiptQuery) }
+            foreach (var replacement in new[] { typeof(ListMembershipsQuery), typeof(GetOwnMembershipProfileQuery), typeof(ReadOwnMembershipProfileReceiptQuery),
+                         typeof(GetOwnMembershipContextsQuery), typeof(GetOwnCapabilitiesQuery) }
                          .Where(type => type.FullName != original.FullName))
             {
                 factoryTarget.GenericArguments[0] = owner.Module.ImportReference(replacement);
@@ -186,7 +198,7 @@ public sealed partial class OperationPermissionConventionTests
             }
             var index = owner.Body.Instructions.IndexOf(factory);
             owner.Body.Instructions.Remove(factory);
-            try { OwnMembershipReadFactoryOffenders(modules).Should().NotBeEmpty("both exact own-read producers are required"); }
+            try { OwnMembershipReadFactoryOffenders(modules).Should().NotBeEmpty("all exact own-read producers are required"); }
             finally { owner.Body.Instructions.Insert(index, factory); }
             foreach (var opcode in new[] { OpCodes.Call, OpCodes.Ldftn })
             {
@@ -216,11 +228,12 @@ public sealed partial class OperationPermissionConventionTests
             .Where(site => site.Instruction.Operand is MethodReference target
                 && target.DeclaringType.FullName == typeof(OperationPolicy).FullName && target.Name == "ForOwnMembershipRead").ToArray();
         var offenders = new SortedSet<string>(StringComparer.Ordinal);
-        var expected = new[] { typeof(GetOwnMembershipProfileQuery).FullName!, typeof(ReadOwnMembershipProfileReceiptQuery).FullName! };
+        var expected = new[] { typeof(GetOwnMembershipProfileQuery).FullName!, typeof(ReadOwnMembershipProfileReceiptQuery).FullName!,
+            typeof(GetOwnMembershipContextsQuery).FullName!, typeof(GetOwnCapabilitiesQuery).FullName! };
         var actual = sites.Select(site => site.Instruction.Operand is GenericInstanceMethod factory && factory.GenericArguments.Count == 1
             ? factory.GenericArguments[0].FullName : string.Empty).Order(StringComparer.Ordinal);
         if (!actual.SequenceEqual(expected.Order(StringComparer.Ordinal), StringComparer.Ordinal))
-            offenders.Add("Exactly the two distinct own Membership read factory calls are admitted");
+            offenders.Add("Exactly the four distinct own Membership read factory calls are admitted");
         foreach (var site in sites)
             if (site.Method.DeclaringType.FullName != typeof(IdentityOperationPolicySource).FullName || site.Method.Name != "get_Policies"
                 || site.Instruction.OpCode != OpCodes.Call || site.Instruction.Operand is not GenericInstanceMethod factory

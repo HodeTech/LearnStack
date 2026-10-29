@@ -1,0 +1,229 @@
+using LearnStack.Modules.Identity.Application.Authorization;
+using LearnStack.Modules.Identity.Application.Contracts.Memberships;
+using LearnStack.Modules.Identity.Application.Memberships;
+using LearnStack.Modules.Tenancy.Application.Contracts.IdentityLifecycle;
+using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
+using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Results;
+using MediatR;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Npgsql;
+using Xunit;
+using static LearnStack.Tests.Integration.Database.IdentityMembershipFixture;
+
+namespace LearnStack.Tests.Integration.Database;
+
+[Trait(RequiresDocker.Key, RequiresDocker.Value)]
+public sealed class IdentityOwnNavigationTests(IdentityOwnNavigationFixture fixture) : IClassFixture<IdentityOwnNavigationFixture>
+{
+    [Fact]
+    public async Task Branch_only_coverage_returns_only_its_branch_while_Tenant_membership_derives_active_branches()
+    {
+        var person = await fixture.Administration.Membership.AddMemberAsync(SchemaFixture.OrgA1);
+        await using (var branch = await fixture.CreateAsync("own-contexts-branch", person.Actor, SchemaFixture.OrgA1))
+        {
+            var result = await branch.Sender.Send(new GetOwnMembershipContextsQuery());
+            Assert.True(result.IsSuccess);
+            var item = Assert.Single(result.Value.Items);
+            Assert.Equal(TenantId.From(SchemaFixture.TenantA), item.TenantId);
+            Assert.Equal(OrganizationId.From(SchemaFixture.OrgA1), item.OrganizationId);
+            Assert.Equal("own-navigation-a1.example.invalid", item.EntryHost);
+        }
+        await fixture.Administration.Membership.AddMembershipAsync(person.Actor, null);
+        await using var tenant = await fixture.CreateAsync("own-contexts-tenant-coverage", person.Actor, SchemaFixture.OrgA1);
+        var expanded = await tenant.Sender.Send(new GetOwnMembershipContextsQuery());
+        Assert.True(expanded.IsSuccess);
+        Assert.Equal(3, expanded.Value.Items.Count);
+        Assert.Null(expanded.Value.Items[0].OrganizationId);
+        Assert.Equal("own-navigation-a.example.invalid", expanded.Value.Items[0].EntryHost);
+        Assert.Equal(new[] { SchemaFixture.OrgA1, SchemaFixture.OrgA2 }, expanded.Value.Items.Skip(1).Select(item => item.OrganizationId!.Value.Value));
+        Assert.All(expanded.Value.Items, item => Assert.Equal(TenantId.From(SchemaFixture.TenantA), item.TenantId));
+        Assert.False(tenant.Unit.HasActiveTransaction);
+        Assert.Empty(await fixture.Administration.Membership.AuditAsync("own-contexts-tenant-coverage", "identity.authorization.deny", SchemaFixture.OrgA1));
+        Assert.Empty(await fixture.Administration.Membership.AuditAsync("own-contexts-tenant-coverage", "tenancy.organization.list", SchemaFixture.OrgA1));
+    }
+
+    [Fact]
+    public async Task Own_context_pages_bind_actor_current_scope_and_the_coverage_shape()
+    {
+        await using var harness = await fixture.CreateAsync("own-context-pages", AdminA, SchemaFixture.OrgA1);
+        var first = await harness.Sender.Send(new GetOwnMembershipContextsQuery(Limit: 1));
+        Assert.True(first.IsSuccess);
+        Assert.Null(Assert.Single(first.Value.Items).OrganizationId);
+        Assert.True(first.Value.PageInfo.HasNext);
+        var second = await harness.Sender.Send(new GetOwnMembershipContextsQuery(first.Value.PageInfo.NextCursor, 1));
+        Assert.True(second.IsSuccess);
+        Assert.Equal(OrganizationId.From(SchemaFixture.OrgA1), Assert.Single(second.Value.Items).OrganizationId);
+        var third = await harness.Sender.Send(new GetOwnMembershipContextsQuery(second.Value.PageInfo.NextCursor, 1));
+        Assert.True(third.IsSuccess);
+        Assert.Equal(OrganizationId.From(SchemaFixture.OrgA2), Assert.Single(third.Value.Items).OrganizationId);
+        Assert.False(third.Value.PageInfo.HasNext);
+        await using var other = await fixture.CreateAsync("own-context-pages-other", PersonA, SchemaFixture.OrgA1);
+        Assert.Equal("validation_failed", (await other.Sender.Send(new GetOwnMembershipContextsQuery(first.Value.PageInfo.NextCursor, 1))).Error!.Code);
+        await using var otherScope = await fixture.CreateAsync("own-context-pages-other-scope", AdminA, SchemaFixture.OrgA2);
+        Assert.Equal("validation_failed", (await otherScope.Sender.Send(new GetOwnMembershipContextsQuery(first.Value.PageInfo.NextCursor, 1))).Error!.Code);
+    }
+
+    [Fact]
+    public async Task Port_and_coverage_cannot_be_used_without_the_exact_current_own_query()
+    {
+        await using var harness = await fixture.CreateAsync("own-contexts-direct-port", AdminA, SchemaFixture.OrgA1);
+        var provider = harness.Services.GetRequiredService<IOwnTenantNavigationCoverage>();
+        Assert.Equal("forbidden", (await provider.ReadCurrentAsync()).Error!.Code);
+        // Physical enrollment refuses even construction outside an announced owner.
+        Assert.Throws<InvalidOperationException>(() => harness.Services.GetRequiredService<IOwnTenantNavigationReader>());
+        Assert.False(harness.Unit.HasActiveTransaction);
+        await using var frame = await harness.Unit.BeginTransactionAsync(TransactionMode.ReadOnly);
+        await harness.Unit.SetTenantContextAsync(harness.Services.GetRequiredService<LearnStack.SharedKernel.Tenancy.ITenantContext>());
+        var reader = harness.Services.GetRequiredService<IOwnTenantNavigationReader>();
+        Assert.Equal("forbidden", (await reader.ReadAsync(null, 20)).Error!.Code);
+        await frame.FailAsync();
+    }
+
+    [Fact]
+    public async Task Actual_navigation_requires_its_physical_read_only_owner()
+    {
+        await using var harness = await fixture.CreateAsync("own-contexts-wrong-owner", AdminA, SchemaFixture.OrgA1, services =>
+        {
+            var registration = Assert.Single(services, descriptor => descriptor.ImplementationInstance is ExplicitReadOnlyRequest read
+                && read.RequestType == typeof(GetOwnMembershipContextsQuery));
+            services.Remove(registration);
+        });
+        Assert.Equal("forbidden", (await harness.Sender.Send(new GetOwnMembershipContextsQuery())).Error!.Code);
+        Assert.False(harness.Unit.HasActiveTransaction);
+    }
+
+    [Fact]
+    public async Task Another_own_query_and_an_absent_current_candidate_cannot_open_navigation()
+    {
+        await using (var wrongQuery = await fixture.CreateAsync("own-contexts-wrong-query", AdminA, SchemaFixture.OrgA1,
+            services => services.AddScoped<IPipelineBehavior<GetOwnCapabilitiesQuery, Result<OwnCapabilitiesDto>>, WrongQueryNavigationProbe>()))
+        {
+            Assert.True((await wrongQuery.Sender.Send(new GetOwnCapabilitiesQuery())).IsSuccess);
+        }
+        await using var missingCandidate = await fixture.CreateAsync("own-contexts-no-candidate", AdminA, SchemaFixture.OrgA1,
+            services => services.RemoveAll<LearnStack.SharedKernel.Permissions.IAuthorizationCandidateSource>());
+        Assert.Equal("not_found", (await missingCandidate.Sender.Send(new GetOwnMembershipContextsQuery())).Error!.Code);
+    }
+
+    [Fact]
+    public async Task Retained_prior_invocation_result_is_not_navigation_authority()
+    {
+        OwnTenantNavigationAccess? captured = null;
+        await using (var initial = await fixture.CreateAsync("own-contexts-capture", AdminA, SchemaFixture.OrgA1, services =>
+            services.AddScoped<IOwnTenantNavigationCoverage>(provider => new CaptureCoverage(
+                new OwnTenantNavigationCoverage(provider.GetRequiredService<IdentityAdministrationReadAuthorization>(),
+                    provider.GetRequiredService<LearnStack.SharedKernel.Permissions.IOperationInvocationContext>()), value => captured = value))))
+        {
+            Assert.True((await initial.Sender.Send(new GetOwnMembershipContextsQuery())).IsSuccess);
+        }
+        Assert.NotNull(captured);
+        Assert.False(captured.Invocation.IsActive);
+        await using var next = await fixture.CreateAsync("own-contexts-retained", AdminA, SchemaFixture.OrgA1,
+            services => services.AddSingleton<IOwnTenantNavigationCoverage>(new RetainedCoverage(captured)));
+        Assert.Equal("forbidden", (await next.Sender.Send(new GetOwnMembershipContextsQuery())).Error!.Code);
+    }
+
+    [Fact]
+    public async Task Losing_the_Tenant_membership_during_navigation_withholds_derived_branches()
+    {
+        var person = await fixture.Administration.Membership.AddMemberAsync(SchemaFixture.OrgA1);
+        var tenantMember = await fixture.Administration.Membership.AddMembershipAsync(person.Actor, null);
+        var reached = false;
+        await using (var harness = await fixture.CreateAsync("own-contexts-coverage-race", person.Actor, SchemaFixture.OrgA1, services =>
+            services.AddScoped<IOwnTenantNavigationCoverage>(provider => new AfterFirstCoverage(
+                new OwnTenantNavigationCoverage(provider.GetRequiredService<IdentityAdministrationReadAuthorization>(),
+                    provider.GetRequiredService<LearnStack.SharedKernel.Permissions.IOperationInvocationContext>()), async () =>
+                {
+                    reached = true;
+                    Assert.True((await fixture.Administration.SendAsync(new ChangeMembershipStatusCommand(tenantMember, 0,
+                        ManagedMembershipStatus.Revoked), "own-contexts-revoke-tenant")).IsSuccess);
+                }))))
+        {
+            Assert.Equal("not_found", (await harness.Sender.Send(new GetOwnMembershipContextsQuery())).Error!.Code);
+        }
+        Assert.True(reached);
+        await using var branch = await fixture.CreateAsync("own-contexts-remaining-branch", person.Actor, SchemaFixture.OrgA1);
+        var current = await branch.Sender.Send(new GetOwnMembershipContextsQuery());
+        Assert.True(current.IsSuccess);
+        Assert.Equal(OrganizationId.From(SchemaFixture.OrgA1), Assert.Single(current.Value.Items).OrganizationId);
+    }
+
+    private sealed class CaptureCoverage(IOwnTenantNavigationCoverage inner, Action<OwnTenantNavigationAccess> capture) : IOwnTenantNavigationCoverage
+    {
+        public async Task<Result<OwnTenantNavigationAccess>> ReadCurrentAsync(CancellationToken cancellationToken = default)
+        {
+            var result = await inner.ReadCurrentAsync(cancellationToken);
+            if (result.IsSuccess) capture(result.Value);
+            return result;
+        }
+    }
+
+    private sealed class WrongQueryNavigationProbe(IServiceProvider services)
+        : IPipelineBehavior<GetOwnCapabilitiesQuery, Result<OwnCapabilitiesDto>>
+    {
+        public async Task<Result<OwnCapabilitiesDto>> Handle(GetOwnCapabilitiesQuery request,
+            RequestHandlerDelegate<Result<OwnCapabilitiesDto>> next, CancellationToken cancellationToken)
+        {
+            Assert.Equal("forbidden", (await services.GetRequiredService<IOwnTenantNavigationReader>()
+                .ReadAsync(null, 20, cancellationToken)).Error!.Code);
+            return await next();
+        }
+    }
+
+    private sealed class RetainedCoverage(OwnTenantNavigationAccess retained) : IOwnTenantNavigationCoverage
+    {
+        public Task<Result<OwnTenantNavigationAccess>> ReadCurrentAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(Result.Ok(retained));
+    }
+
+    private sealed class AfterFirstCoverage(IOwnTenantNavigationCoverage inner, Func<Task> after) : IOwnTenantNavigationCoverage
+    {
+        private bool _first = true;
+        public async Task<Result<OwnTenantNavigationAccess>> ReadCurrentAsync(CancellationToken cancellationToken = default)
+        {
+            var result = await inner.ReadCurrentAsync(cancellationToken);
+            if (_first && result.IsSuccess) { _first = false; await after(); }
+            return result;
+        }
+    }
+}
+
+public sealed class IdentityOwnNavigationFixture : IAsyncLifetime
+{
+    public TenancyAdministrationFixture Administration { get; } = new();
+
+    public async Task InitializeAsync()
+    {
+        await Administration.InitializeAsync();
+        foreach (var (tenant, organization, host) in new (Guid, Guid?, string)[]
+        {
+            (SchemaFixture.TenantA, null, "own-navigation-a.example.invalid"),
+            (SchemaFixture.TenantA, SchemaFixture.OrgA1, "own-navigation-a1.example.invalid"),
+            (SchemaFixture.TenantA, SchemaFixture.OrgA2, "own-navigation-a2.example.invalid"),
+            (SchemaFixture.TenantB, null, "own-navigation-b.example.invalid"),
+        })
+        {
+            await using var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(Administration.AppConnectionString);
+            await SchemaQueries.AssertApplicationRoleAsync(app);
+            await using var transaction = await app.BeginTransactionAsync();
+            await ScopeAsync(app, transaction, tenant, organization);
+            await ExecuteAsync(app, transaction, """
+                INSERT INTO public.platform_host_to_tenant(host,tenant_id,organization_id,is_active,is_publicly_live)
+                VALUES(@host,@tenant,@organization,true,false)
+                """, ("host", host), ("tenant", tenant), ("organization", organization));
+            await transaction.CommitAsync();
+        }
+    }
+
+    internal Task<RoleGrantPipelineHarness> CreateAsync(string correlation, Guid actor, Guid? organization,
+        Action<IServiceCollection>? configure = null) => Administration.CreateAsync(correlation, actor, organization, services =>
+        {
+            services.AddScoped<IOwnTenantNavigationReader, OwnTenantNavigationReader>();
+            configure?.Invoke(services);
+        });
+
+    public Task DisposeAsync() => Administration.DisposeAsync();
+}

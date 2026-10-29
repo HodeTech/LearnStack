@@ -25,6 +25,19 @@ public sealed partial class PostgresIdempotencyStore : IIdempotencyStore
         _observe = observe;
     }
 
+    public Task<IdempotentResponse?> ReadCompletedAsync(TenantId tenantId, string key, string fingerprint,
+        CancellationToken cancellationToken)
+    {
+        Guard(tenantId, key);
+        ArgumentNullException.ThrowIfNull(fingerprint);
+        if (!JsonValue.IsStorableText(fingerprint)) throw new ArgumentException("Idempotency fingerprint is invalid.", nameof(fingerprint));
+        return OwnAsync<IdempotentResponse?>(tenantId, async (connection, transaction, token) =>
+        {
+            var existing = await ReadAsync(connection, transaction, key, fingerprint, locked: false, token);
+            return existing is { Outcome: IdempotencyClaim.Completed } ? existing.Stored : null;
+        }, cancellationToken);
+    }
+
     public Task<IdempotencyClaimResult> TryClaimAsync(TenantId tenantId, string key, string fingerprint,
         CancellationToken cancellationToken)
     {

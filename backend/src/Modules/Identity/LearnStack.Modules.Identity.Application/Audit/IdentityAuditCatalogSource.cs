@@ -23,6 +23,12 @@ public sealed class IdentityAuditCatalogSource : IAuditCatalogSource
         builder.Off<GetRoleSeedStateQuery>();
         builder.Off<GetMembershipSeedStateQuery>();
         builder.MustAudit<ListMembershipsQuery>(IdentityOperationPolicySource.MembershipDirectoryOperation, OperationType.ReadSensitive, typeof(Membership));
+        builder.MustAudit<ListOrganizationMembershipsQuery>(IdentityOperationPolicySource.OrganizationMembershipDirectoryOperation, OperationType.ReadSensitive, typeof(Membership));
+        builder.MustAudit<ListRolesQuery>(IdentityOperationPolicySource.RoleDirectoryOperation, OperationType.ReadSensitive, typeof(Role));
+        builder.MustAudit<GetRoleDetailQuery>(IdentityOperationPolicySource.RoleDetailOperation, OperationType.ReadSensitive, typeof(Role));
+        builder.MustAudit<GetPermissionRegistryQuery>(IdentityOperationPolicySource.PermissionRegistryOperation, OperationType.ReadSensitive, typeof(Role));
+        builder.Off<GetOwnMembershipContextsQuery>();
+        builder.Off<GetOwnCapabilitiesQuery>();
         builder.MustAudit<GetMembershipDetailQuery>(IdentityOperationPolicySource.MembershipDetailOperation, OperationType.ReadSensitive, typeof(Membership));
         builder.Off<GetOwnMembershipProfileQuery>();
         builder.MustAudit<ReadMembershipReceiptQuery>("identity.membership.read_receipt", OperationType.ReadSensitive, typeof(Membership));

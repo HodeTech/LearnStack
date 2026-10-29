@@ -15,7 +15,7 @@
 > verified corrections. Its [closeout](phase-03-delivery-log.md#p03-3-step-3-review-round-2-and-closeout-2026-10-29)
 > distinguishes local passing coverage from full final-source qualification.
 > Step 4's [internal Membership administration closeout](phase-03-delivery-log.md#p03-3-step-4-review-round-2-and-closeout-2026-10-29)
-> completes both fresh review rounds and verified fixes. [Step 5's internal Tenancy closeout](phase-03-delivery-log.md#p03-3-step-5-review-round-2-and-closeout-2026-10-29) completes both fresh rounds and verified fixes. [Step 6 durable replay closeout](phase-03-delivery-log.md#p03-3-step-6-review-round-2-and-closeout-2026-10-29) completes both fresh rounds and verified corrections; Step 7 proceeds with remaining reads and HTTP/SDK.
+> completes both fresh review rounds and verified fixes. [Step 5's internal Tenancy closeout](phase-03-delivery-log.md#p03-3-step-5-review-round-2-and-closeout-2026-10-29) completes both fresh rounds and verified fixes. [Step 6 durable replay closeout](phase-03-delivery-log.md#p03-3-step-6-review-round-2-and-closeout-2026-10-29) completes both fresh rounds and verified corrections; Step 7's [HTTP/SDK implementation](phase-03-delivery-log.md#p03-3-step-7--closed-administration-http-and-generated-sdk-2026-10-29) passes local qualification and awaits both fresh postcommit review rounds.
 > [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md) and
 > [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md)
 > are Accepted. Their separate eight-consumer prerequisite and one-consumer

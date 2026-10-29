@@ -20,13 +20,17 @@ public sealed partial class PersistenceConventionTests
 
     private const string OwnProfileReadOnlyRegistration = "LearnStack.Modules.Identity.Infrastructure.Bindings.IdentityFoundationRegistration";
     private const string OwnProfileRequest = "LearnStack.Modules.Identity.Application.Contracts.Memberships.GetOwnMembershipProfileQuery";
+    private const string OwnContextsRequest = "LearnStack.Modules.Identity.Application.Contracts.Memberships.GetOwnMembershipContextsQuery";
+    private const string OwnCapabilitiesRequest = "LearnStack.Modules.Identity.Application.Contracts.Memberships.GetOwnCapabilitiesQuery";
     private static readonly (string Owner, string Request, string Assembly)[] ReadOnlyProducers =
     [
         (ReadOnlyRegistration + ".AddTenantSiteReads", AccountSiteRequest, "LearnStack.Modules.Tenancy.Application.Contracts"),
         (OwnProfileReadOnlyRegistration + ".AddIdentityContextualFoundation", OwnProfileRequest, "LearnStack.Modules.Identity.Application.Contracts"),
+        (OwnProfileReadOnlyRegistration + ".AddIdentityContextualFoundation", OwnContextsRequest, "LearnStack.Modules.Identity.Application.Contracts"),
+        (OwnProfileReadOnlyRegistration + ".AddIdentityContextualFoundation", OwnCapabilitiesRequest, "LearnStack.Modules.Identity.Application.Contracts"),
     ];
 
-    // The shared persistence seam stays module-independent. Each of the two exact
+    // The shared persistence seam stays module-independent. Each of the four exact
     // authenticated reads is declared by its owning module, never inferred public.
     private static void AssertExplicitReadOnlyComposition()
     {
@@ -37,55 +41,24 @@ public sealed partial class PersistenceConventionTests
             .Which.SetMethod.Should().BeNull();
         typeof(GetAccountSiteQuery).IsDefined(typeof(LearnStack.SharedKernel.Tenancy.PublicSurfaceAttribute), false)
             .Should().BeFalse("the authenticated read does not acquire anonymous authority");
-        typeof(GetOwnMembershipProfileQuery).IsDefined(typeof(LearnStack.SharedKernel.Tenancy.PublicSurfaceAttribute), false)
-            .Should().BeFalse("own Membership coverage does not acquire anonymous authority");
+        foreach (var request in new[] { typeof(GetOwnMembershipProfileQuery), typeof(GetOwnMembershipContextsQuery), typeof(GetOwnCapabilitiesQuery) })
+            request.IsDefined(typeof(LearnStack.SharedKernel.Tenancy.PublicSurfaceAttribute), false)
+                .Should().BeFalse("own Membership coverage does not acquire anonymous authority");
 
         var modules = ProductionAssemblies.All().Select(assembly => ModuleDefinition.ReadModule(assembly.Location)).ToArray();
         try
         {
             ExplicitReadOnlyModeOffenders(modules).Should().BeEmpty(
-                "Fix: keep exactly AccountSite in Tenancy and own Membership profile in Identity; the shared transaction owner consumes module-declared exact types only");
+                "Fix: keep exactly AccountSite in Tenancy and own Membership profile, contexts and capabilities in Identity; the shared transaction owner consumes module-declared exact types only");
             var registration = ReadOnlyTypes(modules).Single(type => type.FullName == ReadOnlyRegistration)
                 .Methods.Single(method => method.Name == nameof(TenantSiteRegistration.AddTenantSiteReads));
             var identityRegistration = ReadOnlyTypes(modules).Single(type => type.FullName == OwnProfileReadOnlyRegistration)
                 .Methods.Single(method => method.Name == nameof(IdentityFoundationRegistration.AddIdentityContextualFoundation));
             var registrations = new[] { registration, identityRegistration };
-            foreach (var owner in registrations)
-            {
-                var declared = owner.Body.Instructions.Single(instruction => instruction.Operand is MethodReference target
-                    && target.DeclaringType.FullName == ReadOnlyDeclaration && target.Name == ".ctor");
-                var literal = owner.Body.Instructions[owner.Body.Instructions.IndexOf(declared) - 2];
-                var originalType = literal.Operand;
-                literal.Operand = owner.Module.ImportReference(typeof(string));
-                try { AssertDirty(); }
-                finally { literal.Operand = originalType; }
-                literal.Operand = owner.Module.ImportReference(owner == registration
-                    ? typeof(GetOwnMembershipProfileQuery) : typeof(GetAccountSiteQuery));
-                try { AssertDirty(); }
-                finally { literal.Operand = originalType; }
-                foreach (var sensitiveRead in new[] { typeof(ListOrganizationsQuery), typeof(GetOrganizationDetailQuery) })
-                {
-                    literal.Operand = owner.Module.ImportReference(sensitiveRead);
-                    try { AssertDirty(); }
-                    finally { literal.Operand = originalType; }
-                }
-                var originalOpcode = literal.OpCode;
-                literal.OpCode = OpCodes.Nop;
-                try { AssertDirty(); }
-                finally { literal.OpCode = originalOpcode; }
-                var index = owner.Body.Instructions.IndexOf(declared);
-                owner.Body.Instructions.Remove(declared);
-                try { AssertDirty(); }
-                finally { owner.Body.Instructions.Insert(index, declared); }
-                var duplicate = Instruction.Create(OpCodes.Newobj, (MethodReference)declared.Operand);
-                owner.Body.Instructions.Add(duplicate);
-                try { AssertDirty(); }
-                finally { owner.Body.Instructions.Remove(duplicate); }
-            }
-            var construction = registration.Body.Instructions.Single(instruction => instruction.Operand is MethodReference target
-                && target.DeclaringType.FullName == ReadOnlyDeclaration && target.Name == ".ctor");
-            var identityConstruction = identityRegistration.Body.Instructions.Single(instruction => instruction.Operand is MethodReference target
-                && target.DeclaringType.FullName == ReadOnlyDeclaration && target.Name == ".ctor");
+            foreach (var owner in registrations) AssertReadOnlyProducerControls(owner, modules);
+            var constructions = registrations.SelectMany(owner => owner.Body.Instructions.Where(instruction =>
+                instruction.Operand is MethodReference target && target.DeclaringType.FullName == ReadOnlyDeclaration
+                    && target.Name == ".ctor")).ToArray();
 
             var behavior = ReadOnlyTypes(modules).Single(type => type.FullName == ReadOnlyBehavior);
             var catalog = ReadOnlyTypes(modules).Single(type => type.FullName == ReadOnlyCatalog);
@@ -113,13 +86,16 @@ public sealed partial class PersistenceConventionTests
                 owner.Body.Instructions.Add(acquisition);
                 AssertDirty();
                 owner.Body.Instructions.Remove(acquisition);
-                var registeredSingleton = owner == behaviorConstructor ? projection.Operand
-                    : owner.Body.Instructions.Single(instruction => instruction.Operand is GenericInstanceMethod target
-                        && IsReadOnlySingletonRegistration(owner, target)).Operand;
-                var duplicate = Instruction.Create(OpCodes.Call, (MethodReference)registeredSingleton);
-                owner.Body.Instructions.Add(duplicate);
-                AssertDirty();
-                owner.Body.Instructions.Remove(duplicate);
+                var registeredSingletons = owner == behaviorConstructor ? new[] { projection }
+                    : owner.Body.Instructions.Where(instruction => instruction.Operand is GenericInstanceMethod target
+                        && IsReadOnlySingletonRegistration(owner, target)).ToArray();
+                foreach (var registeredSingleton in registeredSingletons)
+                {
+                    var duplicate = Instruction.Create(OpCodes.Call, (MethodReference)registeredSingleton.Operand);
+                    owner.Body.Instructions.Add(duplicate);
+                    try { AssertDirty(); }
+                    finally { owner.Body.Instructions.Remove(duplicate); }
+                }
             }
 
             var field = catalog.Fields.Single();
@@ -136,6 +112,7 @@ public sealed partial class PersistenceConventionTests
             argument.Operand = originalArgument;
 
             foreach (var request in new[] { typeof(GetAccountSiteQuery), typeof(GetOwnMembershipProfileQuery),
+                         typeof(GetOwnMembershipContextsQuery), typeof(GetOwnCapabilitiesQuery),
                          typeof(ListOrganizationsQuery), typeof(GetOrganizationDetailQuery) })
             {
                 var hardcoded = Instruction.Create(OpCodes.Isinst, behavior.Module.ImportReference(request));
@@ -241,14 +218,16 @@ public sealed partial class PersistenceConventionTests
             ExplicitReadOnlyModeOffenders(modules).Should().BeEmpty("an unrelated type is a clean control");
             var extra = new MethodDefinition("Run", MethodAttributes.Public | MethodAttributes.Static, module.TypeSystem.Void);
             clean.Methods.Add(extra);
-            var identitySingleton = identityRegistration.Body.Instructions.Single(instruction => instruction.Operand is GenericInstanceMethod target
-                && IsReadOnlySingletonRegistration(identityRegistration, target));
-            foreach (var target in new[] { construction.Operand, identityConstruction.Operand,
+            var declarationTargets = constructions.Select(instruction => (MethodReference)instruction.Operand)
+                .Concat(registrations.SelectMany(owner => owner.Body.Instructions.Where(instruction =>
+                        instruction.Operand is GenericInstanceMethod target && IsReadOnlySingletonRegistration(owner, target)))
+                    .Select(instruction => (MethodReference)instruction.Operand));
+            foreach (var target in declarationTargets.Concat(new MethodReference[] {
                          catalog.NestedTypes.SelectMany(type => type.Methods).Where(method => method.HasBody)
                              .SelectMany(method => method.Body.Instructions).Select(instruction => instruction.Operand)
                              .OfType<MethodReference>().Single(target => target.DeclaringType.FullName == ReadOnlyDeclaration
                                  && target.Name == "get_RequestType"), registration, identityRegistration,
-                         projection.Operand, singleton.Operand, identitySingleton.Operand })
+                         (MethodReference)projection.Operand }))
             {
                 extra.Body.Instructions.Add(Instruction.Create(OpCodes.Call, (MethodReference)target));
                 AssertDirty();
@@ -286,19 +265,9 @@ public sealed partial class PersistenceConventionTests
             .Where(site => site.Instruction.Operand is MethodReference)
             .Select(site => (site.Method, site.Instruction, Target: (MethodReference)site.Instruction.Operand)).ToArray();
         var constructors = sites.Where(site => site.Target.DeclaringType.FullName == ReadOnlyDeclaration && site.Target.Name == ".ctor").ToArray();
-        Check(constructors.Select(site => ReadOnlyOwner(site.Method)), ReadOnlyProducers.Select(producer => producer.Owner).ToArray(),
-            "exact module-owned read-only declaration producers");
-        foreach (var site in constructors)
-        {
-            var producer = ReadOnlyProducers.SingleOrDefault(candidate => candidate.Owner == ReadOnlyOwner(site.Method));
-            var index = site.Method.Body.Instructions.IndexOf(site.Instruction);
-            if (producer.Owner is null || index < 2
-                || site.Method.Body.Instructions[index - 2] is not { OpCode.Code: Code.Ldtoken, Operand: TypeReference literal }
-                || literal.FullName != producer.Request || literal.Scope.Name != producer.Assembly
-                || site.Method.Body.Instructions[index - 1].Operand is not MethodReference conversion
-                || conversion.FullName != "System.Type System.Type::GetTypeFromHandle(System.RuntimeTypeHandle)")
-                offenders.Add("Each module declaration must name only its exact authenticated request CLR type literal");
-        }
+        Check(constructors.Select(site => ReadOnlyConstructionKey(site.Method, site.Instruction)),
+            ReadOnlyProducers.Select(producer => producer.Owner + "|" + producer.Request + "|" + producer.Assembly).ToArray(),
+            "exact module-owned read-only declaration owner, request and assembly tuples");
         Check(sites.Where(site => site.Target.DeclaringType.FullName == ReadOnlyDeclaration && site.Target.Name == "get_RequestType")
             .Select(site => ReadOnlyOwner(site.Method)), [ReadOnlyCatalog + "..ctor"], "read-only declaration consumers");
         Check(sites.Where(site => site.Target.DeclaringType.FullName == ReadOnlyRegistration && site.Target.Name == "AddTenantSiteReads")
@@ -393,6 +362,16 @@ public sealed partial class PersistenceConventionTests
             if (!actual.Order(StringComparer.Ordinal).SequenceEqual(expected.Order(StringComparer.Ordinal)))
                 offenders.Add("Unexpected " + subject);
         }
+    }
+
+    private static string ReadOnlyConstructionKey(MethodDefinition owner, Instruction construction)
+    {
+        var index = owner.Body.Instructions.IndexOf(construction);
+        if (construction.OpCode != OpCodes.Newobj || index < 2
+            || owner.Body.Instructions[index - 2] is not { OpCode.Code: Code.Ldtoken, Operand: TypeReference literal }
+            || owner.Body.Instructions[index - 1] is not { OpCode.Code: Code.Call, Operand: MethodReference conversion }
+            || conversion.FullName != "System.Type System.Type::GetTypeFromHandle(System.RuntimeTypeHandle)") return string.Empty;
+        return ReadOnlyOwner(owner) + "|" + literal.FullName + "|" + literal.Scope.Name;
     }
 
     private static bool ReadOnlyShape(TypeDefinition type, string propertyType, string property, string constructorArgument) =>

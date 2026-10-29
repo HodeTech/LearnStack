@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 2,121 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 2,205 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -178,7 +178,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 5 review round 2 and closeout (2026-10-29)](#p03-3-step-5-review-round-2-and-closeout-2026-10-29) — 62 lines
   - [P03-3 Step 6 — Durable protected outcomes and receipt disclosure (2026-10-29)](#p03-3-step-6--durable-protected-outcomes-and-receipt-disclosure-2026-10-29) — 83 lines
   - [P03-3 Step 6 review round 1 and permission-matrix correction (2026-10-29)](#p03-3-step-6-review-round-1-and-permission-matrix-correction-2026-10-29) — 26 lines
-  - [P03-3 Step 6 review round 2 and closeout (2026-10-29)](#p03-3-step-6-review-round-2-and-closeout-2026-10-29) — 33 lines
+  - [P03-3 Step 6 review round 2 and closeout (2026-10-29)](#p03-3-step-6-review-round-2-and-closeout-2026-10-29) — 34 lines
+  - [P03-3 Step 7 — Closed administration HTTP and generated SDK (2026-10-29)](#p03-3-step-7--closed-administration-http-and-generated-sdk-2026-10-29) — 83 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -7843,3 +7844,87 @@ reads, exact administration HTTP, fresh disclosure-aware replay admission,
 OpenAPI and generated SDK. Steps 8/9 retain native/provider/screens/browser/manual
 accessibility; Step 10 retains complete qualification and the reviewable PR.
 No work moves to another phase and no branch switch, push or PR occurs here.
+
+
+### P03-3 Step 7 — Closed administration HTTP and generated SDK (2026-10-29)
+
+The Accepted seventh step adds the remaining current-branch Membership directory,
+Role list/detail/permission registry, current-Tenant own-context navigation and
+nine advisory capability flags. Every application read independently admits
+current committed authority. Branch alternatives stay scoped. Configuration and
+other-person reads commit their MUST evidence before disclosure; own navigation
+remains explicitly Off. Four exact physical ReadOnly declarations preserve
+AccountSite and own profile/contexts/capabilities; receipt reads remain ReadWrite.
+
+Own-context navigation uses the named Tenancy Application.Contracts port on its
+ordinary owner. The separate coverage provider requires the exact active own
+invocation and fresh own Membership facts before and after label selection.
+Tenant-wide own coverage may derive Active branches; otherwise only the exact
+current branch participates. Cursor scope includes actor, Tenant, organization
+and coverage mode. No minter, logical setter, owner function or read hatch is added.
+
+**Transport.** Twenty new MVC actions join the existing member directory. The
+closed 31-action production classifier and runtime request/route/filter inventories
+pin exact policy, scheme, method and request identities. All ten protected writers
+use typed original-target receipts. Strict bounded UTF-8 JSON preserves duplicate,
+unknown and missing-field evidence; canonical IDs, exact scoped pairs and decimal
+string versions flow through OpenAPI, JSON, ETag and If-Match. Creation keeps
+201/Location; updates keep 200; malformed preconditions and valid stale tags retain
+their separate 400/409 meanings. Resource ETags survive private no-store handling;
+capability/context hints have no ETag and never grant a later operation.
+
+Completed-key HTTP admission first performs a nonmutating exact lookup. A private
+one-use request binding selects the current mutation or original-target disclosure
+policy before MVC resource filters. The retained snapshot never becomes a new
+claim after expiry/recycling. Fresh application receipt admission, MUST read commit
+and actual owner cleanup precede bytes. Lookup claims no capacity and extends no
+retention. The real HTTP proof replays a historical profile result after target
+revocation and profile-write loss while preserving current disclosure authority;
+a fresh unauthorized key creates no row. Consumed Role adoption replays its
+original receipt without repeating adoption.
+
+MVC projects one Idempotent action filter through two endpoint metadata references.
+An actual endpoint test first reproduces rejection of that framework projection.
+The classifier accepts only the one action declaration/filter and their two
+identical references; independent duplicates, wrong scope/order and substituted
+action identities still refuse. The generated SDK exposes 21 injected operations,
+bounded body cleanup, explicit result/header types and no automatic mutation retry.
+Public and AccountSite callers keep their separate closed transport contracts.
+
+**Local qualification.**
+
+- Complete solution Release/CI build: zero warnings/errors.
+- Unit: 3,426 passed, zero skips, including thirteen added MVC metadata controls.
+- Actual PostgreSQL/API/module/OpenAPI: 38 passed; completed-lookup owner/state/
+  capacity/detachment/cleanup controls: eight passed. All twenty new actions
+  refuse missing/invalid credentials; all ten writes have actual positive HTTP
+  coverage. Malformed bodies, stale versions, foreign targets and MUST INSERT/
+  deferred-COMMIT refusal withhold success.
+- Adjacent PostgreSQL migration/schema/privilege controls: 60 passed. Historical
+  reversible prefixes reach an empty schema; all three current forward-only heads
+  refuse their exact reversal and preserve catalog/history state. The exact
+  census is 56 tables, 16 Identity functions, 23 trigger callers and eight definers.
+- Offline HTTP: 426 passed, zero skips (Requires!=Docker)..
+- Contract: nine passed, including served/snapshot equality, exact 20-action/
+  17-path/24-schema controls and planted contract drift. Generated SDK: 146 passed;
+  typecheck, lint, native build and web typecheck pass after generation/formatting.
+- Affected Architecture: 56 cases; initial 54 pass and two control failures, then
+  both narrow corrections pass. The provider dependency rule still covers the
+  exact reader and every nested type; three HTTP gate calls each have their own
+  removal control. Exact caller, enrollment, read-mode and receipt boundaries pass.
+- Fragment/roadmap/delivery-index and whitespace checks pass.
+
+Earlier attempts remain failures: test-local NSubstitute value-ID matching and
+owner-fixture setup, ETag/wrong-method expectations, SDK lint/type declarations,
+explicit uniqueItems serialization and historical route/migration inventories
+are corrected and separately rerun. A mistyped offline trait filter also selected
+Docker cases; that task-owned run is interrupted and counts as no qualification.
+The correct closed filter is Requires!=Docker. No partial broad run substitutes
+for complete final-source testing.
+
+**Boundary.** This implementation awaits two fresh independent postcommit review
+rounds. Step 8 retains native entry/no-session/switch/refresh/operation ownership
+and real provider/native HTTPS; Step 9 retains screens, snapshot admission, browser
+history/no-script/localization/manual accessibility. Step 10 retains complete
+discovered zero-skip suites, public demo, final-source hosted A/B, final reviews
+and PR. No selected work moves to another phase; development remains the branch.

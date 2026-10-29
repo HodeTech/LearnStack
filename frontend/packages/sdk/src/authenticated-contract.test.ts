@@ -29,7 +29,7 @@ function ownershipErrors(
   publicContracts: Readonly<Record<string, string>>,
   authenticatedContracts: Readonly<Record<string, string>>,
   generated: {
-    paths: Record<string, { get?: { operationId: string }; post?: unknown }>;
+    paths: Record<string, { get?: { operationId: string }; post?: unknown; put?: unknown }>;
   } = snapshot,
 ): string[] {
   const errors: string[] = [];
@@ -54,12 +54,22 @@ function ownershipErrors(
 }
 
 describe('generated GET contract ownership', () => {
-  it('keeps AccountSite and the directory contracts authenticated without adding native directory transport', () => {
+  it('keeps every selected GET authenticated without expanding public or AccountSite transport', () => {
     expect(AUTHENTICATED_GET_CONTRACTS).toEqual({
       '/api/v1/account/site': 'GetAccountSite',
       '/api/v1/identity/memberships': 'ListMemberships',
       '/api/v1/identity/self': 'GetIdentitySelf',
       '/api/v1/identity/self/contexts': 'ListIdentitySelfContexts',
+      '/api/v1/identity/organization-memberships': 'ListOrganizationMemberships',
+      '/api/v1/identity/memberships/{id}': 'GetMembershipDetail',
+      '/api/v1/identity/me/profile': 'GetOwnMembershipProfile',
+      '/api/v1/identity/me/contexts': 'ListOwnMembershipContexts',
+      '/api/v1/identity/me/capabilities': 'GetOwnCapabilities',
+      '/api/v1/identity/roles': 'ListRoles',
+      '/api/v1/identity/roles/{id}': 'GetRoleDetail',
+      '/api/v1/identity/permissions': 'GetPermissionRegistry',
+      '/api/v1/tenancy/organizations': 'ListOrganizations',
+      '/api/v1/tenancy/organizations/{id}': 'GetOrganizationDetail',
     });
     expect(PUBLIC_GET_CONTRACTS).toEqual({
       '/api/v1/public/site': 'GetPublicSite',
@@ -71,7 +81,20 @@ describe('generated GET contract ownership', () => {
     expect(ownershipErrors(PUBLIC_GET_CONTRACTS, AUTHENTICATED_GET_CONTRACTS)).toEqual([]);
     expectTypeOf<Ownership>().toEqualTypeOf<true>();
     expectTypeOf<AuthenticatedGetOperation>().toEqualTypeOf<
-      'GetAccountSite' | 'ListMemberships' | 'GetIdentitySelf' | 'ListIdentitySelfContexts'
+      | 'GetAccountSite'
+      | 'ListMemberships'
+      | 'GetIdentitySelf'
+      | 'ListIdentitySelfContexts'
+      | 'ListOrganizationMemberships'
+      | 'GetMembershipDetail'
+      | 'GetOwnMembershipProfile'
+      | 'ListOwnMembershipContexts'
+      | 'GetOwnCapabilities'
+      | 'ListRoles'
+      | 'GetRoleDetail'
+      | 'GetPermissionRegistry'
+      | 'ListOrganizations'
+      | 'GetOrganizationDetail'
     >();
     expect(RootContracts).toBe(AUTHENTICATED_GET_CONTRACTS);
     expectTypeOf<RootAccountSite>().toEqualTypeOf<AccountSite>();

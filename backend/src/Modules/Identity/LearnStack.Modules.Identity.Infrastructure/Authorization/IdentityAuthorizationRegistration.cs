@@ -30,6 +30,7 @@ public static class IdentityAuthorizationRegistration
             () => provider.GetRequiredService<IIdentityAuthorizationReader>(), provider.GetRequiredService<IOperationPolicyCatalog>()));
         services.TryAddScoped<MembershipAdministrationAuthorization>();
         services.TryAddScoped<IdentityReceiptAuthorization>();
+        services.TryAddScoped<IdentityAdministrationReadAuthorization>();
         services.TryAddScoped<Func<MembershipAdministrationAuthorization>>(provider => () => provider.GetRequiredService<MembershipAdministrationAuthorization>());
         services.TryAddScoped<RoleGrantAuthorization>();
         services.TryAddScoped<Func<RoleGrantAuthorization>>(provider => () => provider.GetRequiredService<RoleGrantAuthorization>());

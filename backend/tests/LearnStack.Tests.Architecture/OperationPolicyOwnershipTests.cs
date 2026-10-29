@@ -21,6 +21,7 @@ public sealed partial class OperationPolicyOwnershipTests
     private const string Evaluator = "LearnStack.Modules.Identity.Application.Authorization.IdentityOperationAuthorizer";
     private const string RoleEvaluator = "LearnStack.Modules.Identity.Application.Authorization.RoleGrantAuthorization";
     private const string MemberEvaluator = "LearnStack.Modules.Identity.Application.Authorization.MembershipAdministrationAuthorization";
+    private const string ReadEvaluator = "LearnStack.Modules.Identity.Application.Authorization.IdentityAdministrationReadAuthorization";
     private const string ReceiptEvaluator = "LearnStack.Modules.Identity.Application.Authorization.IdentityReceiptAuthorization";
     private const string TenancyEvaluator = "LearnStack.Modules.Tenancy.Application.Authorization.TenancyAdministrationAuthorization";
     private static readonly (string Type, string Method, string Target, string Name)[] MemberChecks =
@@ -54,6 +55,17 @@ public sealed partial class OperationPolicyOwnershipTests
         (ReceiptEvaluator, "RecheckAsync", Invocation, "get_Policy"),
         (ReceiptEvaluator, "RecheckAsync", Invocation, "get_Candidate"),
     ];
+    private static readonly (string Type, string Method, string Target, string Name)[] AdministrationReadChecks =
+    [
+        (ReadEvaluator, "Matches", Invocation, "get_IsActive"),
+        (ReadEvaluator, "Matches", Candidate, "get_IsActive"),
+        (ReadEvaluator, "Matches", Decision, "get_IsActive"),
+        (ReadEvaluator, "Matches", Permissions + "IOperationPolicyCatalog", "TryGet"),
+        (ReadEvaluator, "RecheckAsync", Permissions + "IProtectedOperationAuthorizer", "AuthorizeAsync"),
+        (ReadEvaluator, "RecheckAsync", Invocation, "get_Policy"),
+        (ReadEvaluator, "RecheckAsync", Invocation, "get_Candidate"),
+        (ReadEvaluator, "ReadFactsAsync", "LearnStack.Modules.Identity.Application.Contracts.Authorization.IIdentityAuthorizationReader", "ReadAsync"),
+    ];
     private const string HttpSource = "LearnStack.Api.Authentication.TenantAuthorizationCandidateSource";
     private const string Unit = "LearnStack.Infrastructure.Persistence.NpgsqlUnitOfWork";
     private const string AuthorizationBehavior = "LearnStack.Application.Pipeline.AuthorizationBehavior`2";
@@ -64,6 +76,7 @@ public sealed partial class OperationPolicyOwnershipTests
         AssertLiveComposition();
         AssertTenancyCanonicalRecheck();
         AssertReceiptCanonicalRecheck();
+        AssertAdministrationReadCanonicalRecheck();
         using var census = Census.Read();
         Offenders(census).Should().BeEmpty("Fix: preserve the exact invocation/evaluator/read-owner authority chain and lifetime (ADR-0076)");
         foreach (var typeName in new[] { Invocation, Decision, Witness })
@@ -120,12 +133,15 @@ public sealed partial class OperationPolicyOwnershipTests
             (Frame, "Close", "System.Threading.Interlocked", "Exchange"),
             (Evaluator, "AuthorizeAsync", "LearnStack.Modules.Identity.Application.Contracts.Authorization.IIdentityAuthorizationReader", "ReadAsync"),
             (RoleEvaluator, "RecheckAsync", "LearnStack.Modules.Identity.Application.Contracts.Authorization.IIdentityAuthorizationReader", "ReadAsync"),
-            ("LearnStack.Api.Authentication.OperationAuthorizationHandler", "HandleAsync", Coordinator, "CheckHttpAsync"),
             ("LearnStack.Api.Authentication.OperationClassificationMiddleware", "InvokeAsync", Coordinator, "CheckHttpAsync"),
             ("LearnStack.Api.Authentication.LiveTenantMembershipReader", "CoversAsync", HttpSource, "ForValidatedScope"),
+            ("LearnStack.Api.Idempotency.ProtectedReplayHttpAdmission", "AuthorizeAsync", HttpSource, "ForValidatedScope"),
         }) Dirty(census, () => RemoveCall(census.Body(type, method), target, name));
-        foreach (var (type, method, target, name) in MemberChecks.Concat(TenancyChecks).Concat(ReceiptChecks))
+        foreach (var (type, method, target, name) in MemberChecks.Concat(TenancyChecks).Concat(ReceiptChecks).Concat(AdministrationReadChecks))
             Dirty(census, () => RemoveCall(census.Body(type, method), target, name));
+        foreach (var call in census.Body("LearnStack.Api.Idempotency.ProtectedReplayHttpAdmission", "AuthorizeAsync")
+                     .Body.Instructions.Where(instruction => IsCall(instruction, Coordinator, "CheckHttpAsync")).ToArray())
+            Dirty(census, () => RemoveInstruction(call));
         var bind = census.Body(Invocation, "TryBindRead");
         Dirty(census, () => RemoveInstruction(bind.Body.Instructions.Single(instruction => instruction.OpCode == OpCodes.Stfld
             && instruction.Operand is FieldReference field && field.Name == "_readBinding")));
@@ -176,6 +192,39 @@ public sealed partial class OperationPolicyOwnershipTests
                 "authorizer.AuthorizeAsync(invocation, invocation.Policy, invocation.Candidate!, cancellationToken)"));
     }
 
+    private static void AssertAdministrationReadCanonicalRecheck()
+    {
+        var source = File.ReadAllText(Path.Combine(SourceScan.SourceRoot,
+            "Modules/Identity/LearnStack.Modules.Identity.Application/Authorization/IdentityAdministrationReadAuthorization.cs"));
+        AdministrationReadCanonicalRecheckIsConfined(source).Should().BeTrue();
+        foreach (var (before, after) in new[]
+        {
+            ("authorizer.AuthorizeAsync(invocation, invocation.Policy, invocation.Candidate!, cancellationToken)",
+                "authorizer.AuthorizeAsync(invocations.CurrentInvocation!, invocation.Policy, invocation.Candidate!, cancellationToken)"),
+            ("invocation.Policy, invocation.Candidate!", "invocation.Policy, null!"),
+            ("invocation, invocation.Policy", "invocation, null!"),
+        })
+        {
+            var dirty = source.Replace(before, after, StringComparison.Ordinal);
+            dirty.Should().NotBe(source);
+            AdministrationReadCanonicalRecheckIsConfined(dirty).Should().BeFalse("administration read disclosure reuses exactly its admitted invocation, canonical policy and candidate");
+        }
+    }
+
+    private static bool AdministrationReadCanonicalRecheckIsConfined(string source)
+    {
+        var root = CSharpSyntaxTree.ParseText(source).GetRoot();
+        var gate = root.DescendantNodes().OfType<ClassDeclarationSyntax>()
+            .SingleOrDefault(type => type.Identifier.ValueText == "IdentityAdministrationReadAuthorization");
+        if (root.ContainsDiagnostics || gate is null) return false;
+        var authorization = gate.DescendantNodes().OfType<InvocationExpressionSyntax>()
+            .Where(call => call.Expression.ToString() == "authorizer.AuthorizeAsync").ToArray();
+        return authorization.Length == 1 && authorization[0].Ancestors().OfType<MethodDeclarationSyntax>()
+                .Single().Identifier.ValueText == "RecheckAsync"
+            && SyntaxFactory.AreEquivalent(authorization[0], SyntaxFactory.ParseExpression(
+                "authorizer.AuthorizeAsync(invocation, invocation.Policy, invocation.Candidate!, cancellationToken)"));
+    }
+
     private static List<string> Offenders(Census census)
     {
         var errors = new List<string>();
@@ -204,13 +253,14 @@ public sealed partial class OperationPolicyOwnershipTests
             (RoleEvaluator, "RecheckAsync", 2), (MemberEvaluator, "RecheckAsync", 2)]);
         Exact(Witness + "/MintingSource", "ForTenantRead", [(Decision + "/MintingSource", "ForDecision", 1)]);
         Exact(Permissions + "IProtectedOperationAuthorizer", "AuthorizeAsync", [(Coordinator, "ExecuteAsync", 1),
-            (TenancyEvaluator, "RecheckAsync", 1), (ReceiptEvaluator, "RecheckAsync", 1)]);
+            (TenancyEvaluator, "RecheckAsync", 1), (ReceiptEvaluator, "RecheckAsync", 1), (ReadEvaluator, "RecheckAsync", 1)]);
         Exact(Permissions + "IAuthorizationCandidateSource", "ForValidatedScope", [(Coordinator, "ExecuteAsync", 1)]);
         Exact(Coordinator, "ExecuteRequestAsync", [(AuthorizationBehavior, "Handle", 1)]);
         Exact(HttpSource, "ForValidatedScope", [(HttpSource, Permissions + "IAuthorizationCandidateSource.ForValidatedScope", 1),
             ("LearnStack.Api.Authentication.ConfirmedClaimAssertionSource", "Capture", 1),
-            ("LearnStack.Api.Authentication.LiveTenantMembershipReader", "CoversAsync", 1)]);
-        Exact(Coordinator, "CheckHttpAsync", [("LearnStack.Api.Authentication.OperationAuthorizationHandler", "HandleAsync", 1),
+            ("LearnStack.Api.Authentication.LiveTenantMembershipReader", "CoversAsync", 1),
+            ("LearnStack.Api.Idempotency.ProtectedReplayHttpAdmission", "AuthorizeAsync", 1)]);
+        Exact(Coordinator, "CheckHttpAsync", [("LearnStack.Api.Idempotency.ProtectedReplayHttpAdmission", "AuthorizeAsync", 3),
             ("LearnStack.Api.Authentication.OperationClassificationMiddleware", "InvokeAsync", 1)]);
         Exact(Witness, "TryBindTo", [(Unit, "SetTenantContextCoreAsync", 2)]);
         Exact(Witness, "IsBoundTo", [(Unit, "SetTenantContextCoreAsync", 1), (Unit, "ValidateOperationReadScope", 1)]);
@@ -235,7 +285,7 @@ public sealed partial class OperationPolicyOwnershipTests
         Require(Frame, "Close", "System.Threading.Interlocked", "Exchange");
         Require(Evaluator, "AuthorizeAsync", "LearnStack.Modules.Identity.Application.Contracts.Authorization.IIdentityAuthorizationReader", "ReadAsync");
         Require(RoleEvaluator, "RecheckAsync", "LearnStack.Modules.Identity.Application.Contracts.Authorization.IIdentityAuthorizationReader", "ReadAsync");
-        foreach (var (type, method, target, name) in MemberChecks.Concat(TenancyChecks).Concat(ReceiptChecks)) Require(type, method, target, name);
+        foreach (var (type, method, target, name) in MemberChecks.Concat(TenancyChecks).Concat(ReceiptChecks).Concat(AdministrationReadChecks)) Require(type, method, target, name);
         foreach (var property in new[] { "get_Unit", "get_Transaction", "get_Generation" })
             Require(Invocation, "IsReadBoundTo", Invocation + "/ReadBinding", property);
 

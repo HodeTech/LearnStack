@@ -335,5 +335,7 @@ with current original-target disclosure admission before stored bytes. Failed
 guard/audit retains the completed receipt, and original mutation evidence is not
 replayed. Off global-self/current-context navigation obtains Tenancy labels only
 through the separately confined own-discovery reader; the helper creates no
-independent resource intent or general cross-tenant directory. AccountSite remains
-Off under its actual-host ceiling, including the pending native-origin extension.
+independent resource intent or general cross-tenant directory. Own-current-Tenant
+navigation uses the separate invocation-bound ordinary ReadOnly contract and
+also adds no independent resource intent. AccountSite remains Off under its
+actual-host ceiling, including the separately validated native-session origin.

@@ -109,10 +109,14 @@ public sealed class AggregateWriteTests
             .Should().BeFalse("the exact untracked Role lookup is a read, not a second aggregate writer");
         TakesDomainObject(typeof(LearnStack.Modules.Identity.Application.Abstractions.IMembershipAdministrationReader), identityDomains)
             .Should().BeFalse("the exact detached Membership lookup does not mutate its typed key");
+        TakesDomainObject(typeof(LearnStack.Modules.Identity.Application.Abstractions.IIdentityAdministrationReadStore), identityDomains)
+            .Should().BeFalse("the exact branch seek and Role lookup only read their typed keys");
         TakesDomainObject(typeof(LearnStack.Modules.Identity.Application.Abstractions.IIdentityReceiptReader), identityDomains)
             .Should().BeFalse("the exact historical receipt keys identify roots without mutating them");
         foreach (var method in new[]
         {
+            typeof(LearnStack.Modules.Identity.Application.Abstractions.IIdentityAdministrationReadStore).GetMethod("ReadOrganizationMembersAsync")!,
+            typeof(LearnStack.Modules.Identity.Application.Abstractions.IIdentityAdministrationReadStore).GetMethod("ReadRoleAsync")!,
             typeof(LearnStack.Modules.Identity.Application.Abstractions.IRoleReadStore).GetMethod("LockAsync")!,
             typeof(LearnStack.Modules.Identity.Application.Abstractions.IRoleReadStore).GetMethod("ReadManyAsync")!,
             typeof(LearnStack.Modules.Identity.Application.Abstractions.IMembershipAdministrationReader).GetMethod("ReadDetailAsync")!,
@@ -238,6 +242,8 @@ public sealed class AggregateWriteTests
         typeof(LearnStack.Modules.Tenancy.Application.Abstractions.ISeedStateReader).GetMethod("ReadSettingAsync")!,
         typeof(LearnStack.Modules.Customization.Application.Abstractions.ISeedStateReader).GetMethod("ReadContentTypeAsync")!,
         typeof(LearnStack.Modules.Customization.Application.Abstractions.ISeedStateReader).GetMethod("ReadTaxonomyAsync")!,
+        typeof(LearnStack.Modules.Identity.Application.Abstractions.IIdentityAdministrationReadStore).GetMethod("ReadOrganizationMembersAsync")!,
+        typeof(LearnStack.Modules.Identity.Application.Abstractions.IIdentityAdministrationReadStore).GetMethod("ReadRoleAsync")!,
         typeof(LearnStack.Modules.Identity.Application.Abstractions.IRoleReadStore).GetMethod("ReadAsync")!,
         typeof(LearnStack.Modules.Identity.Application.Abstractions.IRoleReadStore).GetMethod("LockAsync")!,
         typeof(LearnStack.Modules.Identity.Application.Abstractions.IRoleReadStore).GetMethod("ReadManyAsync")!,

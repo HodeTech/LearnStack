@@ -24,6 +24,9 @@ public sealed partial class IdentityAuditConventionTests
     private const string MemberHandler = "LearnStack.Modules.Identity.Application.Memberships.MembershipAdministrationCommandHandlerBase";
     private const string MemberDetailHandler = "LearnStack.Modules.Identity.Application.Memberships.GetMembershipDetailQueryHandler";
     private const string OwnProfileHandler = "LearnStack.Modules.Identity.Application.Memberships.GetOwnMembershipProfileQueryHandler";
+    private const string ReadAuthorization = "LearnStack.Modules.Identity.Application.Authorization.IdentityAdministrationReadAuthorization";
+    private const string NavigationCoverage = "LearnStack.Modules.Identity.Application.Memberships.OwnTenantNavigationCoverage";
+    private const string NavigationReader = "LearnStack.Modules.Tenancy.Infrastructure.Persistence.OwnTenantNavigationReader";
     private const string ReceiptAuthorization = "LearnStack.Modules.Identity.Application.Authorization.IdentityReceiptAuthorization";
     private const string TenancyAuthorization = "LearnStack.Modules.Tenancy.Application.Authorization.TenancyAdministrationAuthorization";
     private const string TenancyStorageScope = "LearnStack.Modules.Tenancy.Infrastructure.Persistence.TenancyAdministrationStorageScope";
@@ -44,6 +47,10 @@ public sealed partial class IdentityAuditConventionTests
     private static readonly (string Owner, string Method, int Count)[] CurrentInvocationBorrowers =
     [
         (CentralEvidence, "Snapshot", 1),
+        (ReadAuthorization, "Current", 1),
+        (ReadAuthorization, "Matches", 1),
+        (NavigationCoverage, "ReadCurrentAsync", 1),
+        (NavigationReader, "Matches", 1),
         (TenancyAuthorization, "Matches", 1),
         (TenancyAuthorization, "AdmitReadAsync", 1),
         (ReceiptAuthorization, "Matches", 1),
@@ -75,6 +82,8 @@ public sealed partial class IdentityAuditConventionTests
 
     private static readonly (string Owner, string Method, int Count)[] CurrentDecisionBorrowers =
     [
+        (ReadAuthorization, "Matches", 1),
+        (NavigationReader, "Matches", 1),
         (RoleAuthorization, "Matches", 1),
         (RoleHandler, "ExecuteAsync", 1),
         (MemberAuthorization, "Matches", 1),
@@ -175,8 +184,10 @@ public sealed partial class IdentityAuditConventionTests
             (MemberAuthorization, "ReportRefusal", "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportResourceRefusal"),
             (TenancyAuthorization, "RecheckAsync", "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportRecheck"),
             (ReceiptAuthorization, "RecheckAsync", "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportRecheck"),
+            (ReadAuthorization, "RecheckAsync", "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportRecheck"),
             (TenancyAuthorization, "RecheckAsync", "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportResourceRefusal"),
             (ReceiptAuthorization, "RecheckAsync", "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportResourceRefusal"),
+            (ReadAuthorization, "RecheckAsync", "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportResourceRefusal"),
             (CentralEvidence, "Snapshot", InvocationContext, "get_CurrentInvocation"),
             (CentralEvidence, "RecordObservedDenial", "LearnStack.SharedKernel.Identifiers.IGuidFactory", "NewUuidV7"),
             (CentralEvidence, "RecordObservedDenial", "LearnStack.SharedKernel.Time.IClock", "get_UtcNow"),
@@ -301,9 +312,9 @@ public sealed partial class IdentityAuditConventionTests
         EvidenceCallers(census, errors, PolicyOwner, "get_CurrentDecision",
             [("LearnStack.Application.Persistence.TransactionExecutionCoordinator", "ExecuteFrameAsync", 1)]);
         EvidenceCallers(census, errors, "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportRecheck",
-            [(RoleAuthorization, "ReportRecheck", 1), (MemberAuthorization, "ReportRecheck", 1), (TenancyAuthorization, "RecheckAsync", 1), (ReceiptAuthorization, "RecheckAsync", 1)]);
+            [(RoleAuthorization, "ReportRecheck", 1), (MemberAuthorization, "ReportRecheck", 1), (TenancyAuthorization, "RecheckAsync", 1), (ReceiptAuthorization, "RecheckAsync", 1), (ReadAuthorization, "RecheckAsync", 1)]);
         EvidenceCallers(census, errors, "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportResourceRefusal",
-            [(RoleAuthorization, "ReportRefusal", 1), (MemberAuthorization, "ReportRefusal", 1), (TenancyAuthorization, "RecheckAsync", 1), (ReceiptAuthorization, "RecheckAsync", 1)]);
+            [(RoleAuthorization, "ReportRefusal", 1), (MemberAuthorization, "ReportRefusal", 1), (TenancyAuthorization, "RecheckAsync", 1), (ReceiptAuthorization, "RecheckAsync", 1), (ReadAuthorization, "RecheckAsync", 1)]);
         foreach (var (type, method, target, name) in new[]
         {
             (Occurrence, ".ctor", Occurrence, "CopyAddress"), (Occurrence, "get_Draft", Occurrence, "CopyAddress"),
@@ -317,8 +328,10 @@ public sealed partial class IdentityAuditConventionTests
             (MemberAuthorization, "ReportRefusal", "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportResourceRefusal"),
             (TenancyAuthorization, "RecheckAsync", "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportRecheck"),
             (ReceiptAuthorization, "RecheckAsync", "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportRecheck"),
+            (ReadAuthorization, "RecheckAsync", "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportRecheck"),
             (TenancyAuthorization, "RecheckAsync", "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportResourceRefusal"),
             (ReceiptAuthorization, "RecheckAsync", "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportResourceRefusal"),
+            (ReadAuthorization, "RecheckAsync", "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportResourceRefusal"),
             (CentralEvidence, "RecordObservedDenial", "LearnStack.SharedKernel.Identifiers.IGuidFactory", "NewUuidV7"),
             (CentralEvidence, "RecordObservedDenial", "LearnStack.SharedKernel.Time.IClock", "get_UtcNow"),
             (HttpTransport, "Capture", "LearnStack.Api.Authentication.OperationHttpClassifier", "Classify"),

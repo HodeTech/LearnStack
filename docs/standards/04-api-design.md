@@ -378,6 +378,16 @@ censuses must activate together; no catch-all BFF proxy follows. The
 [phase Status block](../roadmap/phase-03-identity-admin.md) records implementation
 and qualification, separately from these Accepted contracts.
 
+Protected HTTP authorization performs a nonmutating completed-receipt lookup
+before choosing the current mutation or original-target disclosure policy. A
+private request-bound admission carries that choice into the resource filter;
+missing, changed or reused admission refuses. Read admission never becomes a
+new claim after expiry or recycling. The filter still dispatches the independent
+MUST receipt read and joins actual owner cleanup before returning retained bytes.
+The lookup acquires no capacity fence, creates no key and extends no retention.
+The [storage/replay contract](05-database.md#p03-3-storage-and-replay-contract)
+owns durable key and outcome semantics.
+
 ## Pagination
 
 Cursor pagination by default:

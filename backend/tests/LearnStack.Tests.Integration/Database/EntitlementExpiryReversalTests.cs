@@ -14,7 +14,7 @@ namespace LearnStack.Tests.Integration.Database;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <see cref="MigrationRollbackTests"/> reverses every chain against an empty schema, which
+/// <see cref="MigrationRollbackTests"/> reverses historical chain prefixes against an empty schema, which
 /// is why the first version of this migration's <c>Down()</c> passed it: the scaffolder's
 /// backfill is an <c>UPDATE … WHERE valid_until IS NULL</c>, and as the
 /// <c>NOBYPASSRLS</c> owner of a <c>FORCE ROW LEVEL SECURITY</c> table it matched zero rows
@@ -29,7 +29,7 @@ namespace LearnStack.Tests.Integration.Database;
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
 public sealed class EntitlementExpiryReversalTests : IClassFixture<EntitlementExpiryReversalFixture>
 {
-    private const string Reversed = "20260910130327_platform_entitlement_cache_valid_until_nullable";
+    internal const string Reversed = "20260910130327_platform_entitlement_cache_valid_until_nullable";
     private const string Previous = "20260908120441_tenants_reject_platform_sentinel";
     private static readonly Guid Tenant = Guid.Parse("33333333-3333-7333-8333-333333333333");
 
@@ -166,7 +166,7 @@ public sealed class EntitlementExpiryReversalTests : IClassFixture<EntitlementEx
     }
 }
 
-/// <summary>A container of its own, every chain applied.</summary>
+/// <summary>A container at the exact nullable-expiry migration whose populated reversal is under test.</summary>
 public sealed class EntitlementExpiryReversalFixture : IAsyncLifetime
 {
     public PostgresFixture Postgres { get; } = new();
@@ -174,7 +174,12 @@ public sealed class EntitlementExpiryReversalFixture : IAsyncLifetime
     public async Task InitializeAsync()
     {
         await Postgres.InitializeAsync();
-        await MigrationChains.ApplyAllAsync(Postgres.MigrationConnectionString);
+        await using var tenancy = new TenancyDbContext(new DbContextOptionsBuilder<TenancyDbContext>()
+            .UseNpgsql(Postgres.MigrationConnectionString, provider =>
+                provider.MigrationsHistoryTable(TenancyDbContextFactory.HistoryTable)).Options,
+            StaticTenantContextAccessor.Unresolved);
+        await tenancy.GetService<IMigrator>().MigrateAsync(EntitlementExpiryReversalTests.Reversed);
+        (await tenancy.Database.GetAppliedMigrationsAsync()).Last().Should().Be(EntitlementExpiryReversalTests.Reversed);
     }
 
     public async Task DisposeAsync() => await Postgres.DisposeAsync();

@@ -333,6 +333,14 @@ They do not rerun the mutation or require its former write/adoption eligibility.
 The [phase Status block](../../roadmap/phase-03-identity-admin.md) owns transport
 activation and qualification.
 
+The closed Organization/default HTTP actions use these human handlers and
+receipt reads; generated OpenAPI and SDK shapes preserve exact IDs, string
+versions, conditional writes and creation Location. Own-current-Tenant navigation
+uses the separate `IOwnTenantNavigationReader` contract on the existing ReadOnly
+owner. [Identity's own-navigation boundary](../identity/README.md#bounded-entry-and-administration-contract)
+owns its invocation-bound coverage, cursor and branch derivation; it grants no
+general Organization enumeration or additional context setter.
+
 ### Warm seed and administration origins
 
 **Accepted contract.** Ordinary warm seed

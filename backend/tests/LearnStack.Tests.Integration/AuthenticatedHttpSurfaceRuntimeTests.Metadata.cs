@@ -1,11 +1,6 @@
 using FluentAssertions;
 using LearnStack.Api.Common;
-using LearnStack.Modules.Education.Application.Contracts.PublicReads;
-using LearnStack.Modules.Identity.Application.Contracts.Memberships;
-using LearnStack.Modules.Identity.Application.Contracts.Entry;
-using LearnStack.SharedKernel.Pagination;
-using LearnStack.Modules.Tenancy.Application.Contracts.Account;
-using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
+using LearnStack.Api.Idempotency;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -22,23 +17,13 @@ namespace LearnStack.Tests.Integration;
 public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
 {
     private sealed record EffectiveFilter(string Assembly, string Type, int Scope, int Order,
-        int FilterOrder, bool Reusable, Type? Implementation, int Arguments, int? Status, Type? ResponseType);
+        int FilterOrder, bool Reusable, Type? Implementation, int Arguments, int? Status, Type? ResponseType,
+        ProtectedAdministrationOperation? ProtectedOperation = null);
 
     private static void AssertActionFilters(ControllerActionDescriptor action)
     {
-        var response = action.MethodInfo.Name switch
-        {
-            "Get" => typeof(PublicSite),
-            "GetSite" => typeof(AccountSite),
-            "List" => typeof(Page<MembershipDirectoryItem>),
-            "Admit" when action.ControllerTypeInfo.AsType() == typeof(LearnStack.Api.Identity.NativeSessionAdmissionController)
-                => typeof(NativeSessionScopeAdmission),
-            "Catalog" => typeof(PublicCourseCatalog),
-            "Course" => typeof(PublicCourseDetail),
-            "Lesson" => typeof(PublicLessonDetail),
-            "Head" or "HeadCatalog" or "HeadCourse" or "HeadLesson" => typeof(void),
-            _ => throw new InvalidOperationException("Unclassified action response"),
-        };
+        var approved = Approved(action);
+        var response = approved.Response;
         var produces = response == typeof(void) ? typeof(ProducesResponseTypeAttribute)
             : typeof(ProducesResponseTypeAttribute<>).MakeGenericType(response);
         var actual = action.FilterDescriptors.Select(descriptor =>
@@ -50,17 +35,22 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
                 descriptor.Scope, descriptor.Order, filter is IOrderedFilter ordered ? ordered.Order : 0,
                 filter is IFilterFactory provider && provider.IsReusable,
                 factory?.ImplementationType ?? (filter as ServiceFilterAttribute)?.ServiceType,
-                factory?.Arguments?.Length ?? 0, output?.StatusCode, output?.Type);
+                factory?.Arguments?.Length ?? 0, output?.StatusCode, output?.Type,
+                (filter as IdempotentAttribute)?.ProtectedOperation);
         });
-        actual.Should().Equal(
+        List<EffectiveFilter> expected =
         [
             Framework("Microsoft.AspNetCore.Mvc.ModelBinding.UnsupportedContentTypeFilter", 10, -3000, -3000),
             Framework("Microsoft.AspNetCore.Mvc.Infrastructure.ClientErrorResultFilterFactory", 30, -2000, -2000, true),
             Framework("Microsoft.AspNetCore.Mvc.Infrastructure.ModelStateInvalidFilterFactory", 30, -2000, -2000, true),
             Framework(typeof(TypeFilterAttribute).FullName!, 10, 0, 0) with { Implementation = typeof(ProblemDetailsNormalizationFilter) },
             Framework(typeof(ApiControllerAttribute).FullName!, 20, 0, 0),
-            Framework(produces.FullName!, 30, 0, 0) with { Status = 200, ResponseType = response },
-        ], "Fix: preserve the exact effective action filters, factories, ordering and declared response metadata");
+        ];
+        if (approved.Protected is { } operation) expected.Add(new EffectiveFilter("LearnStack.Api",
+            "LearnStack.Api.Idempotency.IdempotentAttribute", 30, 0, 0, false, null, 0, null, null, operation));
+        expected.Add(Framework(produces.FullName!, 30, 0, 0) with
+        { Status = approved.Protected == ProtectedAdministrationOperation.CreateOrganization ? 201 : 200, ResponseType = response });
+        actual.Should().Equal(expected, "Fix: preserve the exact effective action filters, factories, ordering and declared response metadata");
 
         static EffectiveFilter Framework(string type, int scope, int order, int filterOrder, bool reusable = false) =>
             new("Microsoft.AspNetCore.Mvc.Core", type, scope, order, filterOrder, reusable, null, 0, null, null);
@@ -99,6 +89,14 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         normalizer.IsReusable = true;
         try { Refuses(); }
         finally { normalizer.IsReusable = false; }
+        if (Approved(action).Protected is not null)
+        {
+            var keyed = action.FilterDescriptors.Single(item => item.Filter is IdempotentAttribute);
+            var index = action.FilterDescriptors.IndexOf(keyed);
+            action.FilterDescriptors[index] = new FilterDescriptor(new IdempotentAttribute(), 30);
+            try { Refuses(); }
+            finally { Restore(); }
+        }
         AssertActionFilters(action);
 
         void Refuses()
@@ -134,7 +132,7 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         AssertFilterProviders(factory.Services.GetServices<IFilterProvider>());
         var actions = factory.Services.GetRequiredService<EndpointDataSource>().Endpoints
             .Select(endpoint => endpoint.Metadata.GetMetadata<ControllerActionDescriptor>()).OfType<ControllerActionDescriptor>().ToArray();
-        actions.Should().HaveCount(11);
+        AssertActionInventory(actions);
         foreach (var action in actions)
         {
             Action assert = () => AssertActionFilters(action);
@@ -158,7 +156,7 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         using var client = factory.CreateClient();
         var endpoints = factory.Services.GetRequiredService<EndpointDataSource>().Endpoints
             .Where(endpoint => endpoint.Metadata.GetMetadata<ControllerActionDescriptor>() is not null).ToArray();
-        endpoints.Should().HaveCount(11);
+        AssertActionInventory(endpoints.Select(endpoint => endpoint.Metadata.GetMetadata<ControllerActionDescriptor>()!));
         foreach (var endpoint in endpoints)
         {
             var action = endpoint.Metadata.GetMetadata<ControllerActionDescriptor>()!;

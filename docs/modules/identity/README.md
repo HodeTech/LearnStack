@@ -402,11 +402,22 @@ fences, with no shared-to-exclusive upgrade. The owning transaction validates
 the graph/last-admin invariant and commits MUST audit with the change. Module
 mutation results retain the exact MembershipId and version for later transport.
 
-These six application consumers add no HTTP route or native screen. Current-branch
-directory, Role list/detail/permission-registry reads, own-capability previews,
-administration HTTP/SDK/native/browser consumers remain governed by the
+The closed HTTP/OpenAPI surface uses these application consumers and the
+current-branch directory, Role list/detail/registry, own-context and capability
+reads. The SDK supplies injected, bounded operation wrappers; native/browser
+activation and qualification remain governed by the
 [phase Status block](../../roadmap/phase-03-identity-admin.md). Receipt disclosure
 uses the six closed Identity/Tenancy application reads described below.
+
+Own-current-Tenant context navigation uses Tenancy's named
+`IOwnTenantNavigationReader` contract on the existing ordinary ReadOnly owner.
+Its separate `IOwnTenantNavigationCoverage` provider reads fresh own Membership
+facts before and after label selection, bound to the exact active own-context
+invocation. A tenant-wide own Membership permits active branch choices; otherwise
+only the current branch participates. This adds no general organization reader,
+tenant-wide scope hatch, setter or owner function. Cursors bind the actor, Tenant,
+organization and coverage mode. Own-capability preview projects nine finite flags
+without running denied operations or caching authorization.
 
 The existing Role grant/adoption writers use the eight finite templates.
 [Standard 19](../../standards/19-permissions.md#bounded-administration-and-version-2-adoption)

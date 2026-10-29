@@ -304,9 +304,9 @@ public sealed partial class GlobalIdentitySchemaTests
                     : attributes.Contains("STABLE", StringComparison.Ordinal) ? "s" : "v",
                 attributes.Contains("STRICT", StringComparison.Ordinal));
         }).OrderBy(function => function.Name, StringComparer.Ordinal).ToArray();
-        functions.Should().HaveCount(15, "all applied Identity migrations retain the complete global/contextual/self-entry function set");
+        functions.Should().HaveCount(16, "all applied Identity migrations retain the complete global/contextual/self-entry and Role-release function set");
         functions.Count(function => function.Definer).Should().Be(8);
-        functions.SelectMany(function => function.Triggers).Should().HaveCount(20);
+        functions.SelectMany(function => function.Triggers).Should().HaveCount(23);
         var globalNames = EffectiveFunctionDeclarations(migrationSql[0])
             .Select(match => match.Groups["name"].Value.ToLowerInvariant()).ToHashSet(StringComparer.Ordinal);
         globalNames.Should().NotBeEmpty("the first Identity migration installs its confined global functions");

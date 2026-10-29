@@ -185,7 +185,7 @@ public sealed class ProtectedIdempotencyLifecycleTests
 
     private static ProtectedIdempotencyFilter Filter(IIdempotencyStore store, ITenantContext tenant,
         IIdempotencyBusinessOwnerCleanup cleanup, ISender sender, ProtectedAdministrationOperation operation) =>
-        new(store, tenant, cleanup, sender, NullLogger<IdempotencyFilter>.Instance, NullLogger<ProtectedIdempotencyFilter>.Instance, operation);
+        new(store, tenant, cleanup, sender, NullLogger<ProtectedIdempotencyFilter>.Instance, operation);
     private static ITenantContext Context()
     {
         var context = Substitute.For<ITenantContext>();

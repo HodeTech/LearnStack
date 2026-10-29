@@ -15,9 +15,12 @@ public static class MembershipDirectoryCursorCodec
     private static readonly JsonDocumentOptions Options = new() { MaxDepth = 2 };
 
     public static string Scope(UserId actor, TenantId tenant, OrganizationId? organization) =>
+        Scope(actor, tenant, organization, IdentityOperationPolicySource.MembershipDirectoryOperation);
+
+    internal static string Scope(UserId actor, TenantId tenant, OrganizationId? organization, string operation) =>
         Convert.ToHexStringLower(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new object?[]
         {
-            1, IdentityOperationPolicySource.MembershipDirectoryOperation, actor.Value.ToString("D"),
+            1, operation, actor.Value.ToString("D"),
             tenant.Value.ToString("D"), organization?.Value.ToString("D"), "membership_id:asc",
         })));
 

@@ -106,6 +106,16 @@ public sealed record IdempotencyClaimResult(
 /// </remarks>
 public interface IIdempotencyStore
 {
+    /// <summary>Reads a detached snapshot of an exact, unexpired completed outcome without claiming or changing its key.</summary>
+    /// <remarks>
+    /// Missing, mismatched, expired, in-flight and unreplayable rows return null
+    /// without exposing their metadata. This read takes no capacity fence and
+    /// never extends retention. A caller admitted to disclose its snapshot must
+    /// not later turn that read admission into a mutation claim.
+    /// </remarks>
+    Task<IdempotentResponse?> ReadCompletedAsync(
+        TenantId tenantId, string key, string fingerprint, CancellationToken cancellationToken);
+
     /// <summary>
     /// Claims the key for this request, or reports who already has it.
     /// </summary>

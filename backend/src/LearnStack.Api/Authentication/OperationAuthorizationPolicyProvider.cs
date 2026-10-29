@@ -1,5 +1,8 @@
 using LearnStack.Application.Authorization;
+using LearnStack.Api.Idempotency;
+using LearnStack.SharedKernel.Idempotency;
 using LearnStack.SharedKernel.Permissions;
+using LearnStack.SharedKernel.Tenancy;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
 
@@ -18,13 +21,18 @@ internal sealed class OperationAuthorizationPolicyProvider(IOptions<Authorizatio
         if (!policyName.StartsWith(OperationPolicyRequirement.Prefix, StringComparison.Ordinal))
             return base.GetPolicyAsync(policyName);
         var policy = catalog.All.SingleOrDefault(policy => OperationPolicyRequirement.Prefix + policy.Id == policyName);
-        return Task.FromResult(policy is { Kind: OperationPolicyKind.Protected or OperationPolicyKind.AccountRead or OperationPolicyKind.NativeSessionAdmission }
+        return Task.FromResult(policy is
+        {
+            Kind: OperationPolicyKind.Protected or OperationPolicyKind.AccountRead
+            or OperationPolicyKind.NativeSessionAdmission or OperationPolicyKind.OwnMembershipRead
+        }
             ? new AuthorizationPolicy([new OperationPolicyRequirement(policy)], [TenantAuthenticationRegistration.Scheme]) : null);
     }
 }
 
 internal sealed class OperationAuthorizationHandler(OperationHttpClassifier classifier,
-    Func<OperationAuthorizationCoordinator> operations)
+    Func<OperationAuthorizationCoordinator> operations, IIdempotencyStore store,
+    ITenantContext tenantContext, TenantAuthorizationCandidateSource candidates)
     : IAuthorizationHandler
 {
     public async Task HandleAsync(AuthorizationHandlerContext context)
@@ -52,7 +60,8 @@ internal sealed class OperationAuthorizationHandler(OperationHttpClassifier clas
                     context.Fail();
                     continue;
                 }
-                var response = await operations().CheckHttpAsync(policy.RequestType, http.GetEndpoint()!, http.RequestAborted);
+                var response = await ProtectedReplayHttpAdmission.AuthorizeAsync(http, policy, classifier,
+                    tenantContext, store, candidates, operations);
                 if (response.IsSuccess) context.Succeed(requirement);
                 else
                 {

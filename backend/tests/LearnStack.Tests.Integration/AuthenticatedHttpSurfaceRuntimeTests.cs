@@ -3,13 +3,19 @@ using FluentAssertions;
 using LearnStack.Api.Account;
 using LearnStack.Api.PublicReads;
 using LearnStack.Api.Identity;
+using LearnStack.Api.Idempotency;
 using LearnStack.Api.Pagination;
 using LearnStack.Api.Tenancy;
 using LearnStack.Modules.Education.Application.Contracts.PublicReads;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Application.Contracts.Entry;
+using LearnStack.Modules.Identity.Application.Contracts.Roles;
 using LearnStack.Modules.Tenancy.Application.Contracts.Account;
 using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
+using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
+using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Pagination;
+using LearnStack.SharedKernel.Tenancy;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
@@ -30,6 +36,51 @@ namespace LearnStack.Tests.Integration;
 [Collection(TenantAuthenticationDiagnosticsTestGroup.Name)]
 public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
 {
+    private sealed record SurfaceAction(string Path, string Verb, Type Controller, string Action, Type Request,
+        Type Response, string? Policy = null, ProtectedAdministrationOperation? Protected = null);
+
+    // This literal wire/caller inventory is independent of production classifiers and descriptors.
+    private static readonly SurfaceAction[] ApprovedActions =
+    [
+        new("public/site", "GET", typeof(PublicSiteController), "Get", typeof(GetPublicSiteQuery), typeof(PublicSite)),
+        new("public/site", "HEAD", typeof(PublicSiteController), "Head", typeof(GetPublicSiteQuery), typeof(void)),
+        new("public/courses", "GET", typeof(PublicEducationController), "Catalog", typeof(GetPublicCoursesQuery), typeof(PublicCourseCatalog)),
+        new("public/courses", "HEAD", typeof(PublicEducationController), "HeadCatalog", typeof(GetPublicCoursesQuery), typeof(void)),
+        new("public/courses/{slug}", "GET", typeof(PublicEducationController), "Course", typeof(GetPublicCourseQuery), typeof(PublicCourseDetail)),
+        new("public/courses/{slug}", "HEAD", typeof(PublicEducationController), "HeadCourse", typeof(GetPublicCourseQuery), typeof(void)),
+        new("public/courses/{slug}/lessons/{lessonSlug}", "GET", typeof(PublicEducationController), "Lesson", typeof(GetPublicLessonQuery), typeof(PublicLessonDetail)),
+        new("public/courses/{slug}/lessons/{lessonSlug}", "HEAD", typeof(PublicEducationController), "HeadLesson", typeof(GetPublicLessonQuery), typeof(void)),
+        new("account/site", "GET", typeof(AccountController), "GetSite", typeof(GetAccountSiteQuery), typeof(AccountSite), "tenancy.account_site.read"),
+        new("identity/memberships", "GET", typeof(MembershipsController), "List", typeof(ListMembershipsQuery), typeof(Page<MembershipDirectoryItem>), "identity.membership.list"),
+        new("identity/session-scope/admissions", "POST", typeof(NativeSessionAdmissionController), "Admit", typeof(AdmitNativeSessionScopeCommand), typeof(NativeSessionScopeAdmission), "identity.membership.admit_session_scope"),
+        new("identity/memberships/{id}", "GET", typeof(MembershipsController), "Get", typeof(GetMembershipDetailQuery), typeof(MembershipDetailResponse), "identity.membership.read"),
+        new("identity/memberships/{id}/profile", "PUT", typeof(MembershipsController), "SetProfile", typeof(SetMembershipProfileCommand), typeof(AdministrationVersionReceipt), "identity.membership_profile.write", ProtectedAdministrationOperation.SetMembershipProfile),
+        new("identity/memberships/{id}/role-assignments", "PUT", typeof(MembershipsController), "ReplaceRoles", typeof(ReplaceMembershipRoleAssignmentsCommand), typeof(AdministrationVersionReceipt), "identity.membership.replace_role_assignments", ProtectedAdministrationOperation.ReplaceMembershipRoleAssignments),
+        new("identity/memberships/{id}/status", "PUT", typeof(MembershipsController), "ChangeStatus", typeof(ChangeMembershipStatusCommand), typeof(AdministrationVersionReceipt), "identity.membership.change_status", ProtectedAdministrationOperation.ChangeMembershipStatus),
+        new("identity/organization-memberships", "GET", typeof(OrganizationMembershipsController), "List", typeof(ListOrganizationMembershipsQuery), typeof(Page<MembershipDirectoryItem>), "identity.membership.list_organization"),
+        new("identity/me/profile", "GET", typeof(OwnMembershipController), "GetProfile", typeof(GetOwnMembershipProfileQuery), typeof(OwnMembershipProfileResponse), "identity.membership_profile.read_own"),
+        new("identity/me/profile", "PUT", typeof(OwnMembershipController), "SetProfile", typeof(SetOwnMembershipProfileCommand), typeof(AdministrationVersionReceipt), "identity.membership_profile.write_own", ProtectedAdministrationOperation.SetOwnMembershipProfile),
+        new("identity/me/contexts", "GET", typeof(OwnMembershipController), "Contexts", typeof(GetOwnMembershipContextsQuery), typeof(OwnMembershipContextPage), "identity.membership.list_own_contexts"),
+        new("identity/me/capabilities", "GET", typeof(OwnMembershipController), "Capabilities", typeof(GetOwnCapabilitiesQuery), typeof(OwnCapabilitiesDto), "identity.membership.read_own_capabilities"),
+        new("identity/roles", "GET", typeof(RolesController), "List", typeof(ListRolesQuery), typeof(RoleDirectoryResponse), "identity.role.list"),
+        new("identity/roles/{id}", "GET", typeof(RolesController), "Get", typeof(GetRoleDetailQuery), typeof(RoleDetailResponse), "identity.role.read"),
+        new("identity/roles/{id}/grants", "PUT", typeof(RolesController), "ChangeGrants", typeof(ChangeRoleGrantsCommand), typeof(AdministrationVersionReceipt), "identity.role.change_grants", ProtectedAdministrationOperation.ChangeRoleGrants),
+        new("identity/roles/{id}/manifest-adoptions", "POST", typeof(RolesController), "AdoptManifest", typeof(AdoptRoleGrantManifestCommand), typeof(AdministrationVersionReceipt), "identity.role.adopt_manifest", ProtectedAdministrationOperation.AdoptRoleGrantManifest),
+        new("identity/permissions", "GET", typeof(PermissionsController), "List", typeof(GetPermissionRegistryQuery), typeof(PermissionRegistryResponse), "identity.role.list_permissions"),
+        new("tenancy/organizations", "GET", typeof(OrganizationsController), "List", typeof(ListOrganizationsQuery), typeof(OrganizationDirectoryResponse), "tenancy.organization.list"),
+        new("tenancy/organizations/{id}", "GET", typeof(OrganizationsController), "Get", typeof(GetOrganizationDetailQuery), typeof(OrganizationResponse), "tenancy.organization.read"),
+        new("tenancy/organizations", "POST", typeof(OrganizationsController), "Create", typeof(CreateManagedOrganizationCommand), typeof(AdministrationVersionReceipt), "tenancy.organization.create", ProtectedAdministrationOperation.CreateOrganization),
+        new("tenancy/organizations/{id}", "PUT", typeof(OrganizationsController), "Rename", typeof(RenameOrganizationCommand), typeof(AdministrationVersionReceipt), "tenancy.organization.rename", ProtectedAdministrationOperation.RenameOrganization),
+        new("tenancy/organizations/{id}/archive", "POST", typeof(OrganizationsController), "Archive", typeof(ArchiveOrganizationCommand), typeof(AdministrationVersionReceipt), "tenancy.organization.archive", ProtectedAdministrationOperation.ArchiveOrganization),
+        new("tenancy/default-organization", "PUT", typeof(DefaultOrganizationController), "Select", typeof(SelectDefaultOrganizationCommand), typeof(AdministrationVersionReceipt), "tenancy.organization.select_default", ProtectedAdministrationOperation.SelectDefaultOrganization),
+    ];
+    private static readonly Type[] ContextControllers =
+        [typeof(MembershipsController), typeof(OwnMembershipController), typeof(RolesController), typeof(OrganizationsController), typeof(DefaultOrganizationController)];
+    private const string CensusTarget = "018f4d40-0000-7000-8000-000000000011";
+
+    private static SurfaceAction Approved(ControllerActionDescriptor action) => ApprovedActions.Single(expected =>
+        expected.Controller == action.ControllerTypeInfo.AsType() && expected.Action == action.MethodInfo.Name);
+
     [Theory]
     [InlineData("Development")]
     [InlineData("Production")]
@@ -53,7 +104,7 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
             {
                 AssertActionFilterControls(action);
                 AssertEndpointAuthorizationControls(action, endpoint.Metadata);
-                request = await DispatchedRequest(action);
+                request = await DispatchedRequest(action, endpoint);
             }
             actual.Add((endpoint.RoutePattern.RawText ?? string.Empty).TrimStart('/') + "|"
                 + string.Join(",", endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods ?? []) + "|"
@@ -94,9 +145,7 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         AssertEndpointAuthorization(action, metadata);
         Action extra = () => AssertEndpointAuthorization(action, metadata.Append(new UnexpectedAnonymousAttribute()));
         extra.Should().Throw<Xunit.Sdk.XunitException>("custom IAllowAnonymous metadata cannot augment any approved MVC endpoint");
-        if (action.ControllerTypeInfo.AsType() != typeof(AccountController)
-            && action.ControllerTypeInfo.AsType() != typeof(MembershipsController)
-            && action.ControllerTypeInfo.AsType() != typeof(NativeSessionAdmissionController))
+        if (Approved(action).Policy is null)
         {
             Action substitute = () => AssertEndpointAuthorization(action,
                 metadata.Where(item => item is not IAllowAnonymous).Append(new UnexpectedAnonymousAttribute()));
@@ -123,23 +172,46 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         var authorizations = items.OfType<IAuthorizeData>().ToArray();
         items.OfType<AuthorizationPolicy>().Should().BeEmpty("explicit policies are a separate framework authorization channel");
         items.OfType<IAuthorizationRequirementData>().Should().BeEmpty("requirement metadata must not augment the approved authorization contract");
-        if (action.ControllerTypeInfo.AsType() == typeof(AccountController)
-            || action.ControllerTypeInfo.AsType() == typeof(MembershipsController)
-            || action.ControllerTypeInfo.AsType() == typeof(NativeSessionAdmissionController))
+        var expected = Approved(action);
+        if (expected.Policy is not null)
         {
             anonymous.Should().BeEmpty("authenticated endpoint metadata must never bypass authorization");
             var authorization = authorizations.Should().ContainSingle().Which.Should().BeOfType<AuthorizeAttribute>().Subject;
             authorization.AuthenticationSchemes.Should().Be("TenantBearer");
             authorization.Roles.Should().BeNull();
-            authorization.Policy.Should().Be("LearnStackOperation:" + (action.ControllerTypeInfo.AsType() == typeof(AccountController)
-                ? "tenancy.account_site.read" : action.ControllerTypeInfo.AsType() == typeof(MembershipsController)
-                    ? "identity.membership.list" : "identity.membership.admit_session_scope"));
+            authorization.Policy.Should().Be("LearnStackOperation:" + expected.Policy);
         }
         else
         {
             authorizations.Should().BeEmpty("public endpoints have no authorization metadata");
             anonymous.Should().ContainSingle().Which.Should().BeOfType<AllowAnonymousAttribute>();
         }
+        var keyed = items.OfType<IdempotentAttribute>().ToArray();
+        var declarations = action.EndpointMetadata?.OfType<IdempotentAttribute>().ToArray() ?? [];
+        var filters = action.FilterDescriptors.Where(descriptor => descriptor.Filter is IdempotentAttribute).ToArray();
+        if (expected.Protected is { } operation)
+        {
+            var declaration = declarations.Should().ContainSingle().Which;
+            declaration.ProtectedOperation.Should().Be(operation);
+            filters.Should().ContainSingle().Which.Filter.Should().BeSameAs(declaration);
+            keyed.Should().HaveCount(2, "MVC projects one action filter through both metadata sources");
+            keyed.Should().OnlyContain(value => ReferenceEquals(value, declaration));
+        }
+        else
+        {
+            keyed.Should().BeEmpty();
+            declarations.Should().BeEmpty();
+            filters.Should().BeEmpty();
+        }
+    }
+
+    private static void AssertActionInventory(IEnumerable<ControllerActionDescriptor> actions)
+    {
+        var actual = actions.ToArray();
+        actual.Should().HaveCount(31);
+        actual.Select(action => action.ControllerTypeInfo.FullName + "." + action.MethodInfo.Name).Order(StringComparer.Ordinal)
+            .Should().Equal(ApprovedActions.Select(expected => expected.Controller.FullName + "." + expected.Action).Order(StringComparer.Ordinal),
+                "every convention must reach exactly the approved controller/action multiset");
     }
 
     private static void AssertFilterProviders(IEnumerable<IFilterProvider> providers) =>
@@ -225,29 +297,38 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         public void OnProvidersExecuted(FilterProviderContext context) => ArgumentNullException.ThrowIfNull(context);
     }
 
-    private static async Task<Type> DispatchedRequest(ControllerActionDescriptor action)
+    private static async Task<Type> DispatchedRequest(ControllerActionDescriptor action, RouteEndpoint endpoint)
     {
+        var expected = Approved(action);
         var sender = DispatchProxy.Create<ISender, RequestObservation>();
         var observation = (RequestObservation)sender;
-        var controller = (ControllerBase)Activator.CreateInstance(action.ControllerTypeInfo.AsType(), sender)!;
+        var controllerType = action.ControllerTypeInfo.AsType();
+        object[] constructor = ContextControllers.Contains(controllerType) ? [sender, new CensusTenantContext()] : [sender];
+        var controller = (ControllerBase)Activator.CreateInstance(controllerType, constructor)!;
         var context = new DefaultHttpContext();
+        context.SetEndpoint(endpoint);
         context.Features.Set(HostClassification.Platform("census.invalid"));
-        using var admissionBody = new MemoryStream("{}"u8.ToArray());
-        if (action.ControllerTypeInfo.AsType() == typeof(NativeSessionAdmissionController))
+        context.Request.Method = expected.Verb;
+        context.Request.Path = "/api/v1/" + expected.Path.Replace("{id}", CensusTarget, StringComparison.Ordinal);
+        var body = expected.Protected is { } operation ? CensusBody(operation)
+            : controllerType == typeof(NativeSessionAdmissionController) ? "{}" : string.Empty;
+        using var input = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(body));
+        context.Request.Body = input;
+        context.Request.ContentLength = input.Length;
+        if (body.Length != 0) context.Request.ContentType = "application/json";
+        if (expected.Protected is not null)
         {
-            // Exercise the admitted empty input so this dispatch census observes
-            // the actual command; the sender probe stops before witness publication.
-            context.Request.Method = HttpMethods.Post;
-            context.Request.ContentType = "application/json";
-            context.Request.ContentLength = admissionBody.Length;
-            context.Request.Body = admissionBody;
+            // This census stops at Send: valid closed input and the actual built endpoint
+            // let it observe the typed carrier without claiming a live authorization proof.
+            context.Request.Headers["Idempotency-Key"] = "census-command-key";
+            if (expected.Protected != ProtectedAdministrationOperation.CreateOrganization) context.Request.Headers.IfMatch = "\"7\"";
         }
         controller.ControllerContext = new ControllerContext { HttpContext = context };
         var arguments = action.MethodInfo.GetParameters().Select(parameter => parameter.ParameterType switch
         {
             var type when type == typeof(CancellationToken) => (object)CancellationToken.None,
             var type when type == typeof(CursorPaginationRequest) => new CursorPaginationRequest(),
-            var type when type == typeof(string) => "census-slug",
+            var type when type == typeof(string) => parameter.Name == "id" ? CensusTarget : "census-slug",
             _ => throw new InvalidOperationException("Unclassified action parameter"),
         }).ToArray();
         var execution = (Task)action.MethodInfo.Invoke(controller, arguments)!;
@@ -256,22 +337,35 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         return observation.Requests.Should().ContainSingle("each discovered production action sends its exact request once").Which;
     }
 
+    private static string CensusBody(ProtectedAdministrationOperation operation) => operation switch
+    {
+        ProtectedAdministrationOperation.SetMembershipProfile or ProtectedAdministrationOperation.SetOwnMembershipProfile => "{\"displayName\":null,\"preferredLocale\":null}",
+        ProtectedAdministrationOperation.ChangeMembershipStatus => "{\"status\":\"Suspended\"}",
+        ProtectedAdministrationOperation.ReplaceMembershipRoleAssignments => "{\"roleIds\":[]}",
+        ProtectedAdministrationOperation.ChangeRoleGrants => "{\"grants\":[]}",
+        ProtectedAdministrationOperation.AdoptRoleGrantManifest => "{\"manifestVersion\":2,\"manifestFingerprint\":\"" + new string('a', 64) + "\"}",
+        ProtectedAdministrationOperation.CreateOrganization => "{\"slug\":\"census-branch\",\"displayName\":\"Census\"}",
+        ProtectedAdministrationOperation.RenameOrganization => "{\"displayName\":\"Census\"}",
+        ProtectedAdministrationOperation.ArchiveOrganization => "{}",
+        ProtectedAdministrationOperation.SelectDefaultOrganization => "{\"organizationId\":\"" + CensusTarget + "\"}",
+        _ => throw new InvalidOperationException("Unclassified protected census input"),
+    };
+
+    private sealed class CensusTenantContext : ITenantContext
+    {
+        public bool IsResolved => true;
+        public TenantId TenantId { get; } = LearnStack.SharedKernel.Identifiers.TenantId.From(Guid.Parse("018f4d40-0000-7000-8000-000000000022"));
+        public OrganizationId? OrganizationId => null;
+        public UserId? UserId { get; } = LearnStack.SharedKernel.Identifiers.UserId.From(Guid.Parse("018f4d40-0000-7000-8000-000000000033"));
+        public string? CorrelationId => null;
+        public string? ModuleName => null;
+    }
+
     private static void AssertUnion(IEnumerable<string> actual)
     {
-        var mvc = new[]
-        {
-            Mvc("public/site", "GET", typeof(PublicSiteController), "Get", typeof(GetPublicSiteQuery)),
-            Mvc("public/site", "HEAD", typeof(PublicSiteController), "Head", typeof(GetPublicSiteQuery)),
-            Mvc("public/courses", "GET", typeof(PublicEducationController), "Catalog", typeof(GetPublicCoursesQuery)),
-            Mvc("public/courses", "HEAD", typeof(PublicEducationController), "HeadCatalog", typeof(GetPublicCoursesQuery)),
-            Mvc("public/courses/{slug}", "GET", typeof(PublicEducationController), "Course", typeof(GetPublicCourseQuery)),
-            Mvc("public/courses/{slug}", "HEAD", typeof(PublicEducationController), "HeadCourse", typeof(GetPublicCourseQuery)),
-            Mvc("public/courses/{slug}/lessons/{lessonSlug}", "GET", typeof(PublicEducationController), "Lesson", typeof(GetPublicLessonQuery)),
-            Mvc("public/courses/{slug}/lessons/{lessonSlug}", "HEAD", typeof(PublicEducationController), "HeadLesson", typeof(GetPublicLessonQuery)),
-            Mvc("account/site", "GET", typeof(AccountController), "GetSite", typeof(GetAccountSiteQuery)),
-            Mvc("identity/memberships", "GET", typeof(MembershipsController), "List", typeof(ListMembershipsQuery)),
-            Mvc("identity/session-scope/admissions", "POST", typeof(NativeSessionAdmissionController), "Admit", typeof(AdmitNativeSessionScopeCommand)),
-        };
+        ApprovedActions.Should().HaveCount(31);
+        ApprovedActions.Count(expected => expected.Protected is not null).Should().Be(10);
+        var mvc = ApprovedActions.Select(expected => Mvc(expected.Path, expected.Verb, expected.Controller, expected.Action, expected.Request));
         var infrastructure = new[]
         {
             "healthz|GET|Program+<>c.<<Main>$>b__0_1|infrastructure",

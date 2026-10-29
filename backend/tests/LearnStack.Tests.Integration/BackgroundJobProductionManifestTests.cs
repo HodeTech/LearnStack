@@ -5,6 +5,7 @@ using LearnStack.Api.Jobs;
 using LearnStack.Api.Identity;
 using LearnStack.Api.Messaging;
 using LearnStack.Api.PublicReads;
+using LearnStack.Api.Tenancy;
 using LearnStack.Application.Jobs;
 using LearnStack.Infrastructure.Jobs;
 using LearnStack.Infrastructure.Messaging;
@@ -195,9 +196,29 @@ public sealed class BackgroundJobProductionManifestTests
         }).Order(StringComparer.Ordinal).ToArray();
         var applicationRoutes = new[]
         {
-            // The two authenticated reads and exact native admission add no job operator route.
+            // Approved reads, native admission and bounded administration add no job operator route.
             "account/site|GET|" + typeof(AccountController).FullName + ".GetSite",
             "identity/memberships|GET|" + typeof(MembershipsController).FullName + ".List",
+            "identity/memberships/{id}|GET|" + typeof(MembershipsController).FullName + ".Get",
+            "identity/memberships/{id}/profile|PUT|" + typeof(MembershipsController).FullName + ".SetProfile",
+            "identity/memberships/{id}/role-assignments|PUT|" + typeof(MembershipsController).FullName + ".ReplaceRoles",
+            "identity/memberships/{id}/status|PUT|" + typeof(MembershipsController).FullName + ".ChangeStatus",
+            "identity/organization-memberships|GET|" + typeof(OrganizationMembershipsController).FullName + ".List",
+            "identity/me/profile|GET|" + typeof(OwnMembershipController).FullName + ".GetProfile",
+            "identity/me/profile|PUT|" + typeof(OwnMembershipController).FullName + ".SetProfile",
+            "identity/me/contexts|GET|" + typeof(OwnMembershipController).FullName + ".Contexts",
+            "identity/me/capabilities|GET|" + typeof(OwnMembershipController).FullName + ".Capabilities",
+            "identity/roles|GET|" + typeof(RolesController).FullName + ".List",
+            "identity/roles/{id}|GET|" + typeof(RolesController).FullName + ".Get",
+            "identity/roles/{id}/grants|PUT|" + typeof(RolesController).FullName + ".ChangeGrants",
+            "identity/roles/{id}/manifest-adoptions|POST|" + typeof(RolesController).FullName + ".AdoptManifest",
+            "identity/permissions|GET|" + typeof(PermissionsController).FullName + ".List",
+            "tenancy/organizations|GET|" + typeof(OrganizationsController).FullName + ".List",
+            "tenancy/organizations/{id}|GET|" + typeof(OrganizationsController).FullName + ".Get",
+            "tenancy/organizations|POST|" + typeof(OrganizationsController).FullName + ".Create",
+            "tenancy/organizations/{id}|PUT|" + typeof(OrganizationsController).FullName + ".Rename",
+            "tenancy/organizations/{id}/archive|POST|" + typeof(OrganizationsController).FullName + ".Archive",
+            "tenancy/default-organization|PUT|" + typeof(DefaultOrganizationController).FullName + ".Select",
             "identity/session-scope/admissions|POST|" + typeof(NativeSessionAdmissionController).FullName + ".Admit",
             "public/site|GET|" + typeof(PublicSiteController).FullName + ".Get",
             "public/site|HEAD|" + typeof(PublicSiteController).FullName + ".Head",

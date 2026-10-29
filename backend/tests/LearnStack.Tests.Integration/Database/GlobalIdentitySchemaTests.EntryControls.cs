@@ -1,4 +1,5 @@
 using FluentAssertions;
+using LearnStack.Modules.Audit.Infrastructure.Persistence;
 using LearnStack.Modules.Identity.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.EntityFrameworkCore;
@@ -63,15 +64,23 @@ public sealed partial class GlobalIdentitySchemaTests
     [Fact]
     public async Task Self_entry_upgrade_counts_existing_retained_Users_before_installing_the_capacity_fence()
     {
-        await using var database = await DisposableSchemaDatabase.CreateAsync(fixture.Postgres);
+        await using var database = await DisposableSchemaDatabase.CreateAsync(fixture.Postgres, applyMigrations: false);
+        await MigrationChains.ApplyTenancyAsync(database.MigrationConnectionString);
+        await using (var audit = new AuditDbContext(new DbContextOptionsBuilder<AuditDbContext>()
+            .UseNpgsql(database.MigrationConnectionString, provider =>
+                provider.MigrationsHistoryTable(AuditDbContextFactory.HistoryTable)).Options,
+            StaticTenantContextAccessor.Unresolved))
+            await audit.Database.MigrateAsync();
         var options = new DbContextOptionsBuilder<IdentityDbContext>()
             .UseNpgsql(database.MigrationConnectionString, provider =>
                 provider.MigrationsHistoryTable(IdentityDbContextFactory.HistoryTable)).Options;
         await using var context = new IdentityDbContext(options,
             StaticTenantContextAccessor.Unresolved, EmptyIdentityScope.Instance);
-        var applied = (await context.Database.GetAppliedMigrationsAsync()).ToArray();
-        applied[^1].Should().Be("20261028155736_add_identity_self_entry");
-        await context.GetService<IMigrator>().MigrateAsync(applied[^2]);
+        const string preceding = "20261026102944_serialize_identity_parent_lifecycle";
+        // Install the schema this upgrade actually consumes. A later forward-only
+        // Role release must never be reversed merely to reach this historical seam.
+        await context.GetService<IMigrator>().MigrateAsync(preceding);
+        (await context.Database.GetAppliedMigrationsAsync()).Last().Should().Be(preceding);
 
         await using (var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.MigrationConnectionString))
         {

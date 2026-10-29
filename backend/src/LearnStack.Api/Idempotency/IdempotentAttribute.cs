@@ -497,6 +497,10 @@ internal sealed partial class IdempotencyFilter(
     /// </remarks>
     internal async Task<string> ComputeFingerprintAsync(
         HttpContext context, CancellationToken cancellationToken)
+        => await ComputeFingerprintAsync(context, tenantContext, cancellationToken).ConfigureAwait(false);
+
+    internal static async Task<string> ComputeFingerprintAsync(
+        HttpContext context, ITenantContext tenantContext, CancellationToken cancellationToken)
     {
         using var digest = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
 

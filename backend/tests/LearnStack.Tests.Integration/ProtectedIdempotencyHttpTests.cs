@@ -444,6 +444,8 @@ internal sealed class ProtectedReceiptProbeCleanup(ProtectedIdempotencyProbeStat
 internal sealed class ProtectedReceiptProbeStore(ProtectedIdempotencyProbeState state) : IIdempotencyStore
 {
     private readonly InMemoryIdempotencyStore _inner = new(new SystemClock());
+    public Task<IdempotentResponse?> ReadCompletedAsync(TenantId tenantId, string key, string fingerprint, CancellationToken cancellationToken) =>
+        _inner.ReadCompletedAsync(tenantId, key, fingerprint, cancellationToken);
     public async Task<IdempotencyClaimResult> TryClaimAsync(TenantId tenantId, string key, string fingerprint, CancellationToken cancellationToken)
     {
         Interlocked.Increment(ref state.Claims);

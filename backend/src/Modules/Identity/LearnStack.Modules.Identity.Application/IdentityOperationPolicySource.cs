@@ -11,6 +11,12 @@ namespace LearnStack.Modules.Identity.Application;
 public sealed class IdentityOperationPolicySource : IOperationPolicySource
 {
     public const string MembershipDirectoryOperation = "identity.membership.list";
+    public const string OrganizationMembershipDirectoryOperation = "identity.membership.list_organization";
+    public const string RoleDirectoryOperation = "identity.role.list";
+    public const string RoleDetailOperation = "identity.role.read";
+    public const string PermissionRegistryOperation = "identity.role.list_permissions";
+    public const string OwnCapabilitiesOperation = "identity.membership.read_own_capabilities";
+    public const string OwnMembershipContextsOperation = LearnStack.Modules.Tenancy.Application.Contracts.IdentityLifecycle.OwnTenantNavigationContract.Operation;
     public const string NativeSessionAdmissionOperation = "identity.membership.admit_session_scope";
     public const string MembershipDetailOperation = "identity.membership.read";
     public const string OwnMembershipProfileReadOperation = "identity.membership_profile.read_own";
@@ -31,6 +37,13 @@ public sealed class IdentityOperationPolicySource : IOperationPolicySource
     [
         OperationPolicy.ForNativeSessionAdmission<AdmitNativeSessionScopeCommand>(NativeSessionAdmissionOperation),
         OperationPolicy.ForProtected<ListMembershipsQuery>(MembershipDirectoryOperation, MembershipAdministration, OperationReadScope.Tenant),
+        OperationPolicy.ForProtected<ListOrganizationMembershipsQuery>(OrganizationMembershipDirectoryOperation,
+            [new([MembershipAdministration]), new([OrganizationMembershipAdministration])], requiresOrganization: true),
+        OperationPolicy.ForProtected<ListRolesQuery>(RoleDirectoryOperation, RoleAdministration),
+        OperationPolicy.ForProtected<GetRoleDetailQuery>(RoleDetailOperation, RoleAdministration),
+        OperationPolicy.ForProtected<GetPermissionRegistryQuery>(PermissionRegistryOperation, RoleAdministration),
+        OperationPolicy.ForOwnMembershipRead<GetOwnMembershipContextsQuery>(OwnMembershipContextsOperation),
+        OperationPolicy.ForOwnMembershipRead<GetOwnCapabilitiesQuery>(OwnCapabilitiesOperation),
         OperationPolicy.ForProtected<GetMembershipDetailQuery>(MembershipDetailOperation,
             [new([MembershipAdministration], OperationReadScope.Tenant), new([OrganizationMembershipAdministration])]),
         OperationPolicy.ForOwnMembershipRead<GetOwnMembershipProfileQuery>(OwnMembershipProfileReadOperation),

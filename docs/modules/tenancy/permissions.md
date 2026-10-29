@@ -15,9 +15,10 @@ independent host ceiling and Off success classification. The
 [Phase 03 Status block](../../roadmap/phase-03-identity-admin.md) owns execution
 and qualification; acceptance is not activation.
 
-ADR-0078 additionally accepts the separately validated native-session origin
-under the same real-host ceiling. That consumer remains pending P03-3; it does
-not admit HostOnly/ClaimAndMembership or turn AccountSite into an admin query.
+ADR-0078 additionally admits the separately validated native-session origin
+under the same real-host ceiling. It does not admit HostOnly/ClaimAndMembership
+or turn AccountSite into an admin query; qualification lives in the phase Status
+block above.
 
 **P02b-1 Step 3 producer implemented — 2026-10-12.** The completed-provisioning
 domain translator runs only during owner completion, adds no endpoint or
