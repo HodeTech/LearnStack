@@ -460,3 +460,30 @@ retain their separately specified narrow checks. Existing human authorization,
 auxiliary capacities, evidence durability and historical Accepted body/status/
 date remain unchanged. Acceptance registers the new controls; Step 3 proves them
 before activation.
+
+### Amendment 3 — Separate fixed completion read source (2026-10-29)
+
+Accepted [ADR-0081](0081-fixed-seed-completion-before-origin-adoption.md) adds a
+separate closed Seed-purpose exception for the fixed administration-origin
+completion check. Its one-consumer completion census has its own private witness,
+Seeder minter, owner entry and fixed owning-module projections. ADR-0080's exact
+eight pristine consumers, source and predicates remain unchanged. Pristine and
+completion authority cannot substitute for one another; neither a finite Seed
+policy alone nor SystemActor attribution grants either capability.
+
+The completion entry reuses the same ordinary ReadWrite owner, private typed
+state transition, two exact scope-only SQL sites, write barriers and actual
+cleanup policy. It restores narrow scope before returning usable admission or
+allowing mutation. Protected-human `OperationReadWitness` sources, capability/
+actor/invocation binding, one-use and nesting controls, live grant ceilings and
+auxiliary source capacities remain unchanged. Human requests, nested work,
+events and jobs receive no completion witness.
+
+The internal admission/refusal result adds no independently callable directory
+or separately successful sensitive-read event; the classified origin act retains
+its existing plural MUST evidence. [Database Standards](../standards/05-database.md#operation-bound-read-authority)
+owns the separate source and projection censuses and shared lifetime/barriers.
+ADR-0081 supplies the additional authority; this amendment discloses it without
+independently replacing this decision. Historical Accepted bytes, status, date,
+Deciders and prior amendments remain unchanged. Acceptance alone qualifies no
+new source or runtime control.

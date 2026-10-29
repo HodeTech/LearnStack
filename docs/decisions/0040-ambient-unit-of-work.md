@@ -890,3 +890,37 @@ owns the canonical transition, barriers and closed caller census. This amendment
 authorizes the bounded source change; P03-3 Step 3 still owes actual lifetime,
 flush/write/commit, isolation, cleanup and competing-commit proofs. Historical
 Accepted bodies, status, date and prior amendments remain unchanged.
+
+### Amendment 18 — Fixed completion operation on the existing owner (2026-10-29)
+
+Accepted [ADR-0081](0081-fixed-seed-completion-before-origin-adoption.md) adds the
+separate sealed `SeedCompletionReadWitness` and closed
+`VerifySeedCompletionAsync(witness, cancellationToken)` entry on the same ordinary
+ReadWrite owner. Exactly the fixed administration-origin command consumes this
+purpose after its exclusive Tenant fence and actual Tenant/mapping preparation.
+Its witness/minter/caller/reader census remains separate from ADR-0080's exact
+eight pristine consumers; neither witness substitutes for the other.
+
+Both closed entries share one private typed transition, ADR-0080's existing
+Narrow → Enabling → Verifying → Clearing → Narrow state and the same two exact
+scope-only enable/clear SQL sites. They preserve the Tenant/organization
+announcement and generation. Acknowledged narrow restoration and continuity
+rechecks precede usable admission or mutation. The existing first-flush, change
+detection, EF-command, owned raw audit/outbox write, commit, nested-Begin and
+context-setter barriers apply unchanged, including sticky fault/rollback-only
+handling and bounded cancellation-independent cleanup until actual restoration
+or ownership closure.
+
+No logical Tenant setter, context writer, physical owner, connector,
+authorization lane, role, grant, definer, table or column is added. The physical
+transaction remains ReadWrite; no arbitrary callback, SQL, general manifest or
+reusable scope lease is exposed. Human read-witness and global/self owner
+contracts remain separate.
+
+[Database Standards](../standards/05-database.md#operation-bound-read-authority)
+owns the exact separate lifetime/source/minter/caller/projection ledgers and
+shared transition/barriers. ADR-0081 supplies this bounded additional operation;
+this amendment discloses it without independently replacing this decision.
+Historical Accepted bytes, status, date, Deciders and prior amendments remain
+unchanged. Acceptance registers the new controls; Step 3 still owes their actual
+owner, isolation, write-refusal and cleanup proof.

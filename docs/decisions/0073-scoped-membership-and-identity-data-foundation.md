@@ -337,3 +337,38 @@ finite manifests, separate global ownership, pristine interrupted resume and
 preserved completed state retain their accepted boundaries. P03-3 Step 3 owes
 runtime proof. Historical Accepted body, status, date and prior amendments remain
 unchanged.
+
+### Amendment 5 — Origin-only retained completion boundary (2026-10-29)
+
+Accepted [ADR-0081](0081-fixed-seed-completion-before-origin-adoption.md) defines
+a separate, topology-only completion check for fixed administration-origin
+adoption. Its retained Tenant-local predicate requires an Active, undeleted
+NULL-org Membership assigned a live Tenant-scoped TenantAdmin Role with both
+immutable kernel permission pairs and a valid current local graph. It does not
+freshly attest this ADR's globally eligible administrator invariant, read global
+User/provider state or invoke the trigger-only global admission function outside
+its mutation trigger. Exact retained associations to the declared permanent
+application UserIds remain mandatory.
+
+Every required Membership and contained Profile exists with valid retained
+stamps/graph, and the current Membership aggregate version is greater than zero.
+This is neither a Profile-version test nor proof that the original seed-profile
+initializer ran. Lawful later empty profiles, status or assignment progress and
+valid nonkernel grant removals remain preserved. Retained Revoked nonadmin
+Memberships are allowed; a retired administrator requires a lawful replacement
+satisfying this local predicate. Nothing recreates, reactivates or assigns a
+retired root.
+
+This origin-only check does not weaken the full eligible-admin invariant,
+User-before-Tenant admission fences, grant kernel or database guards for the
+existing Membership/Role writers. Ordinary warm Identity validation retains its
+own global binding/eligibility refusals. ADR-0081's qualified marker records
+historical origin adoption; its write-free repeat freshly checks the exact live
+mapping rather than reattesting current administrator, grant or profile state.
+
+[Database Standards](../standards/05-database.md#warm-seed-evidence-and-origin-adoption)
+owns the separate completion-purpose evidence and lifetime. ADR-0081 supplies
+the bounded origin contract; this amendment is its navigation/disclosure, not an
+independent replacement of this decision. Historical Accepted bytes, status,
+date, Deciders and prior amendments remain unchanged. Actual P03-3 Step 3 proof
+remains required.

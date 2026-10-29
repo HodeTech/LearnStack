@@ -595,3 +595,64 @@ owns the complete writer/competitor census and checks; the
 registers their actual concurrency and interruption obligations. P03-3 Step 3
 qualifies them before its implementation closeout. Historical Accepted body,
 status, date, Deciders and Amendment 1 remain unchanged.
+
+### Amendment 3 — Fenced origin completion and global boundary (2026-10-29)
+
+Accepted [ADR-0081](0081-fixed-seed-completion-before-origin-adoption.md) supplies
+the bounded supersession of this ADR's fixed administration-origin `0→1`
+transition and marker-1 completion shortcut. Its qualified `0→2` and `1→2`
+transitions replace only those origin marker transition/repeat clauses.
+ADR-0081 is the superseding decision; this amendment discloses the change and does not
+independently replace a decision or correct the historical body.
+
+Both transitions freshly verify the complete retained foundation on the same
+ordinary ReadWrite owner after the exclusive Tenant fence and actual Tenant/
+mapping target preparation. The separate completion witness cannot use
+ADR-0080's source for eight pristine consumers. Acknowledged narrow restoration
+precedes usable admission and mapping/marker mutation. Marker 0 permits the
+fixed absent mapping INSERT or exact existing live mapping; marker 1 requires
+the exact existing live mapping and complete qualification. Missing, disabled,
+foreign or conflicting mapping at marker 1 refuses without repair. Both
+transitions retain the two same-transaction MUST intents, unchanged mapping audit
+projection where applicable and the existing atomicity boundary. A forward
+migration preserves old marker-1 history while rejecting fresh `0→1`, decrements
+and arbitrary jumps; no table, column or reset path is added.
+
+Marker 2 plus the exact live mapping makes the runner return success before
+command dispatch, MUST intent, completion-witness minting or widened verification.
+Warm verification (`SeedVerification.Tenant`) and ordinary `make seed` recognize
+marker 2. Missing, disabled or conflicting mapping at marker 2 refuses without
+repair. Direct completed-command dispatch remains a refused, audited call. Marker 2
+records historical qualified adoption; this repeat does not freshly prove the
+current graph, administrator, grants, publication state or profile disposition,
+and it supplies no global User/provider eligibility assertion.
+
+For this topology act, completion means ADR-0081's retained Tenant-local state.
+The current Membership root version must be greater than zero; there is no
+independent Profile version or proof that the original profile initializer ran.
+The local administrator predicate requires an Active, undeleted NULL-org
+Membership assigned a live Tenant-scoped TenantAdmin Role with both immutable
+kernel permission pairs and a valid current local graph. It adds no fresh global
+User/provider eligibility read. Valid nonkernel grant removals and lawful later
+profile, status and assignment changes stay preserved. The full eligible-admin
+invariant and database/admission guards remain required for their existing
+Membership/Role writers.
+
+An uncertain COMMIT retains the central indeterminate audit and makes that CLI
+invocation exit 1. It triggers neither automatic mutation retry nor a new owner
+while cleanup is uncertain. Recovery belongs to a subsequently, explicitly
+invoked `SeedAdministrationOriginRunner`/CLI. After prior ownership has ended,
+that invocation uses existing `GetTenantSeedStateQuery` and
+`GetHostMappingSeedStateQuery` in fresh ordinary ReadOnly frames/scopes under the
+existing ten-second deadline. Marker 2 with exact live mapping exits 0 without
+dispatch, witness or audit. Marker 0 or 1 is not rollback proof; it only permits
+the full qualified command as this new deliberate attempt. Missing, invalid or
+unknown observations and storage faults exit 1 with fixed diagnostics, without
+asserting rollback. There is no new CLI flag, parallel connection or recovery
+lane.
+
+[Database Standards](../standards/05-database.md#warm-seed-evidence-and-origin-adoption)
+owns the canonical completion, marker, runner and recovery contract. All other
+accepted administration, pristine-resume, protected replay and audit decisions
+remain. Historical Accepted bytes, status, date, Deciders and prior amendments
+remain unchanged; acceptance is not P03-3 Step 3 qualification.

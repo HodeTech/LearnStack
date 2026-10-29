@@ -2,20 +2,23 @@
 
 ## Status
 
-Proposed
+Accepted
 
 **Date:** 2026-10-29
-**Deciders:** @cemil (approval pending)
-**Proposed bounded extension:** ADR-0080's closed source, consumer and projection
-census, solely for the separate fixed administration-origin completion check
-below. Its eight pristine-continuation consumers remain unchanged. The proposal
-also narrowly supersedes ADR-0079's marker-1 completion shortcut and clarifies
+**Deciders:** @cemil
+**Separate authority and bounded supersession:** Reuse ADR-0080's scope
+transition, barriers and cleanup with a separate single-consumer completion
+census. ADR-0080's exactly eight pristine consumers, source and projection census
+remain unchanged. ADR-0081 narrowly supersedes ADR-0079's marker-1 completion
+shortcut and clarifies
 its completed-foundation condition for this topology act, including its relation
 to ADR-0073's globally eligible administrator. It does not confer global User or
 provider admission authority. Marker 2, not an existing marker 1, identifies the
 new qualified path.
 
-No implementation authority follows from ADR-0080's acceptance or this draft.
+Accepted after the maintainer's 2026-10-29 review corrections under explicit
+conditional approval. The named dated amendments and canonical carriers precede
+capability code; acceptance is not runtime qualification.
 The [Phase 03 Status block](../roadmap/phase-03-identity-admin.md) owns approval
 and delivery state.
 
@@ -27,7 +30,9 @@ and delivery state.
   Courses or Lessons through ordinary organization scope. Role history proves
   that Identity began, not that the foundation completed.
 - Preserve valid completed installations with legitimate later edits, including
-  revoked Memberships, edited profiles, changed grants, locales and branding.
+  revoked nonadmin Memberships, edited profiles, nonkernel grant changes, locales
+  and branding. A retired administrator requires a replacement satisfying the
+  local administrator predicate; the two-pair kernel remains protected.
 - Keep the authoritative check after the exclusive Tenant fence and actual
   target locks, on the same physical owner, without another connector or global
   User/provider owner.
@@ -37,8 +42,8 @@ and delivery state.
 ## Considered Options
 
 1. **A separate closed completion-purpose read on the existing owner**
-   (recommended). Reuse ADR-0080's scope transition, barriers and cleanup, while
-   explicitly authorizing one additional logical consumer and fixed owning-module
+   (chosen). Reuse ADR-0080's scope transition, barriers and cleanup, while
+   authorizing a separate single-consumer completion census and fixed owning-module
    projections. Verify current completed state rather than pristine v1 equality.
 2. **A preliminary sequence of ordinary per-organization reads with a monotonic
    completion witness.** Potentially viable, but requires a new source/lifetime
@@ -52,8 +57,8 @@ and delivery state.
    product decision, but it changes ADR-0079's promise and admits management
    origins for incomplete installations. Not selected.
 5. **Defer adoption and fail closed.** Preserves confinement but withholds the
-   accepted completed-legacy upgrade. This is the fallback while the authority
-   is unapproved, not the selected completed behavior.
+   accepted completed-legacy upgrade. This is a viable refusal alternative,
+   not the selected completed behavior.
 
 ## Decision
 
@@ -108,7 +113,12 @@ closed Seeder minter. It binds the actual active Application invocation, canonic
 finite Seed policy by reference, the live descriptor issued by that console
 source, independently copied fixed foundation/topology declarations, exact request
 reference/type/values, and the actual prepared Tenant version/mapping evidence.
-`ExpectedVersion` or a submitted declaration/hash is not authority. API
+The handler passes a sealed immutable snapshot of the actual Tenant/mapping
+facts read under those locks; its constructor/caller census is confined to that
+preparation. The Seeder minter validates the snapshot against its independent
+fixed declaration and current unit, announcement and exact plan. The snapshot
+alone is not authority, and `ExpectedVersion` is only compared with the actual
+locked Tenant version. A submitted declaration/hash is not authority. API
 composition denies the producer. The captured ordinary unit, transaction,
 positive generation, unchanged Tenant/NULL-org announcement and exact exclusive
 Tenant plan also bind the witness.
@@ -145,12 +155,12 @@ only admission/refusal through Application.Contracts on this owner.
 | Education | Every declared Course/Lesson across all original organizations, exact root/parent/scope/natural-key and immutable definition/translation pins, required child existence and completed publication state. |
 | Identity | All declared Role/Membership identities and immutable scopes/User associations, recognized retained lifecycle and attribution/version metadata, current retained profile disposition and required contained child existence, valid current finite grants/assignments and the origin-only local administrator predicate below. |
 
-Completion does not require original mutable names, active status for every
+Completion does not require original mutable names admitted by current Tenancy/Identity administration, active status for every
 retained Organization/Membership, exact v1 grants/assignments, original locale
 membership, original theme colors or original profile values. Legitimate adopted
 Role releases and later edits remain preserved. Each required Membership/profile
-child must exist with valid retained stamps/current graph and aggregate version
-greater than zero. This is the current installed-state disposition: a lawful
+child must exist with valid retained stamps/current graph and the **Membership
+aggregate's** version greater than zero. MembershipProfile has no separate version. This is the current installed-state disposition: a lawful
 profile, status or assignment edit may advance an originally empty Membership.
 It is not evidence that the original seed-profile initializer ran. Version-zero
 unfinished state refuses; lawful later empty profiles and retained terminal
@@ -159,11 +169,14 @@ Missing required roots, conflicting immutable identity/pins or invalid graphs
 refuse without repair. The closed content authorship/publication rules remain
 the basis for immutable pins; Phase 06 reopens this proof before introducing
 mutable content administration.
+Current Customization/Education fixed authored checks remain exact, including
+ContentType/Taxonomy display names, renderer and immutable child values. Domain
+mutator methods alone do not admit mutable content administration; their future
+Phase 06 boundary is not silently accepted by this topology operation.
 
 Tenancy and tenant-wide Customization reads run narrow after target preparation.
 Only the fixed Education and Identity branch completion readers run through the
-temporary hatch
-on the same owner; they do not depend back on the Tenancy guard. There is no
+temporary hatch on the same owner; they do not depend back on the Tenancy guard. There is no
 cross-module SQL join. Immutable content pins may be compared internally by their
 owning readers, but no content or relationship-bearing result escapes them.
 Identity selects metadata and finite graph facts, not display names, locale
@@ -180,7 +193,7 @@ and immutable global binding rules establish retained application association;
 the check neither reads global User rows nor reacquires provider evidence. No
 raw subject, subject digest, credential or MFA state is selected.
 
-This is an explicit proposed origin-only clarification of ADR-0079, not a claim
+This is an explicit origin-only clarification of ADR-0079, not a claim
 that a Tenant read proves live provider identity or current global User eligibility.
 The local administrator predicate requires an Active, undeleted NULL-org
 Membership assigned a live Tenant-scoped TenantAdmin Role with both immutable
@@ -216,15 +229,27 @@ restore or close ownership before releasing resources. The physical transaction
 remains ReadWrite: this is neither SQL READ ONLY nor protection against arbitrary
 SQL through a retained connection.
 
-Only after acknowledged narrow restoration and a positive completion result may
-the following transitions occur:
+The fixed `SeedAdministrationOriginRunner` first reads the retained marker and
+exact fixed mapping through its existing narrow queries. This routing occurs
+**before** any mutation command or its MUST intents:
 
-| Retained marker | Qualified disposition |
+| Runner observation | Dispatch / outcome |
 |---|---|
-| 0 | Install the absent fixed mapping or verify its exact existing live association; advance directly to 2. |
-| 1 | Require the exact existing live mapping, verify the whole completed foundation, then advance to 2. Missing/disabled/conflicting mapping refuses without repair. |
-| 2 | Require the exact live mapping and stop before dispatching another mutation or MUST intent. |
-| Other | Refuse. |
+| 0 | Dispatch the fixed adoption command; require qualified post-marker 2 and its exact mapping. |
+| 1 | Require the exact existing live mapping, then dispatch the fixed command; require qualified post-marker 2. |
+| 2 | Verify the exact live mapping and stop without dispatching the command, declaring a MUST intent, minting a completion witness or entering completion verification/read scope. |
+| Other/missing/unknown | Refuse with the existing fixed diagnostic/nonzero CLI result. |
+
+Only dispatched marker-0/1 commands enter target preparation and completion.
+The command continues to refuse a completed marker, rather than treating it as a
+no-op success after audit intents were already declared. Direct command dispatch
+is not the write-free-repeat interface and retains normal refusal audit.
+
+| Locked command marker | Order before changing marker/mapping |
+|---|---|
+| 0 | Prepare absent/exact mapping target → verify the completed foundation → acknowledge narrow restoration → install absent or retain exact mapping → advance directly to 2. |
+| 1 | Require and lock the exact existing live mapping → verify the completed foundation → acknowledge narrow restoration → retain mapping and advance to 2. Missing/disabled/conflicting mapping refuses without repair. |
+| 2/other | Refuse; no completion proof or mutation is performed. |
 
 Both `0→2` and `1→2` carry the existing two MUST intents in one transaction.
 The exact existing mapping is designated as its unchanged audit projection;
@@ -234,19 +259,29 @@ every decrement and arbitrary jumps, and preserve existing marker-1 history.
 It adds no column/table or deletion/reset path. A marker-1 installation produced
 by the current unqualified code must pass the new proof; it cannot use the
 marker-2 repeat shortcut. An incomplete marker-1 installation refuses unchanged.
-Mapping projection and Tenant transition remain atomic. Unknown-COMMIT recovery
-freshly observes the marker and exact mapping: 2 converges to the write-free
-repeat, 0/1 requires a deliberate new fully qualified attempt, and an unknown
-observation remains indeterminate. It never infers rollback from a transport error.
+Mapping projection and Tenant transition remain atomic. The owner of
+unknown-COMMIT recovery is a **subsequent explicitly invoked** fixed runner/CLI,
+not an automatic resend inside the uncertain attempt. The current uncertain
+invocation retains central indeterminate audit/reconciliation and exits 1 after
+its existing cleanup; it never opens another owner while cleanup is uncertain.
+A later deliberate invocation uses the existing `GetTenantSeedStateQuery` and
+`GetHostMappingSeedStateQuery` in fresh, separate ordinary ReadOnly scoped frames
+under the existing ten-second per-act deadline. Marker 2 plus exact live mapping
+converges to exit 0 without mutation/intent/witness. Observed 0/1 is not rollback
+proof: only that new explicit invocation may perform the full qualified command.
+An unknown/invalid/missing observation or storage failure exits 1 with fixed
+diagnostics and never claims rollback. No new recovery mode, connection lane or
+automatic mutation retry is introduced.
 Refusal retains the existing failed/denied audit and genuine unknown-COMMIT
 reconciliation. The internal Boolean completion check adds no separate successful
 sensitive-read classification or durable receipt; any independently callable or
 value-disclosing reader requires a new decision and audit coverage.
 
 Marker 2 plus its exact live mapping is a write-free repeat; a missing,
-disabled or conflicting mapping refuses without restoration. A marker produced
-by this qualified path records the completed adoption, not permission to mutate
-or a current provider-health assertion. Required retained roots/immutable pins
+disabled or conflicting mapping refuses without repairing the mapping. Marker 2
+is historical evidence of the qualified adoption. Its runner repeat does not
+recheck the current administrator predicate, grants, publication state or profile
+values, and does not attest current global/provider health or permission to mutate. Required retained roots/immutable pins
 and the defined version-positive profile disposition are monotonic under the
 admitted writer population;
 later lawful edits preserve their relevant graph invariants. This supports the
@@ -301,15 +336,21 @@ global-User or provider snapshot.
 
 ## Implementation Notes
 
-Before capability code, acceptance reconciles these named carriers; this draft
-changes none of them:
+Acceptance reconciles these named carriers before capability code:
 
 - ADR-0080 Amendment 1, **Separate fixed origin completion purpose**: disclose
-  the additional logical consumer/source and owning-module projection census;
-  preserve its eight pristine consumers and original body.
+  the separate single-consumer completion source/projection census and reused
+  scope machinery; preserve its exactly eight pristine consumers/census and
+  historical body. Refactor `FixedSeedPrerequisiteConventionTests` and its
+  `WithoutFixedSeedScopeAnnouncements` sanitizer to the shared private transition:
+  preserve the eight exact constructors/minter/reader/caller assertions, assert
+  the same two SQL sites once, and check the separate completion rule/caller graph.
+  Do not duplicate transition SQL or admit a file-wide exception.
 - ADR-0079 Amendment 3, **Fenced origin completion and global boundary**: name
-  exact completion/repeat evidence, qualified marker 2 with `0/1→2`, and the
-  origin-only global/provider/current-profile clarification.
+  ADR-0081's bounded supersession of its historical `0→1` decision, exact
+  completion/repeat evidence, qualified marker 2 with `0/1→2`, and origin-only
+  global/provider/current-profile clarification. The amendment discloses this
+  new superseding ADR; it does not itself change the historical Decision section.
 - ADR-0073 Amendment 5, **Origin-only retained completion boundary**: point to
   this bounded local predicate without weakening globally eligible-admin guards
   for its original writers or asserting historical profile-initializer provenance.
@@ -332,7 +373,17 @@ changes none of them:
 - Decision index, Phase 03 Status and indexed delivery log: record separate
   approval, proposal reviews, actual regression and implementation proof scope.
 
-P03-3 Step 3 owns implementation and qualification after explicit acceptance.
+Named implementation carriers also include `SeedAdministrationOriginRunner`,
+`SeedVerification.Tenant`, its ordinary `SeedRunner` content-complete path,
+`scripts/seed.mjs` / `scripts/demo.mjs` / the fixed CLI entry and existing origin
+DDL/domain guards. The runner implements the exact branch table above and expects
+2 after each dispatched act. Warm verification accepts retained 0/1/2; `make seed`
+on an adopted marker-2 installation must reach a write-free preserved result.
+Child-process/fixed-script controls cover this supported entrypoint, not only the
+standalone command. Uncertain attempts keep exit 1; only the later explicit
+runner invocation performs the named fresh observation/requalification protocol.
+
+P03-3 Step 3 owns implementation and qualification.
 Historical Accepted bodies/dates/statuses remain intact; amendments disclose
 bounded changes. Production provisioning/recovery stays P03-9. A general
 provisioner, different population, new source, global check, new connector or
@@ -351,19 +402,28 @@ Actual application-role PostgreSQL controls must cover:
 - Refusal after provisioning alone and at every incomplete stage, including the
   final other-organization Membership profile and a branch content pin.
 - Completed legacy/fresh positives with the full foundation, valid later profile,
-  grant, assignment, locale, theme and Organization edits, and retained terminal
-  roots; missing/conflicting declared roots remain refusals.
+  nonkernel grant, assignment, locale, theme and Organization edits, and retained
+  revoked nonadmins. A retired admin needs a valid local replacement and intact
+  kernel. Missing/conflicting declared roots remain refusals.
 - Version-positive nonadmin suspension/revocation before original profile
   initialization follows the selected current-state disposition; version zero
   refuses. No control claims original initializer provenance or live global eligibility.
 - Both held-Tenant competing-commit orders, all applicable target locks, unchanged
   mapping/marker and successful audit counts on refusal, with normal failed/denied
   evidence asserted separately; exact-existing-mapping positive,
-  plural-MUST rollback, independent two-Tenant resume and zero-write repeat.
+  plural-MUST rollback and independent two-Tenant resume. Runner marker-2 repeat
+  proves zero writes, **zero command dispatch**, zero MUST declarations, zero
+  completion-witness minting/verification and zero completion scope-only enable/clear (ordinary narrow query announcements
+  remain allowed). Direct
+  completed-command dispatch remains a refused/audited call, not the repeat path.
 - Genuine old-code marker 1 on an incomplete graph refuses unchanged; completed
   marker 1 upgrades once to 2 with exact existing mapping and plural MUST evidence.
   Fresh 0 upgrades directly to 2. Dirty direct `0→1`, decrements and jumps refuse;
-  unknown-COMMIT recovery cannot misreport a qualified transition or recreate a mapping.
+  unknown-COMMIT recovery by a later explicit runner cannot misreport a qualified
+  transition or recreate a mapping; the uncertain invocation exits 1.
+- A complete marker-2 ordinary `make seed`/child-process repeat is accepted by
+  `SeedVerification.Tenant`, preserves content, reaches the runner shortcut and
+  produces no command/witness/intent/wide-read or business/audit writes.
 - Foreign-Tenant masking, wide branch reads limited to the closed operation,
   narrow restoration, unchanged announcement/generation, same-org/cross-org write
   barriers, nested/mixed entry, lost enable/clear acknowledgements, cancellation,
@@ -387,5 +447,15 @@ implementation review rounds.
 - [ADR-0076: Live Scoped Authorization](0076-live-scoped-authorization.md).
 - [ADR-0077: Trusted Authorization Evidence](0077-trusted-authorization-evidence.md).
 - [Database Standards](../standards/05-database.md#fixed-seed-prerequisite-read-authority).
+- [Security Standards](../standards/11-security.md).
+- [Audit Coverage](../standards/18-audit-coverage.md).
+- [Permissions](../standards/19-permissions.md).
+- [Architecture Tests](../standards/21-architecture-tests-catalogue.md).
+- [Tenancy](../modules/tenancy/README.md), [Customization](../modules/customization/README.md),
+  [Education](../modules/education/README.md) and [Identity](../modules/identity/README.md).
+- [ADR-0042: Atomic Aggregate Boundaries](0042-tenant-provisioning-cross-aggregate-transaction.md).
+- [ADR-0074: Ordered Membership Admission](0074-membership-admission-under-ordered-locks.md).
+- [ADR-0033: Audit Durability](0033-audit-durability-model.md).
+- [ADR-0044: Audit Write Path](0044-audit-write-path.md).
 - [Data Protection](../architecture/23-data-protection.md).
 - [Phase 03](../roadmap/phase-03-identity-admin.md).

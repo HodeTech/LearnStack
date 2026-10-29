@@ -2267,7 +2267,7 @@ admission/profile consumers and precede Tenant. Lock existing roots that will
 change before verification; absent roots have no row to lock. Verification takes
 no new User lock below Tenant and never reacquires a second plan.
 
-A separate common-owner interface exposes only
+The pristine-purpose common-owner entry remains
 `VerifySeedPrerequisitesAsync(witness, cancellationToken)`: no arbitrary callback,
 SQL argument, directory API or reusable scope lease. Its constructor-registered
 fixed reader resolves on the same scoped owner after construction. Module-local
@@ -2338,6 +2338,110 @@ existing bounded owner policy independently of a cancelled caller. A timeout
 alone neither proves restoration nor releases retained capacity. The
 [phase Status block](../roadmap/phase-03-identity-admin.md) owns implementation
 and behavioral proof; acceptance does not qualify this extension.
+
+### Fixed-seed completion read authority
+
+**Derives from:** [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md).
+
+This is a **separate single-consumer completion census**, not an extension of
+ADR-0080's exactly eight pristine consumers/source/projection census. Reuse their
+[scope transition, write barriers and cleanup](#fixed-seed-prerequisite-read-authority)
+on the existing ordinary owner. No new physical owner/connector, role, definer,
+Tenant setter, context writer, table or column follows.
+
+Only `AdoptSeedAdministrationOriginCommand` for the two fixed
+`SeedAdministrationOriginManifest` declarations receives a sealed
+`SeedCompletionReadWitness` with private construction and one closed Seeder
+minter. API composition denies that producer. Capture the actual active
+Application invocation, canonical finite Seed policy by reference and descriptor
+actually issued by that scoped console source; exact request reference/type/values,
+independently copied immutable fixed declarations, current unit/transaction,
+positive announcement generation, unchanged Tenant/NULL-org scope and one
+exclusive Tenant plan with no User keys. A seed-shaped context, expected version,
+submitted declaration/hash or injected Boolean is not authority.
+
+The handler acquires the plan and locks its actual Tenant and existing management
+mapping before preparing a sealed immutable target snapshot. It contains actual
+Tenant ID/slug/version/marker/default-organization and nullable actual mapping
+host/Tenant/organization/live flags, read under those locks. An absent mapping
+uses the exclusive Tenant absence fence and host uniqueness. A marker-1 mapping
+must already exist and be exact/live; a foreign/disabled/conflicting row refuses.
+The minter validates the snapshot against its independent declaration and actual
+unit/announcement/plan; `ExpectedVersion` only compares with the locked version.
+Its constructor/caller census is closed to that handler preparation. Snapshot
+possession alone does not authorize a read.
+
+The sealed witness retains an immutable per-module declaration map whose exact
+four keys/types are `SeedTenantDeclaration`, `SeedCustomizationDeclaration`,
+`SeedEducationDeclaration` and `SeedIdentityCompletionDeclaration`. The sole source
+captures their immutable nested values independently; typed declaration getters
+have an exact owning-reader/source census. SharedKernel knows no module types;
+it does not introduce a public arbitrary-reader adapter or callback. Prepared
+target evidence is separately reference-bound to that witness.
+
+A distinct typed `VerifySeedCompletionAsync(witness, cancellationToken)` entry
+and constructor-registered completion operation/resolver use the same scoped
+owner. Its two public typed entries adapt to one **private** transition through
+exactly two private sealed typed adapters; no external implementation or witness
+base class generalizes this authority. The same two scope-only SQL sites execute
+once in that transition. Refactor `FixedSeedPrerequisiteConventionTests` and its
+scope sanitizer to this private owner rather than duplicating SQL or exempting
+a file. Preserve its exact eight pristine constructors/minter/reader/callers;
+completion has a separate minter, single consumer, typed readers and hostile
+controls. Human `OperationReadWitness` remains unchanged and Protected-only.
+
+Tenancy and tenant-wide Customization completion contracts run **narrow** after
+target preparation. Only the fixed Education and Identity branch contracts run
+inside completion verification on the same physical owner. They return Boolean
+admission only, through owning Application.Contracts; no cross-module SQL join,
+nested dispatch, second provider scope or second lock plan participates.
+
+| Owning module | Required retained/current completion facts |
+|---|---|
+| Tenancy | Declared Tenant/Organization identities, natural keys and recognized stamps; valid current default/locale topology, exact original public mapping, retained theme key/scope/root and valid current palette. |
+| Customization | Required built-in semantic shape and authored roots/children, exact immutable definition/revision pins and declared completed publication. |
+| Education | All declared organization scopes, Course/Lesson identities/parents/natural keys, immutable definition/translation pins and required completed children/publication. |
+| Identity | Required Role/Membership identities/scopes/User associations; retained valid lifecycle/stamps/current finite grants/assignments; required profile child and **Membership aggregate** version greater than zero; the local admin predicate below. No profile values or global/provider state are read. |
+
+Extra valid current administration data cannot replace missing declared roots.
+Retired required roots remain history, not recreation candidates. Valid mutable
+Tenancy/Identity names, profile values (including empty), Organization state,
+locales, theme and nonkernel grant edits are preserved. A revoked nonadmin, or a revoked admin with
+a valid replacement, is compatible with the current local graph. The local admin
+predicate is an Active undeleted NULL-org Membership assigned a live Tenant-scope
+TenantAdmin Role with both immutable kernel pairs. It is not a fresh globally
+eligible-admin claim; existing Membership/Role mutation guards retain that full
+invariant. The positive Membership version may follow a lawful nonprofile edit;
+it does not attest that the original profile initializer ran. Version zero
+refuses for a declared required Membership. Original SystemActor stamps and that
+positive-version condition apply to required fixed roots; a valid extra local
+replacement admin may have a real creator and version zero with its Profile
+child/current graph intact. It cannot substitute for a missing fixed root.
+Missing/conflicting pins or invalid local graphs refuse without repair.
+Current Customization/Education authored checks remain exact, including their
+display-name/renderer/child pins. Domain mutators alone are not admitted mutable
+content writers; Phase 06 must reopen that boundary first.
+
+No raw subject/digest, email, profile display name/preferred locale, editor-bearing
+result or immutable payload escapes to diagnostics, telemetry, public DTOs,
+cache or a new receipt. Internal metadata remains within the existing two-MUST
+classified topology act. The hatch physically exposes more Tenant rows than the
+fixed logical projection; it stays ReadWrite, not SQL READ ONLY. Arbitrary SQL
+with application credentials can forge persisted stamps/history. This protects
+the admitted-writer boundary, not database-credential compromise or a global/
+provider/two-Tenant atomic snapshot. Phase 06 reopens content staging before
+mutable administration; any later writer invalidating retained repeat premises
+must reopen this contract.
+
+All existing transition/barrier obligations apply to both typed purposes:
+one-use source, depth one, READ COMMITTED ReadWrite, clean current owner, no mixed
+human/global/self authority, validation after awaits, acknowledged narrow
+restoration before usable evidence/mutation, sticky rollback-only on misuse,
+and actual cleanup before resource release. No scalar local flag proves rollback
+or connector closure. Caller cancellation/timeouts do not release uncertain
+ownership; the existing bounded cleanup policy and outer disposal retain it
+until restored/closed. New real owner/source/race/cleanup controls remain required
+before implementation qualification.
 
 ## Background jobs
 
@@ -5124,25 +5228,58 @@ Both populations enter the complete writer/competitor census and race proofs.
 
 The fixed `AdoptSeedAdministrationOriginCommand` installs only the declared
 `manage.demo-english.learnstack.local` / `manage.demo-yoga.learnstack.local`
-mapping for its respective seeded Tenant, with NULL organization. It takes the
-exclusive tenant fence, root lock and expected version. A private, nonpersonal
-`tenants.adopted_seed_origin_version` starts at 0 and changes only 0→1 in the same
-transaction as installation or locked verification of the exact live host
-projection and central plural MUST audit. A marker-0 exact existing mapping needs
-no duplicate INSERT; its row witness remains locked through marker commit.
-Database guards reject reset/unknown versions or a marker change without the
-exact projection witness. A conflicting, disabled or differently mapped host
-refuses without overwriting it. A version-1 marker requires the exact live mapping;
-a missing/deleted mapping refuses instead of being restored.
+mapping for its respective seeded Tenant, with NULL organization. Its
+[separate completion authority](#fixed-seed-completion-read-authority) verifies
+all required retained/local facts after the exclusive Tenant fence and actual
+Tenant/mapping preparation, then acknowledges narrow restoration before mutation.
 
-The mapping is a projection, explicitly outside ADR-0042's aggregate count; this
-act writes only the Tenant aggregate root. Fresh seed invokes the same closed
-act after v1 completion. Existing completed installations use the fixed
-`make seed-admin-origins` adoption, not ordinary warm preservation. Each Tenant
-commits independently, so interruption can resume the other Tenant and an exact
-repeat writes nothing. No public generic host writer, reset or repair mode is
-introduced. Include a marker-0/exact-existing-mapping positive control. The marker
-is not a general installation-completed flag.
+The existing nonpersonal `tenants.adopted_seed_origin_version` admits retained
+0/1/2. A forward migration preserves old marker-1 history, permits only qualified
+`0→2` / `1→2`, and rejects fresh `0→1`, decrements, unknown versions and arbitrary
+jumps. The exact mapping and existing two MUST audit intents remain atomic with
+the Tenant transition. Marker 0 permits absent INSERT or locked exact-existing
+mapping; marker 1 requires that exact live mapping already exist. Neither repairs
+missing/disabled/foreign/conflicting mapping. The existing projection is named
+as unchanged audit evidence without a fictitious UPDATE. No column/table is added.
+
+| Fixed runner observation before mutation dispatch | Action |
+|---|---|
+| 0 | Dispatch the qualified command; require post-marker 2 and exact live mapping. |
+| 1 | Require exact existing live mapping, then dispatch full requalification; require post-marker 2. |
+| 2 | Verify exact live mapping and stop **before** command dispatch/MUST declaration/completion witness/temporary scope. |
+| Other/missing/unknown | Fixed refusal and CLI exit 1. |
+
+The command refuses marker 2; sending it directly is an ordinary audited refusal,
+not the write-free-repeat interface. Runner repeat proves zero command dispatch,
+MUST declarations, completion mint/verification, temporary scope-only SQL and
+business/audit writes. Narrow ordinary query announcements remain allowed.
+`SeedVerification.Tenant` accepts retained 0/1/2 before the ordinary
+`SeedRunner` content-complete check, so `make seed` can preserve an already
+adopted installation and reach the same write-free runner shortcut.
+
+The mapping remains a projection outside ADR-0042's aggregate count; Tenant is
+the only aggregate root changed. Fresh seed invokes the same qualified act after
+foundation completion; existing installations use explicit fixed
+`make seed-admin-origins`, not silent ordinary warm topology repair. Each Tenant
+commits independently. Marker 2 records **historical qualified adoption**; its
+repeat does not recheck current admin/grants/publication/profile/global/provider
+state or guarantee a usable login account. Repeat relies on retained facts and
+invariants preserved by admitted writers, not forged old metadata or arbitrary
+SQL. A later writer breaking that premise reopens the repeat contract.
+
+The current unknown-COMMIT invocation retains central indeterminate audit and
+exits 1 after existing cleanup; it does not automatically resend or open another
+owner while cleanup is uncertain. Recovery belongs to a **later explicitly
+invoked** fixed runner/CLI. Its existing `GetTenantSeedStateQuery` and
+`GetHostMappingSeedStateQuery` run in fresh, separate ordinary ReadOnly scoped
+frames under the existing ten-second per-act deadline. Fresh 2 plus exact mapping
+converges to exit 0 without a mutation/intent/witness. Fresh 0/1 does not prove
+rollback; only that new explicit invocation may run the full qualified command.
+Unknown/invalid/missing observations or storage failure exit 1 with fixed
+diagnostics, never a rollback claim. No extra recovery mode, parallel connector
+or automatic mutation retry is introduced. Real controls cover unknown COMMIT,
+full/warm marker-2 entrypoints, missing/completed old marker 1, exact-existing
+mapping, plural-MUST rollback, both held-Tenant orders and no-dispatch repeat.
 
 ### Protected durable idempotency
 

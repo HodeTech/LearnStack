@@ -20,6 +20,8 @@ are Accepted contracts pending P03-3 implementation and proof; the
 [phase Status block](../roadmap/phase-03-identity-admin.md) owns packet state.
 The separate fixed-seed prerequisite source derives from
 [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md).
+The separate fixed-origin completion source derives from
+[ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md).
 
 LearnStack uses permission-based RBAC layered on top of tenant membership. This standard pins the **naming convention**, **closed action set**, **registration pattern**, **enforcement points**, and the **per-module matrix template** that every module must produce.
 
@@ -441,6 +443,19 @@ Content seed writers instead obey the
 [ordinary-scope per-write proof](05-database.md#every-tenant-bound-seed-write).
 Standard 05 owns both contracts and their closed source/caller populations;
 acceptance supplies no implementation proof or production provisioner authority.
+
+The distinct [fixed-origin completion witness](05-database.md#fixed-seed-completion-read-authority)
+admits only the fixed `AdoptSeedAdministrationOriginCommand` and its two existing
+declarations. It binds the actual finite Seed invocation and immutable prepared
+target snapshot under the retained complete plan; caller versions, hashes or
+Booleans confer no authority. It never borrows the pristine witness or human
+`OperationReadWitness`, adds no permission pair and grants no login, Role,
+Membership or reactivation power. Its retained local administrator predicate
+keeps both kernel pairs and preserves lawful nonkernel removals; it supplies no
+fresh global User/provider eligibility claim. Qualified marker 2 plus the exact
+live mapping permits only the runner's write-free repeat, not current protected
+authority or a current mutable-graph proof. Standard 05 owns completion and
+repeat rules; the phase Status block owns qualification.
 
 `ChangeRoleGrantsCommand` and `AdoptRoleGrantManifestCommand` are separate
 production application acts, each with one Role root and expected Role row version.

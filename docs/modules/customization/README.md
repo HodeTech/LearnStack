@@ -10,6 +10,9 @@ The fixed-seed continuation extension derives from
 [ADR-0080](../../decisions/0080-fixed-seed-prerequisite-read-scope.md). Its new
 guards and race proofs remain governed by the
 [Phase 03 Status block](../../roadmap/phase-03-identity-admin.md).
+The separate fixed-origin completion contract derives from Accepted
+[ADR-0081](../../decisions/0081-fixed-seed-completion-before-origin-adoption.md);
+acceptance does not qualify its owning readers or completion proofs.
 
 The second module spec in the repository, per
 [Documentation Standards § Per-Module Specifications](../../standards/13-documentation.md).
@@ -297,6 +300,16 @@ immutable authored pins. Owning Application.Contracts ports use that same owner;
 pre-wait tracked objects are not evidence. No temporary seed hatch is used.
 Standard 05 owns the monotonic Identity-stage and admitted immutable-content
 proof, its cross-branch limits and Phase 06 reopening requirement.
+
+The separate [fixed-origin completion operation](../../standards/05-database.md#fixed-seed-completion-read-authority)
+uses a closed Customization Application.Contracts reader on the adoption owner's
+ordinary narrow scope. It verifies required built-in/authored ContentType and
+Taxonomy roots, finite child graphs, exact immutable revision/content pins and
+declared completed publication state. It returns only admission/refusal; no
+schema, label, child graph or immutable payload escapes. This reader is not a
+seventh content writer or a pristine-read consumer and grants no repair or
+publication authority. Standard 05 owns the fixed declaration and same-owner
+completion boundary; Phase 06 reopens it before mutable content administration.
 
 ## Component diagram
 

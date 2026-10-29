@@ -33,6 +33,8 @@ Native entry/administration and replay additions derive from jointly Accepted
 [ADR-0079](../decisions/0079-bounded-identity-administration.md).
 The internal fixed-seed prerequisite boundary additionally derives from
 [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md).
+The separate fixed-origin completion purpose derives from
+[ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md).
 
 This standard defines **which operations must be audited**, **what an audit entry
 contains**, **how long entries are retained**, and how each module signs up for its
@@ -841,8 +843,14 @@ evidence or re-run a successful mutation to authorize a receipt.
 
 Fixed management-origin adoption uses one Tenant-root marker change and its host
 projection on the same common transaction with declared plural MUST evidence.
-There is no second aggregate writer or private Seeder audit table. Successful
-warm no-write checks declare no new mutation intent. Real seed/adoption races,
+Both qualified `0→2` and `1→2` transitions retain those two MUST intents; an exact
+existing mapping is designated as an unchanged projection without a fictitious
+UPDATE. The runner verifies marker 2 and its exact live mapping, then stops
+before mutation dispatch, witness minting, temporary widening or another MUST
+intent. Marker 2 records historical qualified adoption, not current mutable-graph
+or provider eligibility. There is no second aggregate writer or private Seeder
+audit table. Successful warm no-write checks declare no new mutation intent.
+Real seed/adoption races,
 unknown creation, replay failure and refresh zero-event-delta proofs are required.
 
 The [closed fixed-seed prerequisite check](05-database.md#fixed-seed-prerequisite-read-authority)
@@ -857,6 +865,16 @@ internal to the check; no raw editor evidence enters results, diagnostics or
 durable receipts. An independently callable or value-disclosing reader requires
 separate sensitive-read classification before activation. Acceptance supplies no
 new runtime qualification; the phase Status block remains authoritative.
+
+The separately closed [fixed-origin completion check](05-database.md#fixed-seed-completion-read-authority)
+has the same internal admission/refusal audit boundary. Its sole consumer is
+`AdoptSeedAdministrationOriginCommand`; it does not join the eight pristine
+consumers. Owning completion readers disclose no values or relationships, so no
+independent successful sensitive-read event, new Off request or durable receipt
+is added. Completion refusal retains the adoption act's failed/denied evidence
+and unknown-COMMIT contract; successful transitions retain plural MUST rollback.
+Standard 05 owns the separate source, restoration, marker/repeat and recovery
+rules. Acceptance does not qualify these new controls.
 
 The seven-/two-year retention periods above remain **policy targets**, not an
 implemented automatic purge. Phase 11 owns enforcement and production volume

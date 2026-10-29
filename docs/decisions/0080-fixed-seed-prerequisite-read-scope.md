@@ -400,3 +400,35 @@ substituted for these behavioral controls.
 - [Education specification](../modules/education/README.md).
 - [Data protection](../architecture/23-data-protection.md).
 - [Phase 03](../roadmap/phase-03-identity-admin.md).
+
+## Amendments
+
+### Amendment 1 — Separate fixed origin completion purpose (2026-10-29)
+
+Accepted [ADR-0081](0081-fixed-seed-completion-before-origin-adoption.md) adds a
+separate closed completion-purpose read census with one consumer,
+`AdoptSeedAdministrationOriginCommand`. This ADR's exact eight pristine consumers,
+source, projections and original predicates remain unchanged. The distinct
+completion witness, Seeder minter, owner entry and owning-module readers cannot
+substitute for the pristine prerequisite authority. The complete twenty-two
+Tenant-bound writer census also remains unchanged.
+
+The completion operation reuses this ADR's existing ordinary ReadWrite owner,
+seed-state transition, write barriers and cleanup policy. It shares one private
+typed transition and the same two exact scope-only SQL sites. Tenancy and
+Customization checks run narrow; only the fixed Education/Identity branch checks
+use the completion hatch. [Database Standards](../standards/05-database.md#operation-bound-read-authority)
+owns the separate exact source/minter/caller/projection ledgers.
+
+Implementation refactors `FixedSeedPrerequisiteConventionTests` and its
+`WithoutFixedSeedScopeAnnouncements` sanitizer around that shared private
+transition. It preserves the exact eight constructors/minter/reader/caller
+assertions and planted hostile controls, checks the same two SQL sites once and
+admits no file-wide exception. `SeedOriginCompletionConventionTests` owns the
+separate `Fixed_Seed_Origin_Adoption_Requires_Completed_Foundation` rule, source
+census and hostile controls; it does not broaden the pristine rule.
+Acceptance registers these obligations without claiming implementation proof.
+
+ADR-0081 supplies the additional authority; this amendment discloses it without
+rewriting this decision. Historical Accepted bytes, status, date, Deciders and
+rationale remain unchanged.

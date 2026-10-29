@@ -68,6 +68,9 @@ Accepted live-authorization extensions additionally derive from
 Accepted fixed-seed prerequisite extensions derive from
 [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md); their new
 obligations remain Registered below.
+Accepted fixed-origin completion extensions derive from
+[ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md);
+their separate new obligations also remain Registered.
 The implemented Identity obligations and extensions name their actual proof
 owners below; the [phase Status block](../roadmap/phase-03-identity-admin.md) owns
 current qualification and review state.
@@ -2890,8 +2893,9 @@ own current qualification and review state.
 ### Accepted P03-3 extensions and new obligations
 
 Source: [ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md),
-[ADR-0079](../decisions/0079-bounded-identity-administration.md) and
-[ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md). These are
+[ADR-0079](../decisions/0079-bounded-identity-administration.md),
+[ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md) and
+[ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md). These are
 Accepted, **Registered** extensions; the shipped populations above remain
 Implemented. A source census, proposed test name or document check does not
 qualify a new runtime population. The phase Status block owns delivery state.
@@ -2899,8 +2903,8 @@ qualify a new runtime population. The phase Status block owns delivery state.
 | Existing canonical rule | P03-3 extension / planned proof owner |
 |---|---|
 | `Global_Identity_Storage_Is_Subject_Confined` and `Global_Identity_Creation_Uses_The_Common_Audit_Owner` | Extend the exact applied function/body/ACL/caller census from five to eight; qualify actual attempt/capacity/discovery owners, no counter reset or general User projection. Existing central success/reconciliation seams remain sole writers. |
-| `Identity_Seed_Uses_Finite_Adopted_Manifests` | `IdentitySeederTests` and Tenancy seed controls: pristine-prefix versions, edited completed-state preservation, terminal/tombstone refusal, no individual grant restoration, per-write fence/version recheck and real held-seed locale/profile/grant competitors. Fixed admin-origin adoption atomically writes one Tenant root, its monotonic marker and exact projection/MUST evidence; legacy complete/partial/conflict/repeat-zero-write and marker-with-deleted-mapping refuse controls. ADR-0080's [temporary read](#fixed_seed_prerequisites_use_a_closed_temporary_read_scope) and [complete writer census](#tenant_bound_seed_writes_recheck_under_ordered_fences) remain separately Registered, not additional Implemented manifest coverage. |
-| `Tenant_Scope_Widening_Is_Never_Set_From_Request_Input`, `Permission_Scope_Matches_Resource_Scope`, `Out_Of_Band_Setters_Open_Read_Only_Transactions`, `Protected_Operations_Require_Explicit_Live_Policies` and `Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork` | Existing human witness, scope-carrier and source/attachment owners gain the exact separate fixed-seed producer, reader consumers and scope-only enable/clear sites under [`Fixed_Seed_Prerequisites_Use_A_Closed_Temporary_Read_Scope`](#fixed_seed_prerequisites_use_a_closed_temporary_read_scope). Preserve Protected-human minters, current owner/source enrollment, ten Tenant setters and four context writers; no new physical owner or READ ONLY claim. This extension remains Registered with that rule's planned owners. |
+| `Identity_Seed_Uses_Finite_Adopted_Manifests` | `IdentitySeederTests` and Tenancy seed controls: pristine-prefix versions, edited completed-state preservation, terminal/tombstone refusal, no individual grant restoration, per-write fence/version recheck and real held-seed locale/profile/grant competitors. Fixed origin adoption's qualified marker-2 transitions, warm marker-2 preservation, legacy upgrade and zero-dispatch repeat are separately Registered under [the completion rule](#fixed_seed_origin_adoption_requires_completed_foundation). ADR-0080's [temporary read](#fixed_seed_prerequisites_use_a_closed_temporary_read_scope) and [complete writer census](#tenant_bound_seed_writes_recheck_under_ordered_fences) remain separately Registered, not additional Implemented manifest coverage. |
+| `Tenant_Scope_Widening_Is_Never_Set_From_Request_Input`, `Permission_Scope_Matches_Resource_Scope`, `Out_Of_Band_Setters_Open_Read_Only_Transactions`, `Protected_Operations_Require_Explicit_Live_Policies` and `Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork` | Existing human witness, scope-carrier and source/attachment owners gain the exact separate fixed-seed producers and reader populations under [the eight-consumer prerequisite rule](#fixed_seed_prerequisites_use_a_closed_temporary_read_scope) and [one-consumer completion rule](#fixed_seed_origin_adoption_requires_completed_foundation). Their private typed transition shares the same two scope-only enable/clear SQL sites. Preserve Protected-human minters, current owner/source enrollment, ten Tenant setters and four context writers; no new physical owner or READ ONLY claim. Both extensions remain Registered with their named owners. |
 | `Permission_Definitions_DeclareScope` and `Permission_Registry_Has_DeniedTest` | `OperationPermissionConventionTests` and actual command controls: exact v1 five Identity pairs plus v2 three Tenant Tenancy pairs; finite Any/All alternatives, disabled default, explicit additive adoption and independent denied coverage. No blanket key/scope implication. |
 | `Identity_Membership_Invariants_Use_Fresh_Ordered_Locks` | Actual member profile/status/assignment commands, retained Role-root grant locks and fresh post-wait delegation; no extra User fence for profile/removal. Existing deferred/MUST rollback and last-admin guarantees remain. |
 | `Authenticated_Http_Surface_Is_Enumerated_And_ReadOnly` and `Authentication_Middleware_Order_Is_Enforced` | Exact protected write/global-self descriptors supplement the historical read-only union. Source admission follows verified-subject quota, separate native evidence never rewrites provider facts, and both HTTP/direct application entry retain independent policy checks. Wrong-method/masking, legacy/public and OpenAPI/SDK caller controls cover the complete union. |
@@ -2915,6 +2919,9 @@ qualify a new runtime population. The phase Status block owns delivery state.
   nested, event and origin-adoption sources cannot obtain it. Separate owner
   state and exact scope-only enable/clear sites preserve Tenant/organization/
   generation, and SQL/EF return narrow before usable evidence or mutation.
+  ADR-0081's distinct completion entry reuses one private typed transition and
+  those same two SQL sites; its separate minter/consumer census never widens this
+  exact eight-consumer pristine population.
   The closed operation exposes no callback, submitted SQL or reusable scope lease.
   Fixed owning-contract readers return only admission/refusal or opaque one-use
   evidence; personal metadata never becomes a DTO, diagnostic, cache or receipt.
@@ -2930,7 +2937,12 @@ qualify a new runtime population. The phase Status block owns delivery state.
   preservation and narrow reads after restoration. The held Yoga profile-edit
   race, both commit orders, untouched interrupted resume and completed no-write
   repeat must observe real target state and successful profile counts.
+  Refactor `FixedSeedPrerequisiteConventionTests`' owner/caller checks and scope
+  sanitizer to the shared private transition while still exempting exactly the
+  two reviewed SQL sites. Planted extra sites and cross-purpose substitutions
+  remain failures; completion has its own independent census below.
 - **Source:** [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md);
+  [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md);
   [operation-bound read authority](05-database.md#operation-bound-read-authority)
   and [warm-seed evidence](05-database.md#warm-seed-evidence-and-origin-adoption).
 - **Type:** exact production source/caller/statement census plus real app-role
@@ -2941,12 +2953,62 @@ qualify a new runtime population. The phase Status block owns delivery state.
 - **Status:** **Registered.**
 - **Phase:** P03-3 Step 3.
 
+#### `Fixed_Seed_Origin_Adoption_Requires_Completed_Foundation`
+
+- **Asserts:** only the fixed `AdoptSeedAdministrationOriginCommand` consumes the
+  separate privately minted completion witness, with its actual active finite
+  Seed source,
+  independently captured declaration and immutable prepared target snapshot.
+  The minter validates actual owner/unit, retained complete exclusive Tenant plan
+  and locked Tenant/existing-mapping or fenced mapping-absence evidence;
+  caller versions, hashes or Booleans cannot
+  supply admission. Owning contracts verify the retained completed foundation
+  on that owner, with narrow Tenancy/Customization reads and fixed Education/
+  Identity branch reads inside the temporary hatch. Restoration precedes usable
+  results or mutation. The eight pristine consumers and Protected-human witness
+  remain separate; no global/provider read, new owner or general reader is added.
+- **Required controls:** exact separate minter/consumer/projection census and
+  forged-source/policy/request/target/plan/owner/generation controls; reject
+  cross-purpose reuse, extra scope SQL, callback/lease surfaces and profile/
+  global/provider value projections. Reuse the prerequisite rule's shared private
+  transition/barrier controls without enlarging its pristine census.
+  Actual app-role PostgreSQL controls refuse provisioning-only and every
+  incomplete stage, including a final other-branch profile and content pin;
+  completed legacy/fresh installations preserve lawful profile/assignment/grant,
+  locale/theme/Organization edits and retained terminal nonadmins. A revoked
+  former admin needs a qualifying local replacement; both kernel pairs remain
+  required and lawful nonkernel removals remain removed. Required Membership
+  aggregate version zero refuses; positive current retained state proves no
+  original profile-initializer or fresh global eligibility history.
+  Cover held-Tenant competing commits in both orders, actual target locks,
+  unchanged mapping/marker and successful audit counts on refusal, plural-MUST
+  rollback, exact-existing mappings, foreign masking, restoration/cleanup and
+  independent two-Tenant resume. Forward guards admit only qualified `0→2` and
+  `1→2`, reject new `0→1`, decrements and jumps, and preserve old marker-1 history.
+  Runner controls prove marker 0 dispatch/expect-2, marker 1 exact-mapping check
+  then dispatch/expect-2, marker 2 exact-mapping check then zero dispatch/witness/
+  hatch/intent, and other-marker refusal. Warm `make seed` accepts marker 2.
+  Marker-2 repeat records historical adoption, not current mutable-graph proof;
+  genuine unknown-COMMIT controls follow the canonical recovery contract without
+  inferring rollback or automatically replaying a mutation.
+- **Source:** [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md);
+  [closed completion authority](05-database.md#fixed-seed-completion-read-authority)
+  and [warm-seed evidence](05-database.md#warm-seed-evidence-and-origin-adoption).
+- **Type:** exact compiled source/consumer/projection and shared SQL-site census,
+  plus real app-role PostgreSQL completion, transition, fault and race controls.
+  **Kind:** structural and behavioural.
+- **Planned test owners:** `SeedOriginCompletionConventionTests`,
+  `SeedOriginCompletionTests`.
+- **Status:** **Registered.**
+- **Phase:** P03-3 Step 3; Phase 06 reopens the admitted content-writer premise.
+
 #### `Tenant_Bound_Seed_Writes_Recheck_Under_Ordered_Fences`
 
 - **Asserts:** the actual 21 v1 writer types and separate fixed origin-adoption
   writer each hold their complete ordered Tenant/root plan and freshly check
   prerequisites on that owner before mutation. The eight temporary readers use
-  the preceding rule; `ProvisionTenant` stays INSERT-first. The twelve content
+  the [prerequisite rule](#fixed_seed_prerequisites_use_a_closed_temporary_read_scope);
+  `ProvisionTenant` stays INSERT-first. The twelve content
   writers use narrow owning contracts for pristine Tenancy and absence of all
   retained Role history, plus exact target/predecessor/natural-key/version and
   immutable authored pins under the exact fixed source. Tenant-wide Role storage,
@@ -2954,7 +3016,8 @@ qualify a new runtime population. The phase Status block owns delivery state.
   inactive, tombstoned and undeclared Role IDs cannot evade it. Built-in event
   competitors use their separate source and at least shared Tenant before
   quota/concept locks. Origin adoption retains its separate completion/topology
-  and plural-audit contract; global User adoption stays outside Tenant ownership.
+  and plural-audit contract under the [separate completion rule](#fixed_seed_origin_adoption_requires_completed_foundation);
+  global User adoption stays outside Tenant ownership.
 - **Required controls:** independently complete writer/competitor census with
   missing/extra-source and removed-guard controls; actual held-Tenant/first-Role
   competitors and both commit orders for all twelve content writer types;
@@ -2964,6 +3027,7 @@ qualify a new runtime population. The phase Status block owns delivery state.
   writer population, not an all-branch snapshot or forged database history.
 - **Source:** [ADR-0079 Amendment 2](../decisions/0079-bounded-identity-administration.md#amendment-2--complete-seed-write-census-and-prerequisite-proof-2026-10-29),
   [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md) and
+  [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md);
   [warm-seed evidence](05-database.md#warm-seed-evidence-and-origin-adoption).
 - **Type:** complete compiled production-writer/source census and real app-role
   PostgreSQL interruption, preservation and competing-commit controls.
@@ -2971,7 +3035,7 @@ qualify a new runtime population. The phase Status block owns delivery state.
 - **Test owners:** `SeedContinuationConventionTests`, `SeedContentContinuationTests`,
   `IdentitySeederTests` and `SeedAdministrationOriginTests`. Full family qualification
   remains open; the [Phase 03 Status block](../roadmap/phase-03-identity-admin.md)
-  distinguishes implemented local controls from the origin-completion decision.
+  distinguishes implemented local controls from completion qualification.
 - **Status:** **Registered.**
 - **Phase:** P03-3 Step 3; Phase 06 reopens staging before mutable content administration.
 
@@ -5659,6 +5723,9 @@ structural test proves — and what it does not.
 - **Registered P03-3 extension:** ADR-0080's separate fixed-seed source and
   scope-only sites are covered by
   [`Fixed_Seed_Prerequisites_Use_A_Closed_Temporary_Read_Scope`](#fixed_seed_prerequisites_use_a_closed_temporary_read_scope).
+  ADR-0081 adds the distinct one-consumer
+  [`Fixed_Seed_Origin_Adoption_Requires_Completed_Foundation`](#fixed_seed_origin_adoption_requires_completed_foundation),
+  reusing the same two SQL sites through one private typed transition.
   The existing Protected-human witness and Implemented controls remain unchanged.
 - **Source:** ADR-0036 § The reconciliation matrix;
   [ADR-0076](../decisions/0076-live-scoped-authorization.md).

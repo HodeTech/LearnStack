@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 1,359 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 1,408 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -166,6 +166,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0081 proposal review round 1 and revised package (2026-10-29)](#adr-0081-proposal-review-round-1-and-revised-package-2026-10-29) — 58 lines
   - [ADR-0081 proposal review round 2 and approval readiness (2026-10-29)](#adr-0081-proposal-review-round-2-and-approval-readiness-2026-10-29) — 39 lines
   - [P03-3 Step 3 independent seed regressions and typed race correction (2026-10-29)](#p03-3-step-3-independent-seed-regressions-and-typed-race-correction-2026-10-29) — 55 lines
+  - [ADR-0081 maintainer corrections and acceptance (2026-10-29)](#adr-0081-maintainer-corrections-and-acceptance-2026-10-29) — 49 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -7068,3 +7069,52 @@ witness, marker-2 transition and migration are not implemented. The next require
 sequence remains that decision, its reconciled carriers, dependent implementation
 and qualification, then the original Step 3 commit and two fresh postcommit
 review rounds. All later approved steps retain their original order.
+
+### ADR-0081 maintainer corrections and acceptance (2026-10-29)
+
+The maintainer explicitly instructs Root to verify/correct the supplied reviews,
+then mark ADR-0081 Accepted and continue implementation. This is conditional
+acceptance authority, not another request to await approval. Root compares the
+findings against current source, Accepted records and canonical carriers. Prior
+proposal no-finding verdicts remain historical, limited read-only assessments;
+they did not prove the missing execution order or complete carrier plan.
+
+| Finding | Verified disposition before acceptance |
+|---|---|
+| First review / M1 / m1: marker-2 ordering and audit | Valid. Split runner routing from dispatched 0/1 mutation. Runner 2 verifies the exact live mapping and skips command/intent/witness/temporary scope. Only 0/1 commands prepare targets, verify completion, acknowledge narrow restoration and advance to 2. Direct completed-command dispatch remains an audited refusal. Required tests observe zero dispatch/mint/verification/scope-only SQL and writes, not only final row counts. |
+| B1: separate authority census | Valid approval-surface ambiguity, not evidence of a shipped capability. Status/index/standards/amendments explicitly reuse transition/barrier/cleanup while preserving ADR-0080's exactly eight pristine source/consumer/projection census. Completion has its own single-consumer census. |
+| M2: current runner branches | Source claim valid. The unchanged Proposed-era runner skips 1, rejects 2 and expects post-marker 1. Acceptance names its exact implementation branch table: 0 dispatch/expect2; 1 exact existing mapping then dispatch/expect2; 2 mapping/skip; other refusal. The source is an implementation carrier, not proof that the proposal already runs. |
+| M3: warm verification | Source claim valid. Current SeedVerification.Tenant accepts only 0/1 before SeedRunner's content-complete short circuit. Add 2 explicitly and prove the supported make-seed/child-process warm entrypoint, not only direct command tests. |
+| M4: structural controls | Valid. Current FixedSeedPrerequisiteConventionTests pins SQL/state/callers to the old public method. Refactor its owner/sanitizer leg to one private typed transition with exactly two private adapters and the same two SQL sites, preserving every exact pristine source/eight-constructor/reader check. Add an independent completion census rule; no blanket file/type exemption or duplicated transition SQL. |
+| M5: unknown COMMIT | Valid owner/path specificity gap. Current uncertain invocation keeps central indeterminate evidence and CLI exit1 after cleanup. Recovery is a subsequent explicit runner/CLI invocation, using existing narrow queries in fresh ordinary ReadOnly scoped frames and existing 10s deadlines. Fresh2+exact mapping converges0 without dispatch. Fresh0/1 is not rollback proof and only permits full qualification as that new deliberate invocation. Unknown/invalid/storage failure exits1, no automatic resend/recovery mode/parallel owner. |
+| M6: retained edits / administrator / repeat | Clarify revoked nonadmins or retired admins only with a valid local replacement, protected two-pair kernel versus preserved nonkernel edits. Marker2 records historical qualified adoption; repeat does not recheck current admin/grants/publication/profile or global/provider status. The admitted-writer/forged-history limits remain explicit. |
+| M7: amendment instrument | Valid wording correction. The new ADR-0081 supplies bounded supersession of ADR-0079's origin contract; its dated amendment discloses that superseding decision and preserves every historical Decision/Status/Date byte. The earlier append-ready proposal wording is not applied as a decision-changing amendment. |
+| m2 / m3 | Name Membership aggregate version, never a nonexistent Profile version; say no mapping repair, distinguishing it from mandatory SQL read-scope restoration. |
+| m4 | Add the actual Standards11/18/19/21, four module specs, aggregate/lock and audit ADR references; file/fragment validation remains required. |
+| m5 | A sealed immutable actual Tenant/mapping snapshot is prepared by the handler under its actual target locks. The sole Seeder minter checks it against independent fixed pins and current unit/announcement/plan; expected version/snapshot possession alone is not authority. Pin constructor/getter/caller provenance separately. |
+
+The selected limits remain approved and unchanged: origin-only Tenant-local
+admin/current Membership disposition, without fresh global/provider admission
+or original profile-initializer provenance. The positive version/stamps rule
+applies to declared required Memberships; valid extra replacement admins may
+coexist under the local predicate without substituting missing required roots.
+Current fixed Customization/Education authored pins remain exact, including
+presentation values; unused domain mutators confer no Phase 06 administration
+authority. No new role/definer/physical owner/Tenant setter/context writer/table/
+column, repair/reset mode or independently disclosed sensitive read is selected.
+
+**Acceptance.** ADR-0081 is Accepted on 2026-10-29 after these corrections under
+the maintainer's explicit conditional approval. Acceptance appends five named
+dated disclosures, updates the decision index, canonical Standards05/11/18/19/21,
+four module contracts/audit carriers, Architecture23 and Phase Status/G5 before
+capability code. Its exact authority is one completion consumer separately from
+eight unchanged pristine consumers. The existing twenty-two-writer census does
+not change. The new architecture/behavior family remains Registered until its
+actual source/owner/SQL/race/cleanup/entrypoint proofs are qualified.
+
+Step 3 continues without another approval pause: implement typed completion
+witness/shared private transition and owning projections; qualify 0/1→2 guards,
+runner/warm/unknown-COMMIT paths and no-dispatch repeat; complete Step 3 source
+checks, commit and run its original two fresh implementation-review rounds.
+Steps4–10 retain their order. No local doc review closes full Architecture/
+Integration/provider/browser/manual-accessibility or final-source A/B obligations.

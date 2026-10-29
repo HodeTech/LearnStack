@@ -407,6 +407,21 @@ owns the canonical source, metadata projection and lifetime; existing personal
 classification, diagnostic exclusion and fulfillment boundaries continue to
 apply. Acceptance does not claim runtime proof or extend erasure authority.
 
+Accepted [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md)
+adds a separate internal completion purpose for the fixed origin-adoption act.
+Its owning-module readers may compare immutable content pins internally;
+Identity selects retained lifecycle, Membership aggregate version, attribution
+and finite relationship/child facts, without profile values or raw editor
+evidence escaping. No global User/provider row, subject, email, credential or MFA
+state is read. The retained local administrator predicate is not a fresh global
+or provider eligibility attestation; marker 2 records historical qualified
+adoption rather than current mutable-graph proof. No new persisted data category,
+store, profile-value fingerprint or erasure privilege follows. Existing personal
+linkage classification, sink exclusions and forged-history residual apply to
+this separate purpose. [Database Standards](../standards/05-database.md#fixed-seed-completion-read-authority)
+owns its closed projections, same-owner lifetime and repeat boundary; qualification
+remains in the phase Status block.
+
 ### Erasure authority and first-writer prerequisites
 
 - [Phase 03](../roadmap/phase-03-identity-admin.md#tenant-data-ownership-dsar-boundary-and-pii-classification)

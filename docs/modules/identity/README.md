@@ -27,6 +27,9 @@ Accepted 2026-10-26. The phase Status block owns qualification and review state.
 The fixed-seed prerequisite source derives from
 [ADR-0080](../../decisions/0080-fixed-seed-prerequisite-read-scope.md); its
 acceptance does not qualify the new owner transition or seed race proofs.
+The separate fixed-origin completion contract derives from Accepted
+[ADR-0081](../../decisions/0081-fixed-seed-completion-before-origin-adoption.md);
+its implementation and proofs remain governed by the phase Status block.
 
 ## Overview
 
@@ -246,6 +249,25 @@ composition service joins owning contracts without a runtime dependency cycle
 or module request types in the common coordinator. It returns no profile values,
 raw editor evidence or Membership directory. Standard 05 owns source binding,
 state/write barriers, cleanup and the admitted-writer threat boundary.
+
+Origin adoption has a distinct [completion witness and reader](../../standards/05-database.md#fixed-seed-completion-read-authority),
+without joining the eight pristine consumers. Identity's closed owning contract
+checks declared Role/Membership identities, immutable scope/User associations,
+retained lifecycle/stamps, required children and a valid current finite grant/
+assignment graph on the prepared adoption owner. The temporary hatch reveals
+branch facts only inside this operation and clears before admission returns.
+Required contained profiles exist and their owning Membership aggregate version
+is positive; version zero refuses. This is current retained disposition, not
+proof that the original profile initializer ran. Lawful empty/edited profiles,
+nonkernel grant removals and retained terminal nonadmin Memberships are preserved.
+A revoked former admin requires a qualifying local replacement; the current
+predicate still requires an Active undeleted NULL-org Membership assigned a live
+Tenant-scoped Tenant Admin Role with both kernel pairs. It neither reads global
+User/provider state nor freshly attests the original writers' globally eligible
+administrator invariant. Those writers retain their existing invariant and
+guards. Completion adds no login, assignment, reactivation or repair authority,
+and returns no profile values or raw relationship/editor evidence. Standard 05
+owns the exact local predicate, marker-2 historical repeat and confinement rules.
 
 Identity also supplies the separate closed ordinary-scope prerequisite for the
 [twelve content seed writers](../../standards/05-database.md#every-tenant-bound-seed-write):

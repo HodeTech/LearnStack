@@ -13,6 +13,9 @@ seed preservation and provider/browser consumers.
 The separate fixed-seed prerequisite source derives from
 [ADR-0080](../../decisions/0080-fixed-seed-prerequisite-read-scope.md); acceptance
 does not qualify its owner transition or races.
+The separate fixed-origin completion contract derives from Accepted
+[ADR-0081](../../decisions/0081-fixed-seed-completion-before-origin-adoption.md);
+its implementation and proofs remain governed by the phase Status block.
 
 The first module spec in the repository, per
 [Documentation Standards § Per-Module Specifications](../../standards/13-documentation.md).
@@ -336,17 +339,38 @@ and `manage.demo-yoga.learnstack.local`, each mapping to its existing Tenant wit
 NULL organization. Existing public mappings remain unchanged. Fresh installation
 uses the same confined adoption act as the explicit one-time completed-warm
 upgrade, `make seed-admin-origins`. This closed Seed act advances Tenant's
-`adopted_seed_origin_version` from 0 to 1 and installs/verifies only its exact
+`adopted_seed_origin_version` from 0 or 1 to 2 and installs/verifies only its exact
 owned mapping projection on that same announced unit of work.
 `AdoptSeedAdministrationOriginCommand` handles one Tenant per invocation; the two
 Tenants commit independently. Its common audit frame declares two MUST intents:
 `tenancy.tenant.adopt_seed_origin` for the Tenant marker and existing
 `tenancy.hostmapping.write` for the mapping projection.
 The projection is not a second aggregate root or a new provisioning exception.
-No v2 Role grant is adopted by this act. Conflicting mappings refuse; version 1
-with a missing/wrong mapping refuses rather than repairing it. A valid second run
-is write-free. Ordinary completed warm seed requires this explicit upgrade when
-the old installation lacks the new origin; it never silently creates it.
+An exact existing mapping is designated as an unchanged audit projection without
+an UPDATE. No v2 Role grant is adopted by this act.
+
+After the exclusive Tenant plan and actual Tenant/mapping preparation, a separate
+[closed completion operation](../../standards/05-database.md#fixed-seed-completion-read-authority)
+checks the retained foundation through owning Application.Contracts on that
+owner. Tenancy verifies its original Tenant/Organization identities and history,
+valid current default/locale topology, original public mapping association and
+retained theme root/key/scope with a valid current palette, in narrow scope.
+Customization also reads narrow; only fixed Education/Identity branch readers
+use the temporary hatch. Narrow restoration precedes any usable result or
+mapping/marker mutation. This is a distinct one-consumer purpose; the eight
+pristine consumers remain unchanged. Standard 05 owns the exact source,
+immutable prepared snapshot, completion facts and common-owner guards.
+
+The runner's marker branches are explicit: 0 dispatches and requires 2; 1 first
+requires the exact live mapping, dispatches full completion qualification and
+requires 2; 2 requires the exact live mapping and skips dispatch; every other
+value refuses. The marker-2 branch mints no witness, opens no hatch and creates
+no MUST intent. Missing/disabled/conflicting mapping refuses without repair.
+Marker 2 records historical qualified adoption, not current mutable-graph or
+provider eligibility. Warm `make seed` accepts and preserves that marker.
+Ordinary completed warm seed requires the explicit upgrade for marker 0 or
+legacy marker 1; it never silently creates or repairs the origin. Standard 05
+owns the forward transition guards and unknown-COMMIT recovery contract.
 
 Local demo destinations/readiness derive from actual live scope and locales.
 An intentionally archived public branch is reported unavailable without retargeting

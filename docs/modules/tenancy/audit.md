@@ -315,11 +315,18 @@ Successful mutation audit shares business commit; existing MUST rollback remains
 `AdoptSeedAdministrationOriginCommand` is a distinct closed Seed request for one
 Tenant. It declares both `tenancy.tenant.adopt_seed_origin` and existing
 `tenancy.hostmapping.write` MUST intents on its common transaction. Tenant marker
-and fixed projection commit together; a second valid invocation is write-free.
+and fixed projection commit together for qualified `0→2` / `1→2`; an exact existing
+mapping is designated unchanged without an UPDATE. Under Accepted
+[ADR-0081](../../decisions/0081-fixed-seed-completion-before-origin-adoption.md),
+the runner's marker-2/exact-live-mapping branch skips mutation dispatch, witness
+minting, the temporary hatch and MUST intents. The separate completion check is
+internal to this act, adds no successful sensitive-read event or new Off request,
+and retains failed/denied and genuine unknown-COMMIT evidence on refusal.
 It grants no human host-mapping permission or v2 Role authority and introduces
 no second aggregate/provisioning exception. The
-[canonical storage contract](../../standards/05-database.md#p03-3-storage-and-replay-contract)
-owns exact per-write/pristine-prefix witnesses and actual held-seed races.
+[canonical completion contract](../../standards/05-database.md#fixed-seed-completion-read-authority)
+owns the separate source, retained completion facts, restoration, marker/repeat
+and recovery rules; qualification remains in the phase Status block.
 
 Organization/default protected receipt reads are ordinary MUST sensitive reads
 with current original-target disclosure admission before stored bytes. Failed

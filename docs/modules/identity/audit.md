@@ -11,6 +11,8 @@ and jointly Accepted [ADR-0076](../../decisions/0076-live-scoped-authorization.m
 The internal fixed-seed prerequisite boundary derives from
 [ADR-0080](../../decisions/0080-fixed-seed-prerequisite-read-scope.md); new
 qualification remains in the phase Status block.
+The distinct internal fixed-origin completion purpose derives from Accepted
+[ADR-0081](../../decisions/0081-fixed-seed-completion-before-origin-adoption.md).
 
 The baseline MUST floor applies. `IdentityAuditCatalogSource` declares
 actual operations: catalogue-to-matrix coverage is total. Audit slugs are not
@@ -59,6 +61,17 @@ unknown-COMMIT reconciliation remain unchanged; no separate successful read even
 or private receipt is added. [Standard 18](../../standards/18-audit-coverage.md#native-entry-and-protected-administration)
 owns the audit boundary; [Standard 05](../../standards/05-database.md#fixed-seed-prerequisite-read-authority)
 owns the metadata-only projection and restoration before results.
+
+The distinct [fixed-origin completion operation](../../standards/05-database.md#fixed-seed-completion-read-authority)
+has one consumer, `AdoptSeedAdministrationOriginCommand`, without joining the
+eight pristine consumers. Identity's retained metadata/relationship checks
+remain internal on that adoption owner, with no profile/global/provider value
+projection or raw editor result. They add no Identity mutation, separate Off
+request, successful sensitive-read event or durable receipt. The adoption act
+retains its plural MUST evidence, refusal and genuine unknown-COMMIT contract;
+marker-2/exact-mapping repeats stop before mutation dispatch or new intents.
+Standard 05 owns source, lifetime and retained-local completion semantics;
+acceptance supplies no runtime qualification.
 
 No seed command mutates a second root. Role grants travel in Role diffs;
 assignments/Profile travel in Membership diffs. Instance-qualified paths

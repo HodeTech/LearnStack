@@ -28,7 +28,8 @@ model, and session-variable placement**),
 [ADR-0044 The Audit Write Path](../decisions/0044-audit-write-path.md)
 (the audit row's tenant, capture, redaction, and the append-only layers).
 Fixed-seed scope-only verification derives from
-[ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md).
+[ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md); its separate
+completion purpose derives from [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md).
 Public-read additions derive from
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md); the private web
 ingress/caller and anonymous visitor budgets derive from
@@ -542,6 +543,20 @@ SQL sites preserve Tenant/organization values and announcement generation; they
 are separately enumerated callers, not Tenant setters or context writers. Human
 `OperationReadWitness` minting remains Protected-only. The fixed source adds no
 SQL owner, connection, role, definer, permission or independently callable reader.
+
+ADR-0081 reuses that transition/barrier/cleanup machinery through a **separate
+single-consumer completion census**, leaving ADR-0080's exactly eight pristine
+consumers/source/projection unchanged. Its typed completion witness admits only
+the fixed origin command, actual locked immutable target preparation and current
+scoped console provenance. The [completion contract](05-database.md#fixed-seed-completion-read-authority)
+owns narrow Tenancy/Customization versus wide Education/Identity reads, qualified
+marker 2 and recovery. Its local current-state predicate grants no global/provider
+eligibility or historical profile-initializer claim. The fixed runner handles
+marker-2 exact-mapping repeats before command dispatch, MUST intents, witness or
+temporary scope; the command itself refuses completed markers. No new Tenant
+setter/context writer or physical owner follows. Separate exact minter/caller
+controls preserve Protected-human authority and the two existing scope-only SQL
+sites in one private transition.
 
 P02b-1 Step 1 adds a read-only announcement snapshot through
 `IUnitOfWork.GetTenantContextAnnouncement(DbTransaction?)`, under
