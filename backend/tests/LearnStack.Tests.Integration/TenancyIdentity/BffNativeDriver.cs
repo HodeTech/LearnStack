@@ -15,7 +15,9 @@ internal sealed class BffNativeDriver : IAsyncDisposable
                      "browser-devtools-unreadable", "browser-devtools-missing", "browser-devtools-empty", "browser-devtools-malformed",
                      "browser-not-live", "browser-connect", "browser-context" }
                  .Concat(new[] { "browser-callback-", "browser-authorize-", "browser-logout-status-" }
-                     .SelectMany(prefix => new[] { "0", "200", "303", "400", "403", "404", "429", "503", "other" }.Select(code => prefix + code)))).ToArray();
+                     .SelectMany(prefix => new[] { "0", "200", "303", "400", "403", "404", "429", "503", "other" }.Select(code => prefix + code)))
+                 .Concat(new[] { "progress", "status", "cache", "wrapper", "heading", "view", "alert", "observer", "private-output" }
+                     .Select(reason => "browser-administration-counter-" + reason))).ToArray();
     private readonly Process _child;
     private readonly CancellationTokenSource _deadline = new(TimeSpan.FromMinutes(4));
     private readonly Task<string?> _errors;
@@ -24,7 +26,8 @@ internal sealed class BffNativeDriver : IAsyncDisposable
     private bool _complete;
     private int _expectedExit;
 
-    private BffNativeDriver(string root, bool browser = false, bool counter = false, bool heldBuild = false)
+    private BffNativeDriver(string root, bool browser = false, bool counter = false, bool heldBuild = false,
+        bool unavailablePageCounter = false)
     {
         var start = new ProcessStartInfo("node")
         {
@@ -37,6 +40,7 @@ internal sealed class BffNativeDriver : IAsyncDisposable
         };
         start.ArgumentList.Add(Path.Combine(root, "frontend/apps/web/scripts/" + (browser ? "verify-bff-browser.mjs" : "verify-bff-session.mjs")));
         if (counter) start.ArgumentList.Add(browser ? "--without-history" : "--without-successful-native-stop");
+        if (unavailablePageCounter) start.ArgumentList.Add("--without-ready-pages");
         if (heldBuild) start.ArgumentList.Add("--hold-build");
         start.Environment.Clear();
         start.Environment["PATH"] = Environment.GetEnvironmentVariable("PATH");
@@ -82,11 +86,14 @@ internal sealed class BffNativeDriver : IAsyncDisposable
     }
 
     internal static async Task<BffBrowserReceipt> BrowserAsync(string root, object configuration, bool counter,
-        Action? secondaryCleanupFailure = null)
+        Action? secondaryCleanupFailure = null, bool unavailablePageCounter = false)
     {
-        var driver = new BffNativeDriver(root, browser: true, counter: counter);
+        if (counter && unavailablePageCounter)
+            throw new InvalidOperationException("BFF browser counters require separate closed modes.");
+        var driver = new BffNativeDriver(root, browser: true, counter: counter,
+            unavailablePageCounter: unavailablePageCounter);
         var bodyFailed = false;
-        try { return await ReadBrowserAsync(driver, configuration, counter); }
+        try { return await ReadBrowserAsync(driver, configuration, counter, unavailablePageCounter); }
         catch (Exception error) when (Catchable(error)) { bodyFailed = true; throw; }
         finally
         {
@@ -104,26 +111,37 @@ internal sealed class BffNativeDriver : IAsyncDisposable
     private static bool Catchable(Exception error) => error.GetType() != typeof(OutOfMemoryException)
         && error.GetType() != typeof(StackOverflowException);
 
-    private static async Task<BffBrowserReceipt> ReadBrowserAsync(BffNativeDriver driver, object configuration, bool counter)
+    private static async Task<BffBrowserReceipt> ReadBrowserAsync(BffNativeDriver driver, object configuration, bool counter,
+        bool unavailablePageCounter)
     {
         await driver.WriteAsync(configuration);
         var reply = await driver.ReadAsync("browser_result");
         driver._child.StandardInput.Close();
         await driver._child.WaitForExitAsync(driver._deadline.Token);
         await driver.AssertOutputEndedAsync();
-        var expected = counter ? "rejected_history" : "passed";
+        var rejected = counter || unavailablePageCounter;
+        var expected = counter ? "rejected_history" : unavailablePageCounter ? "rejected_pages" : "passed";
+        var properties = string.Join(',', reply.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal));
+        if (properties != (rejected ? "hosts,outcome,phase,protocol,version,witness"
+            : "administrationPages,hosts,naturalRestores,noScriptHosts,outcome,phase,protocol,version"))
+            throw new InvalidOperationException("BFF browser fixture receipt has an invalid closed shape.");
         var version = reply.GetProperty("version").GetString();
-        driver._expectedExit = counter ? 1 : 0;
+        driver._expectedExit = rejected ? 1 : 0;
         if (reply.GetProperty("outcome").GetString() != expected || reply.GetProperty("hosts").GetInt32() != 2
             || version is null || version.Length > 32 || !System.Text.RegularExpressions.Regex.IsMatch(version, @"^\d+(?:\.\d+){1,3}$")
             || driver._child.ExitCode != driver._expectedExit || await driver._errors is not null)
             throw new InvalidOperationException("BFF browser fixture lacks its complete positive/counter witness.");
-        var restores = counter ? 0 : reply.GetProperty("naturalRestores").GetInt32();
+        var restores = rejected ? 0 : reply.GetProperty("naturalRestores").GetInt32();
         if (restores is < 0 or > 32) throw new InvalidOperationException("BFF browser restore count is outside its bound.");
+        if (!rejected && (reply.GetProperty("administrationPages").GetInt32() != 10
+            || reply.GetProperty("noScriptHosts").GetInt32() != 2))
+            throw new InvalidOperationException("BFF browser fixture lacks both hosts' complete page/no-script witnesses.");
         driver._complete = true;
-        var witness = counter ? reply.GetProperty("witness").GetString() : null;
+        var witness = rejected ? reply.GetProperty("witness").GetString() : null;
         if (counter && witness is not ("natural_back" or "persisted_event"))
             throw new InvalidOperationException("BFF browser counter has no closed restoration witness.");
+        if (unavailablePageCounter && witness != "unavailable_view")
+            throw new InvalidOperationException("BFF browser counter has no closed unavailable-page witness.");
         return new(version, restores, witness);
     }
 

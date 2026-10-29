@@ -232,6 +232,49 @@ describe('native complete snapshot capacity and actual cleanup', () => {
     },
   );
 
+  it.each(['hidden-hook', 'hook-getter', 'hidden-array-getter'] as const)(
+    'refuses a %s before serialization can invoke it',
+    (kind) => {
+      const value = pool();
+      const { lease } = value.reserve({}, response().lifetime);
+      lease.pin(() => true, 30_000);
+      const called = vi.fn(() => 'private');
+      const input = snapshot();
+      if (kind === 'hidden-hook') Object.defineProperty(input, 'toJSON', { value: called });
+      if (kind === 'hook-getter') Object.defineProperty(input, 'toJSON', { get: called });
+      if (kind === 'hidden-array-getter')
+        Object.defineProperty(input.formKeys, '0', { get: called });
+      expect(() => lease.publish(input)).toThrow(SnapshotAdmissionError);
+      expect(called).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['object', 'array'] as const)(
+    'refuses inherited %s serialization hooks without invoking them',
+    (kind) => {
+      const prototype: object = kind === 'object' ? Object.prototype : Array.prototype;
+      const value = pool();
+      const { lease } = value.reserve({}, response().lifetime);
+      lease.pin(() => true, 30_000);
+      const original = Object.getOwnPropertyDescriptor(prototype, 'toJSON');
+      const called = vi.fn(() => 'private');
+      let failure: unknown;
+      try {
+        Object.defineProperty(prototype, 'toJSON', { value: called, configurable: true });
+        try {
+          lease.publish(snapshot());
+        } catch (error) {
+          failure = error;
+        }
+      } finally {
+        if (original) Object.defineProperty(prototype, 'toJSON', original);
+        else Reflect.deleteProperty(prototype, 'toJSON');
+      }
+      expect(failure).toBeInstanceOf(SnapshotAdmissionError);
+      expect(called).not.toHaveBeenCalled();
+    },
+  );
+
   it.each(['work-first', 'response-first'] as const)(
     'joins actual API/shared-refresh work and native cleanup in %s order',
     async (order) => {

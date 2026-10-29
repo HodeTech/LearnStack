@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 2,667 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 2,730 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -186,6 +186,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 8 review round 1 and recovery corrections (2026-10-29)](#p03-3-step-8-review-round-1-and-recovery-corrections-2026-10-29) — 88 lines
   - [P03-3 Step 8 review round 2 and cursor confidentiality closeout (2026-10-29)](#p03-3-step-8-review-round-2-and-cursor-confidentiality-closeout-2026-10-29) — 91 lines
   - [P03-3 Step 9 implementation and automated qualification (2026-10-30)](#p03-3-step-9-implementation-and-automated-qualification-2026-10-30) — 82 lines
+  - [P03-3 Step 9 review round 1 and verified corrections (2026-10-30)](#p03-3-step-9-review-round-1-and-verified-corrections-2026-10-30) — 63 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -8396,3 +8397,66 @@ been asked to restore the connection or perform the prepared checklist. This
 implementation record does not close Step 9 or P03-3. Both fresh postcommit review
 rounds, verified corrections and Step 10 final-source/public-demo/hosted A/B
 qualification remain explicit obligations; Phase 03's Status block owns progress.
+
+### P03-3 Step 9 review round 1 and verified corrections (2026-10-30)
+
+**Reviewed source.** Three fresh independent reviewers examine
+`83ce78b1..27bb72df`, split across native authority/privacy, lifetime/resources,
+and UI/i18n/forms/proof/corpus. The authority slice reports no finding. Lifetime
+reports one bounded serialization-hardening Suggestion; experience reports one
+Minor workflow-document inconsistency and one browser-positive-guard Suggestion.
+No confirmed Blocker/Major or attacker-reachable production exploit is reported.
+These are static independent reviews, not independent executions of root's tests
+or approval of the entire accumulated P03-3 branch.
+
+**Verified corrections.**
+
+- The native snapshot helper checks enumerable data before serialization, but
+  JavaScript also looks up non-enumerable/inherited `toJSON`. Root reproduces an
+  actual compiled-helper call that invokes the hidden hook and accepts its
+  substitute. Current API-derived plain DTOs provide no demonstrated external
+  exploit path; the helper's own stated confinement still warrants correction.
+  Descriptor-only hook checks cover the prototype chain without evaluating the
+  property. Own-property inspection also covers non-enumerable array getters.
+  Five independent planted cases fail against the original helper while the 18
+  existing cases pass; all 23 pass after correction. Prototype mutations in the
+  controls are restored synchronously in `finally` before assertions/cleanup.
+- The route skill now directs selected consumers to `optionalPreparedPage()`,
+  its null/no-private-content/noindex path and the actual shell controls. It no
+  longer instructs speculative views to use the strict, throwing convenience
+  wrapper. This aligns guidance with Standard 07 and the implemented consumers.
+- A shared protected wrapper/h1 is not a ready-page witness. The stock-browser
+  loop now requires the exact ready kind and visible page-specific member,
+  Role/grant or profile content. A separate closed unavailable-page mutant keeps
+  the wrapper/h1 but must fail that same positive guard and prove the specific
+  failure view. The existing browser Fact contains positive, history and page
+  counters; it adds no Fact or CI membership. Closed receipts assert exactly ten
+  ready page visits and two no-script hosts.
+- The original no-script subjourney exercised the first host only. The revised
+  natural sign-in/confirmation/profile-save/sign-out flow runs both hosts/locales,
+  checks actual language, host-only cookies, saved values and anonymous state
+  after logout. This extends that browser evidence, not provider/API authority.
+
+**Counter diagnosis and evidence.** Initial strengthened browser attempts remain
+failures: the new counter's generic alert selector also matches pinned Next's
+open-shadow route announcer. It is replaced with the actual failure section's
+single visible alert paragraph. Fixed scalar diagnostic stages preserve status,
+cache, wrapper, heading, failure-view, alert and private-output distinctions without
+printing DOM/error payloads. The strict integration build passes with zero
+warnings/errors after correcting a test-only CA1861 constant-array construction.
+The actual existing browser Fact passes, zero skips, in 40 seconds on stock Brave
+156.0.8078.48, including both positive hosts/no-script flows and both live counters.
+Natural BFCache restores remain zero; the history mutant is killed by the separate
+persisted-event witness. No request/window/deadline budget was increased.
+
+**Final correction checks.** Workspace typecheck/lint and guarded frontend pass
+3,241/3,241 cases across two packages, zero skips/todos. Current corpus and both
+Docker-trait controls pass 7/7, zero skips. Documentation/link/index and normal
+commit-hook checks accompany this correction. Whole final-source populations
+and fresh hosted A/B remain separate Step 10 work.
+
+**Boundary.** Manual keyboard/focus/reflow/contrast and actual VoiceOver evidence
+still requires a working computer-control connection or maintainer observation.
+No such pass, setting change or UI observation is claimed. The second required
+fresh review round and complete final-source/public-demo/hosted A/B qualification
+remain open; this correction record does not close Step 9 or the packet.

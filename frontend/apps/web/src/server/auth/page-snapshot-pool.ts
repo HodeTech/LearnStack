@@ -47,8 +47,17 @@ function immutableJson<T>(input: T): Readonly<{ value: T; bytes: number }> {
       Object.getPrototypeOf(value) !== null
     )
       return unavailable();
+    // JSON.stringify looks up toJSON even when it is non-enumerable or inherited.
+    // Inspect descriptors only: testing the property itself could invoke a getter.
+    for (
+      let prototype: object | null = value;
+      prototype !== null;
+      prototype = Object.getPrototypeOf(prototype) as object | null
+    )
+      if (Object.getOwnPropertyDescriptor(prototype, 'toJSON')) return unavailable();
     path.add(value);
-    for (const key of Object.keys(value)) {
+    // Array serialization also reads non-enumerable numeric properties.
+    for (const key of Object.getOwnPropertyNames(value)) {
       const descriptor = Object.getOwnPropertyDescriptor(value, key)!;
       if (!('value' in descriptor)) return unavailable();
       // Optional object fields have the ordinary JSON omission semantics.

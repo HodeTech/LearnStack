@@ -35,6 +35,7 @@ const secret = randomBytes(32).toString('base64url');
 const marker = randomBytes(32).toString('base64url');
 const privateValues = [secret, marker];
 const counter = process.argv[2] === '--without-history';
+const pageCounter = process.argv[2] === '--without-ready-pages';
 let stage = 'input';
 let browser;
 let browserProcess;
@@ -45,6 +46,10 @@ let restoresVeiled = true;
 let scanners = [];
 let counterProbe;
 let counterWitness;
+let counterPage;
+let counterPageResponse;
+let administrationPages = 0;
+let noScriptHosts = 0;
 let authStatus = 0;
 let callbackStatus = 0;
 let authorizeCalls = 0;
@@ -114,7 +119,7 @@ function configuration() {
   });
 }
 try {
-  assert.ok(process.argv.length === 2 || (process.argv.length === 3 && counter));
+  assert.ok(process.argv.length === 2 || (process.argv.length === 3 && (counter || pageCounter)));
   const input = await configuration();
   owner.assertActive();
   assert.equal(Object.keys(input).sort().join(','), 'protocol,sites');
@@ -167,7 +172,7 @@ try {
     fakeIssuer,
     fakeLogout: logoutTarget,
     clockBase: Date.now(),
-    mutation: counter ? 'history' : undefined,
+    mutation: counter ? 'history' : pageCounter ? 'unavailable-pages' : undefined,
     mark: (value) => {
       stage = value;
     },
@@ -486,18 +491,53 @@ try {
     await page.getByText(bffProofCopy(site.locale, 'session.extended')).waitFor();
     assert.equal((await host.advance(0)).refreshes, before + 1);
     stage = 'browser-administration-pages';
-    for (const path of [
-      '/studio/members',
-      '/studio/members/019a154b-0000-7000-8000-000000000012',
-      '/studio/roles',
-      '/studio/roles/019a154b-0000-7000-8000-000000000013',
-      '/portal/profile',
+    for (const [path, kind, selector] of [
+      [
+        '/studio/members',
+        'members',
+        '.auth-resource-list a[href="/studio/members/019a154b-0000-7000-8000-000000000012"]',
+      ],
+      [
+        '/studio/members/019a154b-0000-7000-8000-000000000012',
+        'member',
+        'form[action="/api/studio/membership-profile"] input[name="displayName"]',
+      ],
+      [
+        '/studio/roles',
+        'roles',
+        '.auth-resource-list a[href="/studio/roles/019a154b-0000-7000-8000-000000000013"]',
+      ],
+      [
+        '/studio/roles/019a154b-0000-7000-8000-000000000013',
+        'role',
+        'section[aria-labelledby="role-grants-title"] > ul:not(.auth-actions) > li',
+      ],
+      [
+        '/portal/profile',
+        'profile',
+        'form[action="/api/account/profile"] input[name="displayName"]',
+      ],
     ]) {
       const response = await page.goto(origin(site) + path);
+      counterPage = page;
+      counterPageResponse = response;
       assert.equal(response.status(), 200);
       assert.equal(await response.headerValue('cache-control'), 'no-store');
       await page.locator('[data-bff-protected]').waitFor();
       assert.equal(await page.getByRole('heading', { level: 1 }).count(), 1);
+      // The unavailable view deliberately retains this wrapper and h1. Neither
+      // is a positive witness for the selected page's actual contents.
+      assert.equal(
+        await page.locator('[data-bff-page-view]').getAttribute('data-bff-page-view'),
+        kind,
+      );
+      const specific = page.locator(selector);
+      assert.equal(await specific.count(), 1);
+      assert.equal(await specific.isVisible(), true);
+      if (kind === 'member' || kind === 'profile')
+        assert.equal(await specific.inputValue(), 'Fixture member');
+      else assert.ok((await specific.textContent()).trim().length > 0);
+      ++administrationPages;
       const body = await page.content();
       assert.equal(body.includes(marker), false);
       assert.equal(body.includes('019a154b-0000-7000-8000-000000000011'), false);
@@ -632,100 +672,120 @@ try {
   const noScript = await browser.newContext({ javaScriptEnabled: false });
   observeContext(noScript);
   authorizingContext = noScript;
-  currentSite = first;
-  const nativePage = await noScript.newPage();
-  stage = 'browser-no-script-anonymous';
-  const anonymousNoScript = await nativePage.goto(origin(first) + '/api/auth/session');
-  assert.equal((await anonymousNoScript.json()).state, 'anonymous');
-  stage = 'browser-no-script-signin';
-  await nativePage.goto(origin(first) + '/api/auth/signin?returnTo=%2Fportal%2Fprofile');
-  await nativePage.getByRole('button').click();
-  await nativePage.waitForURL(origin(first) + '/api/auth/entry');
-  stage = 'browser-no-script-confirm';
-  await nativePage.getByText(bffProofCopy(first.locale, 'entry.confirm')).waitFor();
-  stage = 'browser-no-script-select';
-  await nativePage.locator('form[action="/api/auth/entry/select"] button').click();
-  await nativePage.waitForURL(origin(first) + '/portal/profile');
-  stage = 'browser-no-script-controls';
-  const noScriptProfile = nativePage.locator('form[action="/api/account/profile"]');
-  if ((await noScriptProfile.count()) !== 1) {
-    stage = 'browser-no-script-missing-form';
-    assert.fail('The no-script document needs one profile form');
+  for (const site of input.sites) {
+    currentSite = site;
+    const nativePage = await noScript.newPage();
+    stage = 'browser-no-script-anonymous';
+    const anonymousNoScript = await nativePage.goto(origin(site) + '/api/auth/session');
+    assert.equal((await anonymousNoScript.json()).state, 'anonymous');
+    stage = 'browser-no-script-signin';
+    await nativePage.goto(origin(site) + '/api/auth/signin?returnTo=%2Fportal%2Fprofile');
+    await nativePage.getByRole('button').click();
+    await nativePage.waitForURL(origin(site) + '/api/auth/entry');
+    stage = 'browser-no-script-confirm';
+    await nativePage.getByText(bffProofCopy(site.locale, 'entry.confirm')).waitFor();
+    stage = 'browser-no-script-select';
+    await nativePage.locator('form[action="/api/auth/entry/select"] button').click();
+    await nativePage.waitForURL(origin(site) + '/portal/profile');
+    stage = 'browser-no-script-controls';
+    assert.equal(
+      await nativePage.locator('html').getAttribute('lang'),
+      site.locale === 'tr-TR' ? 'tr' : site.locale,
+    );
+    assert.equal(
+      await nativePage.locator('[data-bff-page-view]').getAttribute('data-bff-page-view'),
+      'profile',
+    );
+    const noScriptProfile = nativePage.locator('form[action="/api/account/profile"]');
+    if ((await noScriptProfile.count()) !== 1) {
+      stage = 'browser-no-script-missing-form';
+      assert.fail('The no-script document needs one profile form');
+    }
+    if (!(await noScriptProfile.isVisible())) {
+      stage =
+        (await nativePage.locator('[hidden] form[action="/api/account/profile"]').count()) === 1
+          ? 'browser-no-script-hidden-render'
+          : 'browser-no-script-invisible-form';
+      assert.fail('The no-script profile form must be visible');
+    }
+    // Playwright's text engine skips NOSCRIPT and its descendants. Observe the
+    // actual no-script element directly, preserving visibility and exact-copy checks.
+    const noScriptNotice = nativePage.locator('[data-bff-protected] noscript > p');
+    await noScriptNotice.waitFor({ state: 'visible' });
+    assert.equal(await noScriptNotice.count(), 1);
+    assert.equal(
+      await noScriptNotice.textContent(),
+      bffProofCopy(site.locale, 'session.javascript_required'),
+    );
+    stage = 'browser-no-script-native-buttons';
+    assert.equal(
+      await nativePage.locator('button[type="button"]').count(),
+      0,
+      'no JavaScript-dependent extension control is presented as usable',
+    );
+    stage = 'browser-no-script-native-profile-form';
+    const profileForm = nativePage.locator('form[action="/api/account/profile"]');
+    assert.equal(await profileForm.count(), 1);
+    await profileForm
+      .locator('input[name="displayName"]')
+      .fill('Saved without JavaScript at ' + site.locale);
+    stage = 'browser-no-script-submit';
+    const [nativeWrite, nativeResult] = await withProofWaiters(
+      [
+        nativePage.waitForRequest(
+          (request) =>
+            request.method() === 'POST' &&
+            new URL(request.url()).pathname === '/api/account/profile',
+        ),
+        nativePage.waitForResponse(
+          (response) =>
+            response.request().method() === 'POST' &&
+            new URL(response.url()).pathname === '/api/account/profile',
+        ),
+      ],
+      () => profileForm.getByRole('button').click(),
+    );
+    stage = 'browser-no-script-origin';
+    assert.equal(await nativeWrite.headerValue('origin'), origin(site));
+    stage = 'browser-no-script-result';
+    assert.equal(nativeResult.status(), 303);
+    assert.equal(await nativeResult.headerValue('location'), origin(site) + '/portal/profile');
+    stage = 'browser-no-script-cache';
+    assert.equal(await nativeResult.headerValue('cache-control'), 'no-store');
+    stage = 'browser-no-script-saved';
+    await nativePage.goto(origin(site) + '/portal/profile');
+    assert.equal(
+      await nativePage.locator('input[name="displayName"]').inputValue(),
+      'Saved without JavaScript at ' + site.locale,
+    );
+    stage = 'browser-no-script-privacy';
+    const noScriptCookies = await noScript.cookies(origin(site));
+    assert.ok(noScriptCookies.some((cookie) => cookie.name === '__Host-ls-session'));
+    for (const cookie of noScriptCookies.filter((cookie) => cookie.name.startsWith('__Host-ls-')))
+      assert.equal(cookie.domain, site.host.split(':')[0]);
+    const nativeBody = await nativePage.content();
+    for (const cookie of noScriptCookies.filter((cookie) => cookie.name !== '__Host-ls-csrf'))
+      assert.equal(nativeBody.includes(cookie.value), false);
+    stage = 'browser-no-script-signout';
+    await nativePage.locator('form[action="/api/auth/signout"] button').click();
+    await nativePage.waitForURL(
+      (url) => url.origin === new URL(logoutTarget).origin && url.pathname === logoutPath,
+    );
+    assert.equal(
+      (await noScript.cookies(origin(site))).some((cookie) => cookie.name === '__Host-ls-session'),
+      false,
+    );
+    const signedOut = await nativePage.goto(origin(site) + '/api/auth/session');
+    assert.equal(signedOut.status(), 200);
+    assert.equal((await signedOut.json()).state, 'anonymous');
+    stage = 'browser-no-script-headers';
+    assert.ok(
+      (await Promise.all(headerChecks)).every(Boolean),
+      'actual no-script response headers settle before closing their browser context',
+    );
+    ++noScriptHosts;
+    await nativePage.close();
   }
-  if (!(await noScriptProfile.isVisible())) {
-    stage =
-      (await nativePage.locator('[hidden] form[action="/api/account/profile"]').count()) === 1
-        ? 'browser-no-script-hidden-render'
-        : 'browser-no-script-invisible-form';
-    assert.fail('The no-script profile form must be visible');
-  }
-  // Playwright's text engine skips NOSCRIPT and its descendants. Observe the
-  // actual no-script element directly, preserving visibility and exact-copy checks.
-  const noScriptNotice = nativePage.locator('[data-bff-protected] noscript > p');
-  await noScriptNotice.waitFor({ state: 'visible' });
-  assert.equal(await noScriptNotice.count(), 1);
-  assert.equal(
-    await noScriptNotice.textContent(),
-    bffProofCopy(first.locale, 'session.javascript_required'),
-  );
-  stage = 'browser-no-script-native-buttons';
-  assert.equal(
-    await nativePage.locator('button[type="button"]').count(),
-    0,
-    'no JavaScript-dependent extension control is presented as usable',
-  );
-  stage = 'browser-no-script-native-profile-form';
-  const profileForm = nativePage.locator('form[action="/api/account/profile"]');
-  assert.equal(await profileForm.count(), 1);
-  await profileForm.locator('input[name="displayName"]').fill('Saved without JavaScript');
-  stage = 'browser-no-script-submit';
-  const [nativeWrite, nativeResult] = await withProofWaiters(
-    [
-      nativePage.waitForRequest(
-        (request) =>
-          request.method() === 'POST' && new URL(request.url()).pathname === '/api/account/profile',
-      ),
-      nativePage.waitForResponse(
-        (response) =>
-          response.request().method() === 'POST' &&
-          new URL(response.url()).pathname === '/api/account/profile',
-      ),
-    ],
-    () => profileForm.getByRole('button').click(),
-  );
-  stage = 'browser-no-script-origin';
-  assert.equal(await nativeWrite.headerValue('origin'), origin(first));
-  stage = 'browser-no-script-result';
-  assert.equal(nativeResult.status(), 303);
-  assert.equal(await nativeResult.headerValue('location'), origin(first) + '/portal/profile');
-  stage = 'browser-no-script-cache';
-  assert.equal(await nativeResult.headerValue('cache-control'), 'no-store');
-  stage = 'browser-no-script-saved';
-  await nativePage.goto(origin(first) + '/portal/profile');
-  assert.equal(
-    await nativePage.locator('input[name="displayName"]').inputValue(),
-    'Saved without JavaScript',
-  );
-  stage = 'browser-no-script-privacy';
-  const noScriptCookies = await noScript.cookies(origin(first));
-  assert.ok(noScriptCookies.some((cookie) => cookie.name === '__Host-ls-session'));
-  const nativeBody = await nativePage.content();
-  for (const cookie of noScriptCookies.filter((cookie) => cookie.name !== '__Host-ls-csrf'))
-    assert.equal(nativeBody.includes(cookie.value), false);
-  stage = 'browser-no-script-signout';
-  await nativePage.locator('form[action="/api/auth/signout"] button').click();
-  await nativePage.waitForURL(
-    (url) => url.origin === new URL(logoutTarget).origin && url.pathname === logoutPath,
-  );
-  assert.equal(
-    (await noScript.cookies(origin(first))).some((cookie) => cookie.name === '__Host-ls-session'),
-    false,
-  );
-  stage = 'browser-no-script-headers';
-  assert.ok(
-    (await Promise.all(headerChecks)).every(Boolean),
-    'actual no-script response headers settle before closing their browser context',
-  );
   await noScript.close();
   authorizingContext = context;
   stage = 'browser-headers';
@@ -733,8 +793,8 @@ try {
   assert.equal(routeFailed, false, 'fake authorization control completed');
   assert.equal(
     authorizeCalls,
-    input.sites.length + 1,
-    'both hosts and the separate no-script login fetch the owned HTTPS authorization endpoint',
+    input.sites.length * 2,
+    'both hosts with and without JavaScript fetch the owned HTTPS authorization endpoint',
   );
   assert.ok(headerChecks.length > 0 && (await Promise.all(headerChecks)).every(Boolean));
   stage = 'cleanup';
@@ -749,6 +809,8 @@ try {
       phase: 'browser_result',
       outcome: 'passed',
       hosts: 2,
+      administrationPages,
+      noScriptHosts,
       version,
       naturalRestores,
     }) + '\n',
@@ -766,6 +828,39 @@ try {
     } catch {
       /* unrelated failure is not the mutant witness */
     }
+  if (pageCounter && stage === 'browser-administration-pages')
+    try {
+      // Keep any failed predicate as a closed scalar stage. No DOM, exception
+      // message or other private value belongs in the driver diagnostic.
+      // Next's route announcer also has role=alert in an open shadow root.
+      // Observe the actual failure paragraph, not that framework live region.
+      const failureAlert = counterPage?.locator(
+        'section[aria-labelledby="page-failure-title"] > p[role="alert"]',
+      );
+      const checks = [
+        ['progress', administrationPages === 0],
+        ['status', counterPageResponse?.status() === 200],
+        ['cache', (await counterPageResponse?.headerValue('cache-control')) === 'no-store'],
+        ['wrapper', (await counterPage?.locator('[data-bff-protected]').count()) === 1],
+        ['heading', (await counterPage?.getByRole('heading', { level: 1 }).count()) === 1],
+        [
+          'view',
+          (await counterPage
+            ?.locator('[data-bff-page-view]')
+            .getAttribute('data-bff-page-view')) === 'unavailable',
+        ],
+        [
+          'alert',
+          (await failureAlert?.count()) === 1 && (await failureAlert?.isVisible()) === true,
+        ],
+      ];
+      const failed = checks.find(([, passed]) => !passed);
+      expectedCounter = failed === undefined;
+      if (failed) stage = 'browser-administration-counter-' + failed[0];
+      counterWitness = 'unavailable_view';
+    } catch {
+      stage = 'browser-administration-counter-observer';
+    }
   let clean = true;
   try {
     await cleanup();
@@ -774,12 +869,14 @@ try {
   }
   clearTimeout(deadline);
   process.stdin.destroy();
+  if (pageCounter && expectedCounter && scanners.some((scanner) => scanner.leaked))
+    stage = 'browser-administration-counter-private-output';
   if (expectedCounter && clean && !scanners.some((scanner) => scanner.leaked)) {
     process.stdout.write(
       JSON.stringify({
         protocol: 1,
         phase: 'browser_result',
-        outcome: 'rejected_history',
+        outcome: pageCounter ? 'rejected_pages' : 'rejected_history',
         witness: counterWitness,
         hosts: 2,
         version,

@@ -430,8 +430,11 @@ Keep the following evidence distinct:
 
 The native HTTPS stock-browser proof uses separate host cookie jars and the real
 five new page routes, native forms and session/history controls with fake grants
-and API responses. Its JavaScript-disabled context must observe visible profile
-controls, submit the native form, follow its fresh GET and sign out. Assert the
+and API responses. Each page requires its exact ready view and visible specific
+content; the shared protected wrapper and h1 are insufficient. An unavailable-view
+counter retains that wrapper/heading and must fail the same positive guard.
+Its JavaScript-disabled context visits both hosts/locales, observes visible profile
+controls, submits the native form, follows its fresh GET and signs out. Assert the
 visible no-script notice by a DOM locator and exact text; a text-selector engine
 that excludes `noscript` is not evidence that the browser hid that notice. This
 fixture proves browser behavior, not the real provider/API chain or manual

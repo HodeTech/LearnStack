@@ -230,7 +230,10 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
                          "browser-devtools-unreadable", "browser-devtools-missing", "browser-devtools-empty", "browser-devtools-malformed",
                          "browser-not-live", "browser-connect", "browser-context", "browser-entry-confirmation",
                          "browser-administration-pages", "browser-no-script",
-                         "browser-no-script-anonymous", "browser-no-script-signin", "browser-no-script-confirm", "browser-no-script-select", "browser-no-script-controls", "browser-no-script-submit", "browser-no-script-origin", "browser-no-script-result", "browser-no-script-cache", "browser-no-script-saved", "browser-no-script-privacy", "browser-no-script-signout", "browser-no-script-headers" })
+                         "browser-no-script-anonymous", "browser-no-script-signin", "browser-no-script-confirm", "browser-no-script-select", "browser-no-script-controls", "browser-no-script-submit", "browser-no-script-origin", "browser-no-script-result", "browser-no-script-cache", "browser-no-script-saved", "browser-no-script-privacy", "browser-no-script-signout", "browser-no-script-headers",
+                         "browser-administration-counter-progress", "browser-administration-counter-status", "browser-administration-counter-cache",
+                         "browser-administration-counter-wrapper", "browser-administration-counter-heading", "browser-administration-counter-view",
+                         "browser-administration-counter-alert", "browser-administration-counter-observer", "browser-administration-counter-private-output" })
             {
                 (await ClosedErrorAsync("BFF browser fixture failed: " + stage + "\n")).Should().Be(stage);
                 (await ClosedErrorAsync("BFF browser fixture failed: " + stage + "\nBFF browser cleanup failed.\n"))
@@ -254,13 +257,14 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
             })
         };
         var timer = Stopwatch.StartNew();
-        async Task<BffBrowserReceipt> JourneyAsync(bool counter)
+        async Task<BffBrowserReceipt> JourneyAsync(bool counter, bool unavailablePageCounter = false)
         {
-            var journey = counter ? "counter" : "positive";
+            var journey = counter ? "counter" : unavailablePageCounter ? "unavailable_pages" : "positive";
             try
             {
                 return await BffNativeDriver.BrowserAsync(RepositoryRoot(), input, counter,
-                    () => output.WriteLine("BFF browser cleanup;journey=" + journey + ";state=failed."));
+                    () => output.WriteLine("BFF browser cleanup;journey=" + journey + ";state=failed."),
+                    unavailablePageCounter: unavailablePageCounter);
             }
             catch (Exception error) when (error.GetType() != typeof(OutOfMemoryException)
                 && error.GetType() != typeof(StackOverflowException))
@@ -274,9 +278,13 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
         }
         var positive = await JourneyAsync(counter: false);
         var counter = await JourneyAsync(counter: true);
+        var unavailablePages = await JourneyAsync(counter: false, unavailablePageCounter: true);
         counter.Version.Should().Be(positive.Version);
-        output.WriteLine("Actual native HTTPS browser: stock Chromium={0}; hosts=2; cookie/send/isolation/keyboard/extension/back=true; natural persisted restores={1}; restoration counter killed at {2}; total including joined cleanup={3:F3}s.",
+        unavailablePages.Version.Should().Be(positive.Version);
+        unavailablePages.CounterWitness.Should().Be("unavailable_view");
+        output.WriteLine("Actual native HTTPS browser: stock Chromium={0}; hosts=2; ready-pages=10; no-script-hosts=2; cookie/send/isolation/keyboard/extension/back=true; natural persisted restores={1}; restoration counter killed at {2}; total including joined cleanup={3:F3}s.",
             positive.Version, positive.NaturalRestores, counter.CounterWitness, timer.Elapsed.TotalSeconds);
+        output.WriteLine("The unavailable-page counter retains its protected wrapper and h1 but fails the same selected-page ready/content guard.");
         output.WriteLine("This is fake-grant/API browser proof, separate from the actual warm-provider/application-role HTTP chain; the explicit event is not labelled a natural BFCache restore.");
     }
 

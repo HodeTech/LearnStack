@@ -383,7 +383,7 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
         case 'getOwnCapabilities': return success({canReadTenantMembers: true, canReadOrganizationMembers: true, canWriteMemberProfiles: true, canManageMemberships: true, canReadRoles: true, canChangeRoleGrants: true, canAdoptRoleRelease: true, canWriteOwnProfile: true, canManageOrganizations: true});
         case 'getOwnProfile': return success(ownProfile, true);
         case 'listMemberships':
-        case 'listOrganizationMemberships': { const {roleIds, version, ...item} = member; return success({items: [item], pageInfo}); }
+        case 'listOrganizationMemberships': { if (${mutation === 'unavailable-pages'}) return {kind: 'transport-error'}; const {roleIds, version, ...item} = member; return success({items: [item], pageInfo}); }
         case 'getMembership': return operation.id === member.membershipId ? success(member, true) : {kind: 'invalid-request'};
         case 'listRoles': { const {grants, adoptedReleaseVersion, adoptedReleaseFingerprint, ...item} = role; return success({items: [item]}); }
         case 'getRole': return operation.id === role.roleId ? success(role, true) : {kind: 'invalid-request'};

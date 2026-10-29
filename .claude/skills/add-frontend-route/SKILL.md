@@ -141,10 +141,12 @@ Rules:
   Neither a page nor the SDK selects credentials, host or tenancy headers.
   Hand-rolled `fetch('/v1/...')` is blocked by lint.
 - Pass typed primitives across the RSC → Client boundary — no class instances, no
-  credential/operation closures. Protected pages consume `preparedPage()` from
-  `server/auth/page.ts`, call `assertActive()` after that await, then render
-  synchronously. Their route parameters and pagination are already represented in
-  the snapshot; do not read Next `params`/`searchParams` or initiate API work there.
+  credential/operation closures. Protected pages consume `optionalPreparedPage()`
+  from `server/auth/page.ts`. An absent speculative snapshot renders no private
+  content or title and keeps noindex/nofollow metadata; it is not an API fallback.
+  For a present value, call `assertActive()` after the await, then render
+  synchronously. Route parameters and pagination are already represented in the
+  snapshot; do not read Next `params`/`searchParams` or initiate API work there.
 
 ### Step 4: Tenant + organization context (automatic)
 
@@ -198,7 +200,9 @@ redirects anonymous protected requests to `/api/auth/signin` with a closed local
 return destination. Add no generic proxy or new auth action.
 
 The app-local `auth()` remains a passive session projection. Protected page data
-comes from `preparedPage()`; root layout and i18n use `optionalPreparedPage()`.
+comes from `optionalPreparedPage()`, as do root layout and i18n. Preserve its
+null/no-private-content path and the noindex-only speculative metadata checks in
+[`shell.test.tsx`](../../../frontend/apps/web/src/components/auth/shell.test.tsx).
 These readers never parse cookies, refresh, mutate idle state or expose an API
 operation closure. Native preparation owns the finite reads and response lifetime;
 consumers check `assertActive()` after awaits. Follow the actual

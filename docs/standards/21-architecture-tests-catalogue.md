@@ -6486,7 +6486,10 @@ Prior receipts do not qualify subsequent source changes.
   URLs/history and second-page selection keep subject/authority material private;
   the original disclosure has a real old-source negative control. Stopped-provider
   public rendering remains independent. The seven prepared protected views retain
-  native forms when JavaScript is disabled. GET history restoration re-admits the
+  native forms when JavaScript is disabled. Actual stock-browser page checks
+  require ready views and specific visible contents; an unavailable view retaining
+  the wrapper/h1 fails the same guard. No-script profile save/sign-out runs on both
+  hosts/locales with an exact closed receipt. GET history restoration re-admits the
   document; native POST recovery replaces history with a validated fixed GET
   destination instead of resubmitting the mutation. Natural browser history
   observations and explicit persisted-event dirty controls remain distinct.
