@@ -1610,8 +1610,9 @@ class ExecutionProgress:
     """Tail the private pinned VSTest protocol, retaining only actual result IDs."""
     marker = b'TestRequestSender.OnExecutionMessageReceived: Received message: '
 
-    def __init__(self, path, assembly, expected, stream):
+    def __init__(self, path, assembly, expected, stream, *, checkpoint_failure=None):
         self.path, self.assembly, self.stream = path, assembly, stream
+        self.checkpoint_failure = checkpoint_failure
         self.expected = {key(case) for case in expected}
         require(len(self.expected) == len(expected), 'duplicate_discovery_identity')
         self.expected_cases = {key(case): {name: case[name] for name in ('assembly', 'id', 'name')}
@@ -1719,6 +1720,10 @@ class ExecutionProgress:
                 if details is not None:
                     diagnostic['details'] = details
                 self.failure_locations.append(diagnostic)
+                # Publish only the existing finite projection, before the failed
+                # result. A later hard stop cannot run the workload's finally.
+                if self.checkpoint_failure is not None:
+                    self.checkpoint_failure(self.failure_locations)
             else:
                 details = closed_causal_restart_counts(case, raw)
                 if details is not None:
@@ -2050,11 +2055,17 @@ def shard_workload(mode, context, private, output, deadline, work):
             for project, assembly, expression, expected in selected:
                 began = time.monotonic()
                 diagnostic = private / (assembly + '-execution.diag')
-                progress = ExecutionProgress(diagnostic, assembly, expected, stream)
                 item = {'assembly': assembly.casefold(), 'cases': len(expected), 'adapter': None,
                         'firstResultSeconds': None, 'testProcessSeconds': None, 'failureLocations': [],
                         'successObservations': []}
                 measurements['projects'].append(item)
+                def checkpoint_failure(locations):
+                    # Timing and adapter facts remain unknown until the actual
+                    # process returns. This snapshot never asserts completion.
+                    item['failureLocations'] = locations
+                    write_json(output / 'measurements.json', measurements)
+                progress = ExecutionProgress(diagnostic, assembly, expected, stream,
+                                             checkpoint_failure=checkpoint_failure)
                 try:
                     argv = ['test', project, '--configuration', 'Release', '--no-build', '--no-restore',
                             '--disable-build-servers', '--filter', expression, '--logger', 'console;verbosity=normal',

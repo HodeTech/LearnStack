@@ -217,10 +217,22 @@ public sealed partial class IdentityAuditConventionTests
     {
         if (EvidenceCalls(census.Body(type, method), target, name).Count() != 1) errors.Add("Missing actual evidence lifetime gate: " + type + "::" + method + "->" + target + "::" + name);
     }
-    private static void EvidenceCallers(EvidenceCensus census, List<string> errors, string type, string name, (string Owner, string Method, int Count)[] expected)
+    private static void EvidenceCallers(EvidenceCensus census, List<string> errors, string type, string name, (string Owner, string Method, int Count)[] expected) =>
+        EvidenceCallers(census, errors, census.Methods.SelectMany(method => method.Body.Instructions
+            .Where(instruction => instruction.Operand is MethodReference target && target.DeclaringType.FullName == type && target.Name == name)
+            .Select(instruction => new EvidenceCallerSite(method, instruction))), type, name, expected);
+
+    private static void EvidenceCallers(EvidenceCensus census, List<string> errors, ILookup<string, EvidenceCallerSite> index,
+        string type, string name, (string Owner, string Method, int Count)[] expected) =>
+        EvidenceCallers(census, errors, index[name], type, name, expected);
+
+    private static void EvidenceCallers(EvidenceCensus census, List<string> errors, IEnumerable<EvidenceCallerSite> candidates,
+        string type, string name, (string Owner, string Method, int Count)[] expected)
     {
-        var sites = census.Methods.SelectMany(method => method.Body.Instructions.Where(instruction => instruction.Operand is MethodReference target
-                && target.DeclaringType.FullName == type && target.Name == name).Select(instruction => (Method: method, Instruction: instruction))).ToArray();
+        // The name index is only a prefilter; keep the original type/name,
+        // caller multiplicity and opcode checks on the actual instructions.
+        var sites = candidates.Where(item => item.Instruction.Operand is MethodReference target
+            && target.DeclaringType.FullName == type && target.Name == name).ToArray();
         if (!EvidenceSame(sites.Select(item => census.Owner(item.Method)), expected.SelectMany(item => Enumerable.Repeat(item.Owner + "::" + item.Method, item.Count)))
             || sites.Any(item => item.Instruction.OpCode.Code is not (Code.Call or Code.Callvirt or Code.Newobj)))
             errors.Add("Closed evidence borrower/alias set changed: " + type + "::" + name);

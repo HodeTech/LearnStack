@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 2,986 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 3,047 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -192,7 +192,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 maintainer-approved manual deferral and Step 10 continuation (2026-10-30)](#p03-3-maintainer-approved-manual-deferral-and-step-10-continuation-2026-10-30) — 27 lines
   - [P03-3 Step 10 qualification repairs and implementation review boundary (2026-10-30)](#p03-3-step-10-qualification-repairs-and-implementation-review-boundary-2026-10-30) — 48 lines
   - [P03-3 Step 10 review round 1 and verified ownership corrections (2026-10-31)](#p03-3-step-10-review-round-1-and-verified-ownership-corrections-2026-10-31) — 52 lines
-  - [P03-3 Step 10 review round 2 and virtual-dispatch correction (2026-10-31)](#p03-3-step-10-review-round-2-and-virtual-dispatch-correction-2026-10-31) — 38 lines
+  - [P03-3 Step 10 review round 2 and virtual-dispatch correction (2026-10-31)](#p03-3-step-10-review-round-2-and-virtual-dispatch-correction-2026-10-31) — 39 lines
+  - [P03-3 Step 10 failed hosted A and bounded CI corrections (2026-10-31)](#p03-3-step-10-failed-hosted-a-and-bounded-ci-corrections-2026-10-31) — 60 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -8722,3 +8723,64 @@ shared default ports; read-only prerequisite checks neither stop those services
 nor run a demo. The clean hosted public-demo job owns that outstanding proof.
 The authorized manual deferral supplies no manual observation or accessibility
 pass. Current packet state remains in the phase Status block.
+
+
+### P03-3 Step 10 failed hosted A and bounded CI corrections (2026-10-31)
+
+**Observed failure.** The complete [hosted attempt A](https://github.com/HodeTech/LearnStack/actions/runs/41140461994)
+runs source `3c063bf7` and ends with 16 successful and 11 failed jobs. All six
+Architecture owners exhaust their unchanged window: 588 of 602 selected cases
+pass and 14 produce no result. Ordinary owners complete 3,410 Passed and one
+Failed case out of 3,437 selected; 26 remain without results. Owners 1, 4 and 11
+exhaust their windows. This is a failed A, not qualification or evidence for B.
+Twenty-three original ZIPs are retained with metadata, byte-size/SHA-256, CRC,
+path/bound checks and exact run/attempt/owner identity; the two failed aggregate
+uploads have no ZIP. Completed prefixes supply diagnostics, never a passing union.
+
+**Source corrections.** The evidence-provenance detector constructs one fresh
+method-name caller index per metadata evaluation, retaining the existing exact
+callee, opcode, order and multiplicity checks on actual instruction references.
+The delivery-lifecycle detector memoizes the existing complete classification by
+actual `MethodReference` identity, including null answers, only within that
+single evaluation. Original production and planted mutation/restoration controls
+remain. Independent raw traversals check equivalence after real metadata edits
+inside the same existing Facts; no Fact/Theory is removed, added or skipped.
+Two complete local comparative Facts measure 205.2375194 to 36.4673043 seconds
+and 165.7399575 to 84.4937636 seconds respectively. These are case durations,
+not hosted job walls; baseline binaries precede their source commit, and the
+changed runs are separately attributed overlays. They establish local comparative
+behavior, not complete final-source qualification or a hosted fit prediction.
+
+**Measured assignment.** Exact original discovery IDs join complete Passed
+method groups from eighteen retained Architecture/ordinary ZIPs and separately
+attributed complete local Architecture/Integration TRX files. Failed, missing or
+incomplete groups supply no weight. The plan changes 1,017 existing weights and
+adds 264; only the two optimized Facts replace their previous costs downward.
+Unused historical source entries are retained in private provenance and removed
+from the active plan, leaving 90 sources within the existing 100-entry bound.
+Candidate bytes have SHA-256
+`93cbc7eb224295892d13fbbb1e48b61e6b87893fab04abd8588673b6e0a7ee04`.
+Six Architecture and twelve ordinary owners, A/B algorithm, job windows, VM cap,
+203-second reserve, full selected populations and zero-skip rules are unchanged.
+Weight and class/case sums remain advisory; fresh complete A/B decides fit.
+
+**Browser diagnostic boundary.** The unchanged native HTTPS browser/history
+Fact fails once in ordinary owner 1 before eighteen later passing results. Its
+reason/journey is unavailable: that job is later hard-stopped before workload
+finalization persists the already finite in-memory diagnostics. No browser cause
+is inferred. The owner now atomically checkpoints only its existing closed
+failure projection before publishing a Failed result; timing/completion facts
+remain unknown until actual finalization. An owned SIGKILL control verifies that
+the existing private, bounded diagnostic survives without raw provider text,
+paths or invented process completion. Normal finalization retains the same schema
+and cleanup. The browser assertions and deadlines are unchanged; a matching fresh
+hosted run still must reproduce diagnostically or pass.
+
+**Validation and next boundary.** The two optimized Facts pass all original and
+added equivalence controls, with zero skips. Strict Architecture-project build
+passes with zero warnings/errors. Native-owner controls pass 97/97, including
+actual hard-stop and normal-finalization cases. Shard controls pass 83/83 and
+aggregate-result controls pass 40/40. Fresh focused independent reviews and
+complete new-source hosted A/B remain the next checks. The failed source receives no B rerun. The maintainer-authorized
+manual deferral remains separate from automated proof; packet state lives only
+in the phase Status block.

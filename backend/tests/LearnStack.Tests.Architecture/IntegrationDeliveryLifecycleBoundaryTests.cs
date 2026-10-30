@@ -63,6 +63,7 @@ public sealed partial class OutboxDispatchConventionTests
         public void Integration_delivery_lifecycle_census_rejects_typed_helper_async_delegate_and_missing_paths()
         {
             using var census = ProductionCensus.Read();
+            AssertLifecycleCapabilityMemo(census);
             var types = census.Types;
             var unit = types[(KernelAssembly, LifecycleUnit)];
             var scope = types[(KernelAssembly, LifecycleScope)];
@@ -297,6 +298,9 @@ public sealed partial class OutboxDispatchConventionTests
                      (InfrastructureAssembly, LifecycleAuthorizationView), (InfrastructureAssembly, LifecycleEvidenceView) })
             if (!types.ContainsKey(subject)) offenders.Add("Missing lifecycle subject: " + subject.Item2);
         if (offenders.Count != 0) return offenders;
+        // The detector reads one stable metadata graph. Its mutation and undo
+        // each invoke a new detector and therefore get a new classifier memo.
+        var classification = new LifecycleCapabilityMemo(types);
         var unit = types[(KernelAssembly, LifecycleUnit)];
         var scope = types[(KernelAssembly, LifecycleScope)];
         var adapter = types[(InfrastructureAssembly, LifecycleAdapter)];
@@ -341,7 +345,7 @@ public sealed partial class OutboxDispatchConventionTests
             offenders.Add("Units without the physical read binding capability default-deny the witness overload");
         foreach (var instruction in OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
                      .Where(instruction => instruction.Operand is MethodReference target
-                         && IntegrationLifecycleCapability(target, types) is "unit.announce" or "unit.announce-wide" or "owned-unit.announce"))
+                         && classification.Classify(target) is "unit.announce" or "unit.announce-wide" or "owned-unit.announce"))
             if (instruction.OpCode != OpCodes.Call && instruction.OpCode != OpCodes.Callvirt)
                 offenders.Add("A tenant announcement cannot escape its actual caller as a delegate");
         foreach (var type in new[] { scope, frame })
@@ -350,7 +354,7 @@ public sealed partial class OutboxDispatchConventionTests
             CheckLifecycleDeclarations(type, "FailAsync", LifecycleTask, [[BoundaryCancellation]]);
         }
         CheckIdempotencyLifecycleOwner(census, offenders);
-        offenders.UnionWith(IntegrationLifecycleCallsiteOffenders(types, CallSites(census)));
+        offenders.UnionWith(IntegrationLifecycleCallsiteOffenders(types, CallSites(census), classification));
         return offenders;
 
         void CheckLifecycleDeclarations(TypeDefinition type, string name, string returnType, string[][] signatures)
@@ -415,8 +419,12 @@ public sealed partial class OutboxDispatchConventionTests
 
     private static SortedSet<string> IntegrationLifecycleCallsiteOffenders(
         Dictionary<(string Assembly, string Type), TypeDefinition> types,
-        IEnumerable<(string Owner, MethodReference Target)> sites)
+        IEnumerable<(string Owner, MethodReference Target)> sites,
+        LifecycleCapabilityMemo? classification = null)
     {
+        // Direct callsite controls own their fresh memo; the complete detector
+        // shares only its current evaluation's memo with this final traversal.
+        classification ??= new LifecycleCapabilityMemo(types);
         var offenders = new SortedSet<string>(StringComparer.Ordinal);
         var expected = new Dictionary<string, string[]>(StringComparer.Ordinal)
         {
@@ -494,7 +502,7 @@ public sealed partial class OutboxDispatchConventionTests
             ["database.Commit"] = [],
             ["database.Rollback"] = [],
         };
-        var actual = sites.Select(site => (site.Owner, site.Target, Capability: IntegrationLifecycleCapability(site.Target, types)))
+        var actual = sites.Select(site => (site.Owner, site.Target, Capability: classification.Classify(site.Target)))
             .Where(site => site.Capability is not null).ToArray();
         foreach (var (capability, owners) in expected)
             CheckSet(offenders, "typed lifecycle " + capability, actual.Where(site => site.Capability == capability).Select(site => site.Owner), owners);

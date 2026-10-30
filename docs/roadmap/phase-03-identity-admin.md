@@ -13,7 +13,10 @@
 > with manual keyboard/focus/reflow/contrast/VoiceOver evidence deferred for now.
 > No manual execution or accessibility pass is recorded; the maintainer owns that
 > outstanding observation and its disclosure in PR review. The [Step 10 source reviews](phase-03-delivery-log.md#p03-3-step-10-review-round-2-and-virtual-dispatch-correction-2026-10-31)
-> close both fresh independent rounds and verified corrections. Complete final-source
+> close both fresh independent rounds and verified corrections. The first hosted A
+> fails; [bounded CI corrections](phase-03-delivery-log.md#p03-3-step-10-failed-hosted-a-and-bounded-ci-corrections-2026-10-31)
+> retain complete failure evidence and address repeated test traversals, measured
+> assignment and hard-stop diagnostics. Fresh focused reviews, complete new-source
 > hosted A/B, original-archive auditing and clean public-demo proof remain open.
 > [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md) and
 > [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md)

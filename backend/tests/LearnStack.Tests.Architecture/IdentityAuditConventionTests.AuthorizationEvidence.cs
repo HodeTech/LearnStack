@@ -99,6 +99,7 @@ public sealed partial class IdentityAuditConventionTests
     public void Authorization_Evidence_Uses_Trusted_Bounded_Provenance()
     {
         using var census = EvidenceCensus.Read();
+        AssertEvidenceCallerIndex(census);
         EvidenceProvenanceOffenders(census).Should().BeEmpty("only the central owner composes fixed events from live typed source and decision evidence");
         foreach (var name in new[] { Occurrence, AuditContext, Transport, Assertion })
         {
@@ -252,6 +253,9 @@ public sealed partial class IdentityAuditConventionTests
     private static List<string> EvidenceProvenanceOffenders(EvidenceCensus census)
     {
         var errors = new List<string>();
+        // This snapshot belongs only to this synchronous detector evaluation.
+        // Every mutation and restoration constructs a fresh complete index.
+        var callerIndex = EvidenceCallerIndex(census);
         foreach (var name in new[] { Occurrence, AuditContext, Transport, Assertion })
         {
             var type = census.Type(name);
@@ -268,39 +272,39 @@ public sealed partial class IdentityAuditConventionTests
         EvidenceImplementers(census, errors, TransportPort, [HttpTransport]);
         EvidenceImplementers(census, errors, InvocationContext, [PolicyOwner]);
         EvidenceImplementers(census, errors, "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", [CentralEvidence]);
-        EvidenceCallers(census, errors, Occurrence, ".ctor", [(Occurrence + "/MintingSource", "ForOccurrence", 1)]);
-        EvidenceCallers(census, errors, AuditContext, ".ctor", [(AuditContext + "/MintingSource", "ForAuditContext", 1)]);
-        EvidenceCallers(census, errors, Transport, ".ctor", [(Transport + "/MintingSource", "ForTransport", 1)]);
-        EvidenceCallers(census, errors, Assertion, ".ctor", [(Assertion + "/MintingSource", "ForAssertion", 1)]);
-        EvidenceCallers(census, errors, Assertion + "/MintingSource", "ForAssertion", [(AssertionSource, "Capture", 1)]);
-        EvidenceCallers(census, errors, AssertionSource, "Capture", [("LearnStack.Api.Authentication.ClaimContextAssertionRecorder", "RecordAsync", 1)]);
-        EvidenceCallers(census, errors, CentralEvidence, "RecordConfirmedAssertionAsync", [("LearnStack.Api.Authentication.ClaimContextAssertionRecorder", "RecordAsync", 1)]);
+        EvidenceCallers(census, errors, callerIndex, Occurrence, ".ctor", [(Occurrence + "/MintingSource", "ForOccurrence", 1)]);
+        EvidenceCallers(census, errors, callerIndex, AuditContext, ".ctor", [(AuditContext + "/MintingSource", "ForAuditContext", 1)]);
+        EvidenceCallers(census, errors, callerIndex, Transport, ".ctor", [(Transport + "/MintingSource", "ForTransport", 1)]);
+        EvidenceCallers(census, errors, callerIndex, Assertion, ".ctor", [(Assertion + "/MintingSource", "ForAssertion", 1)]);
+        EvidenceCallers(census, errors, callerIndex, Assertion + "/MintingSource", "ForAssertion", [(AssertionSource, "Capture", 1)]);
+        EvidenceCallers(census, errors, callerIndex, AssertionSource, "Capture", [("LearnStack.Api.Authentication.ClaimContextAssertionRecorder", "RecordAsync", 1)]);
+        EvidenceCallers(census, errors, callerIndex, CentralEvidence, "RecordConfirmedAssertionAsync", [("LearnStack.Api.Authentication.ClaimContextAssertionRecorder", "RecordAsync", 1)]);
         EvidenceImplementers(census, errors, "LearnStack.Api.Tenancy.IClaimContextAssertionRecorder", ["LearnStack.Api.Authentication.ClaimContextAssertionRecorder"]);
-        EvidenceCallers(census, errors, "LearnStack.Api.Tenancy.IClaimContextAssertionRecorder", "RecordAsync",
+        EvidenceCallers(census, errors, callerIndex, "LearnStack.Api.Tenancy.IClaimContextAssertionRecorder", "RecordAsync",
             [("LearnStack.Api.Tenancy.TenantAssertionMiddleware", "InvokeAsync", 1)]);
-        EvidenceCallers(census, errors, Occurrence + "/MintingSource", "ForOccurrence", [(CentralEvidence, "RecordObservedDenial", 1),
+        EvidenceCallers(census, errors, callerIndex, Occurrence + "/MintingSource", "ForOccurrence", [(CentralEvidence, "RecordObservedDenial", 1),
             (CentralEvidence, "RecordConfirmedAssertionAsync", 1)]);
-        EvidenceCallers(census, errors, AuditContext + "/MintingSource", "ForAuditContext", [(CentralEvidence, "Snapshot", 1)]);
-        EvidenceCallers(census, errors, Transport + "/MintingSource", "ForTransport", [(HttpTransport, "Capture", 1)]);
-        EvidenceCallers(census, errors, TransportPort, "Capture", [(CentralEvidence, "Snapshot", 1)]);
-        EvidenceCallers(census, errors, "LearnStack.SharedKernel.Audit.IAuditStore", "WriteAuthorizationPendingAsync", [(CentralEvidence, "BeforeOwnerCompletionAsync", 1)]);
-        EvidenceCallers(census, errors, "LearnStack.SharedKernel.Audit.IAuditStore", "WriteAuthorizationStandaloneAsync",
+        EvidenceCallers(census, errors, callerIndex, AuditContext + "/MintingSource", "ForAuditContext", [(CentralEvidence, "Snapshot", 1)]);
+        EvidenceCallers(census, errors, callerIndex, Transport + "/MintingSource", "ForTransport", [(HttpTransport, "Capture", 1)]);
+        EvidenceCallers(census, errors, callerIndex, TransportPort, "Capture", [(CentralEvidence, "Snapshot", 1)]);
+        EvidenceCallers(census, errors, callerIndex, "LearnStack.SharedKernel.Audit.IAuditStore", "WriteAuthorizationPendingAsync", [(CentralEvidence, "BeforeOwnerCompletionAsync", 1)]);
+        EvidenceCallers(census, errors, callerIndex, "LearnStack.SharedKernel.Audit.IAuditStore", "WriteAuthorizationStandaloneAsync",
             [(CentralEvidence, "AcknowledgeStandaloneAsync", 1), (CentralEvidence, "ReconcileBeforeCaptureClearAsync", 1), (CentralEvidence, "RecordConfirmedAssertionAsync", 1)]);
-        EvidenceCallers(census, errors, CentralEvidence, "ReconcileBeforeCaptureClearAsync",
+        EvidenceCallers(census, errors, callerIndex, CentralEvidence, "ReconcileBeforeCaptureClearAsync",
             [(CentralEvidence, "EndExecutionAsync", 1), (OrdinaryAuditOwner, "ExecuteDeclaredAsync", 1)]);
-        EvidenceCallers(census, errors, CentralEvidence + "/CommitBatch", ".ctor", [(CentralEvidence, "BeforeOwnerCompletionAsync", 1)]);
-        EvidenceCallers(census, errors, CentralEvidence, "BeforeOwnerCompletionAsync", [("LearnStack.Application.Persistence.TransactionExecutionCoordinator", "ExecuteFrameAsync", 1)]);
-        EvidenceCallers(census, errors, CentralEvidence, "RecordOwnerOutcome", [("LearnStack.Application.Persistence.TransactionExecutionCoordinator", "ExecuteFrameAsync", 3)]);
-        EvidenceCallers(census, errors, CentralEvidence, "BeginExecution", [(PolicyOwner, "ExecuteAsync", 1),
+        EvidenceCallers(census, errors, callerIndex, CentralEvidence + "/CommitBatch", ".ctor", [(CentralEvidence, "BeforeOwnerCompletionAsync", 1)]);
+        EvidenceCallers(census, errors, callerIndex, CentralEvidence, "BeforeOwnerCompletionAsync", [("LearnStack.Application.Persistence.TransactionExecutionCoordinator", "ExecuteFrameAsync", 1)]);
+        EvidenceCallers(census, errors, callerIndex, CentralEvidence, "RecordOwnerOutcome", [("LearnStack.Application.Persistence.TransactionExecutionCoordinator", "ExecuteFrameAsync", 3)]);
+        EvidenceCallers(census, errors, callerIndex, CentralEvidence, "BeginExecution", [(PolicyOwner, "ExecuteAsync", 1),
             (OrdinaryAuditOwner, "ExecuteDeclaredAsync", 1), ("LearnStack.Application.Persistence.TransactionExecutionCoordinator", "ExecuteFrameAsync", 1)]);
-        EvidenceCallers(census, errors, CentralEvidence, "Observe", [(PolicyOwner, "ExecuteAsync", 2), (CentralEvidence, "ReportRecheck", 1)]);
-        EvidenceCallers(census, errors, CentralEvidence, "RecordPolicyRefusal", [(PolicyOwner, "ExecuteAsync", 3)]);
-        EvidenceCallers(census, errors, CentralEvidence, "BeforeSuccessAsync", [(PolicyOwner, "ExecuteAsync", 1), (OrdinaryAuditOwner, "ExecuteDeclaredAsync", 1)]);
-        EvidenceCallers(census, errors, CentralEvidence, "Snapshot", [(CentralEvidence, "Observe", 1), (CentralEvidence, "RecordDenial", 1)]);
-        EvidenceCallers(census, errors, CentralEvidence, "RecordDenial", [(CentralEvidence, "ReportResourceRefusal", 1), (CentralEvidence, "RecordPolicyRefusal", 1)]);
-        EvidenceCallers(census, errors, "LearnStack.SharedKernel.Audit.IAuditStateCapture", "AttachAuthorization",
+        EvidenceCallers(census, errors, callerIndex, CentralEvidence, "Observe", [(PolicyOwner, "ExecuteAsync", 2), (CentralEvidence, "ReportRecheck", 1)]);
+        EvidenceCallers(census, errors, callerIndex, CentralEvidence, "RecordPolicyRefusal", [(PolicyOwner, "ExecuteAsync", 3)]);
+        EvidenceCallers(census, errors, callerIndex, CentralEvidence, "BeforeSuccessAsync", [(PolicyOwner, "ExecuteAsync", 1), (OrdinaryAuditOwner, "ExecuteDeclaredAsync", 1)]);
+        EvidenceCallers(census, errors, callerIndex, CentralEvidence, "Snapshot", [(CentralEvidence, "Observe", 1), (CentralEvidence, "RecordDenial", 1)]);
+        EvidenceCallers(census, errors, callerIndex, CentralEvidence, "RecordDenial", [(CentralEvidence, "ReportResourceRefusal", 1), (CentralEvidence, "RecordPolicyRefusal", 1)]);
+        EvidenceCallers(census, errors, callerIndex, "LearnStack.SharedKernel.Audit.IAuditStateCapture", "AttachAuthorization",
             [(CentralEvidence, "Observe", 1), (CentralEvidence, "RecordObservedDenial", 1)]);
-        EvidenceCallers(census, errors, InvocationContext, "get_CurrentInvocation", CurrentInvocationBorrowers);
+        EvidenceCallers(census, errors, callerIndex, InvocationContext, "get_CurrentInvocation", CurrentInvocationBorrowers);
         if (census.Methods.SelectMany(method => method.Body.Instructions).Any(instruction =>
                 instruction.Operand is MethodReference target
                 && (target.DeclaringType.FullName == InvocationContext && (target.Name is "get_CurrentInvocation" or "get_CurrentDecision")
@@ -308,12 +312,12 @@ public sealed partial class IdentityAuditConventionTests
                     || target.DeclaringType.FullName == PolicyOwner && target.Name == "get_CurrentDecision"
                         && instruction.OpCode.Code != Code.Call)))
             errors.Add("Current decision borrowers keep the exact interface callvirt or concrete owner call, never an executable alias");
-        EvidenceCallers(census, errors, InvocationContext, "get_CurrentDecision", CurrentDecisionBorrowers);
-        EvidenceCallers(census, errors, PolicyOwner, "get_CurrentDecision",
+        EvidenceCallers(census, errors, callerIndex, InvocationContext, "get_CurrentDecision", CurrentDecisionBorrowers);
+        EvidenceCallers(census, errors, callerIndex, PolicyOwner, "get_CurrentDecision",
             [("LearnStack.Application.Persistence.TransactionExecutionCoordinator", "ExecuteFrameAsync", 1)]);
-        EvidenceCallers(census, errors, "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportRecheck",
+        EvidenceCallers(census, errors, callerIndex, "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportRecheck",
             [(RoleAuthorization, "ReportRecheck", 1), (MemberAuthorization, "ReportRecheck", 1), (TenancyAuthorization, "RecheckAsync", 1), (ReceiptAuthorization, "RecheckAsync", 1), (ReadAuthorization, "RecheckAsync", 1)]);
-        EvidenceCallers(census, errors, "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportResourceRefusal",
+        EvidenceCallers(census, errors, callerIndex, "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportResourceRefusal",
             [(RoleAuthorization, "ReportRefusal", 1), (MemberAuthorization, "ReportRefusal", 1), (TenancyAuthorization, "RecheckAsync", 1), (ReceiptAuthorization, "RecheckAsync", 1), (ReadAuthorization, "RecheckAsync", 1)]);
         foreach (var (type, method, target, name) in new[]
         {
@@ -348,7 +352,7 @@ public sealed partial class IdentityAuditConventionTests
             errors.Add("Each pending write is acknowledged before checking the exact captured transaction and fresh announcement generation; mismatch poisons that owner");
         if (EvidencePrematureAcknowledgementGuards(census.Body(CentralEvidence, "RecordOwnerOutcome")).Count() != 1)
             errors.Add("Committed evidence is never acknowledged while that same captured physical unit remains active");
-        EvidenceObservationOffenders(census, errors);
+        EvidenceObservationOffenders(census, errors, callerIndex);
         if (EvidenceFrameIdentityComparisons(census.Body(StateCapture, "AttachAuthorization")).Count() != 1)
             errors.Add("Only the existing frame's actual stored invocation may refresh the same resource snapshot");
         var auditOwner = census.Body(OrdinaryAuditOwner, "ExecuteDeclaredAsync");

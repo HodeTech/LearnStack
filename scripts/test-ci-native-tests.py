@@ -218,11 +218,11 @@ class OwnerControls(unittest.TestCase):
         fixture = fixtures.ShardControls(); fixture.plan = self.owner.shard_owner().load_plan()
         return fixture
 
-    def run_workload(self, manifest, status, name, execution=None):
+    def run_workload(self, manifest, status, name, execution=None, *, mode='ordinary-0'):
         private, output = self.root / ('private-' + name), self.root / ('output-' + name)
         private.mkdir(); output.mkdir(); (output / 'results').mkdir()
         plan = self.owner.shard_owner().load_plan()
-        expected = self.owner.shard_owner().assign(manifest, plan, '1')['owners']['ordinary-0']
+        expected = self.owner.shard_owner().assign(manifest, plan, '1')['owners'][mode]
         def completed(argv, deadline, work, consume, progress):
             if execution is not None:
                 return execution(progress, expected)
@@ -237,7 +237,7 @@ class OwnerControls(unittest.TestCase):
                 mock.patch.object(self.owner, 'adapter_evidence', return_value={}), \
                 mock.patch.object(self.owner, 'shard_dotnet', side_effect=completed), \
                 contextlib.redirect_stdout(io.StringIO()):
-            self.owner.workload('ordinary-0', {'runAttempt': '1'}, private, output,
+            self.owner.workload(mode, {'runAttempt': '1'}, private, output,
                                 time.monotonic() + 3, '/owned/work')
         return private, output, expected
 
@@ -2108,6 +2108,119 @@ except launcher.Refusal as failure:
         self.assertFalse((private / 'workload.json').exists())
         self.refuses('trx_missing', self.owner.validate_results, output, started)
         self.assertEqual([], list(private.glob('*-execution*')), 'The private raw protocol remains unexported')
+
+    def failure_checkpoint_fixture(self):
+        manifest = self.selector_fixture().manifest()
+        case = manifest['ordinary'][0]
+        case.update(method=self.owner.BFF_BROWSER_FAILURE_CASE, name=self.owner.BFF_BROWSER_FAILURE_CASE)
+        owners = self.owner.shard_owner().assign(manifest, self.owner.shard_owner().load_plan(), '1')['owners']
+        mode = next(name for name, cases in owners.items() if case in cases)
+        raw = self.execution_result(case, 2)
+        raw.update(ErrorMessage='System.InvalidOperationException : BFF native fixture did not reach the closed browser_result/browser-launch phase.',
+                   ErrorStackTrace='/private/PRIVATE-CANARY/BffNativeDriver.cs:line 123',
+                   Messages=[{'Category': 'StdOutMsgs', 'Text': 'PRIVATE-CANARY\nBFF browser failure;journey=positive.'}])
+        diagnostic = {'assembly': case['assembly'], 'id': case['id'],
+                      'locations': [{'source': 'bff_native_driver', 'line': 123}],
+                      'exceptionKind': 'invalid_state',
+                      'details': {'stage': 'bff_browser', 'journey': 'positive', 'reason': 'browser-launch'}}
+        return manifest, mode, case, raw, diagnostic
+
+    def test_failed_case_checkpoint_survives_sigkill_at_completed_result_publication(self):
+        manifest, mode, case, raw, diagnostic = self.failure_checkpoint_fixture()
+        name = 'failure-sigkill'
+        private, output = self.root / ('private-' + name), self.root / ('output-' + name)
+        def interrupted(progress, _expected):
+            progress.path.write_text(self.execution_message('TestExecution.StatsChange', {'NewTestResults': [raw]}))
+            flush = progress.stream.flush
+            def stop_after_publication():
+                flush()
+                os.kill(os.getpid(), signal.SIGKILL)
+            # Kill at the actual completed-line publication, before parser return
+            # or workload finally. No cooperative exception supplies this proof.
+            with mock.patch.object(progress.stream, 'flush', side_effect=stop_after_publication):
+                progress.poll()
+            return 1
+        pid = os.fork()
+        if pid == 0:
+            try:
+                self.run_workload(manifest, 1, name, interrupted, mode=mode)
+            except BaseException:
+                os._exit(71)
+            os._exit(72)
+        joined, status = 0, None
+        try:
+            end = time.monotonic() + 5
+            while joined != pid and time.monotonic() < end:
+                joined, status = os.waitpid(pid, os.WNOHANG)
+                if joined != pid:
+                    time.sleep(0.01)
+            self.assertEqual(pid, joined, 'The test-owned worker must terminate within its bound')
+            self.assertEqual(-signal.SIGKILL, os.waitstatus_to_exitcode(status))
+        finally:
+            if joined != pid:
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                os.waitpid(pid, 0)
+        with self.assertRaises(ChildProcessError):
+            os.waitpid(pid, os.WNOHANG)
+        measured = self.owner.read_json(output / 'measurements.json')
+        item = measured['projects'][0]
+        self.assertEqual([diagnostic], item['failureLocations'])
+        for field in ('adapter', 'firstResultSeconds', 'testProcessSeconds'):
+            self.assertIsNone(item[field], 'A checkpoint does not invent final process observations')
+        self.assertNotIn('executionDiagnostics', item)
+        self.assertEqual([], item['successObservations'])
+        rows = [json.loads(line) for line in (output / 'completed-cases.jsonl').read_text().splitlines()]
+        self.assertEqual([{**{key: case[key] for key in ('assembly', 'id', 'name')},
+                           'outcome': 'Failed', 'duration': raw['Duration']}], rows)
+        self.assertEqual(0o600, (output / 'measurements.json').stat().st_mode & 0o777)
+        self.assertFalse((output / 'measurements.json.tmp').exists())
+        self.assertEqual(1, len(list(private.glob('*-execution.diag'))), 'SIGKILL bypassed private diagnostic finalization')
+        self.assertFalse((private / 'workload.json').exists())
+        self.refuses('trx_missing', self.owner.validate_results, output, [case])
+        exported = ''.join(path.read_text() for path in output.rglob('*') if path.is_file())
+        for value in ('PRIVATE-CANARY', '/private/', 'BFF native fixture', 'BFF browser failure;'):
+            self.assertNotIn(value, exported)
+
+    def test_failed_case_checkpoint_is_refined_by_normal_finalization_without_schema_or_cleanup_change(self):
+        manifest, mode, _case, raw, diagnostic = self.failure_checkpoint_fixture()
+        name = 'failure-finalized'
+        private, output = self.root / ('private-' + name), self.root / ('output-' + name)
+        captured = []
+        def completed(progress, expected):
+            captured.append(progress)
+            results = [raw if case['id'] == diagnostic['id'] else self.execution_result(case) for case in expected]
+            progress.path.write_text(self.execution_message('TestExecution.Completed', {
+                'TestRunCompleteArgs': {'IsCanceled': False, 'IsAborted': False, 'Error': None,
+                    'TestRunStatistics': {'ExecutedTests': len(expected), 'Stats': {'Passed': len(expected) - 1, 'Failed': 1}}},
+                'LastRunTests': {'NewTestResults': results}}))
+            progress.poll(final=True)
+            return 1
+        self.refuses('tests_failed', self.run_workload, manifest, 1, name, completed, mode=mode)
+        measured = self.owner.read_json(output / 'measurements.json')
+        item = measured['projects'][0]
+        self.assertEqual({'assembly', 'cases', 'adapter', 'firstResultSeconds', 'testProcessSeconds',
+                          'failureLocations', 'successObservations', 'executionDiagnostics'}, set(item))
+        self.assertEqual([diagnostic], item['failureLocations'])
+        self.assertEqual({}, item['adapter'])
+        self.assertIsInstance(item['firstResultSeconds'], (int, float))
+        self.assertIsInstance(item['testProcessSeconds'], (int, float))
+        self.assertEqual({'status': 'unavailable', 'startedWithoutResult': None}, item['executionDiagnostics'])
+        self.assertEqual([], item['successObservations'])
+        self.assertTrue(captured[0].completed)
+        self.assertTrue(captured[0].reader.closed)
+        self.assertEqual([], list(private.glob('*-execution*')))
+        self.assertFalse((output / 'measurements.json.tmp').exists())
+        self.assertFalse((private / 'workload.json').exists(), 'A failed test never qualifies the workload')
+        rows = [json.loads(line) for line in (output / 'completed-cases.jsonl').read_text().splitlines()]
+        self.assertEqual(item['cases'], len(rows))
+        self.assertEqual(1, sum(row['outcome'] == 'Failed' for row in rows))
+        self.assertTrue(all(set(row) == {'assembly', 'id', 'name', 'outcome', 'duration'} for row in rows))
+        exported = ''.join(path.read_text() for path in output.rglob('*') if path.is_file())
+        for value in ('PRIVATE-CANARY', '/private/', 'BFF native fixture', 'BFF browser failure;'):
+            self.assertNotIn(value, exported)
 
     def test_execution_protocol_requires_unique_expected_ids_and_finite_non_skip_outcomes(self):
         case = self.case(1)
