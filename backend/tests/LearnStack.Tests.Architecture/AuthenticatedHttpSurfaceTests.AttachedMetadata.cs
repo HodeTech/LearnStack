@@ -14,33 +14,56 @@ public sealed partial class AuthenticatedHttpSurfaceTests
     private static IEnumerable<string> AttachedFilterOffenders(TypeDefinition controller, MethodDefinition action,
         Dictionary<string, TypeDefinition> map)
     {
-        var filters = Attributes(controller, map).Concat(action.CustomAttributes)
-            .Where(attribute => AuthenticationMetadata.IsFilterData(attribute.AttributeType, map)).ToArray();
-        if (filters.Length != 2 || filters.Count(IsApiController) != 1 || filters.Count(IsResponseMetadata) != 1)
+        var endpoint = Endpoints.SingleOrDefault(entry => entry.Controller == controller.FullName && entry.Action == action.Name);
+        var attributes = Attributes(controller, map).Concat(action.CustomAttributes).ToArray();
+        var filters = attributes.Where(attribute => AuthenticationMetadata.IsFilterData(attribute.AttributeType, map)).ToArray();
+        if (endpoint is null || filters.Length != (endpoint.ProtectedOperation is null ? 2 : 3)
+            || filters.Count(IsApiController) != 1 || filters.Count(attribute => IsResponseMetadata(attribute, endpoint)) != 1
+            || filters.Count(attribute => IsKeyMetadata(attribute, endpoint)) != (endpoint.ProtectedOperation is null ? 0 : 1))
             yield return "Unexpected attached MVC filter metadata: " + controller.FullName + "." + action.Name
-                + "; preserve the exact framework API and response metadata";
-
-        static bool FrameworkAttribute(CustomAttribute attribute) =>
-            attribute.AttributeType.Scope.Name.Replace(".dll", "", StringComparison.Ordinal) == "Microsoft.AspNetCore.Mvc.Core"
-            && attribute.Properties.Count == 0 && attribute.Fields.Count == 0;
-
-        static bool IsApiController(CustomAttribute attribute) => FrameworkAttribute(attribute)
-            && attribute.AttributeType.FullName == "Microsoft.AspNetCore.Mvc.ApiControllerAttribute"
-            && attribute.ConstructorArguments.Count == 0;
-
-        static bool IsResponseMetadata(CustomAttribute attribute) => FrameworkAttribute(attribute)
-            && attribute.AttributeType.GetElementType().FullName is
-                "Microsoft.AspNetCore.Mvc.ProducesResponseTypeAttribute" or "Microsoft.AspNetCore.Mvc.ProducesResponseTypeAttribute`1"
-            && attribute.ConstructorArguments.Count == 1 && attribute.ConstructorArguments[0].Value is 200;
+                + "; preserve the exact framework response and finite protected-key metadata";
+        var policies = attributes.Where(attribute => attribute.AttributeType.FullName == "LearnStack.Api.Authentication.OperationPolicyAttribute").ToArray();
+        if (endpoint is null || policies.Length != 1 || policies[0].AttributeType.Scope.Name.Replace(".dll", "", StringComparison.Ordinal) != "LearnStack.Api"
+            || policies[0].Properties.Count != 0 || policies[0].Fields.Count != 0 || policies[0].ConstructorArguments.Count != 1
+            || policies[0].ConstructorArguments[0].Value is not TypeReference request
+            || Key(request) != endpoint.Request.Assembly.GetName().Name + ":" + endpoint.Request.FullName)
+            yield return "Unexpected operation request metadata: " + controller.FullName + "." + action.Name;
     }
+
+    private static bool FrameworkAttribute(CustomAttribute attribute) =>
+        attribute.AttributeType.Scope.Name.Replace(".dll", "", StringComparison.Ordinal) == "Microsoft.AspNetCore.Mvc.Core"
+        && attribute.Properties.Count == 0 && attribute.Fields.Count == 0;
+
+    private static bool IsApiController(CustomAttribute attribute) => FrameworkAttribute(attribute)
+        && attribute.AttributeType.FullName == "Microsoft.AspNetCore.Mvc.ApiControllerAttribute"
+        && attribute.ConstructorArguments.Count == 0;
+
+    private static bool IsResponseMetadata(CustomAttribute attribute, Endpoint endpoint) => FrameworkAttribute(attribute)
+        && attribute.ConstructorArguments.Count == 1 && attribute.ConstructorArguments[0].Value is int status && status == endpoint.Status
+        && (endpoint.Response is null
+            ? attribute.AttributeType.FullName == "Microsoft.AspNetCore.Mvc.ProducesResponseTypeAttribute"
+            : attribute.AttributeType is GenericInstanceType response
+                && response.ElementType.FullName == "Microsoft.AspNetCore.Mvc.ProducesResponseTypeAttribute`1"
+                && response.GenericArguments.Count == 1
+                && SameType(response.GenericArguments[0], attribute.AttributeType.Module.ImportReference(endpoint.Response)));
+
+    private static bool SameType(TypeReference left, TypeReference right) => left.FullName == right.FullName
+        && Il.ExpandedTypeReferences(left).Select(Key).SequenceEqual(Il.ExpandedTypeReferences(right).Select(Key), StringComparer.Ordinal);
+
+    private static bool IsKeyMetadata(CustomAttribute attribute, Endpoint endpoint) => endpoint.ProtectedOperation is { } operation
+        && Key(attribute.AttributeType) == "LearnStack.Api:" + IdempotentMetadata
+        && attribute.ConstructorArguments.Count == 1 && attribute.ConstructorArguments[0].Value is int actual && actual == operation
+        && Key(attribute.ConstructorArguments[0].Type) == "LearnStack.Api:LearnStack.Api.Idempotency.ProtectedAdministrationOperation"
+        && attribute.Properties.Count == 0 && attribute.Fields.Count == 0;
 
     private static void AssertAttachedMetadataControls(Dictionary<string, TypeDefinition> map)
     {
         using var compiled = ModuleDefinition.ReadModule(typeof(SurfaceAttachedMetadataProbe).Assembly.Location);
         var probe = compiled.GetType(typeof(SurfaceAttachedMetadataProbe).FullName);
-        foreach (var controller in map.Values.Where(type => type.FullName is Account or Directory or Admission or PublicSite or PublicEducation).ToArray())
+        foreach (var endpoint in Endpoints)
         {
-            var action = controller.Methods.First(IsAction);
+            var controller = map["LearnStack.Api:" + endpoint.Controller];
+            var action = controller.Methods.Single(method => method.Name == endpoint.Action);
             AssertClean();
             foreach (var method in probe.Methods.Where(method => method.HasCustomAttributes))
             {

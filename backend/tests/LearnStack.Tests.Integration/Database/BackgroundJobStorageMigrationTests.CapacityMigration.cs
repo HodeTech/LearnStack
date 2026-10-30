@@ -12,7 +12,8 @@ public sealed partial class BackgroundJobStorageMigrationTests
     [Fact]
     public async Task Capacity_cleanup_forward_migration_reapplies_and_preserves_the_nonkey_count_lock()
     {
-        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using var database = await DisposableSchemaDatabase.CreateAtPlatformMigrationAsync(schema.Postgres,
+            "20261017231821_index_background_job_control_quarantines");
         await using var context = Platform(database);
         var migrations = (await context.Database.GetAppliedMigrationsAsync()).ToArray();
         var added = migrations.Single(name => name.EndsWith("_add_transactional_job_capacity_cleanup", StringComparison.Ordinal));
@@ -35,7 +36,10 @@ public sealed partial class BackgroundJobStorageMigrationTests
     [InlineData(true)]
     public async Task Transactional_cleanup_and_release_are_atomic_and_migration_reversal_refuses_new_history(bool release)
     {
-        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using var database = release
+            ? await DisposableSchemaDatabase.CreateAtPlatformMigrationAsync(schema.Postgres,
+                "20261016210528_add_transactional_job_capacity_cleanup")
+            : await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await BackgroundJobSchemaSeed.SeedAsync(database.AppConnectionString, database.OutboxConnectionString);
         var job = BackgroundJobSchemaSeed.Find(SchemaFixture.TenantA, null);
         await using (var dispatcher = await PostgresFixture.OpenAsync(database.OutboxConnectionString))
@@ -74,5 +78,9 @@ public sealed partial class BackgroundJobStorageMigrationTests
         (await SchemaQueries.CountAsync(app,
             "SELECT count(*) FROM pg_class WHERE relname IN ('background_job_attempts','background_job_reservations') AND relforcerowsecurity", check))
             .Should().Be(2);
+        await check.RollbackAsync();
+        await context.Database.MigrateAsync();
+        (await context.Database.GetAppliedMigrationsAsync()).Should().Equal(context.Database.GetMigrations());
+        context.Database.HasPendingModelChanges().Should().BeFalse();
     }
 }

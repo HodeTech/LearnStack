@@ -14,8 +14,14 @@ public sealed partial class OutboxDispatchConventionTests
         ("LearnStack.Api.PublicReads.PublicSiteController", ["Get", "Head"]),
         ("LearnStack.Api.PublicReads.PublicEducationController", ["Catalog", "HeadCatalog", "Course", "HeadCourse", "Lesson", "HeadLesson"]),
         ("LearnStack.Api.Account.AccountController", ["GetSite"]),
-        ("LearnStack.Api.Identity.MembershipsController", ["List"]),
+        ("LearnStack.Api.Identity.MembershipsController", ["List", "Get", "SetProfile", "ReplaceRoles", "ChangeStatus"]),
         ("LearnStack.Api.Identity.NativeSessionAdmissionController", ["Admit"]),
+        ("LearnStack.Api.Identity.OrganizationMembershipsController", ["List"]),
+        ("LearnStack.Api.Identity.OwnMembershipController", ["GetProfile", "SetProfile", "Contexts", "Capabilities"]),
+        ("LearnStack.Api.Identity.PermissionsController", ["List"]),
+        ("LearnStack.Api.Identity.RolesController", ["List", "Get", "ChangeGrants", "AdoptManifest"]),
+        ("LearnStack.Api.Tenancy.DefaultOrganizationController", ["Select"]),
+        ("LearnStack.Api.Tenancy.OrganizationsController", ["List", "Get", "Create", "Rename", "Archive"]),
     ];
 
     /// <summary>ADR-0047: disk-discovered modules cannot hide declarations outside the live handler scan.</summary>
@@ -97,11 +103,29 @@ public sealed partial class OutboxDispatchConventionTests
             dashboardType.Scope));
         AssertMutation(census, "dashboard activation hidden in a generic middleware argument", () =>
             AddCallProbe(scaffold, "HiddenGenericDashboard", useDashboard, OpCodes.Call), JobManifestOffenders);
-        foreach (var siteController in new[] { types[("LearnStack.Api", "LearnStack.Api.PublicReads.PublicSiteController")],
-                     types[("LearnStack.Api", "LearnStack.Api.Account.AccountController")],
-                     types[("LearnStack.Api", "LearnStack.Api.Identity.MembershipsController")],
-                     types[("LearnStack.Api", "LearnStack.Api.Identity.NativeSessionAdmissionController")],
-                     types[("LearnStack.Api", "LearnStack.Api.Common.ApiControllerBase")] })
+        foreach (var (controllerName, actionNames) in JobManifestControllerActions)
+        {
+            var controller = types[("LearnStack.Api", controllerName)];
+            AssertMutation(census, "an approved controller missing from MVC discovery: " + controllerName, () =>
+            {
+                var attributes = controller.Attributes;
+                controller.IsPublic = false;
+                return () => controller.Attributes = attributes;
+            }, JobManifestOffenders);
+            foreach (var actionName in actionNames)
+            {
+                var action = controller.Methods.Single(method => method.Name == actionName);
+                AssertMutation(census, "a missing approved controller action: " + controllerName + "::" + actionName, () =>
+                {
+                    var index = controller.Methods.IndexOf(action);
+                    controller.Methods.RemoveAt(index);
+                    return () => controller.Methods.Insert(index, action);
+                }, JobManifestOffenders);
+            }
+        }
+        foreach (var siteController in JobManifestControllerActions
+                     .Select(controller => types[("LearnStack.Api", controller.Controller)])
+                     .Append(types[("LearnStack.Api", "LearnStack.Api.Common.ApiControllerBase")]))
             AssertMutation(census, "a new declared or inherited public action on an approved controller", () =>
         {
             var action = new MethodDefinition("UnexpectedRecovery", MethodAttributes.Public, siteController.Module.TypeSystem.Void);

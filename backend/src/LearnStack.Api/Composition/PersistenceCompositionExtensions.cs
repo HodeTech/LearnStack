@@ -6,6 +6,8 @@ using LearnStack.Modules.Customization.Application.Seeding;
 using LearnStack.Modules.Education.Application.Contracts.Seeding;
 using LearnStack.Modules.Education.Application.Seeding;
 using LearnStack.Modules.Identity.Application.Contracts.Seeding;
+using LearnStack.Modules.Identity.Application.Memberships;
+using LearnStack.Modules.Tenancy.Application.Contracts.IdentityLifecycle;
 using LearnStack.Modules.Identity.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Application.Contracts.Locales;
 using LearnStack.Modules.Education.Application.Audit;
@@ -222,6 +224,7 @@ public static class PersistenceCompositionExtensions
         // ordinary existing-binding admission. Internal consumers qualify explicitly.
         services.AddIdentityGlobalFoundation(identityAuthority);
         services.AddIdentityContextualFoundation();
+        services.TryAddScoped<IOwnTenantNavigationCoverage, OwnTenantNavigationCoverage>();
 
         // ── The audit write path ─────────────────────────────────────────────
         //

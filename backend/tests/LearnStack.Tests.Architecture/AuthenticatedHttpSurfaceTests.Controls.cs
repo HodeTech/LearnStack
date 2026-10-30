@@ -1,4 +1,5 @@
 using FluentAssertions;
+using MediatR;
 using LearnStack.Modules.Tenancy.Application.Account;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -6,6 +7,7 @@ using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
 using Mono.Cecil;
+using Mono.Cecil.Cil;
 
 namespace LearnStack.Tests.Architecture;
 
@@ -13,10 +15,12 @@ public sealed partial class AuthenticatedHttpSurfaceTests
 {
     private static void AssertProtectedPolicyControls(Dictionary<string, TypeDefinition> map)
     {
-        foreach (var controller in map.Values.Where(type => type.FullName is Account or Directory or Admission))
+        foreach (var endpoint in Endpoints.Where(entry => entry.Policy is not null))
         {
-            var action = controller.Methods.Single(IsAction);
-            var authorization = controller.CustomAttributes.Single(attribute => attribute.AttributeType.FullName == typeof(AuthorizeAttribute).FullName);
+            var controller = map["LearnStack.Api:" + endpoint.Controller];
+            var action = controller.Methods.Single(method => method.Name == endpoint.Action);
+            var authorization = Attributes(controller, map).Concat(action.CustomAttributes)
+                .Single(attribute => attribute.AttributeType.FullName == typeof(AuthorizeAttribute).FullName);
             var policy = authorization.Properties.Single(property => property.Name == nameof(AuthorizeAttribute.Policy));
             AuthorizationOffenders(controller, action, map).Should().BeEmpty();
             authorization.Properties.Remove(policy);
@@ -67,9 +71,10 @@ public sealed partial class AuthenticatedHttpSurfaceTests
 
     private static void AssertAnonymousMetadataControls(Dictionary<string, TypeDefinition> map)
     {
-        foreach (var controller in map.Values.Where(type => type.FullName is Account or Directory or Admission or PublicSite or PublicEducation).ToArray())
+        foreach (var endpoint in Endpoints)
         {
-            var action = controller.Methods.First(IsAction);
+            var controller = map["LearnStack.Api:" + endpoint.Controller];
+            var action = controller.Methods.Single(method => method.Name == endpoint.Action);
             AuthorizationOffenders(controller, action, map, null).Should().BeEmpty();
             foreach (var inherited in new[] { false, true })
                 AuthenticationMetadata.WithCompiledAnonymous(controller.Module, inherited, metadata =>
@@ -82,7 +87,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                         AuthenticationMetadata.IsAnonymous(metadata.AttributeType, map).Should().BeTrue(
                             "direct and inherited custom anonymous contracts must be recognized");
                         AssertRejected();
-                        if (controller.FullName is not (Account or Directory or Admission))
+                        if (endpoint.Policy is null)
                         {
                             var standard = controller.CustomAttributes.Single(attribute =>
                                 attribute.AttributeType.FullName == typeof(AllowAnonymousAttribute).FullName);
@@ -253,6 +258,70 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         }
         finally { registration.Method.Body.Instructions.Insert(index, registration.Instruction); }
         GlobalFilterOffenders(map).Should().BeEmpty("restoring compiled registration sites restores the same predicate");
+    }
+
+    private static void AssertGeneratedHandlerFieldControls(TypeDefinition[] roots, Dictionary<string, TypeDefinition> map)
+    {
+        var owner = roots.First(type => type.Methods.Any(method => method.Name == "Handle" && method.CustomAttributes.Any(attribute =>
+            attribute.AttributeType.FullName == "System.Runtime.CompilerServices.AsyncStateMachineAttribute")));
+        var handle = owner.Methods.Single(method => method.Name == "Handle");
+        var state = (TypeReference)handle.CustomAttributes.Single(attribute =>
+            attribute.AttributeType.FullName == "System.Runtime.CompilerServices.AsyncStateMachineAttribute").ConstructorArguments[0].Value;
+        var generated = map[Key(state)];
+        var target = roots.Single(type => Handles(type, typeof(LearnStack.Modules.Tenancy.Application.Contracts.Account.GetAccountSiteQuery).FullName!));
+        var contract = generated.Module.ImportReference(target.Interfaces.Single().InterfaceType);
+        NestedDispatchOffenders([owner], map).Should().BeEmpty("the actual generated owner's normal self capture remains legal");
+        var unused = new FieldDefinition("UnusedHandlerCapability", FieldAttributes.Private, contract);
+        generated.Fields.Add(unused);
+        try
+        {
+            NestedDispatchOffenders([owner], map).Should().Contain("Nested HTTP dispatch/helper handler: " + owner.FullName,
+                "an unused handler field on the actual state machine must survive generated-type de-duplication");
+        }
+        finally { generated.Fields.Remove(unused); }
+        var captured = generated.Fields.Single(field => field.Name == "<>4__this");
+        var ownType = captured.FieldType;
+        captured.FieldType = contract;
+        try
+        {
+            NestedDispatchOffenders([owner], map).Should().Contain("Nested HTTP dispatch/helper handler: " + owner.FullName,
+                "the compiler capture spelling alone cannot exempt a foreign handler capability");
+        }
+        finally { captured.FieldType = ownType; }
+        NestedDispatchOffenders([owner], map).Should().BeEmpty("both real generated-field mutations were restored");
+    }
+
+    private static void AssertInheritedHandlerControls(TypeDefinition[] roots, Dictionary<string, TypeDefinition> map)
+    {
+        foreach (var owner in roots.Where(root => root.BaseType is { } parent && map.TryGetValue(Key(parent), out var definition)
+                     && definition.IsAbstract).DistinctBy(root => Key(root.BaseType)))
+        {
+            var parent = map[Key(owner.BaseType)];
+            void Dirty() => NestedDispatchOffenders([owner], map).Should().Contain(error =>
+                error.StartsWith("Nested HTTP dispatch/helper handler:", StringComparison.Ordinal));
+            NestedDispatchOffenders([owner], map).Should().BeEmpty("inherited implementations do not acquire sibling handlers");
+            foreach (var holder in new[] { owner, parent })
+            {
+                var field = new FieldDefinition("AbstractCollaborator", FieldAttributes.Private, parent);
+                holder.Fields.Add(field);
+                try { Dirty(); } finally { holder.Fields.Remove(field); }
+            }
+            var constructor = owner.Methods.Single(method => method.IsConstructor && !method.IsStatic);
+            var parameter = new ParameterDefinition("collaborator", ParameterAttributes.None, parent);
+            constructor.Parameters.Add(parameter);
+            try { Dirty(); } finally { constructor.Parameters.Remove(parameter); }
+            var handle = owner.Methods.Single(method => method.Name == "Handle");
+            var local = new VariableDefinition(parent);
+            handle.Body.Variables.Add(local);
+            try { Dirty(); } finally { handle.Body.Variables.Remove(local); }
+            var token = Instruction.Create(OpCodes.Ldtoken, parent);
+            handle.Body.Instructions.Add(token);
+            try { Dirty(); } finally { handle.Body.Instructions.Remove(token); }
+            var sender = new FieldDefinition("HiddenSender", FieldAttributes.Private, parent.Module.ImportReference(typeof(ISender)));
+            parent.Fields.Add(sender);
+            try { Dirty(); } finally { parent.Fields.Remove(sender); }
+            NestedDispatchOffenders([owner], map).Should().BeEmpty("base collaborators and inherited sender capability were restored");
+        }
     }
 
     private static void AssertRootDispatchControls(Dictionary<string, TypeDefinition> map)

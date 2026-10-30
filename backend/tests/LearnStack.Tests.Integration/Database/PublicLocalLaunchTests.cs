@@ -64,7 +64,19 @@ public sealed class PublicLocalLaunchTests(PublicReadFixture parent)
                 }
                 File.WriteAllText(runtime, source);
             }
-            foreach (var file in new[] { "tsconfig.json", "tsconfig.server.json", "src/server/ingress.ts", "src/server/auth/http-paths.ts" })
+            // Stage the current ingress value/type dependency closure. The return-path
+            // type reaches the native contracts even though those imports erase at emit.
+            foreach (var file in new[]
+            {
+                "tsconfig.json", "tsconfig.server.json", "src/server/ingress.ts",
+                "src/server/auth/http-paths.ts", "src/server/auth/input-error.ts",
+                "src/server/auth/native-contract.ts", "src/server/auth/native-operation-contract.ts",
+                "src/server/auth/page-contract.ts", "src/server/auth/page-query.ts",
+                "src/server/auth/page-snapshot-contract.ts", "src/server/auth/provider-core.ts",
+                "src/server/auth/provider-error.ts", "src/server/auth/provider-transport.ts",
+                "src/server/auth/provider.ts", "src/server/auth/session-contract.ts",
+                "src/server/auth/session-path.ts", "src/server/auth/session-projection.ts",
+            })
                 File.Copy(Path.Combine(repository, "frontend/apps/web", file), Path.Combine(app, file));
             Directory.CreateSymbolicLink(Path.Combine(app, "node_modules"), Path.Combine(repository, "frontend/apps/web/node_modules"));
             Directory.CreateSymbolicLink(backend, Path.Combine(repository, "backend"));

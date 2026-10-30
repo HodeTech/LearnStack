@@ -66,7 +66,8 @@ Absent/false opt-in keeps the anonymous renderer independent of Keycloak. Auth
 paths then return 404; `/studio` and `/portal` return a localized unavailable
 document with 503. Enabled mode exposes the closed `/api/auth` actions in native
 middleware and requires a session for those two shells. The shells show the
-read-only AccountSite projection, not future authoring or role permissions.
+AccountSite projection; the selected administration and profile screens use the
+separately admitted operation snapshots described below.
 
 [ADR-0078](../../../docs/decisions/0078-native-session-scope-and-self-entry.md)
 separates the verified provider identity from API-admitted application scope.

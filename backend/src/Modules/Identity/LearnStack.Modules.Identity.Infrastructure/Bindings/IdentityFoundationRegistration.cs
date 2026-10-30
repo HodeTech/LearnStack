@@ -3,8 +3,6 @@ using LearnStack.Modules.Identity.Application.Abstractions;
 using LearnStack.Modules.Identity.Application.Audit;
 using LearnStack.Modules.Identity.Application.Bindings;
 using LearnStack.Modules.Identity.Application.Authorization;
-using LearnStack.Modules.Identity.Application.Memberships;
-using LearnStack.Modules.Tenancy.Application.Contracts.IdentityLifecycle;
 using LearnStack.Modules.Identity.Application.Contracts.Bindings;
 using LearnStack.Modules.Identity.Application.Contracts.Entry;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
@@ -36,7 +34,6 @@ public static class IdentityFoundationRegistration
         services.TryAddScoped<IMembershipAdministrationReader, MembershipAdministrationReader>();
         services.TryAddScoped<IIdentityReceiptReader, IdentityReceiptReader>();
         services.TryAddScoped<IIdentityAdministrationReadStore, IdentityAdministrationReadStore>();
-        services.TryAddScoped<IOwnTenantNavigationCoverage, OwnTenantNavigationCoverage>();
         services.AddSingleton(new ExplicitReadOnlyRequest(typeof(GetOwnMembershipProfileQuery)));
         services.AddSingleton(new ExplicitReadOnlyRequest(typeof(GetOwnMembershipContextsQuery)));
         services.AddSingleton(new ExplicitReadOnlyRequest(typeof(GetOwnCapabilitiesQuery)));

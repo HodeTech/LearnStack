@@ -9,6 +9,7 @@ using LearnStack.Infrastructure.Messaging;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Identity.Application;
 using LearnStack.Modules.Identity.Application.Audit;
+using LearnStack.Modules.Identity.Application.Memberships;
 using LearnStack.Modules.Identity.Infrastructure.Authorization;
 using LearnStack.Modules.Identity.Infrastructure.Bindings;
 using LearnStack.Modules.Identity.Infrastructure.Persistence;
@@ -26,6 +27,7 @@ using LearnStack.SharedKernel.Time;
 using MediatR;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 using Xunit;
 
@@ -95,6 +97,7 @@ internal sealed class RoleGrantPipelineHarness : IAsyncDisposable
         services.AddScoped<IGlobalIdentityScopeAccessor, GlobalIdentityScopeAccessor>();
         services.AddModuleDbContext<IdentityDbContext>();
         services.AddIdentityContextualFoundation();
+        services.TryAddScoped<IOwnTenantNavigationCoverage, OwnTenantNavigationCoverage>();
         services.AddIdentityAuthorizationReader();
         services.AddIdentityOperationPolicies();
         services.AddSingleton<IOperationPolicySource, TenancyOperationPolicySource>();

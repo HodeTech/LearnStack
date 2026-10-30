@@ -176,7 +176,8 @@ public sealed partial class BackgroundJobStorageMigrationTests
     [InlineData("succeeded")]
     public async Task External_policy_migration_refuses_legacy_failure_history_without_guessing_and_preserves_success(string kind)
     {
-        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using var database = await DisposableSchemaDatabase.CreateAtPlatformMigrationAsync(schema.Postgres,
+            BeforeExternalPolicy);
         await using var context = Platform(database);
         await context.GetService<IMigrator>().MigrateAsync(BeforeExternalPolicy);
         var job = await NewExternalOutcomeAsync(database, recordOutcome: false);

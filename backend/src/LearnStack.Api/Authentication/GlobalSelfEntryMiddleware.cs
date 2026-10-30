@@ -189,7 +189,7 @@ internal sealed class GlobalSelfEntryMiddleware(RequestDelegate next)
         string? OrganizationName, string EntryOrigin, bool CanUseCurrentHost);
 }
 
-internal sealed class NativeEntryOriginOptions
+public sealed class NativeEntryOriginOptions
 {
     private readonly int _port;
     internal NativeEntryOriginOptions(IConfiguration configuration)

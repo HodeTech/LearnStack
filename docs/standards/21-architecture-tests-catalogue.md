@@ -5458,69 +5458,47 @@ structural test proves — and what it does not.
 
 #### `Authenticated_Http_Surface_Is_Enumerated_And_ReadOnly`
 
-- **Asserts:** the nonempty complete production route/method/transitive-request
-  census contains only the eight existing public GET/HEAD actions, exact
-  AccountSite GET and `GET /api/v1/identity/memberships`, with enumerated
-  infrastructure exclusions. Extra controller,
-  minimal-route, mutation and unregistered/nested dispatch controls fail.
-  `GetAccountSiteQuery` independently requires valid HostAndClaim actor and
-  matching real host provenance before any reader, rejecting future
-  ClaimAndMembership too. It reads actual host-scoped public data as
-  `learnstack_app`, is explicitly Off with zero normal query audit rows, and uses
-  the existing exact-type physical ReadOnly owner: a planted SQL write is refused.
-  Both authenticated actions require their exact named canonical policies. The
-  administrative directory remains an ordinary ReadWrite operation with a MUST
-  ReadSensitive Membership intent; its result requires the audit commit.
-  No-store covers early errors; served OpenAPI and disjoint exhaustive
-  public/authenticated SDK GET ownership agree without a public AccountSite wrapper.
-  The real per-action MVC filter descriptors preserve the exact framework,
-  normalizer and response metadata, including scope, order, factory arguments and
-  reuse. Attached or inherited executable filters and explicit authorization
-  policy/requirement metadata fail independently. Compiled attached-attribute and
-  ordinary endpoint-convention controls cover these supported composition channels;
-  this bounded source/runtime proof does not model arbitrary reflection or dynamic
-  framework behavior.
-- **Source:** [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md)
-  § Closed authenticated read; ADR-0040 and ADR-0052's 2026-10-19 disclosures;
+- **Asserts:** the production census closes the finite HTTP surface at 31 MVC
+  actions and 27 distinct `IRequest` roots, including the public and authenticated
+  reads, ten protected keyed writes and native session-scope admission. It also
+  checks the separate three exact GlobalSelf middleware routes. The canonical
+  name is historical: administration includes writes, and sensitive reads can
+  require a ReadWrite owner to commit MUST audit evidence. AccountSite and public
+  reads retain their own physical ReadOnly contracts.
+- **Structural boundary:** the independent endpoint declarations pin route, verb,
+  request, response, policy and audit metadata; the protected descriptors pin the
+  keyed operation shapes. Compiled metadata, source and IL controls check the
+  supported MVC filter and authorization composition, controller/helper persistence,
+  request construction and transitive dispatch across production assemblies.
+  Dirty controls exercise extra or missing routes, changed descriptors and capability
+  paths. Native source admission and the exact GlobalSelf route descriptors have
+  separate entry controls; `HostAndNativeSessionScope` is a distinct origin and
+  native evidence does not rewrite provider facts. MVC checks cover filter scope,
+  ordering, factory arguments and reuse, including the filter-provider inventory. These
+  bounded checks do not model arbitrary reflection or dynamic framework behavior.
+- **Complementary runtime boundary:** actual HTTP and application-role PostgreSQL
+  controls exercise authorization, physical ownership and audit behavior. Protected
+  keyed-write metadata is distinct from the executable factory, replay and cleanup
+  owners and their runtime controls. OpenAPI/SDK controls check their own served
+  and generated contract surfaces. The [operation matrix](../decisions/0079-bounded-identity-administration.md#scoped-policy-and-mutation-ownership)
+  is the authority for the administration policy and audit contract.
+- **Source:** [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md),
+  [ADR-0076](../decisions/0076-live-scoped-authorization.md),
+  [ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md),
+  [ADR-0079](../decisions/0079-bounded-identity-administration.md), and
   [Security Standards](11-security.md#the-rule).
-- **Type:** complete production source/IL/route census with dirty/clean controls,
-  actual HTTP/app-role PostgreSQL and generated/served contract controls.
-  **Kind:** behavioural, with complementary structural controls.
-- **Test owner:**
-  `backend/tests/LearnStack.Tests.Architecture/AuthenticatedHttpSurfaceTests.cs`
-  and `backend/tests/LearnStack.Tests.Integration/Database/AccountSiteHttpTests.cs`;
-  SDK/OpenAPI contract controls remain with their actual contract owners.
-  The architecture owner checks the ten real production actions, exact
-  request construction, existing Off declarations and the directory's exact MUST
-  declaration, controller/helper persistence and
-  handler/helper nested dispatch across every production assembly, including
-  direct interface/concrete handler construction, fields, constructor parameters,
-  locals and `Handle` calls, custom-interface implementations and generic service
-  acquisition/non-Handle calls across distinct HTTP roots. Actual MVC filter
-  composition and source registrations are independently closed, including the
-  actual IFilterProvider DI inventory and bounded compiled provider capability
-  checks. A provider that changes effective filters without changing
-  MvcOptions.Filters fails independently. Custom/inherited IAllowAnonymous
-  metadata and actual endpoint authorization metadata have their own controls;
-  the exact public AllowAnonymous attribute remains required. Its
-  companion methods plant route, method, request, controller, mapping and
-  transitive-capability violations into those same Cecil subjects; missing
-  subjects and weakened discovery predicates fail. Each dirty control requires
-  its expected offender prefix, rather than any nonempty result. Complete runtime and
-  cross-contract local proof ships in Step 4; Step 5 owns full hosted qualification.
-- **Status:** **Implemented** (`AuthenticatedHttpSurfaceTests`, `AccountSiteHttpTests`,
-  `AccountSiteQueryTests`, `OpenApiContractTests`).
-- **Implemented P03-2 extension:** ADR-0076 adds only the administrative
-  directory GET and explicit policy metadata/classes. AccountSite/public reads
-  retain their exact physical READ ONLY contracts. The directory uses an ordinary
-  ReadWrite owner for MUST sensitive-read evidence; the canonical rule name does
-  not imply every authenticated GET is physically READ ONLY. Exact route/policy/DI
-  controls, live adapters and real classified/unclassified/underprivileged cases
-  complement the canonical application gate. The
-  [Phase 03 Status block](../roadmap/phase-03-identity-admin.md)
-  owns source-bound qualification.
-- **Phase:** P02b-5 Step 2 query/database boundary; Step 4 route/contract
-  activation; Step 5 complete transitive enforcement.
+- **Type:** production source, IL and metadata census with dirty/clean controls,
+  complemented by HTTP, database and contract controls. **Kind:** structural and
+  behavioural.
+- **Test owners:** `AuthenticatedHttpSurfaceTests`, `NativeScopeAdmissionTests`,
+  `AccountSiteHttpTests` and `AccountSiteQueryTests`; protected-write and
+  OpenAPI/SDK runtime controls remain with their respective owners.
+- **Status:** **Implemented** (`AuthenticatedHttpSurfaceTests`); the
+  [Phase 03 Status block](../roadmap/phase-03-identity-admin.md) owns packet
+  qualification. The P03-2 directory extension was the earlier finite surface;
+  ADR-0078 and ADR-0079 extend it with native entry and administration.
+- **Phase:** 02b-5 (closed authenticated read); 03 (scoped authorization, native
+  entry and bounded administration).
 
 #### `Keycloak_Roles_Are_Not_Application_Authority`
 
@@ -5744,21 +5722,37 @@ structural test proves — and what it does not.
 
 #### `Organizations_Are_Read_By_Composite_Key`
 
-- **Asserts:** `IOrganizationScopeValidator` and every organization read resolve by the composite key `(tenant_id, id)`, never by `id` alone. `pk_organizations` is the surrogate id, so a lookup by it is a well-formed, index-served query that returns another tenant's row — for the policy to hide if the announcement was made, and to hand back if it was not. Two legs: the raw-SQL leg pins the validator's `WHERE` clause and its `set_config` announcement (scanned, because a command's text is a string literal no type-reference test can see), and the EF leg bans `Organizations.Find`/`FindAsync`, which take the primary key and therefore cannot express the composite one. **The EF leg is vacuous today** and deliberately kept: Packet 7 step 9 shipped the first command, and nothing calls `Organizations.Find` or `FindAsync`: the one `DbContext` read of the table, the seeder's ownership check, filters by slug under the tenant's announcement. A scan added only once there is something to catch is a scan nobody adds. The runtime suite cannot substitute for either leg — with the announcement made, the policy makes both spellings behave identically, which is defence in depth working and is exactly why the rule has to be structural.
-- **Source:** ADR-0036 § The reconciliation matrix.
-- **Type:** xUnit + source scan. **Kind:** structural.
-- **Status:** **Implemented** (`TenantContextConstructionTests`, Packet 7 step 5).
-- **Phase:** 02a (Packet 7).
-
-- **Accepted extension:** ADR-0047 names a minimal lifecycle inventory reader for
-  bounded recurrence fan-out, delivered in P02b-4 Step 8. Step 9's source census
-  pins five SQL subjects in four actual files: three composite point reads and
-  the two bounded composite-key inventory/bounds queries. It also pins the bound
-  key parameters and page-size option. The companion
+- **Asserts:** ordinary organization point reads retain both tenant and
+  organization keys. The surrogate `pk_organizations` makes an id-only lookup
+  valid SQL, so RLS alone cannot establish the independent composite-key guard.
+  The EF leg bans `Organizations.Find` and `FindAsync`, which cannot express that
+  composite key. The validator's tenant announcement and composite predicate are
+  checked separately.
+- **SQL census:** eight direct runtime SQL subjects include the validator, job
+  lifecycle readers, identity/self-discovery readers and the awaited
+  `OrganizationWriteStore.FindForUpdateAsync` composite-key lock followed by
+  tenant-bound EF materialization. ADR-0047's bounded lifecycle inventory and
+  bounds are the named enumeration exception. Two further composed page owners
+  use an interpolated cursor inside bounded, tenant-filtered EF queries; their
+  complete read-method token fingerprints and helper signatures pin the observed
+  execution shape. Four exact migration installer owners are checked separately,
+  including the administration and retained-default DDL batches.
+- **Controls and limits:**
   `Organization_reader_census_rejects_missing_keys_extra_readers_and_unbounded_pages`
-  runs the same production detector against dirty/restored source copies. These
-  checks complement the separate database column-grant and runtime caller proofs;
-  ordinary point reads still require both keys.
+  exercises the same census on changed source, including key and binding removal,
+  extra or unexecuted SQL, changed locks, page bounds and DDL guard changes. The
+  read-method fingerprints do not bind helper bodies, using directives or migration
+  callers. These source checks complement rather than replace the separate
+  authorization, database column-grant, RLS and runtime caller proofs; they do not
+  establish runtime behavior on their own.
+- **Source:** [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md)
+  § The reconciliation matrix; [ADR-0047](../decisions/0047-transactional-background-job-runtime.md);
+  [ADR-0079](../decisions/0079-bounded-identity-administration.md).
+- **Type:** xUnit and source scan. **Kind:** structural.
+- **Status:** **Implemented** (`TenantContextConstructionTests`); the
+  [Phase 03 Status block](../roadmap/phase-03-identity-admin.md) owns qualification.
+- **Phase:** 02a (Packet 7); 02b-4 (bounded lifecycle inventory); 03 (bounded
+  administration and own-context navigation).
 
 #### `Tenant_Scope_Widening_Is_Never_Set_From_Request_Input`
 
@@ -5774,12 +5768,13 @@ structural test proves — and what it does not.
   earlier no-carrier premise. The
   [operation-bound read contract](05-database.md#operation-bound-read-authority)
   owns the canonical behavior.
-- **Registered P03-3 extension:** ADR-0080's separate fixed-seed source and
+- **P03-3 extension:** ADR-0080's separate fixed-seed source and
   scope-only sites are covered by
   [`Fixed_Seed_Prerequisites_Use_A_Closed_Temporary_Read_Scope`](#fixed_seed_prerequisites_use_a_closed_temporary_read_scope).
   ADR-0081 adds the distinct one-consumer
   [`Fixed_Seed_Origin_Adoption_Requires_Completed_Foundation`](#fixed_seed_origin_adoption_requires_completed_foundation),
   reusing the same two SQL sites through one private typed transition.
+  Those canonical entries own their implementation status and test evidence.
   The existing Protected-human witness and Implemented controls remain unchanged.
 - **Source:** ADR-0036 § The reconciliation matrix;
   [ADR-0076](../decisions/0076-live-scoped-authorization.md).

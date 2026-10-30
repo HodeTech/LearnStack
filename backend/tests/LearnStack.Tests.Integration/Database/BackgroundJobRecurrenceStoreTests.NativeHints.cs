@@ -67,7 +67,8 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
     [Fact]
     public async Task Native_revision_guard_down_up_and_independent_canonical_replacement_preserve_the_storage_shape()
     {
-        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using var database = await DisposableSchemaDatabase.CreateAtPlatformMigrationAsync(schema.Postgres,
+            "20261017225713_fence_hangfire_recurrence_revision");
         await using var source = Source(database);
         await using var owner = await PostgresFixture.OpenAsync(database.MigrationConnectionString);
         await using var context = new PlatformDbContext(new DbContextOptionsBuilder<PlatformDbContext>()
@@ -110,8 +111,9 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
         await context.GetService<IMigrator>().MigrateAsync(correction);
         (await NativeGuardDefinitionAsync(owner)).Should().Be(current);
         (await NativeStorageShapeAsync(owner)).Should().Equal(shape);
-        context.Database.HasPendingModelChanges().Should().BeFalse();
         await context.Database.MigrateAsync();
+        (await context.Database.GetAppliedMigrationsAsync()).Should().Equal(context.Database.GetMigrations());
+        context.Database.HasPendingModelChanges().Should().BeFalse();
     }
 
     private static Hangfire.PostgreSql.PostgreSqlStorage NativeStorage(PrivilegedDataSource source) =>

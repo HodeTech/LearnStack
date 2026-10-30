@@ -37,7 +37,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                 site.Instruction.Operand = metadata;
             }
             foreach (var token in controllerTokens) token.Instruction.Operand = type.Module.TypeSystem.Object;
-            return Il.ReferencedTypeReferences(type).ToArray();
+            return HttpReferences(type, map).ToArray();
         }
         finally
         {

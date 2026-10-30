@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 2,794 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 2,896 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -187,7 +187,10 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 8 review round 2 and cursor confidentiality closeout (2026-10-29)](#p03-3-step-8-review-round-2-and-cursor-confidentiality-closeout-2026-10-29) — 91 lines
   - [P03-3 Step 9 implementation and automated qualification (2026-10-30)](#p03-3-step-9-implementation-and-automated-qualification-2026-10-30) — 82 lines
   - [P03-3 Step 9 review round 1 and verified corrections (2026-10-30)](#p03-3-step-9-review-round-1-and-verified-corrections-2026-10-30) — 63 lines
-  - [P03-3 Step 9 review round 2 and verified lifetime and profile corrections (2026-10-30)](#p03-3-step-9-review-round-2-and-verified-lifetime-and-profile-corrections-2026-10-30) — 64 lines
+  - [P03-3 Step 9 review round 2 and verified lifetime and profile corrections (2026-10-30)](#p03-3-step-9-review-round-2-and-verified-lifetime-and-profile-corrections-2026-10-30) — 65 lines
+  - [P03-3 Step 9 maintainer manual walkthrough handoff (2026-10-30)](#p03-3-step-9-maintainer-manual-walkthrough-handoff-2026-10-30) — 26 lines
+  - [P03-3 maintainer-approved manual deferral and Step 10 continuation (2026-10-30)](#p03-3-maintainer-approved-manual-deferral-and-step-10-continuation-2026-10-30) — 27 lines
+  - [P03-3 Step 10 qualification repairs and implementation review boundary (2026-10-30)](#p03-3-step-10-qualification-repairs-and-implementation-review-boundary-2026-10-30) — 48 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -8525,3 +8528,105 @@ maintainer's connection/checklist question is pending. Independent local full
 checks can proceed while that external gate is unavailable. Step 10 final-source,
 public-demo and hosted A/B qualification and the reviewable PR remain outstanding;
 this is not packet or production-readiness closeout.
+
+
+### P03-3 Step 9 maintainer manual walkthrough handoff (2026-10-30)
+
+**Maintainer instruction.** The maintainer takes ownership of the manual
+keyboard/VoiceOver walkthrough and requests its checklist. Computer control
+failed before UI interaction; no human observation or operating-system setting
+change is claimed from that attempt.
+
+**Prepared handoff.** The Turkish local checklist supplies both real management
+origins, existing demonstration account names, source/environment fields,
+keyboard and assistive-technology steps, profile conflict and unsaved-change
+recovery, expiry/sign-out, no-JavaScript navigation, reflow and measured contrast.
+Its result form separates Passed, Finding and Not exercised, including individual
+subcases. It contains no credentials. The real demo setup remains with the
+repository README; the limited fake-provider UI fixture is not the prescribed
+manual environment.
+
+**Proof boundary.** Preparation and delegation are not execution. Record actual
+source, browser, operating system, VoiceOver, locale, viewport and observed
+announcements before accepting any result. Missing test contexts, an unavailable
+old Role release, unobserved expiry or absent controlled-error scenarios stay
+explicitly unexercised. Existing automated results cannot substitute for this
+manual evidence under [Accessibility Standards](../standards/16-accessibility.md#testing).
+The [phase Status block](phase-03-identity-admin.md) owns packet qualification;
+independent final checks do not close this gate.
+
+
+### P03-3 maintainer-approved manual deferral and Step 10 continuation (2026-10-30)
+
+**Maintainer direction.** The maintainer explicitly approves continued work now
+without waiting for the manual walkthrough, following the proposed deferral.
+Step 10's automated qualification, verified corrections, fresh review rounds,
+documentation and PR preparation proceed. This is approval to continue, not
+an execution receipt: no keyboard, focus, reflow, contrast or VoiceOver result
+is invented, and no accessibility pass is recorded.
+
+**Ownership and disclosure.** @cemil owns the deferred observations. PR review
+retains their checklist and the absence of source/environment-bound results as
+an explicit qualification limitation. The maintainer's instruction overrides
+the usual stop at this manual gate for the present continuation; it does not
+waive automated suites, negative controls, audit/isolation proof, the fresh
+review rounds or final-source hosted qualification. No Accepted ADR body or
+general accessibility standard is rewritten.
+
+**Current qualification.** On the correction overlay above `c3363534`, the
+strict solution build reports zero warnings/errors, Unit passes 3,432/3,432 and
+Contract passes 9/9, both with zero skips. Full Architecture executes 602 cases:
+600 pass and two catalogue consistency cases fail because the revised HTTP
+entry omits its owning class from the Status line. The entry retains
+`AuthenticatedHttpSurfaceTests`; the failing counters are not reduced. The
+original TRX/logs are retained separately, and the two cases require fresh
+verification. A focused pass alone is not a full final-source suite result.
+
+
+### P03-3 Step 10 qualification repairs and implementation review boundary (2026-10-30)
+
+**Scope.** Correct the violations and stale fixture assumptions exposed by
+complete local qualification. Production changes move the cross-module
+own-navigation registration to API/Seeder composition roots and inject
+`NativeEntryOriginOptions` into the controller. No route, grant, database
+policy, migration, deadline or permission is widened.
+
+**Enforcement.** The HTTP controls enumerate the complete current MVC and
+GlobalSelf populations and distinguish attached metadata from executable
+filter/factory/replay/cleanup owners. Independent mutable-IL controls bind
+actual request construction and protected descriptors. Organization controls
+retain composite point keys, the awaited write-owner lock, two bounded composed
+page owners and four exact migration installers. Fingerprints bind the observed
+method/SQL shape, not arbitrary helper implementations, using directives,
+reflection or runtime behavior; their canonical catalogue entries state those
+limits. Existing lifecycle/job commit and cleanup censuses gain exact new
+subjects and corresponding negative controls.
+
+**Integration fixtures.** Historical migration proofs start isolated databases
+at named boundaries, retain Down/Up and SQLSTATE/ACL/RLS assertions and migrate
+forward to current state. Seed/source fixtures use the canonical finite source
+and real handlers; nested-MUST proofs use a join-compatible ordinary initializer
+and preserve independent visibility, plural intents, outbox and cleanup checks.
+Account lifecycle controls preserve a lawful alternate Active default before
+withdrawing the original branch. A nonparallel producer collection isolates the
+real no-listener case from legitimate API-host telemetry listeners. The global
+capacity control exercises app-role WITH CHECK and a dirty policy twin.
+No production guard is weakened to satisfy a fixture.
+
+**CI controls.** Closed browser failure diagnostics cover the new finite
+page/no-script/counter states without exporting raw output. The shared-fixture
+class list moves from 144 to 175 actual source declarations (32 additions and
+one removed split owner); shard weights, topology, job windows, reserve and
+resource policies remain unchanged.
+
+**Observed proof and remaining scope.** The correction overlay has a strict
+solution build with zero warnings/errors, Unit 3,432/3,432 and Contract 9/9.
+Architecture executes 602 cases with 600 passes and two catalogue failures;
+restoring the exact Status-line owner makes all five corpus cases pass. All
+61 failures from the initial full Integration run subsequently pass in their
+focused correction runs, reconciled by exact TRX test name; this is not a full
+final-source Integration result. Native/offline and shard controls pass 95/95
+and 83/83. Formatting corrections precede the implementation review commit.
+Full current Integration, final broad checks, both fresh Step 10 review rounds,
+public-demo and final-source hosted A/B remain required. The maintainer's
+manual deferral above supplies no manual observation or accessibility pass.

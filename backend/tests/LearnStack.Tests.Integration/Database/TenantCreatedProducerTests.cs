@@ -4,13 +4,10 @@ using FluentAssertions;
 using LearnStack.Application.Messaging;
 using LearnStack.Infrastructure.Messaging;
 using LearnStack.Modules.Tenancy.Application.Contracts.IntegrationEvents;
-using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Audit;
-using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Messaging;
 using LearnStack.SharedKernel.Persistence;
-using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.Tools.Seeder;
 using MediatR;
@@ -55,7 +52,7 @@ public sealed class TenantCreatedProducerTests(SchemaFixture schema)
             builder.UseSetting("ConnectionStrings:Default", database.AppConnectionString);
             builder.ConfigureServices(services =>
             {
-                AddComponentAuthority(services);
+                CanonicalSeedTenantFixture.AddToComponentApi(services);
                 _evidence.AddTo(services);
             });
             builder.ConfigureServices(services => services.AddSingleton<ITenantContextAccessor>(
@@ -63,9 +60,9 @@ public sealed class TenantCreatedProducerTests(SchemaFixture schema)
         });
         await using var scope = (api ? host.Services : seed).CreateAsyncScope();
         var services = scope.ServiceProvider;
-        var tenant = TenantId.From(Guid.CreateVersion7());
-        var organization = OrganizationId.From(Guid.CreateVersion7());
-        var command = new ProvisionTenantCommand(tenant, "producer-probe", "Producer probe", organization, "hq", "HQ");
+        var command = CanonicalSeedTenantFixture.ProvisionCommand;
+        var tenant = command.TenantId;
+        var organization = command.DefaultOrganizationId;
         services.GetRequiredService<IOutbox>().Should().BeOfType<PostgresOutbox>();
         services.GetRequiredService<ITenantContext>().IsResolved.Should().BeFalse();
 
@@ -148,11 +145,6 @@ public sealed class TenantCreatedProducerTests(SchemaFixture schema)
             "SELECT count(DISTINCT operation) FROM audit_log WHERE operation IN ('tenancy.tenant.create', 'tenancy.organization.create')"))
             .Should().Be(2L);
     }
-
-    // Explicit admission for this component mechanism; this is not a live HTTP authorization proof.
-    private static void AddComponentAuthority(IServiceCollection services) =>
-        ComponentOperationRegistration.AddExactComponentAuthority(services,
-            OperationPolicy.ForTrusted<ProvisionTenantCommand>("tests.component.provisioning.provision", AuthorizationSourceKind.Seed));
 
     private static async Task<object?> ScalarAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, string sql)
     {

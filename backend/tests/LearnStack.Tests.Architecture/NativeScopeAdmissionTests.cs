@@ -9,7 +9,7 @@ using Xunit;
 namespace LearnStack.Tests.Architecture;
 
 /// <summary>ADR-0078's separate native evidence and closed global-self/READ ONLY owner boundaries.</summary>
-public sealed class NativeScopeAdmissionTests
+public sealed partial class NativeScopeAdmissionTests
 {
     private const string Auth = "LearnStack.Api.Authentication.";
     private const string Native = Auth + "NativeScopeEvidence";
@@ -75,7 +75,7 @@ public sealed class NativeScopeAdmissionTests
         PipelineOffenders(program.Replace("app.UseLearnStackTenantSubjectAdmission();", "app.UseMiddleware<GlobalSelfEntryMiddleware>();", StringComparison.Ordinal)).Should().NotBeEmpty();
 
         using var census = Census.Read();
-        EntryOffenders(census).Should().BeEmpty("Fix: global-self dispatch uses only its typed subject-confined entry ports; it never dispatches MediatR or publishes tenant context");
+        HttpEntryOffenders(census.Modules).Should().BeEmpty("Fix: global-self dispatch uses only its typed subject-confined entry ports; it never dispatches MediatR or publishes tenant context");
         Dirty(census, EntryOffenders, () => AddCall(census.Type(Entry).Module,
             census.Type("LearnStack.SharedKernel.Tenancy.TenantContextFactory").Methods.Single(method => method.Name == "CreateForNativeScope"), Entry));
         foreach (var port in LazyEntryPorts)
@@ -328,6 +328,8 @@ public sealed class NativeScopeAdmissionTests
     private sealed class Census : IDisposable
     {
         private readonly ModuleDefinition[] _modules;
+        internal ModuleDefinition[] Modules => _modules;
+        internal static Census Borrow(ModuleDefinition[] modules) => new(modules);
         private Census(ModuleDefinition[] modules) => _modules = modules;
         internal IEnumerable<TypeDefinition> Types => _modules.SelectMany(module => module.GetTypes());
         internal IEnumerable<(string Owner, string Name, MethodDefinition Body)> Bodies => Types.Where(type => !type.Name.Contains('<', StringComparison.Ordinal))

@@ -5,6 +5,8 @@ using LearnStack.Modules.Tenancy.Application.Authorization;
 using LearnStack.Modules.Customization.Application.Authorization;
 using LearnStack.Modules.Education.Application.Authorization;
 using LearnStack.Modules.Identity.Application.Contracts.Seeding;
+using LearnStack.Modules.Identity.Application.Memberships;
+using LearnStack.Modules.Tenancy.Application.Contracts.IdentityLifecycle;
 using LearnStack.Modules.Identity.Infrastructure.Bindings;
 using LearnStack.Modules.Identity.Infrastructure.Persistence;
 using LearnStack.Modules.Customization.Application.Contracts.Seeding;
@@ -298,6 +300,7 @@ public static class SeedComposition
         if (seedAdmission is not null) services.AddSingleton(seedAdmission);
         services.AddIdentityGlobalFoundation(identityAuthority);
         services.AddIdentityContextualFoundation();
+        services.TryAddScoped<IOwnTenantNavigationCoverage, OwnTenantNavigationCoverage>();
         services.AddIdentityOperationPolicies();
         services.TryAddEnumerable([
             ServiceDescriptor.Singleton<IOperationPolicySource, TenancyOperationPolicySource>(),

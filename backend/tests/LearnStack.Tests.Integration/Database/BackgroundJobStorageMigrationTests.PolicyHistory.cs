@@ -17,7 +17,8 @@ public sealed partial class BackgroundJobStorageMigrationTests
     public async Task Policy_upgrade_validates_actual_predecessor_selection_and_atomic_release_without_rewriting_history(
         string status, string reason, bool release, bool compatible)
     {
-        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using var database = await DisposableSchemaDatabase.CreateAtPlatformMigrationAsync(schema.Postgres,
+            BeforeExternalPolicy);
         await using var context = Platform(database);
         await context.GetService<IMigrator>().MigrateAsync(BeforeExternalPolicy);
         var job = await NewExternalOutcomeAsync(database, recordOutcome: false);

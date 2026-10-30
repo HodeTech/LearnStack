@@ -247,8 +247,10 @@ public sealed partial class TenantContextConstructionTests
         // Leg 1 — the SQL. Every organizations read in the source names both key
         // columns. Scanned rather than reflected: a raw command's text is a string
         // literal, which is exactly what a type-reference scan cannot see.
-        OrganizationReadOffenders(OrganizationSources()).Should().BeEmpty(
-            "ordinary reads keep both keys; only ADR-0047's exact bounded lifecycle enumeration is an exception");
+        var organizationOffenders = OrganizationReadOffenders(OrganizationSources());
+        organizationOffenders.Should().BeEmpty(
+            "ordinary reads keep both keys; only reviewed bounded shapes are exceptions. All offenders: {0}",
+            string.Join("\n", organizationOffenders));
 
         var validator = File.ReadAllText(Path.Combine(
             SourceScan.SourceRoot,

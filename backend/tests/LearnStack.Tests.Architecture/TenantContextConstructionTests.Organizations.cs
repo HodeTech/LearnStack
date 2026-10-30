@@ -15,6 +15,16 @@ public sealed partial class TenantContextConstructionTests
     private const string OrganizationOccurrences = "LearnStack.Infrastructure/Jobs/PostgresBackgroundJobControlStore.Occurrences.cs";
     private const string OrganizationIdentityLifecycle = "Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/Persistence/IdentityScopeLifecycleReader.cs";
     private const string OrganizationSelfDiscovery = "Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/Persistence/PreContextSelfDiscoveryScopeReader.cs";
+    private const string OrganizationWriteStores = "Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/Persistence/TenancyWriteStores.cs";
+    private const string OrganizationLockedSql = "SELECT id FROM public.organizations WHERE tenant_id=@tenant AND id=@id FOR NO KEY UPDATE";
+    private const string OrganizationRetainedDdl = "Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/Persistence/TenancyRetainedDefaultDdl.cs";
+    private const string OrganizationRetainedSqlSha256 = "EE7D8B24E48496A5CDFDFC183C627727AB874FFF254BCB8DCE0A1C88682874EA";
+    private const string OrganizationOwnNavigation = "Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/Persistence/OwnTenantNavigationReader.cs";
+    private const string OrganizationAdminReader = "Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/Persistence/TenancyAdministrationReader.cs";
+    private const string OrganizationOwnNavigationTokens = "E2BF7612D62472B2D0A8769AAE72F7CB76D2EB115C96D23928ABF93F11198CCA";
+    private const string OrganizationAdminReaderTokens = "62466F0477D4E7089C78ED43BFF91FF1F4EDFEAF126FCFCB33F4CB17BB46A600";
+    private const string OrganizationAdministrationDdl = "Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/Persistence/TenancyAdministrationDdl.cs";
+    private const string OrganizationAdministrationSqlSha256 = "10BFD7E97F07624BC0E7DBA34ACB9626828CB15538A3EBCF1293373DAD7A500C";
     private const string OrganizationOriginDdl = "Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/Persistence/SeedAdministrationOriginDdl.cs";
     private static readonly string[] OrganizationOriginInstallers = ["Install", "InstallQualifiedCompletion"];
     private const string OrganizationOriginCompositeSelect = """
@@ -84,6 +94,8 @@ public sealed partial class TenantContextConstructionTests
             "LifecycleSql", OrganizationIdentityLifecycleSql),
         new(OrganizationSelfDiscovery, "LearnStack.Modules.Tenancy.Infrastructure.Persistence.PreContextSelfDiscoveryScopeReader",
             "LabelsSql", OrganizationSelfDiscoverySql),
+        new(OrganizationWriteStores, "LearnStack.Modules.Tenancy.Infrastructure.Persistence.OrganizationWriteStore",
+            "FindForUpdateAsync", OrganizationLockedSql),
     ];
 
     private static (string Path, string Code)[] OrganizationSources() =>
@@ -97,6 +109,9 @@ public sealed partial class TenantContextConstructionTests
         var offenders = new List<string>();
         var found = new List<OrganizationSqlSubject>();
         var foundInstallers = new List<string>();
+        var foundAdministration = false;
+        var foundRetained = false;
+        var foundPageOwners = new HashSet<string>(StringComparer.Ordinal);
         var roots = new Dictionary<string, SyntaxNode>(StringComparer.Ordinal);
         foreach (var (path, code) in sources)
         {
@@ -108,8 +123,17 @@ public sealed partial class TenantContextConstructionTests
             roots.Add(path, root);
             if (root.ContainsDiagnostics) { offenders.Add(path + ": invalid source"); continue; }
             var migrationArguments = OrganizationMigrationSqlArguments(path, root, foundInstallers);
+            var administrationArgument = OrganizationAdministrationSqlArgument(path, root);
+            if (administrationArgument is not null)
+            {
+                if (path == OrganizationAdministrationDdl) foundAdministration = true;
+                if (path == OrganizationRetainedDdl) foundRetained = true;
+            }
+            var pageArgument = OrganizationComposedPageArgument(path, root);
+            if (pageArgument is not null) foundPageOwners.Add(path);
             if (root.DescendantNodes().OfType<InterpolatedStringExpressionSyntax>().Any(value =>
-                    ReadsOrganizations(value.ToString()) && !migrationArguments.Contains(value.SpanStart)))
+                    ReadsOrganizations(value.ToString()) && !migrationArguments.Contains(value.SpanStart)
+                    && (pageArgument is null || value.Span != pageArgument.Span)))
                 offenders.Add(path + ": organization SQL must use its closed executed command shape");
             if (root.DescendantNodes().OfType<BinaryExpressionSyntax>().Any(value =>
                     value.IsKind(SyntaxKind.AddExpression) && OrganizationConstant(value) is { } sql && ReadsOrganizations(sql)))
@@ -117,6 +141,7 @@ public sealed partial class TenantContextConstructionTests
             foreach (var literal in root.DescendantNodes().OfType<LiteralExpressionSyntax>().Where(literal =>
                          literal.IsKind(SyntaxKind.StringLiteralExpression) && ReadsOrganizations(literal.Token.ValueText)))
             {
+                if (administrationArgument is not null && literal.Span == administrationArgument.Span) continue;
                 var member = literal.Ancestors().OfType<MemberDeclarationSyntax>().FirstOrDefault();
                 var owner = literal.Ancestors().OfType<TypeDeclarationSyntax>().FirstOrDefault();
                 var name = member switch
@@ -134,6 +159,12 @@ public sealed partial class TenantContextConstructionTests
         foreach (var installer in OrganizationOriginInstallers)
             if (foundInstallers.Count(foundInstaller => foundInstaller == installer) != 1)
                 offenders.Add(OrganizationOriginDdl + ": missing/changed exact migration SQL owner " + installer);
+        if (!foundAdministration)
+            offenders.Add(OrganizationAdministrationDdl + ": missing/changed exact administration migration SQL owner");
+        if (!foundRetained)
+            offenders.Add(OrganizationRetainedDdl + ": missing/changed exact retained-default migration SQL owner");
+        foreach (var pageOwner in new[] { OrganizationOwnNavigation, OrganizationAdminReader })
+            if (!foundPageOwners.Contains(pageOwner)) offenders.Add(pageOwner + ": missing/changed exact composed organization page owner");
         var expected = OrganizationSqlSubjects.Select(subject => subject with { Sql = NormalizeOrganizationSql(subject.Sql) }).ToArray();
         foreach (var group in expected.Concat(found).Distinct())
             if (found.Count(subject => subject == group) != expected.Count(subject => subject == group))
@@ -179,6 +210,8 @@ public sealed partial class TenantContextConstructionTests
             && selfRoot.DescendantTokens().Count(token => token.IsKind(SyntaxKind.IdentifierToken)
                 && token.ValueText == "LabelsSql") != 2)
             offenders.Add(OrganizationSelfDiscovery + ": the SQL constant must have exactly its declaration and one executed argument use");
+        if (!roots.TryGetValue(OrganizationWriteStores, out var writeRoot) || !OrganizationLockedReadIsExact(writeRoot))
+            offenders.Add(OrganizationWriteStores + ": retain the exact executed composite-key lock and materialization on the announced write owner");
         return offenders.Distinct(StringComparer.Ordinal).ToArray();
 
         void Require(string path, string type, string method, params string[] calls)
@@ -269,6 +302,94 @@ public sealed partial class TenantContextConstructionTests
                         offenders.Add(path + ": parameter collection cannot escape or overwrite a protected binding");
             }
         }
+    }
+
+    // This migration executes one fixed DDL batch. The digest pins the entire
+    // argument, including all three organization queries, RLS transitions and
+    // trigger guards; updates require review of the complete batch.
+    private static LiteralExpressionSyntax? OrganizationAdministrationSqlArgument(string path, SyntaxNode root)
+    {
+        var (ownerName, expectedDigest) = path switch
+        {
+            OrganizationAdministrationDdl => ("TenancyAdministrationDdl", OrganizationAdministrationSqlSha256),
+            OrganizationRetainedDdl => ("TenancyRetainedDefaultDdl", OrganizationRetainedSqlSha256),
+            _ => ("", ""),
+        };
+        if (ownerName.Length == 0) return null;
+        var owners = root.DescendantNodes().OfType<ClassDeclarationSyntax>().Where(owner =>
+            OrganizationTypeIdentity(owner) == "LearnStack.Modules.Tenancy.Infrastructure.Persistence." + ownerName).ToArray();
+        if (owners.Length != 1 || owners[0].Parent is not BaseNamespaceDeclarationSyntax
+            || owners[0].TypeParameterList is not null || owners[0].Modifiers.Count != 2
+            || !owners[0].Modifiers.Any(SyntaxKind.PublicKeyword) || !owners[0].Modifiers.Any(SyntaxKind.StaticKeyword)) return null;
+        var methods = owners[0].Members.OfType<MethodDeclarationSyntax>().Where(method => method.Identifier.ValueText == "Install").ToArray();
+        if (methods.Length != 1) return null;
+        var method = methods[0];
+        if (method.TypeParameterList is not null || method.Modifiers.Count != 2
+            || !method.Modifiers.Any(SyntaxKind.PublicKeyword) || !method.Modifiers.Any(SyntaxKind.StaticKeyword)
+            || !SyntaxFactory.AreEquivalent(method.ReturnType, SyntaxFactory.ParseTypeName("void"))
+            || !SyntaxFactory.AreEquivalent(method.ParameterList, SyntaxFactory.ParseParameterList("(MigrationBuilder migration)"))
+            || method.Body is not { Statements.Count: 2 } body
+            || !SyntaxFactory.AreEquivalent(body.Statements[0], SyntaxFactory.ParseStatement("ArgumentNullException.ThrowIfNull(migration);"))
+            || body.Statements[1] is not ExpressionStatementSyntax { Expression: InvocationExpressionSyntax call }
+            || !SyntaxFactory.AreEquivalent(call.Expression, SyntaxFactory.ParseExpression("migration.Sql"))
+            || call.ArgumentList.Arguments.Count != 1
+            || call.ArgumentList.Arguments[0] is not { NameColon: null, Expression: LiteralExpressionSyntax argument } parameter
+            || !parameter.RefKindKeyword.IsKind(SyntaxKind.None)
+            || !argument.IsKind(SyntaxKind.StringLiteralExpression)) return null;
+        var digest = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(argument.Token.ValueText)));
+        return digest == expectedDigest ? argument : null;
+    }
+
+    // Each interpolated cursor query is composed into a tenant-filtered bounded
+    // EF query. Pin each executed method token stream, including boundary calls, witness use,
+    // tenant filtering, pagination and materialization. Existing authorization
+    // tests cover the named helper implementations; this is not a general exception.
+    private static InterpolatedStringExpressionSyntax? OrganizationComposedPageArgument(string path, SyntaxNode root)
+    {
+        var (ownerName, methodName, expectedDigest) = path switch
+        {
+            OrganizationOwnNavigation => ("OwnTenantNavigationReader", "ReadAsync", OrganizationOwnNavigationTokens),
+            OrganizationAdminReader => ("TenancyAdministrationReader", "ListOrganizationsAsync", OrganizationAdminReaderTokens),
+            _ => ("", "", ""),
+        };
+        if (ownerName.Length == 0) return null;
+        var owners = root.DescendantNodes().OfType<ClassDeclarationSyntax>().Where(owner =>
+            OrganizationTypeIdentity(owner) == "LearnStack.Modules.Tenancy.Infrastructure.Persistence." + ownerName).ToArray();
+        if (owners.Length != 1 || owners[0].Parent is not BaseNamespaceDeclarationSyntax) return null;
+        var methods = owners[0].Members.OfType<MethodDeclarationSyntax>().Where(method => method.Identifier.ValueText == methodName).ToArray();
+        if (methods.Length != 1 || OrganizationTokenDigest(methods[0]) != expectedDigest) return null;
+        var helperSignatures = path == OrganizationOwnNavigation
+            ? new[] { "private bool Matches(OwnTenantNavigationAccess access) { }" }
+            : new[] { "private void Admit() { }", "private async Task<T> ReadAsync<T>(Func<Task<T>> read) { }" };
+        foreach (var signature in helperSignatures)
+        {
+            var expected = (MethodDeclarationSyntax)SyntaxFactory.ParseMemberDeclaration(signature)!;
+            var helpers = owners[0].Members.OfType<MethodDeclarationSyntax>()
+                .Where(method => method.Identifier.ValueText == expected.Identifier.ValueText).ToArray();
+            if (helpers.Length != 1 || !SyntaxFactory.AreEquivalent(helpers[0].ParameterList, expected.ParameterList)
+                || !SyntaxFactory.AreEquivalent(helpers[0].ReturnType, expected.ReturnType)
+                || !SyntaxFactory.AreEquivalent(helpers[0].TypeParameterList, expected.TypeParameterList)
+                || !helpers[0].Modifiers.Select(token => token.RawKind).SequenceEqual(expected.Modifiers.Select(token => token.RawKind)))
+                return null;
+        }
+        var arguments = methods[0].DescendantNodes().OfType<InterpolatedStringExpressionSyntax>()
+            .Where(value => ReadsOrganizations(value.ToString())).ToArray();
+        return arguments.Length == 1 ? arguments[0] : null;
+    }
+
+    // Token kinds and values are length-prefixed to avoid ambiguous boundaries.
+    private static string OrganizationTokenDigest(SyntaxNode node)
+    {
+        var builder = new System.Text.StringBuilder();
+        foreach (var token in node.DescendantTokens())
+        {
+            var kind = token.RawKind.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var value = token.ValueText;
+            builder.Append(kind.Length).Append(':').Append(kind).Append(value.Length).Append(':').Append(value);
+        }
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(builder.ToString())));
     }
 
     // Migration SQL is installed by learnstack_migration, not a runtime reader.
@@ -387,6 +508,8 @@ public sealed partial class TenantContextConstructionTests
 
     private static bool OrganizationSqlUseIsExact(string path, string member, LiteralExpressionSyntax literal)
     {
+        if (path == OrganizationWriteStores && member == "FindForUpdateAsync")
+            return OrganizationLockedReadIsExact(literal.SyntaxTree.GetRoot());
         if (path == OrganizationOccurrences && member == "OrganizationLifecyclePageSql")
             return literal.Parent is EqualsValueClauseSyntax;
         if (path == OrganizationIdentityLifecycle && member == "LifecycleSql"
@@ -418,6 +541,49 @@ public sealed partial class TenantContextConstructionTests
         return SyntaxFactory.AreEquivalent(actual, SyntaxFactory.ParseExpression(expression));
     }
 
+    // This sanctioned write-owner lock runs inside an awaited storage callback.
+    // Match that one complete execution shape rather than treating arbitrary
+    // lambdas, unused SQL or another write-store member as an executed reader.
+    private static bool OrganizationLockedReadIsExact(SyntaxNode root)
+    {
+        var owners = root.DescendantNodes().OfType<ClassDeclarationSyntax>().Where(type =>
+            OrganizationTypeIdentity(type) == "LearnStack.Modules.Tenancy.Infrastructure.Persistence.OrganizationWriteStore").ToArray();
+        if (owners.Length != 1) return false;
+        var methods = owners[0].Members.OfType<MethodDeclarationSyntax>()
+            .Where(method => method.Identifier.ValueText == "FindForUpdateAsync").ToArray();
+        if (methods.Length != 1) return false;
+        var literals = methods[0].DescendantNodes().OfType<LiteralExpressionSyntax>().Where(literal =>
+            literal.IsKind(SyntaxKind.StringLiteralExpression) && ReadsOrganizations(literal.Token.ValueText)).ToArray();
+        if (literals.Length != 1 || NormalizeOrganizationSql(literals[0].Token.ValueText) != NormalizeOrganizationSql(OrganizationLockedSql))
+            return false;
+        // Raw and ordinary literals can express the same SQL. Compare their
+        // canonical value while retaining every executable statement and binding.
+        var actual = methods[0].ReplaceNode(literals[0], SyntaxFactory.LiteralExpression(
+            SyntaxKind.StringLiteralExpression, SyntaxFactory.Literal(OrganizationLockedSql)));
+        var expected = SyntaxFactory.ParseMemberDeclaration("""
+            public async Task<Organization?> FindForUpdateAsync(OrganizationId id, CancellationToken cancellationToken = default)
+            {
+                Organization? result = null;
+                await TenancyAdministrationStorageBoundary.WriteAsync(db, unit, invocations, async () =>
+                {
+                    PrepareLockedRead(db);
+                    await using var command = new NpgsqlCommand(
+                        "SELECT id FROM public.organizations WHERE tenant_id=@tenant AND id=@id FOR NO KEY UPDATE",
+                        (NpgsqlConnection)db.Database.GetDbConnection(),
+                        (NpgsqlTransaction)db.Database.CurrentTransaction!.GetDbTransaction())
+                    { CommandTimeout = 10 };
+                    command.Parameters.AddWithValue("tenant", db.CurrentTenantId.Value);
+                    command.Parameters.AddWithValue("id", id.Value);
+                    if (await command.ExecuteScalarAsync(cancellationToken) is null) return;
+                    result = await db.Organizations.SingleOrDefaultAsync(row => row.Id == id && row.TenantId == db.CurrentTenantId,
+                        cancellationToken);
+                });
+                return result;
+            }
+            """);
+        return expected is not null && !expected.ContainsDiagnostics && SyntaxFactory.AreEquivalent(actual, expected);
+    }
+
     private static string OrganizationTypeIdentity(TypeDeclarationSyntax type) => string.Join(".",
         type.Ancestors().OfType<BaseNamespaceDeclarationSyntax>().Reverse().Select(scope => scope.Name.ToString())
             .Concat(type.AncestorsAndSelf().OfType<TypeDeclarationSyntax>().Reverse().Select(owner => owner.Identifier.ValueText)));
@@ -426,7 +592,8 @@ public sealed partial class TenantContextConstructionTests
     public void Organization_reader_census_rejects_missing_keys_extra_readers_and_unbounded_pages()
     {
         var production = OrganizationSources();
-        OrganizationReadOffenders(production).Should().BeEmpty("all seven runtime SQL subjects and both exact migration owners must exist");
+        OrganizationReadOffenders(production).Should().BeEmpty("all eight direct runtime SQL subjects, both composed page owners, and all four exact migration owners must exist: {0}",
+            string.Join("\n", OrganizationReadOffenders(production)));
         foreach (var subject in OrganizationSqlSubjects)
         {
             var source = production.Single(file => file.Path == subject.Path);
@@ -445,6 +612,136 @@ public sealed partial class TenantContextConstructionTests
             Dirty(source.Path, source.Code.Insert(literal.Span.End, ".Replace(\"tenant_id=@tenant AND \", \"\")"));
             Dirty(source.Path, source.Code.Replace(subject.Member, "RemovedOrganizationSubject", StringComparison.Ordinal));
             Dirty(source.Path, source.Code + "\ninternal sealed class ExtraOrganizationRead { private string Sql() => \"SELECT * FROM organizations\"; }");
+        }
+        var locked = production.Single(file => file.Path == OrganizationWriteStores);
+        var lockedRoot = CSharpSyntaxTree.ParseText(locked.Code).GetRoot();
+        var lockedOwner = lockedRoot.DescendantNodes().OfType<ClassDeclarationSyntax>().Single(type =>
+            OrganizationTypeIdentity(type) == "LearnStack.Modules.Tenancy.Infrastructure.Persistence.OrganizationWriteStore");
+        var lockedMethod = lockedOwner.Members.OfType<MethodDeclarationSyntax>()
+            .Single(method => method.Identifier.ValueText == "FindForUpdateAsync");
+        foreach (var (from, to) in new[]
+                 {
+                     ("tenant_id=@tenant AND id=@id", "tenant_id=@tenant"),
+                     ("FOR NO KEY UPDATE", "FOR SHARE"),
+                     ("PrepareLockedRead(db);", ""),
+                     ("await TenancyAdministrationStorageBoundary.WriteAsync(db, unit, invocations, async () =>", "await Task.Run(async () =>"),
+                     ("await TenancyAdministrationStorageBoundary.WriteAsync", "TenancyAdministrationStorageBoundary.WriteAsync"),
+                     ("(NpgsqlConnection)db.Database.GetDbConnection()", "connection"),
+                     ("(NpgsqlTransaction)db.Database.CurrentTransaction!.GetDbTransaction()", "transaction"),
+                     ("CommandTimeout = 10", "CommandTimeout = 20"),
+                     ("\"tenant\", db.CurrentTenantId.Value", "\"tenant\", Guid.Empty"),
+                     ("\"id\", id.Value", "\"id\", Guid.Empty"),
+                     ("command.ExecuteScalarAsync(cancellationToken)", "command.ExecuteScalarAsync(CancellationToken.None)"),
+                     ("if (await command.ExecuteScalarAsync(cancellationToken) is null) return;", ""),
+                     ("row.Id == id && row.TenantId == db.CurrentTenantId", "row.Id == id"),
+                     ("row.Id == id && row.TenantId == db.CurrentTenantId", "row.TenantId == db.CurrentTenantId"),
+                     ("return result;", "return null;"),
+                 })
+        {
+            var changed = lockedMethod.ToString().Replace(from, to, StringComparison.Ordinal);
+            changed.Should().NotBe(lockedMethod.ToString(), "each fault must change the actual locked Organization read");
+            var method = SyntaxFactory.ParseMemberDeclaration(changed);
+            method.Should().NotBeNull();
+            method!.ContainsDiagnostics.Should().BeFalse("the planted violation must be syntactically valid");
+            Dirty(locked.Path, lockedRoot.ReplaceNode(lockedMethod, method).ToFullString());
+        }
+        foreach (var binding in lockedMethod.DescendantNodes().OfType<InvocationExpressionSyntax>().Where(call =>
+                     call.Expression is MemberAccessExpressionSyntax { Name.Identifier.ValueText: "AddWithValue" }))
+        {
+            var statement = binding.Ancestors().OfType<StatementSyntax>().First();
+            Dirty(locked.Path, lockedRoot.RemoveNode(statement, SyntaxRemoveOptions.KeepNoTrivia)!.ToFullString());
+            Dirty(locked.Path, lockedRoot.ReplaceNode(statement,
+                SyntaxFactory.ParseStatement("void UnusedBinding() { " + statement + " }")).ToFullString());
+            Dirty(locked.Path, lockedRoot.ReplaceNode(statement,
+                SyntaxFactory.ParseStatement("if (false) { " + statement + " }")).ToFullString());
+            Dirty(locked.Path, lockedRoot.ReplaceNode(statement, SyntaxFactory.ParseStatement("{ " + statement
+                + " command.Parameters[" + binding.ArgumentList.Arguments[0].Expression + "].Value = Guid.Empty; }")).ToFullString());
+        }
+        var lockedCommand = lockedMethod.DescendantNodes().OfType<ObjectCreationExpressionSyntax>()
+            .Single(creation => creation.Type.ToString() == "NpgsqlCommand");
+        var lockedCommandStatement = lockedCommand.Ancestors().OfType<StatementSyntax>().First();
+        Dirty(locked.Path, lockedRoot.ReplaceNode(lockedCommandStatement,
+            SyntaxFactory.ParseStatement("async Task UnusedCommand() { " + lockedCommandStatement + " }")).ToFullString());
+        var lockedSql = lockedCommand.ArgumentList!.Arguments[0].Expression;
+        Dirty(locked.Path, lockedRoot.ReplaceNode(lockedSql, SyntaxFactory.ParseExpression("string.Empty")).ToFullString()
+            + "\ninternal static class UnusedLockSql { const string Sql = " + lockedSql + "; }");
+        var administration = production.Single(file => file.Path == OrganizationAdministrationDdl);
+        var administrationRoot = CSharpSyntaxTree.ParseText(administration.Code).GetRoot();
+        var administrationMethod = administrationRoot.DescendantNodes().OfType<MethodDeclarationSyntax>()
+            .Single(method => method.Identifier.ValueText == "Install");
+        var administrationStatement = (ExpressionStatementSyntax)administrationMethod.Body!.Statements[1];
+        var administrationCall = (InvocationExpressionSyntax)administrationStatement.Expression;
+        var administrationArgument = administrationCall.ArgumentList.Arguments[0].Expression;
+        Dirty(administration.Path, administrationRoot.RemoveNode(administrationMethod, SyntaxRemoveOptions.KeepNoTrivia)!.ToFullString());
+        Dirty(administration.Path, administrationRoot.ReplaceNode(administrationStatement,
+            SyntaxFactory.ParseStatement("var unusedSql = " + administrationArgument + ";")).ToFullString());
+        Dirty(administration.Path, administrationRoot.ReplaceNode(administrationStatement,
+            SyntaxFactory.ParseStatement("if (false) { " + administrationStatement + " }")).ToFullString());
+        foreach (var (from, to) in new[]
+                 {
+                     ("organization.tenant_id=tenant.id AND organization.id=tenant.default_organization_id", "organization.id=tenant.default_organization_id"),
+                     ("organization.tenant_id=target_tenant AND organization.id=NEW.default_organization_id", "organization.id=NEW.default_organization_id"),
+                     ("organization.tenant_id=target_tenant AND organization.id<>OLD.id", "organization.id<>OLD.id"),
+                     ("organization.id<>OLD.id", "organization.id=OLD.id"),
+                     ("SECURITY INVOKER", "SECURITY DEFINER"),
+                     ("ALTER TABLE public.organizations FORCE ROW LEVEL SECURITY;", "ALTER TABLE public.organizations ENABLE ROW LEVEL SECURITY;"),
+                     ("RETURN NEW;", "PERFORM 1 FROM public.organizations; RETURN NEW;"),
+                 })
+        {
+            var changed = administrationArgument.ToString().Replace(from, to, StringComparison.Ordinal);
+            changed.Should().NotBe(administrationArgument.ToString(), "each fault must change the executed administration batch");
+            Dirty(administration.Path, administration.Code.Remove(administrationArgument.SpanStart, administrationArgument.Span.Length)
+                .Insert(administrationArgument.SpanStart, changed));
+        }
+        Dirty(administration.Path, administration.Code.Replace("public static class TenancyAdministrationDdl",
+            "public static class UnreviewedAdministrationDdl", StringComparison.Ordinal));
+        Dirty(administration.Path, administration.Code + "\ninternal static class ExtraAdministrationSql { const string Sql = \"SELECT 1 FROM public.organizations\"; }");
+        OrganizationReadOffenders(production.Append(("Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/Persistence/UnlistedAdministrationDdl.cs",
+            administration.Code))).Should().NotBeEmpty("a copied installer has no organization SQL allowance");
+        var retained = production.Single(file => file.Path == OrganizationRetainedDdl);
+        foreach (var (from, to) in new[]
+                 {
+                     ("organization.tenant_id=tenant.id AND organization.id=tenant.default_organization_id", "organization.id=tenant.default_organization_id"),
+                     ("organization.tenant_id=target_tenant AND organization.id=NEW.default_organization_id", "organization.id=NEW.default_organization_id"),
+                     ("organization.tenant_id=target_tenant AND organization.id<>OLD.id", "organization.id<>OLD.id"),
+                     ("SECURITY INVOKER", "SECURITY DEFINER"),
+                     ("ALTER TABLE public.organizations FORCE ROW LEVEL SECURITY;", "ALTER TABLE public.organizations ENABLE ROW LEVEL SECURITY;"),
+                     ("migration.Sql(", "UnusedSql("),
+                 })
+        {
+            retained.Code.Should().Contain(from);
+            Dirty(retained.Path, retained.Code.Replace(from, to, StringComparison.Ordinal));
+        }
+        foreach (var (path, changes) in new[]
+                 {
+                     (OrganizationOwnNavigation, new[]
+                     {
+                         ("organization.TenantId == context.TenantId", "organization.TenantId != context.TenantId"),
+                         ("access.HasTenantMembership || organization.Id == context.OrganizationId", "true"),
+                         ("Take(limit + 1 - rows.Count)", "Take(int.MaxValue)"),
+                         ("{anchor.Value}", "{Guid.Empty}"),
+                         ("!Matches(access)", "false"),
+                         ("!Matches(final.Value)", "false"),
+                         ("TenancyAdministrationStorageBoundary.ReadAsync(async () =>", "Task.Run(async () =>"),
+                     }),
+                     (OrganizationAdminReader, new[]
+                     {
+                         ("row.TenantId == tenant.Id && row.DeletedAt == null", "row.DeletedAt == null"),
+                         ("tenant.Id == context.TenantId", "tenant.Id != context.TenantId"),
+                         ("Take(limit + 1).DefaultIfEmpty()", "Take(int.MaxValue).DefaultIfEmpty()"),
+                         ("{anchor.Value}", "{Guid.Empty}"),
+                         ("Admit();", ""),
+                         ("return await ReadAsync(async () =>", "return await Task.Run(async () =>"),
+                     }),
+                 })
+        {
+            var source = production.Single(file => file.Path == path);
+            foreach (var (from, to) in changes)
+            {
+                source.Code.Should().Contain(from, "the planted fault must target the real owner");
+                Dirty(path, source.Code.Replace(from, to, StringComparison.Ordinal));
+            }
+            Dirty(path, source.Code + "\ninternal class ExtraOrganizationQuery { string Sql() => \"SELECT * FROM organizations\"; }");
         }
         var origin = production.Single(file => file.Path == OrganizationOriginDdl);
         var originRoot = CSharpSyntaxTree.ParseText(origin.Code).GetRoot();

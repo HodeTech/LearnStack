@@ -36,8 +36,7 @@ public sealed class OutboxDispatchMigrationTests(SchemaFixture schema)
         await InsertLegacyAsync(database, Guid.NewGuid(), SchemaFixture.TenantB, SchemaFixture.OrgB1, processed: true);
         var facts = await FactsAsync(database);
 
-        await context.Database.MigrateAsync();
-        context.Database.HasPendingModelChanges().Should().BeFalse();
+        await context.GetService<IMigrator>().MigrateAsync("20261012222654_align_outbox_recovery_index");
         (await FactsAsync(database)).Should().Be(facts, "migration must not change attempts, availability or event facts");
         await AssertLegacyDiagnosticsAndRlsAsync(database);
         await AssertIndexAsync(database, "ix_outbox_messages_pending",
@@ -61,6 +60,8 @@ public sealed class OutboxDispatchMigrationTests(SchemaFixture schema)
         }
 
         await context.Database.MigrateAsync();
+        (await context.Database.GetAppliedMigrationsAsync()).Should().Equal(context.Database.GetMigrations());
+        context.Database.HasPendingModelChanges().Should().BeFalse();
         (await FactsAsync(database)).Should().Be(facts);
         await AssertLegacyDiagnosticsAndRlsAsync(database);
     }
@@ -87,11 +88,13 @@ public sealed class OutboxDispatchMigrationTests(SchemaFixture schema)
             nodes.Sum(node => PlanRows(node, "Rows Removed by Filter")).Should().BeGreaterThanOrEqualTo(50_000);
         }
 
-        await context.Database.MigrateAsync();
+        await context.GetService<IMigrator>().MigrateAsync("20261012222654_align_outbox_recovery_index");
         await AssertRecoveryPlanAsync(database, dispatcher, target);
         await context.GetService<IMigrator>().MigrateAsync(DispatchPredecessor);
         await AssertIndexAsync(database, "ix_outbox_messages_recovery", ["locked_until, occurred_at, id", "locked_by IS NOT NULL"]);
         await context.Database.MigrateAsync();
+        (await context.Database.GetAppliedMigrationsAsync()).Should().Equal(context.Database.GetMigrations());
+        context.Database.HasPendingModelChanges().Should().BeFalse();
         await AssertRecoveryPlanAsync(database, dispatcher, target);
     }
 

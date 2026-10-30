@@ -17,9 +17,10 @@ public sealed partial class BackgroundJobStorageMigrationTests(SchemaFixture sch
     [Fact]
     public async Task Forward_count_lock_correction_reverts_and_reapplies_only_its_function()
     {
-        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using var database = await DisposableSchemaDatabase.CreateAtPlatformMigrationAsync(schema.Postgres,
+            "20261016173813_allow_nonkey_job_count_validation");
         await using var context = Platform(database);
-        var head = await BackgroundJobSchemaInventory.ReadAsync(database.MigrationConnectionString);
+        var head = await BackgroundJobSchemaInventory.ReadAsync(schema.Postgres.MigrationConnectionString);
         const string Correction = "20261016173813_allow_nonkey_job_count_validation";
         // Later additive capacity guards replace this function again. Qualify
         // the one-function correction at its own historical schema boundary.
@@ -43,7 +44,8 @@ public sealed partial class BackgroundJobStorageMigrationTests(SchemaFixture sch
     [Fact]
     public async Task Fresh_down_reapply_restores_every_job_object_and_retains_existing_event_storage()
     {
-        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using var database = await DisposableSchemaDatabase.CreateAtPlatformMigrationAsync(schema.Postgres,
+            "20261017231821_index_background_job_control_quarantines");
         await using var context = Platform(database);
         context.Database.HasPendingModelChanges().Should().BeFalse();
         var before = await BackgroundJobSchemaInventory.ReadAsync(database.MigrationConnectionString);

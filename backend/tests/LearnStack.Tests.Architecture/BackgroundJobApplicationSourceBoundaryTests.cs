@@ -133,7 +133,9 @@ public sealed partial class OutboxDispatchConventionTests
         Exact(owner, "ReportMainTransactionCleanup", [(AppJobUnit, "CommitFrameAsync"), (AppJobUnit, "CommitFrameAsync"),
             (AppJobUnit, "DisposeCompletedTransactionAsync"), (AppJobUnit, "DisposeCompletedTransactionAsync"),
             (AppJobUnit, "RollbackCoreAsync"), (AppJobUnit, "RollbackCoreAsync")]);
-        Exact(owner, "ReportMainCleanup", [(AppJobUnit, "DisposeAsync"), (AppJobUnit, "DisposeAsync")]);
+        // The public idempotent wrapper starts disposal; only the actual provider
+        // cleanup body reports its failure/success to the bound job source.
+        Exact(owner, "ReportMainCleanup", [(AppJobUnit, "DisposeCoreAsync"), (AppJobUnit, "DisposeCoreAsync")]);
         Exact(owner, "RefuseUnrelatedRead", [(subjects[8], "ReadAsync"), (subjects[9], "BelongsToTenantAsync"),
             (AppJobAuthorizationSource, "QualifyCoreEntryAsync"), (AppJobEvidenceSource, "QualifyCoreEntryAsync"),
             (AppJobDatabaseProof, "OpenAsync")]);
@@ -254,6 +256,7 @@ public sealed partial class OutboxDispatchConventionTests
             (AppJobTerminalNoStart, "ObserveActualAsync", ["JoinAuxiliaryCleanupAsync"]),
             (AppJobRecoveryReceipt, "Bind", ["BindExternalRecovery"]),
             (JobAdmission, "EnterExternal", ["EnterExternal"]),
+            (AppJobUnit, "DisposeCoreAsync", ["ReportMainCleanup", "ReportMainCleanup"]),
             };
             foreach (var (typeName, methodName, expectedSeams) in lifecycleCallers)
             {
@@ -263,7 +266,7 @@ public sealed partial class OutboxDispatchConventionTests
                     .SelectMany(item => item.Body.Body.Instructions)
                     .Where(instruction => instruction.Operand is MethodReference target
                         && target.DeclaringType.FullName == AppJobOwner
-                        && target.Name is "Create" or "Enter" or "JoinAuxiliaryCleanupAsync" or "BindExternalRecovery" or "EnterExternal")
+                        && target.Name is "Create" or "Enter" or "JoinAuxiliaryCleanupAsync" or "BindExternalRecovery" or "EnterExternal" or "ReportMainCleanup")
                     .ToArray();
                 actualSites.Select(site => ((MethodReference)site.Operand).Name).Should().BeEquivalentTo(expectedSeams,
                     "each approved caller retains its nonempty exact source boundary count");
@@ -286,6 +289,39 @@ public sealed partial class OutboxDispatchConventionTests
                     callerType.Methods.Add(extra);
                     return () => callerType.Methods.Remove(extra);
                 }, JobApplicationSourceOffenders);
+            }
+            var unit = census.Types.Values.Single(type => type.FullName == AppJobUnit);
+            var cleanup = unit.Methods.Single(method => method.Name == "DisposeCoreAsync");
+            var cleanupBodies = OwnedBodies(census).Where(item => MethodId(item.Owner) == MethodId(cleanup)).ToArray();
+            var cleanupSite = cleanupBodies.SelectMany(item => item.Body.Body.Instructions)
+                .First(instruction => instruction.Operand is MethodReference target
+                    && target.DeclaringType.FullName == AppJobOwner && target.Name == "ReportMainCleanup");
+            var cleanupBody = cleanupBodies.Single(item => item.Body.Body.Instructions.Contains(cleanupSite)).Body;
+            AssertMutation(census, "a duplicate report from the actual main cleanup owner", () =>
+            {
+                var extra = Instruction.Create(cleanupSite.OpCode, (MethodReference)cleanupSite.Operand);
+                cleanupBody.Body.Instructions.Insert(0, extra);
+                return () => cleanupBody.Body.Instructions.Remove(extra);
+            }, JobApplicationSourceOffenders);
+            var asyncOwner = cleanup.CustomAttributes.Single(attribute =>
+                attribute.AttributeType.FullName == "System.Runtime.CompilerServices.AsyncStateMachineAttribute");
+            AssertMutation(census, "a missing actual main cleanup async ownership attribute", () =>
+            {
+                var index = cleanup.CustomAttributes.IndexOf(asyncOwner);
+                cleanup.CustomAttributes.RemoveAt(index);
+                return () => cleanup.CustomAttributes.Insert(index, asyncOwner);
+            }, JobApplicationSourceOffenders);
+            foreach (var wrapperName in new[] { "DisposeAsync", "EndBusinessOwnerAsync", "EndBusinessOwnerCoreAsync" })
+            {
+                var wrapper = unit.Methods.Single(method => method.Name == wrapperName);
+                var report = owner.Methods.Single(method => method.Name == "ReportMainCleanup");
+                foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
+                    AssertMutation(census, "a main cleanup report from the forwarding/observing wrapper " + wrapperName, () =>
+                    {
+                        var extra = Instruction.Create(opcode, report);
+                        wrapper.Body.Instructions.Insert(0, extra);
+                        return () => wrapper.Body.Instructions.Remove(extra);
+                    }, JobApplicationSourceOffenders);
             }
             // The real overloads share a name, but only the core owns the source.
             var executor = census.Types.Values.Single(type => type.FullName == JobExecutorType);

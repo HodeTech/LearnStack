@@ -15,7 +15,6 @@ using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Xunit;
 
@@ -92,7 +91,7 @@ public sealed class AdministrationControllerTests
         var memberResult = Assert.IsType<OkObjectResult>(await member.Get(Target.ToString("D"), CancellationToken.None));
         Assert.Equal("9223372036854775807", Assert.IsType<MembershipDetailResponse>(memberResult.Value).Version);
         Assert.Equal("\"9223372036854775807\"", member.Response.Headers.ETag.ToString());
-        var own = new OwnMembershipController(sender, context) { ControllerContext = Controller(Http()) };
+        var own = new OwnMembershipController(sender, context, Origins()) { ControllerContext = Controller(Http()) };
         var ownResult = Assert.IsType<OkObjectResult>(await own.GetProfile(CancellationToken.None));
         Assert.Equal("9223372036854775807", Assert.IsType<OwnMembershipProfileResponse>(ownResult.Value).Version);
         var organization = new OrganizationsController(sender, context) { ControllerContext = Controller(Http()) };
@@ -140,11 +139,7 @@ public sealed class AdministrationControllerTests
             _ => HostClassification.Platform("platform.example.test"),
         };
         http.Features.Set(host);
-        using var services = new ServiceCollection().AddSingleton(new NativeEntryOriginOptions(
-            new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
-            { ["Identity:NativeSession:HttpsPort"] = "8443" }).Build())).BuildServiceProvider();
-        http.RequestServices = services;
-        var controller = new OwnMembershipController(sender, Context()) { ControllerContext = Controller(http) };
+        var controller = new OwnMembershipController(sender, Context(), Origins("8443")) { ControllerContext = Controller(http) };
         var result = Assert.IsType<OwnMembershipContextPage>(Assert.IsType<OkObjectResult>(
             await controller.Contexts(CancellationToken.None)).Value);
         Assert.Equal(2, result.Items.Count);
@@ -158,7 +153,7 @@ public sealed class AdministrationControllerTests
     private static Task<IActionResult> InvokeAsync(ProtectedAdministrationOperation operation, HttpContext http, ISender sender)
     {
         var member = new MembershipsController(sender, Context()) { ControllerContext = Controller(http) };
-        var own = new OwnMembershipController(sender, Context()) { ControllerContext = Controller(http) };
+        var own = new OwnMembershipController(sender, Context(), Origins()) { ControllerContext = Controller(http) };
         var role = new RolesController(sender, Context()) { ControllerContext = Controller(http) };
         var organization = new OrganizationsController(sender, Context()) { ControllerContext = Controller(http) };
         var select = new DefaultOrganizationController(sender, Context()) { ControllerContext = Controller(http) };
@@ -205,6 +200,9 @@ public sealed class AdministrationControllerTests
         }
         return http;
     }
+    private static NativeEntryOriginOptions Origins(string port = "443") => new(
+        new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        { ["Identity:NativeSession:HttpsPort"] = port }).Build());
     private static ControllerContext Controller(HttpContext http) => new() { HttpContext = http };
     private static ITenantContext Context()
     {

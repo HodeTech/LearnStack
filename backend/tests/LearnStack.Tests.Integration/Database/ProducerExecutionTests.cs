@@ -5,6 +5,7 @@ using FluentAssertions;
 using LearnStack.Application.Audit;
 using LearnStack.Application.Messaging;
 using LearnStack.Application.Persistence;
+using LearnStack.Modules.Customization.Application.Contracts.Customization;
 using LearnStack.Modules.Customization.Domain;
 using LearnStack.Modules.Customization.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Application.Contracts.IntegrationEvents;
@@ -18,6 +19,7 @@ using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Time;
+using LearnStack.Tools.Seeder;
 using MediatR;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -35,7 +37,7 @@ namespace LearnStack.Tests.Integration.Database;
 /// <c>DomainEventProductionTests</c>.
 /// </summary>
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
-[Collection(SharedSchema.Name)]
+[Collection(ProducerExecutionIsolation.Name)]
 public sealed class ProducerExecutionTests(SchemaFixture schema)
 {
     private const string DirectOperation = "customization.content_type.direct_probe";
@@ -367,24 +369,31 @@ public sealed class ProducerExecutionTests(SchemaFixture schema)
     public async Task An_Off_direct_owner_preserves_nested_command_intents_and_clears_only_after_commit()
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
-        await SeedTenantAsync(database.AppConnectionString);
         await using var dataSource = NpgsqlDataSource.Create(database.AppConnectionString);
-        await using var provider = Compose(dataSource);
+        await CanonicalSeedTenantFixture.PrepareContentInitializationAsync(dataSource);
+        (await CanonicalSeedTenantFixture.ReadBuiltInAsync(dataSource)).Should().BeNull();
+        var previousAudits = (await AuditRowsAsync(database.AppConnectionString, CanonicalSeedTenantFixture.TenantId)).Count;
+        await using var provider = SeedComposition.Build(dataSource, CanonicalSeedTenantFixture.Context, NullLoggerFactory.Instance);
         await using var scope = provider.CreateAsyncScope();
         var services = scope.ServiceProvider;
         var sharedCapture = services.GetRequiredService<IAuditStateCapture>();
         var capture = new ObservedCapture(sharedCapture);
-        var id = OrganizationId.From(Guid.CreateVersion7());
+        var id = Guid.Empty;
 
         var result = await DirectAudit(services, capture).ExecuteAsync(typeof(OffHandler), null,
             () => services.GetRequiredService<TransactionExecutionCoordinator>().ExecuteAsync(
                 null, TransactionMode.ReadWrite, nameof(OffHandler), async () =>
                 {
                     var nested = await services.GetRequiredService<IMediator>().Send(
-                        new CreateOrganizationCommand(id, "direct-branch", "Direct branch"));
+                        new InitializeTenantContentTypeDefaultCommand());
                     nested.IsSuccess.Should().BeTrue("the nested command is admitted: {0}", nested.Error);
+                    var root = services.GetRequiredService<CustomizationDbContext>().TenantContentTypes.Local
+                        .Single(row => row.Key == BuiltInCustomizations.Card.Key);
+                    id = root.Id.Value;
+                    root.Status.Should().Be(CustomizationStatus.Active);
                     (await CountInUnitAsync(services.GetRequiredService<IUnitOfWork>(),
-                        "organizations", id.Value)).Should().Be(1);
+                        "tenant_content_types", id)).Should().Be(1);
+                    (await CanonicalSeedTenantFixture.ReadBuiltInAsync(dataSource)).Should().BeNull("the owning frame has not committed");
                     sharedCapture.Intents.Should().ContainSingle();
                     sharedCapture.Changes.Should().NotBeEmpty();
                     sharedCapture.HasOpenFrame.Should().BeTrue("the outer direct audit frame is still open");
@@ -397,12 +406,26 @@ public sealed class ProducerExecutionTests(SchemaFixture schema)
         result.IsSuccess.Should().BeTrue();
         capture.ClearCount.Should().Be(1);
         AssertClean(services);
-        var row = (await AuditRowsAsync(database.AppConnectionString)).Should().ContainSingle().Subject;
-        row.Operation.Should().Be("tenancy.organization.create");
-        row.EntityId.Should().Be(id.Value.ToString());
+        var audits = await AuditRowsAsync(database.AppConnectionString, CanonicalSeedTenantFixture.TenantId);
+        audits.Should().HaveCount(previousAudits + 1, "the real joined MUST row commits only with its owner");
+        var row = audits.Where(row => row.EntityId == id.ToString()).Should().ContainSingle().Subject;
+        row.Operation.Should().Be("customization.content_type.initialize");
+        row.OperationClass.Should().Be("Must");
+        row.EntityId.Should().Be(id.ToString());
         row.Outcome.Should().Be("success");
-        row.After.Should().Contain("Direct branch");
-        (await CountAsync(database.AppConnectionString, "organizations", id.Value)).Should().Be(1);
+        row.After.Should().Contain(BuiltInCustomizations.Card.Key);
+        (await CountAsync(database.AppConnectionString, "tenant_content_types", id, CanonicalSeedTenantFixture.TenantId)).Should().Be(1);
+        var installed = await CanonicalSeedTenantFixture.ReadBuiltInAsync(dataSource);
+        installed.Should().NotBeNull();
+        installed!.Id.Should().Be(id);
+        installed.TenantId.Should().Be(SeedData.English.TenantId);
+        installed.Key.Should().Be(BuiltInCustomizations.Card.Key);
+        installed.Status.Should().Be("Active");
+        using var expectedSchema = JsonDocument.Parse(BuiltInCustomizations.Card.JsonSchema);
+        using var actualSchema = JsonDocument.Parse(installed.JsonSchema);
+        JsonElement.DeepEquals(actualSchema.RootElement, expectedSchema.RootElement).Should().BeTrue(
+            "jsonb preserves the complete schema without preserving object-key order or whitespace");
+        installed.RendererKey.Should().Be(BuiltInCustomizations.Card.RendererKey);
     }
 
     [Fact]
@@ -450,23 +473,24 @@ public sealed class ProducerExecutionTests(SchemaFixture schema)
     public async Task Both_compositions_reconcile_an_independent_scope_inside_another_audit_execution(bool api)
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
-        await SeedTenantAsync(database.AppConnectionString);
         await using var dataSource = NpgsqlDataSource.Create(database.AppConnectionString);
-        await using var seed = Compose(dataSource);
+        await CanonicalSeedTenantFixture.ProvisionAsync(dataSource);
+        await using var seed = SeedComposition.Build(dataSource, CanonicalSeedTenantFixture.Context, NullLoggerFactory.Instance);
         await using var host = new ConstructionOnlyApiFactory().WithWebHostBuilder(builder =>
         {
             builder.UseSetting("ConnectionStrings:Default", database.AppConnectionString);
             builder.ConfigureServices(services =>
             {
-                services.AddSingleton<ITenantContextAccessor>(new StaticTenantContextAccessor(TenantA));
-                AddNestedComponentAuthority(services);
+                services.AddSingleton<ITenantContextAccessor>(new StaticTenantContextAccessor(CanonicalSeedTenantFixture.Context));
+                CanonicalSeedTenantFixture.AddToComponentApi(services, continuation: true);
             });
         });
         var root = api ? host.Services : seed;
         await using var outer = root.CreateAsyncScope();
         var outerServices = outer.ServiceProvider;
         var outerCapture = new ObservedCapture(outerServices.GetRequiredService<IAuditStateCapture>());
-        var id = OrganizationId.From(Guid.CreateVersion7());
+        var command = CanonicalSeedTenantFixture.OrganizationCommand;
+        var id = command.OrganizationId;
 
         var result = await DirectAudit(outerServices, outerCapture).ExecuteAsync(typeof(OffHandler), null, async () =>
         {
@@ -482,7 +506,7 @@ public sealed class ProducerExecutionTests(SchemaFixture schema)
                 .Should().NotBeSameAs(outerServices.GetRequiredService<TransactionExecutionCoordinator>());
 
             var nested = await innerServices.GetRequiredService<IMediator>().Send(
-                new CreateOrganizationCommand(id, "independent-branch", "Independent branch"));
+                command);
             nested.IsSuccess.Should().BeTrue("the independent command is admitted: {0}", nested.Error);
             AssertClean(innerServices);
             outerCapture.HasOpenFrame.Should().BeTrue();
@@ -493,7 +517,9 @@ public sealed class ProducerExecutionTests(SchemaFixture schema)
         result.IsSuccess.Should().BeTrue();
         outerCapture.ClearCount.Should().Be(1);
         AssertClean(outerServices);
-        var row = (await AuditRowsAsync(database.AppConnectionString)).Should().ContainSingle().Subject;
+        var audits = await AuditRowsAsync(database.AppConnectionString, CanonicalSeedTenantFixture.TenantId);
+        audits.Should().HaveCount(3, "real provisioning committed its two MUST rows before this scope proof");
+        var row = audits.Where(row => row.EntityId == id.Value.ToString()).Should().ContainSingle().Subject;
         row.Operation.Should().Be("tenancy.organization.create");
         row.EntityId.Should().Be(id.Value.ToString());
         row.Outcome.Should().Be("success");
@@ -515,6 +541,18 @@ public sealed class ProducerExecutionTests(SchemaFixture schema)
         try
         {
             using var source = new ActivitySource("learnstack.producer.test.no-listener");
+            // A real listener must make the same control observable; disposing
+            // only this test-owned listener restores the no-listener premise.
+            using (var listener = new ActivityListener
+            {
+                ShouldListenTo = candidate => ReferenceEquals(candidate, source),
+                Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
+            })
+            {
+                ActivitySource.AddActivityListener(listener);
+                using var observed = source.StartActivity("listener-control");
+                observed.Should().NotBeNull("the control must detect an installed listener");
+            }
             using var control = source.StartActivity("control");
             control.Should().BeNull("this proof installs no telemetry listener");
             var reached = false;
@@ -649,11 +687,11 @@ public sealed class ProducerExecutionTests(SchemaFixture schema)
         return (long)(await command.ExecuteScalarAsync())!;
     }
 
-    private static async Task<long> CountAsync(string connectionString, string table, Guid id)
+    private static async Task<long> CountAsync(string connectionString, string table, Guid id, Guid? tenant = null)
     {
         await using var connection = (NpgsqlConnection)await PostgresFixture.OpenAsync(connectionString);
         await using var transaction = await connection.BeginTransactionAsync();
-        await SchemaQueries.SetTenantAsync(connection, transaction, SchemaFixture.TenantA);
+        await SchemaQueries.SetTenantAsync(connection, transaction, tenant ?? SchemaFixture.TenantA);
         await using var command = new NpgsqlCommand($"SELECT count(*) FROM {table} WHERE id = @id", connection, transaction);
         command.Parameters.AddWithValue("id", id);
         return (long)(await command.ExecuteScalarAsync())!;
@@ -675,11 +713,11 @@ public sealed class ProducerExecutionTests(SchemaFixture schema)
         await transaction.CommitAsync();
     }
 
-    private static async Task<IReadOnlyList<AuditRow>> AuditRowsAsync(string connectionString)
+    private static async Task<IReadOnlyList<AuditRow>> AuditRowsAsync(string connectionString, Guid? tenant = null)
     {
         await using var connection = (NpgsqlConnection)await PostgresFixture.OpenAsync(connectionString);
         await using var transaction = await connection.BeginTransactionAsync();
-        await SchemaQueries.SetTenantAsync(connection, transaction, SchemaFixture.TenantA);
+        await SchemaQueries.SetTenantAsync(connection, transaction, tenant ?? SchemaFixture.TenantA);
         await using var command = new NpgsqlCommand(
             """
             SELECT operation, operation_class, outcome, entity_type, entity_id,

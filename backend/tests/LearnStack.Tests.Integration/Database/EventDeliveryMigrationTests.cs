@@ -51,7 +51,8 @@ public sealed class EventDeliveryMigrationTests(SchemaFixture schema)
     [Fact]
     public async Task Fresh_down_reapply_preserves_the_producer_and_restores_the_complete_schema()
     {
-        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using var database = await DisposableSchemaDatabase.CreateAtPlatformMigrationAsync(schema.Postgres,
+            "20261013083903_add_event_delivery_and_inbox");
         await using var context = Platform(database);
         context.Database.HasPendingModelChanges().Should().BeFalse();
         var before = await InventoryAsync(database.MigrationConnectionString);

@@ -8,10 +8,8 @@ using LearnStack.Api.Jobs;
 using LearnStack.Api.Messaging;
 using LearnStack.Infrastructure.Messaging;
 using LearnStack.Modules.Tenancy.Application.Contracts.IntegrationEvents;
-using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Messaging;
-using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Tenancy;
 using MediatR;
 using Microsoft.AspNetCore.Hosting;
@@ -246,9 +244,7 @@ public sealed class OutboxProcessorTests(SchemaFixture schema, Xunit.Abstraction
         test.Start();
         await using (var scope = test.Services.CreateAsyncScope())
         {
-            var result = await scope.ServiceProvider.GetRequiredService<ISender>().Send(new ProvisionTenantCommand(
-                TenantId.From(SchemaFixture.TenantA), "worker-probe", "Worker probe",
-                OrganizationId.From(SchemaFixture.OrgA1), "hq", "HQ"));
+            var result = await scope.ServiceProvider.GetRequiredService<ISender>().Send(CanonicalSeedTenantFixture.ProvisionCommand);
             result.IsSuccess.Should().BeTrue();
         }
         var id = await test.SingleIdAsync();
@@ -261,7 +257,7 @@ public sealed class OutboxProcessorTests(SchemaFixture schema, Xunit.Abstraction
         test.Callbacks.Publications.Should().Be(0);
         test.Observation.Snapshot.Queue.PendingCount.Should().Be(1);
         test.Observation.Snapshot.Queue.DeferredCount.Should().Be(1);
-        (await test.ReadTerminalAuditsAsync()).Should().BeEmpty();
+        (await test.ReadTerminalAuditsAsync(CanonicalSeedTenantFixture.TenantId)).Should().BeEmpty();
     }
 
     [Fact]
@@ -832,11 +828,6 @@ public sealed class OutboxProcessorTests(SchemaFixture schema, Xunit.Abstraction
         }
     }
 
-    // Explicit admission for this component mechanism; this is not a live HTTP authorization proof.
-    private static void AddComponentAuthority(IServiceCollection services) =>
-        ComponentOperationRegistration.AddExactComponentAuthority(services,
-            OperationPolicy.ForTrusted<ProvisionTenantCommand>("tests.component.outbox_setup.provision", AuthorizationSourceKind.Seed));
-
     private sealed class WorkerApiFactory(WorkerDatabase database, string? credential,
         OutboxDispatchOptions? bounds = null, TimeProvider? time = null,
         bool controlPublication = true) : WebApplicationFactory<Program>
@@ -851,7 +842,7 @@ public sealed class OutboxProcessorTests(SchemaFixture schema, Xunit.Abstraction
             builder.UseSetting("ConnectionStrings:OutboxDispatcher", credential);
             builder.ConfigureTestServices(services =>
             {
-                AddComponentAuthority(services);
+                CanonicalSeedTenantFixture.AddToComponentApi(services);
                 database.Evidence.AddTo(services);
                 // This fixture owns real producer acceptance, but no business delivery or Identity authority.
                 foreach (var descriptor in services.Where(descriptor => descriptor.ServiceType == typeof(IHostedService)
@@ -1095,12 +1086,12 @@ public sealed class OutboxProcessorTests(SchemaFixture schema, Xunit.Abstraction
             await command.ExecuteNonQueryAsync();
         }
 
-        public async Task<List<TerminalAudit>> ReadTerminalAuditsAsync()
+        public async Task<List<TerminalAudit>> ReadTerminalAuditsAsync(Guid? tenant = null)
         {
             await using var connection = await _appSource.OpenConnectionAsync();
             await using var transaction = await connection.BeginTransactionAsync();
             await SchemaQueries.AssertApplicationRoleAsync(connection);
-            await SchemaQueries.SetTenantAsync(connection, transaction, SchemaFixture.TenantA);
+            await SchemaQueries.SetTenantAsync(connection, transaction, tenant ?? SchemaFixture.TenantA);
             await using var read = new NpgsqlCommand("""
                 SELECT operation_type, operation_class, correlation_id, metadata::text
                 FROM audit_log WHERE operation = 'platform.outbox.dead_letter'

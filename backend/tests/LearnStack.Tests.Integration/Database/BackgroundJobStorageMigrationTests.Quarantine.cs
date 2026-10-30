@@ -11,7 +11,8 @@ public sealed partial class BackgroundJobStorageMigrationTests
     [Fact]
     public async Task Control_quarantine_presence_migration_reverses_only_its_three_indexes_and_reapplies_exactly()
     {
-        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using var database = await DisposableSchemaDatabase.CreateAtPlatformMigrationAsync(schema.Postgres,
+            "20261017231821_index_background_job_control_quarantines");
         await using var context = Platform(database);
         var migrations = context.Database.GetMigrations().ToArray();
         var added = migrations.Single(name => name.EndsWith("_index_background_job_control_quarantines", StringComparison.Ordinal));
@@ -25,15 +26,19 @@ public sealed partial class BackgroundJobStorageMigrationTests
         previous.Except(current).Should().BeEmpty();
         await context.GetService<IMigrator>().MigrateAsync(added);
         (await BackgroundJobSchemaInventory.ReadAsync(database.MigrationConnectionString)).Should().Equal(current);
+        await context.Database.MigrateAsync();
+        (await BackgroundJobSchemaInventory.ReadAsync(database.MigrationConnectionString)).Should().Equal(current);
+        (await context.Database.GetAppliedMigrationsAsync()).Should().Equal(context.Database.GetMigrations());
         context.Database.HasPendingModelChanges().Should().BeFalse();
     }
 
     [Fact]
     public async Task Quarantine_observation_migration_reverses_only_its_index_and_reapplies_exactly()
     {
-        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using var database = await DisposableSchemaDatabase.CreateAtPlatformMigrationAsync(schema.Postgres,
+            "20261017134946_add_background_job_quarantine_observation");
         await using var context = Platform(database);
-        var head = await BackgroundJobSchemaInventory.ReadAsync(database.MigrationConnectionString);
+        var head = await BackgroundJobSchemaInventory.ReadAsync(schema.Postgres.MigrationConnectionString);
         var migration = context.Database.GetMigrations().Single(name => name.EndsWith("_add_background_job_quarantine_observation", StringComparison.Ordinal));
         await context.GetService<IMigrator>().MigrateAsync(migration);
         var current = await BackgroundJobSchemaInventory.ReadAsync(database.MigrationConnectionString);

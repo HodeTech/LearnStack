@@ -2,8 +2,6 @@ using System.Diagnostics;
 using FluentAssertions;
 using LearnStack.Api.Common;
 using LearnStack.Infrastructure.Messaging;
-using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
-using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Messaging;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
@@ -49,9 +47,9 @@ public sealed partial class OutboxProducerTests
             "the test-only caller uses existing unresolved provisioning and tracing supplies no authority");
         observation.Announcement.Should().NotBeNull();
         var announcement = observation.Announcement!;
-        announcement.TenantId.Value.Should().Be(SchemaFixture.TenantA);
+        announcement.TenantId.Value.Should().Be(CanonicalSeedTenantFixture.TenantId);
         announcement.OrganizationId.Should().BeNull("provisioning deliberately announces a tenant-wide transaction");
-        var row = (await ReadRowAsync(database.AppConnectionString, observation.EventId))!;
+        var row = (await ReadRowAsync(database.AppConnectionString, observation.EventId, CanonicalSeedTenantFixture.TenantId))!;
         row.Should().NotBeNull("a separate application connection must observe the committed row");
         row.TenantId.Should().Be(announcement.TenantId.Value);
         row.OrganizationId.Should().Be(announcement.OrganizationId?.Value);
@@ -84,7 +82,7 @@ public sealed partial class OutboxProducerTests
                 services.RemoveAll<IOutbox>();
                 services.AddScoped<PostgresOutbox>();
                 services.AddScoped<IOutbox, HttpObservedOutbox>();
-                ComponentDatabaseOperations.AddProvisioningOperation(services);
+                CanonicalSeedTenantFixture.AddToComponentApi(services);
             });
         }
     }
@@ -134,9 +132,7 @@ public sealed class OutboxHttpProbeController(ISender sender, IServiceProvider s
         var observation = services.GetRequiredService<HttpProducerObservation>();
         observation.HttpActivity = Activity.Current?.Id;
         observation.UnresolvedAtEntry = !services.GetRequiredService<ITenantContext>().IsResolved;
-        var result = await sender.Send(new ProvisionTenantCommand(
-            TenantId.From(SchemaFixture.TenantA), "http-producer-proof", "HTTP producer proof",
-            OrganizationId.From(Guid.CreateVersion7()), "hq", "HQ"), cancellationToken);
+        var result = await sender.Send(CanonicalSeedTenantFixture.ProvisionCommand, cancellationToken);
         return result.ToActionResult();
     }
 }

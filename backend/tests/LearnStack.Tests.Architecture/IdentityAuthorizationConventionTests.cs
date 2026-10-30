@@ -414,7 +414,7 @@ public sealed class IdentityAuthorizationConventionTests
         foreach (var (start, end) in new[] { (reads[0], guardCalls[0]), (queryCall, guardCalls[1]), (reads[1], guardCalls[2]) })
             Dirty(census, BorrowerOffenders, () => RemoveInstruction(AwaitAck(navigationBody, start, end)));
         var registrations = NavigationRegistrations(census).ToArray();
-        registrations.Should().HaveCount(4);
+        registrations.Should().HaveCount(5);
         foreach (var registration in registrations)
         {
             Dirty(census, BorrowerOffenders, () => RemoveInstruction(registration.Instruction));
@@ -514,7 +514,8 @@ public sealed class IdentityAuthorizationConventionTests
                 + string.Join(",", ((GenericInstanceMethod)site.Instruction.Operand).GenericArguments.Select(argument => argument.FullName))),
         [
             "LearnStack.Modules.Tenancy.Infrastructure.TenantSiteRegistration.AddTenantSiteReads|TryAddScoped|" + NavigationReaderPort + "," + NavigationReader,
-            "LearnStack.Modules.Identity.Infrastructure.Bindings.IdentityFoundationRegistration.AddIdentityContextualFoundation|TryAddScoped|" + NavigationCoveragePort + "," + NavigationCoverage,
+            "LearnStack.Api.Composition.PersistenceCompositionExtensions.AddLearnStackPersistence|TryAddScoped|" + NavigationCoveragePort + "," + NavigationCoverage,
+            "LearnStack.Tools.Seeder.SeedComposition.Build|TryAddScoped|" + NavigationCoveragePort + "," + NavigationCoverage,
             "LearnStack.Modules.Identity.Infrastructure.Bindings.IdentityFoundationRegistration.AddIdentityContextualFoundation|TryAddScoped|" + AdministrationReadStorePort + "," + AdministrationReadStore,
             "LearnStack.Modules.Identity.Infrastructure.Authorization.IdentityAuthorizationRegistration.AddIdentityOperationPolicies|TryAddScoped|" + AdministrationReadAuthorization,
         ]);

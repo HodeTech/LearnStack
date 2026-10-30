@@ -126,23 +126,21 @@ public sealed class P02d2FoundationTests(SchemaFixture schema)
             .Value!.State.Should().BeNull();
         (await sender.Send(new GetHostMappingSeedStateQuery(SchemaFixture.HostA))).Value!.State!.TenantId.Should().Be(tenant.Id);
         (await sender.Send(new GetHostMappingSeedStateQuery(SchemaFixture.HostB))).Value!.State.Should().BeNull();
-        var tenantSetting = await FindSettingIdAsync(dataSource, new Context(SchemaFixture.TenantA), "tz");
-        var ownSetting = await FindSettingIdAsync(dataSource, new Context(SchemaFixture.TenantA, SchemaFixture.OrgA1), "theme");
-        var siblingSetting = await FindSettingIdAsync(dataSource, new Context(SchemaFixture.TenantA, SchemaFixture.OrgA2), "theme");
-        var foreignSetting = await FindSettingIdAsync(dataSource, new Context(SchemaFixture.TenantB), "beta-only");
-        (await sender.Send(new GetSettingSeedStateQuery(tenantSetting))).Value!.State.Should().BeEquivalentTo(
-            new SettingSeedDto(tenantSetting, tenant.Id, null, "tz", "\"Europe/Istanbul\"", 0));
+        var tenantSetting = await ReadSettingFixtureAsync(dataSource, new Context(SchemaFixture.TenantA), "tz");
+        var ownSetting = await ReadSettingFixtureAsync(dataSource, new Context(SchemaFixture.TenantA, SchemaFixture.OrgA1), "theme");
+        var siblingSetting = await ReadSettingFixtureAsync(dataSource, new Context(SchemaFixture.TenantA, SchemaFixture.OrgA2), "theme");
+        var foreignSetting = await ReadSettingFixtureAsync(dataSource, new Context(SchemaFixture.TenantB), "beta-only");
+        (await sender.Send(new GetSettingSeedStateQuery(tenantSetting.Id))).Value!.State.Should().BeEquivalentTo(tenantSetting);
         if (scoped)
         {
-            (await sender.Send(new GetSettingSeedStateQuery(ownSetting))).Value!.State.Should().BeEquivalentTo(
-                new SettingSeedDto(ownSetting, tenant.Id, OrganizationId.From(SchemaFixture.OrgA1), "theme", "\"main\"", 0));
+            (await sender.Send(new GetSettingSeedStateQuery(ownSetting.Id))).Value!.State.Should().BeEquivalentTo(ownSetting);
         }
         else
         {
-            (await sender.Send(new GetSettingSeedStateQuery(ownSetting))).Value!.State.Should().BeNull();
+            (await sender.Send(new GetSettingSeedStateQuery(ownSetting.Id))).Value!.State.Should().BeNull();
         }
 
-        foreach (var hiddenSetting in new[] { siblingSetting, foreignSetting, Guid.CreateVersion7() })
+        foreach (var hiddenSetting in new[] { siblingSetting.Id, foreignSetting.Id, Guid.CreateVersion7() })
         {
             (await sender.Send(new GetSettingSeedStateQuery(hiddenSetting))).Value!.State.Should().BeNull();
         }
@@ -231,9 +229,30 @@ public sealed class P02d2FoundationTests(SchemaFixture schema)
                 options => options.MigrationsHistoryTable(TenancyDbContextFactory.HistoryTable)).Options,
             StaticTenantContextAccessor.Unresolved))
         {
-            // Pin the predecessor that can contain this invalid legacy configuration.
-            // Future CHECK constraints must remain intact on the shared/current database.
-            await context.GetService<IMigrator>().MigrateAsync("20260914114306_org_insert_scope_and_keyless_guard");
+            const string Predecessor = "20260914114306_org_insert_scope_and_keyless_guard";
+            await context.GetService<IMigrator>().MigrateAsync(Predecessor);
+            var history = (await context.Database.GetAppliedMigrationsAsync()).ToArray();
+            history.Last().Should().Be(Predecessor);
+            // Model-compatible counterfactual at the historical locale constraint
+            // boundary, not a supported current-runtime/old-schema deployment.
+            // The current Tenant projection needs this unrelated scalar; no later
+            // origin/default lifecycle guard or migration history is installed.
+            await using var owner = await PostgresFixture.OpenAsync(database.MigrationConnectionString);
+            (await SchemaQueries.CountAsync(owner, """
+                SELECT count(*) FROM information_schema.columns WHERE table_schema='public'
+                  AND table_name='tenants' AND column_name='adopted_seed_origin_version'
+                """)).Should().Be(0);
+            await SchemaQueries.ExecuteAsync(owner, null,
+                "ALTER TABLE public.tenants ADD COLUMN adopted_seed_origin_version integer NOT NULL DEFAULT 0");
+            (await SchemaQueries.ReadStringsAsync(owner, """
+                SELECT data_type||':'||is_nullable||':'||column_default FROM information_schema.columns
+                WHERE table_schema='public' AND table_name='tenants' AND column_name='adopted_seed_origin_version'
+                """)).Should().Equal("integer:NO:0");
+            (await SchemaQueries.CountAsync(owner, """
+                SELECT count(*) FROM pg_constraint WHERE conrelid='public.tenant_locales'::regclass
+                  AND conname='ck_tenant_locales_default_enabled'
+                """)).Should().Be(0);
+            (await context.Database.GetAppliedMigrationsAsync()).Should().Equal(history);
         }
 
         await using var dataSource = NpgsqlDataSource.Create(database.AppConnectionString);
@@ -242,6 +261,8 @@ public sealed class P02d2FoundationTests(SchemaFixture schema)
         var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
         await using var frame = await unit.BeginTransactionAsync();
         await unit.SetTenantContextAsync(scope.ServiceProvider.GetRequiredService<ITenantContext>());
+        await SchemaQueries.AssertApplicationRoleAsync(unit.Connection);
+        unit.GetTenantContextAnnouncement(unit.Transaction).Should().NotBeNull();
         await using (var legacy = new NpgsqlCommand("""
             INSERT INTO tenants (id, slug, display_name, status, created_at, created_by, row_version)
             VALUES (@tenant, 'legacy-locale', 'Legacy', 'Trial', now(), @actor, 0);
@@ -254,12 +275,30 @@ public sealed class P02d2FoundationTests(SchemaFixture schema)
             await legacy.ExecuteNonQueryAsync();
         }
 
+        (await SchemaQueries.CountAsync(unit.Connection,
+            "SELECT count(*) FROM tenant_locales WHERE is_default", unit.Transaction)).Should().Be(1);
+        (await SchemaQueries.CountAsync(unit.Connection,
+            "SELECT count(*) FROM tenant_locales WHERE locale='en' AND is_enabled", unit.Transaction)).Should().Be(1);
         var reader = scope.ServiceProvider.GetRequiredService<ITenantLocaleEligibilityReader>();
         (await reader.ReadEligibleAsync("en", default)).IsFailure.Should().BeTrue();
+        // Same current reader, connection and owner: a valid twin proves that
+        // schema/owner refusal cannot stand in for disabled-default validation.
+        await SchemaQueries.ExecuteAsync(unit.Connection, unit.Transaction,
+            "UPDATE tenant_locales SET is_enabled=true WHERE is_default");
+        (await reader.ReadEligibleAsync("en", default)).Value.Should().Be("en");
+        await SchemaQueries.ExecuteAsync(unit.Connection, unit.Transaction,
+            "UPDATE tenant_locales SET is_enabled=false WHERE is_default");
+        (await reader.ReadEligibleAsync("en", default)).IsFailure.Should().BeTrue();
         await frame.FailAsync();
+        await using var check = await PostgresFixture.OpenAsync(database.AppConnectionString);
+        await using var transaction = await check.BeginTransactionAsync();
+        await SchemaQueries.AssertApplicationRoleAsync(check, transaction);
+        await EducationSchemaSeed.AnnounceAsync(check, transaction, SchemaFixture.TenantA, null);
+        (await SchemaQueries.CountAsync(check, "SELECT count(*) FROM tenants", transaction)).Should().Be(0);
+        (await SchemaQueries.CountAsync(check, "SELECT count(*) FROM tenant_locales", transaction)).Should().Be(0);
     }
 
-    private static async Task<Guid> FindSettingIdAsync(NpgsqlDataSource dataSource, Context context, string key)
+    private static async Task<SettingSeedDto> ReadSettingFixtureAsync(NpgsqlDataSource dataSource, Context context, string key)
     {
         await using var provider = SeedComposition.Build(dataSource, context, NullLoggerFactory.Instance);
         await using var scope = provider.CreateAsyncScope();
@@ -267,10 +306,24 @@ public sealed class P02d2FoundationTests(SchemaFixture schema)
         await using var frame = await unit.BeginTransactionAsync();
         await unit.SetTenantContextAsync(context);
         // Test discovery uses the same app role and declared scope as the production reader.
-        await using var command = new NpgsqlCommand("SELECT id FROM tenant_settings WHERE key = @key",
-            (NpgsqlConnection)unit.Connection, (NpgsqlTransaction)unit.Transaction!);
+        await SchemaQueries.AssertApplicationRoleAsync(unit.Connection);
+        await using var command = new NpgsqlCommand("""
+            SELECT id, created_at, created_by, updated_at, updated_by, deleted_at, deleted_by
+            FROM tenant_settings WHERE key = @key
+            """, (NpgsqlConnection)unit.Connection, (NpgsqlTransaction)unit.Transaction!);
         command.Parameters.AddWithValue("key", key);
-        var id = (Guid)(await command.ExecuteScalarAsync())!;
+        Guid id;
+        DateTimeOffset createdAt;
+        await using (var row = await command.ExecuteReaderAsync())
+        {
+            (await row.ReadAsync()).Should().BeTrue();
+            id = row.GetGuid(0);
+            createdAt = row.GetFieldValue<DateTimeOffset>(1);
+            createdAt.Should().NotBe(default(DateTimeOffset));
+            row.GetGuid(2).Should().Be(UserId.SystemActor.Value);
+            Enumerable.Range(3, 4).Should().OnlyContain(index => row.IsDBNull(index));
+            (await row.ReadAsync()).Should().BeFalse("the fixture key has one root in the announced scope");
+        }
         var state = (await scope.ServiceProvider.GetRequiredService<ISender>().Send(new GetSettingSeedStateQuery(id))).Value!.State;
         state.Should().NotBeNull();
         state!.Id.Should().Be(id);
@@ -284,8 +337,14 @@ public sealed class P02d2FoundationTests(SchemaFixture schema)
             _ => context.OrganizationId == OrganizationId.From(SchemaFixture.OrgA1) ? "\"main\"" : "\"branch\"",
         });
         state.Version.Should().Be(0);
+        state.CreatedAt.Should().Be(createdAt, "the seed DTO retains the independently read creation stamp");
+        state.CreatedBy.Should().Be(UserId.SystemActor);
+        state.UpdatedAt.Should().BeNull();
+        state.UpdatedBy.Should().BeNull();
+        state.DeletedAt.Should().BeNull();
+        state.DeletedBy.Should().BeNull();
         await frame.FailAsync();
-        return id;
+        return state;
     }
 
     private sealed class Context(Guid tenantId, Guid? organizationId = null) : ITenantContext

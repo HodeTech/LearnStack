@@ -648,16 +648,14 @@ public sealed class OutboxDispatchStoreTests(SchemaFixture schema)
         await using var test = await TestDatabase.CreateAsync(schema.Postgres, seedTenant: false);
         await using (var scope = test.Provider.CreateAsyncScope())
         {
-            var result = await scope.ServiceProvider.GetRequiredService<ISender>().Send(new ProvisionTenantCommand(
-                TenantId.From(SchemaFixture.TenantA), "dispatch-probe", "Dispatch probe",
-                OrganizationId.From(SchemaFixture.OrgA1), "hq", "HQ"));
+            var result = await scope.ServiceProvider.GetRequiredService<ISender>().Send(CanonicalSeedTenantFixture.ProvisionCommand);
             result.IsSuccess.Should().BeTrue();
         }
         var produced = await test.SingleIdAsync();
         var fact = new TenantCreatedIntegrationEventV1
         {
             EventId = Guid.CreateVersion7(),
-            TenantId = SchemaFixture.TenantA,
+            TenantId = CanonicalSeedTenantFixture.TenantId,
             OccurredAt = Occurred,
         };
         var id = await test.InsertAsync(fact: fact,
@@ -683,7 +681,7 @@ public sealed class OutboxDispatchStoreTests(SchemaFixture schema)
         snapshot.PendingCount.Should().Be(2);
         snapshot.DeferredCount.Should().Be(2);
         snapshot.OldestEligibleAgeSeconds.Should().Be(0);
-        (await test.AuditCountAsync()).Should().Be(0, "provisioning audits are separate from the terminal operation");
+        (await test.AuditCountAsync(CanonicalSeedTenantFixture.TenantId)).Should().Be(0, "provisioning audits are separate from the terminal operation");
     }
 
     [Theory]
@@ -1090,12 +1088,12 @@ public sealed class OutboxDispatchStoreTests(SchemaFixture schema)
             await command.ExecuteNonQueryAsync();
         }
 
-        public async Task<long> AuditCountAsync()
+        public async Task<long> AuditCountAsync(Guid? tenant = null)
         {
             await using var connection = await _appSource.OpenConnectionAsync();
             await using var transaction = await connection.BeginTransactionAsync();
             await SchemaQueries.AssertApplicationRoleAsync(connection);
-            await SchemaQueries.SetTenantAsync(connection, transaction, SchemaFixture.TenantA);
+            await SchemaQueries.SetTenantAsync(connection, transaction, tenant ?? SchemaFixture.TenantA);
             await SchemaQueries.SetSettingAsync(connection, transaction, "app.scope", "tenant");
             await using var command = new NpgsqlCommand(
                 "SELECT count(*) FROM audit_log WHERE operation = 'platform.outbox.dead_letter'", connection, transaction);

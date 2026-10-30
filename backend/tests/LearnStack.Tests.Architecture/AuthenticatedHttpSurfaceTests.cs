@@ -17,7 +17,7 @@ using Xunit;
 
 namespace LearnStack.Tests.Architecture;
 
-/// <summary>ADR-0064/ADR-0076's complete read-only HTTP ceiling with live application authorization.</summary>
+/// <summary>ADR-0064/0076/0078/0079's finite HTTP ceiling with live application authorization.</summary>
 public sealed partial class AuthenticatedHttpSurfaceTests
 {
     private const string PublicSite = "LearnStack.Api.PublicReads.PublicSiteController";
@@ -28,22 +28,110 @@ public sealed partial class AuthenticatedHttpSurfaceTests
     private const string Versioning = "LearnStack.Api.Versioning.ApiVersioningExtensions";
     private const string Route = "Microsoft.AspNetCore.Mvc.RouteAttribute";
 
-    private sealed record Endpoint(string Controller, string Action, string Verb, string Resource,
-        string? Suffix, string Operation, Type Request);
+    private sealed record AuditDeclaration(OperationClass? Class = null, OperationType? Type = null,
+        string? Operation = null, System.Type? Entity = null);
 
+    private sealed record Endpoint(string Controller, string Action, string Verb, string Resource,
+        string? Suffix, string Operation, Type Request, string? Policy, Type? Response,
+        int Status, int? ProtectedOperation, AuditDeclaration Audit);
+
+    // Independent literal contract, deliberately ordered like the separately validated
+    // classifier. Never generate this expectation from production endpoint metadata.
     private static readonly Endpoint[] Endpoints =
     [
-        new(PublicSite, "Get", "GET", "public/site", null, "GetPublicSite", typeof(GetPublicSiteQuery)),
-        new(PublicSite, "Head", "HEAD", "public/site", null, "HeadPublicSite", typeof(GetPublicSiteQuery)),
-        new(PublicEducation, "Catalog", "GET", "public/courses", null, "GetPublicCourses", typeof(GetPublicCoursesQuery)),
-        new(PublicEducation, "HeadCatalog", "HEAD", "public/courses", null, "HeadPublicCourses", typeof(GetPublicCoursesQuery)),
-        new(PublicEducation, "Course", "GET", "public/courses", "{slug}", "GetPublicCourse", typeof(GetPublicCourseQuery)),
-        new(PublicEducation, "HeadCourse", "HEAD", "public/courses", "{slug}", "HeadPublicCourse", typeof(GetPublicCourseQuery)),
-        new(PublicEducation, "Lesson", "GET", "public/courses", "{slug}/lessons/{lessonSlug}", "GetPublicLesson", typeof(GetPublicLessonQuery)),
-        new(PublicEducation, "HeadLesson", "HEAD", "public/courses", "{slug}/lessons/{lessonSlug}", "HeadPublicLesson", typeof(GetPublicLessonQuery)),
-        new(Account, "GetSite", "GET", "account", "site", "GetAccountSite", typeof(GetAccountSiteQuery)),
-        new(Directory, "List", "GET", "identity/memberships", null, "ListMemberships", typeof(ListMembershipsQuery)),
-        new(Admission, "Admit", "POST", "identity/session-scope/admissions", null, "AdmitNativeSessionScope", typeof(AdmitNativeSessionScopeCommand))
+        new("LearnStack.Api.PublicReads.PublicSiteController", "Get", "GET", "public/site", null,
+            "GetPublicSite", typeof(LearnStack.Modules.Tenancy.Application.Contracts.PublicReads.GetPublicSiteQuery), null,
+            typeof(LearnStack.Modules.Tenancy.Application.Contracts.PublicReads.PublicSite), 200, null, new()),
+        new("LearnStack.Api.PublicReads.PublicSiteController", "Head", "HEAD", "public/site", null,
+            "HeadPublicSite", typeof(LearnStack.Modules.Tenancy.Application.Contracts.PublicReads.GetPublicSiteQuery), null,
+            null, 200, null, new()),
+        new("LearnStack.Api.PublicReads.PublicEducationController", "Catalog", "GET", "public/courses", null,
+            "GetPublicCourses", typeof(LearnStack.Modules.Education.Application.Contracts.PublicReads.GetPublicCoursesQuery), null,
+            typeof(LearnStack.Modules.Education.Application.Contracts.PublicReads.PublicCourseCatalog), 200, null, new()),
+        new("LearnStack.Api.PublicReads.PublicEducationController", "HeadCatalog", "HEAD", "public/courses", null,
+            "HeadPublicCourses", typeof(LearnStack.Modules.Education.Application.Contracts.PublicReads.GetPublicCoursesQuery), null,
+            null, 200, null, new()),
+        new("LearnStack.Api.PublicReads.PublicEducationController", "Course", "GET", "public/courses", "{slug}",
+            "GetPublicCourse", typeof(LearnStack.Modules.Education.Application.Contracts.PublicReads.GetPublicCourseQuery), null,
+            typeof(LearnStack.Modules.Education.Application.Contracts.PublicReads.PublicCourseDetail), 200, null, new()),
+        new("LearnStack.Api.PublicReads.PublicEducationController", "HeadCourse", "HEAD", "public/courses", "{slug}",
+            "HeadPublicCourse", typeof(LearnStack.Modules.Education.Application.Contracts.PublicReads.GetPublicCourseQuery), null,
+            null, 200, null, new()),
+        new("LearnStack.Api.PublicReads.PublicEducationController", "Lesson", "GET", "public/courses", "{slug}/lessons/{lessonSlug}",
+            "GetPublicLesson", typeof(LearnStack.Modules.Education.Application.Contracts.PublicReads.GetPublicLessonQuery), null,
+            typeof(LearnStack.Modules.Education.Application.Contracts.PublicReads.PublicLessonDetail), 200, null, new()),
+        new("LearnStack.Api.PublicReads.PublicEducationController", "HeadLesson", "HEAD", "public/courses", "{slug}/lessons/{lessonSlug}",
+            "HeadPublicLesson", typeof(LearnStack.Modules.Education.Application.Contracts.PublicReads.GetPublicLessonQuery), null,
+            null, 200, null, new()),
+        new("LearnStack.Api.Account.AccountController", "GetSite", "GET", "account", "site",
+            "GetAccountSite", typeof(LearnStack.Modules.Tenancy.Application.Contracts.Account.GetAccountSiteQuery), "LearnStackOperation:tenancy.account_site.read",
+            typeof(LearnStack.Modules.Tenancy.Application.Contracts.Account.AccountSite), 200, null, new()),
+        new("LearnStack.Api.Identity.MembershipsController", "List", "GET", "identity/memberships", null,
+            "ListMemberships", typeof(LearnStack.Modules.Identity.Application.Contracts.Memberships.ListMembershipsQuery), "LearnStackOperation:identity.membership.list",
+            typeof(LearnStack.SharedKernel.Pagination.Page<LearnStack.Modules.Identity.Application.Contracts.Memberships.MembershipDirectoryItem>), 200, null, new(OperationClass.Must, OperationType.ReadSensitive, "identity.membership.list", typeof(LearnStack.Modules.Identity.Domain.Membership))),
+        new("LearnStack.Api.Identity.MembershipsController", "Get", "GET", "identity/memberships", "{id}",
+            "GetMembershipDetail", typeof(LearnStack.Modules.Identity.Application.Contracts.Memberships.GetMembershipDetailQuery), "LearnStackOperation:identity.membership.read",
+            typeof(LearnStack.Api.Identity.MembershipDetailResponse), 200, null, new(OperationClass.Must, OperationType.ReadSensitive, "identity.membership.read", typeof(LearnStack.Modules.Identity.Domain.Membership))),
+        new("LearnStack.Api.Identity.MembershipsController", "SetProfile", "PUT", "identity/memberships", "{id}/profile",
+            "SetMembershipProfile", typeof(LearnStack.Modules.Identity.Application.Contracts.Memberships.SetMembershipProfileCommand), "LearnStackOperation:identity.membership_profile.write",
+            typeof(LearnStack.Api.Identity.AdministrationVersionReceipt), 200, 1, new(OperationClass.Must, OperationType.Update, "identity.membership_profile.write", typeof(LearnStack.Modules.Identity.Domain.Membership))),
+        new("LearnStack.Api.Identity.MembershipsController", "ReplaceRoles", "PUT", "identity/memberships", "{id}/role-assignments",
+            "ReplaceMembershipRoleAssignments", typeof(LearnStack.Modules.Identity.Application.Contracts.Memberships.ReplaceMembershipRoleAssignmentsCommand), "LearnStackOperation:identity.membership.replace_role_assignments",
+            typeof(LearnStack.Api.Identity.AdministrationVersionReceipt), 200, 4, new(OperationClass.Must, OperationType.SecurityEvent, "identity.membership.replace_role_assignments", typeof(LearnStack.Modules.Identity.Domain.Membership))),
+        new("LearnStack.Api.Identity.MembershipsController", "ChangeStatus", "PUT", "identity/memberships", "{id}/status",
+            "ChangeMembershipStatus", typeof(LearnStack.Modules.Identity.Application.Contracts.Memberships.ChangeMembershipStatusCommand), "LearnStackOperation:identity.membership.change_status",
+            typeof(LearnStack.Api.Identity.AdministrationVersionReceipt), 200, 3, new(OperationClass.Must, OperationType.SecurityEvent, "identity.membership.change_status", typeof(LearnStack.Modules.Identity.Domain.Membership))),
+        new("LearnStack.Api.Identity.OrganizationMembershipsController", "List", "GET", "identity/organization-memberships", null,
+            "ListOrganizationMemberships", typeof(LearnStack.Modules.Identity.Application.Contracts.Memberships.ListOrganizationMembershipsQuery), "LearnStackOperation:identity.membership.list_organization",
+            typeof(LearnStack.SharedKernel.Pagination.Page<LearnStack.Modules.Identity.Application.Contracts.Memberships.MembershipDirectoryItem>), 200, null, new(OperationClass.Must, OperationType.ReadSensitive, "identity.membership.list_organization", typeof(LearnStack.Modules.Identity.Domain.Membership))),
+        new("LearnStack.Api.Identity.OwnMembershipController", "GetProfile", "GET", "identity/me", "profile",
+            "GetOwnMembershipProfile", typeof(LearnStack.Modules.Identity.Application.Contracts.Memberships.GetOwnMembershipProfileQuery), "LearnStackOperation:identity.membership_profile.read_own",
+            typeof(LearnStack.Api.Identity.OwnMembershipProfileResponse), 200, null, new()),
+        new("LearnStack.Api.Identity.OwnMembershipController", "SetProfile", "PUT", "identity/me", "profile",
+            "SetOwnMembershipProfile", typeof(LearnStack.Modules.Identity.Application.Contracts.Memberships.SetOwnMembershipProfileCommand), "LearnStackOperation:identity.membership_profile.write_own",
+            typeof(LearnStack.Api.Identity.AdministrationVersionReceipt), 200, 2, new(OperationClass.Must, OperationType.Update, "identity.membership_profile.write", typeof(LearnStack.Modules.Identity.Domain.Membership))),
+        new("LearnStack.Api.Identity.OwnMembershipController", "Contexts", "GET", "identity/me", "contexts",
+            "ListOwnMembershipContexts", typeof(LearnStack.Modules.Identity.Application.Contracts.Memberships.GetOwnMembershipContextsQuery), "LearnStackOperation:identity.membership.list_own_contexts",
+            typeof(LearnStack.Api.Identity.OwnMembershipContextPage), 200, null, new()),
+        new("LearnStack.Api.Identity.OwnMembershipController", "Capabilities", "GET", "identity/me", "capabilities",
+            "GetOwnCapabilities", typeof(LearnStack.Modules.Identity.Application.Contracts.Memberships.GetOwnCapabilitiesQuery), "LearnStackOperation:identity.membership.read_own_capabilities",
+            typeof(LearnStack.Modules.Identity.Application.Contracts.Memberships.OwnCapabilitiesDto), 200, null, new()),
+        new("LearnStack.Api.Identity.RolesController", "List", "GET", "identity/roles", null,
+            "ListRoles", typeof(LearnStack.Modules.Identity.Application.Contracts.Roles.ListRolesQuery), "LearnStackOperation:identity.role.list",
+            typeof(LearnStack.Api.Identity.RoleDirectoryResponse), 200, null, new(OperationClass.Must, OperationType.ReadSensitive, "identity.role.list", typeof(LearnStack.Modules.Identity.Domain.Role))),
+        new("LearnStack.Api.Identity.RolesController", "Get", "GET", "identity/roles", "{id}",
+            "GetRoleDetail", typeof(LearnStack.Modules.Identity.Application.Contracts.Roles.GetRoleDetailQuery), "LearnStackOperation:identity.role.read",
+            typeof(LearnStack.Api.Identity.RoleDetailResponse), 200, null, new(OperationClass.Must, OperationType.ReadSensitive, "identity.role.read", typeof(LearnStack.Modules.Identity.Domain.Role))),
+        new("LearnStack.Api.Identity.RolesController", "ChangeGrants", "PUT", "identity/roles", "{id}/grants",
+            "ChangeRoleGrants", typeof(LearnStack.Modules.Identity.Application.Contracts.Roles.ChangeRoleGrantsCommand), "LearnStackOperation:identity.role.change_grants",
+            typeof(LearnStack.Api.Identity.AdministrationVersionReceipt), 200, 5, new(OperationClass.Must, OperationType.SecurityEvent, "identity.role.change_grants", typeof(LearnStack.Modules.Identity.Domain.Role))),
+        new("LearnStack.Api.Identity.RolesController", "AdoptManifest", "POST", "identity/roles", "{id}/manifest-adoptions",
+            "AdoptRoleGrantManifest", typeof(LearnStack.Modules.Identity.Application.Contracts.Roles.AdoptRoleGrantManifestCommand), "LearnStackOperation:identity.role.adopt_manifest",
+            typeof(LearnStack.Api.Identity.AdministrationVersionReceipt), 200, 6, new(OperationClass.Must, OperationType.SecurityEvent, "identity.role.adopt_manifest", typeof(LearnStack.Modules.Identity.Domain.Role))),
+        new("LearnStack.Api.Identity.PermissionsController", "List", "GET", "identity/permissions", null,
+            "GetPermissionRegistry", typeof(LearnStack.Modules.Identity.Application.Contracts.Roles.GetPermissionRegistryQuery), "LearnStackOperation:identity.role.list_permissions",
+            typeof(LearnStack.Api.Identity.PermissionRegistryResponse), 200, null, new(OperationClass.Must, OperationType.ReadSensitive, "identity.role.list_permissions", typeof(LearnStack.Modules.Identity.Domain.Role))),
+        new("LearnStack.Api.Tenancy.OrganizationsController", "List", "GET", "tenancy/organizations", null,
+            "ListOrganizations", typeof(LearnStack.Modules.Tenancy.Application.Contracts.Tenant.ListOrganizationsQuery), "LearnStackOperation:tenancy.organization.list",
+            typeof(LearnStack.Api.Identity.OrganizationDirectoryResponse), 200, null, new(OperationClass.Must, OperationType.ReadSensitive, "tenancy.organization.list", typeof(LearnStack.Modules.Tenancy.Domain.Organization))),
+        new("LearnStack.Api.Tenancy.OrganizationsController", "Get", "GET", "tenancy/organizations", "{id}",
+            "GetOrganizationDetail", typeof(LearnStack.Modules.Tenancy.Application.Contracts.Tenant.GetOrganizationDetailQuery), "LearnStackOperation:tenancy.organization.read",
+            typeof(LearnStack.Api.Identity.OrganizationResponse), 200, null, new(OperationClass.Must, OperationType.ReadSensitive, "tenancy.organization.read", typeof(LearnStack.Modules.Tenancy.Domain.Organization))),
+        new("LearnStack.Api.Tenancy.OrganizationsController", "Create", "POST", "tenancy/organizations", null,
+            "CreateManagedOrganization", typeof(LearnStack.Modules.Tenancy.Application.Contracts.Tenant.CreateManagedOrganizationCommand), "LearnStackOperation:tenancy.organization.create",
+            typeof(LearnStack.Api.Identity.AdministrationVersionReceipt), 201, 7, new(OperationClass.Must, OperationType.Create, "tenancy.organization.create", typeof(LearnStack.Modules.Tenancy.Domain.Organization))),
+        new("LearnStack.Api.Tenancy.OrganizationsController", "Rename", "PUT", "tenancy/organizations", "{id}",
+            "RenameOrganization", typeof(LearnStack.Modules.Tenancy.Application.Contracts.Tenant.RenameOrganizationCommand), "LearnStackOperation:tenancy.organization.rename",
+            typeof(LearnStack.Api.Identity.AdministrationVersionReceipt), 200, 8, new(OperationClass.Should, OperationType.Update, "tenancy.organization.rename", typeof(LearnStack.Modules.Tenancy.Domain.Organization))),
+        new("LearnStack.Api.Tenancy.OrganizationsController", "Archive", "POST", "tenancy/organizations", "{id}/archive",
+            "ArchiveOrganization", typeof(LearnStack.Modules.Tenancy.Application.Contracts.Tenant.ArchiveOrganizationCommand), "LearnStackOperation:tenancy.organization.archive",
+            typeof(LearnStack.Api.Identity.AdministrationVersionReceipt), 200, 9, new(OperationClass.Must, OperationType.Update, "tenancy.organization.archive", typeof(LearnStack.Modules.Tenancy.Domain.Organization))),
+        new("LearnStack.Api.Tenancy.DefaultOrganizationController", "Select", "PUT", "tenancy/default-organization", null,
+            "SelectDefaultOrganization", typeof(LearnStack.Modules.Tenancy.Application.Contracts.Tenant.SelectDefaultOrganizationCommand), "LearnStackOperation:tenancy.organization.select_default",
+            typeof(LearnStack.Api.Identity.AdministrationVersionReceipt), 200, 10, new(OperationClass.Must, OperationType.Update, "tenancy.organization.select_default", typeof(LearnStack.Modules.Tenancy.Domain.Tenant))),
+        new("LearnStack.Api.Identity.NativeSessionAdmissionController", "Admit", "POST", "identity/session-scope/admissions", null,
+            "AdmitNativeSessionScope", typeof(LearnStack.Modules.Identity.Application.Contracts.Entry.AdmitNativeSessionScopeCommand), "LearnStackOperation:identity.membership.admit_session_scope",
+            typeof(LearnStack.Modules.Identity.Application.Contracts.Entry.NativeSessionScopeAdmission), 200, null, new(OperationClass.Must, OperationType.SecurityEvent, "identity.membership.admit_session_scope", typeof(LearnStack.Modules.Identity.Domain.Membership))),
     ];
 
     // These are mapping call sites, not a path-wide exception. A second health
@@ -62,7 +150,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
     {
         var errors = Violations(modules, facts);
         errors.Should().BeEmpty(
-            "Fix: retain the exact historical reads and ADR-0078 native admission POST; all findings: {0}", string.Join("\n", errors));
+            "Fix: retain the exact ADR-0064/0076 reads and ADR-0078/0079 finite entry/administration union; all findings: {0}", string.Join("\n", errors));
     });
 
     /// <summary><see href="../../../docs/decisions/0064-tenant-api-authentication-boundary.md">ADR-0064</see>'s controls mutate the same production route census.</summary>
@@ -84,6 +172,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         AssertProtectedPolicyControls(map);
         AssertAnonymousMetadataControls(map);
         AssertAttachedMetadataControls(map);
+        AssertFiniteMetadataControls(modules, facts);
         AssertEndpointConventionControls(api);
         AssertGlobalFilterControls(map);
         AssertFilterProviderControls(map);
@@ -213,7 +302,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         var map = Types(modules).ToDictionary(Key, StringComparer.Ordinal);
         var account = map.Values.Single(type => type.FullName == Account);
         var handlers = HandlerRoots(map).ToArray();
-        handlers.Should().HaveCount(7, "the four public queries, two authenticated queries and native admission have real production handlers");
+        handlers.Should().HaveCount(27, "all 27 distinct finite HTTP requests have real production handlers");
         Violations(modules, facts).Should().BeEmpty();
         AssertPolicyMetadataControls(modules, facts);
         AssertControllerMetadataControls(modules, facts);
@@ -227,17 +316,20 @@ public sealed partial class AuthenticatedHttpSurfaceTests
             "explicit injection of that same abstract base must still discover its concrete capabilities");
         publicSite.Fields.Remove(collaborator);
 
+        TypeDefinition activeRoot = account;
         foreach (var owner in new[] { account }.Concat(handlers))
         {
+            activeRoot = owner;
             foreach (var helperModule in modules.Where(module => module.Assembly.Name.Name is
                          "LearnStack.Modules.Education.Application.Contracts" or "LearnStack.Infrastructure"))
             {
                 var helper = new TypeDefinition("SurfaceProbe", "ReadHelper", TypeAttributes.Public | TypeAttributes.Sealed,
                     helperModule.TypeSystem.Object);
                 helperModule.Types.Add(helper);
+                map.Add(Key(helper), helper);
                 var edge = new FieldDefinition("ReadHelper", FieldAttributes.Private, owner.Module.ImportReference(helper));
                 owner.Fields.Add(edge);
-                Violations(modules, facts).Should().BeEmpty("a data-free production helper is a clean control");
+                CurrentRootOffenders().Should().BeEmpty("a data-free production helper is a clean control");
 
                 var dispatch = new FieldDefinition("Sender", FieldAttributes.Private, helperModule.ImportReference(typeof(ISender)));
                 helper.Fields.Add(dispatch);
@@ -255,6 +347,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                 }
 
                 owner.Fields.Remove(edge);
+                map.Remove(Key(helper));
                 helperModule.Types.Remove(helper);
             }
         }
@@ -265,6 +358,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
             .Single(target => target.DeclaringType.FullName == typeof(ISender).FullName && target.Name == "Send");
         foreach (var owner in handlers)
         {
+            activeRoot = owner;
             var method = owner.Methods.Single(candidate => candidate.Name == "Handle");
             var planted = Instruction.Create(OpCodes.Callvirt, owner.Module.ImportReference(send));
             method.Body.Instructions.Add(planted);
@@ -277,6 +371,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         // actual Handle operands independently of the ISender controls above.
         foreach (var owner in handlers)
         {
+            activeRoot = owner;
             var target = handlers.Single(candidate => Handles(candidate, typeof(GetAccountSiteQuery).FullName!));
             foreach (var capability in new TypeReference[]
                      { owner.Module.ImportReference(target.Interfaces.Single().InterfaceType), owner.Module.ImportReference(target) })
@@ -307,19 +402,30 @@ public sealed partial class AuthenticatedHttpSurfaceTests
             }
         }
 
+        activeRoot = account;
         var nested = new TypeDefinition("", "NestedReadHelper", TypeAttributes.NestedPrivate | TypeAttributes.Sealed, account.Module.TypeSystem.Object);
         account.NestedTypes.Add(nested);
+        map.Add(Key(nested), nested);
         var nestedEdge = new FieldDefinition("NestedHelper", FieldAttributes.Private, nested);
         account.Fields.Add(nestedEdge);
-        Violations(modules, facts).Should().BeEmpty("an ordinary nested data-free helper is legal");
+        CurrentRootOffenders().Should().BeEmpty("an ordinary nested data-free helper is legal");
         nested.Fields.Add(new FieldDefinition("Sender", FieldAttributes.Private, account.Module.ImportReference(typeof(ISender))));
         Dirty("HTTP persistence/handler/helper bypass:", "non-generated nested helpers must not fall outside the transitive scan");
         account.Fields.Remove(nestedEdge);
+        map.Remove(Key(nested));
         account.NestedTypes.Remove(nested);
         AssertRootDispatchControls(map);
+        AssertGeneratedHandlerFieldControls(handlers, map);
+        AssertInheritedHandlerControls(handlers, map);
+        AssertProtectedAdministrationControls(modules, facts);
         Violations(modules, facts).Should().BeEmpty("all planted production capabilities have been removed");
 
-        void Dirty(string prefix, string because) => Violations(modules, facts).Should()
+        // Each mutation targets this actual root; invoke the same production
+        // predicate without rescanning all 27 independent roots for every probe.
+        // Full union checks still bracket the complete mutation sequence.
+        IEnumerable<string> CurrentRootOffenders() => activeRoot == account
+            ? HttpBypasses(account, map) : NestedDispatchOffenders([activeRoot], map);
+        void Dirty(string prefix, string because) => CurrentRootOffenders().Should()
             .Contain(error => error.StartsWith(prefix, StringComparison.Ordinal), because);
     });
 
@@ -356,7 +462,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                 if (resource.Length != 1 || StringArgument(resource[0]) != entry.Resource
                     || selectors.Length != 1
                     || selectors[0].AttributeType.FullName != "Microsoft.AspNetCore.Mvc.Http" + (entry.Verb switch
-                    { "GET" => "Get", "HEAD" => "Head", "POST" => "Post", _ => "Unapproved" }) + "Attribute"
+                    { "GET" => "Get", "HEAD" => "Head", "POST" => "Post", "PUT" => "Put", _ => "Unapproved" }) + "Attribute"
                     || StringArgument(selectors[0]) != entry.Suffix
                     || selectors[0].Properties.SingleOrDefault(property => property.Name == "Name").Argument.Value as string != entry.Operation)
                     errors.Add("Unexpected method/route/operation: " + type.FullName + "." + action.Name);
@@ -365,36 +471,36 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                     errors.Add("HTTP ceiling permits only the existing /api/v1 major: " + type.FullName);
                 foreach (var offender in AuthorizationOffenders(type, action, map, authorizationPredicate)) errors.Add(offender);
                 foreach (var offender in AttachedFilterOffenders(type, action, map)) errors.Add(offender);
-                if (!PublicSurfaceTests.Dispatches(type, action.Name, entry.Request.FullName))
-                    errors.Add("Construct exactly " + entry.Request.FullName + " at the single direct ISender.Send: " + type.FullName + "." + action.Name);
+                if (!(entry.ProtectedOperation is null
+                    ? PublicSurfaceTests.Dispatches(type, action.Name, entry.Request.FullName)
+                    : ProtectedHandoff(type, action, entry)))
+                    errors.Add("Construct exactly " + entry.Request.FullName + " at its single validated pipeline dispatch: " + type.FullName + "." + action.Name);
             }
         }
-        foreach (var offender in PublicSurfaceTests.PersistenceOffenders(controllers, map))
+        foreach (var offender in PublicSurfaceTests.PersistenceOffenders(controllers, map,
+                     type => HttpReferences(type, map), type => Key(type) == "LearnStack.Api:" + ProtectedResult && ProtectedDispatcher(type, map)))
             errors.Add("HTTP persistence/handler/helper bypass: " + offender);
 
         var requests = Endpoints.Select(endpoint => endpoint.Request).Distinct().ToArray();
         var catalogue = facts.Catalogue;
         foreach (var request in requests)
         {
-            if (request == typeof(ListMembershipsQuery) || request == typeof(AdmitNativeSessionScopeCommand))
-            {
-                var admission = request == typeof(AdmitNativeSessionScopeCommand);
-                if (!catalogue.TryGet(request, out var directory) || directory.WritesNoRow || directory.Entries.Count != 1
-                    || directory.Entries[0] is not
-                    {
-                        OperationClass: OperationClass.Must, EntityType: { } entity
-                    } || entity != typeof(Membership)
-                    || directory.Entries[0].Operation != (admission ? "identity.membership.admit_session_scope" : "identity.membership.list")
-                    || directory.Entries[0].OperationType != (admission ? OperationType.SecurityEvent : OperationType.ReadSensitive))
-                    errors.Add("Membership HTTP act must retain its exact MUST resource/type declaration: " + request.FullName);
-            }
-            else if (!catalogue.TryGet(request, out var registration) || !registration.WritesNoRow || registration.Entries.Count != 0)
-                errors.Add("Existing public/account HTTP request must be explicitly Off: " + request.FullName);
+            var declaration = Endpoints.First(endpoint => endpoint.Request == request).Audit;
+            if (!catalogue.TryGet(request, out var registration)
+                || (declaration.Class is null
+                    ? !registration.WritesNoRow || registration.Entries.Count != 0
+                    : registration.WritesNoRow || registration.Entries.Count != 1
+                        || registration.Entries[0].OperationClass != declaration.Class
+                        || registration.Entries[0].OperationType != declaration.Type
+                        || registration.Entries[0].Operation != declaration.Operation
+                        || registration.Entries[0].EntityType != declaration.Entity))
+                errors.Add("HTTP request must retain its exact audit declaration: " + request.FullName);
             if (request.IsDefined(typeof(PublicSurfaceAttribute), false)
-                != (request != typeof(GetAccountSiteQuery) && request != typeof(ListMembershipsQuery)
-                    && request != typeof(AdmitNativeSessionScopeCommand)))
+                != Endpoints.Any(endpoint => endpoint.Request == request && endpoint.Policy is null))
                 errors.Add("Only the existing four public queries carry PublicSurface: " + request.FullName);
         }
+        foreach (var offender in ProtectedAdministrationOffenders(modules, map)) errors.Add(offender);
+        foreach (var offender in NativeScopeAdmissionTests.HttpEntryOffenders(modules)) errors.Add(offender);
         var handlers = HandlerRoots(map).ToArray();
         foreach (var request in requests)
             if (handlers.Count(type => Handles(type, request.FullName!)) != 1)
@@ -419,7 +525,9 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         if (attributes.Any(attribute => AuthenticationMetadata.IsRequirementData(attribute.AttributeType, map))) return false;
         var authorizations = attributes.Where(attribute => (predicate ?? (type => AuthenticationMetadata.IsData(type, map)))(attribute.AttributeType)).ToArray();
         var anonymous = attributes.Where(attribute => AuthenticationMetadata.IsAnonymous(attribute.AttributeType, map)).ToArray();
-        if (controller.FullName is not (Account or Directory or Admission)) return anonymous.Length == 1 && authorizations.Length == 0
+        var endpoint = Endpoints.SingleOrDefault(entry => entry.Controller == controller.FullName && entry.Action == action.Name);
+        if (endpoint is null) return false;
+        if (endpoint.Policy is null) return anonymous.Length == 1 && authorizations.Length == 0
             && anonymous[0].AttributeType.FullName == typeof(AllowAnonymousAttribute).FullName
             && anonymous[0].ConstructorArguments.Count == 0 && anonymous[0].Properties.Count == 0 && anonymous[0].Fields.Count == 0;
         return anonymous.Length == 0 && authorizations.Length == 1 && authorizations[0].ConstructorArguments.Count == 0
@@ -428,13 +536,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
             && authorizations[0].Properties.Count(property => property.Name == nameof(AuthorizeAttribute.AuthenticationSchemes)
                 && property.Argument.Value as string == "TenantBearer") == 1
             && authorizations[0].Properties.Count(property => property.Name == nameof(AuthorizeAttribute.Policy)
-                && property.Argument.Value as string == "LearnStackOperation:" + (controller.FullName switch
-                {
-                    Account => "tenancy.account_site.read",
-                    Directory => "identity.membership.list",
-                    Admission => "identity.membership.admit_session_scope",
-                    _ => "unapproved"
-                })) == 1;
+                && property.Argument.Value as string == endpoint.Policy) == 1;
     }
 
     private static IEnumerable<string> AuthorizationOffenders(TypeDefinition controller, MethodDefinition action,
@@ -455,24 +557,27 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         var referencesByType = new Dictionary<string, TypeReference[]>(StringComparer.Ordinal);
         var implementationsByType = new Dictionary<string, TypeDefinition[]>(StringComparer.Ordinal);
         var capabilities = new Dictionary<string, bool>(StringComparer.Ordinal);
-        var queue = new Queue<(TypeDefinition Root, TypeDefinition Type)>(roots.Select(root => (root, root)));
+        var acquisitions = new Dictionary<(string Owner, string Dependency), bool>();
+        var expanded = new HashSet<(string Root, string Type)>();
+        var queue = new Queue<(TypeDefinition Root, TypeDefinition Type, bool ExpandImplementations, string Path)>(
+            roots.Select(root => (root, root, true, root.FullName)));
         while (queue.TryDequeue(out var current))
         {
-            var (root, type) = current;
+            var (root, type, expandImplementations, path) = current;
             var typeKey = Key(type);
-            if (!visited.Add((Key(root), typeKey))) continue;
             if (typeKey != Key(root) && rootKeys.Contains(typeKey))
             {
-                yield return "Nested HTTP dispatch/helper handler: " + root.FullName + " -> " + type.FullName;
+                yield return "Nested HTTP dispatch/helper handler: " + path;
                 continue;
             }
-            if (type.IsInterface || type.IsAbstract)
+            if (expandImplementations && (type.IsInterface || type.IsAbstract) && expanded.Add((Key(root), typeKey)))
             {
                 if (!implementationsByType.TryGetValue(typeKey, out var implementations))
                     implementationsByType[typeKey] = implementations = map.Values.Where(candidate => !candidate.IsInterface
                         && PublicSurfaceTests.Implements(candidate, typeKey, map, [])).ToArray();
-                foreach (var implementation in implementations) queue.Enqueue((root, implementation));
+                foreach (var implementation in implementations) queue.Enqueue((root, implementation, true, path + " -> " + implementation.FullName));
             }
+            if (!visited.Add((Key(root), typeKey))) continue;
             if (!referencesByType.TryGetValue(typeKey, out var references))
                 referencesByType[typeKey] = references = HandlerReferences(type, map);
             if (!capabilities.TryGetValue(typeKey, out var capability))
@@ -480,12 +585,46 @@ public sealed partial class AuthenticatedHttpSurfaceTests
             if (references.Any(reference => reference.FullName is "MediatR.ISender" or "MediatR.IMediator" or "MediatR.Mediator" or "MediatR.IPublisher")
                 || capability
                 || (!rootKeys.Contains(typeKey) && type.Interfaces.Any(contract => contract.InterfaceType.GetElementType().FullName == "MediatR.IRequestHandler`2")))
-                yield return "Nested HTTP dispatch/helper handler: " + type.FullName;
+                yield return "Nested HTTP dispatch/helper handler: " + path;
             foreach (var reference in references)
                 if (map.TryGetValue(Key(reference), out var helper)
+                    && !(helper.IsNested && visited.Contains((Key(root), Key(helper.DeclaringType)))
+                        && helper.CustomAttributes.Any(attribute => attribute.AttributeType.Name == "CompilerGeneratedAttribute"))
                     && !(type.IsValueType && reference.GetElementType().FullName == "LearnStack.SharedKernel.Identifiers.IStronglyTypedId`1"
-                        && type.Interfaces.Any(contract => Key(contract.InterfaceType) == Key(reference)))) queue.Enqueue((root, helper));
+                        && type.Interfaces.Any(contract => Key(contract.InterfaceType) == Key(reference))))
+                {
+                    // Inherited members and a base's own calls/captures do not
+                    // acquire every sibling handler. An explicit collaborator
+                    // of that same abstract type still expands implementations.
+                    var ownOrInherited = typeKey == Key(reference) || type.BaseType is { } parent && Key(parent) == Key(reference);
+                    var expand = !ownOrInherited || !(helper.IsInterface || helper.IsAbstract);
+                    if (!expand && !acquisitions.TryGetValue((typeKey, Key(reference)), out expand))
+                        acquisitions[(typeKey, Key(reference))] = expand = AcquiresHandlerCollaborator(type, Key(reference));
+                    queue.Enqueue((root, helper, expand, path + " -> " + helper.FullName));
+                }
         }
+    }
+
+    private static bool AcquiresHandlerCollaborator(TypeDefinition type, string dependency)
+    {
+        bool Names(TypeReference reference) => Il.ExpandedTypeReferences(reference).Any(item => Key(item) == dependency);
+        bool CapturedOwner(FieldReference field) => field.Name == "<>4__this"
+            && IsGeneratedUnder(field.DeclaringType, type) && Key(field.FieldType) == Key(type);
+        return Flatten(type).SelectMany(owner => owner.Fields).Any(field => Names(field.FieldType) && !CapturedOwner(field))
+            || Flatten(type).SelectMany(owner => owner.Properties).Any(property => Names(property.PropertyType))
+            || Il.Methods(type).Any(pair => Names(pair.Definition.ReturnType)
+                || pair.Definition.Parameters.Any(parameter => Names(parameter.ParameterType))
+                || pair.Definition.HasBody && (pair.Definition.Body.Variables.Any(variable => Names(variable.VariableType)
+                    && !(IsGeneratedUnder(pair.Definition.DeclaringType, type) && Key(variable.VariableType) == Key(type)))
+                    || pair.Definition.Body.Instructions.Any(instruction => instruction.Operand switch
+                    {
+                        TypeReference reference => Names(reference),
+                        FieldReference field => Names(field.FieldType) && !CapturedOwner(field),
+                        MethodReference target => instruction.OpCode == OpCodes.Newobj && Names(target.DeclaringType)
+                            || Names(target.ReturnType) || target.Parameters.Any(parameter => Names(parameter.ParameterType))
+                            || target is GenericInstanceMethod generic && generic.GenericArguments.Any(Names),
+                        _ => false
+                    })));
     }
 
     private static bool HasHandlerCapability(TypeDefinition type, Dictionary<string, TypeDefinition> map)
@@ -495,24 +634,33 @@ public sealed partial class AuthenticatedHttpSurfaceTests
             || map.TryGetValue(Key(candidate), out var definition) && definition.Interfaces.Any(contract =>
                 contract.InterfaceType.GetElementType().FullName is "MediatR.IRequestHandler`1" or "MediatR.IRequestHandler`2"));
 
-        static bool CapturedOwner(TypeReference reference, MethodDefinition method)
+        static bool Generated(TypeDefinition candidate) => candidate.Name.Contains('<', StringComparison.Ordinal)
+            || candidate.CustomAttributes.Any(attribute => attribute.AttributeType.Name == "CompilerGeneratedAttribute");
+        static IEnumerable<TypeDefinition> WithGeneratedFields(TypeDefinition owner) => new[] { owner }
+            .Concat(owner.NestedTypes.Where(Generated).SelectMany(WithGeneratedFields));
+        static bool CapturedOwner(TypeReference reference, TypeDefinition generated)
         {
-            for (var generated = method.DeclaringType; generated is not null && generated.Name.Contains('<', StringComparison.Ordinal);
-                 generated = generated.DeclaringType)
-                if (generated.DeclaringType is { } owner && Key(reference) == Key(owner)) return true;
+            for (var current = generated; current is not null && Generated(current); current = current.DeclaringType)
+                if (current.DeclaringType is { } owner && Key(reference) == Key(owner)) return true;
             return false;
         }
+        bool CapturedThis(FieldReference field) => field.Name == "<>4__this"
+            && map.TryGetValue(Key(field.DeclaringType), out var generated) && Generated(generated)
+            && CapturedOwner(field.FieldType, generated);
 
-        return type.Fields.Any(field => field.Name != "<>4__this" && Handler(field.FieldType))
+        // Il folds generated methods into their owner, so fold their fields too.
+        // Only the exact captured owner is descriptive; an unused handler field,
+        // even one borrowing the compiler's capture name, remains a capability.
+        return WithGeneratedFields(type).SelectMany(owner => owner.Fields).Any(field => Handler(field.FieldType) && !CapturedThis(field))
             || Il.Methods(type).Any(pair => Handler(pair.Definition.ReturnType)
                 || pair.Definition.Parameters.Any(parameter => Handler(parameter.ParameterType))
-                || pair.Definition.HasBody && (pair.Definition.Body.Variables.Any(variable => Handler(variable.VariableType) && !CapturedOwner(variable.VariableType, pair.Definition))
+                || pair.Definition.HasBody && (pair.Definition.Body.Variables.Any(variable => Handler(variable.VariableType) && !CapturedOwner(variable.VariableType, pair.Definition.DeclaringType))
                     || pair.Definition.Body.Instructions.Any(instruction => instruction.Operand switch
                     {
                         TypeReference reference => Handler(reference),
                         // Async state machines capture their own handler as this;
                         // that generated back-reference is not nested dispatch.
-                        FieldReference field => field.Name != "<>4__this" && Handler(field.FieldType),
+                        FieldReference field => Handler(field.FieldType) && !CapturedThis(field),
                         MethodReference target => (target.Name is "Handle" or ".ctor" && Handler(target.DeclaringType))
                             || Handler(target.ReturnType) || target.Parameters.Any(parameter => Handler(parameter.ParameterType))
                             || target is GenericInstanceMethod generic && generic.GenericArguments.Where((_, index) =>

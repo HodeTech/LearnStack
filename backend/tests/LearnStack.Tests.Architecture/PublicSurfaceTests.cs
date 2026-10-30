@@ -270,7 +270,7 @@ public sealed class PublicSurfaceTests
 
     // Walk the cancellation-token expression backwards. Stop at control flow and
     // unsupported stack shapes rather than guessing the request argument's origin.
-    private static bool SkipValue(Mono.Collections.Generic.Collection<Instruction> instructions, ref int position)
+    internal static bool SkipValue(Mono.Collections.Generic.Collection<Instruction> instructions, ref int position)
     {
         var needed = 1;
         while (position >= 0 && needed > 0)
@@ -322,7 +322,9 @@ public sealed class PublicSurfaceTests
             && EndpointComposition.HasLiteralPath(calls[0].Definition, calls[0].Instruction, "/healthz"));
     }).Select(type => type.FullName.Replace('/', '+'));
 
-    internal static IEnumerable<string> PersistenceOffenders(IEnumerable<TypeDefinition> roots, Dictionary<string, TypeDefinition> map)
+    internal static IEnumerable<string> PersistenceOffenders(IEnumerable<TypeDefinition> roots, Dictionary<string, TypeDefinition> map,
+        Func<TypeDefinition, IEnumerable<TypeReference>>? referenceProjection = null,
+        Func<TypeDefinition, bool>? validatedSenderBoundary = null)
     {
         var controllers = roots.ToArray();
         var controllerKeys = controllers.Select(Key).ToHashSet(StringComparer.Ordinal);
@@ -340,9 +342,9 @@ public sealed class PublicSurfaceTests
                     queue.Enqueue((implementation, true));
                 }
             if (!visited.Add(Key(type))) continue;
-            var references = Il.ReferencedTypeReferences(type).ToArray();
+            var references = (referenceProjection?.Invoke(type) ?? Il.ReferencedTypeReferences(type)).ToArray();
             if (references.Any(reference => Forbidden(reference.FullName))
-                || (!controllerKeys.Contains(Key(type)) && references.Any(reference =>
+                || (!controllerKeys.Contains(Key(type)) && validatedSenderBoundary?.Invoke(type) is not true && references.Any(reference =>
                     reference.FullName == typeof(ISender).FullName || reference.FullName == typeof(IMediator).FullName))
                 || Il.Methods(type).Any(method => method.Definition.HasBody && method.Definition.Body.Instructions.Any(instruction =>
                     instruction.Operand is MethodReference call && call.Name == "get_RequestServices")))

@@ -12,7 +12,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace LearnStack.Api.Identity;
 
 [Route("identity/me")]
-public sealed class OwnMembershipController(ISender sender, ITenantContext tenant) : ApiControllerBase
+public sealed class OwnMembershipController(ISender sender, ITenantContext tenant, NativeEntryOriginOptions origins) : ApiControllerBase
 {
     [HttpGet("profile", Name = "GetOwnMembershipProfile")]
     [Authorize(AuthenticationSchemes = TenantAuthenticationRegistration.Scheme,
@@ -58,7 +58,6 @@ public sealed class OwnMembershipController(ISender sender, ITenantContext tenan
         if (result.IsFailure) return result.ToActionResult();
         var host = HttpContext.Features.Get<HostClassification>()
             ?? throw new InvalidOperationException("Context navigation requires classified host provenance.");
-        var origins = HttpContext.RequestServices.GetRequiredService<NativeEntryOriginOptions>();
         return Ok(new OwnMembershipContextPage(result.Value.Items.Select(item => new OwnMembershipContextResponse(
             item.TenantId.Value.ToString("D"), item.OrganizationId?.Value.ToString("D"), item.TenantName, item.OrganizationName,
             origins.ForHost(item.EntryHost), host.TenantId == item.TenantId

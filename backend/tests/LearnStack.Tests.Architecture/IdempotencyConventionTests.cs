@@ -17,7 +17,7 @@ using Xunit;
 namespace LearnStack.Tests.Architecture;
 
 /// <summary>ADR-0079: a receipt identifies the original target and authorizes a new read, never a mutation.</summary>
-public sealed class IdempotencyConventionTests
+public sealed partial class IdempotencyConventionTests
 {
     private const string Dispatcher = "LearnStack.Api.Idempotency.ProtectedReceiptReplayDispatcher";
     private const string HttpAdmission = "LearnStack.Api.Idempotency.ProtectedReplayHttpAdmission";
@@ -55,6 +55,7 @@ public sealed class IdempotencyConventionTests
         {
             MarkerOffenders(modules).Should().BeEmpty("Fix: keep the receipt marker on exactly the six sealed original-target reads");
             DispatcherOffenders(modules).Should().BeEmpty("Fix: replay must construct the six fresh receipt queries, never the original mutation");
+            TransportOwnershipOffenders(modules).Should().BeEmpty("Fix: retain the exact framework factory, replay and cleanup callers");
             AdmissionOffenders(modules).Should().BeEmpty("Fix: only the bound HTTP admission may inspect completed outcomes or construct its private one-use binding");
         });
         var mapping = typeof(ProtectedAdministrationOperation).Assembly.GetType(HttpAdmission, throwOnError: true)!
@@ -117,6 +118,7 @@ public sealed class IdempotencyConventionTests
             MarkerOffenders(modules).Should().BeEmpty();
             DispatcherOffenders(modules).Should().BeEmpty();
             AdmissionDirtyControls(modules);
+            TransportOwnershipDirtyControls(modules);
         });
         var sources = ReadAdmissionSources();
         foreach (var (file, relation) in AdmissionGuardRelations())
@@ -287,6 +289,7 @@ public sealed class IdempotencyConventionTests
             mutate();
             try { AdmissionOffenders(modules).Should().Contain(expected); }
             finally { restore(); }
+            TransportOwnershipOffenders(modules).Should().BeEmpty("Fix: retain the exact framework factory, replay and cleanup callers");
             AdmissionOffenders(modules).Should().BeEmpty("each dirty control restores the actual compiled authority graph");
         }
         var lookup = authorize.Body.Instructions.Single(instruction => instruction.Operand is MethodReference method

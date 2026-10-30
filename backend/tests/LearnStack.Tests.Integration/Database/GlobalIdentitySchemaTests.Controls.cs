@@ -18,6 +18,7 @@ public sealed partial class GlobalIdentitySchemaTests
     {
         ["users"] = nameof(Global_User_INSERT_refuses_wrong_or_absent_subject_scope),
         ["identity_authority"] = nameof(Authority_anchor_writes_require_the_deployment_owner_and_singleton_installation),
+        ["identity_creation_capacity"] = nameof(Authority_anchor_writes_require_the_deployment_owner_and_singleton_installation),
     };
 
     [Fact]
@@ -80,7 +81,78 @@ public sealed partial class GlobalIdentitySchemaTests
                 (await mutation.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be("42501");
             }
         }
+        await AssertCreationCapacityWithCheckAsync(database);
     }
+
+    private static async Task AssertCreationCapacityWithCheckAsync(DisposableSchemaDatabase database)
+    {
+        // This platform control has no TenantId. Use the installed authority as
+        // its valid parent, and isolate WITH CHECK from the denied table grant.
+        await using var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.MigrationConnectionString);
+        var metadata = await CapacityProtectionAsync(owner);
+        (await ScalarAsync<bool>(owner, null, """
+            SELECT relrowsecurity AND relforcerowsecurity FROM pg_class
+            WHERE oid='public.identity_creation_capacity'::regclass
+            """)).Should().BeTrue();
+        (await ScalarAsync<long>(owner, null, "SELECT count(*) FROM public.identity_creation_capacity")).Should().Be(1);
+        await using var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.AppConnectionString);
+        (await ScalarAsync<string>(app, null, "SELECT current_user")).Should().Be("learnstack_app");
+        (await ScalarAsync<bool>(app, null,
+            "SELECT has_table_privilege(current_user,'public.identity_creation_capacity','INSERT')")).Should().BeFalse();
+        await using var insert = new NpgsqlCommand("""
+            INSERT INTO public.identity_creation_capacity
+                (authority_id,minute_window,minute_attempts,day_window,day_attempts,allocated_users)
+            VALUES (@authority,date_trunc('minute',clock_timestamp()),0,date_trunc('day',clock_timestamp()),0,0)
+            """, app);
+        insert.Parameters.AddWithValue("authority", GlobalIdentitySchemaFixture.Authority.Value);
+        try
+        {
+            // Test-owned setup only, in a new database with no retained Users.
+            // Removing the existing row avoids a duplicate-key counterexample.
+            await ExecuteAsync(owner, null, """
+                DELETE FROM public.identity_creation_capacity;
+                GRANT INSERT ON public.identity_creation_capacity TO learnstack_app;
+                """);
+            (await ScalarAsync<bool>(app, null,
+                "SELECT has_table_privilege(current_user,'public.identity_creation_capacity','INSERT')")).Should().BeTrue();
+            var write = () => insert.ExecuteNonQueryAsync();
+            var refused = (await write.Should().ThrowAsync<PostgresException>()).Which;
+            refused.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+            refused.MessageText.Should().Contain("row-level security");
+            (await ScalarAsync<long>(owner, null, "SELECT count(*) FROM public.identity_creation_capacity")).Should().Be(0);
+
+            // Commit only the WRITE predicate fault. USING, FORCE RLS, columns,
+            // parent, constraints and the granted statement are unchanged.
+            await ExecuteAsync(owner, null,
+                "ALTER POLICY identity_creation_capacity_owner ON public.identity_creation_capacity WITH CHECK (true)");
+            (await insert.ExecuteNonQueryAsync()).Should().Be(1,
+                "the identical valid app write must become observable when only WITH CHECK is weakened");
+            (await ScalarAsync<long>(owner, null, """
+                SELECT count(*) FROM public.identity_creation_capacity
+                WHERE authority_id=(SELECT authority_id FROM public.identity_authority WHERE id=1)
+                  AND minute_attempts=0 AND day_attempts=0 AND allocated_users=0
+                """)).Should().Be(1);
+        }
+        finally
+        {
+            await ExecuteAsync(owner, null, """
+                ALTER POLICY identity_creation_capacity_owner ON public.identity_creation_capacity
+                    WITH CHECK (current_user='learnstack_migration');
+                REVOKE INSERT ON public.identity_creation_capacity FROM learnstack_app;
+                """);
+        }
+        (await CapacityProtectionAsync(owner)).Should().Be(metadata,
+            "the isolated control restores exact policy, owner, RLS and ACL metadata");
+        (await ScalarAsync<bool>(app, null,
+            "SELECT has_table_privilege(current_user,'public.identity_creation_capacity','INSERT')")).Should().BeFalse();
+    }
+
+    private static Task<string> CapacityProtectionAsync(NpgsqlConnection owner) => ScalarAsync<string>(owner, null, """
+        SELECT jsonb_build_object('owner',c.relowner,'rls',c.relrowsecurity,'force',c.relforcerowsecurity,'acl',c.relacl,
+            'policies',(SELECT jsonb_agg(jsonb_build_array(policyname,permissive,roles,cmd,qual,with_check) ORDER BY policyname)
+                FROM pg_policies WHERE schemaname='public' AND tablename='identity_creation_capacity'))::text
+        FROM pg_class c WHERE c.oid='public.identity_creation_capacity'::regclass
+        """);
 
     [Fact]
     public async Task Applied_function_bodies_signatures_privileges_and_trigger_callers_match_the_compiled_migration()
@@ -205,7 +277,7 @@ public sealed partial class GlobalIdentitySchemaTests
         }
     }
 
-    private static async Task<IReadOnlyList<string>> FunctionViolationsAsync(NpgsqlConnection owner)
+    internal static async Task<IReadOnlyList<string>> FunctionViolationsAsync(NpgsqlConnection owner)
     {
         var expected = CompiledFunctions();
         var issues = new List<string>();

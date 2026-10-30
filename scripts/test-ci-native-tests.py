@@ -1284,6 +1284,12 @@ except launcher.Refusal as failure:
         expected = set(re.findall(r'"([^"]+)"', initial))
         expected |= {prefix + code for prefix in ('browser-callback-', 'browser-authorize-', 'browser-logout-status-')
                      for code in ('0', '200', '303', '400', '403', '404', '429', '503', 'other')}
+        counter = suffix.split('.Concat', 1)[1]
+        counter_array = counter.split('new[] {', 1)[1].split('}', 1)[0]
+        counter_reasons = re.findall(r'"([^"]+)"', counter_array)
+        self.assertEqual(9, len(counter_reasons))
+        self.assertIn('.Select(reason => "browser-administration-counter-" + reason)', counter)
+        expected |= {'browser-administration-counter-' + reason for reason in counter_reasons}
         self.assertEqual(expected, self.owner.BFF_BROWSER_FAILURE_STAGES)
         self.assertIn('privacy', self.owner.BFF_BROWSER_FAILURE_STAGES)
         for reason in self.owner.BFF_BROWSER_FAILURE_REASONS:
@@ -1292,12 +1298,16 @@ except launcher.Refusal as failure:
         for message, reason in self.owner.BFF_BROWSER_FIXED_FAILURES.items():
             self.assertIn(message, source)
             self.assertEqual(reason, parse(case, {'ErrorMessage': message})['reason'])
-        for journey in ('positive', 'counter'):
+        for journey in ('positive', 'counter', 'unavailable_pages'):
             raw = {'ErrorMessage': 'PRIVATE-CANARY', 'Messages': [{'Category': 'StdOutMsgs', 'Text':
                 'BFF browser failure;journey=' + journey + '.\nBFF browser cleanup;journey=' + journey + ';state=failed.'}]}
             self.assertEqual({'stage': 'bff_browser', 'journey': journey, 'secondaryCleanup': 'failed', 'reason': 'other'}, parse(case, raw))
             self.assertIsNone(parse({**case, 'name': case['name'] + '_other'}, raw))
             self.assertIsNone(parse({**case, 'assembly': 'other'}, raw))
+        counter_raw = {'ErrorMessage': 'BFF native fixture did not reach the closed browser_result/browser-administration-counter-view phase.',
+                       'Messages': [{'Category': 'StdOutMsgs', 'Text': 'BFF browser failure;journey=unavailable_pages.'}]}
+        self.assertEqual({'stage': 'bff_browser', 'journey': 'unavailable_pages',
+                          'reason': 'browser-administration-counter-view'}, parse(case, counter_raw))
 
     def test_bff_browser_details_refuse_private_malformed_duplicate_and_wrong_channel_data(self):
         case = {**self.case(1), 'name': self.owner.BFF_BROWSER_FAILURE_CASE}
@@ -1311,6 +1321,8 @@ except launcher.Refusal as failure:
                 ('StdOutMsgs', marker + 'PRIVATE-CANARY'), ('StdOutMsgs', marker.replace('positive', 'private')),
                 ('StdOutMsgs', 'BFF browser cleanup;journey=positive;state=failed.'),
                 ('StdOutMsgs', marker + '\nBFF browser cleanup;journey=counter;state=failed.'),
+                ('StdOutMsgs', marker + '\nBFF browser cleanup;journey=unavailable_pages;state=failed.'),
+                ('StdOutMsgs', marker.replace('positive', 'unavailable_pages_PRIVATE-CANARY')),
                 ('StdOutMsgs', 'X' * 65537 + marker)]:
             self.assertIsNone(parse(case, {'ErrorMessage': message, 'Messages': [{'Category': channel, 'Text': text}]}))
         self.assertIsNone(parse(case, {'ErrorMessage': message, 'Messages': [
@@ -1318,7 +1330,8 @@ except launcher.Refusal as failure:
 
     def test_bff_browser_failure_export_is_case_bound_failure_only_and_contains_no_raw_text(self):
         case = {**self.case(1), 'name': self.owner.BFF_BROWSER_FAILURE_CASE}
-        for reason in ('browser-executable', 'browser-spawn', 'browser-devtools', 'browser-devtools-inactive',
+        for reason in ('browser-administration-counter-view', 'browser-administration-counter-private-output',
+                       'browser-executable', 'browser-spawn', 'browser-devtools', 'browser-devtools-inactive',
                        'browser-devtools-unreadable', 'browser-devtools-missing', 'browser-devtools-empty',
                        'browser-devtools-malformed', 'browser-not-live', 'browser-connect', 'browser-context'):
             for suffix in ('', '_cleanup_failed'):

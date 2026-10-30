@@ -6,7 +6,7 @@ using LearnStack.Modules.Identity.Application.Contracts.Seeding;
 using LearnStack.Modules.Identity.Domain;
 using LearnStack.Modules.Identity.Infrastructure.Bindings;
 using LearnStack.SharedKernel.Permissions;
-using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
+using LearnStack.Modules.Tenancy.Application.Authorization;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Identity;
@@ -17,7 +17,6 @@ using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Xunit;
 
@@ -30,11 +29,9 @@ public sealed partial class GlobalIdentityBootstrapTests
     {
         await using var dataSource = NpgsqlDataSource.Create(_database.AppConnectionString);
         await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(_database, Registration);
-        var seed = new SeedRunner(
-            context => SeedComposition.Build(dataSource, context, NullLoggerFactory.Instance),
-            NullLogger<SeedRunner>.Instance);
-        (await seed.RunAsync(CancellationToken.None, [SeedData.English with { Curriculum = null }]))
-            .Should().Be(0);
+        // Keep the canonical pristine prefix unfinished: the post-binding act
+        // must perform the real second-Organization continuation on its own owner.
+        await CanonicalSeedTenantFixture.ProvisionAsync(dataSource);
         await using (var creation = BuildProvider(_database.AppConnectionString, Registration,
             new FixtureAdmission(Subject, Actor)))
         {
@@ -49,9 +46,8 @@ public sealed partial class GlobalIdentityBootstrapTests
                 services.Replace(ServiceDescriptor.Singleton<ITenantContextAccessor>(accessor));
                 // This unrouted component act proves post-binding coordinator context
                 // acquisition; it does not assert a human role or HTTP capability.
-                ComponentOperationRegistration.AddExactComponentAuthority(services,
-                    OperationPolicy.ForTrusted<CreateOrganizationCommand>(
-                        "tests.component.binding_lifecycle.create_organization", AuthorizationSourceKind.Seed));
+                services.AddSingleton<IOperationPolicySource, TenancyOperationPolicySource>();
+                CanonicalSeedTenantFixture.AddToComponentApi(services, continuation: true);
                 evidence.AddTo(services);
                 services.AddMediatR(configuration => configuration.RegisterServicesFromAssembly(
                     typeof(LearnStack.Modules.Tenancy.Application.AssemblyMarker).Assembly));
@@ -62,10 +58,10 @@ public sealed partial class GlobalIdentityBootstrapTests
         var reader = services.GetRequiredService<IIdentityBindingReader>();
         (await reader.ResolveExistingAsync(Subject)).Outcome.Should().Be(IdentityBindingOutcome.Existing);
 
-        accessor.Current = new ResolvedBindingLifecycleContext(SeedData.English.TenantId, Actor);
-        var organization = OrganizationId.From(Guid.CreateVersion7());
-        var result = await services.GetRequiredService<ISender>().Send(
-            new CreateOrganizationCommand(organization, "binding-lifecycle-branch", "Binding lifecycle branch"));
+        accessor.Current = new ResolvedBindingLifecycleContext(SeedData.English.TenantId, UserId.SystemActor);
+        var command = CanonicalSeedTenantFixture.OrganizationCommand;
+        var organization = command.OrganizationId;
+        var result = await services.GetRequiredService<ISender>().Send(command);
         result.IsSuccess.Should().BeTrue("the real ordinary audit/transaction pipeline sees the newly resolved context");
         services.GetRequiredService<IUnitOfWork>().HasActiveTransaction.Should().BeFalse();
         services.GetRequiredService<IUnitOfWork>().IsRollbackOnly.Should().BeFalse();
@@ -89,9 +85,9 @@ public sealed partial class GlobalIdentityBootstrapTests
         await using var rows = await read.ExecuteReaderAsync();
         (await rows.ReadAsync()).Should().BeTrue("the ordinary business write has its durable MUST audit");
         rows.GetGuid(0).Should().Be(SeedData.English.TenantId.Value);
-        rows.GetGuid(1).Should().Be(Actor.Value);
+        rows.GetGuid(1).Should().Be(UserId.SystemActor.Value);
         rows.GetString(2).Should().Be("success");
-        rows.GetString(3).Should().Contain("Binding lifecycle branch");
+        rows.GetString(3).Should().Contain(command.DisplayName);
         (await rows.ReadAsync()).Should().BeFalse();
     }
 

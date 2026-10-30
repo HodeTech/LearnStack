@@ -65,6 +65,40 @@ public sealed class SeedContentContinuationTests(SchemaFixture schema) : IAsyncL
     }
 
     [Fact]
+    public async Task Omitting_the_declared_curriculum_cannot_skip_locale_prerequisites_and_the_canonical_run_resumes()
+    {
+        await using var source = ApplicationDataSource.Build(_database.AppConnectionString);
+        await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(_database);
+        var runner = new SeedRunner(context => SeedComposition.Build(source, context, NullLoggerFactory.Instance,
+            authorizationEvidence: evidence.Source), NullLogger<SeedRunner>.Instance);
+        var truncated = () => runner.RunAsync(CancellationToken.None, [SeedData.English with { Curriculum = null }]);
+        (await truncated.Should().ThrowAsync<InvalidOperationException>()).WithMessage("*Seed mismatch in built-in content type*");
+        var act = Describe("builtin-content");
+        (await SnapshotAsync(act)).Count.Should().Be(0);
+        (await SuccessesAsync(act)).Should().Be(0);
+        await using (var app = await source.OpenConnectionAsync())
+        await using (var transaction = await app.BeginTransactionAsync())
+        {
+            await SchemaQueries.AssertApplicationRoleAsync(app, transaction);
+            await IdentityMembershipFixture.ScopeAsync(app, transaction, SeedData.English.TenantId.Value);
+            (await IdentityMembershipFixture.ScalarAsync<long>(app, transaction,
+                "SELECT count(*) FROM public.tenant_locales WHERE tenant_id=@tenant",
+                ("tenant", SeedData.English.TenantId.Value))).Should().Be(0);
+        }
+        var refused = await SendAsync(source, evidence, act.Command);
+        refused.IsSuccess.Should().BeFalse("a caller omission cannot replace the independently captured fixed locale vector");
+        refused.Error!.Code.Should().Be("concurrency_conflict");
+        (await SnapshotAsync(act)).Count.Should().Be(0);
+        (await SuccessesAsync(act)).Should().Be(0);
+        (await runner.RunAsync(CancellationToken.None, [SeedData.English])).Should().Be(0);
+        (await SnapshotAsync(act)).Count.Should().Be(1);
+        (await SuccessesAsync(act)).Should().Be(1);
+        var installed = await AuditCountAsync(source);
+        (await runner.RunAsync(CancellationToken.None, [SeedData.English])).Should().Be(0);
+        (await AuditCountAsync(source)).Should().Be(installed);
+    }
+
+    [Fact]
     public async Task Fixed_branding_refuses_before_Customization_completion_and_keeps_the_prefix_resumable()
     {
         await using var source = ApplicationDataSource.Build(_database.AppConnectionString);

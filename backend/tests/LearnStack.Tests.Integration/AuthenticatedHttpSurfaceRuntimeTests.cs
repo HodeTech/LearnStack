@@ -104,7 +104,7 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
             {
                 AssertActionFilterControls(action);
                 AssertEndpointAuthorizationControls(action, endpoint.Metadata);
-                request = await DispatchedRequest(action, endpoint);
+                request = await DispatchedRequest(action, endpoint, factory.Services);
             }
             actual.Add((endpoint.RoutePattern.RawText ?? string.Empty).TrimStart('/') + "|"
                 + string.Join(",", endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods ?? []) + "|"
@@ -297,13 +297,15 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         public void OnProvidersExecuted(FilterProviderContext context) => ArgumentNullException.ThrowIfNull(context);
     }
 
-    private static async Task<Type> DispatchedRequest(ControllerActionDescriptor action, RouteEndpoint endpoint)
+    private static async Task<Type> DispatchedRequest(ControllerActionDescriptor action, RouteEndpoint endpoint, IServiceProvider services)
     {
         var expected = Approved(action);
         var sender = DispatchProxy.Create<ISender, RequestObservation>();
         var observation = (RequestObservation)sender;
         var controllerType = action.ControllerTypeInfo.AsType();
-        object[] constructor = ContextControllers.Contains(controllerType) ? [sender, new CensusTenantContext()] : [sender];
+        object[] constructor = controllerType == typeof(OwnMembershipController)
+            ? [sender, new CensusTenantContext(), services.GetRequiredService<LearnStack.Api.Authentication.NativeEntryOriginOptions>()]
+            : ContextControllers.Contains(controllerType) ? [sender, new CensusTenantContext()] : [sender];
         var controller = (ControllerBase)Activator.CreateInstance(controllerType, constructor)!;
         var context = new DefaultHttpContext();
         context.SetEndpoint(endpoint);

@@ -859,13 +859,24 @@ BFF_BROWSER_FAILURE_STAGES = {
     'browser-devtools-unreadable', 'browser-devtools-missing', 'browser-devtools-empty', 'browser-devtools-malformed',
     'browser-not-live', 'browser-connect', 'browser-context',
     'browser-launch', 'browser-anonymous', 'browser-signin-document', 'browser-submit',
+    'browser-entry-confirmation', 'browser-administration-pages', 'browser-no-script',
+    'browser-no-script-hidden-render', 'browser-no-script-missing-form', 'browser-no-script-invisible-form',
+    'browser-no-script-native-buttons', 'browser-no-script-native-profile-form',
+    'browser-no-script-anonymous', 'browser-no-script-signin', 'browser-no-script-confirm',
+    'browser-no-script-select', 'browser-no-script-controls', 'browser-no-script-submit',
+    'browser-no-script-origin', 'browser-no-script-result', 'browser-no-script-cache',
+    'browser-no-script-saved', 'browser-no-script-privacy', 'browser-no-script-signout',
+    'browser-no-script-headers',
     'browser-origin-null', 'browser-origin-absent', 'browser-origin-other', 'browser-storage',
     'browser-extension', 'browser-logout-submit', 'browser-logout-origin', 'browser-logout-origin-null',
     'browser-logout-origin-other', 'browser-logout-response', 'browser-logout-location',
     'browser-logout-navigation', 'browser-logout-cookie-header', 'browser-logout-cookie',
     'browser-back-revalidation', 'browser-history-setup', 'browser-history-revalidation', 'browser-headers',
 } | {prefix + code for prefix in ('browser-callback-', 'browser-authorize-', 'browser-logout-status-')
-     for code in ('0', '200', '303', '400', '403', '404', '429', '503', 'other')}
+     for code in ('0', '200', '303', '400', '403', '404', '429', '503', 'other')} | {
+    'browser-administration-counter-' + reason for reason in
+    ('progress', 'status', 'cache', 'wrapper', 'heading', 'view', 'alert', 'observer', 'private-output')
+}
 BFF_BROWSER_FAILURE_REASONS = BFF_BROWSER_FAILURE_STAGES | {
     stage + '_unexpected_output' for stage in BFF_BROWSER_FAILURE_STAGES
 } | {
@@ -876,6 +887,9 @@ BFF_BROWSER_FIXED_FAILURES = {
     'BFF native fixture could not start.': 'spawn',
     'BFF native fixture private input failed.': 'input',
     'BFF browser fixture lacks its complete positive/counter witness.': 'witness',
+    'BFF browser fixture receipt has an invalid closed shape.': 'receipt_shape',
+    "BFF browser fixture lacks both hosts' complete page/no-script witnesses.": 'pages_witness',
+    'BFF browser counter has no closed unavailable-page witness.': 'pages_counter_witness',
     'BFF browser restore count is outside its bound.': 'restore_count',
     'BFF browser counter has no closed restoration witness.': 'counter_witness',
     'BFF native fixture emitted an unexpected extra receipt.': 'extra_receipt',
@@ -904,7 +918,7 @@ def closed_bff_browser_details(raw):
             continue
         lines = [line for item in messages if item['Category'] == 'StdOutMsgs'
                  for line in item['Text'].splitlines() if marker in line]
-        pattern = re.escape(marker) + r'journey=(positive|counter)' + (r';state=failed\.' if kind == 'cleanup' else r'\.')
+        pattern = re.escape(marker) + r'journey=(positive|counter|unavailable_pages)' + (r';state=failed\.' if kind == 'cleanup' else r'\.')
         match = re.fullmatch(pattern, lines[0]) if count == 1 and len(lines) == 1 else None
         if match is None or kind == 'cleanup' and result.get('journey') != match[1]:
             return None
