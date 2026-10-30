@@ -404,7 +404,10 @@ session lease before private recovery content is published. They recheck current
 CSRF and exact action binding; they do not repeat the mutation or acquire new
 authority. Checks precede native header flush, write and end. Invalidated output
 becomes an empty no-store 503 before headers; after headers, the connection is
-destroyed. Original native backpressure and write callbacks remain intact.
+destroyed. A response/socket already destroyed before its close event admits no
+new write credit: Node can discard such callbacks. Previously issued writes still
+retain their credit until their actual callbacks settle. Original native
+backpressure and write callbacks remain intact.
 
 The own-capability read is Off/no-store/no-ETag and returns exactly nine advisory
 flags: canReadTenantMembers, canReadOrganizationMembers, canWriteMemberProfiles,
@@ -424,6 +427,11 @@ Recoverable localized states include 403/404, 409 conflict/key cases, 429, 503,
 unknown commit, expiry and no Membership. Do not assert rollback or automatically
 retry mutations. PreferredLocale uses only the exact current Membership's enabled
 UI preference, else site default; it never changes content locale or scope.
+An unavailable stored preference is shown explicitly in an editable profile.
+Saving requires a deliberate enabled-language or site-default choice, with no
+preselection that silently removes the stored value. The required native radio
+group uses the existing locale/empty-default wire and needs no JavaScript. Read
+fallback alone does not change the saved preference.
 Unknown outcomes keep the original body/version/key only for a deliberate same-
 request retry. Stale-version and key-reuse recovery has no resubmission form: it
 shows escaped, localized submitted edits for review, with bounded original intent

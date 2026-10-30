@@ -27,7 +27,9 @@ export function protectPageResponse(
     Reflect.apply(end, response, []);
   };
   const allowed = () => {
-    if (refusing) return false;
+    // Node can drop writes without invoking their callbacks after socket.destroy()
+    // but before response.close. Do not acquire work that can never settle.
+    if (refusing || response.destroyed || response.socket?.destroyed) return false;
     try {
       check();
       return true;

@@ -6,6 +6,8 @@
   "locale_hint": "Bu tercih bu üyeliğin arayüzünde geçerlidir. Kurum içeriğini veya hesap erişimini değiştirmez.",
   "site_default": "Kurumun varsayılan dilini kullan",
   "fallback": "Tercih edilen dil kullanılamadığında kurumun varsayılan dili kullanılır.",
+  "unavailable_preference": "Kaydedilmiş tercih edilen dil kullanılamıyor",
+  "choose_replacement": "Kaydetmeden önce kullanılabilir bir dil veya kurumun varsayılan dilini seçin. Varsayılanı seçmek kaydedilmiş tercihi kaldırır.",
   "save": "Profili kaydet",
   "read_only": "Profilinizi okuyabilirsiniz. Şu anda düzenleme yetkiniz bulunmuyor.",
   "missing": "Bu hesap erişimi için tam eşleşen bir üyelik profili bulunmuyor. Diğer kullanılabilir görünümleri kullanabilirsiniz.",

@@ -123,7 +123,7 @@ internal sealed class BffNativeDriver : IAsyncDisposable
         var expected = counter ? "rejected_history" : unavailablePageCounter ? "rejected_pages" : "passed";
         var properties = string.Join(',', reply.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal));
         if (properties != (rejected ? "hosts,outcome,phase,protocol,version,witness"
-            : "administrationPages,hosts,naturalRestores,noScriptHosts,outcome,phase,protocol,version"))
+            : "administrationPages,disabledPreferenceChoices,hosts,naturalRestores,noScriptHosts,outcome,phase,protocol,version"))
             throw new InvalidOperationException("BFF browser fixture receipt has an invalid closed shape.");
         var version = reply.GetProperty("version").GetString();
         driver._expectedExit = rejected ? 1 : 0;
@@ -134,7 +134,8 @@ internal sealed class BffNativeDriver : IAsyncDisposable
         var restores = rejected ? 0 : reply.GetProperty("naturalRestores").GetInt32();
         if (restores is < 0 or > 32) throw new InvalidOperationException("BFF browser restore count is outside its bound.");
         if (!rejected && (reply.GetProperty("administrationPages").GetInt32() != 10
-            || reply.GetProperty("noScriptHosts").GetInt32() != 2))
+            || reply.GetProperty("noScriptHosts").GetInt32() != 2
+            || reply.GetProperty("disabledPreferenceChoices").GetInt32() != 1))
             throw new InvalidOperationException("BFF browser fixture lacks both hosts' complete page/no-script witnesses.");
         driver._complete = true;
         var witness = rejected ? reply.GetProperty("witness").GetString() : null;

@@ -417,6 +417,11 @@ Keep the following evidence distinct:
   and connection closure after headers without invented backpressure or completed
   callbacks. Native entry and mutation/account-change recovery documents use the
   same output fence; test late recovery output as well as successful page output.
+  Real HTTP `ServerResponse` controls destroy its socket before `close` and attempt
+  immediate write/end: no new callback credit may strand. An earlier issued
+  callback held separately must still retain the frame/snapshot until released.
+  A fake transport that always invokes remembered callbacks cannot refute this
+  Node behavior.
 - The source fence refutes added application awaits, schedulers, API/IO aliases,
   transitive imports and framework background hooks in the selected RSC closure.
   It permits only the passive page/provenance seam. This is bounded source analysis;
@@ -439,6 +444,11 @@ visible no-script notice by a DOM locator and exact text; a text-selector engine
 that excludes `noscript` is not evidence that the browser hid that notice. This
 fixture proves browser behavior, not the real provider/API chain or manual
 assistive-technology conformance.
+An unavailable stored profile preference has no preselected replacement: test
+name-only invalidity and absent locale form data, deliberate empty/default or
+enabled choice, and preservation when that language becomes available again.
+The no-script journey also exercises the required choice through the native form;
+its closed receipt distinguishes this witness from ordinary enabled/default input.
 
 Keep natural Back navigation and the explicit persisted-event counter separate.
 A stock browser can perform fresh network navigation with zero natural BFCache

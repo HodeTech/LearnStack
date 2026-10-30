@@ -8,10 +8,11 @@
 > are jointly Accepted. Steps 1–8 close both fresh independent review rounds and
 > verified corrections. The [Step 9 implementation record](phase-03-delivery-log.md#p03-3-step-9-implementation-and-automated-qualification-2026-10-30)
 > records bounded native snapshots, selected screens and automated proof.
-> The [first fresh Step 9 review and corrections](phase-03-delivery-log.md#p03-3-step-9-review-round-1-and-verified-corrections-2026-10-30)
-> are complete. The second fresh round and manual keyboard/focus/reflow/contrast/
-> VoiceOver evidence remain open; computer control fails before UI interaction.
-> Step 10 retains complete final-source, public-demo and hosted A/B qualification.
+> Both fresh Step 9 rounds and [verified corrections](phase-03-delivery-log.md#p03-3-step-9-review-round-2-and-verified-lifetime-and-profile-corrections-2026-10-30)
+> are complete. Step 9 remains open for actual manual keyboard/focus/reflow/
+> contrast/VoiceOver evidence; computer control fails before UI interaction.
+> Independent final local checks proceed while that gate is unavailable. Step 10
+> retains complete final-source, public-demo and hosted A/B qualification.
 > [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md) and
 > [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md)
 > are Accepted; their separate eight-consumer prerequisite and one-consumer

@@ -47,6 +47,7 @@ export function ProfileFields({
     value.preferredLocale && snapshot.site.enabledLocales.includes(value.preferredLocale)
       ? value.preferredLocale
       : '';
+  const unavailable = value.preferredLocale !== null && selected === '';
   return (
     <>
       <div className="auth-field">
@@ -60,25 +61,58 @@ export function ProfileFields({
         />
         <p id={prefix + '-name-hint'}>{profile('display_name_hint')}</p>
       </div>
-      <div className="auth-field">
-        <label htmlFor={prefix + '-locale'}>{profile('preferred_locale')}</label>
-        <select
-          id={prefix + '-locale'}
-          name="preferredLocale"
-          defaultValue={selected}
+      {unavailable ? (
+        <fieldset
+          className="auth-field auth-locale-choices"
           aria-describedby={prefix + '-locale-hint'}
         >
-          <option value="">{profile('site_default')}</option>
-          {snapshot.site.enabledLocales.map((tag) => (
-            <option value={tag} key={tag}>
-              {languageLabel(tag, locale)}
-            </option>
+          <legend>{profile('preferred_locale')}</legend>
+          <p>
+            {profile('unavailable_preference')}: {languageLabel(value.preferredLocale!, locale)}
+          </p>
+          <p id={prefix + '-locale-hint'}>
+            {profile('choose_replacement')} {profile('locale_hint')} {profile('fallback')}
+          </p>
+          {[
+            { tag: '', label: profile('site_default') },
+            ...snapshot.site.enabledLocales.map((tag) => ({
+              tag,
+              label: languageLabel(tag, locale),
+            })),
+          ].map(({ tag, label }, index) => (
+            <div key={tag}>
+              <input
+                id={prefix + '-locale-' + index}
+                type="radio"
+                name="preferredLocale"
+                value={tag}
+                required
+              />
+              <label htmlFor={prefix + '-locale-' + index}>{label}</label>
+            </div>
           ))}
-        </select>
-        <p id={prefix + '-locale-hint'}>
-          {profile('locale_hint')} {profile('fallback')}
-        </p>
-      </div>
+        </fieldset>
+      ) : (
+        <div className="auth-field">
+          <label htmlFor={prefix + '-locale'}>{profile('preferred_locale')}</label>
+          <select
+            id={prefix + '-locale'}
+            name="preferredLocale"
+            defaultValue={selected}
+            aria-describedby={prefix + '-locale-hint'}
+          >
+            <option value="">{profile('site_default')}</option>
+            {snapshot.site.enabledLocales.map((tag) => (
+              <option value={tag} key={tag}>
+                {languageLabel(tag, locale)}
+              </option>
+            ))}
+          </select>
+          <p id={prefix + '-locale-hint'}>
+            {profile('locale_hint')} {profile('fallback')}
+          </p>
+        </div>
+      )}
       {children}
       <button type="submit">{profile('save')}</button>
     </>

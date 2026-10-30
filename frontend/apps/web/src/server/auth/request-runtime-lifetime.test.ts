@@ -1,5 +1,8 @@
 // @vitest-environment node
-import { describe, expect, it } from 'vitest';
+import { createServer, request } from 'node:http';
+import type { ServerResponse } from 'node:http';
+
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   heldWork,
@@ -38,6 +41,117 @@ function fixture() {
 }
 
 describe('actual native snapshot request lifetime', () => {
+  it.each([false, true])(
+    'refuses destroyed-socket writes before close without abandoning an earlier callback (held=%s)',
+    async (holdIssuedCallback) => {
+      const admission = createPublicAdmissionRuntime(true);
+      const runtime = createBffRequestRuntime(admission.holder);
+      const rejectedWrite = vi.fn();
+      const rejectedEnd = vi.fn();
+      const issued = vi.fn();
+      let releaseIssued: (() => void) | undefined;
+      let response!: ServerResponse;
+      let closed = false;
+      let served!: () => void;
+      let failed!: (error: unknown) => void;
+      const handled = new Promise<void>((resolve, reject) => {
+        served = resolve;
+        failed = reject;
+      });
+      const server = createServer((incoming, outgoing) => {
+        response = outgoing;
+        outgoing.once('close', () => {
+          closed = true;
+        });
+        if (holdIssuedCallback) {
+          const write = outgoing.write;
+          outgoing.write = function (this: ServerResponse, ...args: unknown[]) {
+            const callback = args.pop();
+            if (typeof callback !== 'function') throw new Error('Expected tracked callback');
+            args.push((...values: unknown[]) => {
+              releaseIssued = () => {
+                releaseIssued = undefined;
+                Reflect.apply(callback, this, values);
+              };
+            });
+            return Reflect.apply(write, this, args) as boolean;
+          } as ServerResponse['write'];
+        }
+        try {
+          admission.run(snapshotBinding, incoming, outgoing, () => {
+            admission.holder.begin(snapshotBinding).publish(site);
+            runtime.run(snapshotBinding, incoming, outgoing, () => {
+              const lease = runtime.preparation.reserve(
+                runtime.preparation.current(snapshotBinding),
+                {},
+              );
+              lease.pin(() => true, 30_000);
+              lease.publishEntry(entry);
+              if (holdIssuedCallback) outgoing.write('admitted', issued);
+              outgoing.socket!.destroy();
+              expect(closed).toBe(false);
+              expect(outgoing.write('withheld', rejectedWrite)).toBe(false);
+              expect(outgoing.end('withheld', rejectedEnd)).toBe(outgoing);
+            });
+          });
+          served();
+        } catch (error) {
+          failed(error);
+        }
+      });
+      try {
+        await new Promise<void>((resolve, reject) => {
+          server.once('error', reject);
+          server.listen(0, '127.0.0.1', resolve);
+        });
+        const address = server.address();
+        if (!address || typeof address === 'string') throw new Error('Expected local address');
+        const completed = new Promise<void>((resolve) => {
+          const call = request(
+            { host: '127.0.0.1', port: address.port, path: '/studio', agent: false },
+            (received) => {
+              received.resume();
+              received.once('end', resolve);
+              received.once('aborted', resolve);
+              received.once('error', () => resolve());
+            },
+          );
+          call.once('error', () => resolve());
+          call.end();
+        });
+        await handled;
+        await completed;
+        await vi.waitFor(() => {
+          expect(closed).toBe(true);
+          expect(response.destroyed).toBe(true);
+          expect(rejectedWrite).toHaveBeenCalledExactlyOnceWith(expect.any(Error));
+          expect(rejectedEnd).toHaveBeenCalledExactlyOnceWith(expect.any(Error));
+        });
+        if (holdIssuedCallback) {
+          await vi.waitFor(() => expect(releaseIssued).toBeTypeOf('function'));
+          expect(issued).not.toHaveBeenCalled();
+          expect(runtime.counts()).toBe(1);
+          expect(runtime.snapshotCounts().active).toBe(1);
+          releaseIssued!();
+          expect(issued).toHaveBeenCalledOnce();
+        }
+        await vi.waitFor(() => {
+          expect(runtime.counts()).toBe(0);
+          expect(runtime.snapshotCounts()).toEqual({ active: 0, owners: 0, bytes: 0 });
+        });
+        await runtime.stop();
+      } finally {
+        releaseIssued?.();
+        response?.destroy();
+        admission.shutdown();
+        // A dirty implementation may strand a callback forever; do not let that
+        // expected assertion failure turn into an unbounded test cleanup wait.
+        void runtime.stop();
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+      }
+    },
+  );
+
   it('rejects copied tickets and an authentic ticket borrowed by an equal-binding neighbor', async () => {
     const { runtime, run } = fixture();
     const first = new SnapshotWire();

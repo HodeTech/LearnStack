@@ -6418,7 +6418,9 @@ Prior receipts do not qualify subsequent source changes.
   invalidate access but retain credit until actual API/shared-refresh work,
   native handler, registered Next framework work and response-body/write-callback
   cleanup settle. Stop joins these owners; delayed chunks cannot disclose an old
-  snapshot. The framework hook accounts for registered work, with the selected
+  snapshot. Real destroyed-before-close sockets admit no new write callback credit;
+  an earlier issued callback retains its existing frame/snapshot credit until
+  actual settlement. The framework hook accounts for registered work, with the selected
   RSC source controls above closing additional application work.
 - **Source:** ADR-0070/0071/0078/0079; Security 11 § Tenant BFF sessions and native entry.
 - **Type:** unit and actual response-owning routes. **Kind:** behavioural.
@@ -6472,6 +6474,9 @@ Prior receipts do not qualify subsequent source changes.
   `src/server/auth/store-page-preload.test.ts` and `src/server/auth/auth.test.ts`;
   exact en/tr catalogue and preferred-locale selection use
   `src/i18n/administration-catalogues.test.ts` and `src/i18n/request.test.ts`.
+  `src/components/auth/admin-pages.test.tsx` covers explicit replacement of an
+  unavailable stored preference through the existing native field values; the
+  no-script browser journey exercises that required choice and verifies its POST.
 - **Status:** **Implemented** — native input/route controls above and the actual browser
   form/Origin and no-network startup cases in `TenantBffSessionTests`.
 - **Phase:** P02b-7 Steps 3–5; P03-3 Steps 8–9 extend native forms and finite page preparation.

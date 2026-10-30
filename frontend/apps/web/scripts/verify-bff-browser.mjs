@@ -50,6 +50,7 @@ let counterPage;
 let counterPageResponse;
 let administrationPages = 0;
 let noScriptHosts = 0;
+let disabledPreferenceChoices = 0;
 let authStatus = 0;
 let callbackStatus = 0;
 let authorizeCalls = 0;
@@ -168,6 +169,7 @@ try {
     secret,
     marker,
     uiMode: true,
+    disabledOwnPreference: true,
     sites: input.sites,
     fakeIssuer,
     fakeLogout: logoutTarget,
@@ -729,6 +731,24 @@ try {
     await profileForm
       .locator('input[name="displayName"]')
       .fill('Saved without JavaScript at ' + site.locale);
+    const firstHost = site === input.sites[0];
+    if (firstHost) {
+      const radios = profileForm.locator('input[type="radio"][name="preferredLocale"]');
+      assert.ok((await radios.count()) >= 2);
+      assert.equal(
+        await profileForm.locator('input[type="radio"][name="preferredLocale"]:checked').count(),
+        0,
+      );
+      assert.equal(await profileForm.evaluate((form) => form.checkValidity()), false);
+      assert.equal(
+        await profileForm.evaluate((form) => new FormData(form).has('preferredLocale')),
+        false,
+      );
+      await profileForm.locator('input[type="radio"][name="preferredLocale"][value=""]').check();
+      assert.equal(await profileForm.evaluate((form) => form.checkValidity()), true);
+    } else {
+      assert.equal(await profileForm.locator('select[name="preferredLocale"]').inputValue(), '');
+    }
     stage = 'browser-no-script-submit';
     const [nativeWrite, nativeResult] = await withProofWaiters(
       [
@@ -747,6 +767,7 @@ try {
     );
     stage = 'browser-no-script-origin';
     assert.equal(await nativeWrite.headerValue('origin'), origin(site));
+    assert.equal(new URLSearchParams(nativeWrite.postData()).get('preferredLocale'), '');
     stage = 'browser-no-script-result';
     assert.equal(nativeResult.status(), 303);
     assert.equal(await nativeResult.headerValue('location'), origin(site) + '/portal/profile');
@@ -758,6 +779,8 @@ try {
       await nativePage.locator('input[name="displayName"]').inputValue(),
       'Saved without JavaScript at ' + site.locale,
     );
+    assert.equal(await nativePage.locator('select[name="preferredLocale"]').inputValue(), '');
+    if (firstHost) ++disabledPreferenceChoices;
     stage = 'browser-no-script-privacy';
     const noScriptCookies = await noScript.cookies(origin(site));
     assert.ok(noScriptCookies.some((cookie) => cookie.name === '__Host-ls-session'));
@@ -811,6 +834,7 @@ try {
       hosts: 2,
       administrationPages,
       noScriptHosts,
+      disabledPreferenceChoices,
       version,
       naturalRestores,
     }) + '\n',

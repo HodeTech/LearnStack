@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 2,730 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 2,794 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -187,6 +187,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 8 review round 2 and cursor confidentiality closeout (2026-10-29)](#p03-3-step-8-review-round-2-and-cursor-confidentiality-closeout-2026-10-29) — 91 lines
   - [P03-3 Step 9 implementation and automated qualification (2026-10-30)](#p03-3-step-9-implementation-and-automated-qualification-2026-10-30) — 82 lines
   - [P03-3 Step 9 review round 1 and verified corrections (2026-10-30)](#p03-3-step-9-review-round-1-and-verified-corrections-2026-10-30) — 63 lines
+  - [P03-3 Step 9 review round 2 and verified lifetime and profile corrections (2026-10-30)](#p03-3-step-9-review-round-2-and-verified-lifetime-and-profile-corrections-2026-10-30) — 64 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -8460,3 +8461,67 @@ still requires a working computer-control connection or maintainer observation.
 No such pass, setting change or UI observation is claimed. The second required
 fresh review round and complete final-source/public-demo/hosted A/B qualification
 remain open; this correction record does not close Step 9 or the packet.
+
+### P03-3 Step 9 review round 2 and verified lifetime and profile corrections (2026-10-30)
+
+**Review scope.** Three new independent reviewers examine the whole Step 9 range
+`83ce78b1..9c564330` in separate authority/privacy, lifetime/resource and
+experience/i18n/proof slices. The authority slice reports no finding. Lifetime
+identifies one Major liveness issue; experience identifies one Minor profile-edit
+issue. Each report names its coverage and static-execution limit; none is an
+unconditional approval of the entire accumulated P03-3 branch. Manual
+assistive-technology observation is a separate gate throughout.
+
+**Major — destroyed-before-close write credit.** A real Node `ServerResponse`
+can discard write/end callbacks when its socket has been destroyed but its close
+event has not yet run. The output fence admitted new write counters in that
+window. Root reproduces two pending counters and zero callbacks after real socket
+closure. A second probe through actual public admission, native request context
+and snapshot pool retains one frame/one snapshot and cannot finish stop. These
+are scoped native-lifetime probes with a synthetic trusted binding, not provider,
+HTTP-authorization or remote-attack proof.
+
+The fence now refuses a destroyed response/socket before acquiring new write
+credit. It does not discharge an earlier issued callback on close. Two new real
+HTTP/native-frame/pool cases cover both no-prior-write and deliberately held
+prior-callback orders; the latter retains credit until that actual callback is
+released. This preserves the owned-work guarantee without inventing cleanup from
+an abort/close event.
+
+**Minor — unavailable stored language.** Previously the editable profile showed
+site default when its saved preference was disabled/removed. A name-only save
+then silently cleared that preference, while the API correctly refuses a new
+non-null disabled value. Shared own/member profile fields now show the saved
+unavailable language and require a deliberate native radio choice: an enabled
+tag or the existing empty/default value. Nothing is preselected. Normal null or
+enabled preferences retain the select. Labels/hints and explicit clear semantics
+are equal in en/tr; the wire, API policy and permission set do not change.
+Tests cover invalid name-only edits/no submitted locale, deliberate choices and
+restoration when the saved language becomes available again.
+
+**Verification.** Against the original `9c564330` implementations, all four new
+profile/socket cases fail while 25 existing cases pass; the fixed files are
+restored before green execution. Fixed targeted controls pass 38/38, zero skips.
+The independent authority reviewer then reads both corrections and reports no
+remaining actionable finding; that readback performs no tests.
+
+The current actual stock-browser Fact passes, zero skips, in 42 seconds after a
+strict integration build with zero warnings/errors. Both hosts retain ten ready
+page visits/two no-script flows and both live history/unavailable-view counters.
+The first no-script host additionally proves native invalidity and absent locale
+form data after a name edit, then explicitly chooses default and observes that
+empty value in the actual POST/save. The second host covers the normal select
+after the deliberately shared fake profile clears. The closed receipt requires
+exactly one such disabled-preference witness. This shared fixture is not per-host
+profile-isolation proof. Natural BFCache restores remain zero. Current real
+provider/API and complete final-source populations retain their distinct owners.
+
+**Final correction qualification.** Workspace typecheck/lint and guarded frontend\npass 3,245/3,245 cases in two packages, zero skips/todos. All nine current-source\nnative/provider/browser cases pass together, zero skips, in 7m06s, retaining the\nreal PostgreSQL/Keycloak ready-page and exact per-trace MUST evidence. Latest\ncorpus/Docker-trait, documentation/index and normal-hook checks accompany this\ncorrection. These current-source results supersede none of the distinct manual\nor hosted qualification requirements.\n\n**Review and manual boundary.** Both required fresh independent rounds and their
+verified corrections are recorded. The correction commit uses normal hooks and
+receives an exact pre-hook-tree audit. Step 9 remains open for actual manual
+keyboard/focus/reflow/contrast/VoiceOver observation: three computer-use attempts
+fail native-pipe startup, no UI interaction or setting change occurs, and the
+maintainer's connection/checklist question is pending. Independent local full
+checks can proceed while that external gate is unavailable. Step 10 final-source,
+public-demo and hosted A/B qualification and the reviewable PR remain outstanding;
+this is not packet or production-readiness closeout.

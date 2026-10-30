@@ -151,6 +151,53 @@ describe('prepared administration views', () => {
     );
     expect(form.querySelector('input[name="displayName"]')?.getAttribute('maxlength')).toBe('128');
   });
+  it.each(['en', 'tr'] as const)(
+    'requires an explicit replacement for an unavailable preference in both profile forms (%s)',
+    (locale) => {
+      for (const kind of ['profile', 'member'] as const) {
+        const view =
+          kind === 'profile'
+            ? { kind, canWrite: true }
+            : { kind, member: { ...uiMember, preferredLocale: 'fr' }, roles: [uiRole] };
+        const ownProfile = {
+          displayName: 'Mine',
+          preferredLocale: kind === 'profile' ? 'fr' : locale,
+          version: '1',
+        };
+        const base = administrationSnapshot(view);
+        const overrides = { ownProfile, site: { ...base.site, defaultLocale: locale } };
+        const { document } = documentFor(view, overrides);
+        const action =
+          kind === 'profile' ? '/api/account/profile' : '/api/studio/membership-profile';
+        const form = document.querySelector<HTMLFormElement>(`form[action="${action}"]`)!;
+        const name = form.querySelector<HTMLInputElement>('input[name="displayName"]')!;
+        name.value = 'Changed name';
+        const radios = [
+          ...form.querySelectorAll<HTMLInputElement>('input[name="preferredLocale"]'),
+        ];
+        expect(radios.every((radio) => !radio.checked)).toBe(true);
+        expect(form.checkValidity()).toBe(false);
+        expect(new FormData(form).has('preferredLocale')).toBe(false);
+        expect(form.querySelector('fieldset legend')?.textContent).toBe(
+          locale === 'en' ? 'Preferred language' : 'Tercih edilen dil',
+        );
+        expect(form.textContent).toContain(
+          locale === 'en' ? 'Choosing the default removes' : 'Varsayılanı seçmek',
+        );
+        for (const choice of ['', 'tr']) {
+          radios.find((radio) => radio.value === choice)!.checked = true;
+          expect(form.checkValidity()).toBe(true);
+          expect(new FormData(form).get('preferredLocale')).toBe(choice);
+        }
+        const restored = documentFor(view, {
+          ...overrides,
+          site: { ...overrides.site, enabledLocales: ['en', 'tr', 'fr'] },
+        }).document.querySelector<HTMLFormElement>(`form[action="${action}"]`)!;
+        expect(new FormData(restored).get('preferredLocale')).toBe('fr');
+        expect(restored.checkValidity()).toBe(true);
+      }
+    },
+  );
   it('keeps tenant-wide member disclosure read-only outside exact write scope', () => {
     const { document } = documentFor({
       kind: 'member',
