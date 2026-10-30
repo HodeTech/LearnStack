@@ -332,15 +332,21 @@ public sealed partial class AuthenticatedHttpSurfaceTests
 
     private static bool CarrierMetadataReadOnly(TypeDefinition type)
     {
-        if (Flatten(type).SelectMany(owner => owner.Fields).Any(field => field.FieldType.FullName == IdempotentMetadata)
-            || Il.Methods(type).Any(pair => pair.Definition.ReturnType.FullName == IdempotentMetadata
-                || pair.Definition.Parameters.Any(parameter => parameter.ParameterType.FullName == IdempotentMetadata))) return false;
+        if (Flatten(type).Any(owner => owner.Fields.Any(field => CarriesKeyMetadata(field.FieldType))
+                || owner.Properties.Any(property => CarriesKeyMetadata(property.PropertyType))
+                || owner.Events.Any(item => CarriesKeyMetadata(item.EventType)))
+            || Il.Methods(type).Any(pair => CarriesKeyMetadata(pair.Definition.ReturnType)
+                || pair.Definition.Parameters.Any(parameter => CarriesKeyMetadata(parameter.ParameterType))
+                || pair.Definition.HasBody && (pair.Definition.Body.Variables.Any(variable => CarriesKeyMetadata(variable.VariableType)
+                        && !ReadOnlyKeyMetadataLocal(pair.Definition, pair.DeclaredAs, variable))
+                    || pair.Definition.Body.ExceptionHandlers.Any(handler => handler.CatchType is { } caught && CarriesKeyMetadata(caught))))) return false;
         var reads = 0;
         var getters = 0;
         foreach (var pair in Il.Methods(type).Where(pair => pair.Definition.HasBody))
             foreach (var instruction in pair.Definition.Body.Instructions)
             {
-                if (instruction.Operand is TypeReference reference && reference.FullName == IdempotentMetadata) return false;
+                if (instruction.Operand is TypeReference reference && CarriesKeyMetadata(reference)
+                    || instruction.Operand is FieldReference field && (CarriesKeyMetadata(field.FieldType) || CarriesKeyMetadata(field.DeclaringType))) return false;
                 if (instruction.Operand is not MethodReference target) continue;
                 if (target.DeclaringType.FullName == IdempotentMetadata)
                 {
@@ -348,15 +354,93 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                         || !ExactKeyMetadataGetter(target, type.Module)) return false;
                     getters++;
                 }
-                if (target is GenericInstanceMethod generic && generic.GenericArguments.Any(argument => argument.FullName == IdempotentMetadata))
+                else if (target is GenericInstanceMethod generic && generic.GenericArguments.Any(CarriesKeyMetadata))
                 {
-                    if (pair.DeclaredAs != "ExecuteAsync" || instruction.OpCode != OpCodes.Callvirt || generic.Name != "GetMetadata"
-                        || generic.DeclaringType.FullName != "Microsoft.AspNetCore.Http.EndpointMetadataCollection" || generic.Parameters.Count != 0) return false;
+                    if (pair.DeclaredAs != "ExecuteAsync" || !CarrierMetadataFetch(instruction)) return false;
                     reads++;
                 }
+                else if (CarriesKeyMetadata(target.DeclaringType) || CarriesKeyMetadata(target.ReturnType)
+                    || target.Parameters.Any(parameter => CarriesKeyMetadata(parameter.ParameterType))) return false;
             }
         return reads == 1 && getters == 1;
     }
+    private static bool ReadOnlyKeyMetadataLocal(MethodDefinition method, string declaredAs, VariableDefinition local)
+    {
+        if (declaredAs != "ExecuteAsync" || local.VariableType is TypeSpecification
+            || Key(local.VariableType) != "LearnStack.Api:" + IdempotentMetadata) return false;
+        var stores = method.Body.Instructions.Where(instruction => instruction.OpCode.Code is Code.Stloc or Code.Stloc_S
+            or Code.Stloc_0 or Code.Stloc_1 or Code.Stloc_2 or Code.Stloc_3 && LocalIndex(instruction) == local.Index).ToArray();
+        var loads = method.Body.Instructions.Where(instruction => instruction.OpCode.Code is Code.Ldloc or Code.Ldloc_S
+            or Code.Ldloc_0 or Code.Ldloc_1 or Code.Ldloc_2 or Code.Ldloc_3 && LocalIndex(instruction) == local.Index).ToArray();
+        if (stores.Length != 1 || loads.Length == 0 || Previous(stores[0]) is not { } fetch || !CarrierMetadataFetch(fetch)
+            || method.Body.Instructions.Any(instruction => instruction.OpCode.Code is Code.Ldloca or Code.Ldloca_S
+                && instruction.Operand is VariableDefinition addressed && addressed.Index == local.Index)) return false;
+        var getterRead = false;
+        foreach (var load in loads)
+        {
+            if (!ReadOnlyKeyMetadataUse(method, load, out var readsGetter)) return false;
+            getterRead |= readsGetter;
+        }
+        return getterRead;
+    }
+
+    // Follow only the metadata value's stack uses. Compiler null-conditionals may
+    // duplicate it across a null branch; those are still reads. No call, store,
+    // box, address or delegate escape is accepted while the value is on stack.
+    private static bool ReadOnlyKeyMetadataUse(MethodDefinition method, Instruction load, out bool readsGetter)
+    {
+        readsGetter = false;
+        var pending = new Queue<(Instruction? Instruction, int Copies)>();
+        pending.Enqueue((load.Next, 1));
+        var visited = new HashSet<(Instruction, int)>();
+        var steps = 0;
+        while (pending.TryDequeue(out var state))
+        {
+            var (instruction, copies) = state;
+            if (copies == 0) continue;
+            if (instruction is null || ++steps > 128 || !visited.Add((instruction, copies))) return false;
+            switch (instruction.OpCode.Code)
+            {
+                case Code.Nop: pending.Enqueue((instruction.Next, copies)); break;
+                case Code.Dup: pending.Enqueue((instruction.Next, copies + 1)); break;
+                case Code.Pop: pending.Enqueue((instruction.Next, copies - 1)); break;
+                case Code.Br: case Code.Br_S: pending.Enqueue(((Instruction)instruction.Operand, copies)); break;
+                case Code.Brtrue:
+                case Code.Brtrue_S:
+                case Code.Brfalse:
+                case Code.Brfalse_S:
+                    pending.Enqueue(((Instruction)instruction.Operand, copies - 1));
+                    pending.Enqueue((instruction.Next, copies - 1));
+                    break;
+                case Code.Call:
+                case Code.Callvirt:
+                    if (copies != 1 || instruction.Operand is not MethodReference getter || !ExactKeyMetadataGetter(getter, method.Module)) return false;
+                    readsGetter = true;
+                    break;
+                case Code.Ldnull:
+                    if (copies != 1 || instruction.Next?.OpCode.Code != Code.Ceq) return false;
+                    break;
+                default: return false;
+            }
+        }
+        return true;
+    }
+
+    private static bool CarrierMetadataFetch(Instruction instruction) => instruction.OpCode == OpCodes.Callvirt
+        && instruction.Operand is GenericInstanceMethod
+        { Name: "GetMetadata", HasThis: true, ExplicitThis: false, GenericArguments.Count: 1, Parameters.Count: 0 } method
+        && method.DeclaringType is not TypeSpecification && !method.DeclaringType.HasGenericParameters
+        && Key(method.DeclaringType) == "Microsoft.AspNetCore.Http.Abstractions:Microsoft.AspNetCore.Http.EndpointMetadataCollection"
+        && method.ElementMethod.HasThis && !method.ElementMethod.ExplicitThis
+        && method.ElementMethod.CallingConvention == MethodCallingConvention.Generic
+        && method.ElementMethod.GenericParameters.Count == 1
+        && method.GenericArguments[0].FullName == IdempotentMetadata && Key(method.GenericArguments[0]) == "LearnStack.Api:" + IdempotentMetadata
+        && method.ReturnType is GenericParameter { Type: GenericParameterType.Method, Position: 0 } result
+        && result.Owner == method.ElementMethod && method.ElementMethod.GenericParameters[0] == result;
+
+    private static bool CarriesKeyMetadata(TypeReference reference) =>
+        Il.ExpandedTypeReferences(reference).Any(item => Key(item) == "LearnStack.Api:" + IdempotentMetadata);
+
     private static bool ExactKeyMetadataGetter(MethodReference target, ModuleDefinition module)
     {
         if (Key(target.DeclaringType) != "LearnStack.Api:" + IdempotentMetadata || target.Name != "get_ProtectedOperation"

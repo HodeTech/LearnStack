@@ -1,6 +1,6 @@
 # Phase 03: Identity Domain, Authorization, and Admin Foundation
 
-> **Status (2026-10-30).** P03-0, P03-1 and P03-2 are complete. P03-1 is merged
+> **Status (2026-10-31).** P03-0, P03-1 and P03-2 are complete. P03-1 is merged
 > through [PR #38](https://github.com/HodeTech/LearnStack/pull/38); P03-2 through
 > [PR #39](https://github.com/HodeTech/LearnStack/pull/39). Their linked closeouts
 > distinguish implementation-source A/B qualification from final PR checks.
@@ -12,8 +12,10 @@
 > are complete. The maintainer [authorizes Step 10 to proceed](phase-03-delivery-log.md#p03-3-maintainer-approved-manual-deferral-and-step-10-continuation-2026-10-30)
 > with manual keyboard/focus/reflow/contrast/VoiceOver evidence deferred for now.
 > No manual execution or accessibility pass is recorded; the maintainer owns that
-> outstanding observation and its disclosure in PR review. Step 10 proceeds and
-> retains complete final-source, public-demo and hosted A/B qualification.
+> outstanding observation and its disclosure in PR review. The [Step 10 first-review
+> corrections](phase-03-delivery-log.md#p03-3-step-10-review-round-1-and-verified-ownership-corrections-2026-10-31)
+> pass scoped verification. Its second fresh review round, public-demo and complete
+> final-source hosted A/B qualification remain open.
 > [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md) and
 > [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md)
 > are Accepted; their separate eight-consumer prerequisite and one-consumer

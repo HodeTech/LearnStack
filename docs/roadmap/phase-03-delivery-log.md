@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 2,896 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 2,948 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -191,6 +191,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 9 maintainer manual walkthrough handoff (2026-10-30)](#p03-3-step-9-maintainer-manual-walkthrough-handoff-2026-10-30) — 26 lines
   - [P03-3 maintainer-approved manual deferral and Step 10 continuation (2026-10-30)](#p03-3-maintainer-approved-manual-deferral-and-step-10-continuation-2026-10-30) — 27 lines
   - [P03-3 Step 10 qualification repairs and implementation review boundary (2026-10-30)](#p03-3-step-10-qualification-repairs-and-implementation-review-boundary-2026-10-30) — 48 lines
+  - [P03-3 Step 10 review round 1 and verified ownership corrections (2026-10-31)](#p03-3-step-10-review-round-1-and-verified-ownership-corrections-2026-10-31) — 52 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -8630,3 +8631,55 @@ and 83/83. Formatting corrections precede the implementation review commit.
 Full current Integration, final broad checks, both fresh Step 10 review rounds,
 public-demo and final-source hosted A/B remain required. The maintainer's
 manual deferral above supplies no manual observation or accessibility pass.
+
+### P03-3 Step 10 review round 1 and verified ownership corrections (2026-10-31)
+
+**Review.** Three new independent reviewers inspect the committed repair at
+`5ac767fc36a49446c14d42de5cd4c825260f2c00`: HTTP/security (Astra, xhigh),
+transactions/fixtures (Astra, xhigh), and CI/evidence (Sol, xhigh). The first
+verifies three Major architecture-enforcement gaps; the other inspected code
+slices identify no further defect. A supplemental corpus check verifies three
+Minor stale descriptions. These source reviews are not runtime qualification.
+
+**Corrections.** The GlobalSelf helper graph follows explicit and inherited
+interface implementations and pins terminal port members to their assembly and
+signature. The carrier metadata exception rejects wrapped/local capabilities
+and admits only the actual immutable metadata fetch/getter usage. Transport
+factory/replay/cleanup controls bind complete member identities. Independent
+mutations change actual production operands and restore the same live detector;
+unsupported concrete helper resolution refuses rather than disappearing.
+The directory OpenAPI description and generated SDK now match the closed native
+caller; the API/permission standards retain the phase-owned implementation and
+qualification pointer and describe the actual subject/visitor/peer budgets.
+No separate write quota is claimed.
+
+**Complete committed Integration observation.** The frozen `5ac767fc` execution
+runs 3,895 cases: 3,891 pass, four fail and none skip. Its 2,323 consumed-file
+hashes remain unchanged. The retained original TRX SHA-256 is
+`d59a1a92cfc5dea6d8caa4066d1f7bf6551763317a565156110bcec28bf52ea4`.
+Of the original 61 failures, 57 now pass in this complete run; the four
+no-listener cases still fail when a matching telemetry observer survives.
+Earlier isolated 61/61 recovery does not establish the complete-run context.
+
+**Actual cause and paired control.** One legacy assertion Fact drops its
+`ComponentApiFactory` child owner while disposing only its `HttpClient`.
+The resulting live API telemetry observer invalidates the later no-listener
+premise. Retaining and asynchronously disposing that child fixes ownership;
+no listener is removed, suppressed or excluded from production instrumentation.
+The exact five-case combined run changes from one pass/four failures to five
+passes, zero failures/skips. A first four-case run omitted the actual owning
+class and is retained as a mistargeted observation, not a red control. The
+component-host caller census finds no second discarded child.
+
+**Qualification.** Strict solution build has zero warnings/errors. Unit
+3,432/3,432, Contract 9/9 and the explicit one-case contract refresh pass;
+normal SDK generation changes one description only. All 13 cases in the complete HTTP, native-admission, idempotency and corpus
+Architecture classes pass, including the new same-detector mutations; this is
+scoped recovery rather than a new full 602-case local claim. Workspace typecheck
+and lint pass; SDK tests pass 148/148 across six files. The paired five-case
+control and all later checks contain no skips.
+The complete final-source population remains mandatory in the fresh hosted
+A/B pair; scoped local recovery is not relabelled as a full local pass.
+Both fresh Step 10 round-2 review and hosted/public-demo qualification remain
+open. The maintainer-authorized manual deferral remains unchanged and claims
+no manual execution or accessibility pass.

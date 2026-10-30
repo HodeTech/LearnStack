@@ -302,14 +302,15 @@ public sealed class TenantWideOrganizationAssertionTests(TenantWideFixture fixtu
         // clean fail-closed 404, with an uncontrolled 500 on a pre-auth path,
         // triggered by an attacker-supplied header. The comparison must treat an
         // unusable resolved organization exactly as it treats an absent one.
-        using var client = fixture.WithUnassignedOrganization().CreateClient();
+        await using var host = fixture.WithUnassignedOrganization();
+        using var client = host.CreateClient();
 
         using var request = new HttpRequestMessage(
             HttpMethod.Get, new Uri("/api/v1/assertionprobe", UriKind.Relative));
         request.Headers.Add(
             TenantAssertionMiddleware.OrganizationHeaderName, Guid.NewGuid().ToString());
 
-        var response = await client.SendAsync(request);
+        using var response = await client.SendAsync(request);
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }

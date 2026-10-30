@@ -135,6 +135,8 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         var controllerRoot = map["LearnStack.Api:LearnStack.Api.Identity.MembershipsController"];
         HttpBypasses(controllerRoot, map).Should().BeEmpty();
         CarrierMetadataReadOnly(carrier).Should().BeTrue("both ordinary call opcodes may read the exact guarded metadata getter");
+        AssertCarrierMetadataCapabilityControls(carrier, controllerRoot, map);
+        AssertCarrierMetadataFetchControls(carrier, controllerRoot, map);
         var keyRead = ActionBodies(carrier, "ExecuteAsync").SelectMany(method => method.Body.Instructions)
             .Single(instruction => instruction.Operand is MethodReference { DeclaringType.FullName: IdempotentMetadata, Name: "get_ProtectedOperation" });
         var getterOpcode = keyRead.OpCode;
@@ -235,6 +237,105 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         ProtectedAdministrationOffenders(modules, map).Should().BeEmpty();
         HttpBypasses(controllerRoot, map).Should().BeEmpty("all executable capability mutants were restored");
     }
+    private static void AssertCarrierMetadataFetchControls(TypeDefinition carrier, TypeDefinition controller,
+        Dictionary<string, TypeDefinition> map)
+    {
+        CarrierMetadataReadOnly(carrier).Should().BeTrue();
+        var fetch = ActionBodies(carrier, "ExecuteAsync").SelectMany(method => method.Body.Instructions).Single(CarrierMetadataFetch);
+        var original = (GenericInstanceMethod)fetch.Operand;
+        void Dirty()
+        {
+            CarrierMetadataFetch(fetch).Should().BeFalse();
+            CarrierMetadataReadOnly(carrier).Should().BeFalse();
+            HttpBypasses(controller, map).Should().Contain(error => error.StartsWith("HTTP persistence/handler/helper bypass:", StringComparison.Ordinal));
+        }
+        foreach (var mutation in new[] { "assembly", "instance", "explicit-this", "return-type", "return-owner", "arity", "parameter", "calling-convention", "argument-wrapper" })
+        {
+            var element = original.ElementMethod;
+            var declaring = mutation == "assembly"
+                ? new TypeReference(element.DeclaringType.Namespace, element.DeclaringType.Name, carrier.Module,
+                    new AssemblyNameReference("SurfaceProbe.ForeignMetadata", new Version(1, 0))) : element.DeclaringType;
+            var replacement = new MethodReference(element.Name, carrier.Module.TypeSystem.Void, declaring)
+            {
+                HasThis = mutation == "instance" ? !element.HasThis : element.HasThis,
+                ExplicitThis = mutation == "explicit-this" ? !element.ExplicitThis : element.ExplicitThis,
+                CallingConvention = mutation == "calling-convention" ? MethodCallingConvention.VarArg : element.CallingConvention,
+            };
+            var parameter = new GenericParameter("T", replacement);
+            replacement.GenericParameters.Add(parameter);
+            replacement.ReturnType = mutation == "return-type" ? carrier.Module.TypeSystem.Object : parameter;
+            if (mutation == "return-owner")
+            {
+                var unrelated = new MethodReference(element.Name, carrier.Module.TypeSystem.Void, declaring);
+                var foreignParameter = new GenericParameter("T", unrelated);
+                unrelated.GenericParameters.Add(foreignParameter);
+                replacement.ReturnType = foreignParameter;
+            }
+            if (mutation == "arity") replacement.GenericParameters.Add(new GenericParameter("TExtra", replacement));
+            if (mutation == "parameter") replacement.Parameters.Add(new ParameterDefinition(carrier.Module.TypeSystem.Object));
+            var changed = new GenericInstanceMethod(replacement);
+            changed.GenericArguments.Add(mutation == "argument-wrapper" ? new ArrayType(original.GenericArguments[0]) : original.GenericArguments[0]);
+            fetch.Operand = changed;
+            try { Dirty(); } finally { fetch.Operand = original; }
+            CarrierMetadataReadOnly(carrier).Should().BeTrue("restoring the actual fetch also restores any approved direct metadata local");
+            HttpBypasses(controller, map).Should().BeEmpty();
+        }
+        var originalOpcode = fetch.OpCode;
+        foreach (var opcode in new[] { OpCodes.Call, OpCodes.Ldftn, OpCodes.Ldvirtftn })
+        {
+            fetch.OpCode = opcode;
+            try { Dirty(); } finally { fetch.OpCode = originalOpcode; }
+            CarrierMetadataReadOnly(carrier).Should().BeTrue();
+            HttpBypasses(controller, map).Should().BeEmpty();
+        }
+    }
+
+    private static void AssertCarrierMetadataCapabilityControls(TypeDefinition carrier, TypeDefinition controller,
+        Dictionary<string, TypeDefinition> map)
+    {
+        var metadata = map["LearnStack.Api:" + IdempotentMetadata];
+        var factory = new GenericInstanceType(carrier.Module.ImportReference(typeof(Func<>)));
+        factory.GenericArguments.Add(metadata);
+        var body = ActionBodies(carrier, "ExecuteAsync").First();
+        void Dirty()
+        {
+            CarrierMetadataReadOnly(carrier).Should().BeFalse("only the approved metadata fetch/getter occurrences may lose their graph edges");
+            HttpBypasses(controller, map).Should().Contain(error => error.StartsWith("HTTP persistence/handler/helper bypass:", StringComparison.Ordinal));
+        }
+        CarrierMetadataReadOnly(carrier).Should().BeTrue();
+        foreach (var capability in new TypeReference[] { metadata, factory, new ArrayType(metadata) })
+        {
+            var local = new VariableDefinition(capability);
+            body.Body.Variables.Add(local);
+            try { Dirty(); } finally { body.Body.Variables.Remove(local); }
+            var field = new FieldDefinition("RetainedMetadataCapability", FieldAttributes.Private, capability);
+            carrier.Fields.Add(field);
+            try { Dirty(); } finally { carrier.Fields.Remove(field); }
+            foreach (var signature in new[] { "parameter", "return" })
+            {
+                var member = new MethodDefinition("MetadataCapability", MethodAttributes.Private | MethodAttributes.Static,
+                    signature == "return" ? capability : carrier.Module.TypeSystem.Void);
+                if (signature == "parameter") member.Parameters.Add(new ParameterDefinition(capability));
+                else member.Body.Instructions.Add(Instruction.Create(OpCodes.Ldnull));
+                member.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+                carrier.Methods.Add(member);
+                try { Dirty(); } finally { carrier.Methods.Remove(member); }
+            }
+        }
+        // This ordinary MethodReference is the concrete escape missed by checking
+        // only direct types and GenericInstanceMethod.GenericArguments.
+        var materialize = new MethodDefinition("Materialize", MethodAttributes.Private | MethodAttributes.Static, carrier.Module.TypeSystem.Object);
+        materialize.Parameters.Add(new ParameterDefinition(factory));
+        materialize.Body.Instructions.Add(Instruction.Create(OpCodes.Ldarg_0));
+        materialize.Body.Instructions.Add(Instruction.Create(OpCodes.Callvirt,
+            new MethodReference("Invoke", factory.ElementType.GenericParameters[0], factory) { HasThis = true }));
+        materialize.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+        carrier.Methods.Add(materialize);
+        try { Dirty(); } finally { carrier.Methods.Remove(materialize); }
+        CarrierMetadataReadOnly(carrier).Should().BeTrue();
+        HttpBypasses(controller, map).Should().BeEmpty("every capability mutant was removed");
+    }
+
     private static void AssertDescriptorSignatureControls(TypeDefinition owner, Dictionary<string, TypeDefinition> map)
     {
         DescriptorRelationOffenders(owner, map).Should().BeEmpty();

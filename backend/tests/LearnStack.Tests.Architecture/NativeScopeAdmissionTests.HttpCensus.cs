@@ -137,14 +137,16 @@ public sealed partial class NativeScopeAdmissionTests
             .Select(instruction => (body.Owner, body.Name, Instruction: instruction, Target: (MethodReference)instruction.Operand))).ToArray();
         foreach (var call in EntryCalls)
         {
-            var implementations = census.Types.Where(type => type.Interfaces.Any(contract => contract.InterfaceType.FullName == call.Port)).ToArray();
-            if (!implementations.Select(type => type.FullName).SequenceEqual([call.Implementation], StringComparer.Ordinal))
+            var expectedPort = census.Types.Single(type => EntrySymbol(type) == EntryPortSymbol(call.Port));
+            var expectedMember = expectedPort.Methods.Single(method => method.Name == call.Method);
+            var implementations = census.Types.Where(type => type.Interfaces.Any(contract => EntrySymbol(contract.InterfaceType) == EntrySymbol(expectedPort))).ToArray();
+            if (!implementations.SequenceEqual([census.Type(call.Implementation)]))
                 yield return "Global-self direct port implementations changed: " + call.Port;
             var names = implementations.Select(type => type.FullName).Append(call.Port).ToHashSet(StringComparer.Ordinal);
             var actual = sites.Where(site => names.Contains(site.Target.DeclaringType.FullName)
                 && (site.Target.Name == call.Method || site.Target.Name.EndsWith("." + call.Method, StringComparison.Ordinal))).ToArray();
             if (actual.Length != 1 || actual[0].Owner != Entry || actual[0].Name != call.Owner
-                || actual[0].Target.DeclaringType.FullName != call.Port
+                || !ExactEntryPortMember(actual[0].Target, expectedMember)
                 || actual[0].Instruction.OpCode.Code is not (Code.Call or Code.Callvirt))
                 yield return "Global-self direct port callers changed: " + call.Port + "." + call.Method;
         }
@@ -155,7 +157,8 @@ public sealed partial class NativeScopeAdmissionTests
     // Only the four exact entry calls terminate at a persistence port.
     private static IEnumerable<string> EntryHelperOffenders(Census census)
     {
-        var map = census.Types.ToDictionary(type => (type.Module.Assembly.Name.Name, type.FullName));
+        var map = census.Types.ToDictionary(EntrySymbol, StringComparer.Ordinal);
+        var ports = EntryCalls.Select(call => map[EntryPortSymbol(call.Port)].Methods.Single(method => method.Name == call.Method)).ToArray();
         var pending = new Queue<MethodDefinition>(Il.Methods(census.Type(Entry)).Select(pair => pair.Definition));
         var visited = new HashSet<MethodDefinition>();
         while (pending.TryDequeue(out var method))
@@ -181,21 +184,91 @@ public sealed partial class NativeScopeAdmissionTests
                     || instruction.Operand is MethodReference { Name: "get_RequestServices" })
                     yield return "Global-self helper persistence/dispatch bypass: " + method.FullName;
                 if (instruction.Operand is not MethodReference target) continue;
-                if (EntryCalls.Any(call => target.DeclaringType.FullName == call.Port && target.Name == call.Method)) continue;
-                var referenceType = target.DeclaringType.GetElementType();
-                var assembly = referenceType.Scope.Name.Replace(".dll", "", StringComparison.Ordinal);
-                if (!map.TryGetValue((assembly, referenceType.FullName), out var owner)) continue;
-                var owners = owner.IsInterface || owner.IsAbstract
-                    ? map.Values.Where(candidate => candidate.Interfaces.Any(contract => contract.InterfaceType.GetElementType().FullName == owner.FullName)
-                        || candidate.BaseType?.FullName == owner.FullName).Append(owner) : [owner];
+                if (instruction.OpCode.Code is Code.Call or Code.Callvirt && ports.Any(port => ExactEntryPortMember(target, port))) continue;
+                if (!map.TryGetValue(EntrySymbol(target.DeclaringType), out var owner)) continue;
+                var owners = (owner.IsInterface || owner.IsAbstract
+                    ? map.Values.Where(candidate => !candidate.IsInterface && !candidate.IsAbstract
+                        && PublicSurfaceTests.Implements(candidate, EntrySymbol(owner), map, [])).Append(owner)
+                    : [owner]).Distinct().ToArray();
                 foreach (var implementation in owners)
-                    foreach (var candidate in implementation.Methods.Where(candidate => candidate.Name == target.Name
-                                 && candidate.Parameters.Count == target.Parameters.Count))
-                        foreach (var body in Il.Methods(implementation).Where(pair => pair.Definition == candidate || pair.DeclaredAs == candidate.Name))
+                {
+                    var candidates = EntryAncestors(implementation, map).SelectMany(type => type.Methods)
+                        .Where(candidate => EntryCallable(candidate, target)).Distinct().ToArray();
+                    // An abstract declaration has no body of its own. Every
+                    // concrete implementer, however, must resolve its actual
+                    // member; unsupported generic substitution cannot erase it.
+                    if (candidates.Length == 0 && !implementation.IsInterface && !implementation.IsAbstract)
+                        yield return "Global-self helper unresolved member: " + EntrySymbol(implementation) + " -> " + target.FullName;
+                    foreach (var candidate in candidates)
+                        foreach (var body in Il.Methods(candidate.DeclaringType).Where(pair => pair.Definition == candidate || pair.DeclaredAs == candidate.Name))
                             pending.Enqueue(body.Definition);
+                }
             }
         }
     }
+
+    private static string EntrySymbol(TypeReference reference) =>
+        reference.GetElementType().Scope.Name.Replace(".dll", "", StringComparison.Ordinal) + ":" + reference.GetElementType().FullName;
+
+    private static IEnumerable<TypeDefinition> EntryAncestors(TypeDefinition type, Dictionary<string, TypeDefinition> map)
+    {
+        var visited = new HashSet<string>(StringComparer.Ordinal);
+        for (var current = type; visited.Add(EntrySymbol(current));)
+        {
+            yield return current;
+            if (current.BaseType is not { } parent || !map.TryGetValue(EntrySymbol(parent), out var next)) yield break;
+            current = next;
+        }
+    }
+
+    private static bool EntryCallable(MethodDefinition candidate, MethodReference target) =>
+        EntryMemberShape(candidate, target)
+        || candidate.Overrides.Any(overridden => EntrySymbol(overridden.DeclaringType) == EntrySymbol(target.DeclaringType)
+            && EntryMemberShape(overridden, target));
+
+    // Explicit implementations name their interface in the MethodDef name; their
+    // MethodImpl override names the actual interface member. Inherited ordinary
+    // implementations are found on the base, even when only the leaf declares
+    // the interface. Do not approximate either relation by an unqualified name.
+    private static bool EntryMemberShape(MethodReference candidate, MethodReference target)
+    {
+        if (candidate.Name != target.Name || candidate.HasThis != target.HasThis || candidate.ExplicitThis != target.ExplicitThis
+            || candidate.CallingConvention != target.CallingConvention
+            || candidate.GenericParameters.Count != (target is GenericInstanceMethod instance ? instance.ElementMethod.GenericParameters.Count : target.GenericParameters.Count)
+            || candidate.Parameters.Count != target.Parameters.Count) return false;
+        var left = candidate.Parameters.Select(parameter => EntryTypeShape(parameter.ParameterType)).Append(EntryTypeShape(candidate.ReturnType)).ToArray();
+        var right = target.Parameters.Select(parameter => EntryTypeShape(parameter.ParameterType)).Append(EntryTypeShape(target.ReturnType)).ToArray();
+        return left.All(shape => shape is not null) && right.All(shape => shape is not null) && left.SequenceEqual(right, StringComparer.Ordinal);
+    }
+
+    private static string? EntryTypeShape(TypeReference reference) => reference switch
+    {
+        GenericParameter { Owner: TypeReference owner } parameter => EntrySymbol(owner) + "!" + parameter.Position,
+        GenericParameter { Owner: MethodReference owner } parameter => EntrySymbol(owner.DeclaringType) + "::" + owner.Name + "!!" + parameter.Position,
+        GenericParameter => null,
+        GenericInstanceType generic => EntryComposedShape(EntrySymbol(generic.ElementType), generic.GenericArguments),
+        ArrayType array => EntryComposedShape("array:" + array.Rank + ":" + array.IsVector + ":"
+            + string.Join(",", array.Dimensions.Select(dimension => dimension.LowerBound + ":" + dimension.UpperBound)), [array.ElementType]),
+        OptionalModifierType modifier => EntryComposedShape("optional", [modifier.ModifierType, modifier.ElementType]),
+        RequiredModifierType modifier => EntryComposedShape("required", [modifier.ModifierType, modifier.ElementType]),
+        ByReferenceType byReference => EntryComposedShape("byref", [byReference.ElementType]),
+        PointerType pointer => EntryComposedShape("pointer", [pointer.ElementType]),
+        PinnedType pinned => EntryComposedShape("pinned", [pinned.ElementType]),
+        SentinelType sentinel => EntryComposedShape("sentinel", [sentinel.ElementType]),
+        TypeSpecification => null,
+        _ => EntrySymbol(reference),
+    };
+
+    private static string? EntryComposedShape(string owner, IEnumerable<TypeReference> arguments)
+    {
+        var shapes = arguments.Select(EntryTypeShape).ToArray();
+        return shapes.Any(shape => shape is null) ? null : owner + "<" + string.Join(",", shapes) + ">";
+    }
+
+    private static string EntryPortSymbol(string port) => HttpEntrySubjects.Single(subject => subject.Name == port).Assembly + ":" + port;
+
+    private static bool ExactEntryPortMember(MethodReference target, MethodDefinition expected) =>
+        EntrySymbol(target.DeclaringType) == EntrySymbol(expected.DeclaringType) && EntryMemberShape(target, expected);
 
     private static bool ForbiddenEntry(string name) => name.StartsWith("Npgsql", StringComparison.Ordinal)
         || name.StartsWith("Microsoft.EntityFrameworkCore", StringComparison.Ordinal)
@@ -233,11 +306,84 @@ public sealed partial class NativeScopeAdmissionTests
         HttpEntryOffenders(modules).Should().BeEmpty("restoring every required subject restores the same production detector");
     }
 
+    private static void AssertEntryInterfaceControls(ModuleDefinition[] modules)
+    {
+        var census = Census.Borrow(modules);
+        var caller = census.Body(Entry, "TryPage");
+        var module = caller.Module;
+        foreach (var scenario in new[] { "explicit", "inherited-interface", "inherited-method" })
+        {
+            var contract = new TypeDefinition("NativeControl", "IEntryHelper", TypeAttributes.NotPublic | TypeAttributes.Interface | TypeAttributes.Abstract);
+            var member = new MethodDefinition("Read", MethodAttributes.Public | MethodAttributes.Abstract | MethodAttributes.Virtual | MethodAttributes.NewSlot, module.TypeSystem.Void);
+            contract.Methods.Add(member);
+            var alias = new TypeDefinition("NativeControl", "IEntryHelperAlias", TypeAttributes.NotPublic | TypeAttributes.Interface | TypeAttributes.Abstract);
+            alias.Interfaces.Add(new InterfaceImplementation(contract));
+            var parent = new TypeDefinition("NativeControl", "EntryHelperBase", TypeAttributes.NotPublic, module.TypeSystem.Object);
+            var implementation = new TypeDefinition("NativeControl", "EntryHelper", TypeAttributes.NotPublic | TypeAttributes.Sealed,
+                scenario == "inherited-method" ? parent : module.TypeSystem.Object);
+            implementation.Interfaces.Add(new InterfaceImplementation(scenario == "inherited-interface" ? alias : contract));
+            var execute = new MethodDefinition(scenario == "inherited-method" ? "Read" : contract.FullName + ".Read",
+                scenario == "inherited-method" ? MethodAttributes.Public : MethodAttributes.Private | MethodAttributes.Virtual | MethodAttributes.Final | MethodAttributes.NewSlot,
+                module.TypeSystem.Void);
+            if (scenario != "inherited-method") execute.Overrides.Add(member);
+            execute.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+            (scenario == "inherited-method" ? parent : implementation).Methods.Add(execute);
+            foreach (var subject in new[] { contract, alias, parent, implementation }) module.Types.Add(subject);
+            var invocation = Instruction.Create(OpCodes.Callvirt, member);
+            caller.Body.Instructions.Add(invocation);
+            try
+            {
+                HttpEntryOffenders(modules).Should().BeEmpty("the executed " + scenario + " implementation is initially data-only");
+                var persistence = new VariableDefinition(module.ImportReference(typeof(Npgsql.NpgsqlDataSource)));
+                execute.Body.Variables.Add(persistence);
+                try
+                {
+                    HttpEntryOffenders(modules).Should().Contain(error => error.StartsWith("Global-self helper persistence/dispatch bypass:", StringComparison.Ordinal)
+                        && error.Contains(execute.FullName, StringComparison.Ordinal), "the same live detector must reach " + scenario + " implementation bodies");
+                }
+                finally { execute.Body.Variables.Remove(persistence); }
+                HttpEntryOffenders(modules).Should().BeEmpty("restoring the actual implementation restores the clean member graph");
+            }
+            finally
+            {
+                caller.Body.Instructions.Remove(invocation);
+                foreach (var subject in new[] { contract, alias, parent, implementation }) module.Types.Remove(subject);
+            }
+        }
+    }
+
+    private static void AssertEntryPortIdentityControls(ModuleDefinition[] modules)
+    {
+        var census = Census.Borrow(modules);
+        foreach (var call in EntryCalls)
+        {
+            var body = census.Body(Entry, call.Owner);
+            var instruction = body.Body.Instructions.Single(item => item.Operand is MethodReference target
+                && target.DeclaringType.FullName == call.Port && target.Name == call.Method);
+            var original = (MethodReference)instruction.Operand;
+            var foreign = new TypeReference(original.DeclaringType.Namespace, original.DeclaringType.Name, body.Module,
+                new AssemblyNameReference("NativeControl.ForeignPort", new Version(1, 0)));
+            var replacement = new MethodReference(original.Name, original.ReturnType, foreign)
+            { HasThis = original.HasThis, ExplicitThis = original.ExplicitThis, CallingConvention = original.CallingConvention };
+            foreach (var parameter in original.Parameters) replacement.Parameters.Add(new ParameterDefinition(parameter.ParameterType));
+            instruction.Operand = replacement;
+            try
+            {
+                HttpEntryOffenders(modules).Should().Contain("Global-self direct port callers changed: " + call.Port + "." + call.Method,
+                "a familiar port name in another assembly is not the admitted persistence boundary");
+            }
+            finally { instruction.Operand = original; }
+            HttpEntryOffenders(modules).Should().BeEmpty("restoring the actual port operand restores the same live detector");
+        }
+    }
+
     internal static void AssertHttpEntryControls(ModuleDefinition[] modules)
     {
         var census = Census.Borrow(modules);
         HttpEntryOffenders(modules).Should().BeEmpty();
         AssertHttpEntryPopulationControls(modules);
+        AssertEntryInterfaceControls(modules);
+        AssertEntryPortIdentityControls(modules);
         var foreign = census.Body(Entry, "TryPage");
         foreach (var call in EntryCalls)
         {

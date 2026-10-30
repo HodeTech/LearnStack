@@ -15,9 +15,9 @@ Live enforcement and evidence additionally derive from Accepted
 [ADR-0077](../decisions/0077-trusted-authorization-evidence.md).
 Native scope admission and bounded administration additionally derive from
 [ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md) and
-[ADR-0079](../decisions/0079-bounded-identity-administration.md). Their new consumers
-are Accepted contracts pending P03-3 implementation and proof; the
-[phase Status block](../roadmap/phase-03-identity-admin.md) owns packet state.
+[ADR-0079](../decisions/0079-bounded-identity-administration.md). The
+[phase Status block](../roadmap/phase-03-identity-admin.md) owns implementation
+and qualification state.
 The separate fixed-seed prerequisite source derives from
 [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md).
 The separate fixed-origin completion source derives from
@@ -410,7 +410,7 @@ ADR-0076 replaces the live
 admission/delegation deferrals above while retaining P03-1's exact five assignable
 pairs, eight templates, two-pair admin kernel and fixed v1 seed manifest.
 ADR-0079 adds the exact v2 contract below; registration remains distinct from
-grants. Its new consumers are pending implementation. Current state remains in the
+grants. Implementation and qualification state remain in the
 [phase Status block](../roadmap/phase-03-identity-admin.md).
 
 | Virtual Tenant definition | Existing PublicSurface requests |

@@ -677,7 +677,7 @@ a limit, and the first version of this table was four of those.
 | File upload, per content type | see [architecture/16 § Validation](../architecture/16-media-pipeline.md) | No endpoint yet; [Phase 04](../roadmap/phase-04-cms-media-pages.md) |
 | Rate limit (anonymous) | 60 req/min per canonical IP + 600 req/min per physical peer | [ADR-0053](../decisions/0053-trusted-public-server-rendering.md) / P02d-5 G34 delivers both budgets. Fixed one-minute windows, no queue; no host/cookie partition. ADR-0054 coordinated accounting is implemented by remediation Step 1; both independent review rounds passed. See below |
 | Rate limit (authenticated) | Additional 600 req/min per validated issuer + subject | [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md); P02b-5 Step 3 implements the component, Step 4 activates it after authentication and before resolution/audit. Existing early visitor/peer limits still apply |
-| Rate limit (write endpoints) | 60 req/min per token (planned) | No routed protected write; [Phase 03](../roadmap/phase-03-identity-admin.md) owns the first authorized writes and their admission policy |
+| Rate limit (protected writes) | Same budgets as authenticated requests above | Existing authenticated-subject admission plus visitor/physical-peer limits apply. No separate per-token write limit is implemented |
 
 429 responses include `Retry-After`. Accepted
 [ADR-0066](../decisions/0066-bounded-tenant-subject-admission.md) requires the
