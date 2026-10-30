@@ -5473,7 +5473,9 @@ structural test proves — and what it does not.
   Dirty controls exercise extra or missing routes, changed descriptors and capability
   paths. Native source admission and the exact GlobalSelf route descriptors have
   separate entry controls; `HostAndNativeSessionScope` is a distinct origin and
-  native evidence does not rewrite provider facts. MVC checks cover filter scope,
+  native evidence does not rewrite provider facts. GlobalSelf helpers distinguish
+  static binding from ordinary `callvirt`/`ldvirtftn` slot reuse; unsupported generic
+  or MethodImpl class-slot resolution refuses. MVC checks cover filter scope,
   ordering, factory arguments and reuse, including the filter-provider inventory. These
   bounded checks do not model arbitrary reflection or dynamic framework behavior.
 - **Complementary runtime boundary:** actual HTTP and application-role PostgreSQL

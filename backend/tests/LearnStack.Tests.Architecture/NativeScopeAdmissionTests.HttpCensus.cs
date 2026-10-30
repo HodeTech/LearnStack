@@ -186,10 +186,19 @@ public sealed partial class NativeScopeAdmissionTests
                 if (instruction.Operand is not MethodReference target) continue;
                 if (instruction.OpCode.Code is Code.Call or Code.Callvirt && ports.Any(port => ExactEntryPortMember(target, port))) continue;
                 if (!map.TryGetValue(EntrySymbol(target.DeclaringType), out var owner)) continue;
-                var owners = (owner.IsInterface || owner.IsAbstract
-                    ? map.Values.Where(candidate => !candidate.IsInterface && !candidate.IsAbstract
-                        && PublicSurfaceTests.Implements(candidate, EntrySymbol(owner), map, [])).Append(owner)
-                    : [owner]).Distinct().ToArray();
+                var dynamicDispatch = instruction.OpCode.Code is Code.Callvirt or Code.Ldvirtftn;
+                if (!owner.IsInterface || !dynamicDispatch)
+                {
+                    if (!TryEntryClassTargets(owner, target, dynamicDispatch, map, out var targets))
+                        yield return "Global-self helper unresolved member: " + EntrySymbol(owner) + " -> " + target.FullName;
+                    else
+                        foreach (var candidate in targets)
+                            foreach (var body in Il.Methods(candidate.DeclaringType).Where(pair => pair.Definition == candidate || pair.DeclaredAs == candidate.Name))
+                                pending.Enqueue(body.Definition);
+                    continue;
+                }
+                var owners = map.Values.Where(candidate => !candidate.IsInterface && !candidate.IsAbstract
+                    && PublicSurfaceTests.Implements(candidate, EntrySymbol(owner), map, [])).Append(owner).Distinct().ToArray();
                 foreach (var implementation in owners)
                 {
                     var candidates = EntryAncestors(implementation, map).SelectMany(type => type.Methods)
@@ -205,6 +214,76 @@ public sealed partial class NativeScopeAdmissionTests
                 }
             }
         }
+    }
+
+    // A class MemberRef names a declaration; callvirt/ldvirtftn additionally
+    // select its CLR slot on the receiver. Same-named new slots are unrelated.
+    private static bool TryEntryClassTargets(TypeDefinition owner, MethodReference target, bool dynamicDispatch,
+        Dictionary<string, TypeDefinition> map, out MethodDefinition[] targets)
+    {
+        targets = [];
+        MethodDefinition? declaration = null;
+        foreach (var ancestor in EntryAncestors(owner, map))
+        {
+            var matches = ancestor.Methods.Where(candidate => EntryMemberShape(candidate, target)).ToArray();
+            if (matches.Length > 1) return false;
+            if (matches.Length == 1) { declaration = matches[0]; break; }
+            if (ancestor.BaseType is TypeSpecification) return false;
+        }
+        if (declaration is null) return false;
+        if (!dynamicDispatch || !declaration.IsVirtual || declaration.IsFinal || owner.IsSealed)
+        {
+            if (!declaration.HasBody) return false;
+            targets = [declaration];
+            return true;
+        }
+        var receivers = map.Values.Where(candidate => !candidate.IsInterface && !candidate.IsAbstract
+            && (candidate == owner || PublicSurfaceTests.Implements(candidate, EntrySymbol(owner), map, []))).ToArray();
+        if (receivers.Length == 0) return false;
+        var resolved = new HashSet<MethodDefinition>();
+        foreach (var receiver in receivers)
+        {
+            if (!TryEntryClassSlot(declaration, receiver, map, out var implementation)) return false;
+            resolved.Add(implementation);
+        }
+        targets = resolved.ToArray();
+        return true;
+    }
+
+    private static bool TryEntryClassSlot(MethodDefinition declaration, TypeDefinition receiver,
+        Dictionary<string, TypeDefinition> map, out MethodDefinition implementation)
+    {
+        implementation = declaration;
+        var ancestors = EntryAncestors(receiver, map).Reverse().ToArray();
+        var start = Array.IndexOf(ancestors, declaration.DeclaringType);
+        if (start < 0 || declaration.HasGenericParameters || declaration.DeclaringType.HasGenericParameters
+            || declaration.Overrides.Any(overridden =>
+                !map.TryGetValue(EntrySymbol(overridden.DeclaringType), out var contract) || !contract.IsInterface)) return false;
+        var nearest = declaration;
+        var sameSlot = true;
+        foreach (var type in ancestors.Skip(start + 1))
+        {
+            // Substituted generic bases and explicit class MethodImpl mappings
+            // require another resolver. Never approximate them by name/arity.
+            if (type.HasGenericParameters || type.BaseType is TypeSpecification
+                || type.Methods.Any(method => method.Overrides.Any(overridden =>
+                    !map.TryGetValue(EntrySymbol(overridden.DeclaringType), out var contract) || !contract.IsInterface))
+                || type.Methods.Any(method => method.Name == declaration.Name && method.HasGenericParameters)) return false;
+            var matches = type.Methods.Where(method => EntryMemberShape(method, declaration)).ToArray();
+            if (matches.Length > 1) return false;
+            if (matches.Length == 0) continue;
+            var candidate = matches[0];
+            if (!candidate.IsVirtual || candidate.IsNewSlot)
+            {
+                sameSlot = false;
+                nearest = candidate;
+                continue;
+            }
+            if (!nearest.IsVirtual || nearest.IsFinal) return false;
+            if (sameSlot) implementation = candidate;
+            nearest = candidate;
+        }
+        return implementation.HasBody;
     }
 
     private static string EntrySymbol(TypeReference reference) =>
@@ -304,6 +383,104 @@ public sealed partial class NativeScopeAdmissionTests
             finally { subject.Methods.Insert(index, method); }
         }
         HttpEntryOffenders(modules).Should().BeEmpty("restoring every required subject restores the same production detector");
+    }
+
+    private static void AssertEntryClassDispatchControls(ModuleDefinition[] modules)
+    {
+        var census = Census.Borrow(modules);
+        var caller = census.Body(Entry, "TryPage");
+        var module = caller.Module;
+        foreach (var scenario in new[] { "callvirt", "ldvirtftn", "call", "ldftn", "newslot", "intervening-newslot", "nonvirtual-target", "final-target", "final-override" })
+        {
+            var root = new TypeDefinition("NativeControl", "EntryRoot", TypeAttributes.NotPublic, module.TypeSystem.Object);
+            var parent = new TypeDefinition("NativeControl", "EntryBase", TypeAttributes.NotPublic, root);
+            var middle = new TypeDefinition("NativeControl", "EntryMiddle", TypeAttributes.NotPublic, parent);
+            var child = new TypeDefinition("NativeControl", "EntryDerived", TypeAttributes.NotPublic | TypeAttributes.Sealed,
+                scenario == "intervening-newslot" ? middle : parent);
+            Read(root, MethodAttributes.Virtual | MethodAttributes.NewSlot);
+            var member = Read(parent, scenario switch
+            {
+                "nonvirtual-target" => 0,
+                "final-target" => MethodAttributes.Virtual | MethodAttributes.Final,
+                _ => MethodAttributes.Virtual,
+            });
+            Read(middle, MethodAttributes.Virtual | MethodAttributes.NewSlot);
+            var execute = Read(child, MethodAttributes.Virtual
+                | (scenario is "newslot" or "nonvirtual-target" or "final-target" ? MethodAttributes.NewSlot : 0)
+                | (scenario == "final-override" ? MethodAttributes.Final : 0));
+            var rootConstructor = Constructor(root, module.ImportReference(typeof(object).GetConstructor(Type.EmptyTypes)!));
+            var parentConstructor = Constructor(parent, rootConstructor);
+            var middleConstructor = Constructor(middle, parentConstructor);
+            var constructor = Constructor(child, scenario == "intervening-newslot" ? middleConstructor : parentConstructor);
+            var subjects = new[] { root, parent, middle, child };
+            foreach (var subject in subjects) module.Types.Add(subject);
+            var instructions = new List<Instruction> { Instruction.Create(OpCodes.Newobj, constructor) };
+            if (scenario is "ldftn" or "ldvirtftn")
+            {
+                if (scenario == "ldvirtftn") instructions.Add(Instruction.Create(OpCodes.Dup));
+                instructions.Add(Instruction.Create(scenario == "ldvirtftn" ? OpCodes.Ldvirtftn : OpCodes.Ldftn, member));
+                instructions.Add(Instruction.Create(OpCodes.Newobj,
+                    module.ImportReference(typeof(Action).GetConstructor([typeof(object), typeof(nint)])!)));
+                instructions.Add(Instruction.Create(OpCodes.Callvirt, module.ImportReference(typeof(Action).GetMethod(nameof(Action.Invoke))!)));
+            }
+            else instructions.Add(Instruction.Create(scenario == "call" ? OpCodes.Call : OpCodes.Callvirt, member));
+            // Preserve TryPage's existing bool on the stack: the injected object
+            // construction and void call consume only their own operands.
+            var anchor = caller.Body.Instructions.First(instruction => instruction.OpCode == OpCodes.Ret);
+            var processor = caller.Body.GetILProcessor();
+            var maxStack = caller.Body.MaxStackSize;
+            caller.Body.MaxStackSize += 3;
+            foreach (var instruction in instructions) processor.InsertBefore(anchor, instruction);
+            try
+            {
+                HttpEntryOffenders(modules).Should().BeEmpty("the actual TryPage " + scenario + " path begins data-only");
+                DirtyBody(member, true, "the declared base body proves this same detector remains active");
+                DirtyBody(execute, scenario is "callvirt" or "ldvirtftn" or "final-override",
+                    "only genuine dynamic dispatch to this inherited slot reaches the derived body: " + scenario);
+                HttpEntryOffenders(modules).Should().BeEmpty("restoring both bodies restores this exact dispatch graph");
+            }
+            finally
+            {
+                foreach (var instruction in instructions) caller.Body.Instructions.Remove(instruction);
+                caller.Body.MaxStackSize = maxStack;
+                foreach (var subject in subjects) module.Types.Remove(subject);
+            }
+            HttpEntryOffenders(modules).Should().BeEmpty("the actual TryPage body and type census were restored");
+
+            void DirtyBody(MethodDefinition method, bool expected, string because)
+            {
+                var persistence = new VariableDefinition(module.ImportReference(typeof(Npgsql.NpgsqlDataSource)));
+                method.Body.Variables.Add(persistence);
+                try
+                {
+                    var errors = HttpEntryOffenders(modules).ToArray();
+                    if (expected) errors.Should().Contain(error => error.StartsWith("Global-self helper persistence/dispatch bypass:", StringComparison.Ordinal)
+                        && error.Contains(method.FullName, StringComparison.Ordinal), because);
+                    else errors.Should().BeEmpty(because);
+                }
+                finally { method.Body.Variables.Remove(persistence); }
+                HttpEntryOffenders(modules).Should().BeEmpty("the dirty local was removed from " + method.FullName);
+            }
+
+            MethodDefinition Read(TypeDefinition type, MethodAttributes attributes)
+            {
+                var method = new MethodDefinition("Read", MethodAttributes.Public | MethodAttributes.HideBySig | attributes, module.TypeSystem.Void);
+                method.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+                type.Methods.Add(method);
+                return method;
+            }
+
+            MethodDefinition Constructor(TypeDefinition type, MethodReference baseConstructor)
+            {
+                var method = new MethodDefinition(".ctor", MethodAttributes.Public | MethodAttributes.HideBySig
+                    | MethodAttributes.SpecialName | MethodAttributes.RTSpecialName, module.TypeSystem.Void);
+                method.Body.Instructions.Add(Instruction.Create(OpCodes.Ldarg_0));
+                method.Body.Instructions.Add(Instruction.Create(OpCodes.Call, baseConstructor));
+                method.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+                type.Methods.Add(method);
+                return method;
+            }
+        }
     }
 
     private static void AssertEntryInterfaceControls(ModuleDefinition[] modules)

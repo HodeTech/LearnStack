@@ -12,10 +12,9 @@
 > are complete. The maintainer [authorizes Step 10 to proceed](phase-03-delivery-log.md#p03-3-maintainer-approved-manual-deferral-and-step-10-continuation-2026-10-30)
 > with manual keyboard/focus/reflow/contrast/VoiceOver evidence deferred for now.
 > No manual execution or accessibility pass is recorded; the maintainer owns that
-> outstanding observation and its disclosure in PR review. The [Step 10 first-review
-> corrections](phase-03-delivery-log.md#p03-3-step-10-review-round-1-and-verified-ownership-corrections-2026-10-31)
-> pass scoped verification. Its second fresh review round, public-demo and complete
-> final-source hosted A/B qualification remain open.
+> outstanding observation and its disclosure in PR review. The [Step 10 source reviews](phase-03-delivery-log.md#p03-3-step-10-review-round-2-and-virtual-dispatch-correction-2026-10-31)
+> close both fresh independent rounds and verified corrections. Complete final-source
+> hosted A/B, original-archive auditing and clean public-demo proof remain open.
 > [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md) and
 > [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md)
 > are Accepted; their separate eight-consumer prerequisite and one-consumer

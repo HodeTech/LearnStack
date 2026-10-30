@@ -76,6 +76,7 @@ public sealed partial class NativeScopeAdmissionTests
 
         using var census = Census.Read();
         HttpEntryOffenders(census.Modules).Should().BeEmpty("Fix: global-self dispatch uses only its typed subject-confined entry ports; it never dispatches MediatR or publishes tenant context");
+        AssertEntryClassDispatchControls(census.Modules);
         Dirty(census, EntryOffenders, () => AddCall(census.Type(Entry).Module,
             census.Type("LearnStack.SharedKernel.Tenancy.TenantContextFactory").Methods.Single(method => method.Name == "CreateForNativeScope"), Entry));
         foreach (var port in LazyEntryPorts)

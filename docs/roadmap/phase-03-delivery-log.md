@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 2,948 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 2,986 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -192,6 +192,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 maintainer-approved manual deferral and Step 10 continuation (2026-10-30)](#p03-3-maintainer-approved-manual-deferral-and-step-10-continuation-2026-10-30) — 27 lines
   - [P03-3 Step 10 qualification repairs and implementation review boundary (2026-10-30)](#p03-3-step-10-qualification-repairs-and-implementation-review-boundary-2026-10-30) — 48 lines
   - [P03-3 Step 10 review round 1 and verified ownership corrections (2026-10-31)](#p03-3-step-10-review-round-1-and-verified-ownership-corrections-2026-10-31) — 52 lines
+  - [P03-3 Step 10 review round 2 and virtual-dispatch correction (2026-10-31)](#p03-3-step-10-review-round-2-and-virtual-dispatch-correction-2026-10-31) — 38 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -8683,3 +8684,41 @@ A/B pair; scoped local recovery is not relabelled as a full local pass.
 Both fresh Step 10 round-2 review and hosted/public-demo qualification remain
 open. The maintainer-authorized manual deferral remains unchanged and claims
 no manual execution or accessibility pass.
+
+### P03-3 Step 10 review round 2 and virtual-dispatch correction (2026-10-31)
+
+**Independent review.** Three new reviewers inspect `db2a1e17`: HTTP/security
+(Astra, xhigh), transactions/fixtures (Astra, xhigh), and CI/evidence (Sol,
+xhigh). Transactions and CI/evidence report no verified finding in their
+assigned slices and independently reconcile the retained source/receipt hashes.
+HTTP/security verifies one Major gap in the GlobalSelf architecture traversal:
+`callvirt` or `ldvirtftn` through a concrete virtual base can select a derived
+override that the interface/abstract-only expansion does not inspect. This is
+a structural enforcement gap, not an observed production data-access exploit.
+
+**Correction and paired controls.** The helper graph binds the exact class
+member declaration and resolves its ordinary inherited virtual slot. `callvirt`
+and `ldvirtftn` reach genuine overrides, including final overrides; direct
+`call`/`ldftn`, nonvirtual/final targets and unrelated/intervening `newslot`
+methods remain correctly bounded. Unsupported generic or MethodImpl class-slot
+resolution refuses instead of falling back to a name/arity guess. The catalogue
+states that implementation limit. A controls-only build makes the existing
+GlobalSelf Fact fail on the expected missed derived `callvirt` body; applying the
+correction makes that same Fact pass all nine valid-IL dispatch scenarios.
+Each scenario retains clean, base-body positive, derived-body and restoration
+controls on the actual `TryPage` body. These are mutable-IL detector controls,
+not runtime execution of the injected IL. The strict whole-solution build has
+zero warnings/errors, and all 13 cases in the same four affected Architecture
+classes pass with zero skips. Distribution/licence and dirty/replacement controls
+also pass.
+The existing GlobalSelf Fact owns the new controls; no Fact/Theory is removed,
+added or skipped, and no source of runtime authority changes.
+
+**Remaining qualification.** Both fresh source-review rounds and their verified
+corrections are complete. Complete final-source hosted A/B,
+original-archive reconciliation and public-demo qualification remain required.
+The developer's existing seven-service stack occupies the isolated local demo's
+shared default ports; read-only prerequisite checks neither stop those services
+nor run a demo. The clean hosted public-demo job owns that outstanding proof.
+The authorized manual deferral supplies no manual observation or accessibility
+pass. Current packet state remains in the phase Status block.
