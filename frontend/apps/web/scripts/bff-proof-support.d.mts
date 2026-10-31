@@ -1,6 +1,7 @@
 import type { ChildProcess } from 'node:child_process';
 
 export function bffDevToolsFailureStage(error: unknown): string;
+export function waitForBffProofListener(child: ChildProcess): Promise<number>;
 export function bffProofCopy(locale: string, key: string): string;
 export function bffPageKind(
   path: unknown,

@@ -44,6 +44,7 @@ try {
     await startBffProof({
       owner,
       root,
+      isolatedProtocol: true,
       privateValues,
       secret,
       marker,

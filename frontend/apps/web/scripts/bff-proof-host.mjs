@@ -1,13 +1,27 @@
 // Shared test-owned native Next fixture. External mode retains real RP/API dependencies.
 import assert from 'node:assert/strict';
 import { spawn, execFileSync } from 'node:child_process';
-import { cpSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { createServer } from 'node:http';
 import { request } from 'node:https';
+import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { createBffCookieScanner, rememberBffCookies } from './bff-proof-support.mjs';
+import {
+  createBffCookieScanner,
+  rememberBffCookies,
+  waitForBffProofListener,
+} from './bff-proof-support.mjs';
 import { createPrivateScanner, fixtureEnvironment } from './fixture-support.mjs';
 const source = fileURLToPath(new URL('../', import.meta.url));
 function file(path, value) {
@@ -73,6 +87,7 @@ export async function startBffProof({
   mutation,
   clockBase = 1800000000000,
   external,
+  isolatedProtocol = false,
   fakeIssuer = 'https://identity.example.test/realms/learnstack',
   fakeLogout = fakeIssuer + '/protocol/openid-connect/logout',
   mark = () => {},
@@ -81,7 +96,10 @@ export async function startBffProof({
     { host: 'other.example.test:3000', displayName: 'Diğer kurum', locale: 'tr' },
   ],
 }) {
+  assert.ok(!isolatedProtocol || !external, 'isolated protocol excludes external capabilities');
   const app = join(root, 'frontend/apps/web');
+  let listenerPort = 3000;
+  let sdkBuild = join(source, '../../packages/sdk/scripts/build-native.mjs');
   const scanners = [];
   // CSRF cookies may appear in their intended HTML/JSON response. They remain
   // forbidden in child/browser diagnostics, independently of body projections.
@@ -104,7 +122,7 @@ export async function startBffProof({
       const call = request(
         {
           hostname: '127.0.0.1',
-          port: 3000,
+          port: listenerPort,
           method: extra.method ?? 'GET',
           path,
           ca: readFileSync(join(root, 'cert.pem')),
@@ -229,7 +247,30 @@ export async function startBffProof({
       replace(readFileSync(path, 'utf8'), 'activity: frame.activity,', "activity: 'passive',"),
     );
   }
-  symlinkSync(join(source, 'node_modules'), join(app, 'node_modules'), 'dir');
+  if (isolatedProtocol) {
+    // Concurrent protocol copies share immutable dependencies, never SDK output.
+    const sdkSource = join(source, '../../packages/sdk');
+    const sdkRoot = join(root, 'frontend/packages/sdk');
+    mkdirSync(join(sdkRoot, 'scripts'), { recursive: true });
+    cpSync(join(sdkSource, 'src'), join(sdkRoot, 'src'), { recursive: true });
+    for (const name of ['package.json', 'tsconfig.json', 'tsconfig.native.json'])
+      cpSync(join(sdkSource, name), join(sdkRoot, name));
+    cpSync(join(sdkSource, 'scripts/build-native.mjs'), join(sdkRoot, 'scripts/build-native.mjs'));
+    symlinkSync(join(sdkSource, 'node_modules'), join(sdkRoot, 'node_modules'), 'dir');
+    sdkBuild = join(sdkRoot, 'scripts/build-native.mjs');
+    const dependencies = join(app, 'node_modules');
+    mkdirSync(join(dependencies, '@learnstack'), { recursive: true });
+    for (const name of readdirSync(join(source, 'node_modules'))) {
+      if (name === '@learnstack') continue;
+      symlinkSync(join(source, 'node_modules', name), join(dependencies, name), 'dir');
+    }
+    for (const name of readdirSync(join(source, 'node_modules/@learnstack')))
+      symlinkSync(
+        name === 'sdk' ? sdkRoot : join(source, 'node_modules/@learnstack', name),
+        join(dependencies, '@learnstack', name),
+        'dir',
+      );
+  } else symlinkSync(join(source, 'node_modules'), join(app, 'node_modules'), 'dir');
   cpSync(join(source, 'scripts/development-hmr.mjs'), join(app, 'scripts/development-hmr.mjs'));
   file(
     join(app, 'package.json'),
@@ -402,6 +443,15 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
     const dependencies = { provider: { begin: async callbackUri => ({ transaction: { callbackUri, state: randomBytes(32).toString('base64url'), nonce: randomBytes(32).toString('base64url'), verifier: randomBytes(32).toString('base64url') }, redirectUrl: ${JSON.stringify(fakeIssuer + '/protocol/openid-connect/auth')} }), redeem: async () => credentials(), refresh: async () => { ++refreshes; return credentials(); }, logoutUrl: () => ${JSON.stringify(fakeLogout)} }, account: async (_token, binding) => { ++accounts; return ({ actorId: '019a154b-0000-7000-8000-000000000011', tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null, displayName: (${JSON.stringify(sites)}).find(site => site.host === binding.host).displayName }); }, native: { self: async () => ({state: 'active', association: {authorityId: '10000000-0000-4000-8000-000000000099', subjectKey: 'a'.repeat(64), actorId: '019a154b-0000-7000-8000-000000000011'}}), bootstrap: async () => {throw new Error('Unused fixture create');}, contexts: async (_token,binding) => ({items: [{tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null, tenantName: (${JSON.stringify(sites)}).find(site => site.host === binding.host).displayName, organizationName: null, entryOrigin: 'https://' + binding.host, canUseCurrentHost: true}], endCursor: null, hasNextPage: false}), admit: async (_token,binding) => ({authorityId: '10000000-0000-4000-8000-000000000099', subjectKey: 'a'.repeat(64), actorId: '019a154b-0000-7000-8000-000000000011', tenantId: binding.tenantId, organizationId: binding.organizationId}), verifyAssociation: () => {} }, administration: fixtureAdministration, clock: { monotonic: () => now, utc: () => ${clockBase} + now } };`,
     );
   }
+  if (isolatedProtocol) {
+    // Only the physical test listener changes. Logical Host/origin, ingress,
+    // Next's configured port, TLS and all production admission remain intact.
+    launcher = replace(
+      launcher,
+      "server.listen(PUBLIC_HTTPS_PORT, '127.0.0.1', () => {",
+      "server.listen(0, '127.0.0.1', () => { const address = server.address(); if (!address || typeof address === 'string') throw new Error('Owned listener address absent'); process.send({kind: 'proof-listener', port: address.port});",
+    );
+  }
   file(join(app, 'scripts/public-server.mjs'), launcher);
   execFileSync(
     'openssl',
@@ -491,8 +541,22 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
   mark('compile');
   // The authenticated SDK subpath resolves to dist through the workspace link.
   // Qualify standalone proof invocations too, not only callers that built it first.
-  const sdk = child([join(source, '../../packages/sdk/scripts/build-native.mjs')], env);
+  const sdk = child([sdkBuild], env);
   assert.equal((await sdk.completed).code, 0, 'owned current-source SDK compilation');
+  if (isolatedProtocol) {
+    const require = createRequire(join(app, 'package.json'));
+    const sdkRoot = join(root, 'frontend/packages/sdk');
+    for (const [resolved, target] of [
+      [require.resolve('@learnstack/sdk/server'), 'src/server.ts'],
+      [require.resolve('@learnstack/sdk/authenticated-server'), 'dist/authenticated-server.js'],
+      [require.resolve('@learnstack/sdk/administration-server'), 'dist/administration-server.js'],
+    ])
+      assert.equal(
+        realpathSync(resolved),
+        realpathSync(join(sdkRoot, target)),
+        'current owned SDK resolution',
+      );
+  }
   const native = child(
     [join(source, 'node_modules/typescript/bin/tsc'), '--project', 'tsconfig.server.json'],
     env,
@@ -547,11 +611,15 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
       });
       server.process.send({ kind: 'render-control', action });
     });
-  const until = Date.now() + 20_000;
-  while (!server.scanner.tail.includes('Public HTTPS listener ready on 127.0.0.1:3000')) {
-    assert.equal(server.process.exitCode, null, 'native listener alive');
-    assert.ok(Date.now() < until, 'listener startup deadline');
-    await new Promise((resolve) => setTimeout(resolve, 25));
+  if (isolatedProtocol) {
+    listenerPort = await waitForBffProofListener(server.process);
+  } else {
+    const until = Date.now() + 20_000;
+    while (!server.scanner.tail.includes('Public HTTPS listener ready on 127.0.0.1:3000')) {
+      assert.equal(server.process.exitCode, null, 'native listener alive');
+      assert.ok(Date.now() < until, 'listener startup deadline');
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
   }
   return { app, server, advance, renderControl, get, scanners, cookieCanaries };
 }

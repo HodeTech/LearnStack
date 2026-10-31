@@ -49,6 +49,46 @@ export function bffProofCopy(locale, key) {
   return value;
 }
 
+/** Only the owned isolated protocol child can announce its physical listener. */
+export function waitForBffProofListener(child) {
+  return new Promise((resolve, reject) => {
+    if (child.exitCode !== null || child.signalCode !== null) {
+      reject(new Error('native listener closed before readiness'));
+      return;
+    }
+    const timer = setTimeout(() => finish(new Error('listener startup deadline')), 20_000);
+    function finish(error, port) {
+      clearTimeout(timer);
+      child.removeListener('message', ready);
+      child.removeListener('close', closed);
+      child.removeListener('error', failed);
+      if (error) reject(error);
+      else resolve(port);
+    }
+    function closed() {
+      finish(new Error('native listener closed before readiness'));
+    }
+    function failed() {
+      finish(new Error('native listener startup failed'));
+    }
+    function ready(value) {
+      if (
+        !value ||
+        Object.keys(value).sort().join(',') !== 'kind,port' ||
+        value.kind !== 'proof-listener' ||
+        !Number.isInteger(value.port) ||
+        value.port < 1 ||
+        value.port > 65535
+      )
+        finish(new Error('owned listener readiness shape'));
+      else finish(undefined, value.port);
+    }
+    child.once('message', ready);
+    child.once('close', closed);
+    child.once('error', failed);
+  });
+}
+
 /** Private fixture selector only; application admission remains independent. */
 export function bffPageKind(path) {
   const fixed = {

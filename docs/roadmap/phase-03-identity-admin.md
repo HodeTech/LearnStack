@@ -13,10 +13,11 @@
 > with manual keyboard/focus/reflow/contrast/VoiceOver evidence deferred for now.
 > No manual execution or accessibility pass is recorded; the maintainer owns that
 > outstanding observation and its disclosure in PR review. The [Step 10 source reviews](phase-03-delivery-log.md#p03-3-step-10-review-round-2-and-virtual-dispatch-correction-2026-10-31)
-> close both fresh independent rounds and verified corrections. The [CI follow-up](phase-03-delivery-log.md#p03-3-step-10-third-hosted-failure-and-independent-mutation-groups-2026-10-31)
-> records three failed hosted A attempts and further validated local corrections. Fresh focused
-> reviews, complete new-source hosted A/B, original-archive auditing and clean
-> public-demo proof remain open.
+> close both fresh independent rounds and verified corrections. The [CI follow-up](phase-03-delivery-log.md#p03-3-step-10-fourth-hosted-failure-and-isolated-protocol-proofs-2026-10-31)
+> records four failed hosted A attempts and separately validated local corrections.
+> The isolated frontend protocol correction passes all 3,302 guarded cases locally;
+> its fresh reviews, remaining backend corrections, complete new-source A/B and
+> original-archive qualification remain open.
 > [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md) and
 > [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md)
 > are Accepted; their separate eight-consumer prerequisite and one-consumer

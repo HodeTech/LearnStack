@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 3,245 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 3,314 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -195,7 +195,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 10 review round 2 and virtual-dispatch correction (2026-10-31)](#p03-3-step-10-review-round-2-and-virtual-dispatch-correction-2026-10-31) — 39 lines
   - [P03-3 Step 10 failed hosted A and bounded CI corrections (2026-10-31)](#p03-3-step-10-failed-hosted-a-and-bounded-ci-corrections-2026-10-31) — 61 lines
   - [P03-3 Step 10 second hosted failure and remaining qualification corrections (2026-10-31)](#p03-3-step-10-second-hosted-failure-and-remaining-qualification-corrections-2026-10-31) — 92 lines
-  - [P03-3 Step 10 third hosted failure and independent mutation groups (2026-10-31)](#p03-3-step-10-third-hosted-failure-and-independent-mutation-groups-2026-10-31) — 105 lines
+  - [P03-3 Step 10 third hosted failure and independent mutation groups (2026-10-31)](#p03-3-step-10-third-hosted-failure-and-independent-mutation-groups-2026-10-31) — 106 lines
+  - [P03-3 Step 10 fourth hosted failure and isolated protocol proofs (2026-10-31)](#p03-3-step-10-fourth-hosted-failure-and-isolated-protocol-proofs-2026-10-31) — 68 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -8984,3 +8985,72 @@ lint and all 3,290 guarded cases pass, zero skips/todos. Native controls pass
 reviews of these corrections and new full hosted A/B/original-archive qualification
 remain open. The maintainer-authorized manual deferral remains separate; the
 phase Status block owns current packet state.
+
+
+### P03-3 Step 10 fourth hosted failure and isolated protocol proofs (2026-10-31)
+
+**Review boundary.** The three fresh R1 and three new R2 reviewers approve the
+`77f62f1b..f0de02cd` correction scopes without verified findings. Their source and
+retained local evidence reviews do not establish hosted fit. The subsequent
+[complete A attempt](https://github.com/HodeTech/LearnStack/actions/runs/41160562129)
+uses `f0de02cda3bbd5a78c1d6cd5e5c9a28aa3d5d1d1`, tree
+`451da9c1e74917ecf7e857b39730e2ae75b054b9`; it fails, with 14 successful and
+13 failed jobs. No B is run and no passing sibling union qualifies this source.
+
+**Original evidence.** All 23 available original ZIPs pass size, API SHA-256,
+CRC, safe-path and bounded-member checks. Independent offline parsing reconciles
+7,940 selected backend cases: 7,903 Passed, nine Failed and 28 without results.
+Architecture accounts for 594 Passed, one Failed and nine missing of 604;
+ordinary accounts for 3,410 Passed, eight Failed and nineteen missing of 3,437.
+All 3,868 base and 31 native cases pass. Five Architecture and three ordinary
+owners exhaust their windows; the two other failed ordinary owners complete
+all assigned cases but contain failed tests. Failed owners are not natural
+complete receipts. Both aggregate jobs fail and produce no aggregate ZIP.
+Individual public-demo, OpenAPI and secret-scan archives pass their separate
+source-bound semantic checks; these successes do not qualify the failed run.
+
+**Distinct failures and limits.** The catalogue's declared method count misses
+the two additional compiled mutation Facts. Its published method count changes
+from 329 to 331; no rule status or assertion changes. The browser Fact reaches
+its third `unavailable_pages` journey but native child `close` misses the
+five-second cleanup observation. This does not identify a pending shutdown
+branch, prove a launcher deadline fired, or establish a product defect. Six
+provider failures share one failed collection fixture and precede their test
+bodies; the seventh owns a separate startup. Both exhaust the unchanged
+120-second startup budget at `provider_starting`. Existing evidence cannot
+identify the provider's internal phase or transport state. Those backend
+investigations and complete new-source A/B qualification remain open.
+
+Frontend typecheck/lint/build pass in A, but its web package reaches the existing
+180-second guard. Exactly 82 of 83 web files report completion; the sole absent
+file is `bff-boundaries.test.ts`. Its exact unfinished case is unknown. A bare
+file split would conflict at fixed port 3000 and rewrite shared SDK output.
+
+**Isolated protocol correction.** The two development diagnostics declarations
+move unchanged to a second node-environment test file. The original four
+production proofs and lightweight controls remain; all six proof modes and
+all 29 original cases run exactly once. Each protocol invocation compiles the
+current SDK into its own root, resolves all three SDK entries there, and uses
+an OS-assigned physical HTTPS listener announced over its owned child's closed
+IPC frame. The copied launcher's physical bind is the explicitly instrumented
+dimension: logical Host/origin, Next port, TLS, admission, shutdown and default
+fixed-port browser/provider fixtures remain unchanged. No compiled output is
+shared between protocol copies and no cold build is reused.
+
+Twelve new readiness controls reject malformed frames, early close/error,
+already closed children and the unchanged twenty-second startup deadline;
+observers and timers retire on every path. The four-worker package limit,
+180-second guard and all individual proof/startup/cleanup bounds stay intact.
+Two concurrent private lanes produce all six expected positive/mutation results
+in 26.660 seconds with unchanged workspace SDK hashes. This private plumbing
+trial precedes the final normal-source checks and is not hosted qualification.
+
+Final normal frontend typecheck/lint and the complete guarded suite pass:
+3,302 cases across 84 web files (3,154 cases) and six SDK files (148), zero
+skips/todos. The guarded command takes 51.554 seconds locally; its production
+and development protocol files take 25.236 and 28.859 seconds respectively.
+Five compiled corpus controls pass with the corrected published count. The
+moved declarations and all remaining original boundary source are byte-equal.
+Fresh independent reviews of this correction, remaining backend work and a new
+complete source-bound A/B pair remain open. The maintainer-authorized manual
+deferral remains separate from executed evidence; the phase Status owns state.

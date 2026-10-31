@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { execFileSync } from 'node:child_process';
+import { ChildProcess, execFileSync } from 'node:child_process';
 
 import { describe, expect, it, vi } from 'vitest';
 
@@ -12,11 +12,92 @@ import {
   createBffCookieScanner,
   rememberBffCookies,
   withProofWaiters,
+  waitForBffProofListener,
 } from '../../scripts/bff-proof-support.mjs';
 import en from '../i18n/messages/en/auth.json';
 import tr from '../i18n/messages/tr/auth.json';
 
 describe('BFF proof observation ownership', () => {
+  it('accepts only the owned child readiness frame and retires every observer', async () => {
+    vi.useFakeTimers();
+    try {
+      const child = new ChildProcess();
+      const waiting = waitForBffProofListener(child);
+      child.emit('message', { kind: 'proof-listener', port: 49152 });
+      expect(await waiting).toBe(49152);
+      for (const event of ['message', 'close', 'error']) expect(child.listenerCount(event)).toBe(0);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it.each([
+    { kind: 'snapshot', port: 49152 },
+    { kind: 'proof-listener', port: 49152, extra: true },
+    { kind: 'proof-listener', port: 0 },
+    { kind: 'proof-listener', port: 65536 },
+    { kind: 'proof-listener', port: 1.5 },
+    { kind: 'proof-listener', port: '49152' },
+  ])('refuses malformed physical listener readiness %j without a fallback', async (frame) => {
+    vi.useFakeTimers();
+    try {
+      const child = new ChildProcess();
+      const waiting = waitForBffProofListener(child).catch((error: unknown) => error);
+      child.emit('message', frame);
+      expect(await waiting).toEqual(new Error('owned listener readiness shape'));
+      for (const event of ['message', 'close', 'error']) expect(child.listenerCount(event)).toBe(0);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it.each(['close', 'error'] as const)(
+    'refuses child %s before readiness and retires observers',
+    async (event) => {
+      vi.useFakeTimers();
+      try {
+        const child = new ChildProcess();
+        const waiting = waitForBffProofListener(child).catch((error: unknown) => error);
+        child.emit(event, new Error('PRIVATE-CANARY'));
+        const error = await waiting;
+        expect(error).toEqual(
+          new Error(
+            event === 'close'
+              ? 'native listener closed before readiness'
+              : 'native listener startup failed',
+          ),
+        );
+        for (const name of ['message', 'close', 'error']) expect(child.listenerCount(name)).toBe(0);
+        expect(vi.getTimerCount()).toBe(0);
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
+  it('refuses missing readiness at the existing twenty-second startup deadline', async () => {
+    vi.useFakeTimers();
+    try {
+      const child = new ChildProcess();
+      const waiting = waitForBffProofListener(child).catch((error: unknown) => error);
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(await waiting).toEqual(new Error('listener startup deadline'));
+      for (const event of ['message', 'close', 'error']) expect(child.listenerCount(event)).toBe(0);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it.each(['exitCode', 'signalCode'] as const)(
+    'rejects an already closed child with %s',
+    async (field) => {
+      const child = new ChildProcess();
+      Object.defineProperty(child, field, { value: field === 'exitCode' ? 0 : 'SIGTERM' });
+      await expect(waitForBffProofListener(child)).rejects.toThrow(
+        'native listener closed before readiness',
+      );
+      for (const event of ['message', 'close', 'error']) expect(child.listenerCount(event)).toBe(0);
+    },
+  );
   it.each([
     ['/studio', 'studio'],
     ['/portal', 'portal'],
