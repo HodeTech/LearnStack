@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 3,643 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 3,673 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -201,7 +201,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0082 proposal reviews and approval readiness (2026-11-01)](#adr-0082-proposal-reviews-and-approval-readiness-2026-11-01) — 25 lines
   - [P03-3 Step 10 bounded detector reuse and native failure observations (2026-11-01)](#p03-3-step-10-bounded-detector-reuse-and-native-failure-observations-2026-11-01) — 67 lines
   - [P03-3 Step 10 native follow-up review closure (2026-11-01)](#p03-3-step-10-native-follow-up-review-closure-2026-11-01) — 43 lines
-  - [ADR-0082 maintainer corrections, acceptance and Step 1 (2026-11-01)](#adr-0082-maintainer-corrections-acceptance-and-step-1-2026-11-01) — 81 lines
+  - [ADR-0082 maintainer corrections, acceptance and Step 1 (2026-11-01)](#adr-0082-maintainer-corrections-acceptance-and-step-1-2026-11-01) — 82 lines
+  - [ADR-0082 Step 1 reviews and carrier closeout (2026-11-01)](#adr-0082-step-1-reviews-and-carrier-closeout-2026-11-01) — 29 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -9388,3 +9389,33 @@ sibling union or historical result qualifies the source. Further exhaustion
 reopens the choice; no additional window increase is authorized. Complete the
 required fresh reviews and truthful closeout/PR after proof, retaining manual
 deferral as a separate disclosed limitation.
+
+
+### ADR-0082 Step 1 reviews and carrier closeout (2026-11-01)
+
+Acceptance carriers are committed as `35f1ca026aefe22b8db6573b1695c439ad23513d`.
+Two fresh independent R1 reviews cover policy/governance and evidence/plan.
+One verified Minor concerns a blank-line break that renders the new Active
+ADR row outside its table. `1d39fbc16205c743cb2d3be5d5afaf2f95865f8f` removes
+all three intervening blank breaks; the complete Active table now includes
+0082 once, with no Proposed duplicate. Whole-tree document checks pass again.
+No predecessor ADR body or decision changes in this fix.
+
+Two new independent R2 reviewers approve the complete corrected range through
+`1d39fbc1`, tree `fe9f71687cb37208770d4a27bb3e8cc7ffa4c332`, without further
+verified findings. Their read-only comparisons establish predecessor byte
+preservation outside named amendments, append-only delivery history, current
+policy/index/Status consistency and the separate implementation/proof gates.
+The evidence reviews independently reconcile original historical archives,
+source identities, case populations, reserve arithmetic and the actual shared
+meta command. Seven lifecycle-parser controls, five compiled corpus controls,
+3,050 resolved fragments and roadmap/index checks pass locally. Baseline
+combined plan/result execution passes all 83 controls (including the forty
+result controls) under the actual 27-second TERM / three-second kill command
+in 10.980 command seconds. This is a predecessor-code baseline, not proof that
+extended controls fit.
+
+Step 1 is complete. Dependent executable policy remains unchanged at this
+closeout; Step 2 now proceeds under the accepted [three-step package](#adr-0082-maintainer-corrections-acceptance-and-step-1-2026-11-01).
+Its controls/reviews and complete fresh same-source hosted A/B remain required.
+Manual observations remain separately deferred and unexecuted.
