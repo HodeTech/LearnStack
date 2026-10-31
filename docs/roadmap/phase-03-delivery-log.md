@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 3,861 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 3,901 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -206,7 +206,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0082 Step 2 mode-bound implementation and offline proof (2026-11-01)](#adr-0082-step-2-mode-bound-implementation-and-offline-proof-2026-11-01) — 43 lines
   - [ADR-0082 Step 2 reviews and implementation closeout (2026-11-01)](#adr-0082-step-2-reviews-and-implementation-closeout-2026-11-01) — 33 lines
   - [P03-3 Step 10 fifth hosted A and bounded frontend proof ownership (2026-11-01)](#p03-3-step-10-fifth-hosted-a-and-bounded-frontend-proof-ownership-2026-11-01) — 68 lines
-  - [P03-3 frontend follow-up R1 and watcher-boundary clarification (2026-11-01)](#p03-3-frontend-follow-up-r1-and-watcher-boundary-clarification-2026-11-01) — 43 lines
+  - [P03-3 frontend follow-up R1 and watcher-boundary clarification (2026-11-01)](#p03-3-frontend-follow-up-r1-and-watcher-boundary-clarification-2026-11-01) — 44 lines
+  - [P03-3 frontend follow-up R2 and source-review closeout (2026-11-01)](#p03-3-frontend-follow-up-r2-and-source-review-closeout-2026-11-01) — 39 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -9611,3 +9612,43 @@ proof. Both original R1 reports and the independent clarification are preserved;
 the verified documentation correction is committed before two new R2 reviewers.
 Complete final-source hosted A/B and separately deferred manual evidence remain
 open. The failed A's individual successes qualify no corrected-source attempt.
+
+
+### P03-3 frontend follow-up R2 and source-review closeout (2026-11-01)
+
+The [R1 clarification](#p03-3-frontend-follow-up-r1-and-watcher-boundary-clarification-2026-11-01)
+is committed as `2499f1f1e27c5348c0f4f66432f012838ed1d371`, tree
+`7fa9c15de07ecebd388be7c60ce36a33264e8476`. Two new independent R2 reviewers
+approve the entire correction from `c4c0d83a` through this head without actionable
+Blocker, Major or Minor findings. They independently compare source with Accepted
+requirements; no private prior/peer review report precedes their verdicts.
+All four R1/R2 reports and their independent addenda are
+read and checked. The R1 ownership review preserves its historical verdict and
+explicitly withdraws the unsupported policy-blocker classification; the actual
+combined-fault residual remains documented rather than claimed repaired.
+
+R2 independently confirms the exact two original test bodies and six cold modes,
+unchanged package/case/worker bounds, each shared compile/server caller, IPC and
+privacy scanners, invalid setup and watcher readiness/failure, natural completion
+and confined group signaling. It checks the actual healthy/lost-watcher
+differential, assertion/cleanup failure preservation and root retention. No extra
+production authority, policy or multiple-fault guarantee is introduced.
+
+The evidence review independently recomputes original ZIP/API hashes, sizes and
+CRCs, all 147 extracted owner files against ZIP members, and the exact twenty
+assignment/completed/TRX unions of 7,944 Passed. The decoded-log addendum confirms
+83 of 84 completed web files and the 111.570-second boundary file, with no
+unfinished-case inference. Both reviewers inspect the actual 3,318-case local
+guard, typecheck/lint and input hashes against `820d871c`; the intervening frontend
+diff adds only explanatory comments. Corpus evidence is 5/5 Passed. These are
+local/source and historical-retention checks, not new hosted qualification.
+
+The frontend follow-up closes both review rounds and its verified clarification.
+This closeout changes documentation only. The next freeze rebuilds/discovers the
+actual final source and preserves the unchanged plan, 25/30-minute Architecture/
+ordinary windows, base/native twenty, reserve, operation limits and twenty-owner
+cap. It requires a new complete A, retention/independent original audit before a
+full complementary B, all 27 successful jobs and twenty natural owners per
+attempt, and exact zero-skip unions. Five failed historical A attempts and passing
+subsets substitute for neither. Manual keyboard/focus/reflow/contrast/VoiceOver
+evidence remains maintainer-deferred and unexecuted for PR review.

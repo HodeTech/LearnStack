@@ -12,9 +12,9 @@
 > are complete. The maintainer [authorizes Step 10 to proceed](phase-03-delivery-log.md#p03-3-maintainer-approved-manual-deferral-and-step-10-continuation-2026-10-30)
 > with manual keyboard/focus/reflow/contrast/VoiceOver evidence deferred for now.
 > Manual evidence remains unexecuted and maintainer-owned for PR review. The [Step 10 source reviews](phase-03-delivery-log.md#p03-3-step-10-review-round-2-and-virtual-dispatch-correction-2026-10-31)
-> close both fresh independent rounds and verified corrections. The [latest CI correction](phase-03-delivery-log.md#p03-3-step-10-fifth-hosted-a-and-bounded-frontend-proof-ownership-2026-11-01)
-> passes local checks; its two fresh review rounds and complete same-source
-> hosted A/B/original-archive qualification remain open.
+> close both fresh independent rounds and verified corrections. The [latest CI correction](phase-03-delivery-log.md#p03-3-frontend-follow-up-r2-and-source-review-closeout-2026-11-01)
+> passes local checks and both fresh review rounds; complete same-source
+> hosted A/B/original-archive qualification remains open.
 > [ADR-0082](../decisions/0082-current-source-ci-execution-windows.md) is Accepted for Architecture 25 / ordinary 30 minute windows;
 > both carrier rounds and the [budget implementation/reviews](phase-03-delivery-log.md#adr-0082-step-2-reviews-and-implementation-closeout-2026-11-01) close; complete fresh source-bound hosted A/B/original-archive qualification remains open.
 > [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md) and
