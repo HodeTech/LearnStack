@@ -29,6 +29,9 @@ if (isMainThread) {
   let failed = false;
   await new Promise((resolve, reject) => {
     const fail = () => {
+      // Failure notification needs the leader's event loop. Parent-loss
+      // protection assumes a live, runnable watcher; losing that watcher while
+      // the leader blocks and then losing the owner is outside this control.
       if (failed) return;
       failed = true;
       if (!ready) {

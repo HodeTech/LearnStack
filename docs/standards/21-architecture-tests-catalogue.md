@@ -5977,8 +5977,10 @@ surviving descendants and retired handles live in `fixture-cleanup.test.ts`.
 `bff-proof-lifeline.test.ts` exercises the actual detached BFF helper's invalid
 parent, natural completion, fork/worker inheritance, watcher failure and owner
 SIGKILL controls, including a synchronously blocked leader, its same-group child
-and a separate unaffected group. Its test-only worker checks parent loss while
-the leader survives; polling supplies no hard deadline, dead-leader or separately
+and a separate unaffected group. Parent-loss protection requires a live leader
+and live, runnable watcher; watcher-failure notification also requires the
+leader's event loop. Combined watcher loss and blocked-leader owner loss remain
+outside this control. Polling supplies no hard deadline, dead-leader or separately
 detached-descendant guarantee, Windows group control or killed-owner root cleanup.
 `verify-ingress-cleanup.mjs` runs real source-mutant cleanup/TLS/log/readiness/
 upgrade controls through `verify-ingress-controls.mjs`; normal `verify-ingress.mjs`

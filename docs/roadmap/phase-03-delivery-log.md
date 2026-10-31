@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 3,817 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 3,861 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -205,7 +205,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0082 Step 1 reviews and carrier closeout (2026-11-01)](#adr-0082-step-1-reviews-and-carrier-closeout-2026-11-01) — 30 lines
   - [ADR-0082 Step 2 mode-bound implementation and offline proof (2026-11-01)](#adr-0082-step-2-mode-bound-implementation-and-offline-proof-2026-11-01) — 43 lines
   - [ADR-0082 Step 2 reviews and implementation closeout (2026-11-01)](#adr-0082-step-2-reviews-and-implementation-closeout-2026-11-01) — 33 lines
-  - [P03-3 Step 10 fifth hosted A and bounded frontend proof ownership (2026-11-01)](#p03-3-step-10-fifth-hosted-a-and-bounded-frontend-proof-ownership-2026-11-01) — 67 lines
+  - [P03-3 Step 10 fifth hosted A and bounded frontend proof ownership (2026-11-01)](#p03-3-step-10-fifth-hosted-a-and-bounded-frontend-proof-ownership-2026-11-01) — 68 lines
+  - [P03-3 frontend follow-up R1 and watcher-boundary clarification (2026-11-01)](#p03-3-frontend-follow-up-r1-and-watcher-boundary-clarification-2026-11-01) — 43 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -9566,3 +9567,47 @@ backend successes cannot qualify the corrected source or substitute for either
 whole attempt. ADR-0082 budgets, reserve, assignments and counts are unchanged.
 Manual keyboard/focus/reflow/contrast/VoiceOver evidence remains explicitly
 maintainer-deferred and unexecuted for PR review.
+
+
+### P03-3 frontend follow-up R1 and watcher-boundary clarification (2026-11-01)
+
+The [frontend correction](#p03-3-step-10-fifth-hosted-a-and-bounded-frontend-proof-ownership-2026-11-01)
+is committed as `820d871c9afe2e78662a53a1af123d0f3ef045d9`, tree
+`22b8492905c553138f503d5ecc1f40c485dde657`. Two fresh R1 reviewers cover
+ownership/concurrency and proof/privacy/evidence. The evidence review approves
+after independently checking the 25 original API/archive size/digest/CRC records,
+all twenty exact assignment/completed/TRX unions, natural-owner receipts and both
+successful aggregates. It confirms the decoded frontend log's limited file
+observations, exact original development case bodies, unchanged proof/budget
+files and actual complete 3,318-case local execution. Compiled corpus controls
+also pass 5/5 with zero skips against the updated documentation.
+
+**Verified finding and disposition.** The ownership review identifies an
+overbroad watcher-failure statement. A real differential control reproduces
+both paths: a healthy watcher stops a synchronously blocked leader and its
+same-group grandchild after owner SIGKILL; deliberately terminating the watcher
+before blocking leaves that group alive after later owner loss. Exact rescue
+confirms all test-owned processes absent and removes only the owned root.
+The initial private harness path error is retained separately and supplies no
+passing evidence. No surviving process in the hosted attempt is inferred.
+
+The independent reviewer subsequently identifies no Accepted clause requiring
+this new test-only mitigation to survive the combined fault, and records the
+original policy-blocker classification as overstated. The genuine residual
+remains: parent-loss protection requires a live leader and a live, runnable
+watcher; watcher-exit/error notification needs the leader's main event loop.
+The earlier generic statement that watcher failure rejects the child is qualified
+by this requirement. Source comments and the canonical catalogue state that
+boundary. This adds a bounded mitigation to the pre-existing fixture, without
+withdrawing an Accepted guarantee, adding runtime authority or changing policy.
+No second-supervisor or arbitrary multiple-fault cleanup guarantee is selected.
+The implementation's observable behavior is unchanged by this clarification.
+
+Existing failure, 180-second guard, strict complete-report and natural/zero-exit
+requirements remain unchanged; an unfinished or unconfirmed proof still fails.
+The local tests prove ordinary watcher failure only with a runnable leader, and
+parent loss only with a healthy watcher. They are not combined-fault recovery
+proof. Both original R1 reports and the independent clarification are preserved;
+the verified documentation correction is committed before two new R2 reviewers.
+Complete final-source hosted A/B and separately deferred manual evidence remain
+open. The failed A's individual successes qualify no corrected-source attempt.
