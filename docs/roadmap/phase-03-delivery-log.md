@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 3,716 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 3,749 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -203,7 +203,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 10 native follow-up review closure (2026-11-01)](#p03-3-step-10-native-follow-up-review-closure-2026-11-01) — 43 lines
   - [ADR-0082 maintainer corrections, acceptance and Step 1 (2026-11-01)](#adr-0082-maintainer-corrections-acceptance-and-step-1-2026-11-01) — 82 lines
   - [ADR-0082 Step 1 reviews and carrier closeout (2026-11-01)](#adr-0082-step-1-reviews-and-carrier-closeout-2026-11-01) — 30 lines
-  - [ADR-0082 Step 2 mode-bound implementation and offline proof (2026-11-01)](#adr-0082-step-2-mode-bound-implementation-and-offline-proof-2026-11-01) — 42 lines
+  - [ADR-0082 Step 2 mode-bound implementation and offline proof (2026-11-01)](#adr-0082-step-2-mode-bound-implementation-and-offline-proof-2026-11-01) — 43 lines
+  - [ADR-0082 Step 2 reviews and implementation closeout (2026-11-01)](#adr-0082-step-2-reviews-and-implementation-closeout-2026-11-01) — 32 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -9463,3 +9464,36 @@ not promoted; this extension's delivery note is updated only after its control
 and review gates close. Complete final-source A/B with original archives remains
 Step 3. Provider startup/failed-case and natural ownership requirements are
 untouched. Manual observations remain separately deferred and unexecuted.
+
+
+### ADR-0082 Step 2 reviews and implementation closeout (2026-11-01)
+
+The [mode-bound implementation](#adr-0082-step-2-mode-bound-implementation-and-offline-proof-2026-11-01)
+is committed as `97c07ebcae2a0bccc2593e49610f2096bcdf80f8`, tree
+`b5237983211500ec567ccd86412722e5af9880ac`. Two fresh R1 reviewers and two
+new independent R2 reviewers approve policy/security and controls/evidence
+scopes without verified actionable findings. All four reports are read and
+checked; no empty fix commit is required. Reviewed source is unchanged between
+rounds. The second round uses independently selected reviewers and separate
+contexts; no prior/peer review report precedes their verdicts.
+
+Independent byte/AST/source-hash comparisons confirm the sole validated-mode
+policy and all expected-owner consumers, only two workflow field changes,
+unchanged plan and preservation of all other launcher/validator code, reserves,
+operation bounds, authority, counts and natural-completion requirements. Reviews
+inspect actual boundary/identity/nonfinite/measurement/image controls and their
+retained complete 18/101/83 zero-skip executions, including the actual shared
+27-second TERM / three-second kill wrapper. The 83 contains forty result
+controls; the separate local timing observations imply no speedup or hosted fit.
+
+Step 2 is complete. The existing catalogue Status now records this verified
+ADR-0082 extension without changing the rule's classification/count or asserting
+hosted delivery. No code changes with this closeout. Step 3 freezes the actual
+final source/tree, plan, toolchain and discovered population before a new complete
+A and, after original-evidence retention/audit, a full B on that same freeze.
+All 27 jobs, twenty natural owners, exact zero-skip unions and 25 original ZIPs
+per attempt remain required. Historical helpers tied to f0 cannot supply this
+source's independent proof. The generic collector is acquisition plus replay
+of the real validator; independent raw-data and cross-attempt audits and actual
+surface/screenshot inspection remain separate obligations. Manual observations
+remain explicitly maintainer-deferred and unexecuted.

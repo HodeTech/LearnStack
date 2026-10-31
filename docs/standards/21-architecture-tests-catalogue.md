@@ -6887,10 +6887,14 @@ and fixture definitions make the implemented controls non-vacuous.
   [Phase 03 closeout](../roadmap/phase-03-delivery-log.md#adr-0075-three-step-closeout-2026-10-27)
   owns implementation reviews and observed complete hosted A/B; local controls
   alone do not establish fit and later documentation identities remain distinct.
-  **ADR-0082 extension accepted; implementation pending.** Its control/review
-  completion must be recorded here after actual verification; the historical
-  Implemented rule and ADR-0075 extension establish no proof of this successor.
-  Fresh complete final-source A/B remains a separate gate owned by Phase 03.
+  **ADR-0082 extension implemented** by the same owners and complete offline
+  suites: exact mode/job/index selection of 1,200/1,500/1,800 seconds, inclusive
+  expected-owner observations, strict interval sums, image caps and malformed/
+  forged/nonfinite/boundary counterexamples. Both fresh review rounds close;
+  the [implementation closeout](../roadmap/phase-03-delivery-log.md#adr-0082-step-2-reviews-and-implementation-closeout-2026-11-01)
+  records 18 provisioning, 101 native and 83 combined controls under the unchanged
+  meta allocation. Complete final-source hosted A/B remains a separate Phase 03
+  gate; this source-enforcement status establishes no hosted fit.
 - **Phase:** 02b (P02b-4 CI follow-up).
 
 ## References
