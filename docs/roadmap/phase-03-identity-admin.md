@@ -17,7 +17,7 @@
 > The isolated frontend correction passes 3,302 guarded cases and closes both review rounds.
 > Backend corrections, complete new-source A/B and original-archive qualification remain open.
 > [ADR-0082](../decisions/0082-current-source-ci-execution-windows.md) proposes Architecture 25 / ordinary 30 minute windows;
-> budget code awaits maintainer acceptance while independent local work continues.
+> Both [proposal review rounds](phase-03-delivery-log.md#adr-0082-proposal-reviews-and-approval-readiness-2026-11-01) close; budget code awaits maintainer acceptance.
 > [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md) and
 > [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md)
 > are Accepted; their separate eight-consumer prerequisite and one-consumer

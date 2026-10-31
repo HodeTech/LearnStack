@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 3,426 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 3,451 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -197,7 +197,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 10 second hosted failure and remaining qualification corrections (2026-10-31)](#p03-3-step-10-second-hosted-failure-and-remaining-qualification-corrections-2026-10-31) — 92 lines
   - [P03-3 Step 10 third hosted failure and independent mutation groups (2026-10-31)](#p03-3-step-10-third-hosted-failure-and-independent-mutation-groups-2026-10-31) — 106 lines
   - [P03-3 Step 10 fourth hosted failure and isolated protocol proofs (2026-10-31)](#p03-3-step-10-fourth-hosted-failure-and-isolated-protocol-proofs-2026-10-31) — 69 lines
-  - [ADR-0082 proposed current-source CI window package (2026-11-01)](#adr-0082-proposed-current-source-ci-window-package-2026-11-01) — 111 lines
+  - [ADR-0082 proposed current-source CI window package (2026-11-01)](#adr-0082-proposed-current-source-ci-window-package-2026-11-01) — 112 lines
+  - [ADR-0082 proposal reviews and approval readiness (2026-11-01)](#adr-0082-proposal-reviews-and-approval-readiness-2026-11-01) — 24 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -9167,3 +9168,28 @@ including additional running/queueing cost and unproved fit. The actual new
 owner code remains blocked solely on that new-policy acceptance. Independent
 correctness work and retained evidence inspection continue; manual observations
 remain explicitly maintainer-deferred, never executed or passed by inference.
+
+
+### ADR-0082 proposal reviews and approval readiness (2026-11-01)
+
+**Reviewed scope.** The four-document proposal is committed as
+`06c09dd53d246fa4d9552871b484ddd46017e43b`, tree
+`1c9cfffd0a5269daeaf9fac479c025b07de8e84b`, after the isolated protocol
+correction `441721114ab1401285660d42e7c761501971c55d`. Two fresh independent
+R1 reviewers and two new R2 reviewers approve their separate policy/governance
+and evidence/implementation-plan scopes without verified findings. The R2
+evidence review independently parses all 23 original archives, reconciles the
+27 terminal jobs and 7,940-case historical union, and checks the proposed
+reserve arithmetic against original receipts. No fixes or empty fix commits
+are required by these rounds.
+
+**Decision boundary.** [ADR-0082](../decisions/0082-current-source-ci-execution-windows.md)
+remains Proposed. The [three-step package](#adr-0082-proposed-current-source-ci-window-package-2026-11-01)
+contains the exact dated acceptance amendments and ongoing-rule carrier edits.
+Architecture 25 / ordinary 30 minutes remain explicit, unproved headroom
+choices; base/native twenty, other clocks, 203-second reserve, operation bounds,
+counts, cap and complete fresh A/B requirements stay fixed. Review approval
+neither accepts the decision nor authorizes budget code. Only this new policy
+awaits maintainer acceptance; independent corrective implementation and its
+local proofs/reviews continue. Manual evidence remains maintainer-deferred,
+not executed or inferred from automated results.
