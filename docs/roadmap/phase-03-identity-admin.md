@@ -14,8 +14,8 @@
 > Manual evidence remains unexecuted and maintainer-owned for PR review. The [Step 10 source reviews](phase-03-delivery-log.md#p03-3-step-10-review-round-2-and-virtual-dispatch-correction-2026-10-31)
 > close both fresh independent rounds and verified corrections. The [CI follow-up](phase-03-delivery-log.md#p03-3-step-10-fourth-hosted-failure-and-isolated-protocol-proofs-2026-10-31)
 > records four failed hosted A attempts and separately validated local corrections.
-> The isolated frontend correction closes both review rounds. Current backend/browser
-> corrections pass locally; their reviews and complete new-source A/B/original-archive qualification remain open.
+> The isolated frontend correction closes both review rounds. The [backend/browser follow-up](phase-03-delivery-log.md#p03-3-step-10-native-follow-up-review-closure-2026-11-01)
+> passes local proof and both fresh review rounds; complete new-source A/B/original-archive qualification remains open.
 > [ADR-0082](../decisions/0082-current-source-ci-execution-windows.md) proposes Architecture 25 / ordinary 30 minute windows;
 > Both [proposal review rounds](phase-03-delivery-log.md#adr-0082-proposal-reviews-and-approval-readiness-2026-11-01) close; budget code awaits maintainer acceptance.
 > [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md) and

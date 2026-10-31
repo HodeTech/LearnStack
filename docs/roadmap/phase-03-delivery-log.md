@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 3,518 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 3,561 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -199,7 +199,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 10 fourth hosted failure and isolated protocol proofs (2026-10-31)](#p03-3-step-10-fourth-hosted-failure-and-isolated-protocol-proofs-2026-10-31) — 69 lines
   - [ADR-0082 proposed current-source CI window package (2026-11-01)](#adr-0082-proposed-current-source-ci-window-package-2026-11-01) — 112 lines
   - [ADR-0082 proposal reviews and approval readiness (2026-11-01)](#adr-0082-proposal-reviews-and-approval-readiness-2026-11-01) — 25 lines
-  - [P03-3 Step 10 bounded detector reuse and native failure observations (2026-11-01)](#p03-3-step-10-bounded-detector-reuse-and-native-failure-observations-2026-11-01) — 66 lines
+  - [P03-3 Step 10 bounded detector reuse and native failure observations (2026-11-01)](#p03-3-step-10-bounded-detector-reuse-and-native-failure-observations-2026-11-01) — 67 lines
+  - [P03-3 Step 10 native follow-up review closure (2026-11-01)](#p03-3-step-10-native-follow-up-review-closure-2026-11-01) — 42 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -9261,3 +9262,46 @@ filters remain 22,210 / 29,954 bytes under the existing limit. No private probe
 identity remains. Fresh independent review rounds for this correction and
 complete final-source hosted A/B/original-archive qualification remain open.
 Manual evidence remains explicitly maintainer-deferred and unexecuted.
+
+
+### P03-3 Step 10 native follow-up review closure (2026-11-01)
+
+**Reviewed source.** The [bounded detector/native follow-up](#p03-3-step-10-bounded-detector-reuse-and-native-failure-observations-2026-11-01)
+is committed as `7b5a9f6a83c7e0bfa897ee4e08aab7eabb6924c3`, tree
+`1a5ce697bc64b14221f1239655920246b5f315a0`. Three fresh independent R1
+reviewers and three new R2 reviewers approve separate detector, browser
+lifecycle and provider/export scopes without verified actionable findings.
+Each applies the standards/security/correctness/performance/maintenance and
+proof lenses; none reads a prior or peer report before forming its verdict.
+The reviewed source remains unchanged between rounds. No empty fix commit or
+unexecuted test is substituted for a finding or its verification.
+
+**Independent checks and supplementary execution.** Both detector reviews
+confirm the exact raw-body/FullName/opcode/order/multiplicity predicates,
+per-evaluation cache lifetime and unchanged original mutation/undo controls.
+Both browser reviews trace actual exit, unchanged group absence/no-forcing,
+original close and real owner disposal, and inspect the real held-stdio pair.
+Provider/export reviews confirm unchanged transport/cancellation and finite
+failure-only data; no observation becomes readiness, root-cause or ownership
+proof. The reviewers independently reconcile retained source snapshots,
+TRX/command results and all twenty raw SDK discovery populations. Provider
+reviewers also recompute both actual assignments against the prior manifest:
+all earlier case records and owner placements remain; only four new offline
+cases enter base. Earlier mixed-trial results stay distinct from final-cache
+proof, and clean-sample resolver reuse is not a whole-suite speedup claim.
+
+The seven exact provider cases that failed in the retained fourth hosted A
+all pass in a further actual local run, zero skips, 73.745 command seconds;
+before/after source snapshots match. The Docker-trait routing architecture
+control also passes with the four new offline cases. These supplemental
+checks change no source and establish neither the earlier hosted startup
+cause nor complete hosted reliability. Both rounds preserve those limits,
+the zero natural-BFCache-restore observation and the explicit history counter.
+
+**Remaining boundary.** No complete final-source hosted A/B pair exists yet.
+All 27 jobs, twenty natural owners, exact zero-skip unions and all 25 original
+archives per attempt still require fresh qualification. The [ADR-0082 package](#adr-0082-proposed-current-source-ci-window-package-2026-11-01)
+remains Proposed and is submitted for maintainer acceptance; no duration
+code changes with this record. Manual keyboard/focus/reflow/contrast/VoiceOver
+observations remain maintainer-deferred and unexecuted. Phase 03 Status owns
+current packet state; this record does not close P03-3 or claim a ready PR.
