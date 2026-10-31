@@ -196,7 +196,12 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             release.TrySetResult();
             await EventuallyQualificationAsync(async () => (await BackgroundJobRuntimeRows.ReadAsync(database.AppConnectionString, job))!.Phase == "completed", deadline.Token);
             (await BackgroundJobRuntimeRows.CountOrganizationAsync(database.AppConnectionString, organization)).Should().Be(1);
-            (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job)).Should().Be(1);
+            var observedAttempts = await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job);
+            if (observedAttempts == 0)
+                throw new InvalidOperationException("Native renewal attempt ledger is missing its admitted row.");
+            if (observedAttempts > 1)
+                throw new InvalidOperationException("Native renewal attempt ledger contains an additional admission.");
+            observedAttempts.Should().Be(1);
             await generation.Completion.WaitAsync(deadline.Token);
             probe.Constructions.Should().Equal("TenantRoot");
         }

@@ -856,6 +856,7 @@ BFF_BROWSER_FAILURE_STAGES = {
     'start', 'command', 'request', 'request-deadline', 'request-connect', 'request-tls', 'request-socket',
     'response-json', 'cleanup', 'privacy', 'native-stop',
     'cleanup-cdp', 'cleanup-disconnect', 'cleanup-browser-wait', 'cleanup-browser-stop', 'cleanup-browser-forced',
+    'cleanup-native-shutdown', 'cleanup-native-wait',
     'cleanup-browser-exit', 'cleanup-browser-signal', 'cleanup-native-stop', 'cleanup-native-forced',
     'cleanup-owner', 'cleanup-native-exit', 'cleanup-native-signal',
     'browser-executable', 'browser-spawn', 'browser-devtools', 'browser-devtools-inactive',

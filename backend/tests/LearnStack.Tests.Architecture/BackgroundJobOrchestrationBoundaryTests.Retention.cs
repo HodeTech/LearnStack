@@ -139,7 +139,7 @@ public sealed partial class OutboxDispatchConventionTests
     {
 
         [Fact]
-        public void External_job_orchestration_rejects_missing_seams_helpers_delegates_signatures_and_resource_carriers()
+        public void External_job_orchestration_rejects_missing_seams_helpers_delegates_and_signatures()
         {
             using var census = ProductionCensus.Read();
             AssertOrchestrationIndexEquivalence(census);
@@ -184,6 +184,18 @@ public sealed partial class OutboxDispatchConventionTests
                     return () => method.Parameters.Remove(parameter);
                 }, JobOrchestrationOffenders);
             }
+        }
+    }
+
+    public sealed class JobOrchestrationRetentionMutationTests
+    {
+        [Fact]
+        public void External_job_orchestration_rejects_lost_retention_and_resource_carriers()
+        {
+            using var census = ProductionCensus.Read();
+            var baseline = EvaluateDetector(census, JobOrchestrationOffenders);
+            baseline.Should().BeEmpty("the exact orchestration manifest must match; offenders: {0}",
+                string.Join(Environment.NewLine, baseline));
             var terminal = census.Types[(InfrastructureAssembly, OrchestrationTerminal)];
             foreach (var item in TerminalPrivilegedAwaits)
             {

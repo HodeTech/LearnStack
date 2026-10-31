@@ -183,11 +183,11 @@ public sealed partial class OutboxDispatchConventionTests
         }
     }
 
-    public sealed partial class JobAuthorityMutationTests
+    public sealed class JobApplicationSourceCapabilityMutationTests
     {
 
         [Fact]
-        public void Background_job_application_source_ownership_has_exact_nonempty_callers_and_rejects_escapes()
+        public void Background_job_application_source_rejects_qualification_and_capability_escapes()
         {
             using var census = ProductionCensus.Read();
             EvaluateDetector(census, JobApplicationSourceOffenders).Should().BeEmpty();
@@ -240,6 +240,19 @@ public sealed partial class OutboxDispatchConventionTests
                     return () => declaringType.Methods.Add(join);
                 }, JobApplicationSourceOffenders);
             }
+        }
+    }
+
+    public sealed class JobApplicationSourceRetentionMutationTests
+    {
+        [Fact]
+        public void Background_job_application_source_preserves_lifecycle_cleanup_and_retained_resources()
+        {
+            using var census = ProductionCensus.Read();
+            EvaluateDetector(census, JobApplicationSourceOffenders).Should().BeEmpty();
+            var owner = census.Types.Values.Single(type => type.FullName == AppJobOwner);
+            var resources = census.Types.Values.Single(type => type.FullName == AppJobResources);
+            var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
             // Literal expected boundaries are reviewed independently of the observed IL.
             // In particular, neither forwarding read overload is an allowed source binder/joiner.
             var lifecycleCallers = new (string Type, string Method, string[] Seams)[]

@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 3,140 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 3,245 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -195,6 +195,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 10 review round 2 and virtual-dispatch correction (2026-10-31)](#p03-3-step-10-review-round-2-and-virtual-dispatch-correction-2026-10-31) — 39 lines
   - [P03-3 Step 10 failed hosted A and bounded CI corrections (2026-10-31)](#p03-3-step-10-failed-hosted-a-and-bounded-ci-corrections-2026-10-31) — 61 lines
   - [P03-3 Step 10 second hosted failure and remaining qualification corrections (2026-10-31)](#p03-3-step-10-second-hosted-failure-and-remaining-qualification-corrections-2026-10-31) — 92 lines
+  - [P03-3 Step 10 third hosted failure and independent mutation groups (2026-10-31)](#p03-3-step-10-third-hosted-failure-and-independent-mutation-groups-2026-10-31) — 105 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -8878,3 +8879,108 @@ type-import lint fix follows the browser run; its script is unchanged. Fresh
 independent reviews of this correction and complete new-source hosted A/B remain
 open. The maintainer-authorized manual deferral remains separate from all automated
 evidence; packet state lives only in the phase Status block.
+
+### P03-3 Step 10 third hosted failure and independent mutation groups (2026-10-31)
+
+**Reviewed source and retained failure.** Both fresh focused review rounds on
+`77f62f1b` approve the bounded caller indexes, browser lifecycle, finite diagnostics
+and timing evidence. The second round identifies one Minor current-state phase
+paragraph: AccountSite remains its own GET-only caller, while the separate native
+administration dispatcher already uses the closed generated SDK. That paragraph
+now distinguishes the callers and preserves validated context selection.
+
+The [third complete hosted A](https://github.com/HodeTech/LearnStack/actions/runs/41153230330)
+runs that exact source/tree `a2bb66c9056a7092c5708a340c7631ab1f596b51` and ends
+with 20 successful and seven failed jobs. Architecture has 584 Passed and 18
+without results of 602: owners 0/1/5 exhaust their deadlines. Ordinary completes
+all 3,437 selected cases, with 3,435 Passed and two Failed. Base completes 3,868
+and native 31, all Passed. The whole selected population is 7,938: 7,918 Passed,
+two Failed and 18 without results. The two aggregates fail; no B starts and no
+passing union is inferred from successful siblings.
+
+All 23 available original ZIPs are retained with source/run/attempt/job metadata,
+API size/SHA-256, streamed CRC and bounded member checks. Independent audits
+reconcile individual surface evidence: frontend 3,276 Passed across 88 files,
+native ingress/cleanup controls, strict committed-base OpenAPI and all 60 policy
+fixtures, zero SARIF findings, and public demo's nine navigations/27 report pairs.
+The demo retains 24 visibility controls, two TLS refusals, timeout refusal and
+joined cleanup. All nine LCP medians remain advisories; automated accessibility
+scores and screenshots establish no manual accessibility pass. The scanner's
+embedded version is `dev`; its installer pins and authenticates module v1.8.0.
+
+**Separate failure boundaries.** The ordinary browser case fails in the third,
+unavailable-page counter journey with `cleanup-native-forced`. Source order
+implies the preceding two journeys returned; the sanitized archive contains no
+independent successful per-journey receipts. The finite label proves escalation,
+not which launcher operation was blocked. The other failure is the admitted job's
+final attempt-count read/assertion. Its original sanitized TRX has no ErrorInfo;
+the retained source positions disclose neither a count nor a renewal failure.
+Actual local repeats before and after diagnostic separation pass at about 39
+seconds. The original CI cause remains unproved.
+
+**Mutation granularity.** The original orchestration and application-source
+controls become four independently owned classes. The complete first-sensitive
+95-seam loop stays together; all four mutation regions remain literal copies.
+Every existing clean/dirty/restored detector call and assertion remains. The
+application pieces also stop sharing one collection with the credential sibling.
+Three normal cohort cases pass before and five after: wall time is 365.965 versus
+349.694 seconds, about 4.45% lower. The largest orchestration piece is 171.764
+instead of 245.053 local seconds. Summed application-piece durations increase;
+this is finer scheduling granularity, not proof of reduced CPU work or hosted fit.
+
+A bounded temporary observer compares 1,584 completed mutation triples per
+version: 855 seam, 363 orchestration-retention, 169 capability and 197
+application-retention controls. Executed labels, exact dirty diagnostic sets,
+multiplicity and empty clean/restored results agree. Region order agrees except
+the explicitly retained 25 authorization/evidence lane deletions, whose complete
+multiset remains equal. This is not a full structural graph-delta proof. Separate
+actual probes establish independent Cecil objects/dirty isolation and the pinned
+xUnit per-class collection factory with the unchanged two-thread cap. Production
+assembly bytes agree across comparison builds. Both temporary probe files and
+observer code are removed; the normal test DLL returns to the exact hash of the
+passing five-case normal build.
+
+**Native fixture lifecycle and diagnostics.** Cleanup joins the owned launcher's
+existing five-second shutdown before the unchanged two/five-second group fallback.
+Actual close, zero/signal-free exit, unforced group absence and owner disposal
+remain required. Missing/failed shutdown, elapsed wait, nonzero/signal exit or
+forced descendants stay red. Mocked controls and real process controls include
+the paired 2.5-second shutdown, an uncooperative launcher and a zero-exit leader
+with a surviving descendant. New diagnostic labels are finite. Existing outer
+read/script/disposal bounds and every browser security/history/privacy check stay.
+The actual positive/history/unavailable-page browser Fact passes locally in
+48.449 seconds, with unchanged executed sources during the run. This does not
+identify the old hosted blocking operation or prove Linux fit.
+
+The job fixture separates the attempt-count query from fixed no-data zero/multiple
+diagnostic branches and retains its strict `Be(1)` assertion and existing bounds.
+It changes no production runtime or liveness promise. The existing finite
+exception/source-position projection carries no raw error text, attempt-count
+field or job ID.
+
+**Advisory epoch and remaining qualification.** Current complete Passed groups
+replace stale timing estimates in both directions; failed/incomplete groups retain
+prior values. This supersedes the prior private nondecreasing import choice,
+not an ADR rule. Sources are pruned only when unreferenced, preserving original
+provenance. Four new child estimates use actual local normal receipts and the
+recorded hosted-parent/local-parent ratio: 421,981 / 183,496 / 362,072 / 441,590 ms.
+They are modeled estimates, not hosted child measurements. The application sum
+is 803,662 ms versus the hosted parent's 458,275 ms; no normalization conceals it.
+All owner counts, algorithms, windows, filter bounds, reserves and success rules
+remain unchanged. Fresh complete same-source A/B still decides fit.
+The plan has 1,988 weights, 46 referenced sources and SHA-256
+`8f3da281ac9b5d57448725b871f2716809b748effc3a99c06c62563623676da3`.
+Against actual fresh discovery, both local assignments cover every case exactly
+once across twenty nonempty owners; base/native membership is unchanged and
+Architecture/ordinary/shared co-membership differs. Maximum filter sizes are
+22,210 bytes for A and 29,954 for B, below the unchanged 32,768-byte cap.
+
+Strict normal build has zero warnings/errors. Actual fresh discovery contains
+7,940 cases, including 604 Architecture: exactly two old identities are replaced
+by four new identities; every unrelated identity/metadata and Docker partition
+is unchanged. Temporary probe identities are absent. Final frontend typecheck,
+lint and all 3,290 guarded cases pass, zero skips/todos. Native controls pass
+98/98; post-plan shard/result controls pass 83/83 and 40/40. Fresh independent
+reviews of these corrections and new full hosted A/B/original-archive qualification
+remain open. The maintainer-authorized manual deferral remains separate; the
+phase Status block owns current packet state.

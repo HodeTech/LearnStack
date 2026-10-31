@@ -153,6 +153,89 @@ describe('BFF owned browser cleanup', () => {
     },
   );
 
+  it('joins native shutdown beyond two seconds before the unchanged group fallback', async () => {
+    vi.useFakeTimers();
+    const state = fixture();
+    const kill = vi.fn(() => true);
+    Object.assign(state.nativeProcess, { exitCode: null, kill });
+    let complete!: (result: { code: number | null; signal: NodeJS.Signals | null }) => void;
+    state.nativeServer.completed = new Promise((resolve) => {
+      complete = resolve;
+    });
+    const first = state.cleanup.run();
+    await vi.advanceTimersByTimeAsync(2500);
+    expect(kill).toHaveBeenCalledExactlyOnceWith('SIGTERM');
+    expect(stopTestChild).toHaveBeenCalledExactlyOnceWith(state.browserProcess);
+    expect(state.owner.dispose).not.toHaveBeenCalled();
+    Object.assign(state.nativeProcess, { exitCode: 0 });
+    complete({ code: 0, signal: null });
+    await expect(first).resolves.toBeUndefined();
+    expect(state.cleanup.failureStage).toBeNull();
+    expect(stopTestChild).toHaveBeenCalledTimes(2);
+    expect(state.owner.dispose).toHaveBeenCalledOnce();
+    expect(state.cleanup.run()).toBe(first);
+    expect(kill).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each([
+    ['request-false', 'cleanup-native-shutdown'],
+    ['request-error', 'cleanup-native-shutdown'],
+    ['missing-close', 'cleanup-native-wait'],
+    ['deadline', 'cleanup-native-wait'],
+    ['completion-error', 'cleanup-native-wait'],
+    ['nonzero', 'cleanup-native-exit'],
+    ['signal', 'cleanup-native-signal'],
+  ] as const)('keeps native %s red after fallback cleanup succeeds', async (kind, stage) => {
+    vi.useFakeTimers();
+    const state = fixture();
+    const kill = vi.fn(() => {
+      if (kind === 'request-error') throw new Error('PRIVATE-CANARY');
+      return kind !== 'request-false';
+    });
+    Object.assign(state.nativeProcess, { exitCode: kind === 'missing-close' ? 0 : null, kill });
+    if (kind === 'missing-close' || kind === 'deadline')
+      state.nativeServer.completed = new Promise(() => {});
+    if (kind === 'nonzero')
+      state.nativeServer.completed = Promise.resolve({ code: 7, signal: null });
+    if (kind === 'signal')
+      state.nativeServer.completed = Promise.resolve({ code: null, signal: 'SIGTERM' });
+    if (kind === 'completion-error') {
+      const failed = Promise.reject(new Error('PRIVATE-CANARY'));
+      void failed.catch(() => {});
+      state.nativeServer.completed = failed;
+    }
+    vi.mocked(stopTestChild).mockImplementation(async (child) => {
+      if (child === state.nativeProcess) Object.assign(child, { exitCode: 0, signalCode: null });
+      return { forced: false };
+    });
+    const first = state.cleanup.run();
+    const failure = first.catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(5001);
+    expect(String(await failure)).toBe('Error: BFF browser cleanup failed');
+    expect(state.cleanup.failureStage).toBe(stage);
+    expect(state.cleanup.run()).toBe(first);
+    expect(stopTestChild).toHaveBeenCalledTimes(2);
+    expect(state.owner.dispose).toHaveBeenCalledOnce();
+    if (kind === 'missing-close') expect(kill).not.toHaveBeenCalled();
+    else expect(kill).toHaveBeenCalledExactlyOnceWith('SIGTERM');
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('keeps the first browser cleanup failure when native shutdown also expires', async () => {
+    vi.useFakeTimers();
+    const state = fixture();
+    state.browser.close.mockRejectedValue(new Error('PRIVATE-CANARY'));
+    state.nativeServer.completed = new Promise(() => {});
+    const failure = state.cleanup.run().catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(5001);
+    expect(String(await failure)).toBe('Error: BFF browser cleanup failed');
+    expect(state.cleanup.failureStage).toBe('cleanup-disconnect');
+    expect(stopTestChild).toHaveBeenCalledTimes(2);
+    expect(state.owner.dispose).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('keeps an expired graceful-exit wait red after the fallback eventually stops the browser', async () => {
     vi.useFakeTimers();
     const state = fixture();

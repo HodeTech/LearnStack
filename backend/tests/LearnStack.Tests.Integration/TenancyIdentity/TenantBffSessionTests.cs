@@ -239,7 +239,7 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
                 (await ClosedErrorAsync("BFF browser fixture failed: " + stage + "\nBFF browser cleanup failed.\n"))
                     .Should().Be(stage + "_cleanup_failed");
             }
-            foreach (var cleanupStage in new[] { "cleanup-cdp", "cleanup-disconnect", "cleanup-browser-wait", "cleanup-browser-stop", "cleanup-browser-forced", "cleanup-browser-exit", "cleanup-browser-signal", "cleanup-native-stop", "cleanup-native-forced", "cleanup-owner", "cleanup-native-exit", "cleanup-native-signal" })
+            foreach (var cleanupStage in new[] { "cleanup-cdp", "cleanup-disconnect", "cleanup-browser-wait", "cleanup-browser-stop", "cleanup-browser-forced", "cleanup-browser-exit", "cleanup-browser-signal", "cleanup-native-shutdown", "cleanup-native-wait", "cleanup-native-stop", "cleanup-native-forced", "cleanup-owner", "cleanup-native-exit", "cleanup-native-signal" })
             {
                 (await ClosedErrorAsync("BFF browser fixture failed: " + cleanupStage + "\n"))
                     .Should().Be(cleanupStage);

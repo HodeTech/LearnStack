@@ -216,6 +216,36 @@ export function createBffBrowserCleanup(resources) {
       ['native', nativeServer?.process],
     ]) {
       if (!child) continue;
+      if (kind === 'native') {
+        // Join the owned launcher's existing five-second shutdown before the
+        // generic group fallback can escalate after two seconds. A completed
+        // leader still needs the unchanged group-absence/no-forcing proof below.
+        let requested = true;
+        try {
+          if (child.exitCode === null && child.signalCode === null && !child.kill('SIGTERM'))
+            throw new Error('BFF native shutdown request failed');
+        } catch {
+          requested = false;
+          failures.push('cleanup-native-shutdown');
+        }
+        if (requested) {
+          let timer;
+          try {
+            const stopped = await Promise.race([
+              nativeServer.completed,
+              new Promise((_, reject) => {
+                timer = setTimeout(() => reject(new Error('BFF native shutdown deadline')), 5000);
+              }),
+            ]);
+            if (stopped.signal !== null) failures.push('cleanup-native-signal');
+            else if (stopped.code !== 0) failures.push('cleanup-native-exit');
+          } catch {
+            failures.push('cleanup-native-wait');
+          } finally {
+            clearTimeout(timer);
+          }
+        }
+      }
       try {
         const stopped = await stopTestChild(child);
         if (stopped.forced) failures.push('cleanup-' + kind + '-forced');
@@ -245,15 +275,6 @@ export function createBffBrowserCleanup(resources) {
       ownerDisposed
     )
       failures.shift();
-    if (failures.length === 0 && nativeServer) {
-      try {
-        const stopped = await nativeServer.completed;
-        if (stopped.signal !== null) failures.push('cleanup-native-signal');
-        else if (stopped.code !== 0) failures.push('cleanup-native-exit');
-      } catch {
-        failures.push('cleanup-native-exit');
-      }
-    }
     if (failures.length) {
       failureStage = failures[0];
       throw new Error('BFF browser cleanup failed');

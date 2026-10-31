@@ -13,8 +13,8 @@
 > with manual keyboard/focus/reflow/contrast/VoiceOver evidence deferred for now.
 > No manual execution or accessibility pass is recorded; the maintainer owns that
 > outstanding observation and its disclosure in PR review. The [Step 10 source reviews](phase-03-delivery-log.md#p03-3-step-10-review-round-2-and-virtual-dispatch-correction-2026-10-31)
-> close both fresh independent rounds and verified corrections. The [CI follow-up](phase-03-delivery-log.md#p03-3-step-10-second-hosted-failure-and-remaining-qualification-corrections-2026-10-31)
-> records two failed hosted A attempts and further local corrections. Fresh focused
+> close both fresh independent rounds and verified corrections. The [CI follow-up](phase-03-delivery-log.md#p03-3-step-10-third-hosted-failure-and-independent-mutation-groups-2026-10-31)
+> records three failed hosted A attempts and further validated local corrections. Fresh focused
 > reviews, complete new-source hosted A/B, original-archive auditing and clean
 > public-demo proof remain open.
 > [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md) and
@@ -528,10 +528,12 @@ better error message, not the isolation boundary.
 
 ### Protected web and API operations
 
-The delivered authenticated caller accepts only `GET /api/v1/account/site`.
-P03-3 extends native credential custody through exact generated SDK operations
-under G6; the public caller stays anonymous. A generic proxy, browser bearer,
-Server Action or tenant/org selector is not admitted by adding an admin screen.
+The AccountSite caller remains limited to `GET /api/v1/account/site`.
+A separate closed native administration dispatcher uses the generated SDK
+operations defined by [ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md)
+and [ADR-0079](../decisions/0079-bounded-identity-administration.md). The public
+caller stays anonymous. A generic proxy, browser bearer, Server Action or
+browser-supplied tenant/org authority is not admitted by adding an admin screen.
 
 - Decide endpoint/application/resource policy ordering before activation. HTTP
   denials occur before the MediatR audit frame; G7 assigns their evidence owner.
