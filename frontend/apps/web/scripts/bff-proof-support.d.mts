@@ -24,6 +24,10 @@ export function rememberBffCookies(
   canaries: string[],
 ): void;
 
+export function observeBffProofShutdown(child: ChildProcess): {
+  snapshot(): string;
+};
+
 export function createBffBrowserCleanup(
   resources: () => {
     browser?: {
@@ -34,10 +38,12 @@ export function createBffBrowserCleanup(
     nativeServer?: {
       process: ChildProcess;
       completed: Promise<{ code: number | null; signal: NodeJS.Signals | null }>;
+      shutdown?: { snapshot(): string };
     };
     owner: { dispose(): Promise<void> };
   },
 ): {
   run(): Promise<void>;
   readonly failureStage: string | null;
+  readonly nativeWait: string | null;
 };

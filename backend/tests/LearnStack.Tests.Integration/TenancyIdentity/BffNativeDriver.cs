@@ -26,6 +26,7 @@ internal sealed class BffNativeDriver : IAsyncDisposable
     private Task? _disposal;
     private bool _complete;
     private int _expectedExit;
+    private string? _shutdownDiagnostic;
 
     private BffNativeDriver(string root, bool browser = false, bool counter = false, bool heldBuild = false,
         bool unavailablePageCounter = false)
@@ -235,7 +236,13 @@ internal sealed class BffNativeDriver : IAsyncDisposable
                     lastStage = value;
                     continue;
                 }
-                if (actual != phase) throw new InvalidOperationException();
+                if (phase == "browser_result" && actual == "browser_shutdown")
+                {
+                    if (_shutdownDiagnostic is not null) throw new InvalidOperationException();
+                    _shutdownDiagnostic = ParseShutdownDiagnostic(parsed.RootElement);
+                    continue;
+                }
+                if (actual != phase || _shutdownDiagnostic is not null) throw new InvalidOperationException();
                 return parsed.RootElement.Clone();
             }
             throw new InvalidOperationException();
@@ -245,8 +252,31 @@ internal sealed class BffNativeDriver : IAsyncDisposable
             var reason = "response";
             if (responseBudget.IsCancellationRequested) reason = "deadline_" + lastStage;
             else if (_child.HasExited) try { reason = await _errors ?? "exit"; } catch { reason = "output"; }
-            throw new InvalidOperationException("BFF native fixture did not reach the closed " + phase + "/" + reason + " phase.");
+            var failure = new InvalidOperationException("BFF native fixture did not reach the closed " + phase + "/" + reason + " phase.");
+            if (_shutdownDiagnostic is not null) failure.Data["BffBrowserShutdown"] = _shutdownDiagnostic;
+            throw failure;
         }
+    }
+
+    private const string ShutdownStatePattern = @"\A(valid|invalid|absent),[01],[01],[pfr],[pfr],[pfr],[pfr],(live|zero|nonzero|signal),[01],(open|ended|closed|absent),(open|ended|closed|absent)\z";
+
+    internal static string ParseShutdownDiagnostic(JsonElement value)
+    {
+        if (value.ValueKind != JsonValueKind.Object ||
+            string.Join(',', value.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal))
+                != "phase,protocol,state" || value.GetProperty("protocol").GetInt32() != 1 ||
+            value.GetProperty("phase").GetString() != "browser_shutdown") throw new InvalidOperationException();
+        var state = value.GetProperty("state").GetString();
+        if (state is null || state.Length > 96 || !System.Text.RegularExpressions.Regex.IsMatch(state, ShutdownStatePattern))
+            throw new InvalidOperationException();
+        return state;
+    }
+
+    internal static string? ShutdownDiagnostic(Exception error)
+    {
+        var state = error.Data["BffBrowserShutdown"] as string;
+        return state is not null && state.Length <= 96 && System.Text.RegularExpressions.Regex.IsMatch(state, ShutdownStatePattern)
+            ? state : null;
     }
 
     private async Task AssertOutputEndedAsync()

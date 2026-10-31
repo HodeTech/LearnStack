@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { ChildProcess, execFileSync } from 'node:child_process';
+import { ChildProcess, execFileSync, spawn } from 'node:child_process';
 
 import { describe, expect, it, vi } from 'vitest';
 
@@ -11,13 +11,138 @@ import {
   bffPageKind,
   createBffCookieScanner,
   rememberBffCookies,
+  observeBffProofShutdown,
   withProofWaiters,
   waitForBffProofListener,
 } from '../../scripts/bff-proof-support.mjs';
+import { createFixtureOwner } from '../../scripts/fixture-support.mjs';
+import { stopTestChild } from '../../scripts/stop-test-child.mjs';
 import en from '../i18n/messages/en/auth.json';
 import tr from '../i18n/messages/tr/auth.json';
 
 describe('BFF proof observation ownership', () => {
+  it('distinguishes an actual zero-exit leader from inherited stdout/stderr still held by its descendant', async () => {
+    expect(process.platform).not.toBe('win32');
+    const owner = createFixtureOwner();
+    const child = owner.ownChild(
+      spawn(
+        process.execPath,
+        [
+          '-e',
+          `
+      const { spawn } = require('node:child_process');
+      const descendant = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'],
+        { stdio: ['ignore', 1, 2] });
+      descendant.unref();
+      process.exit(0);
+    `,
+        ],
+        { detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'] },
+      ),
+    );
+    child.once('error', () => {});
+    const completed = new Promise<void>((resolve) => child.once('close', () => resolve()));
+    const observation = observeBffProofShutdown(child);
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => finish(new Error('Owned leader exit deadline')), 5000);
+        const failed = () => finish(new Error('Owned leader spawn failed'));
+        const exited = (code: number | null) =>
+          finish(code === 0 ? undefined : new Error('Owned leader exit failed'));
+        function finish(error?: Error) {
+          clearTimeout(timer);
+          child.removeListener('error', failed);
+          child.removeListener('exit', exited);
+          if (error) reject(error);
+          else resolve();
+        }
+        child.once('error', failed);
+        child.once('exit', exited);
+      });
+      expect(observation.snapshot()).toBe('absent,0,0,p,p,p,p,zero,0,open,open');
+      expect(await stopTestChild(child)).toEqual({ forced: false });
+      await completed;
+      expect(observation.snapshot()).toBe('absent,0,0,p,p,p,p,zero,1,closed,closed');
+    } finally {
+      await owner.dispose();
+      await completed;
+    }
+  }, 10_000);
+  it('observes only finite monotonic shutdown joins and snapshots actual exit versus close', () => {
+    const child = new ChildProcess();
+    const observer = observeBffProofShutdown(child);
+    const frame = {
+      kind: 'proof-shutdown',
+      entered: true,
+      watchdog: false,
+      listener: 'pending',
+      next: 'pending',
+      sessions: 'pending',
+      requests: 'pending',
+    };
+    expect(observer.snapshot()).toBe('absent,0,0,p,p,p,p,live,0,absent,absent');
+    child.emit('message', { kind: 'snapshot', private: 'PRIVATE-CANARY' });
+    expect(observer.snapshot()).toBe('absent,0,0,p,p,p,p,live,0,absent,absent');
+    child.emit('message', frame);
+    child.emit('message', { ...frame, next: 'fulfilled' });
+    Object.assign(child, { exitCode: 0 });
+    expect(observer.snapshot()).toBe('valid,1,0,p,f,p,p,zero,0,absent,absent');
+    child.emit('close', 0, null);
+    expect(observer.snapshot()).toBe('valid,1,0,p,f,p,p,zero,1,absent,absent');
+    expect(child.listenerCount('message')).toBe(0);
+    expect(child.listenerCount('close')).toBe(0);
+  });
+  it.each(['extra', 'value', 'duplicate', 'regression', 'first', 'overflow'] as const)(
+    'retains only invalid for a malformed %s shutdown sequence',
+    (kind) => {
+      const child = new ChildProcess();
+      const observer = observeBffProofShutdown(child);
+      const frame = {
+        kind: 'proof-shutdown',
+        entered: true,
+        watchdog: false,
+        listener: 'pending',
+        next: 'pending',
+        sessions: 'pending',
+        requests: 'pending',
+      };
+      if (kind !== 'first') child.emit('message', frame);
+      if (kind === 'extra') child.emit('message', { ...frame, private: 'PRIVATE-CANARY' });
+      if (kind === 'value') child.emit('message', { ...frame, next: 'PRIVATE-CANARY' });
+      if (kind === 'duplicate') child.emit('message', frame);
+      if (kind === 'first') child.emit('message', { ...frame, next: 'fulfilled' });
+      if (kind === 'regression') {
+        child.emit('message', { ...frame, next: 'fulfilled' });
+        child.emit('message', frame);
+      }
+      if (kind === 'overflow') for (let index = 0; index < 7; ++index) child.emit('message', frame);
+      expect(observer.snapshot().startsWith('invalid,')).toBe(true);
+      expect(observer.snapshot()).not.toContain('PRIVATE-CANARY');
+      child.emit('close', 0, null);
+    },
+  );
+  it('captures watchdog and local stream states without retaining stream or process values', () => {
+    const child = new ChildProcess();
+    const observer = observeBffProofShutdown(child);
+    const frame = {
+      kind: 'proof-shutdown',
+      entered: true,
+      watchdog: false,
+      listener: 'pending',
+      next: 'pending',
+      sessions: 'pending',
+      requests: 'pending',
+    };
+    child.emit('message', frame);
+    child.emit('message', { ...frame, watchdog: true });
+    Object.assign(child, {
+      signalCode: 'SIGTERM',
+      stdout: { readableEnded: true, closed: false },
+      stderr: { readableEnded: false, closed: true },
+    });
+    expect(observer.snapshot()).toBe('valid,1,1,p,p,p,p,signal,0,ended,closed');
+    child.emit('close', null, 'SIGTERM');
+  });
   it('accepts only the owned child readiness frame and retires every observer', async () => {
     vi.useFakeTimers();
     try {

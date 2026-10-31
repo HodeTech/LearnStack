@@ -255,6 +255,22 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
             (await ClosedErrorAsync("BFF session fixture failed: native-stop\nBFF browser cleanup failed.\n"))
                 .Should().Be("native-stop_unexpected_output");
         }
+        foreach (var state in new[] { "valid,1,0,p,f,p,p,live,0,open,open", "absent,0,0,p,p,p,p,zero,0,open,closed",
+                     "invalid,1,1,r,f,p,p,signal,1,closed,ended" })
+        {
+            using var frame = JsonDocument.Parse(JsonSerializer.Serialize(new { protocol = 1, phase = "browser_shutdown", state }));
+            BffNativeDriver.ParseShutdownDiagnostic(frame.RootElement).Should().Be(state);
+        }
+        foreach (var frameText in new[] {
+                     "{\"protocol\":1,\"phase\":\"browser_shutdown\",\"state\":\"PRIVATE-CANARY\"}",
+                     "{\"protocol\":1,\"phase\":\"browser_shutdown\",\"state\":\"valid,1,0,p,f,p,p,live,0,open,open\",\"extra\":true}",
+                     "{\"protocol\":1,\"phase\":\"browser_shutdown\",\"state\":\"valid,1,0,p,f,p,p,live,0,open,open\",\"state\":\"valid,1,0,p,f,p,p,live,0,open,open\"}",
+                     "{\"protocol\":2,\"phase\":\"browser_shutdown\",\"state\":\"valid,1,0,p,f,p,p,live,0,open,open\"}" })
+        {
+            using var frame = JsonDocument.Parse(frameText);
+            Action parseDiagnostic = () => { _ = BffNativeDriver.ParseShutdownDiagnostic(frame.RootElement); };
+            parseDiagnostic.Should().Throw<Exception>();
+        }
         var input = new
         {
             protocol = 1,
@@ -278,7 +294,12 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
             catch (Exception error) when (error.GetType() != typeof(OutOfMemoryException)
                 && error.GetType() != typeof(StackOverflowException))
             {
-                try { output.WriteLine("BFF browser failure;journey=" + journey + "."); }
+                try
+                {
+                    output.WriteLine("BFF browser failure;journey=" + journey + ".");
+                    if (BffNativeDriver.ShutdownDiagnostic(error) is { } state)
+                        output.WriteLine("BFF browser shutdown;journey=" + journey + ";state=" + state + ".");
+                }
                 catch (Exception observation) when (observation.GetType() != typeof(OutOfMemoryException)
                     && observation.GetType() != typeof(StackOverflowException))
                 { }

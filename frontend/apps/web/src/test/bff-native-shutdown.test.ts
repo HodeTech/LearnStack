@@ -83,6 +83,50 @@ const delayedShutdown = `
 `;
 
 describe('BFF native launcher shutdown ownership', () => {
+  it('pairs the close-before-group rejection with exit/group/close completion for actual inherited stdio', async () => {
+    const inheritedStdio = `
+      const { spawn } = require('node:child_process');
+      const descendant = spawn(process.execPath, ['-e',
+        'process.send("ready"); process.disconnect(); setInterval(() => {}, 1000);'],
+        { stdio: ['ignore', 1, 2, 'ipc'] });
+      descendant.once('message', () => {
+        descendant.unref();
+        process.once('SIGTERM', () => process.exit(0));
+        process.stdout.write('ready\\n');
+      });
+      setInterval(() => {}, 1000);
+    `;
+    const oldOrder = await fixture(inheritedStdio);
+    try {
+      oldOrder.child.kill('SIGTERM');
+      let timer!: ReturnType<typeof setTimeout>;
+      const observedClose = await Promise.race([
+        oldOrder.completed.then(() => true),
+        new Promise<boolean>((resolve) => {
+          timer = setTimeout(() => resolve(false), 5000);
+        }),
+      ]);
+      clearTimeout(timer);
+      expect(observedClose).toBe(false);
+      expect(oldOrder.child.exitCode).toBe(0);
+      expect(oldOrder.child.signalCode).toBeNull();
+      expect(absentGroup(oldOrder.child)).toBe(false);
+      expect(await stopTestChild(oldOrder.child)).toEqual({ forced: false });
+      expect(await oldOrder.completed).toEqual({ code: 0, signal: null });
+    } finally {
+      await oldOrder.dispose();
+    }
+    const reordered = await fixture(inheritedStdio);
+    try {
+      await expect(reordered.cleanup.run()).resolves.toBeUndefined();
+      expect(await reordered.completed).toEqual({ code: 0, signal: null });
+      expect(await stopTestChild(reordered.child)).toEqual({ forced: false });
+      expect(absentGroup(reordered.child)).toBe(true);
+      expect(reordered.cleanup.failureStage).toBeNull();
+    } finally {
+      await reordered.dispose();
+    }
+  }, 15_000);
   it('pairs the real two-second fallback control with a joined exit inside the launcher budget', async () => {
     const baseline = await fixture(delayedShutdown);
     try {

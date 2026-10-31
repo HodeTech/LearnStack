@@ -716,6 +716,7 @@ public sealed partial class OutboxDispatchConventionTests
 
         public IEnumerable<DetectorMethodInstruction> MethodInstructions(string name) => Instructions.Methods[name];
         public IEnumerable<DetectorFieldInstruction> FieldInstructions(string name) => Instructions.Fields[name];
+        public IEnumerable<DetectorFieldInstruction> FieldInstructionsByFullName(string name) => Instructions.FieldsByFullName[name];
 
         private DetectorInstructionIndex Instructions =>
             _scan is { } scan ? scan.Instructions ??= BuildInstructions() : BuildInstructions();
@@ -737,7 +738,8 @@ public sealed partial class OutboxDispatchConventionTests
             // Name is only a prefilter. Callers still compare the complete
             // attached identity/opcode and preserve every occurrence in order.
             return new(methods.ToLookup(item => item.Target.Name, StringComparer.Ordinal),
-                fields.ToLookup(item => item.Target.Name, StringComparer.Ordinal));
+                fields.ToLookup(item => item.Target.Name, StringComparer.Ordinal),
+                fields.AsReadOnly());
         }
 
         private Dictionary<(string Assembly, string Type), TypeDefinition> BuildTypes() =>

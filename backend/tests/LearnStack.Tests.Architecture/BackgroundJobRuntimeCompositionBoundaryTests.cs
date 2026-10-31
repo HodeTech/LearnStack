@@ -79,6 +79,7 @@ public sealed partial class OutboxDispatchConventionTests
     {
         var offenders = new SortedSet<string>(StringComparer.Ordinal);
         var types = census.Types;
+        var observationImplementations = new Dictionary<TypeDefinition, TypeDefinition[]>(ReferenceEqualityComparer.Instance);
         foreach (var subject in new[] { (InfrastructureAssembly, JobRuntime), (InfrastructureAssembly, JobRuntimeRegistration),
                      (InfrastructureAssembly, BoundaryGuardedSource), (InfrastructureAssembly, JobPoolSettings),
                      (InfrastructureAssembly, JobCapacity), (BoundaryApi, JobHostedService), (BoundaryApi, JobHealth),
@@ -503,10 +504,17 @@ public sealed partial class OutboxDispatchConventionTests
                         foreach (var target in targets)
                             pending.Enqueue(target);
                         if (targetType.IsInterface || !targetType.IsSealed)
-                            foreach (var implementation in types.Values.Where(candidate => !candidate.IsInterface && Derives(candidate, targetType, types)))
+                        {
+                            if (!observationImplementations.TryGetValue(targetType, out var implementations))
+                            {
+                                implementations = types.Values.Where(candidate => !candidate.IsInterface && Derives(candidate, targetType, types)).ToArray();
+                                observationImplementations.Add(targetType, implementations);
+                            }
+                            foreach (var implementation in implementations)
                                 foreach (var target in implementation.Methods.Where(candidate => candidate.Name == call.Name
                                              && ParametersMatch(candidate, call.Parameters.Select(parameter => parameter.ParameterType.FullName).ToArray())))
                                     pending.Enqueue(target);
+                        }
                     }
                 }
             }

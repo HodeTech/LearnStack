@@ -892,6 +892,11 @@ try {
         (authorizeCalls ? 'browser-callback-' : 'browser-authorize-') +
         (codes.has(status) ? status : 'other');
     }
+    if (!clean && cleanup.nativeWait !== null)
+      process.stdout.write(
+        JSON.stringify({ protocol: 1, phase: 'browser_shutdown', state: cleanup.nativeWait }) +
+          '\n',
+      );
     // Preserve the original closed stage even if later actual cleanup fails.
     process.stderr.write('BFF browser fixture failed: ' + stage + '\n');
     if (!clean)

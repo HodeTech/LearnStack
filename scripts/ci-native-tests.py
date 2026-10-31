@@ -167,6 +167,21 @@ KEYCLOAK_FAILURE_REASONS = {
     'docker_network_error', 'docker_runtime_task',
 }
 KEYCLOAK_FAILURE_CLEANUP = {'completed', 'failed'}
+KEYCLOAK_STARTUP_MILESTONES = (
+    'certificate', 'network', 'database', 'database_create_request', 'database_start',
+    'database_readiness', 'database_started', 'import_input', 'provider_start', 'provider_created',
+    'provider_starting', 'provider_started', 'mapped_endpoint', 'loopback_bindings', 'discovery',
+)
+KEYCLOAK_READINESS_OUTCOMES = {
+    'not_attempted', 'pending', 'http_ok', 'http_other_success', 'http_redirect', 'http_client_error',
+    'http_server_error', 'http_other', 'cancelled', 'tls', 'connect', 'dns', 'transport', 'other',
+}
+KEYCLOAK_CACHED_PROVIDER_STATES = {
+    'not_created', 'undefined', 'created', 'restarting', 'running', 'paused', 'exited', 'dead', 'unknown',
+}
+KEYCLOAK_OBSERVATION_MARKER = 'Keycloak startup observation '
+KEYCLOAK_OBSERVATION_MAX_COUNT = 1000000
+KEYCLOAK_OBSERVATION_MAX_MS = 600000
 FAILURE_EXCEPTION_LABELS = {
     'System.TimeoutException': 'timeout',
     'System.OperationCanceledException': 'cancellation',
@@ -933,6 +948,24 @@ def closed_bff_browser_details(raw):
             result['journey'] = match[1]
         else:
             result['secondaryCleanup'] = 'failed'
+    marker = 'BFF browser shutdown;'
+    count = sum(item['Text'].count(marker) for item in messages)
+    if count:
+        lines = [line for item in messages if item['Category'] == 'StdOutMsgs'
+                 for line in item['Text'].splitlines() if marker in line]
+        pattern = (re.escape(marker) + r'journey=(positive|counter|unavailable_pages);state='
+            r'(valid|invalid|absent),([01]),([01]),([pfr]),([pfr]),([pfr]),([pfr]),'
+            r'(live|zero|nonzero|signal),([01]),(open|ended|closed|absent),(open|ended|closed|absent)\.')
+        match = re.fullmatch(pattern, lines[0]) if count == 1 and len(lines) == 1 else None
+        if match is None or result.get('journey') != match[1]:
+            return None
+        joins = {'p': 'pending', 'f': 'fulfilled', 'r': 'rejected'}
+        result['nativeShutdown'] = {
+            'ipc': match[2], 'entered': match[3] == '1', 'watchdog': match[4] == '1',
+            **{key: joins[match[index]] for key, index in
+                (('listener', 5), ('next', 6), ('sessions', 7), ('requests', 8))},
+            'leader': match[9], 'close': match[10] == '1', 'stdout': match[11], 'stderr': match[12],
+        }
     # xUnit's exact exception prefix is stripped; arbitrary trailing text,
     # nested exceptions and credentials never become a diagnostic dimension.
     prefix = 'System.InvalidOperationException : '
@@ -944,6 +977,49 @@ def closed_bff_browser_details(raw):
     if match and match[1] in BFF_BROWSER_FAILURE_REASONS:
         return {**result, 'reason': match[1]}
     return {**result, 'reason': 'other'} if 'journey' in result else None
+
+
+def closed_keycloak_startup_observation(message):
+    """Decode bounded local context, never a live-state, root-cause or ownership witness."""
+    if (not isinstance(message, str) or len(message) > 65536
+            or message.count(KEYCLOAK_OBSERVATION_MARKER) != 1):
+        return None
+    number = r'(?:0|[1-9][0-9]{0,6})'
+    milestone = r'(?:-1|' + number + ')'
+    match = re.search(r'(?<!\S)' + re.escape(KEYCLOAK_OBSERVATION_MARKER)
+        + r'v1; fixture=(' + number + r'); elapsedMs=(' + number + r'); milestones=('
+        + milestone + r'(?:,' + milestone + r'){' + str(len(KEYCLOAK_STARTUP_MILESTONES) - 1)
+        + r'}); attempts=(' + number + r'); completed=(' + number
+        + r'); readiness=([a-z_]{1,32}); cachedProvider=([a-z_]{1,32})\.(?=$|\r?\n)', message)
+    if match is None:
+        return None
+    ordinal, elapsed, attempts, completed = (int(match[index]) for index in (1, 2, 4, 5))
+    milliseconds = [int(value) for value in match[3].split(',')]
+    outcome, state = match[6], match[7]
+    if (not 1 <= ordinal <= KEYCLOAK_OBSERVATION_MAX_COUNT
+            or not 0 <= elapsed <= KEYCLOAK_OBSERVATION_MAX_MS
+            or not 0 <= completed <= attempts <= KEYCLOAK_OBSERVATION_MAX_COUNT
+            or any(not -1 <= value <= elapsed for value in milliseconds)
+            or outcome not in KEYCLOAK_READINESS_OUTCOMES or state not in KEYCLOAK_CACHED_PROVIDER_STATES
+            or (outcome == 'not_attempted') != (attempts == 0)
+            or (outcome not in ('not_attempted', 'pending') and completed == 0)
+            or (outcome == 'pending' and completed == attempts < KEYCLOAK_OBSERVATION_MAX_COUNT)):
+        return None
+    return {'fixtureOrdinal': ordinal, 'elapsedMilliseconds': elapsed,
+        'milestoneMilliseconds': dict(zip(KEYCLOAK_STARTUP_MILESTONES, milliseconds)),
+        'readinessAttempts': attempts, 'readinessCompleted': completed,
+        'readinessOutcome': outcome, 'cachedProviderState': state}
+
+
+def keycloak_startup_observation_sentence(observation):
+    # Render only the validated finite projection, never a slice of raw error text.
+    return (KEYCLOAK_OBSERVATION_MARKER + 'v1; fixture=' + str(observation['fixtureOrdinal'])
+        + '; elapsedMs=' + str(observation['elapsedMilliseconds']) + '; milestones='
+        + ','.join(str(observation['milestoneMilliseconds'][stage]) for stage in KEYCLOAK_STARTUP_MILESTONES)
+        + '; attempts=' + str(observation['readinessAttempts'])
+        + '; completed=' + str(observation['readinessCompleted'])
+        + '; readiness=' + observation['readinessOutcome']
+        + '; cachedProvider=' + observation['cachedProviderState'] + '.')
 
 
 def closed_failure_details(case, raw):
@@ -1001,6 +1077,13 @@ def closed_failure_details(case, raw):
             details = {'stage': match[1], 'reason': match[2], 'cleanup': match[3]}
             if match[4] is not None:
                 details['startupCancellationRequested'] = match[4] == 'true'
+            if KEYCLOAK_OBSERVATION_MARKER in message:
+                if not message[match.end():].startswith(' ' + KEYCLOAK_OBSERVATION_MARKER):
+                    return None
+                observation = closed_keycloak_startup_observation(message)
+                if observation is None:
+                    return None
+                details['startupObservation'] = observation
             return details
         return None
     message = message[:65536]
@@ -1840,7 +1923,7 @@ def trx_cases(path, *, sanitize=False):
         test_id = definition.get('id')
         require(test_id not in definitions, 'trx_duplicate_definition')
         definitions[test_id] = Path(definition.get('storage', '')).stem.casefold()
-    cases, ids = [], set()
+    cases, ids, keycloak_observations = [], set(), {}
     for result in root.findall('t:Results/t:UnitTestResult', NS):
         test_id = result.get('testId')
         require(test_id in definitions and test_id not in ids, 'trx_identity_invalid')
@@ -1850,6 +1933,21 @@ def trx_cases(path, *, sanitize=False):
         require(re.fullmatch(r'[0-9]+:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?', duration), 'trx_duration_invalid')
         cases.append({'assembly': definitions[test_id], 'id': test_id, 'name': result.get('testName'),
                       'outcome': result.get('outcome'), 'duration': duration})
+        if (sanitize and result.get('outcome') == 'Failed'
+                and definitions[test_id] == 'learnstack.tests.integration'
+                and isinstance(cases[-1]['name'], str)
+                and any(cases[-1]['name'].startswith('LearnStack.Tests.Integration.TenancyIdentity.' + name + '.')
+                        for name in KEYCLOAK_FAILURE_CLASSES)):
+            message = result.findtext('t:Output/t:ErrorInfo/t:Message', namespaces=NS)
+            details = closed_failure_details(cases[-1], {'ErrorMessage': message})
+            if details is not None and 'startupObservation' in details:
+                keycloak_observations[test_id] = details['startupObservation']
+            elif message is None:
+                # Re-sanitization accepts only our entire canonical receipt, never arbitrary test output.
+                receipt = result.findtext('t:Output/t:StdOut', namespaces=NS)
+                observation = closed_keycloak_startup_observation(receipt)
+                if observation is not None and receipt == keycloak_startup_observation_sentence(observation):
+                    keycloak_observations[test_id] = observation
     required = {'total', 'executed', 'passed', 'failed', 'notExecuted'}
     require(required <= set(counts.attrib) and all(re.fullmatch(r'[0-9]+', value)
             and int(value) <= MAX_CASES for value in counts.attrib.values()), 'trx_counters_invalid')
@@ -1864,13 +1962,17 @@ def trx_cases(path, *, sanitize=False):
     if sanitize:
         # Preserve test IDs, assembly, outcome and measured duration. Raw failure
         # messages, captured environment, stack traces and provider output never
-        # enter the explicit export, even when a test fails.
+        # enter the explicit export. Only a reconstructed finite Keycloak startup
+        # observation survives; it has no completion or authority meaning.
         tag = lambda name: '{' + NS['t'] + '}' + name
         clean = ET.Element(tag('TestRun'))
         results, defs = ET.SubElement(clean, tag('Results')), ET.SubElement(clean, tag('TestDefinitions'))
         for case in cases:
-            ET.SubElement(results, tag('UnitTestResult'), testId=case['id'], testName=case['name'],
-                          outcome=case['outcome'], duration=case['duration'])
+            result = ET.SubElement(results, tag('UnitTestResult'), testId=case['id'], testName=case['name'],
+                                   outcome=case['outcome'], duration=case['duration'])
+            if case['id'] in keycloak_observations:
+                ET.SubElement(ET.SubElement(result, tag('Output')), tag('StdOut')).text = (
+                    keycloak_startup_observation_sentence(keycloak_observations[case['id']]))
             ET.SubElement(defs, tag('UnitTest'), id=case['id'], name=case['name'], storage=case['assembly'] + '.dll')
         cleaned_summary = ET.SubElement(clean, tag('ResultSummary'), outcome=summary.get('outcome', 'Failed'))
         ET.SubElement(cleaned_summary, tag('Counters'), total=str(len(cases)),

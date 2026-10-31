@@ -61,9 +61,8 @@ public sealed partial class OutboxDispatchConventionTests
         }
         foreach (var field in loads)
         {
-            var uses = census.Types.Values.SelectMany(type => type.Methods).Where(method => method.HasBody)
-                .SelectMany(method => method.Body.Instructions.Where(instruction => instruction.Operand is FieldReference referenced
-                    && referenced.FullName == field.FullName).Select(instruction => (Method: method, Instruction: instruction))).ToArray();
+            var uses = census.FieldInstructionsByFullName(field.FullName)
+                .Select(item => (Method: item.Body, item.Instruction)).ToArray();
             var writes = uses.Where(use => use.Instruction.OpCode != OpCodes.Ldfld).ToArray();
             if (writes.Length != 1 || writes[0].Method != root || writes[0].Instruction.OpCode != OpCodes.Stfld
                 || uses.Count(use => use.Method == factory && use.Instruction.OpCode == OpCodes.Ldfld) != 1

@@ -7,7 +7,13 @@ namespace LearnStack.Tests.Architecture;
 public sealed partial class OutboxDispatchConventionTests
 {
     private sealed record DetectorInstructionIndex(
-        ILookup<string, DetectorMethodInstruction> Methods, ILookup<string, DetectorFieldInstruction> Fields);
+        ILookup<string, DetectorMethodInstruction> Methods, ILookup<string, DetectorFieldInstruction> Fields,
+        IReadOnlyList<DetectorFieldInstruction> OrderedFields)
+    {
+        private ILookup<string, DetectorFieldInstruction>? _fieldsByFullName;
+        public ILookup<string, DetectorFieldInstruction> FieldsByFullName =>
+            _fieldsByFullName ??= OrderedFields.ToLookup(item => item.Target.FullName, StringComparer.Ordinal);
+    }
 
     private readonly record struct DetectorMethodInstruction(MethodDefinition Body, MethodDefinition Owner,
         Instruction Instruction, MethodReference Target)
@@ -27,6 +33,7 @@ public sealed partial class OutboxDispatchConventionTests
     {
         var seenMethodNames = new HashSet<string>(StringComparer.Ordinal) { "_absentMethod" };
         var seenFieldNames = new HashSet<string>(StringComparer.Ordinal) { "_absentField" };
+        var seenFieldFullNames = new HashSet<string>(StringComparer.Ordinal) { "_absentFieldSignature" };
         AssertIndexes();
         var probe = AddProbe(module, "InstructionIndexProbe");
         try
@@ -67,6 +74,36 @@ public sealed partial class OutboxDispatchConventionTests
                 var name = field.Name;
                 field.Name = "_renamedIndexProbe";
                 return () => field.Name = name;
+            });
+            Change(() =>
+            {
+                var type = field.FieldType;
+                field.FieldType = module.TypeSystem.Int32;
+                return () => field.FieldType = type;
+            });
+            Change(() =>
+            {
+                var foreignType = new TypeReference(probe.Namespace, probe.Name, module,
+                    new AssemblyNameReference("InstructionIndex.Foreign", new Version(1, 0)));
+                var foreign = new FieldReference(field.Name, field.FieldType, foreignType);
+                foreign.FullName.Should().Be(field.FullName);
+                var instruction = Instruction.Create(OpCodes.Ldfld, foreign);
+                method.Body.Instructions.Insert(0, instruction);
+                return () => method.Body.Instructions.Remove(instruction);
+            });
+            Change(() =>
+            {
+                var a = new FieldReference("tail", module.TypeSystem.Object,
+                    new TypeReference("", "Collision::prefix", module, module));
+                var b = new FieldReference("prefix::tail", module.TypeSystem.Object,
+                    new TypeReference("", "Collision", module, module));
+                a.FullName.Should().Be(b.FullName);
+                a.Name.Should().NotBe(b.Name);
+                var first = Instruction.Create(OpCodes.Ldfld, a);
+                var second = Instruction.Create(OpCodes.Stfld, b);
+                method.Body.Instructions.Insert(0, first);
+                method.Body.Instructions.Insert(1, second);
+                return () => { method.Body.Instructions.Remove(first); method.Body.Instructions.Remove(second); };
             });
             Change(() =>
             {
@@ -183,6 +220,12 @@ public sealed partial class OutboxDispatchConventionTests
             foreach (var name in seenFieldNames)
                 census.FieldInstructions(name).SequenceEqual(fieldsByName[name]).Should().BeTrue(
                     "the index must preserve actual field accesses, owners and duplicate opcodes for {0}", name);
+
+            var fieldsByFullName = fields.ToLookup(item => item.Target.FullName, StringComparer.Ordinal);
+            seenFieldFullNames.UnionWith(fieldsByFullName.Select(group => group.Key));
+            foreach (var name in seenFieldFullNames)
+                census.FieldInstructionsByFullName(name).SequenceEqual(fieldsByFullName[name]).Should().BeTrue(
+                    "the exact legacy field signature predicate must retain raw body/owner/operand order and multiplicity for {0}", name);
 
             // Record equality covers references/order, not computed properties.
             // Independently check formatted owners across same-object renames,

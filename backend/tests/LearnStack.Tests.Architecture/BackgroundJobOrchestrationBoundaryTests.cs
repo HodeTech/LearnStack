@@ -41,6 +41,7 @@ public sealed partial class OutboxDispatchConventionTests
         // These indexes live for this one read-only detector evaluation only.
         // A mutation and its undo each receive a fresh complete metadata scan.
         var identities = new Dictionary<MethodReference, string>(ReferenceEqualityComparer.Instance);
+        var resolvedMethods = new Dictionary<(string Type, string Name), MethodDefinition?>();
         var methodsByName = types.Values.SelectMany(type => type.Methods).ToLookup(method => method.Name, StringComparer.Ordinal);
         var bodiesByOwner = bodies.ToLookup(item => item.Owner, ReferenceEqualityComparer.Instance);
         // Rebuild the index inside each detector evaluation so mutations and
@@ -279,11 +280,18 @@ public sealed partial class OutboxDispatchConventionTests
         }
         MethodDefinition? Method(string type, string name)
         {
+            var key = (Type: type, Name: name);
+            if (resolvedMethods.TryGetValue(key, out var resolved)) return resolved;
             var shape = ExternalOrchestrationSeams.SingleOrDefault(seam => seam.Type == type && seam.Name == name);
             var found = subjects[type].Methods.Where(method => method.Name == name.Split('#')[0]
                 && (shape is null || ParametersMatch(method, shape.Parameters))).ToArray();
-            if (found.Length == 1) return found[0];
+            if (found.Length == 1)
+            {
+                resolvedMethods.Add(key, found[0]);
+                return found[0];
+            }
             offenders.Add("Missing or overloaded orchestration seam: " + type + "::" + name);
+            resolvedMethods.Add(key, null);
             return null;
         }
         void Constructor(string type, string[] parameters)

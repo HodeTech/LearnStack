@@ -20,7 +20,10 @@ function fixture() {
     exitCode: 0,
     signalCode: null,
   }) as ChildProcess;
-  const nativeProcess = { exitCode: 0, signalCode: null } as ChildProcess;
+  const nativeProcess = Object.assign(new EventEmitter(), {
+    exitCode: 0,
+    signalCode: null,
+  }) as ChildProcess;
   const send = vi.fn(async (_method: 'Browser.close') => {
     order.push('cdp');
   });
@@ -168,6 +171,7 @@ describe('BFF owned browser cleanup', () => {
     expect(stopTestChild).toHaveBeenCalledExactlyOnceWith(state.browserProcess);
     expect(state.owner.dispose).not.toHaveBeenCalled();
     Object.assign(state.nativeProcess, { exitCode: 0 });
+    state.nativeProcess.emit('exit', 0, null);
     complete({ code: 0, signal: null });
     await expect(first).resolves.toBeUndefined();
     expect(state.cleanup.failureStage).toBeNull();
@@ -193,7 +197,12 @@ describe('BFF owned browser cleanup', () => {
       if (kind === 'request-error') throw new Error('PRIVATE-CANARY');
       return kind !== 'request-false';
     });
-    Object.assign(state.nativeProcess, { exitCode: kind === 'missing-close' ? 0 : null, kill });
+    Object.assign(state.nativeProcess, {
+      exitCode:
+        kind === 'nonzero' ? 7 : kind === 'missing-close' || kind === 'completion-error' ? 0 : null,
+      signalCode: kind === 'signal' ? 'SIGTERM' : null,
+      kill,
+    });
     if (kind === 'missing-close' || kind === 'deadline')
       state.nativeServer.completed = new Promise(() => {});
     if (kind === 'nonzero')
@@ -211,14 +220,65 @@ describe('BFF owned browser cleanup', () => {
     });
     const first = state.cleanup.run();
     const failure = first.catch((error: unknown) => error);
-    await vi.advanceTimersByTimeAsync(5001);
+    await vi.advanceTimersByTimeAsync(10001);
     expect(String(await failure)).toBe('Error: BFF browser cleanup failed');
     expect(state.cleanup.failureStage).toBe(stage);
     expect(state.cleanup.run()).toBe(first);
     expect(stopTestChild).toHaveBeenCalledTimes(2);
     expect(state.owner.dispose).toHaveBeenCalledOnce();
-    if (kind === 'missing-close') expect(kill).not.toHaveBeenCalled();
+    if (['missing-close', 'completion-error', 'nonzero', 'signal'].includes(kind))
+      expect(kill).not.toHaveBeenCalled();
     else expect(kill).toHaveBeenCalledExactlyOnceWith('SIGTERM');
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('captures native-wait before fallback mutates observations and preserves the first failure', async () => {
+    vi.useFakeTimers();
+    const state = fixture();
+    let observation = 'valid,1,0,p,f,p,p,live,0,open,open';
+    Object.assign(state.nativeServer, { shutdown: { snapshot: () => observation } });
+    Object.assign(state.nativeProcess, { exitCode: null, kill: vi.fn(() => true) });
+    state.nativeServer.completed = new Promise(() => {});
+    state.browser.close.mockRejectedValue(new Error('PRIVATE-CANARY'));
+    vi.mocked(stopTestChild).mockImplementation(async (child) => {
+      if (child === state.nativeProcess) observation = 'valid,1,0,p,f,p,p,zero,1,closed,closed';
+      return { forced: false };
+    });
+    const failed = state.cleanup.run().catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(10001);
+    expect(String(await failed)).toBe('Error: BFF browser cleanup failed');
+    expect(state.cleanup.failureStage).toBe('cleanup-disconnect');
+    expect(state.cleanup.nativeWait).toBe('valid,1,0,p,f,p,p,live,0,open,open');
+    expect(state.owner.dispose).toHaveBeenCalledOnce();
+  });
+
+  it('joins actual close concurrently with owner drain and cannot publish after leader exit alone', async () => {
+    vi.useFakeTimers();
+    const state = fixture();
+    let close!: (value: { code: number; signal: null }) => void;
+    let dispose!: () => void;
+    state.nativeServer.completed = new Promise((resolve) => {
+      close = resolve;
+    });
+    state.owner.dispose.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          dispose = resolve;
+        }),
+    );
+    let completed = false;
+    const run = state.cleanup.run().then(() => {
+      completed = true;
+    });
+    await vi.advanceTimersByTimeAsync(2500);
+    expect(state.owner.dispose).toHaveBeenCalledOnce();
+    expect(completed).toBe(false);
+    close({ code: 0, signal: null });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(completed).toBe(false);
+    dispose();
+    await run;
+    expect(state.cleanup.failureStage).toBeNull();
     expect(vi.getTimerCount()).toBe(0);
   });
 

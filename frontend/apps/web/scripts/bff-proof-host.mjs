@@ -20,6 +20,7 @@ import { fileURLToPath } from 'node:url';
 import {
   createBffCookieScanner,
   rememberBffCookies,
+  observeBffProofShutdown,
   waitForBffProofListener,
 } from './bff-proof-support.mjs';
 import { createPrivateScanner, fixtureEnvironment } from './fixture-support.mjs';
@@ -443,6 +444,57 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
     const dependencies = { provider: { begin: async callbackUri => ({ transaction: { callbackUri, state: randomBytes(32).toString('base64url'), nonce: randomBytes(32).toString('base64url'), verifier: randomBytes(32).toString('base64url') }, redirectUrl: ${JSON.stringify(fakeIssuer + '/protocol/openid-connect/auth')} }), redeem: async () => credentials(), refresh: async () => { ++refreshes; return credentials(); }, logoutUrl: () => ${JSON.stringify(fakeLogout)} }, account: async (_token, binding) => { ++accounts; return ({ actorId: '019a154b-0000-7000-8000-000000000011', tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null, displayName: (${JSON.stringify(sites)}).find(site => site.host === binding.host).displayName }); }, native: { self: async () => ({state: 'active', association: {authorityId: '10000000-0000-4000-8000-000000000099', subjectKey: 'a'.repeat(64), actorId: '019a154b-0000-7000-8000-000000000011'}}), bootstrap: async () => {throw new Error('Unused fixture create');}, contexts: async (_token,binding) => ({items: [{tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null, tenantName: (${JSON.stringify(sites)}).find(site => site.host === binding.host).displayName, organizationName: null, entryOrigin: 'https://' + binding.host, canUseCurrentHost: true}], endCursor: null, hasNextPage: false}), admit: async (_token,binding) => ({authorityId: '10000000-0000-4000-8000-000000000099', subjectKey: 'a'.repeat(64), actorId: '019a154b-0000-7000-8000-000000000011', tenantId: binding.tenantId, organizationId: binding.organizationId}), verifyAssociation: () => {} }, administration: fixtureAdministration, clock: { monotonic: () => now, utc: () => ${clockBase} + now } };`,
     );
   }
+  if (uiMode && !external) {
+    // Diagnostic-only instrumentation in the private copied launcher. Observe the
+    // original promises, bounds and exits without acquiring shutdown authority.
+    launcher = replace(
+      launcher,
+      '  let stopping = false;',
+      `  const proofShutdown = {kind: 'proof-shutdown', entered: false, watchdog: false,
+      listener: 'pending', next: 'pending', sessions: 'pending', requests: 'pending'};
+  const reportShutdown = () => {
+    try { if (process.connected) process.send({...proofShutdown}, () => {}); } catch {}
+  };
+  const observeShutdownJoin = (key, promise) => {
+    void Promise.resolve(promise).then(
+      () => { proofShutdown[key] = 'fulfilled'; reportShutdown(); },
+      () => { proofShutdown[key] = 'rejected'; reportShutdown(); },
+    );
+    return promise;
+  };
+  let stopping = false;`,
+    );
+    launcher = replace(
+      launcher,
+      '    stopping = true;',
+      '    stopping = true; proofShutdown.entered = true; reportShutdown();',
+    );
+    launcher = replace(
+      launcher,
+      '    const requestsStopped = bffRequests?.stop();',
+      "    const requestsStopped = observeShutdownJoin('requests', bffRequests?.stop());",
+    );
+    launcher = replace(
+      launcher,
+      '    const sessionsStopped = bffSessions?.stop();',
+      "    const sessionsStopped = observeShutdownJoin('sessions', bffSessions?.stop());",
+    );
+    launcher = replace(
+      launcher,
+      "    const deadline = setTimeout(() => {\n      console.error('Public server shutdown failed');",
+      "    const deadline = setTimeout(() => {\n      proofShutdown.watchdog = true; reportShutdown();\n      console.error('Public server shutdown failed');",
+    );
+    launcher = replace(
+      launcher,
+      '    server.closeAllConnections();',
+      "    observeShutdownJoin('listener', closed);\n    server.closeAllConnections();",
+    );
+    launcher = replace(
+      launcher,
+      '      app.close(),',
+      "      observeShutdownJoin('next', app.close()),",
+    );
+  }
   if (isolatedProtocol) {
     // Only the physical test listener changes. Logical Host/origin, ingress,
     // Next's configured port, TLS and all production admission remain intact.
@@ -590,6 +642,7 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
     devMode ? { ...env, NODE_ENV: 'development' } : env,
     true,
   );
+  if (uiMode && !external) server.shutdown = observeBffProofShutdown(server.process);
   const advance = (milliseconds) =>
     new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('owned IPC deadline')), 5000);

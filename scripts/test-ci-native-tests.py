@@ -894,6 +894,20 @@ except launcher.Refusal as failure:
         self.assertLess(initialize.index(capture), initialize.index('await DisposeAsync();'))
         self.assertIn('"; startup cancellation requested " + (startupCancellationRequested ? "true" : "false") + "."',
                       initialize)
+        self.assertLess(initialize.index('diagnostics.Snapshot(_keycloak?.State)'), initialize.index('await DisposeAsync();'))
+        self.assertIn('failure.Data[KeycloakStartupDiagnostics.DataKey] = observation;', initialize)
+        self.assertIn('using var startup = new CancellationTokenSource(TimeSpan.FromMinutes(2));', initialize)
+        diagnostics = (directory / 'KeycloakStartupDiagnostics.cs').read_text()
+        milestones = diagnostics.split('internal static readonly string[] Milestones =', 1)[1].split('];', 1)[0]
+        self.assertEqual(self.owner.KEYCLOAK_STARTUP_MILESTONES, tuple(re.findall(r'"([a-z_]+)"', milestones)))
+        self.assertEqual(self.owner.KEYCLOAK_FAILURE_STAGES, set(self.owner.KEYCLOAK_STARTUP_MILESTONES))
+        self.assertEqual(self.owner.KEYCLOAK_READINESS_OUTCOMES | self.owner.KEYCLOAK_CACHED_PROVIDER_STATES,
+                         set(re.findall(r'=> "([a-z_]+)"', diagnostics)))
+        for name, value in (('MaximumCount', self.owner.KEYCLOAK_OBSERVATION_MAX_COUNT),
+                            ('MaximumMilliseconds', self.owner.KEYCLOAK_OBSERVATION_MAX_MS)):
+            constant = re.search(r'internal const int ' + name + r' = ([0-9_]+);', diagnostics)
+            self.assertIsNotNone(constant)
+            self.assertEqual(value, int(constant[1].replace('_', '')))
         self.assertEqual({'TenantRealmApiTests', 'TenantRealmIssuanceTests', 'TenantRealmProfileProtectionTests',
                           'TenantRealmReconciliationTests', 'TenantRealmSelfServiceTests',
                           'TenantRealmStockBaselineTests'},
@@ -1019,6 +1033,120 @@ except launcher.Refusal as failure:
         self.assertNotIn('PRIVATE-CANARY', path.read_text())
         self.assertNotIn('provider_start', path.read_text())
         self.refuses('results_incomplete', self.owner.validate_results, output, cases[:1])
+
+    def keycloak_observation_sentence(self, **changes):
+        values = {'fixture': '7', 'elapsedMs': '120008',
+            'milestones': ','.join(str(value) for value in range(11)) + ',-1,-1,-1,-1',
+            'attempts': '101', 'completed': '101', 'readiness': 'connect', 'cachedProvider': 'running'}
+        values.update(changes)
+        return 'Keycloak startup observation v1; ' + '; '.join(name + '=' + value for name, value in values.items()) + '.'
+
+    def test_keycloak_startup_observation_rejects_unknown_duplicate_extra_and_unbounded_context(self):
+        parse = self.owner.closed_keycloak_startup_observation
+        sentence = self.keycloak_observation_sentence()
+        expected = {'fixtureOrdinal': 7, 'elapsedMilliseconds': 120008,
+            'milestoneMilliseconds': dict(zip(self.owner.KEYCLOAK_STARTUP_MILESTONES, [*range(11), -1, -1, -1, -1])),
+            'readinessAttempts': 101, 'readinessCompleted': 101,
+            'readinessOutcome': 'connect', 'cachedProviderState': 'running'}
+        self.assertEqual(expected, parse(sentence))
+        self.assertEqual(sentence, self.owner.keycloak_startup_observation_sentence(expected))
+        for state in self.owner.KEYCLOAK_CACHED_PROVIDER_STATES:
+            for outcome in self.owner.KEYCLOAK_READINESS_OUTCOMES:
+                changes = {'cachedProvider': state, 'readiness': outcome}
+                if outcome == 'not_attempted':
+                    changes.update(attempts='0', completed='0')
+                elif outcome == 'pending':
+                    changes.update(attempts='2', completed='1')
+                self.assertIsNotNone(parse(self.keycloak_observation_sentence(**changes)))
+        boundary = self.keycloak_observation_sentence(fixture='1000000', elapsedMs='600000',
+            milestones=','.join(['600000'] * 15), attempts='1000000', completed='1000000', readiness='pending')
+        self.assertIsNotNone(parse(boundary), 'saturated counters cannot prove that no request is pending')
+        invalid = [None, {}, sentence + sentence, sentence + '; extra=1.', sentence[:-1] + '; extra=1.',
+            sentence.replace('v1;', 'v2;'), sentence.replace('fixture=7;', 'fixture=7; fixture=7;'),
+            sentence + ' PRIVATE-CANARY', 'x' * 65536 + sentence,
+            self.keycloak_observation_sentence(fixture='0'), self.keycloak_observation_sentence(fixture='1000001'),
+            self.keycloak_observation_sentence(fixture='07'), self.keycloak_observation_sentence(fixture='+7'),
+            self.keycloak_observation_sentence(elapsedMs='600001'), self.keycloak_observation_sentence(elapsedMs='-1'),
+            self.keycloak_observation_sentence(milestones=','.join(['0'] * 14)),
+            self.keycloak_observation_sentence(milestones=','.join(['0'] * 16)),
+            self.keycloak_observation_sentence(milestones=','.join(['-2'] * 15)),
+            self.keycloak_observation_sentence(milestones=','.join(['120009'] * 15)),
+            self.keycloak_observation_sentence(milestones=','.join(['00'] * 15)),
+            self.keycloak_observation_sentence(attempts='1000001'), self.keycloak_observation_sentence(completed='102'),
+            self.keycloak_observation_sentence(readiness='not_attempted'),
+            self.keycloak_observation_sentence(readiness='pending'),
+            self.keycloak_observation_sentence(attempts='0', completed='0', readiness='pending'),
+            self.keycloak_observation_sentence(attempts='1', completed='0', readiness='tls'),
+            self.keycloak_observation_sentence(readiness='PRIVATE-CANARY'),
+            self.keycloak_observation_sentence(cachedProvider='PRIVATE-CANARY')]
+        case = self.case(1, 'LearnStack.Tests.Integration.TenancyIdentity.TenantRealmIssuanceTests.Proof')
+        failure = ('Keycloak fixture startup failed at provider_starting/readiness_timeout; '
+                   'owned cleanup completed; startup cancellation requested true.')
+        for value in invalid:
+            with self.subTest(value_type=type(value).__name__):
+                self.assertIsNone(parse(value))
+                if isinstance(value, str):
+                    self.assertIsNone(self.owner.closed_failure_details(case, {'ErrorMessage': failure + ' ' + value}))
+        self.assertIsNone(self.owner.closed_failure_details(case, {'ErrorMessage': failure + ' extra ' + sentence}))
+        self.assertEqual(expected, self.owner.closed_failure_details(case,
+            {'ErrorMessage': failure + ' ' + sentence + '\nPRIVATE-CANARY'})['startupObservation'])
+
+    def test_keycloak_startup_context_survives_real_measurement_and_sanitized_trx_export_seams(self):
+        case = self.case(1, 'LearnStack.Tests.Integration.TenancyIdentity.TenantRealmIssuanceTests.Proof')
+        sentence = self.keycloak_observation_sentence()
+        failure = ('Keycloak fixture startup failed at provider_starting/readiness_timeout; '
+                   'owned cleanup completed; startup cancellation requested true. ' + sentence)
+        expected = self.owner.closed_keycloak_startup_observation(sentence)
+        stream, console = io.StringIO(), io.StringIO()
+        progress = self.progress(self.root / 'keycloak-observation.diag', 'LearnStack.Tests.Integration', [case], stream)
+        raw = self.execution_result(case, outcome=2)
+        raw.update(ErrorMessage='System.InvalidOperationException : ' + failure + '\nPRIVATE-CANARY',
+                   ErrorStackTrace='/private/PRIVATE-CANARY/fixture.cs:line 99',
+                   Messages=[{'Category': 'StdOutMsgs', 'Text': 'PRIVATE-CANARY'}])
+        with contextlib.redirect_stdout(console):
+            progress.results({'NewTestResults': [raw]})
+        self.assertEqual(expected, progress.failure_locations[0]['details']['startupObservation'])
+        measurements = self.root / 'keycloak-measurements.json'
+        self.owner.write_json(measurements, {'projects': [{'failureLocations': progress.failure_locations}]})
+        self.assertEqual(expected, json.loads(measurements.read_text())['projects'][0]
+                         ['failureLocations'][0]['details']['startupObservation'])
+        for projection in (console.getvalue(), stream.getvalue(), measurements.read_text()):
+            self.assertNotIn('PRIVATE-CANARY', projection)
+            self.assertNotIn('/private/', projection)
+        self.assertNotIn('startupObservation', stream.getvalue(), 'case completion stays separate from diagnostics')
+        output = self.root / 'keycloak-output'
+        path = self.trx(output / 'results', [case], outcome='Failed', raw_canary=True)
+        tree = ET.parse(path)
+        raw_output = tree.find('t:Results/t:UnitTestResult/t:Output', self.owner.NS)
+        tag = lambda name: '{' + self.owner.NS['t'] + '}' + name
+        ET.SubElement(ET.SubElement(raw_output, tag('ErrorInfo')), tag('Message')).text = failure + '\nPRIVATE-CANARY'
+        ET.SubElement(raw_output, tag('StdOut')).text = 'PRIVATE-CANARY raw provider output'
+        tree.write(path, encoding='utf-8')
+        self.owner.export_results(path.parent, output, time.monotonic() + 5)
+        retained = ET.parse(path)
+        self.assertEqual(sentence, retained.findtext('t:Results/t:UnitTestResult/t:Output/t:StdOut', namespaces=self.owner.NS))
+        self.assertEqual([], retained.findall('.//t:ErrorInfo', self.owner.NS))
+        self.assertNotIn('PRIVATE-CANARY', path.read_text())
+        self.assertNotIn('readiness_timeout', path.read_text(), 'raw failure text is not copied')
+        self.assertEqual('Failed', self.owner.trx_cases(path, sanitize=True)[0]['outcome'])
+        self.assertEqual(sentence, ET.parse(path).findtext('t:Results/t:UnitTestResult/t:Output/t:StdOut', namespaces=self.owner.NS))
+        self.refuses('results_incomplete', self.owner.validate_results, output, [case])
+        for index, (named, outcome, message) in enumerate((
+                (case, 'Failed', failure.replace('cachedProvider=running', 'cachedProvider=PRIVATE-CANARY')),
+                (case, 'Failed', failure + ' ' + sentence),
+                ({**case, 'name': 'LearnStack.Tests.Integration.Database.Other.Proof'}, 'Failed', failure),
+                ({**case, 'assembly': 'learnstack.tests.unit'}, 'Failed', failure),
+                (case, 'Passed', failure))):
+            rejected = self.trx(self.root / ('rejected-keycloak-' + str(index)), [named], outcome=outcome, raw_canary=True)
+            rejected_tree = ET.parse(rejected)
+            rejected_output = rejected_tree.find('t:Results/t:UnitTestResult/t:Output', self.owner.NS)
+            ET.SubElement(ET.SubElement(rejected_output, tag('ErrorInfo')), tag('Message')).text = message
+            # A valid-looking stdout receipt cannot rescue an invalid or foreign error message.
+            ET.SubElement(rejected_output, tag('StdOut')).text = sentence
+            rejected_tree.write(rejected, encoding='utf-8')
+            self.owner.trx_cases(rejected, sanitize=True)
+            self.assertEqual([], ET.parse(rejected).findall('.//t:Output', self.owner.NS))
+            self.assertNotIn('PRIVATE-CANARY', rejected.read_text())
 
     @staticmethod
     def recurrence_native_sentence(kind='failure', **changes):
@@ -1341,6 +1469,39 @@ except launcher.Refusal as failure:
                        'Messages': [{'Category': 'StdOutMsgs', 'Text': 'BFF browser failure;journey=unavailable_pages.'}]}
         self.assertEqual({'stage': 'bff_browser', 'journey': 'unavailable_pages',
                           'reason': 'browser-administration-counter-view'}, parse(case, counter_raw))
+
+    def test_bff_browser_shutdown_diagnostics_are_closed_journey_bound_and_do_not_replace_reason(self):
+        case = {**self.case(1), 'name': self.owner.BFF_BROWSER_FAILURE_CASE}
+        parse = self.owner.closed_failure_details
+        reason = 'browser-administration-pages_cleanup_cleanup-native-wait'
+        message = 'BFF native fixture did not reach the closed browser_result/' + reason + ' phase.'
+        failure = 'BFF browser failure;journey=unavailable_pages.'
+        shutdown = 'BFF browser shutdown;journey=unavailable_pages;state=valid,1,0,p,f,p,p,live,0,open,open.'
+        raw = {'ErrorMessage': message, 'Messages': [{'Category': 'StdOutMsgs', 'Text': failure + '\n' + shutdown}]}
+        expected = {'stage': 'bff_browser', 'journey': 'unavailable_pages', 'reason': reason,
+                    'nativeShutdown': {'ipc': 'valid', 'entered': True, 'watchdog': False,
+                        'listener': 'pending', 'next': 'fulfilled', 'sessions': 'pending', 'requests': 'pending',
+                        'leader': 'live', 'close': False, 'stdout': 'open', 'stderr': 'open'}}
+        self.assertEqual(expected, parse(case, raw))
+        for invalid in (shutdown + '\n' + shutdown, shutdown + 'PRIVATE-CANARY',
+                shutdown.replace('valid,', 'PRIVATE-CANARY,'), shutdown.replace(',p,f,', ',p,private,'),
+                shutdown.replace('unavailable_pages', 'positive'), shutdown.replace(',live,', ',12345,'),
+                shutdown.replace(',open,open.', ',open,open,extra.')):
+            self.assertIsNone(parse(case, {'ErrorMessage': message, 'Messages': [
+                {'Category': 'StdOutMsgs', 'Text': failure + '\n' + invalid}]}))
+        self.assertIsNone(parse(case, {'ErrorMessage': message, 'Messages': [
+            {'Category': 'StdOutMsgs', 'Text': shutdown}]}))
+        self.assertIsNone(parse(case, {'ErrorMessage': message, 'Messages': [
+            {'Category': 'StdOutMsgs', 'Text': failure}, {'Category': 'StdErrMsgs', 'Text': shutdown}]}))
+        progress = self.progress(self.root / 'bff-shutdown.diag', 'LearnStack.Tests.Integration', [case], io.StringIO())
+        item = self.execution_result(case, 2)
+        item.update(raw)
+        progress.results({'NewTestResults': [item]})
+        self.assertEqual(expected, progress.failure_locations[0]['details'])
+        measurement = self.root / 'bff-shutdown-measurements.json'
+        self.owner.write_json(measurement, {'failureLocations': progress.failure_locations})
+        self.assertEqual(expected, json.loads(measurement.read_text())['failureLocations'][0]['details'])
+        self.assertNotIn('BFF browser shutdown;', measurement.read_text())
 
     def test_bff_browser_details_refuse_private_malformed_duplicate_and_wrong_channel_data(self):
         case = {**self.case(1), 'name': self.owner.BFF_BROWSER_FAILURE_CASE}

@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 3,451 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 3,518 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -198,7 +198,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 10 third hosted failure and independent mutation groups (2026-10-31)](#p03-3-step-10-third-hosted-failure-and-independent-mutation-groups-2026-10-31) — 106 lines
   - [P03-3 Step 10 fourth hosted failure and isolated protocol proofs (2026-10-31)](#p03-3-step-10-fourth-hosted-failure-and-isolated-protocol-proofs-2026-10-31) — 69 lines
   - [ADR-0082 proposed current-source CI window package (2026-11-01)](#adr-0082-proposed-current-source-ci-window-package-2026-11-01) — 112 lines
-  - [ADR-0082 proposal reviews and approval readiness (2026-11-01)](#adr-0082-proposal-reviews-and-approval-readiness-2026-11-01) — 24 lines
+  - [ADR-0082 proposal reviews and approval readiness (2026-11-01)](#adr-0082-proposal-reviews-and-approval-readiness-2026-11-01) — 25 lines
+  - [P03-3 Step 10 bounded detector reuse and native failure observations (2026-11-01)](#p03-3-step-10-bounded-detector-reuse-and-native-failure-observations-2026-11-01) — 66 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -9193,3 +9194,70 @@ neither accepts the decision nor authorizes budget code. Only this new policy
 awaits maintainer acceptance; independent corrective implementation and its
 local proofs/reviews continue. Manual evidence remains maintainer-deferred,
 not executed or inferred from automated results.
+
+
+### P03-3 Step 10 bounded detector reuse and native failure observations (2026-11-01)
+
+**Scope and authority.** This follow-up changes test detectors, native proof
+lifecycle ordering and finite failure observations. It changes no application
+route, provider/RLS grant, production authorization policy, job window,
+203-second reserve, test-specific deadline or test selection. ADR-0082 remains
+Proposed; these corrections do not depend on its acceptance.
+
+**Detector reuse.** Exact field-signature indexes preserve the legacy raw-body,
+FullName, opcode, ordering and duplicate predicates. The existing raw-index
+companion gains field-type, foreign-scope/same-FullName and different-name/
+same-FullName controls. Per-evaluation orchestration seam resolution and
+runtime implementation lookup reuse preserve fresh scans between each clean,
+dirty and restored mutation. No mutation is removed or sampled. A discarded
+field-key trial produces no claimed gain. A private resolver probe reduces
+1,001 resolver-body visits to 226 distinct lookups across its fixed clean
+sample; this is not whole-suite speedup or hosted-fit evidence. Temporary
+instrumentation is removed and the strict normal binary is rebuilt.
+
+**Native shutdown.** The browser proof joins actual launcher exit within the
+existing five-second graceful window, then proves group cleanup/absence and
+joins the original child-close promise together with actual owner disposal in
+the existing final output phase. Open descendant stdio no longer delays group
+cleanup before that cleanup can close it. A real paired control proves the old
+close-before-group order misses its bound while the reordered path completes
+naturally; existing signal, forced-cleanup, output and first-failure refusals
+remain. This identifies a fixture ordering gap, not the cause of the retained
+hosted failure. Only the private copied launcher emits bounded shutdown-join
+IPC observations; a validated failure-only state crosses the C# driver into
+the existing closed measurement parser. No raw IPC, stderr or arbitrary
+exception text becomes an exported diagnostic dimension.
+
+**Provider observations.** In-memory monotonic milestone times, local fixture
+ordinal, bounded readiness counts/outcomes and the SDK's cached provider state
+are captured before cleanup. The handler preserves the actual request,
+cancellation token, response and original exception. It adds no Docker I/O,
+startup serialization, live-state witness or timeout extension. Four offline
+Facts cover these boundaries. The closed Python parser reconstructs only the
+validated finite startup observation in measurements and sanitized TRX;
+provider configuration, logs, inner exceptions and arbitrary error text stay
+excluded. These diagnostics do not establish an internal cause for the earlier
+120-second provider failures.
+
+**Executed local proof.** Strict final normal build has zero warnings/errors.
+Both complete orchestration mutation Facts pass after the resolver correction;
+the two affected transitive controls and five mutation Facts pass in the
+preceding bounded-index trial. The final raw-index companion and all five
+compiled corpus controls pass. Four offline provider controls and the actual
+Keycloak import/configuration Fact pass; the real three-journey native HTTPS
+browser Fact passes in 50.864 command seconds. Source snapshots remain equal
+across the recorded actual provider/browser runs. Full frontend typecheck,
+lint and the guarded suite pass: 3,314 cases, comprising 3,166 in 84 web files
+and 148 in six SDK files, zero skips/todos; the guard takes 52.627 seconds.
+Native, shard and result controls pass 101/101, 83/83 and 40/40.
+
+Twenty actual SDK discovery commands agree with their raw diagnostics and
+console populations: 7,944 total, 4,476 non-Docker, 3,468 Docker, including
+604 Architecture, 31 native and 3,437 ordinary cases. Exactly four new offline
+provider cases enter base; every previous case/metadata and every weighted,
+Docker/native and shared-fixture assignment stays unchanged. Both complete
+layouts cover every case once across twenty nonempty owners; their largest
+filters remain 22,210 / 29,954 bytes under the existing limit. No private probe
+identity remains. Fresh independent review rounds for this correction and
+complete final-source hosted A/B/original-archive qualification remain open.
+Manual evidence remains explicitly maintainer-deferred and unexecuted.

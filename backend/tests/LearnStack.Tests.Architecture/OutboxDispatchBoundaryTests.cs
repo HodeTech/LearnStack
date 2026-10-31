@@ -789,11 +789,10 @@ public sealed partial class OutboxDispatchConventionTests
         var capture = builds.Length == 1 ? builds[0].Previous?.Operand as FieldReference : null;
         if (capture is null || capture.FieldType.FullName != "System.String")
         { offenders.Add(MethodId(leaf) + ": pool must use its captured credential unchanged"); return; }
-        var writes = census.Types.Values.SelectMany(type => type.Methods).Where(method => method.HasBody)
-            .SelectMany(method => method.Body.Instructions.Where(instruction => instruction.Operand is FieldReference field
-                && field.FullName == capture.FullName && instruction.OpCode is var opcode
+        var writes = census.FieldInstructionsByFullName(capture.FullName)
+            .Where(item => item.Instruction.OpCode is var opcode
                 && (opcode == OpCodes.Stfld || opcode == OpCodes.Stsfld || opcode == OpCodes.Ldflda || opcode == OpCodes.Ldsflda))
-                .Select(instruction => (Method: method, Instruction: instruction))).ToArray();
+            .Select(item => (Method: item.Body, item.Instruction)).ToArray();
         if (writes.Length != 1 || writes[0].Method != root || writes[0].Instruction.OpCode != OpCodes.Stfld
             || writes[0].Instruction.Previous?.Operand is not MethodReference read || !IsConnectionStringRead(read))
             offenders.Add(MethodId(leaf) + ": the declared credential read must be the sole immutable capture");

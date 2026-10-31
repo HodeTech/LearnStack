@@ -191,15 +191,105 @@ export function rememberBffCookies(headers, canaries) {
   }
 }
 
+/** Scalar observation of the copied launcher's existing shutdown joins, never cleanup authority. */
+export function observeBffProofShutdown(child) {
+  const joins = ['listener', 'next', 'sessions', 'requests'];
+  const states = new Set(['pending', 'fulfilled', 'rejected']);
+  let state = {
+    kind: 'proof-shutdown',
+    entered: false,
+    watchdog: false,
+    listener: 'pending',
+    next: 'pending',
+    sessions: 'pending',
+    requests: 'pending',
+  };
+  let frames = 0;
+  let invalid = false;
+  let closed = false;
+  const observe = (value) => {
+    // Other fixture IPC belongs to its existing owner, not this observation.
+    if (value?.kind !== 'proof-shutdown') return;
+    ++frames;
+    if (
+      invalid ||
+      frames > 6 ||
+      Object.keys(value).sort().join(',') !==
+        'entered,kind,listener,next,requests,sessions,watchdog' ||
+      value.entered !== true ||
+      typeof value.watchdog !== 'boolean' ||
+      joins.some((key) => !states.has(value[key]))
+    ) {
+      invalid = true;
+      return;
+    }
+    const changed = joins.filter((key) => value[key] !== state[key]);
+    if (
+      (frames === 1 && (changed.length !== 0 || value.watchdog)) ||
+      (frames > 1 &&
+        (state.watchdog ||
+          (value.watchdog ? changed.length !== 0 : changed.length !== 1) ||
+          changed.some((key) => state[key] !== 'pending' || value[key] === 'pending')))
+    ) {
+      invalid = true;
+      return;
+    }
+    // Copy only independently validated scalar members; never retain a raw frame.
+    state = {
+      kind: 'proof-shutdown',
+      entered: true,
+      watchdog: value.watchdog,
+      listener: value.listener,
+      next: value.next,
+      sessions: value.sessions,
+      requests: value.requests,
+    };
+  };
+  const close = () => {
+    closed = true;
+    child.removeListener('message', observe);
+  };
+  child.on('message', observe);
+  child.once('close', close);
+  const streamState = (stream) =>
+    !stream ? 'absent' : stream.closed ? 'closed' : stream.readableEnded ? 'ended' : 'open';
+  return Object.freeze({
+    snapshot() {
+      const joined = { pending: 'p', fulfilled: 'f', rejected: 'r' };
+      return [
+        invalid ? 'invalid' : frames ? 'valid' : 'absent',
+        state.entered ? '1' : '0',
+        state.watchdog ? '1' : '0',
+        ...joins.map((key) => joined[state[key]]),
+        child.signalCode !== null
+          ? 'signal'
+          : child.exitCode === null
+            ? 'live'
+            : child.exitCode === 0
+              ? 'zero'
+              : 'nonzero',
+        closed ? '1' : '0',
+        streamState(child.stdout),
+        streamState(child.stderr),
+      ].join(',');
+    },
+  });
+}
+
 /** One owned cleanup, with only its first finite failure retained across retries. */
 export function createBffBrowserCleanup(resources) {
   let pending;
   let failureStage = null;
+  let nativeWait = null;
   const run = async () => {
     const { browser, browserProcess, nativeServer, owner } = resources();
     const failures = [];
     let browserStopped = false;
     let ownerDisposed = false;
+    // Observe rejection immediately while preserving the actual close promise
+    // for the final output/owner phase after group cleanup.
+    const nativeClosed = nativeServer?.completed;
+    void nativeClosed?.catch(() => {});
     if (browser) {
       // CDP-connected browser.close() only disconnects Playwright. Request the
       // owned Chromium lifecycle first. All browser control steps share the
@@ -257,9 +347,9 @@ export function createBffBrowserCleanup(resources) {
     ]) {
       if (!child) continue;
       if (kind === 'native') {
-        // Join the owned launcher's existing five-second shutdown before the
-        // generic group fallback can escalate after two seconds. A completed
-        // leader still needs the unchanged group-absence/no-forcing proof below.
+        // Join actual leader exit within the existing graceful window. Its
+        // descendants may retain stdio until the unchanged group cleanup below;
+        // child close belongs to the final output/owner phase, not this wait.
         let requested = true;
         try {
           if (child.exitCode === null && child.signalCode === null && !child.kill('SIGTERM'))
@@ -270,9 +360,17 @@ export function createBffBrowserCleanup(resources) {
         }
         if (requested) {
           let timer;
+          let exited;
           try {
+            const leader =
+              child.exitCode !== null || child.signalCode !== null
+                ? Promise.resolve({ code: child.exitCode, signal: child.signalCode })
+                : new Promise((resolve) => {
+                    exited = (code, signal) => resolve({ code, signal });
+                    child.once('exit', exited);
+                  });
             const stopped = await Promise.race([
-              nativeServer.completed,
+              leader,
               new Promise((_, reject) => {
                 timer = setTimeout(() => reject(new Error('BFF native shutdown deadline')), 5000);
               }),
@@ -280,9 +378,12 @@ export function createBffBrowserCleanup(resources) {
             if (stopped.signal !== null) failures.push('cleanup-native-signal');
             else if (stopped.code !== 0) failures.push('cleanup-native-exit');
           } catch {
+            // Snapshot before fallback can change exit, close or stream observations.
+            nativeWait = nativeServer.shutdown?.snapshot() ?? null;
             failures.push('cleanup-native-wait');
           } finally {
             clearTimeout(timer);
+            if (exited) child.removeListener('exit', exited);
           }
         }
       }
@@ -294,12 +395,31 @@ export function createBffBrowserCleanup(resources) {
         failures.push('cleanup-' + kind + '-stop');
       }
     }
-    try {
-      await owner.dispose();
-      ownerDisposed = true;
-    } catch {
-      failures.push('cleanup-owner');
+    // Close and actual owner disposal share the existing five-second I/O phase.
+    // No additional serial wait is introduced after the owner's output drain.
+    let closeTimer;
+    const [closed, disposed] = await Promise.allSettled([
+      nativeClosed
+        ? Promise.race([
+            nativeClosed,
+            new Promise((_, reject) => {
+              closeTimer = setTimeout(() => reject(new Error('BFF native close deadline')), 5000);
+            }),
+          ])
+        : undefined,
+      Promise.resolve().then(() => owner.dispose()),
+    ]);
+    clearTimeout(closeTimer);
+    // Append in deterministic lifecycle order, preserving an earlier failure.
+    if (nativeClosed) {
+      if (closed.status === 'rejected') {
+        nativeWait ??= nativeServer.shutdown?.snapshot() ?? null;
+        failures.push('cleanup-native-wait');
+      } else if (closed.value.signal !== null) failures.push('cleanup-native-signal');
+      else if (closed.value.code !== 0) failures.push('cleanup-native-exit');
     }
+    if (disposed.status === 'fulfilled') ownerDisposed = true;
+    else failures.push('cleanup-owner');
     if (browserProcess) {
       if (browserProcess.signalCode !== null) failures.push('cleanup-browser-signal');
       else if (browserProcess.exitCode !== 0) failures.push('cleanup-browser-exit');
@@ -324,6 +444,9 @@ export function createBffBrowserCleanup(resources) {
     run: () => (pending ??= run()),
     get failureStage() {
       return failureStage;
+    },
+    get nativeWait() {
+      return nativeWait;
     },
   };
 }

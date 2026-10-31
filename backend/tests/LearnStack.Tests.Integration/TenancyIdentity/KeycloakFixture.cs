@@ -56,15 +56,19 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
     {
         var started = Stopwatch.GetTimestamp();
         using var startup = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+        var diagnostics = new KeycloakStartupDiagnostics();
         var stage = "certificate";
+        diagnostics.Mark(stage);
         try
         {
             _tls = new KeycloakTls();
-            _readinessHandler = KeycloakHttp.CreateHandler(_tls.RootCertificate);
+            _readinessHandler = diagnostics.Observe(KeycloakHttp.CreateHandler(_tls.RootCertificate));
             stage = "network";
+            diagnostics.Mark(stage);
             _network = new NetworkBuilder().WithLogger(NullLogger.Instance).Build();
             await _network.CreateAsync(startup.Token);
             stage = "database";
+            diagnostics.Mark(stage);
             _database = new PostgreSqlBuilder("postgres:18.4-alpine")
                 .WithLogger(NullLogger.Instance)
                 .WithNetwork(_network)
@@ -76,14 +80,16 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
                 {
                     ContainerLoopbackPorts.Configure(parameters, "5432/tcp");
                     stage = "database_create_request";
+                    diagnostics.Mark(stage);
                 })
                 .Build();
             // These are last-reached SDK milestones, not exact failing HTTP operations.
-            _database.Created += (_, _) => stage = "database_start";
-            _database.Starting += (_, _) => stage = "database_readiness";
-            _database.Started += (_, _) => stage = "database_started";
+            _database.Created += (_, _) => { stage = "database_start"; diagnostics.Mark(stage); };
+            _database.Starting += (_, _) => { stage = "database_readiness"; diagnostics.Mark(stage); };
+            _database.Started += (_, _) => { stage = "database_started"; diagnostics.Mark(stage); };
             await _database.StartAsync(startup.Token);
             stage = "import_input";
+            diagnostics.Mark(stage);
             var tenantImport = _tenantRealmJson ?? await File.ReadAllTextAsync(RealmPath("learnstack"), startup.Token);
             var hubImport = await File.ReadAllBytesAsync(RealmPath("learnstack-hub"), startup.Token);
             _keycloak = new ContainerBuilder(Image)
@@ -111,18 +117,22 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
                     .ForPath("/realms/learnstack/.well-known/openid-configuration")
                     .ForStatusCode(HttpStatusCode.OK)))
                 .Build();
-            _keycloak.Created += (_, _) => stage = "provider_created";
-            _keycloak.Starting += (_, _) => stage = "provider_starting";
-            _keycloak.Started += (_, _) => stage = "provider_started";
+            _keycloak.Created += (_, _) => { stage = "provider_created"; diagnostics.Mark(stage); };
+            _keycloak.Starting += (_, _) => { stage = "provider_starting"; diagnostics.Mark(stage); };
+            _keycloak.Started += (_, _) => { stage = "provider_started"; diagnostics.Mark(stage); };
             stage = "provider_start";
+            diagnostics.Mark(stage);
             await _keycloak.StartAsync(startup.Token);
             stage = "mapped_endpoint";
+            diagnostics.Mark(stage);
             BaseAddress = new UriBuilder(Uri.UriSchemeHttps, _keycloak.Hostname,
                 _keycloak.GetMappedPublicPort(8443)).Uri;
             if (!BaseAddress.IsLoopback) throw new InvalidOperationException("Keycloak fixture endpoint is not loopback.");
             stage = "loopback_bindings";
+            diagnostics.Mark(stage);
             await AssertLoopbackBindingsAsync(startup.Token);
             stage = "discovery";
+            diagnostics.Mark(stage);
             using var client = KeycloakHttp.Create(BaseAddress, RootCertificate);
             using var discovery = await KeycloakHttp.JsonAsync(client, HttpMethod.Get,
                 "realms/learnstack/.well-known/openid-configuration", cancellationToken: startup.Token);
@@ -134,14 +144,19 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
         catch (Exception exception)
         {
             var startupCancellationRequested = startup.IsCancellationRequested;
+            // State is the SDK's cached observation, not a new Docker inspection or a live-state witness.
+            var observation = diagnostics.Snapshot(_keycloak?.State);
             // Startup exceptions can include container configuration, credentials or raw provider logs.
             // Cleanup still attempts every owned resource before this closed diagnostic is emitted.
             var cleanup = "completed";
             try { await DisposeAsync(); } catch (Exception) { cleanup = "failed"; }
             var reason = KeycloakStartupFailure.Classify(exception);
-            throw new InvalidOperationException("Keycloak fixture startup failed at " + stage + "/" + reason
+            var failure = new InvalidOperationException("Keycloak fixture startup failed at " + stage + "/" + reason
                 + "; owned cleanup " + cleanup
-                + "; startup cancellation requested " + (startupCancellationRequested ? "true" : "false") + ".");
+                + "; startup cancellation requested " + (startupCancellationRequested ? "true" : "false") + "."
+                + " " + observation.ToSentence());
+            failure.Data[KeycloakStartupDiagnostics.DataKey] = observation;
+            throw failure;
         }
     }
 
