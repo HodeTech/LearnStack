@@ -1,6 +1,6 @@
 # Phase 03: Identity Domain, Authorization, and Admin Foundation
 
-> **Status (2026-10-31).** P03-0, P03-1 and P03-2 are complete. P03-1 is merged
+> **Status (2026-11-01).** P03-0, P03-1 and P03-2 are complete. P03-1 is merged
 > through [PR #38](https://github.com/HodeTech/LearnStack/pull/38); P03-2 through
 > [PR #39](https://github.com/HodeTech/LearnStack/pull/39). Their linked closeouts
 > distinguish implementation-source A/B qualification from final PR checks.
@@ -11,13 +11,13 @@
 > Both fresh Step 9 rounds and [verified corrections](phase-03-delivery-log.md#p03-3-step-9-review-round-2-and-verified-lifetime-and-profile-corrections-2026-10-30)
 > are complete. The maintainer [authorizes Step 10 to proceed](phase-03-delivery-log.md#p03-3-maintainer-approved-manual-deferral-and-step-10-continuation-2026-10-30)
 > with manual keyboard/focus/reflow/contrast/VoiceOver evidence deferred for now.
-> No manual execution or accessibility pass is recorded; the maintainer owns that
-> outstanding observation and its disclosure in PR review. The [Step 10 source reviews](phase-03-delivery-log.md#p03-3-step-10-review-round-2-and-virtual-dispatch-correction-2026-10-31)
+> Manual evidence remains unexecuted and maintainer-owned for PR review. The [Step 10 source reviews](phase-03-delivery-log.md#p03-3-step-10-review-round-2-and-virtual-dispatch-correction-2026-10-31)
 > close both fresh independent rounds and verified corrections. The [CI follow-up](phase-03-delivery-log.md#p03-3-step-10-fourth-hosted-failure-and-isolated-protocol-proofs-2026-10-31)
 > records four failed hosted A attempts and separately validated local corrections.
-> The isolated frontend protocol correction passes all 3,302 guarded cases locally;
-> its fresh reviews, remaining backend corrections, complete new-source A/B and
-> original-archive qualification remain open.
+> The isolated frontend correction passes 3,302 guarded cases and closes both review rounds.
+> Backend corrections, complete new-source A/B and original-archive qualification remain open.
+> [ADR-0082](../decisions/0082-current-source-ci-execution-windows.md) proposes Architecture 25 / ordinary 30 minute windows;
+> budget code awaits maintainer acceptance while independent local work continues.
 > [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md) and
 > [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md)
 > are Accepted; their separate eight-consumer prerequisite and one-consumer

@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 3,314 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 3,426 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -196,7 +196,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 10 failed hosted A and bounded CI corrections (2026-10-31)](#p03-3-step-10-failed-hosted-a-and-bounded-ci-corrections-2026-10-31) — 61 lines
   - [P03-3 Step 10 second hosted failure and remaining qualification corrections (2026-10-31)](#p03-3-step-10-second-hosted-failure-and-remaining-qualification-corrections-2026-10-31) — 92 lines
   - [P03-3 Step 10 third hosted failure and independent mutation groups (2026-10-31)](#p03-3-step-10-third-hosted-failure-and-independent-mutation-groups-2026-10-31) — 106 lines
-  - [P03-3 Step 10 fourth hosted failure and isolated protocol proofs (2026-10-31)](#p03-3-step-10-fourth-hosted-failure-and-isolated-protocol-proofs-2026-10-31) — 68 lines
+  - [P03-3 Step 10 fourth hosted failure and isolated protocol proofs (2026-10-31)](#p03-3-step-10-fourth-hosted-failure-and-isolated-protocol-proofs-2026-10-31) — 69 lines
+  - [ADR-0082 proposed current-source CI window package (2026-11-01)](#adr-0082-proposed-current-source-ci-window-package-2026-11-01) — 111 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -9054,3 +9055,115 @@ moved declarations and all remaining original boundary source are byte-equal.
 Fresh independent reviews of this correction, remaining backend work and a new
 complete source-bound A/B pair remain open. The maintainer-authorized manual
 deferral remains separate from executed evidence; the phase Status owns state.
+
+
+### ADR-0082 proposed current-source CI window package (2026-11-01)
+
+**Status: Proposed; no budget implementation.** [ADR-0082](../decisions/0082-current-source-ci-execution-windows.md)
+requests Architecture 20→25 and ordinary 25→30 minute whole-job windows.
+Base/native retain twenty minutes; other clocks, 203-second reserve, operation
+bounds, counts, twenty-VM cap, assignment and complete A/B proof stay fixed.
+The proposed five-minute additions are explicit headroom judgments, not measured
+minimums. They repair neither failed tests nor the provider's 120-second limit.
+The phase Status remains the single current packet-state owner.
+
+**Evidence and independent work.** The preceding fourth-failure entry owns the
+23 retained originals and 7,940-case failed A union; no B exists. The isolated
+frontend correction `441721114ab1401285660d42e7c761501971c55d` closes two fresh
+independent R1 and two new R2 reviews without verified findings. Its complete
+3,302-case local guard and count correction remain separate from hosted proof.
+It is pushed on development. Further browser/provider diagnostic/correctness
+and bounded guard work continues under the existing job ceilings; none accepts
+this proposal. A rejected mixed field-key indexing trial is not represented as
+an optimization gain. Fresh final-source discovery accounts for new offline
+controls before any complete hosted qualification.
+
+**Three steps, after maintainer acceptance.** Each step is committed and receives
+two fresh independent review rounds. Verified findings are fixed, committed and
+revalidated before progression; no runtime-budget code precedes acceptance.
+
+1. **Accept and reconcile carriers.** Mark ADR-0082 Accepted with the actual
+   maintainer receipt. Append the three texts below without editing historical
+   ADR bodies/metadata. Adopt the exact expected-owner table below in Testing
+   06, reconcile Infrastructure 20's CI paragraph by reference, extend the
+   existing catalogue rule's Source/assertions without a new rule name, and
+   move the index row Proposed→Active. Update Phase 03 Status and this log.
+2. **Implement one closed policy.** Workflow `backend-architecture` becomes
+   25 and `backend-integration-tests` 30; all other job ceilings stay. Existing
+   `job_seconds(mode, job, counts)` retains exact closed identity/range validation
+   and becomes the sole 1,200/1,500/1,800-second policy. Parent, leaf,
+   ordinary fixture preparation and independent expected-producer validation
+   consume it. Extend launcher/result/workflow controls with valid 1,500/1,800
+   observations and wrong-owner/forged/overflow counterexamples; preserve all
+   operation caps, reserves, exact unions, natural disposal and failure rules.
+   Run the complete relevant offline control suites and both fresh review rounds.
+3. **Qualify actual final source.** Freeze source/tree, plan, toolchain and full
+   actual manifest. Run complete A, retain/audit all original metadata and
+   25 ZIPs, then rerun the entire workflow for B on that same source. Both need
+   all 27 successful jobs, twenty natural owners, complete zero-skip case/TRX
+   unions and independent archive/API/case/surface checks. Historical success,
+   failed-only retries and mixed attempts qualify nothing. Any further exhaustion
+   reopens this decision; no automatic additional increase is authorized.
+
+**Acceptance carrier text — ADR-0062 Amendment 3.** Append under its existing
+Amendments section:
+
+> **Current-source Architecture and ordinary windows (2026-11-01).** ADR-0082
+> narrowly supersedes Amendment 1's inherited twenty-minute execution requirement
+> for Architecture (twenty-five minutes) and Amendment 2's ordinary window (thirty
+> minutes). Base and native execution remain twenty minutes; native provisioning,
+> collector authority and every other boundary remain unchanged. This record's
+> body, metadata and earlier rationale remain historical. Implementation and
+> complete final-source A/B proof are separate requirements owned by Phase 03.
+
+**Acceptance carrier text — ADR-0063 Amendment 2.** Append under its existing
+Amendments section:
+
+> **Current-source Architecture and ordinary windows (2026-11-01).** ADR-0082
+> supersedes this record's twenty-minute Architecture ceiling and Amendment 1's
+> twenty-five-minute ordinary ceiling with twenty-five and thirty minutes,
+> respectively. Only these verified expected producers acquire the longer
+> execution/observation bounds. Base/native twenty, aggregates/meta five,
+> 203-second reserve, test-operation limits, count ranges/cap, assignment and
+> exact natural-complete A/B evidence remain unchanged. Its prohibition on
+> unapproved increases gains only this named exception. The Decision and metadata
+> remain historical; fresh source-bound implementation qualification is still due.
+
+**Acceptance carrier text — ADR-0075 Amendment 1.** Create its Amendments section
+and append:
+
+> **Current-source bounded successor (2026-11-01).** ADR-0082 supersedes this
+> record's twenty-five-minute ordinary window with thirty minutes and its retained
+> twenty-minute Architecture baseline with twenty-five. Base/native and all other
+> clocks, reserves, operation bounds, counts, resource policy, expected-owner
+> binding and complete two-layout proof remain unchanged. This record's body,
+> date, acceptance and rationale remain historical. Acceptance of ADR-0082 is
+> not actual hosted fit; Phase 03 owns its implementation and fresh A/B evidence.
+
+**Testing 06 canonical replacement.** Replace the current ADR-0075 clock paragraph
+and update its derivation references with this bounded successor text:
+
+> ADR-0082 gives verified Architecture producers a twenty-five-minute whole-job
+> ceiling and verified ordinary Docker producers thirty minutes. Base/native
+> remain twenty minutes, both aggregates five and meta five; other jobs retain
+> their existing ceilings. The 203-second reserve and all test-specific deadlines
+> stay fixed. The closed `(mode, expected job, plan counts)` policy selects API,
+> receipt and enclosing workload/project observation bounds: 1,500 Architecture,
+> 1,800 ordinary, 1,200 base/native seconds. Receipt partitions and global limit
+> expansion confer no authority. Disjoint receipt intervals sum strictly below
+> their selected ceiling; nested observations are not additional disjoint time.
+> Offline plan/result controls retain their shared thirty-second meta allocation.
+
+Infrastructure 20 replaces its ordinary-only clock sentences with the same two
+verified-producer windows and links this canonical Testing 06 section; it retains
+base/native twenty and aggregates five. Catalogue
+`CI_Test_Shards_Are_Complete_And_Bounded` adds ADR-0082 as Source and replaces its
+ordinary-only assertion with the same closed 1,500/1,800 expected-owner bounds,
+unchanged 1,200 base/native and strict reserves/operation limits. No status
+promotion, new application rule, numeric CPU/memory quota or proof claim follows.
+
+**Maintainer decision.** Approval chooses these bounded windows and the plan,
+including additional running/queueing cost and unproved fit. The actual new
+owner code remains blocked solely on that new-policy acceptance. Independent
+correctness work and retained evidence inspection continue; manual observations
+remain explicitly maintainer-deferred, never executed or passed by inference.
