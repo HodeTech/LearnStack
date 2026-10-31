@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 3,749 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 3,817 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -204,7 +204,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0082 maintainer corrections, acceptance and Step 1 (2026-11-01)](#adr-0082-maintainer-corrections-acceptance-and-step-1-2026-11-01) — 82 lines
   - [ADR-0082 Step 1 reviews and carrier closeout (2026-11-01)](#adr-0082-step-1-reviews-and-carrier-closeout-2026-11-01) — 30 lines
   - [ADR-0082 Step 2 mode-bound implementation and offline proof (2026-11-01)](#adr-0082-step-2-mode-bound-implementation-and-offline-proof-2026-11-01) — 43 lines
-  - [ADR-0082 Step 2 reviews and implementation closeout (2026-11-01)](#adr-0082-step-2-reviews-and-implementation-closeout-2026-11-01) — 32 lines
+  - [ADR-0082 Step 2 reviews and implementation closeout (2026-11-01)](#adr-0082-step-2-reviews-and-implementation-closeout-2026-11-01) — 33 lines
+  - [P03-3 Step 10 fifth hosted A and bounded frontend proof ownership (2026-11-01)](#p03-3-step-10-fifth-hosted-a-and-bounded-frontend-proof-ownership-2026-11-01) — 67 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -9497,3 +9498,71 @@ source's independent proof. The generic collector is acquisition plus replay
 of the real validator; independent raw-data and cross-attempt audits and actual
 surface/screenshot inspection remain separate obligations. Manual observations
 remain explicitly maintainer-deferred and unexecuted.
+
+
+### P03-3 Step 10 fifth hosted A and bounded frontend proof ownership (2026-11-01)
+
+**Complete failed A.** The first full attempt after ADR-0082 implementation uses
+`c4c0d83a1956391833564cb0b7b080df7476afc8`, tree
+`18895f2837d08140b3c351c7e4ff9d7684cdf4ac`, in
+[run 41247210067, attempt 1](https://github.com/HodeTech/LearnStack/actions/runs/41247210067).
+Twenty-six of 27 jobs succeed; frontend alone fails its existing 180-second
+package guard. All 25 original ZIPs are retained before changing source, with
+API sizes/SHA-256, bounded member/path/type checks and CRC validation. A separate
+stdlib backend parser reconciles the actual 7,944-case assignment/TRX union:
+all 3,872 base, 604 Architecture, 3,437 ordinary and 31 native cases pass with
+zero skips and twenty complete natural-owner receipts. Both aggregates pass.
+Public demo, OpenAPI and secret-scan archives pass their individual source-bound
+validator replay; this is not independent screenshot/manual proof or overall
+qualification. No B is started for this failed A.
+
+**Frontend observation and correction.** Decoded job logs complete 83 of 84 web
+files; only `bff-development-diagnostics.test.ts` lacks a file completion.
+The 27-case boundary file completes in 111.570 seconds. Neither observation
+identifies which development case was unfinished or proves a root cause.
+The two unchanged development canaries now occupy separate files, removing
+their mandatory within-file sequencing without promising scheduler overlap or
+hosted fit. Fixed entered/finished markers contain no dynamic values; a finished
+hook is not an assertion verdict, and absent delivery proves no execution stage.
+The original case bodies are byte-identical. All six cold protocol proofs,
+four file workers, 150/160-second case limits, 180-second package guard and
+existing fixture/operation deadlines remain intact.
+
+**Owned-process correction.** A bounded real-process counter against the actual
+helper confirms that package-style owner SIGKILL can leave its separately
+detached Node child alive. This does not establish a survivor in the hosted
+attempt. The test-only helper now mints a parent identity for each direct POSIX
+group leader. A separate Node worker watches that parent independently of a
+synchronously blocked compiler. Parent loss signals only the live leader's own
+group; invalid setup refuses before target execution and watcher failure rejects
+the child. The consumed environment field and exact preload argument pair do not
+reach forks. Node can still preload ordinary worker threads; that branch is
+explicitly silent, inert and grants no group authority. Existing child handles,
+IPC, privacy scanners, natural-stop checks and shared cleanup remain unchanged.
+
+The polling interval is not a hard bound. A dead/stopped leader, separately
+detached descendants, killed-owner root erasure and equivalent Windows group
+cleanup remain outside this narrow control. Four meaningful tests exercise
+invalid ownership, natural/fork/thread behavior, real post-ready watcher
+termination and owner SIGKILL during synchronous work with a live same-group
+grandchild and an unaffected separate group. Exact cleanup attempts every owned
+resource and preserves the root if ownership cannot be confirmed; failure
+aggregation does not hide the original assertion.
+
+**Local verification.** Full frontend typecheck and lint pass. The normal full
+guard passes all 3,318 cases in both tested packages, with zero skips/todos:
+3,170 web cases across 86 files and 148 SDK cases across six files. The four new
+cases account for the increase; no prior case is removed. The actual command
+takes 52.780 seconds locally, with recorded source hashes stable throughout.
+Both development entered/finished markers are delivered in this execution.
+Earlier lint and a new inheritance probe's substring-measurement failure are
+retained separately; the final probe matches the exact option/value pair rather
+than its own `-e` source text. These local results establish neither hosted fit
+nor a general orphan-cleanup guarantee.
+
+This correction proceeds through two fresh independent review rounds and any
+verified fixes before a new final-source freeze and complete A/B. The failed A's
+backend successes cannot qualify the corrected source or substitute for either
+whole attempt. ADR-0082 budgets, reserve, assignments and counts are unchanged.
+Manual keyboard/focus/reflow/contrast/VoiceOver evidence remains explicitly
+maintainer-deferred and unexecuted for PR review.

@@ -46,13 +46,24 @@ export function ownBffProofChild({
   scanners,
 }) {
   owner.assertActive();
+  // This helper alone mints the parent identity for each detached POSIX group.
+  // The watcher is confined to that live group leader, never an arbitrary PID.
+  const useLifeline = globalThis.process.platform !== 'win32';
   const process = owner.ownChild(
-    spawn(globalThis.process.execPath, args, {
-      cwd: app,
-      env,
-      detached: globalThis.process.platform !== 'win32',
-      stdio: ['ignore', 'pipe', 'pipe', ...(ipc ? ['ipc'] : [])],
-    }),
+    spawn(
+      globalThis.process.execPath,
+      useLifeline
+        ? ['--import', new URL('./bff-proof-lifeline.mjs', import.meta.url).href, ...args]
+        : args,
+      {
+        cwd: app,
+        env: useLifeline
+          ? { ...env, LEARNSTACK_TEST_LIFELINE_PARENT: String(globalThis.process.pid) }
+          : env,
+        detached: globalThis.process.platform !== 'win32',
+        stdio: ['ignore', 'pipe', 'pipe', ...(ipc ? ['ipc'] : [])],
+      },
+    ),
   );
   const scanner = createPrivateScanner(privateValues);
   const cookieScanner = createBffCookieScanner(cookieCanaries);

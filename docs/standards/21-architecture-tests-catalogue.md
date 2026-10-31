@@ -5974,6 +5974,12 @@ and verified fixes; Step 4 completes source/tooling proof after both review roun
 split/early output verdicts, exact EOF boundaries, retained trees after cleanup
 refusal and shared owner cancellation/disposal. Controls for
 surviving descendants and retired handles live in `fixture-cleanup.test.ts`.
+`bff-proof-lifeline.test.ts` exercises the actual detached BFF helper's invalid
+parent, natural completion, fork/worker inheritance, watcher failure and owner
+SIGKILL controls, including a synchronously blocked leader, its same-group child
+and a separate unaffected group. Its test-only worker checks parent loss while
+the leader survives; polling supplies no hard deadline, dead-leader or separately
+detached-descendant guarantee, Windows group control or killed-owner root cleanup.
 `verify-ingress-cleanup.mjs` runs real source-mutant cleanup/TLS/log/readiness/
 upgrade controls through `verify-ingress-controls.mjs`; normal `verify-ingress.mjs`
 remains its independent clean socket/framework control. The shutdown-only leak
@@ -6377,7 +6383,10 @@ Prior receipts do not qualify subsequent source changes.
   `src/test/public-boundaries.test.ts`, using the production graph and AST
   analysis in `src/test/public-boundary-analysis.ts`; projection and cursor
   controls in `src/server/auth/page-preload.test.ts` and
-  `src/server/auth/store-page-preload.test.ts`.
+  `src/server/auth/store-page-preload.test.ts`. Independent development canaries
+  live in `src/test/bff-development-diagnostics.test.ts` and
+  `src/test/bff-development-diagnostics-counter.test.ts`; their test-owned process
+  controls live in `src/test/bff-proof-lifeline.test.ts`.
 - **Status:** **Implemented** — frontend boundary, native protocol/canary and
   fixture-output controls named above.
 - **Phase:** P02b-7 Steps 1/3–5; P03-3 Steps 8–9 extend native entry and prepared views.
