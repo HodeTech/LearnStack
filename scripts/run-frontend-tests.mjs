@@ -61,7 +61,9 @@ export async function discoverTestPackages(workspaceRoot) {
       withFileTypes: true,
     })) {
       if (entry.isSymbolicLink())
-        throw new Error(`Symlinked workspace package is unsupported: ${group}/${entry.name}`);
+        throw new Error(
+          `Symlinked workspace package is unsupported: ${group}/${entry.name}`,
+        );
       if (!entry.isDirectory()) continue;
       const path = join(root, group, entry.name);
       const manifest = JSON.parse(
@@ -151,6 +153,7 @@ function executeTests(path, reportPath, output) {
         "test",
         "--reporter=default",
         "--reporter=json",
+        `--reporter=${fileURLToPath(new URL("./frontend-test-failure-reporter.mjs", import.meta.url))}`,
         `--outputFile=${reportPath}`,
       ],
       {

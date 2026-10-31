@@ -446,6 +446,34 @@ except launcher.Refusal as failure:
             for path in directory.iterdir(): path.unlink()
             directory.rmdir()
 
+    def test_fixed_metadata_command_classification_retains_original_io_and_deadline(self):
+        argv = [self.owner.DOCKER, '--host', 'unix:///var/run/docker.sock', 'info', '--format', 'fixed']
+        reason = 'image_metadata_unavailable_info_command'
+        controls = [
+            ('timeout', subprocess.TimeoutExpired(argv, 5, output=b'PRIVATE-CANARY', stderr=b'PRIVATE-CANARY')),
+            ('os_error', PermissionError('PRIVATE-CANARY')),
+            ('exit', subprocess.CompletedProcess(argv, 7, stdout=b'PRIVATE-CANARY')),
+            ('output_bound', subprocess.CompletedProcess(argv, 0, stdout=b'PRIVATE-CANARY')),
+        ]
+        for kind, result in controls:
+            with self.subTest(kind=kind):
+                options = {'side_effect': result} if isinstance(result, Exception) else {'return_value': result}
+                with mock.patch.object(self.owner.subprocess, 'run', **options) as run, \
+                     mock.patch.object(self.owner, 'MAX_BYTES', 8), \
+                     mock.patch.object(self.owner, 'remaining', return_value=5) as remaining:
+                    self.refuses(reason + '_' + kind, self.owner.command, argv, 123, reason, classify=True)
+                remaining.assert_called_once_with(123, self.owner.COMMAND_SECONDS)
+                self.assertEqual(argv, run.call_args.args[0])
+                self.assertEqual(5, run.call_args.kwargs['timeout'])
+                self.assertEqual(subprocess.DEVNULL, run.call_args.kwargs['stdin'])
+                self.assertEqual(subprocess.DEVNULL, run.call_args.kwargs['stderr'])
+                self.assertEqual(subprocess.PIPE, run.call_args.kwargs['stdout'])
+                self.assertFalse(run.call_args.kwargs['check'])
+        with mock.patch.object(self.owner.subprocess, 'run') as run:
+            self.refuses('deadline_exhausted', self.owner.command, argv, time.monotonic() - 1,
+                         reason, classify=True)
+            run.assert_not_called()
+
     @contextlib.contextmanager
     def capture_diagnostic_owners(self):
         actual_process = subprocess.Popen
@@ -1304,6 +1332,11 @@ except launcher.Refusal as failure:
             self.assertEqual({'stage': 'bff_browser', 'journey': journey, 'secondaryCleanup': 'failed', 'reason': 'other'}, parse(case, raw))
             self.assertIsNone(parse({**case, 'name': case['name'] + '_other'}, raw))
             self.assertIsNone(parse({**case, 'assembly': 'other'}, raw))
+        for cleanup in (stage for stage in self.owner.BFF_BROWSER_FAILURE_STAGES if stage.startswith('cleanup-')):
+            reason = 'browser-history-revalidation_cleanup_' + cleanup
+            message = 'BFF native fixture did not reach the closed browser_result/' + reason + ' phase.'
+            self.assertEqual({'stage': 'bff_browser', 'reason': reason}, parse(case, {'ErrorMessage': message}))
+            self.assertIsNone(parse(case, {'ErrorMessage': message.replace(cleanup, 'PRIVATE-CANARY')}))
         counter_raw = {'ErrorMessage': 'BFF native fixture did not reach the closed browser_result/browser-administration-counter-view phase.',
                        'Messages': [{'Category': 'StdOutMsgs', 'Text': 'BFF browser failure;journey=unavailable_pages.'}]}
         self.assertEqual({'stage': 'bff_browser', 'journey': 'unavailable_pages',
@@ -2630,7 +2663,7 @@ except launcher.Refusal as failure:
             ):
                 with self.subTest(scope=scope, kind=kind):
                     self.configure(crash=path + '\0')
-                    provenance = '_image_metadata_unavailable' if scope == 'docker_overlay' else ''
+                    provenance = '_image_metadata_unavailable_info_parse' if scope == 'docker_overlay' else ''
                     self.refuses('unexpected_crash_artifact_' + scope + '_' + kind + '_unknown' + provenance,
                                  self.owner.crash_scan, time.monotonic() + 2)
             self.configure(crash='PRIVATE-CANARY without a delimiter')
@@ -2710,21 +2743,25 @@ except launcher.Refusal as failure:
                  'image_ids': image + '\n', 'image_inspect': json.dumps(record) + '\n',
                  'status': {}, 'realpaths': {}, 'kinds': {}}
         changes = [
-            {'image_info': ''}, {'image_info': '[]'},
-            {'image_info': json.dumps({'driver': 'overlayfs', 'root': '/var/lib/docker'})},
-            {'image_info': json.dumps({'driver': 'overlay2', 'root': '/private/other'})},
-            {'image_ids': 'short\n'}, {'image_ids': image + '\ninvalid\n'},
-            {'image_inspect': ''}, {'image_inspect': '[]'},
-            {'image_inspect': json.dumps({**record, 'id': 'sha256:' + 'f' * 64})},
-            {'image_inspect': json.dumps({**record, 'driver': None})},
-            {'image_inspect': json.dumps({**record, 'driver': {'Name': 'overlay2', 'Data': {'UpperDir': '/tmp'}}})},
-            {'realpaths': {layer: '/tmp/escaped'}}, {'kinds': {layer: 'regular file'}},
-            {'status': {'docker': 1}}, {'status': {'realpath': 1}}, {'status': {'stat': 1}},
+            ({'image_info': ''}, 'info_parse'), ({'image_info': '[]'}, 'info_shape'),
+            ({'image_info': json.dumps({'driver': 'overlayfs', 'root': '/var/lib/docker'})}, 'info_shape'),
+            ({'image_info': json.dumps({'driver': 'overlay2', 'root': '/private/other'})}, 'info_shape'),
+            ({'image_ids': 'short\n'}, 'image_list_shape'), ({'image_ids': image + '\ninvalid\n'}, 'image_list_shape'),
+            ({'image_inspect': ''}, 'image_inspect_count'), ({'image_inspect': '[]'}, 'image_identity'),
+            ({'image_inspect': 'PRIVATE-CANARY'}, 'image_inspect_parse'),
+            ({'image_inspect': json.dumps({**record, 'id': 'sha256:' + 'f' * 64})}, 'image_identity'),
+            ({'image_inspect': json.dumps({**record, 'driver': None})}, 'graph_driver_shape'),
+            ({'image_inspect': json.dumps({**record, 'driver': {'Name': 'overlay2', 'Data': {}}})}, 'layer_fields'),
+            ({'image_inspect': json.dumps({**record, 'driver': {'Name': 'overlay2', 'Data': {'UpperDir': '/tmp'}}})}, 'layer_path'),
+            ({'realpaths': {layer: '/tmp/escaped'}}, 'canonical_shape'), ({'kinds': {layer: 'regular file'}}, 'layer_kind'),
+            ({'status': {'docker': 1}}, 'info_command_exit'),
+            ({'status': {'realpath': 1}}, 'canonical_command_exit'),
+            ({'status': {'stat': 1}}, 'layer_stat_command_exit'),
         ]
-        for change in changes:
-            with self.subTest(change=change):
+        for change, stage in changes:
+            with self.subTest(stage=stage):
                 self.configure(**{**valid, **change})
-                self.refuses('image_metadata_unavailable', self.owner.image_layer_snapshot,
+                self.refuses('image_metadata_unavailable_' + stage, self.owner.image_layer_snapshot,
                              candidate, time.monotonic() + 3)
         self.configure(**valid)
         original = self.owner.command
@@ -2737,7 +2774,7 @@ except launcher.Refusal as failure:
                     return b''
             return original(argv, *args, **kwargs)
         with mock.patch.object(self.owner, 'command', side_effect=changed):
-            self.refuses('image_metadata_unavailable', self.owner.image_layer_snapshot,
+            self.refuses('image_metadata_unavailable_inventory_changed', self.owner.image_layer_snapshot,
                          candidate, time.monotonic() + 3)
         canonical_reads = 0
         def canonical_changed(argv, *args, **kwargs):
@@ -2749,7 +2786,7 @@ except launcher.Refusal as failure:
                     return value.replace(b'/diff', b'/changed')
             return value
         with mock.patch.object(self.owner, 'command', side_effect=canonical_changed):
-            self.refuses('image_metadata_unavailable', self.owner.image_layer_snapshot,
+            self.refuses('image_metadata_unavailable_canonical_changed', self.owner.image_layer_snapshot,
                          candidate, time.monotonic() + 3)
         self.configure(**{**valid, 'image_ids': ''})
         self.refuses('image_metadata_no_match', self.owner.image_layer_snapshot,

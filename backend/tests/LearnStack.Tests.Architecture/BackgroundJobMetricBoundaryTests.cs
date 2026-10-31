@@ -30,7 +30,8 @@ public sealed partial class OutboxDispatchConventionTests
         ("learnstack_job_control_total", "CreateObservableCounter", "CollectControlTotals"),
     ];
 
-    private static List<MethodDefinition> JobMetricRoots(ProductionCensus census, SortedSet<string> offenders)
+    private static List<MethodDefinition> JobMetricRoots(ProductionCensus census, SortedSet<string> offenders,
+        ILookup<string, (string Owner, MethodReference Target)>? sitesByName = null)
     {
         var types = census.Types;
         if (!types.TryGetValue((InfrastructureAssembly, JobObservation), out var observation)
@@ -63,6 +64,7 @@ public sealed partial class OutboxDispatchConventionTests
         var bind = RequireBoundaryMethod(offenders, observation, "Bind", "System.Void", MethodAttributes.Assembly,
             JobRuntime, "LearnStack.Infrastructure.Jobs.BackgroundJobRecurrenceRegistry", "System.TimeProvider");
         var sites = CallSites(census).ToArray();
+        sitesByName ??= RuntimeCallSitesByName(sites);
         var stageOwners = JobStageExecutorNames.Select(name => JobOwner(offenders, types, InfrastructureAssembly, JobExecutorType, name)).ToArray();
         var startStage = RequireBoundaryMethod(offenders, observation, "StartStage", "System.Nullable`1<System.Int64>", MethodAttributes.Assembly);
         var recordStage = RequireBoundaryMethod(offenders, observation, "RecordStage", "System.Void", MethodAttributes.Assembly,
@@ -75,7 +77,7 @@ public sealed partial class OutboxDispatchConventionTests
                  })
         {
             CheckSet(offenders, "actual finite job stage metric calls " + target,
-                sites.Where(site => HasAttachedDeclaringType(site.Target) && TargetsDeclaredType(site.Target, observation)
+                sitesByName[name].Where(site => HasAttachedDeclaringType(site.Target) && TargetsDeclaredType(site.Target, observation)
                     && site.Target.Name == name && MethodId(site.Target) == target).Select(site => site.Owner), owners);
             CheckSet(offenders, "job stage metric calls have no delegate or alternate opcode " + name,
                 census.MethodInstructions(name).Where(site => HasAttachedDeclaringType(site.Target) && TargetsDeclaredType(site.Target, observation))
@@ -83,13 +85,13 @@ public sealed partial class OutboxDispatchConventionTests
         }
         foreach (var failure in JobMetricRegistrationOffenders(new ServiceCollection().AddLearnStackBackgroundJobContracts()))
             offenders.Add(failure);
-        CheckSet(offenders, "exact once job observation binding", sites.Where(site => TargetsDeclaredType(site.Target, observation)
+        CheckSet(offenders, "exact once job observation binding", sitesByName["Bind"].Where(site => TargetsDeclaredType(site.Target, observation)
                 && site.Target.Name == "Bind").Select(site => site.Owner + ":" + MethodId(site.Target)),
             [RuntimeConstructorId + ":" + bind]);
         CheckSet(offenders, "job observation binding has no delegate or alternate opcode", census.MethodInstructions("Bind")
                 .Where(site => TargetsDeclaredType(site.Target, observation))
                 .Select(site => site.OwnerId + ":" + site.Instruction.OpCode.Name), [RuntimeConstructorId + ":callvirt"]);
-        CheckSet(offenders, "exact job observation getter callers", sites.Where(site => TargetsDeclaredType(site.Target, executor)
+        CheckSet(offenders, "exact job observation getter callers", sitesByName["get_Observation"].Where(site => TargetsDeclaredType(site.Target, executor)
                 && site.Target.Name == "get_Observation").Select(site => site.Owner),
             new[] { RuntimeConstructorId, InfrastructureAssembly + ":LearnStack.Infrastructure.Jobs.BackgroundJobRuntimeSnapshot " + JobRuntime + "::get_Snapshot()" }
                 .Concat(stageOwners).Append(JobOwner(offenders, types, InfrastructureAssembly, OrchestrationControl, "RunTerminalAsync")));

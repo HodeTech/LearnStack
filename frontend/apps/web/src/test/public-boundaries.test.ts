@@ -24,6 +24,7 @@ import {
   cacheFindings,
   clientBoundaryFindings,
   closedHttpSurfaceFindings,
+  createHttpSurfaceEvaluator,
   hasDirective,
   hasServerOnlyMarker,
   I18N_REQUEST,
@@ -171,7 +172,8 @@ function resolutionCensus() {
 describe('ADR-0053 production public boundaries', () => {
   it('closes actual matcher, Next routing hooks, framework entry points and Server Actions', () => {
     const current = httpSources();
-    clean(closedHttpSurfaceFindings(current), 'Fix: retain the approved closed HTTP surface.');
+    const evaluate = createHttpSurfaceEvaluator();
+    clean(evaluate(current), 'Fix: retain the approved closed HTTP surface.');
     const config = 'apps/web/next.config.ts';
     for (const [file, source] of [
       [MIDDLEWARE, sources[MIDDLEWARE]!.replace('?!_next/', '?!api/relay/|_next/')],
@@ -244,11 +246,9 @@ describe('ADR-0053 production public boundaries', () => {
         current['apps/web/src/app/api/healthz/route.ts']! + '\nexport function POST() {}',
       ],
     ])
-      expect(
-        closedHttpSurfaceFindings({ ...current, [file!]: source! }).map((item) => item.file),
-      ).toContain(file);
+      expect(evaluate({ ...current, [file!]: source! }).map((item) => item.file)).toContain(file);
     // The matcher exemption and relay handler must both be rejected, even together.
-    const bypass = closedHttpSurfaceFindings({
+    const bypass = evaluate({
       ...current,
       [MIDDLEWARE]: sources[MIDDLEWARE]!.replace('?!_next/', '?!api/relay/|_next/'),
       'apps/web/src/app/api/relay/route.ts':
@@ -258,12 +258,52 @@ describe('ADR-0053 production public boundaries', () => {
       expect.arrayContaining([MIDDLEWARE, 'apps/web/src/app/api/relay/route.ts']),
     );
     clean(
-      closedHttpSurfaceFindings({
+      evaluate({
         ...current,
         [probe]: 'const words = "use server"; export function helper() { return words; }',
       }),
       'Ordinary text and helpers do not create actions.',
     );
+  });
+  it('keeps cached HTTP syntax equivalent to raw findings through actual dirty and restored source', () => {
+    const evaluate = createHttpSurfaceEvaluator();
+    const baseline = httpSources();
+    const current: Record<string, string> = { ...baseline };
+    const verify = () => expect(evaluate(current)).toEqual(closedHttpSurfaceFindings(current));
+    verify();
+    current[MIDDLEWARE] = baseline[MIDDLEWARE]!.replace('?!_next/', '?!api/relay/|_next/');
+    verify();
+    expect(evaluate(current).some((item) => item.file === MIDDLEWARE)).toBe(true);
+    current[MIDDLEWARE] = baseline[MIDDLEWARE]!;
+    verify();
+    expect(evaluate(current)).toEqual([]);
+    current[probe] = '"use server"; export async function write() {}';
+    verify();
+    expect(evaluate(current).some((item) => item.file === probe)).toBe(true);
+    delete current[probe];
+    verify();
+    expect(evaluate(current)).toEqual([]);
+  });
+  it('keeps HTTP syntax source versions and evaluator ownership independent', () => {
+    const evaluate = createHttpSurfaceEvaluator();
+    const other = createHttpSurfaceEvaluator();
+    const source: Record<string, string> = { [probe]: 'export function read() {}' };
+    const check = () => {
+      expect(evaluate(source)).toEqual(closedHttpSurfaceFindings(source));
+      expect(other(source)).toEqual(closedHttpSurfaceFindings(source));
+    };
+    check();
+    source[probe] = '"use server"; export async function write() {}';
+    check();
+    expect(evaluate(source).some((item) => item.file === probe)).toBe(true);
+    source[probe] = 'export function read() {}';
+    check();
+    expect(evaluate(source).some((item) => item.file === probe)).toBe(false);
+    delete source[probe];
+    check();
+    source[probe] = '"use server"; export async function write() {}';
+    check();
+    expect(evaluate(source).some((item) => item.file === probe)).toBe(true);
   });
   it('keeps imported helpers in fixture-named production directories visible', () => {
     expect(omittedProductionDirectory('apps/web/src/test')).toBe(true);
@@ -749,31 +789,36 @@ describe('ADR-0053 production public boundaries', () => {
       findings.some((item) => item.file === helper && item.reason.includes('protected IO')),
     ).toBe(true);
   });
-  it('confines browser fetch to the exact same-origin no-store BFF extension action', () => {
+  it.each([
+    ['path', "'/api/auth/extend'", "'/api/v1/account/site'"],
+    ['credentials', "credentials: 'same-origin'", "credentials: 'include'"],
+    ['redirect', "redirect: 'error'", "redirect: 'follow'"],
+    ['cache', "cache: 'no-store'", "cache: 'force-cache'"],
+    ['headers', 'headers: {', "headers: { Authorization: 'Bearer private',"],
+  ])('confines browser fetch to the BFF extension action when %s changes', (_label, from, to) => {
     const source = sources[BFF_BROWSER_ADAPTER]!;
     expect(source).toContain("fetch('/api/auth/extend'");
-    for (const [from, to] of [
-      ["'/api/auth/extend'", "'/api/v1/account/site'"],
-      ["credentials: 'same-origin'", "credentials: 'include'"],
-      ["redirect: 'error'", "redirect: 'follow'"],
-      ["cache: 'no-store'", "cache: 'force-cache'"],
-      ['headers: {', "headers: { Authorization: 'Bearer private',"],
-    ]) {
-      expect(source).toContain(from);
-      expect(
-        transportFindings(graphWith(BFF_BROWSER_ADAPTER, source.replace(from!, to!))).some(
-          (item) => item.file === BFF_BROWSER_ADAPTER && item.reason.includes('global fetch'),
-        ),
-      ).toBe(true);
-    }
+    expect(source).toContain(from);
+    expect(
+      transportFindings(graphWith(BFF_BROWSER_ADAPTER, source.replace(from, to))).some(
+        (item) => item.file === BFF_BROWSER_ADAPTER && item.reason.includes('global fetch'),
+      ),
+    ).toBe(true);
+  });
+  it('rejects an extra browser fetch outside the BFF extension action', () => {
+    const source = sources[BFF_BROWSER_ADAPTER]!;
     expect(
       transportFindings(
         graphWith(BFF_BROWSER_ADAPTER, source + '\nfetch("/api/auth/extend");'),
       ).some((item) => item.file === BFF_BROWSER_ADAPTER && item.reason.includes('global fetch')),
     ).toBe(true);
-    expect(transportFindings(graphWith(probe, source)).some((item) => item.file === probe)).toBe(
-      true,
-    );
+  });
+  it('rejects the BFF extension fetch copied into another production module', () => {
+    expect(
+      transportFindings(graphWith(probe, sources[BFF_BROWSER_ADAPTER]!)).some(
+        (item) => item.file === probe,
+      ),
+    ).toBe(true);
   });
   it('the configured production caller imports the server-only marker', () => {
     expect(hasServerOnlyMarker(production.files.get(ADAPTER)!)).toBe(true);

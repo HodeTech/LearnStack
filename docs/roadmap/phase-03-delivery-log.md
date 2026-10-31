@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 3,047 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 3,140 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -193,7 +193,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 10 qualification repairs and implementation review boundary (2026-10-30)](#p03-3-step-10-qualification-repairs-and-implementation-review-boundary-2026-10-30) — 48 lines
   - [P03-3 Step 10 review round 1 and verified ownership corrections (2026-10-31)](#p03-3-step-10-review-round-1-and-verified-ownership-corrections-2026-10-31) — 52 lines
   - [P03-3 Step 10 review round 2 and virtual-dispatch correction (2026-10-31)](#p03-3-step-10-review-round-2-and-virtual-dispatch-correction-2026-10-31) — 39 lines
-  - [P03-3 Step 10 failed hosted A and bounded CI corrections (2026-10-31)](#p03-3-step-10-failed-hosted-a-and-bounded-ci-corrections-2026-10-31) — 60 lines
+  - [P03-3 Step 10 failed hosted A and bounded CI corrections (2026-10-31)](#p03-3-step-10-failed-hosted-a-and-bounded-ci-corrections-2026-10-31) — 61 lines
+  - [P03-3 Step 10 second hosted failure and remaining qualification corrections (2026-10-31)](#p03-3-step-10-second-hosted-failure-and-remaining-qualification-corrections-2026-10-31) — 92 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -8784,3 +8785,96 @@ aggregate-result controls pass 40/40. Fresh focused independent reviews and
 complete new-source hosted A/B remain the next checks. The failed source receives no B rerun. The maintainer-authorized
 manual deferral remains separate from automated proof; packet state lives only
 in the phase Status block.
+
+
+### P03-3 Step 10 second hosted failure and remaining qualification corrections (2026-10-31)
+
+**Reviewed source and failed execution.** The bounded corrections at `e7deaf2e`
+close two independent focused rounds (Cecil: Astra/xhigh in both; owner/evidence:
+Astra/xhigh then Sol/xhigh), without actionable findings. Reviewers independently
+reconcile the original archives, complete-group timing arithmetic and unchanged
+predicates. The [new complete hosted A](https://github.com/HodeTech/LearnStack/actions/runs/41146632887)
+on that source still fails: 15 successful and 12 failed jobs. Architecture has
+551 Passed and 51 missing of 602; only owner 5 completes. Ordinary has 3,430
+Passed, one Failed and six missing of 3,437; owners 0/4 exhaust their windows,
+and owner 2 completes all cases but fails its browser test and owner completion.
+All 23 available original ZIPs are retained with exact run/attempt/owner metadata,
+size/SHA-256, CRC and bounded member checks. Neither failed A supplies a passing
+union, a qualifying B, or a claim that the new assignment fits.
+
+**Separately observed failures.** Native refuses before launching its workload:
+a Docker-overlay dump candidate lacks accepted immutable-image provenance.
+The finite record does not identify the failing metadata check or establish a
+transient host fault. Frontend typecheck/lint/build pass, but its guarded test
+package reaches 180 seconds; two public-boundary cases fail before the final
+error summary. Their durations are compatible with the pinned runner's five-second
+case limit, but the lost errors do not establish a cause. The browser checkpoint
+now preserves `positive / cleanup_cleanup_failed`: positive browser assertions
+reach cleanup, while final privacy and both counters remain unproved in that
+hosted attempt. No individual cleanup operation can be inferred from that label.
+
+**Further bounded source corrections.** Operation-policy authority checks use a
+fresh exact-callee caller index, retaining original instructions, opcodes, owners,
+counts, predicates and mutation/restoration controls. Its complete paired Fact
+passes at 33.0161694 then 19.9080602 local case seconds. Runtime/tracing/metric
+checks share a fresh method-name call-site prefilter within one evaluation;
+standalone callers construct their own. Original scope predicates, the full
+population's detached-target check and all mutation controls remain. Its runtime
+Fact passes at 105.5819357 then 64.7538493 seconds. All 16 transitive affected Facts
+pass, with exact original discovery IDs and zero skips. Raw corpus comparisons
+and small mutable-IL controls check freshness and identity. The instruction-body
+membership trial has no material measured gain and is discarded. These local
+overlay comparisons are not independent build attestations or hosted fit proof.
+
+The public HTTP syntax evaluator retains only the current exact-text version per
+present path within its explicit test owner. It shares no AST with a TypeScript
+Program; the raw entry remains. Ordered findings match the frozen original Fact's
+33 actual censuses; its private comparison measures about 641 versus 27 ms.
+The seven original browser-fetch mutation/copy/extra-call controls execute as
+seven separate cases under the unchanged case timeout. No assertion is dropped.
+The trial with two file workers increases local wall time and is discarded;
+the existing four-worker cap and 180-second package guard remain unchanged.
+
+A bounded frontend reporter writes fixed categories, conservative relative source
+labels and hashed case IDs for Vitest-delivered failure events. Raw messages,
+stacks, expected/actual payloads and dynamic test names are excluded. Its package
+instance caps records and error counts. A first later-hang control fails with zero
+recognized records and retains no raw stream; a short independent stream probe
+sees three records. The framed version's actual 180-second group-kill control
+retains three classified failures and verifies the hanging worker is gone. The
+initial loss mechanism remains unknown. Undelivered worker events are best-effort
+diagnostics, not completion authority. The unsupported custom-runner experiment
+is discarded. Default/JSON reporting, full discovery and zero-skip validation stay.
+
+Browser cleanup explicitly requests owned Chromium shutdown before disconnecting,
+then preserves unforced group absence, joined owner disposal and native exit checks.
+An unknown CDP acknowledgement clears only after actual zero/signal-free owned
+exit, unforced absence and owner-disposal witnesses. Browser control steps share
+a five-second cap; outer deadlines stay. Coalesced cleanup preserves its first
+finite operation label and the original body failure. All existing security,
+privacy, no-script, page-readiness and history counter assertions remain. The real
+local three-journey browser Fact passes; that does not identify the old hosted
+cleanup branch or substitute for Linux hosted proof. Immutable-image diagnostics
+also gain closed metadata-stage/command-failure labels, without changing commands,
+roots, caps, provenance checks or mandatory refusal.
+
+**Advisory plan and validation.** Complete Passed groups from the latest original
+hosted archives raise stale weights, including the two earlier optimized Facts.
+Two newly optimized Facts use explicitly recorded advisory calibration: their
+local after duration times the maximum of one and compatible hosted-before/local-
+before ratio, rounded up. OperationPolicy is 97,999 ms and runtime pools 248,943 ms;
+other selectors receive no inferred ratio or downward adjustment. Failed/incomplete
+groups are excluded. The plan has 98 sources and SHA-256
+`d105b5be85789f788ee6cfe9202b01116f7712706422d986c8f0ff1f5f0f7c21`.
+Six/twelve owners, algorithms, windows, VM cap, 203-second reserve, selected backend
+populations and natural-cleanup requirements remain unchanged. Calibration is a
+scheduling hypothesis; fresh complete same-source A/B remains mandatory.
+
+Strict solution build has zero warnings/errors. The real browser Fact and 16
+reconciled affected architecture Facts pass; frontend typecheck/lint and the
+full guarded 3,276 cases pass with zero skips/todos. Native-owner controls pass
+98/98, shard controls 83/83 and aggregate-result controls 40/40. A declaration-only
+type-import lint fix follows the browser run; its script is unchanged. Fresh
+independent reviews of this correction and complete new-source hosted A/B remain
+open. The maintainer-authorized manual deferral remains separate from all automated
+evidence; packet state lives only in the phase Status block.

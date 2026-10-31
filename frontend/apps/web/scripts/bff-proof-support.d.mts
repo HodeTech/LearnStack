@@ -1,3 +1,5 @@
+import type { ChildProcess } from 'node:child_process';
+
 export function bffDevToolsFailureStage(error: unknown): string;
 export function bffProofCopy(locale: string, key: string): string;
 export function bffPageKind(
@@ -20,3 +22,21 @@ export function rememberBffCookies(
   headers: readonly string[] | undefined,
   canaries: string[],
 ): void;
+
+export function createBffBrowserCleanup(
+  resources: () => {
+    browser?: {
+      newBrowserCDPSession(): Promise<{ send(method: 'Browser.close'): Promise<unknown> }>;
+      close(): Promise<void>;
+    };
+    browserProcess?: ChildProcess;
+    nativeServer?: {
+      process: ChildProcess;
+      completed: Promise<{ code: number | null; signal: NodeJS.Signals | null }>;
+    };
+    owner: { dispose(): Promise<void> };
+  },
+): {
+  run(): Promise<void>;
+  readonly failureStage: string | null;
+};

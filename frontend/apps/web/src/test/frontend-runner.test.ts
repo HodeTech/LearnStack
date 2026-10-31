@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { spawnSync } from 'node:child_process';
 import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -32,6 +33,131 @@ function report() {
 
 /** Actual runner controls for ADR-0053 G38(d), with separate test-owned workspaces. */
 describe('frontend outcome guard', () => {
+  it('reports bounded categories for actual failed cases without exporting their payloads', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'learnstack-frontend-failure-control-'));
+    try {
+      const pkg = join(root, 'packages/probe');
+      await mkdir(pkg, { recursive: true });
+      await writeFile(join(root, 'pnpm-workspace.yaml'), "packages:\n  - 'packages/*'\n");
+      await symlink(join(frontend, 'packages/sdk/node_modules'), join(pkg, 'node_modules'), 'dir');
+      await writeFile(
+        join(pkg, 'package.json'),
+        JSON.stringify({
+          name: 'probe',
+          private: true,
+          type: 'module',
+          scripts: { test: 'vitest run' },
+        }),
+      );
+      await writeFile(
+        join(pkg, 'probe.test.ts'),
+        "import { it, expect } from 'vitest';\n" +
+          "it('passing control', () => expect(1).toBe(1));\n" +
+          "it('assertion control', () => expect('PRIVATE_FAILURE_CANARY').toBe('different'));\n" +
+          "it('timeout control', () => new Promise(() => {}), 30);\n" +
+          "it('error control', () => { throw new Error('PRIVATE_FAILURE_CANARY'); });\n",
+      );
+      let output = '';
+      await expect(
+        runTestWorkspaces(root, (chunk) => {
+          output += chunk.toString();
+        }),
+      ).rejects.toThrow('Frontend test package exited unsuccessfully');
+      const lines = output
+        .split(/\r?\n/)
+        .filter((line) => line.startsWith('Frontend diagnostic: '));
+      expect(lines).toHaveLength(3);
+      const rows = lines.map(
+        (line) =>
+          JSON.parse(line.slice('Frontend diagnostic: '.length)) as {
+            kind: string;
+            file: string;
+            caseId: string;
+            categories: Record<string, number>;
+          },
+      );
+      expect(
+        rows.every((row) => row.kind === 'frontend-test-failure' && row.file === 'probe.test.ts'),
+      ).toBe(true);
+      expect(new Set(rows.map((row) => row.caseId)).size).toBe(3);
+      expect(rows.map((row) => row.categories)).toEqual([
+        { assertion: 1, testTimeout: 0, hookTimeout: 0, other: 0 },
+        { assertion: 0, testTimeout: 1, hookTimeout: 0, other: 0 },
+        { assertion: 0, testTimeout: 0, hookTimeout: 0, other: 1 },
+      ]);
+      expect(lines.join('\n')).not.toContain('PRIVATE_FAILURE_CANARY');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('bounds immediate failure diagnostics and excludes dynamic names and malformed fields', () => {
+    const reporter = new URL(
+      '../../../../../scripts/frontend-test-failure-reporter.mjs',
+      import.meta.url,
+    ).href;
+    const result = spawnSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '-e',
+        `
+      import Reporter from ${JSON.stringify(reporter)};
+      const reporter = new Reporter();
+      const canary = 'PRIVATE_FAILURE_CANARY';
+      const names = [
+        'closes actual matcher, Next routing hooks, framework entry points and Server Actions',
+        'confines browser fetch to the exact same-origin no-store BFF extension action',
+      ];
+      reporter.onTestCaseResult({ result: () => ({ state: 'passed' }) });
+      for (let index = 0; index < 132; index++) reporter.onTestCaseResult({
+        result: () => ({ state: 'failed', errors: Array.from({ length: 65 }, () => ({ name: 'AssertionError', message: canary, stack: canary, actual: canary, expected: canary })) }),
+        diagnostic: () => ({ duration: Infinity }), location: { line: -1 },
+        id: canary, name: names[index - 126] ?? canary,
+        module: { relativeModuleId: '../' + canary + '.test.ts' },
+      });
+    `,
+      ],
+      { encoding: 'utf8', timeout: 5000, maxBuffer: 256 * 1024 },
+    );
+    expect(result.error).toBeUndefined();
+    expect(result.signal).toBeNull();
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).not.toContain('PRIVATE_FAILURE_CANARY');
+    const rows = result.stderr
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => {
+        expect(line.startsWith('Frontend diagnostic: ')).toBe(true);
+        return JSON.parse(line.slice('Frontend diagnostic: '.length)) as {
+          kind: string;
+          file: string;
+          line: number | null;
+          durationMs: number | null;
+          case: string;
+          caseId: string;
+          categories: Record<string, number>;
+          errorsTruncated: boolean;
+        };
+      });
+    expect(rows).toHaveLength(129);
+    expect(rows[128]).toEqual({ schema: 1, kind: 'frontend-test-failures-truncated' });
+    for (const row of rows.slice(0, 128)) {
+      expect(row.file).toBe('unavailable');
+      expect(row.line).toBeNull();
+      expect(row.durationMs).toBeNull();
+      expect(row.caseId).toMatch(/^[a-f0-9]{16}$/);
+      expect(row.categories).toEqual({ assertion: 64, testTimeout: 0, hookTimeout: 0, other: 0 });
+      expect(row.errorsTruncated).toBe(true);
+    }
+    expect(rows.slice(126, 128).map((row) => row.case)).toEqual([
+      'public-http-surface',
+      'public-browser-fetch',
+    ]);
+  });
+
   it('accepts a nonempty complete report', () => expect(validateTestReport(report())).toBe(1));
 
   it.each([

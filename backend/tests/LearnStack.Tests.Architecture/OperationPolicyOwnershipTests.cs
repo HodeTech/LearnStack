@@ -78,6 +78,7 @@ public sealed partial class OperationPolicyOwnershipTests
         AssertReceiptCanonicalRecheck();
         AssertAdministrationReadCanonicalRecheck();
         using var census = Census.Read();
+        AssertOperationCallerIndex(census);
         Offenders(census).Should().BeEmpty("Fix: preserve the exact invocation/evaluator/read-owner authority chain and lifetime (ADR-0076)");
         foreach (var typeName in new[] { Invocation, Decision, Witness })
         {
@@ -228,6 +229,7 @@ public sealed partial class OperationPolicyOwnershipTests
     private static List<string> Offenders(Census census)
     {
         var errors = new List<string>();
+        var callers = OperationCallerIndex(census);
         foreach (var name in new[] { Invocation, Decision, Witness })
         {
             var type = census.Type(name);
@@ -348,8 +350,9 @@ public sealed partial class OperationPolicyOwnershipTests
         }
         void Exact(string type, string name, (string Owner, string Method, int Count)[] expected)
         {
-            var actual = census.Methods.SelectMany(method => Calls(method).Where(target => target.DeclaringType.FullName == type && target.Name == name)
-                .Select(_ => census.Owner(method)));
+            var actual = callers[(type, name)].Where(site => site.Instruction.OpCode.Code is Code.Call or Code.Callvirt or Code.Newobj
+                    && site.Instruction.Operand is MethodReference target && target.DeclaringType.FullName == type && target.Name == name)
+                .Select(site => census.Owner(site.Method));
             if (!Same(actual, expected.SelectMany(item => Enumerable.Repeat(item.Owner + "::" + item.Method, item.Count))))
                 errors.Add("Exact operation authority callers changed: " + type + "::" + name);
         }

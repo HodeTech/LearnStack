@@ -8,7 +8,8 @@ namespace LearnStack.Tests.Architecture;
 
 public sealed partial class OutboxDispatchConventionTests
 {
-    private static void CheckJobTracing(ProductionCensus census, SortedSet<string> offenders)
+    private static void CheckJobTracing(ProductionCensus census, SortedSet<string> offenders,
+        ILookup<string, (string Owner, MethodReference Target)>? sitesByName = null)
     {
         var types = census.Types;
         if (!types.TryGetValue((InfrastructureAssembly, JobObservation), out var observer))
@@ -29,18 +30,18 @@ public sealed partial class OutboxDispatchConventionTests
         var ownedBodies = OwnedBodies(census).ToArray();
         var jobOwners = ownedBodies.Where(item => item.Owner.DeclaringType.Namespace == "LearnStack.Infrastructure.Jobs")
             .Select(item => MethodId(item.Owner)).ToHashSet(StringComparer.Ordinal);
-        var sites = CallSites(census).ToArray();
+        sitesByName ??= RuntimeCallSitesByName(CallSites(census));
         var expected = JobStageExecutorNames.Select(name => JobOwner(offenders, types, InfrastructureAssembly, JobExecutorType, name))
             .Append(JobOwner(offenders, types, InfrastructureAssembly, OrchestrationControl, "RunTerminalAsync")).ToArray();
         var factoryCalls = census.MethodInstructions("CreateActivity").Where(site => HasAttachedDeclaringType(site.Target)
             && TargetsDeclaredType(site.Target, observer)).ToArray();
         CheckSet(offenders, "exact job trace factory callers and opcodes", factoryCalls.Select(site => site.OwnerId + ":" + site.Instruction.OpCode.Name),
             expected.Select(owner => owner + ":callvirt"));
-        CheckSet(offenders, "actual job trace source creation", sites.Where(site => HasAttachedDeclaringType(site.Target)
+        CheckSet(offenders, "actual job trace source creation", sitesByName[".ctor"].Where(site => HasAttachedDeclaringType(site.Target)
                 && site.Target.DeclaringType.FullName == "System.Diagnostics.ActivitySource"
                 && site.Target.Name == ".ctor" && jobOwners.Contains(site.Owner))
             .Select(site => site.Owner), [constructor]);
-        CheckSet(offenders, "actual job trace fallback creation", sites.Where(site => HasAttachedDeclaringType(site.Target)
+        CheckSet(offenders, "actual job trace fallback creation", sitesByName[".ctor"].Where(site => HasAttachedDeclaringType(site.Target)
                 && site.Target.DeclaringType.FullName == "System.Diagnostics.Activity"
                 && site.Target.Name == ".ctor" && jobOwners.Contains(site.Owner))
             .Select(site => site.Owner), [factory]);
@@ -55,7 +56,7 @@ public sealed partial class OutboxDispatchConventionTests
             || sourceConstruction.Next?.OpCode != OpCodes.Stfld || sourceConstruction.Next.Operand is not FieldReference sourceDestination
             || sourceDestination.FullName != field?.FullName)
             offenders.Add("The actual job trace source must consume learnstack.jobs and assign its concrete source field");
-        CheckSet(offenders, "actual job source disposal", sites.Where(site => HasAttachedDeclaringType(site.Target)
+        CheckSet(offenders, "actual job source disposal", sitesByName["Dispose"].Where(site => HasAttachedDeclaringType(site.Target)
                 && site.Target.DeclaringType.FullName == "System.Diagnostics.ActivitySource"
                 && site.Target.Name == "Dispose" && jobOwners.Contains(site.Owner)).Select(site => site.Owner), [dispose]);
         var disposalOwner = observer.Methods.SingleOrDefault(method => MethodId(method) == dispose);

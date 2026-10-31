@@ -39,8 +39,71 @@ export function omittedProductionDirectory(path: string): boolean {
   return path === 'apps/web/src/test';
 }
 
+type HttpSourceSyntax = {
+  readonly file: ts.SourceFile;
+  readonly findings: readonly Finding[];
+};
+
+function analyzeHttpSource(name: string, source: string): HttpSourceSyntax {
+  const file = ts.createSourceFile(name, source, ts.ScriptTarget.Latest, true);
+  const findings: Finding[] = [];
+  walk(file, (node) => {
+    if (
+      (ts.isSourceFile(node) || ts.isBlock(node)) &&
+      node.statements.some(
+        (statement, index, statements) =>
+          ts.isExpressionStatement(statement) &&
+          ts.isStringLiteral(statement.expression) &&
+          statement.expression.text === 'use server' &&
+          statements
+            .slice(0, index)
+            .every(
+              (prior) => ts.isExpressionStatement(prior) && ts.isStringLiteral(prior.expression),
+            ),
+      )
+    )
+      findings.push(finding(node, 'Fix: no Server Action is admitted by the closed BFF surface.'));
+  });
+  if (name === 'apps/web/src/app/api/healthz/route.ts')
+    walk(file, (node) => {
+      if (
+        ts.isIdentifier(node) &&
+        ['HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'CONNECT', 'TRACE'].includes(
+          node.text,
+        )
+      )
+        findings.push(finding(node, 'Fix: the infrastructure route exports only GET.'));
+    });
+  return { file, findings };
+}
+
+/** Reuse only exact-text syntax facts inside one explicitly owned evaluation sequence. */
+export function createHttpSurfaceEvaluator(): (sources: SourceCensus) => Finding[] {
+  let previous = new Map<string, HttpSourceSyntax & { readonly source: string }>();
+  return (sources) => {
+    const current = new Map<string, HttpSourceSyntax & { readonly source: string }>();
+    const findings = evaluateHttpSurface(sources, (name, source) => {
+      const cached = previous.get(name);
+      const syntax =
+        cached?.source === source ? cached : { source, ...analyzeHttpSource(name, source) };
+      current.set(name, syntax);
+      return syntax;
+    });
+    // Keep one current version per present path. Removed sources are not retained.
+    previous = current;
+    return findings;
+  };
+}
+
 /** Pin the response entry points independently of middleware's runtime dispatcher. */
 export function closedHttpSurfaceFindings(sources: SourceCensus): Finding[] {
+  return evaluateHttpSurface(sources, analyzeHttpSource);
+}
+
+function evaluateHttpSurface(
+  sources: SourceCensus,
+  syntax: (name: string, source: string) => HttpSourceSyntax,
+): Finding[] {
   const findings: Finding[] = [];
   const entries = new Set([
     'apps/web/src/app/api/healthz/route.ts',
@@ -57,12 +120,9 @@ export function closedHttpSurfaceFindings(sources: SourceCensus): Finding[] {
     'apps/web/src/app/(public)/[locale]/status/not-found/page.tsx',
   ]);
   const files = new Map(
-    Object.entries(sources).map(([name, source]) => [
-      name,
-      ts.createSourceFile(name, source, ts.ScriptTarget.Latest, true),
-    ]),
+    Object.entries(sources).map(([name, source]) => [name, syntax(name, source)]),
   );
-  for (const [name, file] of files) {
+  for (const [name, { file, findings: syntaxFindings }] of files) {
     if (
       /^apps\/web\/(?:app\/|pages\/|src\/pages\/|middleware\.|(?:src\/)?instrumentation(?:-client)?\.)/.test(
         name,
@@ -82,35 +142,7 @@ export function closedHttpSurfaceFindings(sources: SourceCensus): Finding[] {
       !entries.delete(name)
     )
       findings.push(finding(file, 'Fix: keep the approved HTTP entry-point census closed.'));
-    walk(file, (node) => {
-      if (
-        (ts.isSourceFile(node) || ts.isBlock(node)) &&
-        node.statements.some(
-          (statement, index, statements) =>
-            ts.isExpressionStatement(statement) &&
-            ts.isStringLiteral(statement.expression) &&
-            statement.expression.text === 'use server' &&
-            statements
-              .slice(0, index)
-              .every(
-                (prior) => ts.isExpressionStatement(prior) && ts.isStringLiteral(prior.expression),
-              ),
-        )
-      )
-        findings.push(
-          finding(node, 'Fix: no Server Action is admitted by the closed BFF surface.'),
-        );
-    });
-    if (name === 'apps/web/src/app/api/healthz/route.ts')
-      walk(file, (node) => {
-        if (
-          ts.isIdentifier(node) &&
-          ['HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'CONNECT', 'TRACE'].includes(
-            node.text,
-          )
-        )
-          findings.push(finding(node, 'Fix: the infrastructure route exports only GET.'));
-      });
+    findings.push(...syntaxFindings);
   }
   for (const file of entries)
     findings.push({ file, line: 1, reason: 'Fix: retain the approved HTTP entry point.' });
@@ -136,7 +168,7 @@ export function closedHttpSurfaceFindings(sources: SourceCensus): Finding[] {
         ? property.name.text
         : undefined,
     );
-  const middleware = files.get(MIDDLEWARE);
+  const middleware = files.get(MIDDLEWARE)?.file;
   const config = object(middleware, 'config', true);
   const matcher = config?.properties.find(
     (property) => ts.isPropertyAssignment(property) && property.name.getText() === 'matcher',
@@ -163,7 +195,7 @@ export function closedHttpSurfaceFindings(sources: SourceCensus): Finding[] {
       reason: 'Fix: retain the exact native middleware matcher and runtime.',
     });
   const next = 'apps/web/next.config.ts';
-  const nextFile = files.get(next);
+  const nextFile = files.get(next)?.file;
   const nextConfig = object(nextFile, 'nextConfig');
   const imports = nextFile?.statements.filter(ts.isImportDeclaration) ?? [];
   const typeImport = imports.find(

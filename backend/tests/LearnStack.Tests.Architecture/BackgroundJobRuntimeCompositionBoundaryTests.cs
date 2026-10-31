@@ -125,6 +125,7 @@ public sealed partial class OutboxDispatchConventionTests
         var ownedBodies = OwnedBodies(census).ToArray();
         var observationBodies = ObservationBodiesByOwner(ownedBodies);
         var sites = CallSites(census).ToArray();
+        var sitesByName = RuntimeCallSitesByName(sites);
         RecordDetachedTargets(offenders, sites);
         Exact(runtime, ".ctor", constructor, [factory + ":newobj"]);
         Exact(registration, "CreateRuntime", factory, [registrationRoot + ":ldftn"]);
@@ -154,7 +155,7 @@ public sealed partial class OutboxDispatchConventionTests
             [bind + ":stfld", messagingObservation + ":ldfld"]);
         CheckTaskOwnerState(runtime, "_completion", constructor);
         CheckTaskOwnerState(runtime, "_messagingCompletion", constructor);
-        CheckSet(offenders, "runtime retained owner keepalive", sites.Where(site => site.Target.DeclaringType?.FullName == "System.GC"
+        CheckSet(offenders, "runtime retained owner keepalive", sitesByName["KeepAlive"].Where(site => site.Target.DeclaringType?.FullName == "System.GC"
                 && site.Target.Name == "KeepAlive" && IsDeclaredOwner(site.Owner, runtime))
             .Select(site => site.Owner), [sourceLifetime]);
         CheckSet(offenders, "runtime source lifetime actual witnesses", sites.Where(site => site.Owner == sourceLifetime
@@ -208,8 +209,8 @@ public sealed partial class OutboxDispatchConventionTests
         CheckHostedAliases();
         CheckRuntimeOwnerConstruction();
         CheckHealthObservation();
-        CheckJobTracing(census, offenders);
-        CheckMemoryObservation(JobMetricRoots(census, offenders), "jobs metrics");
+        CheckJobTracing(census, offenders, sitesByName);
+        CheckMemoryObservation(JobMetricRoots(census, offenders, sitesByName), "jobs metrics");
         if (types.TryGetValue((InfrastructureAssembly, JobObservation), out var observation))
         {
             CheckMemoryObservation(observation.Methods.Where(method => method.IsConstructor && !method.IsStatic), "job observer construction");
@@ -263,7 +264,7 @@ public sealed partial class OutboxDispatchConventionTests
             foreach (var method in messaging.Methods.Where(method => method.IsConstructor && method.Parameters.Count == 1))
                 if (!method.IsAssembly || method.IsStatic || method.HasGenericParameters)
                     offenders.Add("Messaging lifetime store constructors must remain internal instance entries");
-            CheckSet(offenders, "fixed messaging lifetime construction callers", sites.Where(site => TargetsDeclaredType(site.Target, messaging)
+            CheckSet(offenders, "fixed messaging lifetime construction callers", sitesByName[".ctor"].Where(site => TargetsDeclaredType(site.Target, messaging)
                     && site.Target.Name == ".ctor").Select(site => site.Owner + ":" + MethodId(site.Target)),
                 [outboxConstructor + ":" + messagingConstructors[0], deliveryConstructor + ":" + messagingConstructors[1],
                  messagingConstructors[0] + ":" + privateConstructorId, messagingConstructors[1] + ":" + privateConstructorId]);
@@ -347,11 +348,11 @@ public sealed partial class OutboxDispatchConventionTests
                 offenders.Add("Sanitized physical settings require their exact Boolean/Int32 public constructor");
             // Records also own a protected/private copy constructor; pin the public
             // settings constructor separately without authorizing that copy as input.
-            CheckSet(offenders, "physical settings construction from the single dispatcher capture", sites.Where(site =>
+            CheckSet(offenders, "physical settings construction from the single dispatcher capture", sitesByName[".ctor"].Where(site =>
                     site.Target.DeclaringType?.FullName == JobPoolSettings && site.Target.Name == ".ctor"
                     && ParametersMatch(site.Target, ["System.Boolean", "System.Int32"]))
                 .Select(site => site.Owner + ":" + MethodId(site.Target)), [MethodId(composition) + ":" + settingsConstructor]);
-            CheckSet(offenders, "runtime registration caller", sites.Where(site => site.Target.DeclaringType?.FullName == JobRuntimeRegistration
+            CheckSet(offenders, "runtime registration caller", sitesByName["AddLearnStackBackgroundJobRuntime"].Where(site => site.Target.DeclaringType?.FullName == JobRuntimeRegistration
                 && site.Target.Name == "AddLearnStackBackgroundJobRuntime").Select(site => site.Owner), [MethodId(composition)]);
         }
 
@@ -394,7 +395,7 @@ public sealed partial class OutboxDispatchConventionTests
                          (JobBridge, "StopAsync", new[] { joins }),
                      })
                 CheckSet(offenders, "facade actual owner capability " + typeName + "." + method,
-                    sites.Where(site => site.Target.DeclaringType?.FullName == typeName && site.Target.Name == method)
+                    sitesByName[method].Where(site => site.Target.DeclaringType?.FullName == typeName && site.Target.Name == method)
                         .Select(site => site.Owner), callers);
         }
 
@@ -543,6 +544,7 @@ public sealed partial class OutboxDispatchConventionTests
     public void BackgroundJob_Worker_Pools_Reserve_Independent_Capacity()
     {
         using var census = ProductionCensus.Read();
+        AssertRuntimeCallSiteIndex(census);
         EvaluateDetector(census, RuntimeLifetimeOffenders).Should().BeEmpty("the actual runtime, source and two messaging lifetimes must be clean nonempty subjects");
         var application = census.Modules.Single(module => module.Assembly.Name.Name == DeliveryApplication);
         var types = census.Types;

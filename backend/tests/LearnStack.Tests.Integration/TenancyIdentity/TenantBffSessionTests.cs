@@ -239,6 +239,15 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
                 (await ClosedErrorAsync("BFF browser fixture failed: " + stage + "\nBFF browser cleanup failed.\n"))
                     .Should().Be(stage + "_cleanup_failed");
             }
+            foreach (var cleanupStage in new[] { "cleanup-cdp", "cleanup-disconnect", "cleanup-browser-wait", "cleanup-browser-stop", "cleanup-browser-forced", "cleanup-browser-exit", "cleanup-browser-signal", "cleanup-native-stop", "cleanup-native-forced", "cleanup-owner", "cleanup-native-exit", "cleanup-native-signal" })
+            {
+                (await ClosedErrorAsync("BFF browser fixture failed: " + cleanupStage + "\n"))
+                    .Should().Be(cleanupStage);
+                (await ClosedErrorAsync("BFF browser fixture failed: browser-history-revalidation\nBFF browser cleanup failed: " + cleanupStage + ".\n"))
+                    .Should().Be("browser-history-revalidation_cleanup_" + cleanupStage);
+            }
+            (await ClosedErrorAsync("BFF browser fixture failed: browser-history-revalidation\nBFF browser cleanup failed: PRIVATE-CANARY.\n"))
+                .Should().Be("browser-history-revalidation_unexpected_output");
             (await ClosedErrorAsync("BFF browser fixture failed: browser-launch\nPRIVATE-CANARY\n"))
                 .Should().Be("browser-launch_unexpected_output");
             (await ClosedErrorAsync("BFF session fixture failed: native-stop\nBFF session cleanup failed.\n"))

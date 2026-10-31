@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 
 import { browserFailureDetail } from './admission-browser.mjs';
 import { createPrivateScanner } from './fixture-support.mjs';
+import { stopTestChild } from './stop-test-child.mjs';
 
 /** Preserve only the readiness helper's branded, finite observations. */
 export function bffDevToolsFailureStage(error) {
@@ -148,4 +149,120 @@ export function rememberBffCookies(headers, canaries) {
       canaries.push(secret);
     }
   }
+}
+
+/** One owned cleanup, with only its first finite failure retained across retries. */
+export function createBffBrowserCleanup(resources) {
+  let pending;
+  let failureStage = null;
+  const run = async () => {
+    const { browser, browserProcess, nativeServer, owner } = resources();
+    const failures = [];
+    let browserStopped = false;
+    let ownerDisposed = false;
+    if (browser) {
+      // CDP-connected browser.close() only disconnects Playwright. Request the
+      // owned Chromium lifecycle first. All browser control steps share the
+      // five-second control window; existing process bounds stay intact.
+      const until = Date.now() + 5000;
+      const bounded = async (operation) => {
+        let timer;
+        try {
+          await Promise.race([
+            Promise.resolve().then(operation),
+            new Promise((_, reject) => {
+              timer = setTimeout(
+                () => reject(new Error('BFF browser control cleanup deadline')),
+                Math.max(0, until - Date.now()),
+              );
+            }),
+          ]);
+        } finally {
+          clearTimeout(timer);
+        }
+      };
+      try {
+        await bounded(async () => {
+          const session = await browser.newBrowserCDPSession();
+          await session.send('Browser.close');
+        });
+      } catch {
+        failures.push('cleanup-cdp');
+      }
+      if (browserProcess) {
+        let exited;
+        try {
+          await bounded(() => {
+            if (browserProcess.exitCode !== null || browserProcess.signalCode !== null) return;
+            return new Promise((resolve) => {
+              exited = () => resolve();
+              browserProcess.once('exit', exited);
+            });
+          });
+        } catch {
+          failures.push('cleanup-browser-wait');
+        } finally {
+          if (exited) browserProcess.removeListener('exit', exited);
+        }
+      }
+      try {
+        await bounded(() => browser.close());
+      } catch {
+        failures.push('cleanup-disconnect');
+      }
+    }
+    for (const [kind, child] of [
+      ['browser', browserProcess],
+      ['native', nativeServer?.process],
+    ]) {
+      if (!child) continue;
+      try {
+        const stopped = await stopTestChild(child);
+        if (stopped.forced) failures.push('cleanup-' + kind + '-forced');
+        else if (kind === 'browser') browserStopped = true;
+      } catch {
+        failures.push('cleanup-' + kind + '-stop');
+      }
+    }
+    try {
+      await owner.dispose();
+      ownerDisposed = true;
+    } catch {
+      failures.push('cleanup-owner');
+    }
+    if (browserProcess) {
+      if (browserProcess.signalCode !== null) failures.push('cleanup-browser-signal');
+      else if (browserProcess.exitCode !== 0) failures.push('cleanup-browser-exit');
+    }
+    // Chromium may close the transport before acknowledging Browser.close.
+    // Never infer success from an SDK error: require actual zero/signal-free
+    // owned exit, group absence without forcing, and joined owner disposal.
+    if (
+      failures[0] === 'cleanup-cdp' &&
+      browserProcess?.exitCode === 0 &&
+      browserProcess.signalCode === null &&
+      browserStopped &&
+      ownerDisposed
+    )
+      failures.shift();
+    if (failures.length === 0 && nativeServer) {
+      try {
+        const stopped = await nativeServer.completed;
+        if (stopped.signal !== null) failures.push('cleanup-native-signal');
+        else if (stopped.code !== 0) failures.push('cleanup-native-exit');
+      } catch {
+        failures.push('cleanup-native-exit');
+      }
+    }
+    if (failures.length) {
+      failureStage = failures[0];
+      throw new Error('BFF browser cleanup failed');
+    }
+  };
+  return {
+    run: () => (pending ??= run()),
+    get failureStage() {
+      return failureStage;
+    },
+  };
 }

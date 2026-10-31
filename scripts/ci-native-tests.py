@@ -855,6 +855,9 @@ BFF_BROWSER_FAILURE_STAGES = {
     'input', 'input-issuer', 'input-api', 'input-secrets', 'input-sites', 'setup', 'compile', 'build',
     'start', 'command', 'request', 'request-deadline', 'request-connect', 'request-tls', 'request-socket',
     'response-json', 'cleanup', 'privacy', 'native-stop',
+    'cleanup-cdp', 'cleanup-disconnect', 'cleanup-browser-wait', 'cleanup-browser-stop', 'cleanup-browser-forced',
+    'cleanup-browser-exit', 'cleanup-browser-signal', 'cleanup-native-stop', 'cleanup-native-forced',
+    'cleanup-owner', 'cleanup-native-exit', 'cleanup-native-signal',
     'browser-executable', 'browser-spawn', 'browser-devtools', 'browser-devtools-inactive',
     'browser-devtools-unreadable', 'browser-devtools-missing', 'browser-devtools-empty', 'browser-devtools-malformed',
     'browser-not-live', 'browser-connect', 'browser-context',
@@ -881,6 +884,9 @@ BFF_BROWSER_FAILURE_REASONS = BFF_BROWSER_FAILURE_STAGES | {
     stage + '_unexpected_output' for stage in BFF_BROWSER_FAILURE_STAGES
 } | {
     stage + '_cleanup_failed' for stage in BFF_BROWSER_FAILURE_STAGES
+} | {
+    stage + '_cleanup_' + cleanup for stage in BFF_BROWSER_FAILURE_STAGES
+    for cleanup in BFF_BROWSER_FAILURE_STAGES if cleanup.startswith('cleanup-')
 } | {'response', 'deadline_input', 'exit', 'output', 'node_module_missing', 'node_syntax', 'node_abort',
      'node_permission', 'unexpected_output'}
 BFF_BROWSER_FIXED_FAILURES = {
@@ -1254,7 +1260,7 @@ def diagnostic_command(argv, deadline, reason, cap):
     return bytes(stdout)
 
 
-def command(argv, deadline, reason, *, cap=COMMAND_SECONDS, diagnose=False):
+def command(argv, deadline, reason, *, cap=COMMAND_SECONDS, diagnose=False, classify=False):
     if diagnose:
         return diagnostic_command(argv, deadline, reason, cap)
     try:
@@ -1264,9 +1270,14 @@ def command(argv, deadline, reason, *, cap=COMMAND_SECONDS, diagnose=False):
                                      'LC_ALL': 'C.UTF-8', 'HOME': os.environ.get('HOME', ''),
                                      'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': '/dev/null'},
                                 check=False)
-    except (subprocess.TimeoutExpired, OSError):
-        raise Refusal(reason) from None
-    require(result.returncode == 0 and len(result.stdout) <= MAX_BYTES, reason)
+    except subprocess.TimeoutExpired:
+        raise Refusal(reason + ('_timeout' if classify else '')) from None
+    except OSError:
+        raise Refusal(reason + ('_os_error' if classify else '')) from None
+    # Fixed metadata reads opt into closed failure kinds; argv, budgets, private
+    # stdout and discarded stderr are unchanged. No provider text is decoded.
+    require(result.returncode == 0, reason + ('_exit' if classify else ''))
+    require(len(result.stdout) <= MAX_BYTES, reason + ('_output_bound' if classify else ''))
     return result.stdout
 
 
@@ -2349,70 +2360,81 @@ def docker_complete(deadline, *, forced):
 def image_layer_snapshot(candidate, deadline):
     """Private positive image provenance, never a filename/content allowance."""
     docker = [DOCKER, '--host', 'unix:///var/run/docker.sock']
+    stage = 'info_parse'
 
     def inventory():
+        nonlocal stage
         info = command([*docker, 'info', '--format',
                         '{"driver":{{json .Driver}},"root":{{json .DockerRootDir}}}'],
-                       deadline, 'image_metadata_unavailable')
+                       deadline, 'image_metadata_unavailable_info_command', classify=True)
+        stage = 'info_parse'
         require(json.loads(info) == {'driver': 'overlay2', 'root': '/var/lib/docker'},
-                'image_metadata_unavailable')
+                'image_metadata_unavailable_info_shape')
         raw = command([*docker, 'image', 'ls', '--all', '--quiet', '--no-trunc'],
-                      deadline, 'image_metadata_unavailable')
-        require(len(raw) <= 256 * 72, 'image_metadata_unavailable')
+                      deadline, 'image_metadata_unavailable_image_list_command', classify=True)
+        require(len(raw) <= 256 * 72, 'image_metadata_unavailable_image_list_bound')
+        stage = 'image_list_parse'
         ids = raw.decode('ascii').splitlines()
         require(len(ids) <= 256 and all(re.fullmatch(r'sha256:[0-9a-f]{64}', value)
-                                       for value in ids), 'image_metadata_unavailable')
+                                       for value in ids), 'image_metadata_unavailable_image_list_shape')
         ids = sorted(set(ids))  # Multiple tags may list the same image ID.
         if not ids:
             return (), ()
         raw = command([*docker, 'image', 'inspect', '--format',
                        '{"id":{{json .Id}},"driver":{{json .GraphDriver}}}', *ids],
-                      deadline, 'image_metadata_unavailable')
-        require(len(raw) <= 512 * 1024, 'image_metadata_unavailable')
+                      deadline, 'image_metadata_unavailable_image_inspect_command', classify=True)
+        require(len(raw) <= 512 * 1024, 'image_metadata_unavailable_image_inspect_bound')
+        stage = 'image_inspect_parse'
         records = [json.loads(line) for line in raw.splitlines()]
-        require(len(records) == len(ids), 'image_metadata_unavailable')
+        require(len(records) == len(ids), 'image_metadata_unavailable_image_inspect_count')
         paths = set()
         for expected, record in zip(ids, records):
             require(isinstance(record, dict) and record.get('id') == expected,
-                    'image_metadata_unavailable')
+                    'image_metadata_unavailable_image_identity')
             driver = record.get('driver')
             require(isinstance(driver, dict) and driver.get('Name') == 'overlay2'
-                    and isinstance(driver.get('Data'), dict), 'image_metadata_unavailable')
+                    and isinstance(driver.get('Data'), dict), 'image_metadata_unavailable_graph_driver_shape')
             data = driver['Data']
             upper, lower = data.get('UpperDir'), data.get('LowerDir', '')
-            require(isinstance(upper, str) and isinstance(lower, str), 'image_metadata_unavailable')
+            require(isinstance(upper, str) and isinstance(lower, str), 'image_metadata_unavailable_layer_fields')
             for path in [upper, *(lower.split(':') if lower else [])]:
                 require(re.fullmatch(r'/var/lib/docker/overlay2/(?:[0-9a-f]{64}/diff|l/[A-Z0-9]{26})',
-                                     path), 'image_metadata_unavailable')
+                                     path), 'image_metadata_unavailable_layer_path')
                 paths.add(path)
-        require(len(paths) <= 512, 'image_metadata_unavailable')
+        require(len(paths) <= 512, 'image_metadata_unavailable_layer_bound')
         return tuple(ids), tuple(sorted(paths))
 
     try:
         before = inventory()
         require(before[1], 'image_metadata_no_match')
+        stage = 'candidate_shape'
         require(candidate.startswith('/var/lib/docker/overlay2/') and len(candidate) <= 4096,
-                'image_metadata_unavailable')
+                'image_metadata_unavailable_candidate_shape')
         raw = command([SUDO, '-n', REALPATH, '-e', '--', *before[1], candidate],
-                      deadline, 'image_metadata_unavailable')
-        require(len(raw) <= 512 * 1024, 'image_metadata_unavailable')
+                      deadline, 'image_metadata_unavailable_canonical_command', classify=True)
+        require(len(raw) <= 512 * 1024, 'image_metadata_unavailable_canonical_bound')
+        stage = 'canonical_parse'
         canonical = raw.decode('utf-8').splitlines()
         require(len(canonical) == len(before[1]) + 1
                 and all(re.fullmatch(r'/var/lib/docker/overlay2/[0-9a-f]{64}/diff', path)
-                        for path in canonical[:-1]), 'image_metadata_unavailable')
+                        for path in canonical[:-1]), 'image_metadata_unavailable_canonical_shape')
         layers = sorted(set(canonical[:-1]))
+        stage = 'layer_stat_parse'
         kinds = command([SUDO, '-n', STAT, '--format=%F', '--', *layers],
-                        deadline, 'image_metadata_unavailable').decode('ascii').splitlines()
-        require(kinds == ['directory'] * len(layers), 'image_metadata_unavailable')
+                        deadline, 'image_metadata_unavailable_layer_stat_command', classify=True).decode('ascii').splitlines()
+        require(kinds == ['directory'] * len(layers), 'image_metadata_unavailable_layer_kind')
         require(any(canonical[-1].startswith(path + '/') for path in layers), 'image_metadata_no_match')
-        require(inventory() == before, 'image_metadata_unavailable')
+        require(inventory() == before, 'image_metadata_unavailable_inventory_changed')
         require(command([SUDO, '-n', REALPATH, '-e', '--', *before[1], candidate],
-                        deadline, 'image_metadata_unavailable') == raw, 'image_metadata_unavailable')
+                        deadline, 'image_metadata_unavailable_canonical_recheck_command', classify=True) == raw,
+                'image_metadata_unavailable_canonical_changed')
         return before, tuple(canonical)
     except Refusal:
         raise
     except (ValueError, UnicodeError, TypeError):
-        raise Refusal('image_metadata_unavailable') from None
+        # Stage is a fixed source label. Never publish metadata, paths, IDs,
+        # candidate contents or parser/provider exception text.
+        raise Refusal('image_metadata_unavailable_' + stage) from None
 
 
 def find_crash_candidate(roots, deadline, image_layers=()):

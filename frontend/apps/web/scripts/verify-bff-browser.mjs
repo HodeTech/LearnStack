@@ -17,6 +17,7 @@ import {
   bffDevToolsFailureStage,
   bffProofCopy,
   createBffCookieScanner,
+  createBffBrowserCleanup,
   rememberBffCookies,
   withProofWaiters,
 } from './bff-proof-support.mjs';
@@ -25,7 +26,6 @@ import {
   createPrivateScanner,
   fixtureEnvironment,
 } from './fixture-support.mjs';
-import { stopTestChild } from './stop-test-child.mjs';
 
 const owner = createFixtureOwner();
 owner.install({ control: process.stdin, event: 'end' });
@@ -59,30 +59,7 @@ const deadline = setTimeout(() => {
   void owner.cancel();
 }, 180_000);
 deadline.unref();
-async function cleanup() {
-  const failures = [];
-  for (const operation of [
-    () => browser?.close(),
-    async () => {
-      for (const child of [browserProcess, nativeServer?.process].filter(Boolean)) {
-        const stopped = await stopTestChild(child);
-        if (stopped.forced) failures.push(true);
-      }
-    },
-    () => owner.dispose(),
-  ])
-    try {
-      await operation();
-    } catch {
-      failures.push(true);
-    }
-  assert.equal(failures.length, 0, 'actual browser/native cleanup');
-  if (nativeServer) {
-    const stopped = await nativeServer.completed;
-    assert.equal(stopped.code, 0);
-    assert.equal(stopped.signal, null);
-  }
-}
+const cleanup = createBffBrowserCleanup(() => ({ browser, browserProcess, nativeServer, owner }));
 // A single bounded frame initializes the proof. Keep the pipe actively draining
 // afterwards: EOF is the parent's private lifetime signal, not input framing.
 function configuration() {
@@ -821,7 +798,7 @@ try {
   );
   assert.ok(headerChecks.length > 0 && (await Promise.all(headerChecks)).every(Boolean));
   stage = 'cleanup';
-  await cleanup();
+  await cleanup.run();
   stage = 'privacy';
   assertBffPrivateOutput(scanners);
   clearTimeout(deadline);
@@ -840,6 +817,7 @@ try {
     }) + '\n',
   );
 } catch (error) {
+  if (stage === 'cleanup') stage = cleanup.failureStage ?? stage;
   if (stage === 'browser-devtools') stage = bffDevToolsFailureStage(error);
   let expectedCounter = false;
   if (
@@ -887,7 +865,7 @@ try {
     }
   let clean = true;
   try {
-    await cleanup();
+    await cleanup.run();
   } catch {
     clean = false;
   }
@@ -916,7 +894,12 @@ try {
     }
     // Preserve the original closed stage even if later actual cleanup fails.
     process.stderr.write('BFF browser fixture failed: ' + stage + '\n');
-    if (!clean) process.stderr.write('BFF browser cleanup failed.\n');
+    if (!clean)
+      process.stderr.write(
+        'BFF browser cleanup failed' +
+          (cleanup.failureStage ? ': ' + cleanup.failureStage : '') +
+          '.\n',
+      );
   }
   process.exitCode = 1;
 }
