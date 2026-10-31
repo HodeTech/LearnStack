@@ -387,7 +387,8 @@ completion; the unchanged required aggregate verifies both complete artifacts.
 Run the offline `scripts/test-ci-native-provisioning.py` and
 `scripts/test-ci-native-tests.py` controls locally without changing host policy.
 Their source/fixture checks do not qualify actual hosted cgroups, native exits or
-twenty-minute whole-job fit; the owning P02b-4 CI record carries those results.
+fit under the [current whole-job policy](../../../docs/standards/06-testing.md#complete-bounded-ci-assignments).
+The owning phase's CI record carries actual source-bound qualification.
 
 For flaky tests, run with `--blame-hang` and `--blame-hang-timeout`:
 

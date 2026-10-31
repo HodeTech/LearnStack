@@ -42,6 +42,8 @@ final-source hosted qualification),
 [ADR-0075 Ordinary CI Job Window](../decisions/0075-ordinary-ci-job-window.md)
 (Accepted 2026-10-27; the ordinary-budget extension below is implemented with
 offline controls and source-bound hosted A/B; the phase owns evidence review),
+[ADR-0082 Current-Source CI Execution Windows](../decisions/0082-current-source-ci-execution-windows.md)
+(Accepted 2026-11-01; dependent controls and hosted qualification remain separate),
 [ADR-0064 Tenant API Authentication Boundary](../decisions/0064-tenant-api-authentication-boundary.md)
 (Accepted 2026-10-19; P02b-5 obligations implemented and merged through PR #33;
 the [merge closeout](../roadmap/phase-02b-delivery-log.md#p02b-5-merge-and-closeout-2026-10-20)
@@ -6857,12 +6859,15 @@ and fixture definitions make the implemented controls non-vacuous.
   Pending-only API acquisition validates each fresh complete snapshot under
   one finite deadline; it never combines responses or retries terminal,
   malformed, missing, duplicate or identity-invalid evidence.
-  The ADR-0075 extension binds the ordinary-only twenty-five-minute whole-job
-  and enclosing observation bounds to verified expected producer identity;
-  other producers retain twenty minutes, operation caps and the 203-second
-  reserve stay fixed. Forged modes/partitions cannot select a longer window.
+  The ADR-0082 extension binds Architecture 1,500-second and ordinary
+  1,800-second whole-job/enclosing observation bounds to exact verified mode,
+  expected job and plan count. Base/native retain 1,200 seconds; operation caps
+  and the 203-second reserve stay fixed. Individual observations allow the
+  inclusive bound; disjoint receipt intervals sum strictly below it. Forged
+  modes/partitions cannot select a longer window.
 - **Source:** [ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md),
-  [ADR-0075](../decisions/0075-ordinary-ci-job-window.md).
+  [ADR-0075](../decisions/0075-ordinary-ci-job-window.md),
+  [ADR-0082](../decisions/0082-current-source-ci-execution-windows.md).
 - **Type:** actual Python plan/owner subprocess controls and workflow/API/hosted
   result proofs. **Kind:** structural + behavioural.
 - **Status:** **Implemented** — `scripts/ci-test-shards.py`,
@@ -6882,6 +6887,10 @@ and fixture definitions make the implemented controls non-vacuous.
   [Phase 03 closeout](../roadmap/phase-03-delivery-log.md#adr-0075-three-step-closeout-2026-10-27)
   owns implementation reviews and observed complete hosted A/B; local controls
   alone do not establish fit and later documentation identities remain distinct.
+  **ADR-0082 extension accepted; implementation pending.** Its control/review
+  completion must be recorded here after actual verification; the historical
+  Implemented rule and ADR-0075 extension establish no proof of this successor.
+  Fresh complete final-source A/B remains a separate gate owned by Phase 03.
 - **Phase:** 02b (P02b-4 CI follow-up).
 
 ## References

@@ -30,7 +30,9 @@ Accepted server lifecycle and its bounded availability qualification derive from
 [ADR-0059](../decisions/0059-owned-hangfire-server-generations.md).
 The exceptional startup/unsafe-unwind process boundary derives from
 [ADR-0060](../decisions/0060-fatal-hangfire-startup-and-unsafe-unwind.md).
-The ordinary CI window derives from
+The current CI execution windows derive from
+[ADR-0082](../decisions/0082-current-source-ci-execution-windows.md), which
+narrowly supersedes the predecessor window clauses in
 [ADR-0075](../decisions/0075-ordinary-ci-job-window.md).
 
 Three audit decisions are referenced here but **not owned** here, and the split matters
@@ -802,10 +804,10 @@ job-scoped `actions: read`; executors retain `contents: read`. Base/Architecture
 add only an owned transient systemd/cgroup seam on exclusive hosted Ubuntu 24.04
 VMs, without Docker or collector authority. Native's ADR-0062 authority remains
 exclusive. No application runtime, production infrastructure or local/shared
-host authority follows. The ordinary-only whole-job window is twenty-five
-minutes under [ADR-0075](../decisions/0075-ordinary-ci-job-window.md);
-base/Architecture/native retain twenty minutes and each aggregate five. The
-testing standard owns the expected-producer bounds and unchanged reserves;
+host authority follows. [ADR-0082](../decisions/0082-current-source-ci-execution-windows.md)
+sets verified Architecture to twenty-five minutes and ordinary to thirty;
+base/native retain twenty, aggregates and meta five. The testing standard owns
+the closed expected-producer bounds, unchanged reserves and operation caps;
 actual final-source fit is recorded in the phase.
 
 - Step 4's API composition registers one `BackgroundJobHostedService` over

@@ -11,7 +11,9 @@ The seeded browser/audit proof derives from
 [ADR-0056](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md).
 Native admission, stock-browser fallback and HMR proof controls derive from
 [ADR-0055](../decisions/0055-public-renderer-bootstrap-failures.md).
-The ordinary CI window derives from
+The current CI execution windows derive from
+[ADR-0082](../decisions/0082-current-source-ci-execution-windows.md), which
+narrowly supersedes the predecessor window clauses in
 [ADR-0075](../decisions/0075-ordinary-ci-job-window.md).
 UI localization controls derive from [ADR-0027](../decisions/0027-frontend-i18n.md)
 and the [Accepted P02d-6 package](../roadmap/phase-02d-delivery-log.md#p02d-6-decision-package-2026-10-09).
@@ -231,16 +233,19 @@ Base/Architecture use only the approved non-root child and owned systemd/cgroup
 boundary on exclusive Ubuntu 24.04 VMs: no Docker census/disposal, collector
 access or crash inventory. Ordinary retains Docker ownership; native alone
 retains collector provisioning and independent crash assertions.
-[ADR-0075](../decisions/0075-ordinary-ci-job-window.md) gives only verified ordinary
-producers a twenty-five-minute whole-job ceiling. Base/Architecture/native keep
-twenty minutes, both aggregates five minutes, and meta five minutes. The
-203-second cleanup/export/upload reserve and test-specific deadlines stay fixed.
-Expected verified producer identity selects API, receipt and enclosing
-measurement bounds; a receipt partition or global observation-limit increase
-cannot grant ordinary authority. The four disjoint receipt intervals sum below
-that producer's ceiling; nested workload/project observations are not additional
-disjoint time. The offline plan/result controls share one thirty-second
-allocation in meta.
+[ADR-0082](../decisions/0082-current-source-ci-execution-windows.md) gives verified
+Architecture producers a twenty-five-minute whole-job ceiling and verified
+ordinary Docker producers thirty minutes. Base/native remain twenty minutes,
+both aggregates five and meta five; all remaining jobs retain their existing
+ceilings. The 203-second reserve and all test-specific deadlines stay fixed.
+The closed `(mode, expected job, plan counts)` policy selects API, receipt and
+enclosing workload/project observation bounds: 1,500 Architecture, 1,800 ordinary,
+1,200 base/native seconds. Receipt partitions and global limit expansion confer
+no authority. Individual observations allow the inclusive ceiling; disjoint
+receipt intervals sum strictly below it. Nested observations are not additional
+disjoint time. Offline plan/result controls retain their shared thirty-second
+meta allocation (27-second TERM plus three-second kill); extensions must be
+re-measured against that unchanged allocation.
 Actual SDK/console/loaded-adapter hashes, disjoint phase intervals, first-result
 gaps and scoped resource observations accompany every successful execution.
 Uninstrumented fixture/container measurements remain unknown.

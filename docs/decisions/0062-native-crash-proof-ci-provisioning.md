@@ -343,6 +343,18 @@ own the dependent implementation and fresh two-layout qualification receipts. Th
 retained without rewriting. This is a bounded decision change, not an
 ADR-0041 factual correction.
 
+### Amendment 3 — Current-source Architecture and ordinary windows (2026-11-01)
+
+Accepted [ADR-0082](0082-current-source-ci-execution-windows.md) narrowly
+supersedes the twenty-minute Architecture requirement stated in Amendment 1
+and restated in Amendment 2 with twenty-five minutes, and Amendment 2's
+twenty-five-minute ordinary window with thirty minutes. Base and native
+execution remain twenty minutes. Native provisioning, collector authority and
+every other boundary remain unchanged. This record's body, metadata and earlier
+rationale remain historical. The [Phase 03 acceptance record](../roadmap/phase-03-delivery-log.md#adr-0082-maintainer-corrections-acceptance-and-step-1-2026-11-01)
+owns implementation/review order; complete final-source A/B proof is a separate
+requirement, not a consequence of acceptance.
+
 ## References
 
 - [ADR-0060](0060-fatal-hangfire-startup-and-unsafe-unwind.md#diagnostics-dumps-and-durable-consequences).

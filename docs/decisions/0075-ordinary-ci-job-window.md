@@ -290,6 +290,19 @@ second application-test catalogue name for a CI policy.
   configuration agreement. Only complete final-source hosted A/B establishes
   actual wall fit, natural lifecycle completion and the full artifact union.
 
+## Amendments
+
+### Amendment 1 — Current-source bounded successor (2026-11-01)
+
+Accepted [ADR-0082](0082-current-source-ci-execution-windows.md) supersedes this
+record's twenty-five-minute ordinary window with thirty minutes and its retained
+twenty-minute Architecture baseline with twenty-five. Base/native and all other
+clocks, reserves, operation bounds, counts, resource policy, expected-owner
+binding and complete two-layout proof remain unchanged. This record's body,
+date, acceptance and rationale remain historical. Acceptance of ADR-0082 is not
+actual hosted fit; the [Phase 03 acceptance record](../roadmap/phase-03-delivery-log.md#adr-0082-maintainer-corrections-acceptance-and-step-1-2026-11-01)
+owns its dependent implementation/reviews and fresh A/B evidence.
+
 ## References
 
 - [ADR-0063: Complete Bounded CI Test Shards](0063-complete-bounded-ci-test-shards.md).

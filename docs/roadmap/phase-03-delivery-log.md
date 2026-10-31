@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 3,561 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 3,643 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -200,7 +200,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0082 proposed current-source CI window package (2026-11-01)](#adr-0082-proposed-current-source-ci-window-package-2026-11-01) — 112 lines
   - [ADR-0082 proposal reviews and approval readiness (2026-11-01)](#adr-0082-proposal-reviews-and-approval-readiness-2026-11-01) — 25 lines
   - [P03-3 Step 10 bounded detector reuse and native failure observations (2026-11-01)](#p03-3-step-10-bounded-detector-reuse-and-native-failure-observations-2026-11-01) — 67 lines
-  - [P03-3 Step 10 native follow-up review closure (2026-11-01)](#p03-3-step-10-native-follow-up-review-closure-2026-11-01) — 42 lines
+  - [P03-3 Step 10 native follow-up review closure (2026-11-01)](#p03-3-step-10-native-follow-up-review-closure-2026-11-01) — 43 lines
+  - [ADR-0082 maintainer corrections, acceptance and Step 1 (2026-11-01)](#adr-0082-maintainer-corrections-acceptance-and-step-1-2026-11-01) — 81 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -9305,3 +9306,85 @@ remains Proposed and is submitted for maintainer acceptance; no duration
 code changes with this record. Manual keyboard/focus/reflow/contrast/VoiceOver
 observations remain maintainer-deferred and unexecuted. Phase 03 Status owns
 current packet state; this record does not close P03-3 or claim a ready PR.
+
+
+### ADR-0082 maintainer corrections, acceptance and Step 1 (2026-11-01)
+
+**Authority and scope.** The maintainer accepts [ADR-0082](../decisions/0082-current-source-ci-execution-windows.md)
+and its three-step plan after the supplied reviews' clarifications are applied.
+This record supersedes the proposal's append-ready carrier wording and extends
+its implementation/proof checklist as specified below; earlier proposal and
+review records remain historical, not silently rewritten. The bounded 25/30
+minute choice is accepted headroom, not proven hosted fit. Base/native twenty,
+203-second reserve, operation deadlines, all other job ceilings, counts/cap,
+assignment and complete fresh A/B requirements stay fixed. Manual observations
+remain separately maintainer-deferred and unexecuted.
+
+**Verified review dispositions.** M1/M2/M4 clarify the acceptance/implementation
+boundary, unaffected jobs and all inherited/restated Architecture clauses. The
+actual ADR-0062 Amendment 3 names the Architecture requirement in both Amendment
+1 and Amendment 2 (M3), superseding the earlier draft's incomplete locator.
+ADR-0075's retained Architecture clause is named by ADR-0082 and its own dated
+Amendment 1. All predecessor bodies, metadata and earlier amendments stay intact.
+M5 removes the unsupported comparative wall-time claim; the discarded component
+has no claimed gain. M6 requires selection by validated mode, not job alone, and
+names both affected Python control files. M7 requires re-measuring the complete
+combined plan/result controls inside the existing 27-second TERM / three-second
+kill allocation. M8 requires the catalogue's extension Status to record actual
+implementation/control/review completion in Step 2 and hosted proof separately.
+
+The low-priority clarity items are applied: case-population completion is not
+an owner-complete receipt; nine failed cases differ from 28 censored cases;
+observations allow inclusive ceilings while disjoint intervals sum strictly
+below them; only four new offline provider cases enter base; meta stays five
+minutes. References, local-test guidance and the rule's existing Implemented
+status distinguish current policy, this extension and actual proof. Informational
+suggestions do not add speculative fit predictions, change the chosen headroom
+or introduce a new corpus-wide governance rule.
+
+**Historical sources.** Four complete A attempts run on successive source
+revisions, not one current freeze. Retained run metadata confirms these actual
+workflow head SHAs; each result qualifies only its own historical source, and
+later corrections postdate all four. No B exists for these attempts.
+
+| Complete A | Actual source SHA |
+|---|---|
+| [41140461994](https://github.com/HodeTech/LearnStack/actions/runs/41140461994) | `3c063bf7d52a6bb90b103f12facf9c928cf8a0a2` |
+| [41146632887](https://github.com/HodeTech/LearnStack/actions/runs/41146632887) | `e7deaf2e6c6d61d6a974efd0afe4034a4a022078` |
+| [41153230330](https://github.com/HodeTech/LearnStack/actions/runs/41153230330) | `77f62f1b550c82b5b4085123d08f9998924b8e51` |
+| [41160562129](https://github.com/HodeTech/LearnStack/actions/runs/41160562129) | `f0de02cda3bbd5a78c1d6cd5e5c9a28aa3d5d1d1` |
+
+**Step 1 — acceptance carriers.** ADR-0082 becomes Accepted with the reviewed
+clarifications; ADR-0062 Amendment 3, ADR-0063 Amendment 2 and ADR-0075 Amendment 1
+provide dated bounded-successor disclosures. Testing 06 owns ongoing windows and
+observation semantics; Infrastructure 20 links that owner. The existing
+`CI_Test_Shards_Are_Complete_And_Bounded` Source/assertions add ADR-0082, while its
+Status explicitly leaves this extension unimplemented. The decision index moves
+0082 Proposed→Active, Phase 03 Status updates, and the local-test skill links the
+current policy instead of a stale uniform twenty-minute claim. No executable
+budget changes in this step. Commit and two fresh independent review rounds
+precede Step 2; verified findings require fixes, commits and revalidation.
+
+**Step 2 — one mode-bound executable policy.** Only workflow Architecture 25 and
+ordinary 30 change. The existing exact mode/job/count validator remains; its
+validated mode selects base/native-shard 1,200, Architecture 1,500 and ordinary
+1,800 seconds. Parent/leaf, fixture preparation and independently expected
+producer validation share it, with no global finite-observation expansion.
+`scripts/test-ci-native-tests.py` and `scripts/test-ci-test-shard-results.py`
+extend valid inclusive-boundary, strict-sum, nested observation, finite-value,
+forged identity and unchanged-operation controls. Full provisioning/native and
+combined shard/result suites run; the latter are re-measured under the unchanged
+27+3 allocation. Existing catalogue Status records verified extension delivery
+only after controls and both fresh review rounds close; hosted fit stays pending.
+Commit, two new rounds and verified corrections precede qualification.
+
+**Step 3 — actual final-source qualification.** Freeze source/tree, unchanged
+plan, toolchain and actual discovered manifest. Execute a complete A; retain
+all original API metadata and 25 ZIPs before rerunning all jobs for B on that
+same freeze. Both require all 27 successful jobs, twenty natural owners, exact
+zero-skip case/TRX unions and independent archive/API/case/resource/surface
+checks. Screenshots receive actual inspection. No failed-only retry, passing
+sibling union or historical result qualifies the source. Further exhaustion
+reopens the choice; no additional window increase is authorized. Complete the
+required fresh reviews and truthful closeout/PR after proof, retaining manual
+deferral as a separate disclosed limitation.

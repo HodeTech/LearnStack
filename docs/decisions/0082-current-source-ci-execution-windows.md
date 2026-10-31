@@ -2,37 +2,42 @@
 
 ## Status
 
-Proposed.
+Accepted
 
 **Date:** 2026-11-01
 **Deciders:** @cemil
-**Bounded supersession:** ADR-0063's twenty-minute Architecture ceiling,
-ADR-0075's twenty-five-minute ordinary ceiling, and their inherited execution
-window clauses in ADR-0062. Acceptance requires a dated amendment in all three
-records; their historical bodies, statuses and dates remain intact.
+**Bounded supersession:** ADR-0063's twenty-minute Architecture ceiling
+(restated in ADR-0075), ADR-0075's twenty-five-minute ordinary ceiling, and the
+execution-window clauses they inherited from ADR-0062. Dated amendments in all
+three records disclose this change; their historical bodies, statuses and dates
+remain intact.
 
-This proposal changes no clock, grant or Accepted policy. Maintainer acceptance
-precedes its dependent budget implementation. Independent P03-3 correctness,
-diagnostic and local proof work continues under the current ceilings.
+Maintainer acceptance changes only the two whole-job ceilings and their
+dependent observation bounds. Executable budget implementation follows
+acceptance; no grant or other policy changes. The
+[acceptance record](../roadmap/phase-03-delivery-log.md#adr-0082-maintainer-corrections-acceptance-and-step-1-2026-11-01)
+owns the approved clarifications and three-step delivery/review sequence.
+Implementation and actual hosted qualification remain separate gates.
 
 ## Decision Drivers
 
-- Four complete hosted A attempts fail to qualify the current P03-3 source.
-  The latest exhausts five Architecture and three ordinary owner windows;
-  passing siblings and censored cases cannot qualify an attempt.
+- Four complete hosted A attempts fail on successive P03-3 source revisions.
+  Each is historical evidence for its own source; subsequent corrections are
+  not qualified by those runs. The latest exhausts five Architecture and three
+  ordinary owner windows. Passing siblings and censored cases qualify none.
 - Six Architecture and twelve ordinary owners already consume the Accepted
   upper count bounds and, with base/native, the twenty-execution-VM cap.
   Each VM repeats real build, discovery and ownership work.
 - Local source corrections preserve proofs but do not establish hosted fit.
-  A mixed indexing trial increases five-case local wall time and its field-key
-  component is discarded; a small clean-evaluation profile is not a full-suite
+  A mixed indexing trial produces no claimed gain and its field-key component
+  is discarded; a small clean-evaluation profile is not a full-suite
   performance result.
 - Preserve all cases, test-specific deadlines, the 203-second reserve, natural
   disposal, exact current-attempt evidence and two complete distinct layouts.
 
 ## Considered Options
 
-1. **Architecture 25 minutes; ordinary 30 minutes** (chosen proposal). Add
+1. **Architecture 25 minutes; ordinary 30 minutes** (chosen). Add
    300 seconds to each affected owner's whole-job window. This is bounded
    maintainer-judged headroom, not a measured minimum or a fit guarantee.
 2. **Keep 20/25 and continue optimizing guards/fixtures** (valid, not selected).
@@ -51,8 +56,9 @@ diagnostic and local proof work continues under the current ceilings.
 
 LearnStack gives verified Architecture producers a 1,500-second whole-job
 ceiling and verified ordinary Docker producers 1,800 seconds. Base and native
-retain 1,200 seconds; other jobs, the 203-second reserve, test-specific bounds,
-counts, assignment, resource policy and complete A/B qualification stay fixed.
+retain 1,200 seconds. The two aggregates, meta and all remaining jobs retain
+their existing ceilings; the 203-second reserve, test-specific bounds, counts,
+assignment, resource policy and complete A/B qualification stay fixed.
 The existing closed `(mode, expected job, plan counts)` policy selects every
 execution and observation bound; payloads and environment overrides select none.
 
@@ -70,15 +76,17 @@ Independent parsing reconciles 7,940 selected cases: 7,903 Passed, nine Failed
 and 28 without results. Architecture has 594/1/9 of 604; ordinary 3,410/8/19 of
 3,437; all 3,868 base and 31 native cases pass. Five Architecture and three
 ordinary producers exhaust their owner deadlines. Two other ordinary owners
-complete their populations with seven provider-startup failures and one browser
-cleanup failure. A longer job window repairs none of these nine failures.
+complete their case populations with seven provider-startup failures and one
+browser cleanup failure, while their ownership receipts remain incomplete.
+A longer job window repairs none of these nine failed cases. The 28 cases
+without results remain censored; their unobserved tails establish no duration.
 
 Six provider results share one failed fixture initialization and the seventh
 owns another startup. Both exhaust the existing 120-second startup bound;
 their internal cause remains unproved. The browser failure identifies the
 third `unavailable_pages` journey's native-close observation, not a pending
 shutdown branch. Separate corrections/diagnostics must preserve these failures
-until real complete executions pass. This proposal extends neither 120-second
+until real complete executions pass. This decision extends neither 120-second
 provider startup nor frontend's 180-second package guard.
 
 The [delivery log](../roadmap/phase-03-delivery-log.md#p03-3-step-10-fourth-hosted-failure-and-isolated-protocol-proofs-2026-10-31)
@@ -90,7 +98,7 @@ policy request, not an automatic exception to the current ceiling.
 
 ### Budget arithmetic
 
-| Verified owner | Current job / nominal work window | Proposed job / nominal work window |
+| Verified owner | Predecessor job / nominal work window | Accepted job / nominal work window |
 |---|---|---|
 | Architecture | 1,200 / 997 seconds | 1,500 / 1,297 seconds |
 | Ordinary | 1,500 / 1,297 seconds | 1,800 / 1,597 seconds |
@@ -100,16 +108,16 @@ Nominal work is job time minus the unchanged 203-second reserve. For the five
 timed-out Architecture owners, observed pre-owner work is 238.197–272.233
 seconds: remaining nominal work changes from 724.767–758.803 to
 1,024.767–1,058.803 seconds. For the three timed-out ordinary owners,
-273.545–316.041 seconds of pre-owner work leaves 980.959–1,023.455 now and
-1,280.959–1,323.455 under the proposal. Setup, discovery, execution and export
-still consume this remainder; these numbers predict no test completion.
+273.545–316.041 seconds of pre-owner work leaves 980.959–1,023.455 under the
+predecessor ceiling and 1,280.959–1,323.455 under this decision. Setup, discovery,
+execution and export still consume this remainder; these numbers predict no test completion.
 
 Weights are advisory, summed case duration is not parallel wall time, and
 censored tails establish no safe minimum. Fresh complete final-source A/B
 decides sufficiency. Further exhaustion reopens this choice rather than
-silently raising a clock. The current corrective work adds four offline base
-cases; qualification freezes the actual final discovered population instead
-of reusing the historical 7,940 count.
+silently raising a clock. The current corrective work adds four offline
+provider cases to base; qualification freezes the actual final discovered
+population instead of reusing the historical 7,940 count.
 
 ## Consequences
 
@@ -134,7 +142,8 @@ of reusing the historical 7,940 count.
 - Six Architecture, twelve ordinary, one base and one native owner remain;
   Accepted ranges, twenty-VM cap, runner tier and resource observations stay.
 - Native collector authority, Docker/process ownership, strict required names,
-  read-only evidence permissions and both five-minute aggregates stay fixed.
+  read-only evidence permissions, both five-minute aggregates and five-minute
+  meta stay fixed.
 - Acceptance, implementation/reviews and fresh hosted qualification are
   separate gates. Manual accessibility observations remain separately deferred.
 
@@ -148,11 +157,15 @@ maintainer acceptance.
    and ADR-0075. Reconcile [Testing Standards](../standards/06-testing.md#complete-bounded-ci-assignments),
    [Infrastructure Stack Standards](../standards/20-infrastructure-stack.md),
    the [existing CI catalogue rule](../standards/21-architecture-tests-catalogue.md#ci_test_shards_are_complete_and_bounded),
-   decision index and Phase 03 Status. Existing rule status claims no new proof.
+   decision index and Phase 03 Status, and remove the local-test guide's stale
+   uniform-window wording by linking Testing 06. The existing rule's Implemented
+   status is not a claim that this extension is delivered.
 2. Change only `backend-architecture` to 25 minutes and
    `backend-integration-tests` to 30 in the workflow. Extend the existing
-   `job_seconds(mode, job, counts)` policy in `scripts/ci-native-tests.py`;
-   keep base/native's constant at 1,200. Parent/leaf clocks and
+   `job_seconds(mode, job, counts)` policy in `scripts/ci-native-tests.py`. After
+   exact mode/job/count validation, select by mode: base/native-shard 1,200,
+   Architecture 1,500 and ordinary 1,800 seconds; never select by job alone.
+   Parent/leaf clocks and
    `scripts/ci-test-shard-results.py` consume that same validated policy.
    `workflow_topology`, `verify_jobs`, `verify_receipt` and `finite_seconds`
    choose bounds from independently expected owners, never receipt partitions.
@@ -162,6 +175,13 @@ maintainer acceptance.
    Fixture preparation uses the same ordinary window but retains its existing
    110-second total, 55-second image and two-minute step caps. No global
    observation-limit expansion or second independent duration policy is added.
+   Extend `scripts/test-ci-native-tests.py` and
+   `scripts/test-ci-test-shard-results.py`, then run the complete relevant
+   control suites. Re-measure the combined plan/result controls against meta's
+   existing 27-second TERM / three-second kill allocation; added cases do not
+   imply that budget still fits. Record this extension as implemented in the
+   existing catalogue Status paragraph only after its actual controls and
+   reviews pass, keeping hosted fit explicitly pending.
 3. Qualify full literal A and full B on identical final source/tree, plan,
    toolchain and actual discovered population. Each needs all 27 successful
    jobs, twenty natural owners, exact zero-skip case/TRX unions and 25 original
@@ -175,9 +195,11 @@ verified findings are fixed, committed and revalidated before progression.
 
 Extend the existing `CI_Test_Shards_Are_Complete_And_Bounded` offline controls;
 no second application architecture rule is introduced. Require otherwise valid
-Architecture observations/API walls above 1,200 through 1,500 and ordinary
-above 1,500 through 1,800; refuse values above their own ceiling and unchanged
-base/native counterexamples. Test NaN/infinity/negative values, strict interval
+Architecture observations/API walls in (1,200, 1,500] and ordinary in
+(1,500, 1,800]; their former boundary values remain valid. Values above
+1,500/1,800 respectively and unchanged base/native counterexamples refuse.
+Individual observations allow the inclusive ceiling; disjoint receipt intervals
+sum strictly below it. Test NaN/infinity/negative values, strict interval
 sums, nested measurement bounds, wrong/unknown modes, indices, expected jobs,
 forged partitions and unchanged reserve/topology/operation limits. Configuration
 and synthetic controls prove policy enforcement; only complete fresh hosted
@@ -188,5 +210,8 @@ A/B proves actual fit and natural lifecycle completion.
 - [ADR-0062](0062-native-crash-proof-ci-provisioning.md).
 - [ADR-0063](0063-complete-bounded-ci-test-shards.md).
 - [ADR-0075](0075-ordinary-ci-job-window.md).
+- [Testing Standards](../standards/06-testing.md#complete-bounded-ci-assignments).
+- [Infrastructure Stack Standards](../standards/20-infrastructure-stack.md).
+- [Architecture Tests Catalogue](../standards/21-architecture-tests-catalogue.md#ci_test_shards_are_complete_and_bounded).
 - [Documentation Standards](../standards/13-documentation.md).
 - [Phase 03](../roadmap/phase-03-identity-admin.md).
