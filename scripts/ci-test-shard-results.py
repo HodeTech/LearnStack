@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ADR-0063/0075 attempt-specific API evidence, topology and result validation.
+"""ADR-0063/0075/0082 attempt-specific API evidence, topology and result validation.
 
 Only the two aggregate jobs receive a read-only Actions token. ZIPs are fetched
 by API artifact ID, hash-checked before bounded extraction into separate private

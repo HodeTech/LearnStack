@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 3,673 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 3,716 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -202,7 +202,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 Step 10 bounded detector reuse and native failure observations (2026-11-01)](#p03-3-step-10-bounded-detector-reuse-and-native-failure-observations-2026-11-01) — 67 lines
   - [P03-3 Step 10 native follow-up review closure (2026-11-01)](#p03-3-step-10-native-follow-up-review-closure-2026-11-01) — 43 lines
   - [ADR-0082 maintainer corrections, acceptance and Step 1 (2026-11-01)](#adr-0082-maintainer-corrections-acceptance-and-step-1-2026-11-01) — 82 lines
-  - [ADR-0082 Step 1 reviews and carrier closeout (2026-11-01)](#adr-0082-step-1-reviews-and-carrier-closeout-2026-11-01) — 29 lines
+  - [ADR-0082 Step 1 reviews and carrier closeout (2026-11-01)](#adr-0082-step-1-reviews-and-carrier-closeout-2026-11-01) — 30 lines
+  - [ADR-0082 Step 2 mode-bound implementation and offline proof (2026-11-01)](#adr-0082-step-2-mode-bound-implementation-and-offline-proof-2026-11-01) — 42 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -9419,3 +9420,46 @@ Step 1 is complete. Dependent executable policy remains unchanged at this
 closeout; Step 2 now proceeds under the accepted [three-step package](#adr-0082-maintainer-corrections-acceptance-and-step-1-2026-11-01).
 Its controls/reviews and complete fresh same-source hosted A/B remain required.
 Manual observations remain separately deferred and unexecuted.
+
+
+### ADR-0082 Step 2 mode-bound implementation and offline proof (2026-11-01)
+
+**Executable policy.** Only the Architecture and ordinary workflow whole-job
+fields change to 25 and 30 minutes. The existing `job_seconds` validates exact
+closed mode, expected job and plan-bounded index before the mode selects
+1,200 base/native, 1,500 Architecture or 1,800 ordinary seconds. A changed job
+name alone cannot confer another mode's window. Parent/leaf deadlines and the
+independently expected-producer validator continue to consume that one owner;
+the result module needs only its ADR reference updated. API walls, receipts,
+enclosing measurements and fixture preparation inherit the validated window,
+not a receipt partition, prefix lookalike or environment budget override.
+
+**Controls.** Existing complete suites gain mode-preserving expected-job
+remapping, additional malformed/foreign mode cases, all old/new API boundary
+values, inclusive individual observations, strict disjoint receipt sums and
+new Architecture/ordinary workload/project bands. The prior ordinary positive
+case remains. Base/native and Architecture counterexamples reject observations
+reserved to longer modes; identity, nonfinite, negative and overflow refusals
+remain. Fixture image preparation charges the same ordinary window but retains
+110-second total / 55-second image caps and the two-minute workflow step. It
+refuses before image I/O when the unchanged 203-second reserve exhausts the
+available window. No assertion, test case, deadline or owner is removed.
+
+**Executed offline proof.** Provisioning passes 18/18, native execution controls
+101/101, and combined plan/result controls 83/83, including the forty result
+controls, with zero skips. The combined suite uses the actual unchanged
+`timeout --signal=TERM --kill-after=3s 27s` command and completes in 5.880 command
+seconds; the earlier baseline is 10.980 seconds. These are separate local timing
+observations, not a measured speedup or hosted-meta guarantee. All recorded
+source snapshots remain equal during the runs. Actual source topology validation
+passes. AST comparisons preserve every other launcher function/constant and
+all result-validator code outside the docstring. Workflow bytes differ only in
+the two approved fields; the plan is byte-identical, SHA-256
+`8f3da281ac9b5d57448725b871f2716809b748effc3a99c06c62563623676da3`.
+
+This implements enforcement/configuration, not actual wall fit. Fresh independent
+reviews and verified corrections remain open. The catalogue's existing rule is
+not promoted; this extension's delivery note is updated only after its control
+and review gates close. Complete final-source A/B with original archives remains
+Step 3. Provider startup/failed-case and natural ownership requirements are
+untouched. Manual observations remain separately deferred and unexecuted.

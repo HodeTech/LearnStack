@@ -154,7 +154,7 @@ jobs:
   backend-architecture:
     name: backend architecture-${{ matrix.index }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -242,7 +242,7 @@ jobs:
   backend-integration-tests:
     name: backend ordinary-${{ matrix.index }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:

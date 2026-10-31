@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Closed ADR-0062/0063/0075 execution owner. No command/path CLI overrides.
+"""Closed ADR-0062/0063/0075/0082 execution owner. No command/path CLI overrides.
 
 The delegated work cgroup is retained by a live supervisor sibling. RemainAfterExit
 alone does not retain an empty cgroup: systemd prunes it on SERVICE_EXITED. Only
@@ -46,7 +46,8 @@ HOST_CRASH_ROOTS = ('/var/crash', '/var/lib/systemd/coredump', '/var/lib/docker'
 # Sole duration owner. These are bounded path allocations, not a hosted fit
 # claim. Qualification must measure setup, complete execution and failure tails.
 JOB_SECONDS = 20 * 60
-ORDINARY_JOB_SECONDS = 25 * 60
+ARCHITECTURE_JOB_SECONDS = 25 * 60
+ORDINARY_JOB_SECONDS = 30 * 60
 UPLOAD_SECONDS = 60
 UNIT_STOP_SECONDS = 20
 JOIN_SECONDS = 15
@@ -1193,10 +1194,12 @@ def job_seconds(mode, job, counts):
     require(isinstance(mode, str) and mode in SHARD_JOBS, 'mode_refused')
     require(job == SHARD_JOBS[mode], 'job_identity_mismatch')
     require(isinstance(counts, dict), 'shard_index_invalid')
-    if mode not in ('base', 'native-shard'):
-        scope, _, index = mode.rpartition('-')
-        require(type(counts.get(scope)) is int and int(index) < counts[scope], 'shard_index_invalid')
-    return ORDINARY_JOB_SECONDS if job == 'backend-integration-tests' else JOB_SECONDS
+    if mode in ('base', 'native-shard'):
+        return JOB_SECONDS
+    scope, _, index = mode.rpartition('-')
+    require(type(counts.get(scope)) is int and int(index) < counts[scope], 'shard_index_invalid')
+    # Validation above establishes the exact mode; job topology cannot choose its window.
+    return {'architecture': ARCHITECTURE_JOB_SECONDS, 'ordinary': ORDINARY_JOB_SECONDS}[scope]
 
 
 def deadlines(mode):

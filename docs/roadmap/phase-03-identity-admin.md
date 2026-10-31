@@ -17,7 +17,7 @@
 > The isolated frontend correction closes both review rounds. The [backend/browser follow-up](phase-03-delivery-log.md#p03-3-step-10-native-follow-up-review-closure-2026-11-01)
 > passes local proof and both fresh review rounds; complete new-source A/B/original-archive qualification remains open.
 > [ADR-0082](../decisions/0082-current-source-ci-execution-windows.md) is Accepted for Architecture 25 / ordinary 30 minute windows;
-> both [carrier review rounds](phase-03-delivery-log.md#adr-0082-step-1-reviews-and-carrier-closeout-2026-11-01) close; dependent budget implementation and fresh hosted proof remain open.
+> both [carrier review rounds](phase-03-delivery-log.md#adr-0082-step-1-reviews-and-carrier-closeout-2026-11-01) close. [Budget code](phase-03-delivery-log.md#adr-0082-step-2-mode-bound-implementation-and-offline-proof-2026-11-01) passes offline controls; its reviews and fresh hosted A/B remain open.
 > [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md) and
 > [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md)
 > are Accepted; their separate eight-consumer prerequisite and one-consumer

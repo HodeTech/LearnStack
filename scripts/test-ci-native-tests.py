@@ -331,17 +331,24 @@ class OwnerControls(unittest.TestCase):
     def test_job_window_is_closed_to_exact_plan_bounded_mode_and_expected_job(self):
         counts = self.owner.shard_owner().load_plan()['counts']
         self.assertEqual(1200, self.owner.JOB_SECONDS)
-        self.assertEqual(1500, self.owner.ORDINARY_JOB_SECONDS)
+        self.assertEqual(1500, self.owner.ARCHITECTURE_JOB_SECONDS)
+        self.assertEqual(1800, self.owner.ORDINARY_JOB_SECONDS)
         self.assertEqual(203, self.owner.RESERVE_SECONDS)
-        for mode, job in self.owner.SHARD_JOBS.items():
+        for mode, job in tuple(self.owner.SHARD_JOBS.items()):
             with self.subTest(mode=mode):
-                expected = 1500 if mode.startswith('ordinary-') else 1200
+                expected = (1800 if mode.startswith('ordinary-') else
+                            1500 if mode.startswith('architecture-') else 1200)
                 self.assertEqual(expected, self.owner.job_seconds(mode, job, counts))
                 for forged_job in set(self.owner.SHARD_JOBS.values()) - {job}:
                     self.refuses('job_identity_mismatch', self.owner.job_seconds, mode, forged_job, counts)
+                # Even an explicitly changed expected job cannot change the validated mode's budget.
+                with mock.patch.dict(self.owner.SHARD_JOBS, {mode: 'reviewed-shared-job'}):
+                    self.assertEqual(expected, self.owner.job_seconds(mode, 'reviewed-shared-job', counts))
         for mode in ('ordinary', 'ordinary-00', 'ordinary--1', 'ordinary-1-extra',
                      'ordinary-12', 'ordinary-999', 'ordinary-0suffix', 'native',
-                     'architecture-6', 'aggregate', 'aggregate-backend', '', ' ordinary-0'):
+                     'architecture-6', 'architecture-00', 'architecture--1', 'architecture-0suffix',
+                     'architecture-1-extra', 'aggregate', 'aggregate-backend', '', ' ordinary-0',
+                     None, False, [], {}):
             with self.subTest(mode=mode):
                 self.refuses('mode_refused', self.owner.job_seconds, mode, 'backend-integration-tests', counts)
         reduced = {**counts, 'ordinary': counts['ordinary'] - 1,
@@ -365,14 +372,15 @@ class OwnerControls(unittest.TestCase):
             with self.subTest(mode=mode), mock.patch.dict(os.environ, {**env, 'GITHUB_JOB': job}, clear=True), \
                     mock.patch.object(self.owner.time, 'time', return_value=1700), \
                     mock.patch.object(self.owner.time, 'monotonic', return_value=500):
-                ceiling = 1500 if mode.startswith('ordinary-') else 1200
+                ceiling = (1800 if mode.startswith('ordinary-') else
+                           1500 if mode.startswith('architecture-') else 1200)
                 self.assertEqual((500 + ceiling - 700 - self.owner.RESERVE_SECONDS,
                                   500 + ceiling - 700 - self.owner.UPLOAD_SECONDS - self.owner.MARGIN_SECONDS),
                                  self.owner.deadlines(mode))
-        for mode, job, ceiling in (('ordinary-0', 'backend-integration-tests', 1500),
+        for mode, job, ceiling in (('ordinary-0', 'backend-integration-tests', 1800),
                                    ('native-shard', 'backend-native', 1200),
                                    ('base', 'backend-base', 1200),
-                                   ('architecture-0', 'backend-architecture', 1200)):
+                                   ('architecture-0', 'backend-architecture', 1500)):
             for elapsed in (-1, ceiling):
                 with self.subTest(mode=mode, elapsed=elapsed), \
                         mock.patch.dict(os.environ, {**env, 'GITHUB_JOB': job}, clear=True), \
@@ -383,7 +391,11 @@ class OwnerControls(unittest.TestCase):
         with mock.patch.dict(os.environ, {**env, 'GITHUB_JOB': 'backend-integration-tests'}, clear=True), \
                 mock.patch.object(self.owner.time, 'time', return_value=2250), \
                 mock.patch.object(self.owner.time, 'monotonic', return_value=500):
-            self.assertEqual(547, self.owner.deadlines('ordinary-0')[0])
+            self.assertEqual(847, self.owner.deadlines('ordinary-0')[0])
+        with mock.patch.dict(os.environ, {**env, 'GITHUB_JOB': 'backend-architecture'}, clear=True), \
+                mock.patch.object(self.owner.time, 'time', return_value=2250), \
+                mock.patch.object(self.owner.time, 'monotonic', return_value=500):
+            self.assertEqual(547, self.owner.deadlines('architecture-0')[0])
 
     def test_composed_native_prevalidation_rejects_actual_unknown_collector_before_privilege(self):
         spec = importlib.util.spec_from_file_location(
@@ -3226,7 +3238,7 @@ except launcher.Refusal as failure:
         ordinary = source.split('  backend-integration-tests:\n', 1)[1].split('\n  # ───', 1)[0]
         native = source.split('  backend-native:\n', 1)[1].split('\n  # ───', 1)[0]
         aggregate = source.split('  backend-integration:\n', 1)[1].split('\n  # ───', 1)[0]
-        for mode, block, minutes in (('ordinary-${{ matrix.index }}', ordinary, 25), ('native-shard', native, 20)):
+        for mode, block, minutes in (('ordinary-${{ matrix.index }}', ordinary, 30), ('native-shard', native, 20)):
             self.assertIn('timeout-minutes: ' + str(minutes), block)
             self.assertLess(block.index('LEARNSTACK_CI_STARTED_AT='), block.index('uses: actions/checkout@'))
             self.assertIn('python3 scripts/ci-native-tests.py ' + mode, block)
