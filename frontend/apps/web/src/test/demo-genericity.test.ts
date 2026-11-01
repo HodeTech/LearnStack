@@ -307,14 +307,17 @@ describe('P02d-7 exact demo identity boundary', () => {
     expect(selected.has(runtime)).toBe(true);
     expect(selected.has(fixture)).toBe(true);
     expect(demoIdentityFindings(fixture, selected.get(fixture)!, vocabulary)).toEqual([identity]);
-    const crlf = new Map(files)
-      .set(harness, source.replace(/\n/g, '\r\n'))
-      .set(host, instrumenter.replace(/\n/g, '\r\n'));
-    const crlfSelected = productionDemoSources(crlf, external);
-    expect(crlfSelected.has(runtime)).toBe(true);
-    expect(demoIdentityFindings(fixture, crlfSelected.get(fixture)!, vocabulary)).toEqual([
-      identity,
-    ]);
+    const toCrlf = (text: string) => text.replace(/\r?\n/g, '\r\n');
+    for (const text of [source, instrumenter]) expect(toCrlf(toCrlf(text))).toBe(toCrlf(text));
+    for (const generatorText of [source.replace(/\r\n/g, '\n'), toCrlf(source)])
+      for (const ownerText of [instrumenter.replace(/\r\n/g, '\n'), toCrlf(instrumenter)]) {
+        const form = new Map(files).set(harness, generatorText).set(host, ownerText);
+        const formSelected = productionDemoSources(form, external);
+        expect(formSelected.has(runtime)).toBe(true);
+        expect(demoIdentityFindings(fixture, formSelected.get(fixture)!, vocabulary)).toEqual([
+          identity,
+        ]);
+      }
     const changedInstrumenter = instrumenter.replace(
       'export function instrumentBffProofRequestRuntime(runtime) {',
       "export function instrumentBffProofRequestRuntime(runtime) {\n  runtime += '\\n' + readFileSync(new URL('../src/test/unmodeled-fixture.ts', import.meta.url), 'utf8');",
@@ -329,6 +332,7 @@ describe('P02d-7 exact demo identity boundary', () => {
       'Unmodeled runtime import',
     );
     for (const dirty of [
+      source.replace(/\r?\n/g, '\r'),
       source.replace("'server/auth/request-runtime.js'", "'server/auth/other.js'"),
       source.replace("'test/page-response-fixture.js'", "'test/other.js'"),
       source.replace("'learnstack-bff-observation-'", "'unowned-'"),

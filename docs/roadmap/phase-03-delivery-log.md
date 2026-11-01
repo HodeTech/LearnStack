@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 4,055 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 4,078 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -210,7 +210,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 frontend follow-up R2 and source-review closeout (2026-11-01)](#p03-3-frontend-follow-up-r2-and-source-review-closeout-2026-11-01) — 40 lines
   - [P03-3 sixth hosted A and native HTTPS end observation correction (2026-11-01)](#p03-3-sixth-hosted-a-and-native-https-end-observation-correction-2026-11-01) — 64 lines
   - [P03-3 native end correction reviews and generated-source provenance fix (2026-11-01)](#p03-3-native-end-correction-reviews-and-generated-source-provenance-fix-2026-11-01) — 53 lines
-  - [P03-3 generated-source dependency and checkout correction (2026-11-01)](#p03-3-generated-source-dependency-and-checkout-correction-2026-11-01) — 36 lines
+  - [P03-3 generated-source dependency and checkout correction (2026-11-01)](#p03-3-generated-source-dependency-and-checkout-correction-2026-11-01) — 37 lines
+  - [P03-3 checkout-test construction correction (2026-11-01)](#p03-3-checkout-test-construction-correction-2026-11-01) — 22 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -9809,3 +9810,26 @@ correction reviewers recheck their concrete findings on that
 commit before source-review closeout. Complete final-source hosted A/B and
 original-archive qualification remain mandatory; manual evidence remains
 maintainer-deferred and unexecuted.
+
+
+### P03-3 checkout-test construction correction (2026-11-01)
+
+The [producer-owner correction](#p03-3-generated-source-dependency-and-checkout-correction-2026-11-01)
+is committed as `e71818704f29a0ccfaa9c8accc32389009b1eff5`, tree
+`639296bf40f4219738e68d88931b8a822653df90`. Both independent rechecks close
+the provenance findings and confirm all four LF/CRLF source-map combinations.
+Both also find that the new positive test itself converts already-CRLF input to
+CRCRLF and would fail that checkout. Their original reports remain unchanged.
+This is a test construction error; the source reader correctly admits the
+original CRLF files and the unchanged product has no demonstrated defect here.
+
+The test now uses an idempotent CRLF converter, explicitly checks its second
+application, and exercises all four generator/owner LF/CRLF combinations while
+retaining live target identity detection. A lone-CR generator remains refused.
+Only this test file changes; the source reader, both pinned implementations,
+product, backend, CI and deadlines remain unchanged. All 22 graph cases,
+workspace typecheck/lint and the normal 3,337-case frontend guard pass with zero
+skips/todos; the full guard takes 52.149 seconds on stable source hashes.
+Fragment/roadmap/index and whitespace checks pass. A separate commit precedes
+the reviewers' final bounded recheck. Complete hosted
+A/B and separately deferred manual evidence remain open.
