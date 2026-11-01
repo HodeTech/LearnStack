@@ -13,8 +13,8 @@
 > with manual keyboard/focus/reflow/contrast/VoiceOver evidence deferred for now.
 > Manual evidence remains unexecuted and maintainer-owned for PR review. The [Step 10 source reviews](phase-03-delivery-log.md#p03-3-step-10-review-round-2-and-virtual-dispatch-correction-2026-10-31)
 > close both fresh independent rounds and verified corrections. The [sixth hosted A and native HTTPS correction](phase-03-delivery-log.md#p03-3-sixth-hosted-a-and-native-https-end-observation-correction-2026-11-01)
-> record one failed browser case without whole-job exhaustion. Its [two review rounds and provenance correction](phase-03-delivery-log.md#p03-3-native-end-correction-reviews-and-generated-source-provenance-fix-2026-11-01)
-> precede complete same-source hosted A/B/original-archive qualification.
+> record one failed browser case without whole-job exhaustion. Its [reviewed dependency/checkout correction](phase-03-delivery-log.md#p03-3-generated-source-dependency-and-checkout-correction-2026-11-01)
+> precedes complete same-source hosted A/B/original-archive qualification.
 > [ADR-0082](../decisions/0082-current-source-ci-execution-windows.md) is Accepted for Architecture 25 / ordinary 30 minute windows;
 > both carrier rounds and the [budget implementation/reviews](phase-03-delivery-log.md#adr-0082-step-2-reviews-and-implementation-closeout-2026-11-01) close; complete fresh source-bound hosted A/B/original-archive qualification remains open.
 > [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md) and

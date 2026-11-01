@@ -292,11 +292,14 @@ describe('P02d-7 exact demo identity boundary', () => {
     const runtime = 'frontend/apps/web/src/server/auth/request-runtime.ts';
     const fixture = 'frontend/apps/web/src/test/page-response-fixture.ts';
     const source = readFileSync(join(root, harness), 'utf8');
+    const host = 'frontend/apps/web/scripts/bff-proof-host.mjs';
+    const instrumenter = readFileSync(join(root, host), 'utf8');
     const files = new Map([
       [harness, source],
       [runtime, 'export const runtime = true;'],
       [fixture, `export const special = ${JSON.stringify(identity)};`],
-      ['frontend/apps/web/scripts/bff-proof-host.mjs', 'export const helper = true;'],
+      [host, instrumenter],
+      ['frontend/apps/web/scripts/fixture-support.mjs', 'export const helper = true;'],
       ['frontend/apps/web/scripts/bff-proof-support.mjs', 'export const helper = true;'],
     ]);
     const external = () => 'frontend/node_modules/typescript/index.js';
@@ -304,6 +307,27 @@ describe('P02d-7 exact demo identity boundary', () => {
     expect(selected.has(runtime)).toBe(true);
     expect(selected.has(fixture)).toBe(true);
     expect(demoIdentityFindings(fixture, selected.get(fixture)!, vocabulary)).toEqual([identity]);
+    const crlf = new Map(files)
+      .set(harness, source.replace(/\n/g, '\r\n'))
+      .set(host, instrumenter.replace(/\n/g, '\r\n'));
+    const crlfSelected = productionDemoSources(crlf, external);
+    expect(crlfSelected.has(runtime)).toBe(true);
+    expect(demoIdentityFindings(fixture, crlfSelected.get(fixture)!, vocabulary)).toEqual([
+      identity,
+    ]);
+    const changedInstrumenter = instrumenter.replace(
+      'export function instrumentBffProofRequestRuntime(runtime) {',
+      "export function instrumentBffProofRequestRuntime(runtime) {\n  runtime += '\\n' + readFileSync(new URL('../src/test/unmodeled-fixture.ts', import.meta.url), 'utf8');",
+    );
+    expect(changedInstrumenter).not.toBe(instrumenter);
+    expect(() =>
+      productionDemoSources(new Map(files).set(host, changedInstrumenter), external),
+    ).toThrow('Unmodeled runtime import');
+    const missingInstrumenter = new Map(files);
+    missingInstrumenter.delete(host);
+    expect(() => productionDemoSources(missingInstrumenter, external)).toThrow(
+      'Unmodeled runtime import',
+    );
     for (const dirty of [
       source.replace("'server/auth/request-runtime.js'", "'server/auth/other.js'"),
       source.replace("'test/page-response-fixture.js'", "'test/other.js'"),

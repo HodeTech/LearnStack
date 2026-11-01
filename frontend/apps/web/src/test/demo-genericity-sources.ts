@@ -421,14 +421,28 @@ export function productionDemoSources(
       ['test/page-response-fixture.js', 'frontend/apps/web/src/test/page-response-fixture.ts'],
     ]);
     const proofSeen = new Set<string>();
-    // This one test-only generator is source-bound: substring presence cannot
-    // prove which bytes it writes to the modules imported below. Any generator
-    // change requires an explicit pin update and review; both targets are still
-    // followed to their current source contents rather than exempted.
+    // Both output-generating implementations are source-bound. Substring checks
+    // cannot prove generated module provenance. Only checkout line endings are
+    // normalized; changing either implementation requires an explicit pin review.
+    // The imported targets below still follow current source, never pinned content.
     if (
       proofHarness &&
-      createHash('sha256').update(source, 'utf8').digest('hex') !==
-        'd217cc042e967a01a245ed4d1915a068baa697498d4e2cf397032b195ec432eb'
+      (
+        [
+          [path, 'd217cc042e967a01a245ed4d1915a068baa697498d4e2cf397032b195ec432eb'],
+          [
+            'frontend/apps/web/scripts/bff-proof-host.mjs',
+            '5e8ea7586cd1b757ef456884475283fcb80cf8313747b5bfd34f67c64a399fb8',
+          ],
+        ] as const
+      ).some(([target, expected]) => {
+        const text = all.get(target);
+        return (
+          text === undefined ||
+          createHash('sha256').update(text.replace(/\r\n/g, '\n'), 'utf8').digest('hex') !==
+            expected
+        );
+      })
     )
       return refused(path);
     const resolveCall = (node: ts.Node): node is ts.CallExpression =>

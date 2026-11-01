@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 4,018 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 4,055 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -209,7 +209,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 frontend follow-up R1 and watcher-boundary clarification (2026-11-01)](#p03-3-frontend-follow-up-r1-and-watcher-boundary-clarification-2026-11-01) — 44 lines
   - [P03-3 frontend follow-up R2 and source-review closeout (2026-11-01)](#p03-3-frontend-follow-up-r2-and-source-review-closeout-2026-11-01) — 40 lines
   - [P03-3 sixth hosted A and native HTTPS end observation correction (2026-11-01)](#p03-3-sixth-hosted-a-and-native-https-end-observation-correction-2026-11-01) — 64 lines
-  - [P03-3 native end correction reviews and generated-source provenance fix (2026-11-01)](#p03-3-native-end-correction-reviews-and-generated-source-provenance-fix-2026-11-01) — 52 lines
+  - [P03-3 native end correction reviews and generated-source provenance fix (2026-11-01)](#p03-3-native-end-correction-reviews-and-generated-source-provenance-fix-2026-11-01) — 53 lines
+  - [P03-3 generated-source dependency and checkout correction (2026-11-01)](#p03-3-generated-source-dependency-and-checkout-correction-2026-11-01) — 36 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -9771,3 +9772,40 @@ and whitespace checks pass. A separate commit and fresh independent correction
 review precede the final freeze. Complete hosted
 A/B/original-archive qualification and maintainer-deferred unexecuted manual
 evidence remain open; no prior passing subset substitutes for the final source.
+
+
+### P03-3 generated-source dependency and checkout correction (2026-11-01)
+
+The [first provenance fix](#p03-3-native-end-correction-reviews-and-generated-source-provenance-fix-2026-11-01)
+is committed as `a8eeda413fd858154ed641ddff0ca8af81e5f457`, tree
+`dde8980858c2a6797fbc1d4a8f478f7819c61d4c`. Two fresh correction reviewers
+confirm its three direct generator controls but request changes. One discovers,
+and the second independently reproduces after notification, an unpinned
+output-changing dependency: the admitted generator calls the instrumenter in
+`bff-proof-host.mjs`, which could append an omitted test-only source. Root repeats
+that counter. This is a missing test provenance control, not a current product
+identity branch or a claim that the unchanged instrumenter reads such a file.
+The reviewers also confirm that raw source hashing wrongly refuses an otherwise
+unchanged CRLF checkout. Both complete reports and these findings are retained;
+no earlier clean verdict is presented as final closure.
+
+The bounded correction binds the complete reviewed generator and its actual
+output-changing instrumenter owner. Hash comparison normalizes only CRLF to LF;
+all other source drift refuses until explicit pin review. The exact import AST
+checks still follow both current TypeScript targets, whose live contents remain
+scanned. The test uses the actual instrumenter source, plants its hidden-file
+read, refuses a missing owner, and admits LF and CRLF forms of both admitted
+files. Root's direct differential reproduces the earlier helper acceptance and
+CRLF refusal, then proves helper drift/missing owner refusal and both checkout
+forms accepted after correction. No generator, instrumenter, runtime, browser,
+C# or CI behavior changes in this correction.
+
+Full frontend typecheck/lint pass; all 22 graph cases pass, and the normal
+3,337-case guard passes with zero skips/todos in 52.037 seconds on stable source
+hashes. Documentation fragment/roadmap/index and whitespace controls pass.
+Unchanged runtime/backend/browser/CI inputs retain their earlier evidence, not
+newly repeated results. After its separate commit, the two independent
+correction reviewers recheck their concrete findings on that
+commit before source-review closeout. Complete final-source hosted A/B and
+original-archive qualification remain mandatory; manual evidence remains
+maintainer-deferred and unexecuted.

@@ -829,10 +829,12 @@ otherwise).
   text/attribute values are included. Frontend
   runtime imports cannot hide helpers behind test filenames or directories;
   exact standalone proof/development entries retain their bounded exemptions.
-  The copied-runtime observation generator is bound to its complete reviewed
-  UTF-8 source digest; its two exact generated imports still follow current
-  TypeScript targets. Generator drift, including substituted compiler inputs or
-  later output replacement, refuses until an explicit pin update and review.
+  The copied-runtime observation generator and its output-changing instrumenter
+  owner are bound to their complete reviewed LF-normalized UTF-8 source digests;
+  its two exact generated imports still follow current TypeScript targets.
+  Generator/owner drift, including substituted compiler inputs, hidden helper
+  reads or later output replacement, refuses until an explicit pin review.
+  Equivalent LF/CRLF checkout forms remain admitted without freezing target data.
   Generated/dependency roots are exact paths. Known environment/OS/editor/log
   files are omitted only when Git also ignores them; source and unknown formats
   retain fail-closed admission. Local module URL suffixes,
