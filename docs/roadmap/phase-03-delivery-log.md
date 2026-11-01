@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 5,369 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 5,397 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -233,6 +233,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0083 Step 2 independent corrections and local verification (2026-11-01)](#adr-0083-step-2-independent-corrections-and-local-verification-2026-11-01) — 98 lines
   - [ADR-0083 Step 2 review round 2 and source binding corrections (2026-11-01)](#adr-0083-step-2-review-round-2-and-source-binding-corrections-2026-11-01) — 74 lines
   - [ADR-0083 Step 2 reserved source follow-up and current verification (2026-11-01)](#adr-0083-step-2-reserved-source-follow-up-and-current-verification-2026-11-01) — 69 lines
+  - [ADR-0083 independent correction reviews close within scope (2026-11-01)](#adr-0083-independent-correction-reviews-close-within-scope-2026-11-01) — 28 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -11145,3 +11146,31 @@ independently before closing its disposition. The maintainer now authorizes
 ADR-0084 acceptance/implementation after the newly supplied review corrections;
 it remains Proposed while that work proceeds. Step 3, complete final-source
 hosted A/B and maintainer-deferred, unexecuted accessibility remain open.
+
+### ADR-0083 independent correction reviews close within scope (2026-11-01)
+
+Commit `859d5406` receives the final independent provenance fix verification.
+The reviewer confirms the reserved-source refusal and producer preflight,
+checks the test-cost consolidation and independently exercises five reserved
+filenames across production/native-dev/restart graphs, plus directory/alias
+refusals and neutral app-root configuration. No new actionable finding remains
+in that bounded follow-up. Root reads the complete report and original evidence.
+
+The two fresh Step 2 review rounds and verified corrections now close for the
+independent compiler/installation/source/fixture scope. Loader correction has
+its separate independent approval and 48/48 execution; process-family R2 had
+already approved its bounded temporary-owner scope. This is not full Step 2
+acceptance: the known initialized native worker lifetime still requires the
+additional ADR-0084 owner and its implementation/qualification.
+
+Normal hooks commit exactly the intended five-file tree, preserving user
+settings and all five stashes. Post-hook verification preserves all six source
+subjects and the original sixth-build manifest unchanged. Only the pre-existing
+user settings modification and the separately owned Proposed ADR revision may
+remain outside this committed scope.
+
+ADR-0084 has conditional maintainer implementation authorization after the
+newly supplied review corrections. Complete those corrections and acceptance,
+then its three-step delivery sequence; do not ask again for the same approval.
+Full Step 3, initialized runtime/browser proof, final-source hosted A/B and
+maintainer-deferred manual accessibility remain open.
