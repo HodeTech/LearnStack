@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 4,446 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 4,535 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -216,7 +216,9 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 business-task observation R1 cleanup correction (2026-11-01)](#p03-3-business-task-observation-r1-cleanup-correction-2026-11-01) — 36 lines
   - [ADR-0083 proposed owned Next cleanup package (2026-11-01)](#adr-0083-proposed-owned-next-cleanup-package-2026-11-01) — 141 lines
   - [ADR-0083 proposal R1 corrections and revised package (2026-11-01)](#adr-0083-proposal-r1-corrections-and-revised-package-2026-11-01) — 71 lines
-  - [P03-3 business-task observation R2 teardown correction (2026-11-01)](#p03-3-business-task-observation-r2-teardown-correction-2026-11-01) — 45 lines
+  - [P03-3 business-task observation R2 teardown correction (2026-11-01)](#p03-3-business-task-observation-r2-teardown-correction-2026-11-01) — 46 lines
+  - [ADR-0083 proposal R2 corrections and runtime boundary (2026-11-01)](#adr-0083-proposal-r2-corrections-and-runtime-boundary-2026-11-01) — 62 lines
+  - [P03-3 business-task observation review closeout (2026-11-01)](#p03-3-business-task-observation-review-closeout-2026-11-01) — 26 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -10206,3 +10208,92 @@ population; no historical 7,944-case manifest qualifies it. Original R2 reviewer
 recheck this committed fix and its caller-boundary evidence. Their final
 correction dispositions, the separate browser framework proposal and complete
 fresh hosted A/B remain open. Manual evidence remains deferred and unexecuted.
+
+
+### ADR-0083 proposal R2 corrections and runtime boundary (2026-11-01)
+
+Two new independent proposal R2 reviewers inspect `d0adfa19`. Both identify a
+Major refinement: the proof reviewer requires an enforced Node qualification
+boundary, while the protocol reviewer verifies that an inner pipe error can
+block before the outer router is able to seal the unselected owner slot.
+The protocol reviewer also identifies two overlong prose lines; both are
+wrapped to the documentation limit without a semantic change. These are proposal
+defects, not implemented production vulnerabilities. The original R1/R2 reports remain preserved; this entry and the editable Proposed
+ADR close the verified decision gaps before maintainer consideration.
+
+**Exact runtime decision.** Select the already exercised tuple Node 22.23.1 /
+pnpm 9.12.3 / patched Next 15.5.28. The supported entry points check actual Node
+and installed package/census bytes before importing Next or listening. Other
+Node versions refuse instead of inheriting qualification from a permissive
+`>=22.23.1` engine field. Step 2 aligns the root engine declaration, `.nvmrc`,
+CI selection and supported packaged/deployment declarations with this exact
+runtime. Changes require reviewed equivalent transport, callback, stream and
+held-owner controls; no supported range is inferred from one tested version.
+Both hosted layouts keep the identical recorded Node/toolchain. No executable
+engine, configuration or dependency change precedes maintainer approval.
+
+**Inner and outer failure transition.** A real rejection or abort at each pipe
+and router boundary reports to the same owner before that boundary awaits its
+cleanup. The transition is idempotent, preserves the first primary error and
+separate cleanup faults, seals against later stream creation, and accounts for
+any actually created stream. A genuinely rejected source/end-work promise can
+therefore expose failure without first waiting for its own outer caller to
+create the response terminal. A still-pending end-work promise is not released
+by this transition. Existing expected-abort classification remains; physical
+cleanup, cancellation and operation failure remain separate facts.
+
+The protocol reviewer verifies the real pinned CJS pipe on Node 22.23.1 with a
+real immediately closed ReadableStream, a rejecting real end-work promise and
+an unconnected real ServerResponse. It rejects with the original error as cause
+while headers remain unsent and the response is neither ended nor destroyed;
+no terminal/error event occurs. This confirms the proposed circular-order gap.
+It is not initialized-router or implemented reserved-slot proof.
+
+**Acceptance-carrier refinements.** The original and R1-revised package remain
+except these superseding clauses. Standard 07 and the new catalogue rule require
+actual exact-Node gate/entry-point checks with engine/toolchain/deployment
+alignment, plus the idempotent failure transition at both pipe and router
+before either join. Testing 06 and Step 2/3 add decisive negatives for wrong Node
+patch/major, and actual pipe source/end-work rejection before headers with no
+terminal event, together with the initialized-router error-path controls. Each
+must prove primary propagation, no circular wait, no late stream allocation,
+no unhandled rejection and actual closure of any created resource. Genuine
+pending work and original native fences remain held; no callback/event/result
+is fabricated. The same current Node/runtime and complete qualification are
+required before later patch removal or runtime upgrades.
+
+This narrows the supported runtime and increases maintenance cost: a Node patch
+upgrade also needs explicit proof/review. It changes no business authorization,
+API/BFF refusal classification or published response history. Implementation,
+all 27 semantic copies/maps, installation, actual native owners, full browser
+and complete final-source hosted A/B remain unexecuted obligations. Original
+proposal R2 reviewers verify these committed corrections; only their verified
+closure and independently authorized work precede the maintainer question.
+Manual evidence stays deferred and unexecuted.
+
+
+### P03-3 business-task observation review closeout (2026-11-01)
+
+Both original R2 reviewers independently recheck the committed correction at
+`590ab711` and approve with no remaining scoped findings. The lifecycle verifier
+checks all six committed/worktree/retained hashes and all twelve evidence
+size/digest entries; the evidence verifier separately checks the actual caller
+controls, original targeted/corpus TRX and command receipts. Both read thirteen
+unique executed targeted cases and five corpus cases, all Passed with no skips.
+The strict build has zero warnings/errors; scoped format exits successfully.
+Its generic workspace-loading warning remains in the original format log and
+is not relabeled as a compiler warning or removed.
+
+The R1/R2 request-changes reports and contextual force-DROP reassessment stay
+intact beside their correction-verification reports. Together the two fresh
+rounds and verified correction commits close this bounded test-observation
+follow-up. No production file changes, callback/task substitutions, relaxed
+owner evidence, phase-timeout increase or fabricated cleanup are delivered.
+The added direct-owner/disposal controls retain their distinct scope; existing
+native policy/handoff tests own their separate assertions.
+
+This closeout does not identify the original hosted NoPlan caller/field/schedule,
+resolve the separate framework-handler issue, freeze the enlarged final test
+population, supply complete new hosted A/B, or execute deferred manual checks.
+The Proposed ADR-0083 and its own review/approval remain a separate dependency
+maintenance decision. No PR or P03-3 completion is claimed.

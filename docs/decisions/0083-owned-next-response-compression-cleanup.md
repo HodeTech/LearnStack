@@ -10,7 +10,7 @@ Proposed
 This proposal adds a version-specific dependency-maintenance obligation. It does
 not relax ADR-0070/0071/0078/0079 ownership, authorization or publication rules.
 No installed package, lockfile or runtime policy changes before acceptance.
-The [three-step package](../roadmap/phase-03-delivery-log.md#adr-0083-proposal-r1-corrections-and-revised-package-2026-11-01)
+The [three-step package](../roadmap/phase-03-delivery-log.md#adr-0083-proposal-r2-corrections-and-runtime-boundary-2026-11-01)
 owns the proposed carriers, review order and evidence limits.
 
 ## Decision Drivers
@@ -43,14 +43,19 @@ owns the proposed carriers, review order and evidence limits.
 
 ## Decision
 
-LearnStack maintains one exact-version pnpm patch for Next 15.5.28. The framework
+LearnStack maintains one exact-version pnpm patch for Next 15.5.28, qualified
+with exactly Node 22.23.1. Supported entry points reject other Node versions
+before Next import or listener creation. The framework
 observes actual response `finish` or `close`, owns premature-close cancellation
 and actual closure of its compressor, and joins that cleanup through both its
 pipe and outer router request handler. Actual end work and the native request's
 other retained work remain independently joined. Package installation and
 runtime-source controls reject missing, partial, changed or unqualified patches.
 The supported build, native development/production, copied-fixture and packaged
-entry points verify exact installed bytes before importing Next or listening.
+entry points verify the actual Node version and exact installed package bytes
+before importing Next or listening. The root engine declaration, `.nvmrc`, CI
+selection and supported packaged/deployment declarations match this qualified
+Node version; an advisory engine field alone is not enforcement.
 
 ## Context
 
@@ -85,7 +90,10 @@ cleanup guarantee. Recheck actual release bytes before replacing this patch.
 
 The patch is checked into `frontend/patches/next@15.5.28.patch`, referenced by the
 exact `pnpm.patchedDependencies` key in the workspace root package manifest and
-recorded by the existing pnpm 9.12.3 lockfile. Normal frozen installation applies
+recorded by the existing pnpm 9.12.3 lockfile. The qualified tuple is Node
+22.23.1 / pnpm 9.12.3 / patched Next 15.5.28. An upgrade to any member requires
+reviewed equivalent controls before its entry points are admitted. Normal frozen
+installation applies
 it. Non-applied patches remain errors. No environment override, postinstall
 mutation, startup loader or permissive fallback selects a correction.
 
@@ -112,17 +120,27 @@ return cannot declare that no later compressor exists. Absent selection in a
 normal live operation waits for actual selection or transport terminal; the
 rejection/abort transitions below are separate. Identity/HEAD/no-body paths
 create no stream. Duplicate installation refuses before allocating another
-compressor. A premature real response close requests destruction of that actual stream; destruction requested,
+compressor. A premature real response close requests destruction of that actual
+stream; destruction requested,
 `writableFinished`, timeout or a wrapper's completion is not close confirmation.
-A real router rejection before encoding selection seals the slot against later
-stream creation before joining it. With no created resource, no transport event
+Every pipe and router settlement boundary reports its own real rejection or
+abort to the owner before awaiting its cleanup promise. The transition is
+idempotent and retains the first primary error and separate cleanup faults;
+an inner pipe cannot wait for an outer router to observe its still-blocked
+rejection. A rejection before encoding selection seals against later creation
+before that boundary joins it. With no created resource, no transport event
 is required to retire that compression obligation. Its wrappers/header callback
 can no longer create a compressor; the existing native error boundary may use
 the captured, still-fenced uncompressed writer. This preserves its existing
 pre-header error policy without waiting for a response that only that caller
 can produce. A real abort with a still-live response requests actual response
 cancellation before joining. Normal early return alone cannot seal a slot while
-registered response-producing work can still create its stream.
+registered response-producing work can still create its stream. In particular,
+a genuinely rejecting source or end-work promise triggers the pipe transition
+before its finally join; a still-pending end-work promise remains held. Sealing
+compression allocation never resolves that work. Existing expected-abort
+classification remains; known physical cleanup and an operation fault are
+separate facts.
 
 Construction failures account for every resource actually created. A compressor
 fault is observed immediately, requests actual response cancellation, and joins
@@ -153,18 +171,19 @@ The response-local capability is private to the patched framework and contains
 no credential, user input or authority selector. Duplicate ownership, late or
 inconsistent registration and a missing required owner on a middleware-applied
 response fail closed. A valid direct pipe consumer without compression is not
-misclassified as missing that middleware. Healthy uncompressed, HEAD and no-body responses with no compressor do not acquire a
+misclassified as missing that middleware. Healthy uncompressed, HEAD and no-body
+responses with no compressor do not acquire a
 fictional stream. No generic native-handler release shortcut is added.
 
 ### Reopen and removal
 
-Reopen this choice if a version or runtime family changes, source/census/map
-verification fails, healthy wire/backpressure changes, a retained owner escapes
-its gate, or a verified upstream release provides equivalent cleanup. Removing
-the patch requires the same actual early-close, healthy and independent-owner
+Reopen this choice if the Node/pnpm/Next version or runtime family changes,
+source/census/map verification fails, healthy wire/backpressure changes, or a retained
+owner escapes its gate, or a verified upstream release provides equivalent cleanup.
+Removing the patch requires the same actual early-close, healthy and independent-owner
 controls and complete final-source qualification; deleting the patch to make an
-installation proceed is not a repair. The maintainer owns this review through
-P03-3 and subsequent dependency upgrades; Phase 11 retains production capacity
+installation proceed is not a repair. The maintainer owns this review through P03-3
+and subsequent dependency upgrades; Phase 11 retains production capacity
 qualification, not this correctness proof.
 
 ## Consequences
@@ -180,7 +199,8 @@ qualification, not this correctness proof.
 
 - LearnStack temporarily maintains internal Next code across 27 pipe copies,
   shared compression/router owners and maps. Minified runtime diffs are large;
-  upgrades require explicit regenerated evidence and review.
+  upgrades, including a Node patch change, require explicit regenerated evidence
+  and review.
 - Cleanup can wait indefinitely for actual retained work. Existing timeouts
   report failure and retain ownership; they do not authorize a successful join.
 - A reproduced local framework defect does not guarantee the hosted browser
@@ -200,14 +220,16 @@ independent review rounds and verified correction commits before progression:
 
 1. Accept this decision and reconcile its named carriers. Record an additive
    navigation amendment in ADR-0070; its ownership decision stays unchanged.
-2. Implement the exact patch/census/generator and frozen-install controls. Prove
+2. Implement the exact patch/census/generator, actual Node/version drift gate
+   and frozen-install controls; align engine/toolchain/deployment declarations. Prove
    every changed copy matches the semantic correction and every actual runtime
    family used by supported builds loads corrected code. Join direct-end paths
    as well as stream pipes; retain every actual resource on failure. Reconcile
    private fixture dependency/source provenance so it executes the same patched
    installed package. Do not broaden its live-source exemptions. Prove real
    initialized-router rejection before headers/selection, abort before selection,
-   synchronous construction failure and early stream fault; no error-path join
+   a rejecting real pipe source/end-work promise before headers, synchronous
+   construction failure and early stream fault; no inner or outer error-path join
    may wait for the caller's own future error response. Cover primary-plus-cleanup
    errors and irreversible output before/after headers/finish. Explicit event-order
    controls cover already-terminal attachment, close during blocked write/end,
