@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 5,064 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 5,127 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -227,7 +227,9 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0083 Step 2 implementation and local controls (2026-11-01)](#adr-0083-step-2-implementation-and-local-controls-2026-11-01) — 87 lines
   - [ADR-0083 Step 2 review round 1 and runtime-family decision gap (2026-11-01)](#adr-0083-step-2-review-round-1-and-runtime-family-decision-gap-2026-11-01) — 42 lines
   - [ADR-0084 proposed runtime-family package (2026-11-01)](#adr-0084-proposed-runtime-family-package-2026-11-01) — 79 lines
-  - [ADR-0084 proposal review round 1 and corrections (2026-11-01)](#adr-0084-proposal-review-round-1-and-corrections-2026-11-01) — 61 lines
+  - [ADR-0084 proposal review round 1 and corrections (2026-11-01)](#adr-0084-proposal-review-round-1-and-corrections-2026-11-01) — 62 lines
+  - [ADR-0084 proposal round 2 carrier correction (2026-11-01)](#adr-0084-proposal-round-2-carrier-correction-2026-11-01) — 29 lines
+  - [ADR-0084 proposal review closeout and approval readiness (2026-11-01)](#adr-0084-proposal-review-closeout-and-approval-readiness-2026-11-01) — 33 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -10835,3 +10837,66 @@ before the maintainer question. Independent ADR-0083 compiler/environment/entry
 corrections continue; they neither accept ADR-0084 nor complete its runtime side.
 Manual evidence stays maintainer-deferred/unexecuted and full final-source A/B
 remains required.
+
+
+### ADR-0084 proposal round 2 carrier correction (2026-11-01)
+
+The new independent R2 carrier reviewer identifies one verified Major in
+`b90f71d0`: the finite proof relay list omits actual ingress upgrade sanitization
+and BFF shutdown frames. Source checks confirm the original exact two sanitized
+sink assertions, `proof-shutdown` milestone/watchdog/join-state validation, and
+the separate real-port `proof-listener` frame. The parent reads the complete
+report and owning sources. The initial R2 verdict remains retained Request
+changes, not approval or runtime evidence.
+
+The Proposed ADR now explicitly includes `{surface, sanitized}` (closed
+`native|sink` and Boolean), bounded `proof-listener`, and the existing validated
+`proof-shutdown` schema: at most six frames, finite milestone/state transitions
+and five bounded ownership counts. It keeps receipt separate from actual
+cleanup, rejects missing/forged/malformed/wrong-child frames, and requires
+end-to-end delivery of each schema to its existing host. Actual HTTP/TLS bind,
+request joins and retained resources remain decisive.
+
+The proposed Testing 06/Catalogue carrier refinement includes these exact
+message families, actual child/incarnation attribution, lost/malformed/forged
+negative controls and the original upgrade/listener/shutdown assertions. It
+adds no production generic relay, credential/data field, native authority or
+cleanup acknowledgement. The remaining current proposal, append-ready ADR
+navigation and open qualification/manual dispositions remain unchanged.
+Commit the correction and have both new R2 reviewers verify the full current
+proposal before recording approval readiness. No persistent runtime owner is
+implemented or accepted by this record.
+
+
+### ADR-0084 proposal review closeout and approval readiness (2026-11-01)
+
+Two new independent R2 reviewers approve the corrected proposal after verifying
+its final message-schema correction against actual producers and consumers.
+Both retain their original verdicts and issue separate exact-hash verification
+addenda. The parent reads all six full proposal reports/addenda: two R1 reports,
+two new R2 reports and both correction verifications. All verified proposal
+findings are resolved; no runtime or implementation approval is inferred.
+
+The exact reviewed ADR has SHA-256
+`caf8df1e163b4807e6d194b4566d18ff0de54f76f94fcaa9c487f635ffe7bec1`.
+This factual closeout and generated index add no selected contract; the reviewed
+ADR and pre-existing log records remain unchanged. Full reports, frozen subject
+hashes and independently bounded process controls remain retained under
+`artifacts/p033-step10/adr0084/proposal/`.
+
+[ADR-0084](../decisions/0084-owned-frontend-runtime-process-families.md) and the
+[three subordinate steps](#adr-0084-proposed-runtime-family-package-2026-11-01),
+with [R1 corrections](#adr-0084-proposal-review-round-1-and-corrections-2026-11-01)
+and [R2 carrier correction](#adr-0084-proposal-round-2-carrier-correction-2026-11-01),
+are ready for the maintainer's explicit decision. They select one additional
+native owner process on qualified macOS/Linux, actual family retirement,
+ordered runtime IPC shutdown and preserved proof/caller boundaries. They
+acknowledge startup/memory cost, potentially indefinite outer completion and
+conservative records after owner death. No persistent topology has been applied.
+
+Independent ADR-0083 compiler/installer, environment, effective browser-target
+and loader-entry corrections continue under existing approval. They do not
+close the proposed runtime-family boundary, complete Step 2 review or qualify
+Step 3. Before new topology code, request maintainer approval as instructed.
+Complete same-source hosted A/B and deferred/unexecuted manual accessibility
+retain their existing gates and meaning.

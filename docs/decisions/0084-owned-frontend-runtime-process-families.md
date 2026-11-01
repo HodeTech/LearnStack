@@ -173,11 +173,18 @@ Copied ingress/BFF instrumentation uses a separately tagged, finite test-only
 relay between the existing proof-host IPC and actual child instrumentation.
 Commands are the existing bounded `observe(id, fence)`, `advance(milliseconds)`
 and `render-control(arm|release|status)` shapes; replies retain their finite
-bind/prepare/version-fetch, counter, snapshot and render-state schemas. Only
-instrumented copies add this relay. Production owner control accepts no generic
-proof payload, request data or credential. Preloads attach to the actual runtime
-child and enter its post-instrumentation source graph before the real producer;
-the owner must not synthesize framework observations or run the child's preload.
+bind/prepare/version-fetch, counter, snapshot and render-state schemas. The
+inventory also includes actual ingress `{surface, sanitized}` upgrade frames
+(`native|sink` and a Boolean), BFF `proof-listener` with its actual bounded port,
+and validated `proof-shutdown` milestone/watchdog/join-state frames. The latter
+retain the existing six-frame maximum, scalar state transitions and five bounded
+ownership counts; no raw frame or request value becomes diagnostic output.
+Receipt of any frame is observation, not actual work/cleanup acknowledgement.
+Only instrumented copies add this relay. Production owner control accepts no
+generic proof payload, request data or credential. Preloads attach to the actual
+runtime child and enter its post-instrumentation source graph before the real
+producer; the owner must not synthesize framework observations or run the
+child's preload.
 
 Relays validate actual child sender, incarnation, shape and bounds. Listener
 bind and actual HTTP/TLS checks remain decisive. HMR, freshness, publication,
@@ -185,6 +192,10 @@ isolation and session proofs compare the same real runtime incarnation before
 and after their actions, retaining behavior/source assertions. An unchanged
 outer PID alone is insufficient. Wrong-sender, lost-channel, never-binds and
 deliberate-runtime-replacement controls must fail their intended proof guards.
+End-to-end checks deliver every listed schema to its existing host, including
+the two actual sanitized sink observations and existing BFF listener/shutdown
+milestones. Forged, malformed, omitted or lost frames cannot silently satisfy
+those guards or replace the independent physical joins.
 
 ## Consequences
 
