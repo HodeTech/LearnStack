@@ -293,6 +293,13 @@ Changed, missing or extra executable boundary inputs refuse or require a real ne
 owned build. No borrowed stale child, broad loader exemption or proof profile
 outside the admitted source graph is permitted.
 
+> **Erratum — 2026-11-01.** The caller enumeration below is not exhaustive:
+> existing BFF consumers also include `verify-bff-protocol.mjs` and
+> `bff-proof-support.mjs`. Their profile-specific routing remains required.
+> The Decision is unchanged. Current authority:
+> [Standard 07](../standards/07-frontend-architecture.md#copied-runtime-proof-protocols).
+> Recorded in Amendment 1.
+
 The exact caller inventory under `frontend/apps/web/scripts/` is
 `stop-test-child.mjs`, `fixture-support.mjs`, `ingress-readiness.mjs`,
 `verify-ingress.mjs`, `verify-ingress-controls.mjs`, `verify-ingress-cleanup.mjs`,
@@ -328,6 +335,13 @@ family or substitute for its in-process shutdown. Lost host/owner IPC enters the
 same latch, and blocked/failed observation retains roots. Fault controls use
 isolated metadata/output roots and never alter unrelated workspace records.
 
+> **Erratum — 2026-11-01.** The three-profile enumeration below omits the
+> already selected `verify-public-admission.mjs` proof. Its existing commands
+> require a separate copied-source `admission` profile; the production owner gets
+> no profile selector. The Decision is unchanged. Current authority:
+> [Standard 07](../standards/07-frontend-architecture.md#copied-runtime-proof-protocols).
+> Recorded in Amendment 1.
+
 `prepareFrameworkProof` adds a closed `instrumentation` selection of `none`,
 `ingress` or `bff`. Before input capture and the genuine producer, it copies the
 profile's exact modules and applies exact-match source transforms to the copied
@@ -345,6 +359,13 @@ forwards inherited `execArgv`, synthesizes Next observations or offers an ambien
 factory. Profile transformations, relay, child modules and declarations all enter
 the copied input graph before build; any change requires normal revalidation or
 a real rebuild. Production owner control contains no proof relay or profile.
+
+> **Erratum — 2026-11-01.** The command enumeration below is incomplete for
+> the existing public-admission caller. Its `mode`, `observe`, `settled`, reply
+> and shutdown-count schemas remain required; `settled` joins the real native
+> completion barrier. The Decision is unchanged. Current authority:
+> [Standard 07](../standards/07-frontend-architecture.md#copied-runtime-proof-protocols).
+> Recorded in Amendment 1.
 
 The copied relay uses a separately tagged finite protocol over the existing
 proof-host and private child channels. Host commands remain
@@ -473,3 +494,29 @@ proves none of these physical retirement obligations.
   [Glossary](../glossary.md) and [Phase 03](../roadmap/phase-03-identity-admin.md).
 - [Node 22.23.1 process groups](https://nodejs.org/download/release/v22.23.1/docs/api/child_process.html#optionsdetached)
   and [signal/existence API](https://nodejs.org/download/release/v22.23.1/docs/api/process.html#processkillpid-signal).
+
+## Amendments
+
+### Amendment 1 — Existing public-admission proof protocol (2026-11-01)
+
+The acceptance-time profile and command enumerations omitted an existing named
+consumer, `verify-public-admission.mjs`. Its source already sends public-admission
+mode/observe/settled commands, correlated observation replies and a shutdown-count
+frame. Preserving those existing controls was already selected; their omission
+cannot authorize dropping them or routing them through an arbitrary relay.
+
+The exact caller list also omitted existing BFF consumers
+`verify-bff-protocol.mjs` and `bff-proof-support.mjs`. The inline errata retain the
+original accepted text. Standard 07 owns the current closed protocol and caller
+correction, including a separate fixture-only `admission` profile.
+It uses the same pre-build copied-source binding, literal child instrumentation,
+authenticated channel/incarnation and per-profile validation as the other selected
+proofs. No production selector, new product consumer, permission, process topology
+or shutdown result policy is added. `settled` still awaits the actual native
+completion observer; a response/frame receipt cannot replace physical joins.
+
+This clarification changes none of the Decision, Status, Date, Deciders,
+alternatives, rationale or consequences. It records a false-at-entry enumeration
+under [ADR-0041](0041-correcting-false-statements-in-accepted-adrs.md)'s default
+inline-erratum mechanism, not an in-place expansion of
+accepted body text. Runtime implementation and full qualification remain open.

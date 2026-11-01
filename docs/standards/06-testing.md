@@ -604,6 +604,14 @@ Acceptance registers these obligations; it does not establish their execution.
   never-binds and runtime-replacement negatives. HMR/freshness/publication/session
   proofs compare actual child incarnation, not only unchanged outer PID.
 
+- Deliver the public-admission copied profile's seven fixed modes, observe and
+  settled requests, exact correlated count/immutability replies and one actual
+  admission-shutdown count frame through its own closed relay. `settled` awaits
+  the real native completion observer. Test malformed/wrong-profile/replayed
+  values and ensure a fabricated reply cannot satisfy actual completion. Preserve
+  wire/context/late/HEAD/abort/active-shutdown/browser/HMR witnesses; no BFF count
+  clamp or new production capacity bound is inferred for admission counters.
+
 Frontend type/lint/full guarded tests and public browser/Lighthouse proofs remain
 required. Complete final-source hosted A followed by full B uses the same source,
 toolchain, plan and discovered population: all 27 successful jobs, 20 natural VM

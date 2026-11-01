@@ -6502,8 +6502,10 @@ Prior receipts do not qualify subsequent source changes.
   first-request shutdown watchdog, distinct runtime result and actual family
   joins. Producer cancellation remains failed. Direct close, ready IPC, timeout,
   forced exit and outer-group absence cannot replace runtime retirement.
-  Copied profile/relay and input-graph controls preserve actual child attribution;
-  owner-loss recovery requires unchanged records and complete family evidence.
+  Copied profile/relay and input-graph controls preserve actual child attribution,
+  including the distinct public-admission commands, completion barrier and reply
+  counts. Owner-loss recovery requires unchanged records and complete family
+  evidence.
 - **Source:** [ADR-0083](../decisions/0083-owned-next-response-compression-cleanup.md),
   [ADR-0084](../decisions/0084-owned-frontend-runtime-process-families.md)
   and [Standard 07](07-frontend-architecture.md#version-qualified-next-response-cleanup).

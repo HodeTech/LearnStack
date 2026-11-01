@@ -694,6 +694,49 @@ Exact post-validation child imports, helper/relay files and the entire owner
 builtins import closure are producer and restart-critical inputs. Mechanical
 controls include nonbuiltin/transitive dirty imports and all listed relay schemas.
 
+#### Copied runtime proof protocols
+
+[ADR-0084 Amendment 1](../decisions/0084-owned-frontend-runtime-process-families.md#amendment-1--existing-public-admission-proof-protocol-2026-11-01)
+clarifies the existing public-admission consumer. Copied-source instrumentation
+has exactly four profiles: `none`, `ingress`, `admission` and `bff`. `none` adds
+no child instrumentation commands; all copied launches still capture their
+qualified family handle. The selected profile and literal modules enter the
+input graph before the genuine producer. Production has no selector or relay.
+A profile admits only its own declared command/reply shapes, never the union of
+all profiles or arbitrary passthrough. Every hop retains exact sender/channel,
+incarnation and closed-schema validation. Host/fixture checkpoint traffic that
+does not cross the native runtime boundary is not a child protocol.
+
+Ingress retains its `observe(id, fence)`, binding/readiness/version-fetch replies
+and sanitized native/sink upgrade observations. The correlated observation must
+still wait for its exact fence on both stdout and stderr; relaying IPC alone
+cannot replace that output-drain witness. BFF retains bounded `advance`,
+`render-control`, snapshots/render-state, listener and shutdown milestones.
+`verify-bff-protocol.mjs` and `bff-proof-support.mjs` join the existing BFF caller
+inventory in ADR-0084. Migrate strict first-message consumers deliberately:
+private ownership/handshake traffic must not become a proof reply. BFF's closed
+administration-counter keys follow the actual native operation union, including
+refused supported operations, rather than only successful provider branches.
+The public-admission profile preserves these existing shapes:
+
+| Direction | Exact public-admission fields |
+|---|---|
+| Host request | Positive safe-integer `id`; `op` is `observe` or `settled`, with no `value`; or `op: mode` with exactly one fixed `value`. |
+| Mode value | Exactly `normal`, `missing`, `mismatch`, `duplicate`, `late`, `configuration` or `wrong-status`. No arbitrary configuration string crosses the relay. |
+| Correlated reply | `id`, `active`, `snapshots`, `snapshotsSeen`, `reads`, `immutable`, `lateRefused`, `lateAccepted`. |
+| Shutdown observation | Exactly `kind: shutdown` and `counts: { active, snapshots }`, emitted once by actual admission shutdown. It is observation, not cleanup credit. |
+
+All six admission counters are nonnegative safe integers, `snapshots <= active`,
+and `immutable` is Boolean. Reply IDs match the outstanding request. Missing,
+extra, unsafe, forged, duplicate or wrong-profile values fail the owning proof.
+Do not impose the BFF five-counter shutdown clamp on these separate counters or
+infer a new production resource cap from their finite wire representation.
+`settled` must await `createNativeCompletionObserver().settled()` in the actual
+runtime before replying. Its frame receipt supplies neither that barrier nor
+listener/request/framework/family retirement. End-to-end controls retain normal
+wire status, context/immutability, late completion, HEAD, abort, active shutdown,
+browser and HMR witnesses; they are not replaced by synthetic responses.
+
 #### Frontend runtime owner-loss recovery
 
 @cemil owns this procedure until Phase 11 names the operational owner. Parent

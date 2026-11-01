@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 5,434 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 5,467 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -235,6 +235,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0083 Step 2 reserved source follow-up and current verification (2026-11-01)](#adr-0083-step-2-reserved-source-follow-up-and-current-verification-2026-11-01) — 69 lines
   - [ADR-0083 independent correction reviews close within scope (2026-11-01)](#adr-0083-independent-correction-reviews-close-within-scope-2026-11-01) — 28 lines
   - [ADR-0084 maintainer corrections and acceptance (2026-11-01)](#adr-0084-maintainer-corrections-and-acceptance-2026-11-01) — 37 lines
+  - [ADR-0084 Step 1 review round 1 and existing protocol correction (2026-11-01)](#adr-0084-step-1-review-round-1-and-existing-protocol-correction-2026-11-01) — 33 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -11212,3 +11213,36 @@ bounds, zero-skip population and manual-accessibility disposition are unchanged.
 
 This record establishes contract/carriers only. It is not executable runtime
 ownership, successful initialized-worker proof, P03-3 completion or hosted A/B.
+
+### ADR-0084 Step 1 review round 1 and existing protocol correction (2026-11-01)
+
+Two fresh independent R1 reviewers inspect acceptance/wrapping commits
+`f317da9e` and `087f4c54` against `8baa621b`. Contract review finds one Major:
+the copied relay omits the already named public-admission caller's actual
+commands, native completion barrier, counters and shutdown frame. Carrier review
+finds one Minor: a blank line separates ADR-0084 from the Active ADR table.
+Root reads both complete reports and verifies the findings against actual source.
+
+The complete native IPC inventory distinguishes ingress, admission and BFF
+profiles from outer fixture checkpoints, browser transports and producer control.
+The correction gives existing admission its own copied-source profile, seven
+fixed modes, observe/settled operations, exact finite correlated observations and
+one shutdown-count frame. Settled still joins the actual native completion
+observer. Ingress retains both stdout/stderr fences; private family frames cannot
+satisfy BFF's strict first-reply consumers. Existing BFF protocol/support callers
+are included. No production selector or new request/credential authority is added.
+
+ADR-0084's original accepted paragraphs remain unchanged. Three default dated
+inline errata and Amendment 1 disclose incomplete acceptance-time enumerations,
+with Standard 07 owning the corrected current artifact. This implements the
+already selected preservation of existing proofs, without changing the Decision,
+Status, Date, rationale or process topology. It is not an in-place normative
+rewrite under ADR-0041. Standards 06/21 receive matching proof obligations, and
+the decision-index table gap is removed.
+
+The correction requires end-to-end schema, malformed/wrong-profile/sender/replay,
+delayed real completion and existing browser/HMR witnesses in Step 2; none is
+claimed as executed by this documentation change. Commit the verified R1 fixes,
+then use new independent R2 reviewers before Step 2. Runtime implementation,
+initialized-worker/Step 3 proof and complete final-source hosted A/B remain open;
+manual accessibility stays maintainer-deferred and unexecuted.
