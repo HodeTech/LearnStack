@@ -655,8 +655,8 @@ macOS/Linux surfaces. Owner and runtime groups are distinct. The parent holds
 all frontend/app/SDK reservations until actual direct-child close and runtime
 group absence; only signal-zero `ESRCH` establishes absence. Observation errors
 retain uncertainty. Runtime polling backs off from 10 to at most 250 ms, without
-a total timeout or success credit or nonzero signal to a cached runtime PGID. The generic producer
-helper retains its existing polling.
+a total timeout or success credit. No nonzero signal goes to a cached runtime
+PGID. The generic producer helper retains its existing polling.
 
 The owner latches SIGTERM/SIGINT before asynchronous preparation and keeps the
 latch through release. It propagates cancellation through producer boundaries,
