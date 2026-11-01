@@ -6430,7 +6430,11 @@ Prior receipts do not qualify subsequent source changes.
   cleanup settle. Stop joins these owners; delayed chunks cannot disclose an old
   snapshot. Real destroyed-before-close sockets admit no new write callback credit;
   an earlier issued callback retains its existing frame/snapshot credit until
-  actual settlement. The framework hook accounts for registered work, with the selected
+  actual settlement. A native HTTPS close before `finish` retires only its failed
+  `end()` observation, without invoking the user callback or settling other work.
+  An actual `finish` still retains a deliberately held callback. Real TLS-error
+  controls distinguish these events from the later `writableFinished` getter.
+  The framework hook accounts for registered work, with the selected
   RSC source controls above closing additional application work.
 - **Source:** ADR-0070/0071/0078/0079; Security 11 § Tenant BFF sessions and native entry.
 - **Type:** unit and actual response-owning routes. **Kind:** behavioural.
@@ -6445,7 +6449,12 @@ Prior receipts do not qualify subsequent source changes.
   `src/server/auth/request-runtime-lifetime.test.ts` and
   `src/server/auth/page-response.test.ts`; action recovery by
   `src/server/auth/native-action-response.test.ts`; actual Next registered-work
-  retention and late output by `scripts/verify-bff-protocol.mjs`.
+  retention and late output by `scripts/verify-bff-protocol.mjs`. Fixture-only
+  copied-runtime observation controls in
+  `src/test/bff-proof-runtime-observation.test.ts` exercise real frame/pool counts,
+  saturation and unchanged joins; failure samples describe their last observed
+  milestone, not a current cleanup acknowledgement. Closed browser/CI parsers
+  reject unknown fields and expose no request, person or credential values.
 - **Status:** **Implemented** — actual owner/route controls above and
   `TenantBffSessionTests` real refresh/maximum and shutdown/failure controls.
 - **Phase:** P02b-7 Steps 2–5; P03-3 Steps 8–9 extend entry, operation and snapshot ownership.

@@ -1,4 +1,6 @@
 // @vitest-environment node
+import type { ServerResponse } from 'node:http';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import { protectPageResponse } from './page-response';
@@ -24,12 +26,116 @@ describe('native protected output fence', () => {
     expect(pending).toBe(2);
     expect(written).not.toHaveBeenCalled();
     expect(ended).not.toHaveBeenCalled();
+    // Finish occurred, but the actual callbacks are deliberately still held.
+    wire.destroy();
+    expect(pending).toBe(2);
     wire.drainCallbacks();
     expect(pending).toBe(0);
     expect(written).toHaveBeenCalledOnce();
     expect(ended).toHaveBeenCalledOnce();
     expect(check).toHaveBeenCalled();
     expect(started).toHaveBeenCalled();
+    expect(wire.listenerCount('finish')).toBe(0);
+    expect(wire.listenerCount('close')).toBe(0);
+  });
+
+  it('retires only a close-before-finish end observation and preserves an issued write', () => {
+    const wire = new SnapshotWire();
+    wire.native.end = function (this: ServerResponse, ...args: unknown[]) {
+      const callback = args[args.length - 1];
+      if (typeof callback !== 'function') throw new Error('Expected end callback');
+      this.once('finish', callback as () => void);
+      wire.writableEnded = true;
+      return this;
+    };
+    let pending = 0;
+    protectPageResponse(
+      wire.native,
+      () => {},
+      () => {},
+      () => {
+        ++pending;
+        return () => {
+          --pending;
+        };
+      },
+    );
+    const written = vi.fn();
+    const ended = vi.fn();
+    wire.native.write('issued', written);
+    expect(wire.native.end('last', 'utf8', ended)).toBe(wire);
+    expect(pending).toBe(2);
+    wire.destroy();
+    expect(pending).toBe(1);
+    expect(ended).not.toHaveBeenCalled();
+    expect(written).not.toHaveBeenCalled();
+    expect(wire.listenerCount('finish')).toBe(0);
+    expect(wire.listenerCount('close')).toBe(0);
+    wire.drainCallbacks();
+    expect(pending).toBe(0);
+    expect(written).toHaveBeenCalledOnce();
+    wire.emit('close');
+    wire.emit('finish');
+    expect(pending).toBe(0);
+    expect(ended).not.toHaveBeenCalled();
+  });
+
+  it.each(['empty', 'callback', 'body', 'encoding', 'body-callback', 'encoding-callback'])(
+    'preserves the native end overload: %s',
+    (overload) => {
+      const wire = new SnapshotWire();
+      let pending = 0;
+      protectPageResponse(
+        wire.native,
+        () => {},
+        () => {},
+        () => {
+          ++pending;
+          return () => {
+            --pending;
+          };
+        },
+      );
+      const callback = vi.fn();
+      const args: unknown[] =
+        overload === 'empty' ? [] : overload === 'callback' ? [callback] : ['body'];
+      if (overload.startsWith('encoding')) args.push('utf8');
+      if (overload.endsWith('-callback')) args.push(callback);
+      expect(Reflect.apply(wire.native.end, wire, args)).toBe(wire);
+      expect(pending).toBe(1);
+      wire.drainCallbacks();
+      expect(pending).toBe(0);
+      expect(callback).toHaveBeenCalledTimes(overload.includes('callback') ? 1 : 0);
+      expect(wire.listenerCount('finish')).toBe(0);
+      expect(wire.listenerCount('close')).toBe(0);
+    },
+  );
+
+  it('removes end observers and releases credit after a synchronous native throw', () => {
+    const wire = new SnapshotWire();
+    wire.native.end = () => {
+      throw new Error('Native end refused');
+    };
+    let pending = 0;
+    protectPageResponse(
+      wire.native,
+      () => {},
+      () => {},
+      () => {
+        ++pending;
+        return () => {
+          --pending;
+        };
+      },
+    );
+    const callback = vi.fn();
+    expect(() => wire.native.end(callback)).toThrow('Native end refused');
+    expect(pending).toBe(0);
+    expect(wire.listenerCount('finish')).toBe(0);
+    expect(wire.listenerCount('close')).toBe(0);
+    wire.destroy();
+    expect(pending).toBe(0);
+    expect(callback).not.toHaveBeenCalled();
   });
 
   it.each(['writeHead', 'flushHeaders', 'write', 'end'] as const)(

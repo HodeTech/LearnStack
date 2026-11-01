@@ -967,17 +967,57 @@ def closed_bff_browser_details(raw):
                 (('listener', 5), ('next', 6), ('sessions', 7), ('requests', 8))},
             'leader': match[9], 'close': match[10] == '1', 'stdout': match[11], 'stderr': match[12],
         }
+    marker = 'BFF browser observation;'
+    count = sum(item['Text'].count(marker) for item in messages)
+    if count:
+        lines = [line for item in messages if item['Category'] == 'StdOutMsgs'
+                 for line in item['Text'].splitlines() if marker in line]
+        number = r'(?:0|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-6])'
+        pattern = (re.escape(marker) + r'journey=(positive|counter|unavailable_pages);state='
+            r'(absent|invalid|valid,(?:entered|listener|next|sessions|requests|watchdog),'
+            + ','.join([number] * 5) + r');(not_run|true|false|error);'
+            r'(none|natural_back|persisted_dispatch|persisted_wait|persisted_count)\.')
+        match = re.fullmatch(pattern, lines[0]) if count == 1 and len(lines) == 1 else None
+        if match is None or result.get('journey') != match[1]:
+            return None
+        sample, probe, operation = match[2], match[3], match[4]
+        if ((probe == 'not_run') != (operation == 'none') or
+                probe != 'not_run' and match[1] != 'counter' or
+                sample != 'absent' and 'nativeShutdown' not in result):
+            return None
+        observation = {'probe': probe, 'operation': operation}
+        if sample.startswith('valid,'):
+            _, milestone, *counts = sample.split(',')
+            shutdown = result['nativeShutdown']
+            if (shutdown['ipc'] != 'valid' or not shutdown['entered'] or
+                    milestone == 'watchdog' and not shutdown['watchdog'] or
+                    milestone in ('listener', 'next', 'sessions', 'requests') and shutdown[milestone] == 'pending'):
+                return None
+            observation['sample'] = {'status': 'valid', 'milestone': milestone, **dict(zip(
+                ('handlerPending', 'terminalPending', 'issuedWrites', 'frameworkWaitUntil', 'poolHeld'),
+                map(int, counts)))}
+        else:
+            observation['sample'] = {'status': sample}
+        result['observation'] = observation
+
+    def finish(reason):
+        observation = result.get('observation')
+        if observation and observation['probe'] != 'not_run':
+            expected = 'browser-back-revalidation' if observation['operation'] == 'natural_back' else 'browser-history-revalidation'
+            if reason != expected and not reason.startswith(expected + '_cleanup_') and reason != expected + '_cleanup_failed':
+                return None
+        return {**result, 'reason': reason}
     # xUnit's exact exception prefix is stripped; arbitrary trailing text,
     # nested exceptions and credentials never become a diagnostic dimension.
     prefix = 'System.InvalidOperationException : '
     if message.startswith(prefix):
         message = message[len(prefix):]
     if message in BFF_BROWSER_FIXED_FAILURES:
-        return {**result, 'reason': BFF_BROWSER_FIXED_FAILURES[message]}
+        return finish(BFF_BROWSER_FIXED_FAILURES[message])
     match = re.fullmatch(r'BFF native fixture did not reach the closed browser_result/([a-z_0-9-]{1,96}) phase\.', message)
     if match and match[1] in BFF_BROWSER_FAILURE_REASONS:
-        return {**result, 'reason': match[1]}
-    return {**result, 'reason': 'other'} if 'journey' in result else None
+        return finish(match[1])
+    return finish('other') if 'journey' in result else None
 
 
 def closed_keycloak_startup_observation(message):

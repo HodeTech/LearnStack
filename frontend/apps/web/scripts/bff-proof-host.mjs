@@ -34,6 +34,41 @@ function replace(source, needle, value) {
   return source.replace(needle, value);
 }
 
+/** Fixture-only copied source instrumentation; drift refuses before compilation. */
+export function instrumentBffProofRequestRuntime(runtime) {
+  runtime = replace(
+    runtime,
+    '  const active = new Set<Frame>();',
+    `  const active = new Set<Frame>();
+  const proofFrames = new Map<Frame, () => number[]>();`,
+  );
+  runtime = replace(
+    runtime,
+    '            active.delete(frame);',
+    `            active.delete(frame);
+            proofFrames.delete(frame);`,
+  );
+  runtime = replace(
+    runtime,
+    '      active.add(frame);',
+    `      active.add(frame);
+      proofFrames.set(frame, () => [Number(handlerPending), Number(!terminal), writes, waiting.size]);`,
+  );
+  return replace(
+    runtime,
+    '    snapshotCounts: pool.counts,',
+    `    snapshotCounts: pool.counts,
+    proofCounts() {
+      const counts = [0, 0, 0, 0, Math.min(256, pool.counts().active)];
+      for (const read of proofFrames.values()) {
+        const values = read();
+        for (let i = 0; i < 4; ++i) counts[i] = Math.min(256, counts[i]! + values[i]!);
+      }
+      return counts;
+    },`,
+  );
+}
+
 /** One real child/output path shared by the native proof and its observer control. */
 export function ownBffProofChild({
   owner,
@@ -378,6 +413,11 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
     for (const name of ['tailwind.config.ts', 'postcss.config.cjs'])
       cpSync(join(source, name), join(app, name));
   }
+  if (uiMode && !external) {
+    // The observation exists only in this copied fixture, after the UI source copy.
+    const path = join(app, 'src/server/auth/request-runtime.ts');
+    file(path, instrumentBffProofRequestRuntime(readFileSync(path, 'utf8')));
+  }
   if (mutation === 'history') {
     const history = join(app, 'src/components/auth/history.ts');
     file(history, replace(readFileSync(history, 'utf8'), 'location.reload()', 'void 0'));
@@ -463,13 +503,17 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
       '  let stopping = false;',
       `  const proofShutdown = {kind: 'proof-shutdown', entered: false, watchdog: false,
       listener: 'pending', next: 'pending', sessions: 'pending', requests: 'pending'};
-  const reportShutdown = () => {
-    try { if (process.connected) process.send({...proofShutdown}, () => {}); } catch {}
+  const reportShutdown = (milestone) => {
+    try {
+      let sample = null;
+      try { sample = bffRequests?.proofCounts() ?? null; } catch {}
+      if (process.connected) process.send({...proofShutdown, milestone, sample}, () => {});
+    } catch {}
   };
   const observeShutdownJoin = (key, promise) => {
     void Promise.resolve(promise).then(
-      () => { proofShutdown[key] = 'fulfilled'; reportShutdown(); },
-      () => { proofShutdown[key] = 'rejected'; reportShutdown(); },
+      () => { proofShutdown[key] = 'fulfilled'; reportShutdown(key); },
+      () => { proofShutdown[key] = 'rejected'; reportShutdown(key); },
     );
     return promise;
   };
@@ -478,7 +522,7 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
     launcher = replace(
       launcher,
       '    stopping = true;',
-      '    stopping = true; proofShutdown.entered = true; reportShutdown();',
+      "    stopping = true; proofShutdown.entered = true; reportShutdown('entered');",
     );
     launcher = replace(
       launcher,
@@ -493,7 +537,7 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
     launcher = replace(
       launcher,
       "    const deadline = setTimeout(() => {\n      console.error('Public server shutdown failed');",
-      "    const deadline = setTimeout(() => {\n      proofShutdown.watchdog = true; reportShutdown();\n      console.error('Public server shutdown failed');",
+      "    const deadline = setTimeout(() => {\n      proofShutdown.watchdog = true; reportShutdown('watchdog');\n      console.error('Public server shutdown failed');",
     );
     launcher = replace(
       launcher,

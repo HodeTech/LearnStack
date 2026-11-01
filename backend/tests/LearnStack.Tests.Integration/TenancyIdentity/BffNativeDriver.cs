@@ -27,10 +27,13 @@ internal sealed class BffNativeDriver : IAsyncDisposable
     private bool _complete;
     private int _expectedExit;
     private string? _shutdownDiagnostic;
+    private string? _browserObservation;
+    private readonly bool _browserCounter;
 
     private BffNativeDriver(string root, bool browser = false, bool counter = false, bool heldBuild = false,
         bool unavailablePageCounter = false)
     {
+        _browserCounter = browser && counter;
         var start = new ProcessStartInfo("node")
         {
             WorkingDirectory = root,
@@ -242,7 +245,13 @@ internal sealed class BffNativeDriver : IAsyncDisposable
                     _shutdownDiagnostic = ParseShutdownDiagnostic(parsed.RootElement);
                     continue;
                 }
-                if (actual != phase || _shutdownDiagnostic is not null) throw new InvalidOperationException();
+                if (phase == "browser_result" && actual == "browser_observation")
+                {
+                    if (_browserObservation is not null) { _browserObservation = null; throw new InvalidOperationException(); }
+                    _browserObservation = ParseBrowserObservation(parsed.RootElement, _browserCounter);
+                    continue;
+                }
+                if (actual != phase || _shutdownDiagnostic is not null || _browserObservation is not null) throw new InvalidOperationException();
                 return parsed.RootElement.Clone();
             }
             throw new InvalidOperationException();
@@ -254,11 +263,54 @@ internal sealed class BffNativeDriver : IAsyncDisposable
             else if (_child.HasExited) try { reason = await _errors ?? "exit"; } catch { reason = "output"; }
             var failure = new InvalidOperationException("BFF native fixture did not reach the closed " + phase + "/" + reason + " phase.");
             if (_shutdownDiagnostic is not null) failure.Data["BffBrowserShutdown"] = _shutdownDiagnostic;
+            if (_browserObservation is not null && CoherentBrowserObservation(_browserObservation, _shutdownDiagnostic, reason))
+                failure.Data["BffBrowserObservation"] = _browserObservation;
             throw failure;
         }
     }
 
     private const string ShutdownStatePattern = @"\A(valid|invalid|absent),[01],[01],[pfr],[pfr],[pfr],[pfr],(live|zero|nonzero|signal),[01],(open|ended|closed|absent),(open|ended|closed|absent)\z";
+    private const string BrowserObservationPattern = @"\A(absent|invalid|valid,(entered|listener|next|sessions|requests|watchdog),(0|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-6]),(0|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-6]),(0|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-6]),(0|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-6]),(0|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-6]));(not_run|true|false|error);(none|natural_back|persisted_dispatch|persisted_wait|persisted_count)\z";
+
+    internal static string ParseBrowserObservation(JsonElement value, bool counter)
+    {
+        if (value.ValueKind != JsonValueKind.Object ||
+            string.Join(',', value.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal))
+                != "operation,phase,probe,protocol,sample" || value.GetProperty("protocol").GetInt32() != 1 ||
+            value.GetProperty("phase").GetString() != "browser_observation") throw new InvalidOperationException();
+        var sample = value.GetProperty("sample").GetString();
+        var probe = value.GetProperty("probe").GetString();
+        var operation = value.GetProperty("operation").GetString();
+        var result = sample + ";" + probe + ";" + operation;
+        if (sample is null || probe is null || operation is null || result.Length > 128 ||
+            !System.Text.RegularExpressions.Regex.IsMatch(result, BrowserObservationPattern) ||
+            (probe == "not_run") != (operation == "none") || (!counter && probe != "not_run"))
+            throw new InvalidOperationException();
+        return result;
+    }
+
+    internal static string? BrowserObservation(Exception error) => error.Data["BffBrowserObservation"] as string;
+
+    internal static bool CoherentBrowserObservation(string observation, string? shutdown, string reason)
+    {
+        var parts = observation.Split(';');
+        if (parts.Length != 3 || !System.Text.RegularExpressions.Regex.IsMatch(observation, BrowserObservationPattern)) return false;
+        var sample = parts[0].Split(',');
+        if (sample[0] != "absent" && shutdown is null) return false;
+        if (sample[0] == "valid")
+        {
+            var state = shutdown!.Split(',');
+            if (state.Length != 11 || state[0] != "valid" || state[1] != "1") return false;
+            var index = sample[1] switch { "listener" => 3, "next" => 4, "sessions" => 5, "requests" => 6, _ => -1 };
+            if (index >= 0 && state[index] == "p" || sample[1] == "watchdog" && state[2] != "1") return false;
+        }
+        if (parts[1] != "not_run")
+        {
+            var stage = parts[2] == "natural_back" ? "browser-back-revalidation" : "browser-history-revalidation";
+            if (reason != stage && !reason.StartsWith(stage + "_cleanup_", StringComparison.Ordinal)) return false;
+        }
+        return true;
+    }
 
     internal static string ParseShutdownDiagnostic(JsonElement value)
     {

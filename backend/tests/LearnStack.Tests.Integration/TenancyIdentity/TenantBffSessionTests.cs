@@ -271,6 +271,31 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
             Action parseDiagnostic = () => { _ = BffNativeDriver.ParseShutdownDiagnostic(frame.RootElement); };
             parseDiagnostic.Should().Throw<Exception>();
         }
+        using (var observed = JsonDocument.Parse("{\"protocol\":1,\"phase\":\"browser_observation\",\"sample\":\"valid,next,1,0,256,2,1\",\"probe\":\"true\",\"operation\":\"persisted_wait\"}"))
+        {
+            BffNativeDriver.ParseBrowserObservation(observed.RootElement, true).Should().Be("valid,next,1,0,256,2,1;true;persisted_wait");
+            Action wrongJourney = () => { _ = BffNativeDriver.ParseBrowserObservation(observed.RootElement, false); };
+            wrongJourney.Should().Throw<Exception>();
+        }
+        var proofObservation = "valid,next,1,0,256,2,1;true;persisted_wait";
+        BffNativeDriver.CoherentBrowserObservation(proofObservation, "valid,1,0,f,f,f,p,live,0,open,open",
+            "browser-history-revalidation_cleanup_cleanup-native-wait").Should().BeTrue();
+        BffNativeDriver.CoherentBrowserObservation(proofObservation, "valid,1,0,f,p,f,p,live,0,open,open",
+            "browser-history-revalidation_cleanup_cleanup-native-wait").Should().BeFalse();
+        BffNativeDriver.CoherentBrowserObservation(proofObservation, null, "browser-history-revalidation").Should().BeFalse();
+        BffNativeDriver.CoherentBrowserObservation(proofObservation, "valid,1,0,f,f,f,p,live,0,open,open", "browser-launch").Should().BeFalse();
+        foreach (var invalid in new[] {
+                     "{\"protocol\":1,\"phase\":\"browser_observation\",\"sample\":\"valid,next,1,0,257,2,1\",\"probe\":\"true\",\"operation\":\"persisted_wait\"}",
+                     "{\"protocol\":1,\"phase\":\"browser_observation\",\"sample\":\"absent\",\"probe\":\"true\",\"operation\":\"none\"}",
+                     "{\"protocol\":1,\"phase\":\"browser_observation\",\"sample\":\"valid,next,01,0,0,0,0\",\"probe\":\"not_run\",\"operation\":\"none\"}",
+                     "{\"protocol\":1,\"phase\":\"browser_observation\",\"sample\":\"absent\",\"probe\":\"not_run\",\"operation\":\"none\",\"extra\":true}",
+                     "{\"protocol\":1,\"phase\":\"browser_observation\",\"sample\":\"PRIVATE-CANARY\",\"probe\":\"false\",\"operation\":\"natural_back\"}",
+                     "{\"protocol\":1,\"phase\":\"browser_observation\",\"sample\":\"absent\",\"sample\":\"absent\",\"probe\":\"not_run\",\"operation\":\"none\"}" })
+        {
+            using var frame = JsonDocument.Parse(invalid);
+            Action parseObservation = () => { _ = BffNativeDriver.ParseBrowserObservation(frame.RootElement, true); };
+            parseObservation.Should().Throw<Exception>();
+        }
         var input = new
         {
             protocol = 1,
@@ -299,6 +324,8 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
                     output.WriteLine("BFF browser failure;journey=" + journey + ".");
                     if (BffNativeDriver.ShutdownDiagnostic(error) is { } state)
                         output.WriteLine("BFF browser shutdown;journey=" + journey + ";state=" + state + ".");
+                    if (BffNativeDriver.BrowserObservation(error) is { } observation)
+                        output.WriteLine("BFF browser observation;journey=" + journey + ";state=" + observation + ".");
                 }
                 catch (Exception observation) when (observation.GetType() != typeof(OutOfMemoryException)
                     && observation.GetType() != typeof(StackOverflowException))

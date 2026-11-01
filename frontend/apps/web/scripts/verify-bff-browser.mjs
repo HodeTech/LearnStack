@@ -46,6 +46,7 @@ let restoresVeiled = true;
 let scanners = [];
 let counterProbe;
 let counterWitness;
+let counterOperation = 'none';
 let counterPage;
 let counterPageResponse;
 let administrationPages = 0;
@@ -601,6 +602,7 @@ try {
         !!document.querySelector('[data-bff-protected]'),
     ));
   stage = 'browser-back-revalidation';
+  if (counter) counterOperation = 'natural_back';
   await page.goBack();
   await page.waitForURL(
     (url) => url.origin === origin(first) && url.pathname === '/api/auth/signin',
@@ -611,6 +613,7 @@ try {
     'actual browser back navigation obtains fresh native admission after logout',
   );
   assert.equal(await page.locator('[data-bff-protected]').count(), 0);
+  counterOperation = 'none';
   // Keep a second already-rendered document alive while another tab logs it out.
   // An explicit persisted PageTransitionEvent reaches the restoration branch even
   // when this stock browser invalidates no-store BFCache entries after cookie changes.
@@ -639,14 +642,18 @@ try {
         !!document.querySelector('[data-bff-protected]'),
     ));
   stage = 'browser-history-revalidation';
+  if (counter) counterOperation = 'persisted_dispatch';
   await otherPage.evaluate(() =>
     window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })),
   );
+  if (counter) counterOperation = 'persisted_wait';
   await otherPage.waitForURL(
     (url) => url.origin === origin(second) && url.pathname === '/api/auth/signin',
     { timeout: 10_000 },
   );
+  if (counter) counterOperation = 'persisted_count';
   assert.equal(await otherPage.locator('[data-bff-protected]').count(), 0);
+  counterOperation = 'none';
   stage = 'browser-no-script';
   const noScript = await browser.newContext({ javaScriptEnabled: false });
   observeContext(noScript);
@@ -820,14 +827,18 @@ try {
   if (stage === 'cleanup') stage = cleanup.failureStage ?? stage;
   if (stage === 'browser-devtools') stage = bffDevToolsFailureStage(error);
   let expectedCounter = false;
+  let probe = 'not_run';
   if (
     counter &&
     ['browser-history-revalidation', 'browser-back-revalidation'].includes(stage) &&
     counterProbe
   )
     try {
-      expectedCounter = await counterProbe();
+      const result = await counterProbe();
+      probe = result === true ? 'true' : result === false ? 'false' : 'error';
+      expectedCounter = result === true;
     } catch {
+      probe = 'error';
       /* unrelated failure is not the mutant witness */
     }
   if (pageCounter && stage === 'browser-administration-pages')
@@ -897,6 +908,15 @@ try {
         JSON.stringify({ protocol: 1, phase: 'browser_shutdown', state: cleanup.nativeWait }) +
           '\n',
       );
+    process.stdout.write(
+      JSON.stringify({
+        protocol: 1,
+        phase: 'browser_observation',
+        sample: clean ? 'absent' : cleanup.nativeSample,
+        probe,
+        operation: counterOperation,
+      }) + '\n',
+    );
     // Preserve the original closed stage even if later actual cleanup fails.
     process.stderr.write('BFF browser fixture failed: ' + stage + '\n');
     if (!clean)

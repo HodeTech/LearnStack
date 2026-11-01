@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 3,901 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 3,965 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -207,7 +207,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0082 Step 2 reviews and implementation closeout (2026-11-01)](#adr-0082-step-2-reviews-and-implementation-closeout-2026-11-01) — 33 lines
   - [P03-3 Step 10 fifth hosted A and bounded frontend proof ownership (2026-11-01)](#p03-3-step-10-fifth-hosted-a-and-bounded-frontend-proof-ownership-2026-11-01) — 68 lines
   - [P03-3 frontend follow-up R1 and watcher-boundary clarification (2026-11-01)](#p03-3-frontend-follow-up-r1-and-watcher-boundary-clarification-2026-11-01) — 44 lines
-  - [P03-3 frontend follow-up R2 and source-review closeout (2026-11-01)](#p03-3-frontend-follow-up-r2-and-source-review-closeout-2026-11-01) — 39 lines
+  - [P03-3 frontend follow-up R2 and source-review closeout (2026-11-01)](#p03-3-frontend-follow-up-r2-and-source-review-closeout-2026-11-01) — 40 lines
+  - [P03-3 sixth hosted A and native HTTPS end observation correction (2026-11-01)](#p03-3-sixth-hosted-a-and-native-https-end-observation-correction-2026-11-01) — 63 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -9652,3 +9653,67 @@ full complementary B, all 27 successful jobs and twenty natural owners per
 attempt, and exact zero-skip unions. Five failed historical A attempts and passing
 subsets substitute for neither. Manual keyboard/focus/reflow/contrast/VoiceOver
 evidence remains maintainer-deferred and unexecuted for PR review.
+
+
+### P03-3 sixth hosted A and native HTTPS end observation correction (2026-11-01)
+
+The complete [sixth A](https://github.com/HodeTech/LearnStack/actions/runs/41250959897)
+uses `7d7f20d6ec0c2d8595a65886b8575503054c3205`, tree
+`5686ad7d1331d297059e8dc1708cff6635f499a3`. All 27 jobs terminate:
+25 succeed; ordinary-7 and its dependent integration aggregate fail. No whole-job
+window exhausts. Its exact selected/TRX union contains 7,944 cases: 7,943 Passed,
+one Failed, zero missing or skipped. Nineteen owners have passing natural-completion
+receipts. All 24 available original ZIPs are retained before source changes;
+independent API size/digest, ZIP CRC/path and exact case-union checks pass. The
+integration aggregate archive is absent. Individual surface/decoded-log reviews
+supply historical observations only; the attempt is not qualified and no B is
+requested. The earlier failed A's passing backend population qualifies no later
+source.
+
+**Failure boundary.** The real native HTTPS browser Fact fails in its second,
+counter journey at `browser-history-revalidation_cleanup_cleanup-native-wait`.
+At the available sample, listener/Next/sessions joins are fulfilled, requests are
+pending and the leader remains live. The prior format records neither the exact
+counter operation nor its probe verdict. This proves neither a completed counter
+witness nor the cause of the pending request. The job-wide forced-cleanup flag
+also does not establish a browser-specific fallback or a persistent native leak.
+
+**Separately verified defect.** An owned Node 22.23.1 HTTPS control sends an invalid
+TLS record only on its own connection after native `end()` returns pending.
+The actual response closes without `finish` or the end callback, retaining one
+end observation; `writableFinished` later reads true. Healthy and ordinary reset
+controls settle. The corrected response fence retires only that close-before-finish
+end observation and removes its own listener. It invokes no user callback and
+settles no earlier issued write, handler, framework, API or pool work. Actual
+`finish` still waits for a deliberately held callback. A source-bound differential
+reproduces the old stop failure and the corrected settlement. This is a verified
+bug, not an established explanation of the hosted failure.
+
+**Bounded observation.** Only the copied UI fixture instruments the unchanged
+request runtime. Its five counts describe handler/terminal/write/framework/pool
+occupancy at an existing shutdown milestone; 256 means 256 or more. A parent
+failure retains the last sample, which may be stale and is not cleanup acknowledgement.
+A failure-only frame carries closed counter operation/probe enums through exact
+JavaScript, C# and CI parsers. Unknown, duplicate, excessive or incoherent values
+refuse; no request, person, credential or raw error data is added. Success payloads,
+join ownership, timers, signals, five-second native wait and browser deadlines are
+unchanged. The current-source copied-runtime harness exercises real held work,
+release, saturation and observer invalidity. Its two generated imports are modeled
+as exact source-graph edges, with provenance and dirty controls; no blanket dynamic
+import exclusion is added.
+
+**Local verification.** The strict Release build passes with zero warnings/errors.
+Complete frontend typecheck and lint pass; the normal guard passes 3,337 cases
+(3,189 web and 148 SDK) in both packages with zero skips/todos, taking 52.332 seconds
+on stable source hashes. The actual stock HTTPS browser Fact passes all three
+journeys and its closed-parser controls in 40.522 seconds of test execution. The
+whole native CI controls pass 102/102; combined plan/results controls pass 83/83
+(including forty result controls, not 123) in 5.289 seconds under the existing
+27-second TERM / three-second kill allocation. Compiled corpus controls pass 5/5;
+fragment/roadmap/index, ADR lifecycle and whitespace checks pass. The launcher's
+AST differs only in its closed browser-detail parser. Earlier type-only/import-spacing
+errors and the missing generated-edge model failure are retained separately,
+not counted as passing evidence. This correction requires commit and two fresh
+independent review rounds before another final-source freeze
+and complete hosted A/B. ADR-0082 windows, reserve, plan, assignments and twenty-owner
+cap remain unchanged. Maintainer-deferred manual checks remain unexecuted.

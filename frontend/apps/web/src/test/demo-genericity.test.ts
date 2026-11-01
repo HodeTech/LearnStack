@@ -287,6 +287,49 @@ describe('P02d-7 exact demo identity boundary', () => {
         'Unmodeled runtime import',
       );
   });
+  it('models only the copied BFF observation harness generated imports and their actual sources', () => {
+    const harness = 'frontend/apps/web/scripts/test-bff-proof-runtime-observation.mjs';
+    const runtime = 'frontend/apps/web/src/server/auth/request-runtime.ts';
+    const fixture = 'frontend/apps/web/src/test/page-response-fixture.ts';
+    const source = readFileSync(join(root, harness), 'utf8');
+    const files = new Map([
+      [harness, source],
+      [runtime, 'export const runtime = true;'],
+      [fixture, `export const special = ${JSON.stringify(identity)};`],
+      ['frontend/apps/web/scripts/bff-proof-host.mjs', 'export const helper = true;'],
+      ['frontend/apps/web/scripts/bff-proof-support.mjs', 'export const helper = true;'],
+    ]);
+    const external = () => 'frontend/node_modules/typescript/index.js';
+    const selected = productionDemoSources(files, external);
+    expect(selected.has(runtime)).toBe(true);
+    expect(selected.has(fixture)).toBe(true);
+    expect(demoIdentityFindings(fixture, selected.get(fixture)!, vocabulary)).toEqual([identity]);
+    for (const dirty of [
+      source.replace("'server/auth/request-runtime.js'", "'server/auth/other.js'"),
+      source.replace("'test/page-response-fixture.js'", "'test/other.js'"),
+      source.replace("'learnstack-bff-observation-'", "'unowned-'"),
+      source.replace("readFileSync(source, 'utf8')", "readFileSync(other, 'utf8')"),
+      source.replace('const path = join(input, name);', 'const path = join(other, name);'),
+      source.replace(
+        "path === source ? instrumented : readFileSync(path, 'utf8')",
+        "readFileSync(path, 'utf8')",
+      ),
+      source + "\nawait import('./other.mjs');",
+      source + "\nawait import(pathToFileURL(join(root, 'server/auth/request-runtime.js')));",
+      source.replace(
+        "pathToFileURL(join(root, 'test/page-response-fixture.js'))",
+        "pathToFileURL(join(other, 'test/page-response-fixture.js'))",
+      ),
+    ]) {
+      expect(dirty).not.toBe(source);
+      expect(() => productionDemoSources(new Map(files).set(harness, dirty), external)).toThrow(
+        'Unmodeled runtime import',
+      );
+    }
+    const missing = new Map(files);
+    missing.delete(fixture);
+    expect(() => productionDemoSources(missing, external)).toThrow('Unmodeled runtime import');
+  });
   it('omits only known generated roots in the actual filesystem collector', () => {
     for (const path of [
       'frontend/apps/web/.next',

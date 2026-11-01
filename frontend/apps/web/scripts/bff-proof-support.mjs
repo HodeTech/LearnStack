@@ -206,6 +206,7 @@ export function observeBffProofShutdown(child) {
   };
   let frames = 0;
   let invalid = false;
+  let sample = 'absent';
   let closed = false;
   const observe = (value) => {
     // Other fixture IPC belongs to its existing owner, not this observation.
@@ -215,7 +216,7 @@ export function observeBffProofShutdown(child) {
       invalid ||
       frames > 6 ||
       Object.keys(value).sort().join(',') !==
-        'entered,kind,listener,next,requests,sessions,watchdog' ||
+        'entered,kind,listener,milestone,next,requests,sample,sessions,watchdog' ||
       value.entered !== true ||
       typeof value.watchdog !== 'boolean' ||
       joins.some((key) => !states.has(value[key]))
@@ -233,6 +234,17 @@ export function observeBffProofShutdown(child) {
     ) {
       invalid = true;
       return;
+    }
+    const milestone = frames === 1 ? 'entered' : value.watchdog ? 'watchdog' : changed[0];
+    if (
+      value.milestone !== milestone ||
+      !Array.isArray(value.sample) ||
+      value.sample.length !== 5 ||
+      Array.from(value.sample).some((count) => !Number.isInteger(count) || count < 0 || count > 256)
+    ) {
+      sample = 'invalid';
+    } else if (sample !== 'invalid') {
+      sample = ['valid', milestone, ...value.sample].join(',');
     }
     // Copy only independently validated scalar members; never retain a raw frame.
     state = {
@@ -273,6 +285,9 @@ export function observeBffProofShutdown(child) {
         streamState(child.stderr),
       ].join(',');
     },
+    sample() {
+      return invalid ? 'invalid' : sample;
+    },
   });
 }
 
@@ -281,6 +296,7 @@ export function createBffBrowserCleanup(resources) {
   let pending;
   let failureStage = null;
   let nativeWait = null;
+  let nativeSample = 'absent';
   const run = async () => {
     const { browser, browserProcess, nativeServer, owner } = resources();
     const failures = [];
@@ -380,6 +396,7 @@ export function createBffBrowserCleanup(resources) {
           } catch {
             // Snapshot before fallback can change exit, close or stream observations.
             nativeWait = nativeServer.shutdown?.snapshot() ?? null;
+            nativeSample = nativeServer.shutdown?.sample?.() ?? 'absent';
             failures.push('cleanup-native-wait');
           } finally {
             clearTimeout(timer);
@@ -413,7 +430,10 @@ export function createBffBrowserCleanup(resources) {
     // Append in deterministic lifecycle order, preserving an earlier failure.
     if (nativeClosed) {
       if (closed.status === 'rejected') {
-        nativeWait ??= nativeServer.shutdown?.snapshot() ?? null;
+        if (nativeWait === null) {
+          nativeWait = nativeServer.shutdown?.snapshot() ?? null;
+          nativeSample = nativeServer.shutdown?.sample?.() ?? 'absent';
+        }
         failures.push('cleanup-native-wait');
       } else if (closed.value.signal !== null) failures.push('cleanup-native-signal');
       else if (closed.value.code !== 0) failures.push('cleanup-native-exit');
@@ -447,6 +467,9 @@ export function createBffBrowserCleanup(resources) {
     },
     get nativeWait() {
       return nativeWait;
+    },
+    get nativeSample() {
+      return nativeSample;
     },
   };
 }

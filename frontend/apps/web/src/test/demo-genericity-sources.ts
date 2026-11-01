@@ -413,6 +413,33 @@ export function productionDemoSources(
     if (path.endsWith('.json')) continue;
     const file = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true);
     const imports: { name: string; anchors?: string[] }[] = [];
+    const proofHarness =
+      path === 'frontend/apps/web/scripts/test-bff-proof-runtime-observation.mjs';
+    const proofTargets = new Map([
+      ['server/auth/request-runtime.js', 'frontend/apps/web/src/server/auth/request-runtime.ts'],
+      ['test/page-response-fixture.js', 'frontend/apps/web/src/test/page-response-fixture.ts'],
+    ]);
+    const proofSeen = new Set<string>();
+    if (proofHarness) {
+      // Model only this owned temporary tree and its actual current-source compiler seams.
+      // Both generated imports are still followed to source; an unknown import is refused.
+      const compact = source.replace(/\s+/g, '');
+      for (const required of [
+        "constweb=fileURLToPath(newURL('../',import.meta.url));",
+        "constsource=join(web,'src/server/auth/request-runtime.ts');",
+        "constoriginal=readFileSync(source,'utf8');",
+        'constinstrumented=instrumentBffProofRequestRuntime(original);',
+        "constroot=mkdtempSync(join(tmpdir(),'learnstack-bff-observation-'));",
+        "for(constdirectoryof['','auth']){",
+        "constinput=join(web,'src/server',directory);",
+        'constpath=join(input,name);',
+        "compile(path,join(root,'server',directory,name.replace(/\\.ts$/,'.js')),path===source?instrumented:readFileSync(path,'utf8'),);",
+        "compile(join(web,'src/test/page-response-fixture.ts'),join(root,'test/page-response-fixture.js'),);",
+        'ts.transpileModule(text,',
+        'writeFileSync(output,result.outputText);',
+      ])
+        if (compact.split(required).length !== 2) return refused(path);
+    }
     const resolveCall = (node: ts.Node): node is ts.CallExpression =>
       ts.isCallExpression(node) &&
       ts.isPropertyAccessExpression(node.expression) &&
@@ -443,6 +470,40 @@ export function productionDemoSources(
           resolveCall(node))
       ) {
         const value = node.arguments[0];
+        if (proofHarness && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+          // Exact syntax: import(pathToFileURL(join(root, '<one closed generated path>'))).
+          if (
+            node.arguments.length !== 1 ||
+            !value ||
+            !ts.isCallExpression(value) ||
+            !ts.isIdentifier(value.expression) ||
+            value.expression.text !== 'pathToFileURL' ||
+            value.arguments.length !== 1 ||
+            !value.arguments[0] ||
+            !ts.isCallExpression(value.arguments[0])
+          )
+            return refused(path);
+          const joined = value.arguments[0];
+          const rootArg = joined.arguments[0];
+          const relativeArg = joined.arguments[1];
+          if (
+            !ts.isIdentifier(joined.expression) ||
+            joined.expression.text !== 'join' ||
+            joined.arguments.length !== 2 ||
+            !rootArg ||
+            !ts.isIdentifier(rootArg) ||
+            rootArg.text !== 'root' ||
+            !relativeArg ||
+            !ts.isStringLiteral(relativeArg)
+          )
+            return refused(path);
+          const target = proofTargets.get(relativeArg.text);
+          if (!target || proofSeen.has(target) || !all.has(target)) return refused(path);
+          proofSeen.add(target);
+          imports.push({ name: './' + posix.relative(posix.dirname(path), target) });
+          ts.forEachChild(node, visit);
+          return;
+        }
         if (value && resolveCall(value)) {
           ts.forEachChild(node, visit);
           return;
@@ -484,6 +545,7 @@ export function productionDemoSources(
       ts.forEachChild(node, visit);
     };
     visit(file);
+    if (proofHarness && proofSeen.size !== proofTargets.size) return refused(path);
     for (const edge of imports)
       for (const target of resolveEdge(edge.name, path, edge.anchors))
         result.set(target, all.get(target)!);

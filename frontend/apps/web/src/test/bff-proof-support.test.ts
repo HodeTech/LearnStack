@@ -79,12 +79,20 @@ describe('BFF proof observation ownership', () => {
       next: 'pending',
       sessions: 'pending',
       requests: 'pending',
+      milestone: 'entered',
+      sample: [1, 0, 3, 2, 1],
     };
     expect(observer.snapshot()).toBe('absent,0,0,p,p,p,p,live,0,absent,absent');
     child.emit('message', { kind: 'snapshot', private: 'PRIVATE-CANARY' });
     expect(observer.snapshot()).toBe('absent,0,0,p,p,p,p,live,0,absent,absent');
     child.emit('message', frame);
-    child.emit('message', { ...frame, next: 'fulfilled' });
+    child.emit('message', {
+      ...frame,
+      next: 'fulfilled',
+      milestone: 'next',
+      sample: [0, 1, 256, 0, 1],
+    });
+    expect((observer as unknown as { sample(): string }).sample()).toBe('valid,next,0,1,256,0,1');
     Object.assign(child, { exitCode: 0 });
     expect(observer.snapshot()).toBe('valid,1,0,p,f,p,p,zero,0,absent,absent');
     child.emit('close', 0, null);
@@ -105,6 +113,8 @@ describe('BFF proof observation ownership', () => {
         next: 'pending',
         sessions: 'pending',
         requests: 'pending',
+        milestone: 'entered',
+        sample: [0, 0, 0, 0, 0],
       };
       if (kind !== 'first') child.emit('message', frame);
       if (kind === 'extra') child.emit('message', { ...frame, private: 'PRIVATE-CANARY' });
@@ -132,15 +142,41 @@ describe('BFF proof observation ownership', () => {
       next: 'pending',
       sessions: 'pending',
       requests: 'pending',
+      milestone: 'entered',
+      sample: [0, 0, 0, 0, 0],
     };
     child.emit('message', frame);
-    child.emit('message', { ...frame, watchdog: true });
+    child.emit('message', { ...frame, watchdog: true, milestone: 'watchdog' });
     Object.assign(child, {
       signalCode: 'SIGTERM',
       stdout: { readableEnded: true, closed: false },
       stderr: { readableEnded: false, closed: true },
     });
     expect(observer.snapshot()).toBe('valid,1,1,p,p,p,p,signal,0,ended,closed');
+    child.emit('close', null, 'SIGTERM');
+  });
+  it.each([
+    { sample: [257, 0, 0, 0, 0] },
+    { sample: [0, 'PRIVATE-CANARY', 0, 0, 0] },
+    { sample: [0, 0, 0, 0] },
+  ])('rejects invalid samples without retaining their contents', ({ sample }) => {
+    const child = new ChildProcess();
+    const observer = observeBffProofShutdown(child);
+    const read = () => (observer as unknown as { sample(): string }).sample();
+    expect(read()).toBe('absent');
+    child.emit('message', {
+      kind: 'proof-shutdown',
+      entered: true,
+      watchdog: false,
+      listener: 'pending',
+      next: 'pending',
+      sessions: 'pending',
+      requests: 'pending',
+      milestone: 'entered',
+      sample,
+    });
+    expect(read()).toBe('invalid');
+    expect(observer.snapshot()).not.toContain('PRIVATE-CANARY');
     child.emit('close', null, 'SIGTERM');
   });
   it('accepts only the owned child readiness frame and retires every observer', async () => {

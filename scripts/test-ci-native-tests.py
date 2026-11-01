@@ -1515,6 +1515,34 @@ except launcher.Refusal as failure:
         self.assertEqual(expected, json.loads(measurement.read_text())['failureLocations'][0]['details'])
         self.assertNotIn('BFF browser shutdown;', measurement.read_text())
 
+    def test_bff_browser_observation_is_bounded_and_bound_to_the_actual_failure(self):
+        case = {**self.case(1), 'name': self.owner.BFF_BROWSER_FAILURE_CASE}
+        parse = self.owner.closed_failure_details
+        reason = 'browser-history-revalidation_cleanup_cleanup-native-wait'
+        message = 'BFF native fixture did not reach the closed browser_result/' + reason + ' phase.'
+        failure = 'BFF browser failure;journey=counter.'
+        shutdown = 'BFF browser shutdown;journey=counter;state=valid,1,0,f,f,f,p,live,0,open,open.'
+        observed = 'BFF browser observation;journey=counter;state=valid,next,1,0,256,2,1;true;persisted_wait.'
+        def raw(text):
+            return {'ErrorMessage': message, 'Messages': [{'Category': 'StdOutMsgs', 'Text': text}]}
+        text = '\n'.join((failure, shutdown, observed))
+        result = parse(case, raw(text))
+        self.assertEqual(reason, result['reason'])
+        self.assertEqual({'probe': 'true', 'operation': 'persisted_wait', 'sample': {
+            'status': 'valid', 'milestone': 'next', 'handlerPending': 1, 'terminalPending': 0,
+            'issuedWrites': 256, 'frameworkWaitUntil': 2, 'poolHeld': 1}}, result['observation'])
+        for invalid in (observed.replace('256', '257'), observed.replace('next', 'requests'),
+                observed.replace('counter', 'positive'), observed.replace('true', 'PRIVATE-CANARY'),
+                observed.replace('true;persisted_wait', 'true;none'), observed + '\n' + observed,
+                observed.replace('valid,next,1,0,256,2,1', 'valid,next,01,0,256,2,1')):
+            self.assertIsNone(parse(case, raw('\n'.join((failure, shutdown, invalid)))))
+        self.assertIsNone(parse(case, raw('\n'.join((failure, observed)))))
+        self.assertIsNone(parse(case, {'ErrorMessage': message, 'Messages': [
+            {'Category': 'StdOutMsgs', 'Text': failure + '\n' + shutdown},
+            {'Category': 'StdErrMsgs', 'Text': observed}]}))
+        bad_reason = message.replace('browser-history-revalidation', 'browser-launch')
+        self.assertIsNone(parse(case, {**raw(text), 'ErrorMessage': bad_reason}))
+
     def test_bff_browser_details_refuse_private_malformed_duplicate_and_wrong_channel_data(self):
         case = {**self.case(1), 'name': self.owner.BFF_BROWSER_FAILURE_CASE}
         parse = self.owner.closed_failure_details

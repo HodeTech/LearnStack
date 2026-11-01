@@ -45,28 +45,57 @@ export function protectPageResponse(
         Reflect.apply(callback, response, [new Error('Native page output closed')]),
       );
   };
-  const tracked = (method: ServerResponse['write'] | ServerResponse['end'], args: unknown[]) => {
+  const tracked = (
+    method: ServerResponse['write'] | ServerResponse['end'],
+    args: unknown[],
+    ending = false,
+  ) => {
     const complete = beginWrite();
     const last = args[args.length - 1];
     const callback =
       typeof last === 'function' ? (args.pop() as (...values: unknown[]) => void) : undefined;
     let settled = false;
+    let finished = false;
     const done = () => {
       if (!settled) {
         settled = true;
+        if (ending) {
+          response.removeListener('finish', endFinished);
+          response.removeListener('close', endClosed);
+        }
         complete();
       }
     };
-    args.push(function (this: ServerResponse, ...values: unknown[]) {
+    const completed = function (this: ServerResponse, ...values: unknown[]) {
       try {
         callback?.apply(this, values);
       } finally {
         done();
       }
-    });
+    };
+    const endFinished = () => {
+      finished = true;
+      response.removeListener('close', endClosed);
+    };
+    const endClosed = () => {
+      // Native end's callback observes successful finish; a TLS error can close
+      // the actual response without that event, even with writableFinished=true.
+      // Only this failed end observation retires here. Issued write callbacks and
+      // finish-triggered callbacks still settle themselves; cancellation is not cleanup.
+      if (!finished) {
+        response.removeListener('finish', completed);
+        done();
+      }
+    };
+    if (ending) {
+      response.once('finish', endFinished);
+      response.once('close', endClosed);
+    }
+    args.push(completed);
     try {
       return Reflect.apply(method, response, args);
     } catch (error) {
+      if (ending) response.removeListener('finish', completed);
       done();
       throw error;
     }
@@ -95,7 +124,7 @@ export function protectPageResponse(
       return this;
     }
     started();
-    return tracked(end, args) as ServerResponse;
+    return tracked(end, args, true) as ServerResponse;
   } as ServerResponse['end'];
   return Object.freeze({ refuse });
 }
