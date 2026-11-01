@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 4,152 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 4,188 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -212,7 +212,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 native end correction reviews and generated-source provenance fix (2026-11-01)](#p03-3-native-end-correction-reviews-and-generated-source-provenance-fix-2026-11-01) — 53 lines
   - [P03-3 generated-source dependency and checkout correction (2026-11-01)](#p03-3-generated-source-dependency-and-checkout-correction-2026-11-01) — 37 lines
   - [P03-3 checkout-test construction correction (2026-11-01)](#p03-3-checkout-test-construction-correction-2026-11-01) — 23 lines
-  - [P03-3 seventh hosted A and business-task observation correction (2026-11-01)](#p03-3-seventh-hosted-a-and-business-task-observation-correction-2026-11-01) — 73 lines
+  - [P03-3 seventh hosted A and business-task observation correction (2026-11-01)](#p03-3-seventh-hosted-a-and-business-task-observation-correction-2026-11-01) — 74 lines
+  - [P03-3 business-task observation R1 cleanup correction (2026-11-01)](#p03-3-business-task-observation-r1-cleanup-correction-2026-11-01) — 35 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -9908,3 +9909,39 @@ the historical 7,944 manifest is not reused as a final-source census. This
 correction is committed and receives two fresh review rounds before progression.
 The separate handler issue, new complete A/B and maintainer-deferred unexecuted
 manual evidence remain open.
+
+
+### P03-3 business-task observation R1 cleanup correction (2026-11-01)
+
+Two fresh independent reviews examine the test-only correction at `eb1c992f`.
+The ownership review approves. The proof review identifies a Major in the new
+direct-owner regression: its finally block can await actual admission/business
+work indefinitely after the assertion deadline, and later cleanup timeouts can
+replace the primary assertion. The original verdict and successful 11-case
+receipt remain historical evidence, not proof of that failure path.
+
+The correction gives finally one shared existing 15-second observation budget.
+It retains actual task, execution-join and private-completion references; an
+unconfirmed actual cleanup supplies no successful join. The first exception is
+captured and rethrown with its identity; closed cleanup observations cannot
+replace it. No runtime source, policy deadline or native-owner rule changes.
+
+Both direct-owner cases now exercise a canceled cleanup observation while the
+real Prepare handler holds its actual nested SQL transaction. The business task
+stays pending, source cleanup stays unconfirmed, and an explicit false private
+cleanup report retains the execution/private owner. The ordinary scenario then
+publishes the same actual task and proves real rollback and complete joins. A
+second scenario injects its primary failure before publication, runs the real
+finally publication/cleanup and verifies rethrow of the same exception object,
+then proves released resources and absent provider effects. Neither control
+claims full native handoff or the original hosted schedule.
+
+The strict normal Release build passes with zero warnings/errors. All twelve
+affected NoPlan, Finalizer, retry, settlement and direct-owner cases pass in
+117.006 command seconds, with zero skipped cases; all five compiled corpus
+controls pass. All 1,079 runtime files remain unchanged. Scoped format and the
+documentation checks accompany the correction commit. Two new independent R2
+reviewers inspect the complete correction after that commit. Their verdicts,
+any verified fixes, the separate browser-handler issue and complete fresh
+final-source A/B remain open; no historical passing subset qualifies a new
+source. Manual accessibility evidence stays maintainer-deferred and unexecuted.

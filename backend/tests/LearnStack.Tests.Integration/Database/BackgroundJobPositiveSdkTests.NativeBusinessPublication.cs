@@ -1,4 +1,5 @@
 using System.Data;
+using System.Runtime.ExceptionServices;
 using FluentAssertions;
 using LearnStack.Application.Jobs;
 using LearnStack.Infrastructure.Jobs;
@@ -19,7 +20,14 @@ namespace LearnStack.Tests.Integration.Database;
 public sealed partial class BackgroundJobPositiveSdkTests
 {
     [Fact]
-    public async Task Business_observation_waits_for_the_actual_Prepare_task_publication()
+    public Task Business_observation_waits_for_the_actual_Prepare_task_publication() =>
+        AssertBusinessPublicationAsync(injectPrimaryFailure: false);
+
+    [Fact]
+    public Task Business_observation_preserves_the_primary_failure_while_joining_actual_Prepare_work() =>
+        AssertBusinessPublicationAsync(injectPrimaryFailure: true);
+
+    private async Task AssertBusinessPublicationAsync(bool injectPrimaryFailure)
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await BackgroundJobSchemaSeed.SeedTenantsAsync(database.AppConnectionString);
@@ -60,7 +68,11 @@ public sealed partial class BackgroundJobPositiveSdkTests
         var executionHeld = false;
         var generationHeld = false;
         var joined = false;
-        Exception? publicationFailure = null;
+        Task<bool>? executionJoin = null;
+        Task? privateCompletion = null;
+        ExceptionDispatchInfo? failure = null;
+        ExceptionDispatchInfo? cleanupFailure = null;
+        var injected = injectPrimaryFailure ? new InvalidOperationException("The publication fixture primary failure.") : null;
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
         try
         {
@@ -79,8 +91,25 @@ public sealed partial class BackgroundJobPositiveSdkTests
             business = executor.ExecuteBusinessAsync(admitted.Receipt!, execution.Gate, work.Token);
             await probe.Written.Task.WaitAsync(deadline.Token);
             business.IsCompleted.Should().BeFalse();
+            using (var refusedObservation = new CancellationTokenSource())
+            {
+                refusedObservation.Cancel();
+                var unconfirmed = await ObserveBusinessCleanupAsync(business, refusedObservation.Token);
+                unconfirmed.Should().NotBeNull();
+                unconfirmed!.SourceException.Should().BeAssignableTo<OperationCanceledException>();
+                business.IsCompleted.Should().BeFalse("canceling cleanup observation cannot complete the held SQL root");
+                probe.Attempt!.Source.CleanupConfirmed.Should().BeFalse();
+                probe.Attempt.Unit.HasActiveTransaction.Should().BeTrue();
+                await work.CompleteAsync(cleanupConfirmed: false).WaitAsync(deadline.Token);
+                controller.Snapshot.Executions.Should().Be(1);
+                generation.Snapshot.Running.Should().Be(0);
+                generation.Snapshot.Retained.Should().Be(1, "an unconfirmed cleanup report cannot release the actual private owner");
+                probe.Attempt.Source.CleanupConfirmed.Should().BeFalse();
+                output.WriteLine("Native business publication dirty;observation=cancelled;business=pending;sourceCleanup=unconfirmed;execution=retained;privateWork=retained.");
+            }
             Action oldObservation = () => _ = NativeSdkField(execution, "_business");
             oldObservation.Should().Throw<InvalidOperationException>();
+            if (injected is not null) throw injected;
             observation = NativeSdkBusinessAsync(execution, deadline.Token);
             observation.IsCompleted.Should().BeFalse("the control has not published the actual task yet");
 
@@ -109,10 +138,31 @@ public sealed partial class BackgroundJobPositiveSdkTests
             disposedUnit.Should().Throw<ObjectDisposedException>();
             (await BackgroundJobRuntimeRows.CountOrganizationAsync(database.AppConnectionString, prepared.Value)).Should().Be(0);
         }
+        catch (Exception error) when (NativeWaitCatchable(error))
+        {
+            failure = ExceptionDispatchInfo.Capture(error);
+        }
         finally
         {
-            // Even on assertion failure, retain and await the actual issued task;
-            // only a successful real cleanup result is passed to the owner join.
+            // One shared observation budget does not cancel or complete actual work.
+            // The first failure survives every later publication/join observation.
+            using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            string? cleanupBoundary = null;
+            void RecordCleanupFailure(string boundary, ExceptionDispatchInfo error)
+            {
+                cleanupBoundary ??= boundary;
+                cleanupFailure ??= error;
+                failure ??= error;
+            }
+            async Task<bool> CleanupStepAsync(string boundary, Func<Task> step)
+            {
+                ExceptionDispatchInfo? error;
+                try { error = await ObserveBusinessCleanupAsync(step(), cleanup.Token); }
+                catch (Exception caught) when (NativeWaitCatchable(caught)) { error = ExceptionDispatchInfo.Capture(caught); }
+                if (error is null) return true;
+                RecordCleanupFailure(boundary, error);
+                return false;
+            }
             if (business is not null)
             {
                 try
@@ -120,38 +170,83 @@ public sealed partial class BackgroundJobPositiveSdkTests
                     if (!executionHeld) { execution.HoldBusiness(business); executionHeld = true; }
                     if (!generationHeld) { work.HoldBusiness(business); generationHeld = true; }
                 }
-                catch (Exception failure) { publicationFailure = failure; }
+                catch (Exception error) when (NativeWaitCatchable(error))
+                {
+                    RecordCleanupFailure("publication", ExceptionDispatchInfo.Capture(error));
+                }
             }
             probe.AllowReturn.TrySetResult();
-            if (observation is not null && !observation.IsCompleted) deadline.Cancel();
-            if (observation is not null)
+            var observationJoined = observation is null || await CleanupStepAsync("observation", () => observation);
+            if (!observationJoined)
             {
-                try { _ = await observation; }
-                catch (Exception) { /* The assertion path reports the observation failure. */ }
+                try { deadline.Cancel(); }
+                catch (Exception error) when (NativeWaitCatchable(error))
+                {
+                    RecordCleanupFailure("observation_cancel", ExceptionDispatchInfo.Capture(error));
+                }
             }
-            JobStartExecutionResult? actualAdmission = null;
-            if (admission is not null)
+            var admissionJoined = admission is not null && await CleanupStepAsync("admission", () => admission);
+            var businessJoined = business is null || await CleanupStepAsync("business", () => business);
+            if (businessJoined && business is { IsCompletedSuccessfully: true }) result = business.Result;
+            var clean = admissionJoined && admission is { IsCompletedSuccessfully: true, Result.CleanupFailed: false }
+                && businessJoined && (business is null || executionHeld && generationHeld
+                    && result is { CleanupFailed: false, SourceOwner.CleanupConfirmed: true });
+            if (!clean)
             {
-                try { actualAdmission = await admission; }
-                catch (Exception) { /* A fault cannot supply cleanup confirmation. */ }
+                RecordCleanupFailure("actual_work", ExceptionDispatchInfo.Capture(
+                    new InvalidOperationException("Actual publication work cleanup remains unconfirmed.")));
+                try { generation.RequestHostStop(); }
+                catch (Exception error) when (NativeWaitCatchable(error))
+                {
+                    RecordCleanupFailure("host_stop", ExceptionDispatchInfo.Capture(error));
+                }
             }
-            if (business is not null)
+            var executionJoined = await CleanupStepAsync("execution", () => executionJoin ??= execution.JoinAsync(clean));
+            joined = executionJoined && executionJoin is { IsCompletedSuccessfully: true, Result: true };
+            var privateObserved = await CleanupStepAsync("private", () => privateCompletion ??= work.CompleteAsync(joined));
+            try
             {
-                try { result = await business; }
-                catch (Exception) { /* A fault cannot supply cleanup confirmation. */ }
+                generation.CloseStarts();
+                controller.RequestStop();
             }
-            var clean = actualAdmission is { CleanupFailed: false }
-                && (business is null || executionHeld && generationHeld && result is { CleanupFailed: false }
-                    && result.SourceOwner.CleanupConfirmed)
-                && publicationFailure is null;
-            joined = await execution.JoinAsync(clean);
-            await work.CompleteAsync(joined);
-            generation.CloseStarts();
-            controller.RequestStop();
-            await controller.Completion.WaitAsync(TimeSpan.FromSeconds(15));
-            if (joined) await generation.Completion.WaitAsync(TimeSpan.FromSeconds(15));
+            catch (Exception error) when (NativeWaitCatchable(error))
+            {
+                RecordCleanupFailure("stop", ExceptionDispatchInfo.Capture(error));
+            }
+            var controlJoined = await CleanupStepAsync("control", () => controller.Completion);
+            var generationJoined = await CleanupStepAsync("generation", () => generation.Completion);
+            if (failure is not null)
+            {
+                static string State(bool issued, bool complete) => !issued ? "not_issued" : complete ? "joined" : "incomplete";
+                try
+                {
+                    output.WriteLine("Native business publication cleanup;primary=preserved;cleanupBoundary=" + (cleanupBoundary ?? "none")
+                        + ";admission=" + State(admission is not null, admissionJoined)
+                        + ";business=" + State(business is not null, businessJoined && clean)
+                        + ";execution=" + State(executionJoin is not null, joined)
+                        + ";privateWork=" + State(privateCompletion is not null, privateObserved && joined && generationJoined)
+                        + ";control=" + State(true, controlJoined) + ";generation=" + State(true, generationJoined) + ".");
+                }
+                catch (Exception error) when (NativeWaitCatchable(error)) { }
+            }
         }
-        publicationFailure.Should().BeNull();
+        if (injected is not null && ReferenceEquals(failure?.SourceException, injected))
+        {
+            Action rethrow = failure!.Throw;
+            rethrow.Should().Throw<InvalidOperationException>().Which.Should().BeSameAs(injected);
+            cleanupFailure?.Throw();
+            result.Should().NotBeNull();
+            result!.KnownRollback.Should().BeTrue();
+            result.SourceOwner.CleanupConfirmed.Should().BeTrue();
+            probe.Attempt!.Unit.HasActiveTransaction.Should().BeFalse();
+            probe.Attempt.Connection.State.Should().Be(ConnectionState.Closed);
+            (await BackgroundJobRuntimeRows.CountOrganizationAsync(database.AppConnectionString, prepared.Value)).Should().Be(0);
+        }
+        else
+        {
+            failure?.Throw();
+            injected.Should().BeNull("the requested primary failure must be observed before publication");
+        }
         joined.Should().BeTrue();
         controller.Snapshot.Executions.Should().Be(0);
         generation.Snapshot.Running.Should().Be(0);
@@ -166,5 +261,18 @@ public sealed partial class BackgroundJobPositiveSdkTests
                 +(SELECT count(*) FROM provider_calls)+(SELECT count(*) FROM provider_effects)
             """, external) { CommandTimeout = 5 };
         ((long)(await effects.ExecuteScalarAsync())!).Should().Be(0);
+    }
+
+    private static async Task<ExceptionDispatchInfo?> ObserveBusinessCleanupAsync(Task actual, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await actual.WaitAsync(cancellationToken).ConfigureAwait(false);
+            return null;
+        }
+        catch (Exception error) when (NativeWaitCatchable(error))
+        {
+            return ExceptionDispatchInfo.Capture(error);
+        }
     }
 }
