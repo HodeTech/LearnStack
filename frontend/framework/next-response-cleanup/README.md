@@ -48,6 +48,14 @@ compiler option selectors. The cache materializes the installed vendor's
 attested native payload; it is separate from clean generated Next output. An
 unknown populated cache or an alias refuses admission instead of being cleared.
 
+The qualified route layout is canonical `src/app`. Competing root routes and
+project-root client instrumentation refuse admission. Production source identity
+conservatively includes test-named files under `src`; editing them also requires
+a new production build. Native/server source changes require a managed restart;
+ordinary Next source HMR remains supported. Raw private dotenv files are omitted
+from identity. Executable-looking reserved environment paths refuse before their
+contents are read or hashed.
+
 For an intentional dependency-manifest change, from the repository root:
 
 ```bash

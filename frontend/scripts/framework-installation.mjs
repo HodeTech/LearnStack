@@ -34,6 +34,8 @@ const MANIFEST = 'framework-build.json';
 const DEVELOPMENT = '.framework-state/development.json';
 const SHA256 = /^[0-9a-f]{64}$/;
 const CODE_EXTENSIONS = /\.(?:[cm]?js|json|map|node|wasm)$/;
+const PRIVATE_ENVIRONMENT_SOURCE = /(?:^|\/)\.env(?:\.|$)/i;
+const EXECUTABLE_ENVIRONMENT_SOURCE = /\.(?:[cm]?[jt]sx?|json|node|wasm)$/i;
 const APP_CONFIG_FILES = [
   'package.json',
   'next.config.ts',
@@ -96,7 +98,54 @@ const UNQUALIFIED_APP_CONFIG_FILES = new Set([
   'browserslist',
   'jsconfig.json',
 ]);
+// Pinned Next selects root app/pages ahead of src and permits Pages Router
+// alongside App Router. Only the reviewed src/app layout is supported here.
+const UNQUALIFIED_ROUTE_ROOTS = ['app', 'pages', 'src/pages'];
+// Unlike middleware/server instrumentation, the client alias independently
+// falls back from src to the project root. These are its actual extensionless,
+// directory and webpack extension candidates in the qualified configuration.
+const ROOT_CLIENT_INSTRUMENTATION = [
+  'instrumentation-client',
+  'instrumentation-client.js',
+  'instrumentation-client.mjs',
+  'instrumentation-client.tsx',
+  'instrumentation-client.ts',
+  'instrumentation-client.jsx',
+  'instrumentation-client.json',
+  'instrumentation-client.wasm',
+];
+function routeEntry(path) {
+  try {
+    return lstatSync(path);
+  } catch (error) {
+    if (error.code !== 'ENOENT') refuse('route_layout');
+    return undefined;
+  }
+}
+function assertQualifiedRouteLayout(appRoot, { sourceRequired = false } = {}) {
+  for (const name of ['src', 'src/app']) {
+    const path = join(appRoot, name);
+    const entry = routeEntry(path);
+    if (!entry) {
+      if (sourceRequired) refuse('route_layout');
+      continue;
+    }
+    if (
+      !entry.isDirectory() ||
+      entry.isSymbolicLink() ||
+      realpathSync(path) !== path ||
+      !readdirSync(dirname(path)).includes(name === 'src' ? 'src' : 'app')
+    )
+      refuse('route_layout');
+  }
+  // Probe the actual lowercase loader paths: a case-insensitive filesystem
+  // may resolve an App/Pages alias that a case-sensitive name census misses.
+  // lstat also notices dangling aliases, without following them.
+  for (const name of [...UNQUALIFIED_ROUTE_ROOTS, ...ROOT_CLIENT_INSTRUMENTATION])
+    if (routeEntry(join(appRoot, name))) refuse('route_layout');
+}
 function assertQualifiedConfiguration(appRoot, appManifest) {
+  assertQualifiedRouteLayout(appRoot);
   if (
     readdirSync(appRoot).some((name) => UNQUALIFIED_APP_CONFIG_FILES.has(name)) ||
     ['babel', 'postcss', 'eslintConfig', 'browserslist'].some((name) =>
@@ -555,13 +604,25 @@ function distributionPaths(root) {
   visit(root, '');
   return result.sort();
 }
-function subjectFiles(root, { extensions, exclude = [] } = {}) {
+function subjectFiles(root, { extensions, exclude = [], privateEnvironment = false } = {}) {
   const result = [];
   function visit(directory, prefix) {
     for (const entry of readdirSync(directory, { withFileTypes: true }).sort((a, b) =>
       a.name.localeCompare(b.name, 'en'),
     )) {
       const name = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (privateEnvironment && PRIVATE_ENVIRONMENT_SOURCE.test(name)) {
+        // Never read/hash private dotenv bytes. A reserved executable name,
+        // directory or alias cannot silently hide imported code behind that
+        // privacy exception, so refuse its presence before reading it.
+        if (
+          !entry.isFile() ||
+          entry.isSymbolicLink() ||
+          EXECUTABLE_ENVIRONMENT_SOURCE.test(entry.name)
+        )
+          refuse('private_source');
+        continue;
+      }
       if (exclude.some((pattern) => pattern.test(name))) continue;
       const path = join(directory, entry.name);
       if (entry.isSymbolicLink()) refuse('graph_alias');
@@ -590,13 +651,15 @@ export function frameworkInputGraph(identity, { development = false } = {}) {
   const uiRoot = packageRoot(appRoot, '@learnstack/ui');
   const configRoot = packageRoot(appRoot, '@learnstack/config');
   assertQualifiedConfiguration(appRoot, jsonFile(join(appRoot, 'package.json')));
+  assertQualifiedRouteLayout(appRoot, { sourceRequired: true });
   const result = [];
   for (const name of APP_CONFIG_FILES) result.push(...inputFile('app', appRoot, name));
   for (const name of OPTIONAL_APP_CONFIG_FILES)
     result.push(...inputFile('app', appRoot, name, true));
-  // Request-time traces, test artifacts, private environment and emitted output
-  // never enter source identity. Ordinary Next source is omitted only from the
-  // development restart graph: the running verified compiler owns its HMR.
+  // Test-named source can be imported by ordinary runtime code and is bound
+  // conservatively with every other source file. Private dotenv bytes remain
+  // outside identity. Ordinary Next source is omitted only from the development
+  // graph: the running verified compiler owns its HMR.
   result.push(
     ...prefixed(
       'app/scripts',
@@ -607,9 +670,7 @@ export function frameworkInputGraph(identity, { development = false } = {}) {
   result.push(
     ...prefixed(
       development ? 'app/src/server' : 'app/src',
-      subjectFiles(src, {
-        exclude: [/^(?:test|__tests__)(?:\/|$)/, /(?:^|\/)\.env(?:\.|$)/, /\.test\.[jt]sx?$/],
-      }),
+      subjectFiles(src, { privateEnvironment: true }),
     ),
   );
   for (const [name, root] of [
@@ -1115,6 +1176,7 @@ export function prepareFrameworkBuild(options = {}) {
   assertFrameworkProcessFamilySupport();
   assertBuildEnvironment();
   const identity = verifyFrameworkInstallation(options);
+  assertQualifiedRouteLayout(identity.appRoot, { sourceRequired: true });
   assertLocalEnvironmentKeys(identity.appRoot);
   const manager = resolveQualifiedPnpm(identity);
   return { identity, manager };
@@ -1183,11 +1245,17 @@ export function verifyFrameworkDevelopment(options = {}) {
 export function frameworkDevelopmentRestartGraph(identity) {
   assertLocalEnvironmentKeys(identity.appRoot);
   assertQualifiedConfiguration(identity.appRoot, jsonFile(join(identity.appRoot, 'package.json')));
+  assertQualifiedRouteLayout(identity.appRoot, { sourceRequired: true });
   const result = [];
   for (const file of APP_CONFIG_FILES) result.push(...inputFile('app', identity.appRoot, file));
   for (const file of OPTIONAL_APP_CONFIG_FILES)
     result.push(...inputFile('app', identity.appRoot, file, true));
-  result.push(...prefixed('app/src/server', subjectFiles(join(identity.appRoot, 'src/server'))));
+  result.push(
+    ...prefixed(
+      'app/src/server',
+      subjectFiles(join(identity.appRoot, 'src/server'), { privateEnvironment: true }),
+    ),
+  );
   const sdk = packageRoot(identity.appRoot, '@learnstack/sdk');
   result.push(...prefixed('sdk/src', subjectFiles(join(sdk, 'src'))));
   for (const file of ['package.json', 'pnpm-lock.yaml', '.npmrc'])

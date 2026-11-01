@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 5,226 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 5,300 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -231,6 +231,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0084 proposal round 2 carrier correction (2026-11-01)](#adr-0084-proposal-round-2-carrier-correction-2026-11-01) — 29 lines
   - [ADR-0084 proposal review closeout and approval readiness (2026-11-01)](#adr-0084-proposal-review-closeout-and-approval-readiness-2026-11-01) — 34 lines
   - [ADR-0083 Step 2 independent corrections and local verification (2026-11-01)](#adr-0083-step-2-independent-corrections-and-local-verification-2026-11-01) — 98 lines
+  - [ADR-0083 Step 2 review round 2 and source binding corrections (2026-11-01)](#adr-0083-step-2-review-round-2-and-source-binding-corrections-2026-11-01) — 74 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -11000,3 +11001,77 @@ Commit these independent corrections and use new reviewers before claiming
 their review closeout. The catalogue remains Registered. ADR-0084 approval,
 its implementation/reviews, full Step 3 and fresh final-source A/B remain open.
 Manual accessibility stays maintainer-deferred and unexecuted.
+
+### ADR-0083 Step 2 review round 2 and source binding corrections (2026-11-01)
+
+Three new independent reviewers examine correction commit `285734ee` through
+process-family, installation/build provenance and fixture/integration lenses.
+The process-family review approves its bounded temporary-owner scope. Provenance
+finds two Majors; integration finds one. Their complete reports, original red
+controls and subsequent author iterations remain retained. None qualifies the
+separately Proposed ADR-0084 runtime topology or closes Step 3/hosted A/B.
+
+**Actual source selection.** Pinned Next can select root `app`/`pages` before
+the bound `src/app`, and client instrumentation has an independent project-root
+fallback. Existing admission now permits only canonical, unaliased `src/app`;
+actual competing paths and root client-instrumentation candidates refuse.
+Installation can precede source checkout, but graph/producer/startup/restart
+requires source. Actual selector/resolver controls cover aliases, case behavior,
+file/directory fallbacks and unchanged-manifest refusal. Server hooks selected
+under `src` remain bound; unreachable root server hooks are not broadly banned.
+
+**Imported test-named code.** Runtime imports can reach `test`, `__tests__` and
+`*.test.*` sources. Production identity now conservatively includes all source
+files; native development identity includes all `src/server` files. Ordinary
+Next source HMR remains. Raw private dotenv bytes stay excluded, including case
+variants. Reserved executable-looking environment paths, directories and aliases
+refuse before source content reading. This is not a claim to confine arbitrary
+trusted code opening private data. Real Node imports and pinned Next/TypeScript
+resolvers establish reachability; edit/delete/add controls isolate one input
+against its originally admitted manifest. No private environment is read or
+hashed for identity.
+
+**Closed sourcegraph loaders.** The two specially modeled guard/control sources
+could acquire another builtin factory and hide an executed first-party helper.
+Their source model now requires the one reviewed named factory acquisition and
+finite direct process members. Additional module/process acquisitions, computed
+getters, aliases and rebinding refuse. The provenance control shares one exact
+app-root loader; literal and transitive first-party dependencies still enter
+genericity analysis. This is a closed source-model correction, not a general
+JavaScript/eval or hostile-verifier proof. All four original factory controls
+now refuse while their inert Node counterparts still load the helper; ordinary
+direct/helper positives remain. Sixteen expanded acquisition controls cover
+both source families. The exact dependency census includes fifteen literal
+calls rather than a source exemption.
+
+**Current local verification.** The eighth complete guarded frontend run passes
+3,450/3,450: 3,302 web plus 148 SDK across 101 files, zero skips/todos and zero
+stderr, about 78.4 seconds. Sourcegraph has 48 passing cases. The 107 internal
+provenance controls fit the unchanged 30-second child/35-second wrapper limits;
+the concurrent full-run wrapper takes about 29.1 seconds locally. Earlier
+over-budget author runs and the three failing canonical-path probes remain red
+history. No timeout, worker count, dependency patch or privilege changes.
+Workspace typecheck (4.1 seconds), lint (21.5 seconds) and scoped formatting pass.
+
+The fifth real clean production build passes in about 18.9 seconds, zero stderr.
+All six corrected source subjects remain unchanged across final formatting and
+build. Immediate verification covers 326 source inputs and 128 generated
+subjects (2,392,888 bytes). Its original manifest SHA-256 is
+`7f685eeb3c1b162feed2ccbd5b78f21e04c3bbd023e98cb533877f8a3bad6d64`.
+Installed verification reads 59 subjects in about 146 ms; generated verification
+takes about 39 ms locally. These are local observations, not hosted fit claims.
+
+A private copy of that actual build retains the original manifest unchanged.
+Ten causal startup negatives cover competing route additions/edits, root client
+instrumentation, imported helper edit/deletion and a reserved executable name.
+Every negative refuses before any observed Next/native/generated runtime import;
+the import audit would block and fail an unexpected attempt. Raw synthetic dotenv
+rotation leaves identity unchanged. All synchronous control children close and
+the owned private tree is removed. This proves those build/copy/startup gates,
+not initialized router, worker, browser or response-cleanup qualification.
+
+Exact subjects, commands, receipts and complete review/author reports remain in
+`artifacts/p033-step10/adr0083/step2/` and adjacent preparation evidence. Commit
+these verified corrections, then obtain independent fix verification before
+closing their review disposition. ADR-0084 approval and implementation, Step 3,
+full final-source A/B and maintainer-owned manual accessibility remain open.

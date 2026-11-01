@@ -223,10 +223,12 @@ function testSource(path: string): boolean {
 }
 
 /** Model the closed app-relative loaders, without exempting any of their edges. */
-function frameworkRequireOrigins(file: ts.SourceFile): Map<ts.Block, string> {
+function frameworkRequireOrigins(file: ts.SourceFile): Map<ts.Block | ts.SourceFile, string> {
   const refused: () => never = () => {
     throw new Error(`Unmodeled runtime import: ${file.fileName}`);
   };
+  const provenanceControl = file.fileName === 'frontend/scripts/test-framework-provenance.mjs';
+  const loader = provenanceControl ? 'actualRequire' : 'require';
   const functions = new Map(
     file.statements
       .filter(ts.isFunctionDeclaration)
@@ -311,11 +313,61 @@ function frameworkRequireOrigins(file: ts.SourceFile): Map<ts.Block, string> {
     action(node);
     ts.forEachChild(node, (child) => visit(child, action));
   };
-  const provenanceControl = file.fileName === 'frontend/scripts/test-framework-provenance.mjs';
   if (provenanceControl && !imported('FRAMEWORK_FRONTEND_ROOT', './framework-installation.mjs'))
     refused();
+  // These two sources have one closed factory acquisition form. A second
+  // builtin module/process acquisition is a model change, even if its eventual
+  // loader uses a different name. This does not model arbitrary JS or eval.
+  const factoryModules = new Set(['module', 'node:module', 'process', 'node:process']);
+  const processMembers = new Set([
+    'versions',
+    'cwd',
+    'env',
+    'execPath',
+    'pid',
+    'getuid',
+    'ppid',
+    'argv',
+  ]);
   const calls: ts.CallExpression[] = [];
   visit(file, (node) => {
+    if (
+      ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+        node.moduleSpecifier &&
+        ts.isStringLiteralLike(node.moduleSpecifier) &&
+        factoryModules.has(node.moduleSpecifier.text) &&
+        !(ts.isImportDeclaration(node) && node.moduleSpecifier.text === 'node:module')) ||
+      (ts.isImportEqualsDeclaration(node) &&
+        ts.isExternalModuleReference(node.moduleReference) &&
+        node.moduleReference.expression &&
+        ts.isStringLiteralLike(node.moduleReference.expression) &&
+        factoryModules.has(node.moduleReference.expression.text))
+    )
+      refused();
+    if (
+      ts.isCallExpression(node) &&
+      (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+        (ts.isIdentifier(node.expression) && ['require', loader].includes(node.expression.text)) ||
+        (ts.isPropertyAccessExpression(node.expression) &&
+          ts.isIdentifier(node.expression.expression) &&
+          ['require', loader].includes(node.expression.expression.text) &&
+          node.expression.name.text === 'resolve')) &&
+      node.arguments[0] &&
+      ts.isStringLiteralLike(node.arguments[0]) &&
+      factoryModules.has(node.arguments[0].text)
+    )
+      refused();
+    if (
+      ts.isIdentifier(node) &&
+      (['global', 'globalThis'].includes(node.text) ||
+        (node.text === 'process' &&
+          !(
+            ts.isPropertyAccessExpression(node.parent) &&
+            node.parent.expression === node &&
+            processMembers.has(node.parent.name.text)
+          )))
+    )
+      refused();
     if (
       ts.isImportDeclaration(node) &&
       ts.isStringLiteral(node.moduleSpecifier) &&
@@ -365,21 +417,23 @@ function frameworkRequireOrigins(file: ts.SourceFile): Map<ts.Block, string> {
   });
   // A new loader is a new model obligation, not an automatically trusted context.
   if (calls.length !== (provenanceControl ? 1 : 2)) refused();
-  const origins = new Map<ts.Block, string>();
+  const origins = new Map<ts.Block | ts.SourceFile, string>();
   for (const call of calls) {
     const declaration = call.parent;
     if (
       !ts.isVariableDeclaration(declaration) ||
       !ts.isIdentifier(declaration.name) ||
-      declaration.name.text !== 'require' ||
+      declaration.name.text !== loader ||
       !ts.isVariableDeclarationList(declaration.parent) ||
       !(declaration.parent.flags & ts.NodeFlags.Const) ||
       declaration.parent.declarations.length !== 1 ||
       !ts.isVariableStatement(declaration.parent.parent) ||
-      !ts.isBlock(declaration.parent.parent.parent)
+      !(provenanceControl
+        ? declaration.parent.parent.parent === file
+        : ts.isBlock(declaration.parent.parent.parent))
     )
       refused();
-    const body = declaration.parent.parent.parent as ts.Block;
+    const body = declaration.parent.parent.parent as ts.Block | ts.SourceFile;
     const owner = body.parent;
     const root = provenanceControl
       ? 'FRAMEWORK_FRONTEND_ROOT'
@@ -388,10 +442,7 @@ function frameworkRequireOrigins(file: ts.SourceFile): Map<ts.Block, string> {
         : 'identity';
     if (
       (provenanceControl
-        ? !ts.isArrowFunction(owner) ||
-          !ts.isCallExpression(owner.parent) ||
-          !ts.isIdentifier(owner.parent.expression) ||
-          owner.parent.expression.text !== 'test'
+        ? body !== file
         : !ts.isFunctionDeclaration(owner) ||
           !owner.name ||
           !['verifyFrameworkInstallation', 'compileFrameworkNative'].includes(owner.name.text) ||
@@ -429,12 +480,12 @@ function frameworkRequireOrigins(file: ts.SourceFile): Map<ts.Block, string> {
     visit(body, (node) => {
       if (
         node !== declaration &&
-        declared(node).some((name) => [root, 'require', 'checkedRoot'].includes(name))
+        declared(node).some((name) => [root, loader, 'checkedRoot'].includes(name))
       )
         refused();
       if (
         written(node).some((name) =>
-          [root, 'require', 'checkedRoot', 'createRequire', 'join'].includes(name),
+          [root, loader, 'checkedRoot', 'createRequire', 'join'].includes(name),
         )
       ) {
         if (
@@ -446,7 +497,7 @@ function frameworkRequireOrigins(file: ts.SourceFile): Map<ts.Block, string> {
           assignments.push(node);
         else refused();
       }
-      if (ts.isIdentifier(node) && node.text === 'require' && node !== declaration.name) {
+      if (ts.isIdentifier(node) && node.text === loader && node !== declaration.name) {
         const parent = node.parent;
         if (
           !(
@@ -692,10 +743,17 @@ export function productionDemoSources(
     ].includes(path)
       ? frameworkRequireOrigins(file)
       : undefined;
-    const requireOrigin = (node: ts.Node): string | undefined => {
+    const modeledLoader =
+      path === 'frontend/scripts/test-framework-provenance.mjs' ? 'actualRequire' : 'require';
+    const requireOrigin = (node: ts.CallExpression): string | undefined => {
       if (!requireOrigins) return undefined;
+      const callee = ts.isPropertyAccessExpression(node.expression)
+        ? node.expression.expression
+        : node.expression;
+      if (!ts.isIdentifier(callee) || callee.text !== modeledLoader) return refused(path);
       for (let scope: ts.Node | undefined = node.parent; scope; scope = scope.parent)
-        if (ts.isBlock(scope) && requireOrigins.has(scope)) return requireOrigins.get(scope);
+        if ((ts.isBlock(scope) || ts.isSourceFile(scope)) && requireOrigins.has(scope))
+          return requireOrigins.get(scope);
       return refused(path);
     };
     const proofHarness =
@@ -733,7 +791,9 @@ export function productionDemoSources(
       ts.isCallExpression(node) &&
       ts.isPropertyAccessExpression(node.expression) &&
       ts.isIdentifier(node.expression.expression) &&
-      node.expression.expression.text === 'require' &&
+      ['require', ...(requireOrigins ? [modeledLoader] : [])].includes(
+        node.expression.expression.text,
+      ) &&
       node.expression.name.text === 'resolve';
     const visit = (node: ts.Node) => {
       if (
@@ -755,7 +815,10 @@ export function productionDemoSources(
       if (
         ts.isCallExpression(node) &&
         (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
-          (ts.isIdentifier(node.expression) && node.expression.text === 'require') ||
+          (ts.isIdentifier(node.expression) &&
+            ['require', ...(requireOrigins ? [modeledLoader] : [])].includes(
+              node.expression.text,
+            )) ||
           resolveCall(node))
       ) {
         const value = node.arguments[0];

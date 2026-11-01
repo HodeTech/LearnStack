@@ -12,6 +12,7 @@ import {
   mkdtempSync,
   readFileSync,
   realpathSync,
+  renameSync,
   rmSync,
   symlinkSync,
   unlinkSync,
@@ -30,6 +31,7 @@ import {
   copyQualifiedFrameworkBuild,
   FRAMEWORK_FRONTEND_ROOT,
   FrameworkAdmissionError,
+  frameworkDevelopmentRestartGraph,
   frameworkInputGraph,
   frameworkOutputGraph,
   frameworkRuntimeEnvironment,
@@ -72,6 +74,7 @@ function denied(action, reason) {
 // pnpm binary. All mutations below affect only a disposable private copy.
 const actual = verifyFrameworkInstallation({ appRoot: join(FRAMEWORK_FRONTEND_ROOT, 'apps/web') });
 const actualManager = resolveQualifiedPnpm();
+const actualRequire = createRequire(join(FRAMEWORK_FRONTEND_ROOT, 'apps/web/package.json'));
 const sourceCensus = JSON.parse(
   readFileSync(
     join(FRAMEWORK_FRONTEND_ROOT, 'framework/next-response-cleanup/census.json'),
@@ -188,6 +191,65 @@ function buildControlManifest() {
   put(join(appRoot, '.next/framework-build.json'), manifest);
   return manifest;
 }
+function buildControlDevelopmentManifest() {
+  const current = identity();
+  const manifest = {
+    format: 1,
+    mode: 'development',
+    identity: Object.fromEntries(
+      ['format', 'tuple', 'censusSha256', 'patchSha256', 'generatorSha256'].map((key) => [
+        key,
+        current[key],
+      ]),
+    ),
+    producer: { node: process.versions.node, pnpm: { version: actualManager.version } },
+    resolutions: {
+      next: realpathSync(nextRoot),
+      '@learnstack/sdk': realpathSync(join(frontendRoot, 'packages/sdk')),
+      '@learnstack/ui': realpathSync(join(frontendRoot, 'packages/ui')),
+      '@learnstack/config': realpathSync(join(frontendRoot, 'packages/config')),
+    },
+    inputs: frameworkInputGraph(current, { development: true }),
+  };
+  put(join(appRoot, '.framework-state/development.json'), manifest);
+  return manifest;
+}
+function pinnedNextResolution(dir, request, development = false, from = dir) {
+  const { createWebpackAliases } = actualRequire('next/dist/build/create-compiler-aliases');
+  const webpack = actualRequire('next/dist/compiled/webpack/webpack');
+  webpack.init();
+  const aliases = createWebpackAliases({
+    distDir: join(dir, '.next'),
+    isClient: true,
+    isEdgeServer: false,
+    dev: development,
+    config: { pageExtensions: ['tsx', 'ts', 'jsx', 'js'], images: {} },
+    appDir: join(dir, 'src/app'),
+    dir,
+    reactProductionProfiling: false,
+  });
+  // Construct the actual pinned resolver without running a compiler, loading
+  // a route, or producing output. The qualified Next config retains this list.
+  const compiler = webpack.webpack({
+    mode: 'none',
+    context: dir,
+    entry: {},
+    resolve: {
+      alias: {
+        'private-next-instrumentation-client': aliases['private-next-instrumentation-client'],
+        'private-next-empty-module': false,
+      },
+      extensions: ['.js', '.mjs', '.tsx', '.ts', '.jsx', '.json', '.wasm'],
+      extensionAlias: { '.js': ['.ts', '.tsx', '.js'] },
+    },
+  });
+  return compiler.resolverFactory
+    .get('normal', { useSyncFileSystemCalls: true })
+    .resolveSync({}, from, request);
+}
+function pinnedClientInstrumentation(dir, development = false) {
+  return pinnedNextResolution(dir, 'private-next-instrumentation-client', development);
+}
 function altered(path, change, assertion) {
   const before = readFileSync(path);
   try {
@@ -196,6 +258,16 @@ function altered(path, change, assertion) {
   } finally {
     writeFileSync(path, before);
   }
+}
+function onlyInputChanged(before, after, path) {
+  assert.notDeepEqual(
+    before.filter((file) => file.path === path),
+    after.filter((file) => file.path === path),
+  );
+  assert.deepEqual(
+    before.filter((file) => file.path !== path),
+    after.filter((file) => file.path !== path),
+  );
 }
 try {
   await test('qualified manager probes and actual 59 installed subjects', () => {
@@ -460,6 +532,535 @@ try {
       denied(() => verifyFrameworkBuild({ appRoot, frontendRoot }), 'graph_identity');
     } finally {
       unlinkSync(path);
+    }
+  });
+  await test('actual app imports bind test-named helper bytes and membership', () => {
+    const previousManifest = readFileSync(join(appRoot, '.next/framework-build.json'));
+    const { createValidFileMatcher } = actualRequire('next/dist/server/lib/find-page-file');
+    const helpers = [
+      'test/helper.mjs',
+      '__tests__/helper.mjs',
+      'shared/js-helper.test.js',
+      'shared/ts-helper.test.ts',
+      'shared/tsx-helper.test.tsx',
+      'shared/jsx-helper.test.jsx',
+    ];
+    const original = "export const value = 'before';\n";
+    const page = join(appRoot, 'src/app/helper-binding/page.js');
+    for (const name of helpers) put(join(appRoot, 'src', name), original);
+    put(
+      page,
+      helpers
+        .slice(0, 3)
+        .map((name, index) => `import {value as value${index}} from '../../${name}';\n`)
+        .join('') + 'export default function Page(){return [value0,value1,value2];}\n',
+    );
+    try {
+      assert.equal(
+        createValidFileMatcher(
+          ['tsx', 'ts', 'jsx', 'js'],
+          join(appRoot, 'src/app'),
+        ).isAppRouterPage(page),
+        true,
+      );
+      const child = spawnSync(
+        process.execPath,
+        [
+          '--input-type=module',
+          '--eval',
+          `import Page from ${JSON.stringify(page)};process.stdout.write(JSON.stringify(Page()));`,
+        ],
+        { encoding: 'utf8', timeout: 2500 },
+      );
+      assert.equal(child.status, 0, child.stderr);
+      assert.deepEqual(JSON.parse(child.stdout), ['before', 'before', 'before']);
+      for (const name of helpers) {
+        const request = `../../${name.replace(/\.tsx?$/, '.js')}`;
+        assert.equal(
+          pinnedNextResolution(appRoot, request, false, dirname(page)),
+          realpathSync(join(appRoot, 'src', name)),
+        );
+      }
+      const manifest = buildControlManifest();
+      verifyFrameworkBuild({ appRoot, frontendRoot });
+      const bound = { appRoot: realpathSync(appRoot), frontendRoot: realpathSync(frontendRoot) };
+      for (const [index, name] of helpers.entries()) {
+        assert.equal(
+          manifest.inputs.some((file) => file.path === `app/src/${name}`),
+          true,
+        );
+        const action = ['edit', 'delete', 'add'][index % 3];
+        const changed = action === 'add' ? name.replace(/([^/]+)$/, 'extra-$1') : name;
+        const path = join(appRoot, 'src', changed);
+        if (action === 'delete') unlinkSync(path);
+        else put(path, "export const value = 'after';\n");
+        try {
+          onlyInputChanged(manifest.inputs, frameworkInputGraph(bound), `app/src/${changed}`);
+          if (index < 3)
+            denied(() => verifyFrameworkBuild({ appRoot, frontendRoot }), 'graph_identity');
+        } finally {
+          if (action === 'add') unlinkSync(path);
+          else put(path, original);
+        }
+      }
+      verifyFrameworkBuild({ appRoot, frontendRoot });
+    } finally {
+      for (const name of helpers) unlinkSync(join(appRoot, 'src', name));
+      rmSync(dirname(page), { recursive: true });
+      writeFileSync(join(appRoot, '.next/framework-build.json'), previousManifest);
+    }
+  });
+  await test('actual NodeNext native helper resolution binds production, dev and restart inputs', () => {
+    const previousManifest = readFileSync(join(appRoot, '.next/framework-build.json'));
+    const ts = actualRequire('typescript');
+    const helpers = ['test/helper.ts', '__tests__/helper.ts', 'shared/helper.test.ts'];
+    const original = "export const value = 'before';\n";
+    const entry = join(appRoot, 'src/server/ingress.ts');
+    const oldBrowser = process.env.BROWSERSLIST;
+    for (const name of helpers) put(join(appRoot, 'src/server', name), original);
+    put(
+      entry,
+      helpers
+        .map(
+          (name, index) =>
+            `export {value as value${index}} from './${name.replace(/\.ts$/, '.js')}';\n`,
+        )
+        .join(''),
+    );
+    try {
+      const config = ts.getParsedCommandLineOfConfigFile(
+        join(appRoot, 'tsconfig.server.json'),
+        {},
+        {
+          ...ts.sys,
+          onUnRecoverableConfigFileDiagnostic(error) {
+            throw new Error(String(error.code));
+          },
+        },
+      );
+      assert.equal(config.options.module, ts.ModuleKind.NodeNext);
+      assert.equal(config.options.moduleResolution, ts.ModuleResolutionKind.NodeNext);
+      assert.equal(config.options.rootDir, join(appRoot, 'src/server'));
+      for (const name of helpers) {
+        const resolved = ts.resolveModuleName(
+          `./${name.replace(/\.ts$/, '.js')}`,
+          entry,
+          config.options,
+          ts.sys,
+        ).resolvedModule;
+        assert.equal(resolved?.resolvedFileName, join(appRoot, 'src/server', name));
+      }
+      const manifest = buildControlManifest();
+      process.env.BROWSERSLIST = frameworkRuntimeEnvironment(
+        { appRoot, frontendRoot },
+        'development',
+      ).BROWSERSLIST;
+      const development = buildControlDevelopmentManifest();
+      verifyFrameworkBuild({ appRoot, frontendRoot });
+      verifyFrameworkDevelopment({ appRoot, frontendRoot });
+      const bound = { appRoot: realpathSync(appRoot), frontendRoot: realpathSync(frontendRoot) };
+      const restart = frameworkDevelopmentRestartGraph(bound);
+      for (const [index, name] of helpers.entries()) {
+        const action = ['edit', 'delete', 'add'][index];
+        const changed = action === 'add' ? name.replace(/([^/]+)$/, 'extra-$1') : name;
+        const path = join(appRoot, 'src/server', changed);
+        if (action === 'delete') unlinkSync(path);
+        else put(path, "export const value = 'after';\n");
+        try {
+          const input = `app/src/server/${changed}`;
+          onlyInputChanged(manifest.inputs, frameworkInputGraph(bound), input);
+          onlyInputChanged(
+            development.inputs,
+            frameworkInputGraph(bound, { development: true }),
+            input,
+          );
+          onlyInputChanged(restart, frameworkDevelopmentRestartGraph(bound), input);
+          if (index === 2)
+            denied(() => verifyFrameworkBuild({ appRoot, frontendRoot }), 'graph_identity');
+          denied(() => verifyFrameworkDevelopment({ appRoot, frontendRoot }), 'graph_identity');
+        } finally {
+          if (action === 'add') unlinkSync(path);
+          else put(path, original);
+        }
+      }
+      verifyFrameworkBuild({ appRoot, frontendRoot });
+      verifyFrameworkDevelopment({ appRoot, frontendRoot });
+    } finally {
+      for (const name of helpers) unlinkSync(join(appRoot, 'src/server', name));
+      unlinkSync(entry);
+      if (oldBrowser === undefined) delete process.env.BROWSERSLIST;
+      else process.env.BROWSERSLIST = oldBrowser;
+      writeFileSync(join(appRoot, '.next/framework-build.json'), previousManifest);
+    }
+  });
+  await test('private dotenv bytes stay excluded while reserved executable entries refuse unread', () => {
+    verifyFrameworkBuild({ appRoot, frontendRoot });
+    const bound = { appRoot: realpathSync(appRoot), frontendRoot: realpathSync(frontendRoot) };
+    const production = frameworkInputGraph(bound);
+    const development = frameworkInputGraph(bound, { development: true });
+    const restart = frameworkDevelopmentRestartGraph(bound);
+    const raw = ['src/.env.local', 'src/server/.ENV.development'];
+    for (const name of raw) put(join(appRoot, name), 'PRIVATE_FIXTURE_SENTINEL=never-bind\n');
+    try {
+      assert.deepEqual(frameworkInputGraph(bound), production);
+      assert.deepEqual(frameworkInputGraph(bound, { development: true }), development);
+      assert.deepEqual(frameworkDevelopmentRestartGraph(bound), restart);
+      verifyFrameworkBuild({ appRoot, frontendRoot });
+      const executable = join(appRoot, 'src/server/.env.mjs');
+      put(executable, "export const value='reserved-code';\n");
+      const child = spawnSync(
+        process.execPath,
+        [
+          '--input-type=module',
+          '--eval',
+          `import {value} from ${JSON.stringify(executable)};process.stdout.write(value);`,
+        ],
+        { encoding: 'utf8', timeout: 2500 },
+      );
+      assert.equal(child.status, 0, child.stderr);
+      assert.equal(child.stdout, 'reserved-code');
+      unlinkSync(executable);
+      for (const name of ['.env.mjs', '.ENV.ts', '.env.private.json']) {
+        const path = join(appRoot, 'src/server', name);
+        put(path, 'never read as source');
+        chmodSync(path, 0o000);
+        try {
+          denied(() => frameworkInputGraph(bound), 'private_source');
+          denied(() => frameworkInputGraph(bound, { development: true }), 'private_source');
+          denied(() => frameworkDevelopmentRestartGraph(bound), 'private_source');
+        } finally {
+          chmodSync(path, 0o600);
+          unlinkSync(path);
+        }
+      }
+      const directory = join(appRoot, 'src/server/.env.private');
+      put(join(directory, 'helper.mjs'), 'never traverse this reserved directory');
+      try {
+        denied(() => frameworkInputGraph(bound), 'private_source');
+      } finally {
+        rmSync(directory, { recursive: true });
+      }
+      const alias = join(appRoot, 'src/server/.env.alias');
+      link(join(root, 'absent-private-target'), alias);
+      try {
+        denied(() => frameworkInputGraph(bound), 'private_source');
+      } finally {
+        unlinkSync(alias);
+      }
+    } finally {
+      for (const name of raw) unlinkSync(join(appRoot, name));
+    }
+    verifyFrameworkBuild({ appRoot, frontendRoot });
+  });
+  await test('the actual pinned router selects the admitted canonical src/app layout', () => {
+    const { findPagesDir } = actualRequire('next/dist/lib/find-pages-dir');
+    verifyFrameworkBuild({ appRoot, frontendRoot });
+    assert.deepEqual(findPagesDir(appRoot), {
+      pagesDir: undefined,
+      appDir: join(appRoot, 'src/app'),
+    });
+  });
+  await test('all actual competing Next route selections refuse the same admitted manifest', () => {
+    const { findPagesDir } = actualRequire('next/dist/lib/find-pages-dir');
+    verifyFrameworkBuild({ appRoot, frontendRoot });
+    const manifest = readFileSync(join(appRoot, '.next/framework-build.json'));
+    for (const name of ['app', 'pages', 'src/pages']) {
+      const path = join(appRoot, name);
+      put(join(path, 'page.tsx'), 'export default function Page(){return "one"}\n');
+      try {
+        const selection = findPagesDir(appRoot);
+        assert.equal(name === 'app' ? selection.appDir : selection.pagesDir, path);
+        denied(() => verifyFrameworkBuild({ appRoot, frontendRoot }), 'route_layout');
+        denied(() => frameworkInputGraph({ appRoot, frontendRoot }), 'route_layout');
+        put(join(path, 'page.tsx'), 'export default function Page(){return "two"}\n');
+        denied(() => verifyFrameworkBuild({ appRoot, frontendRoot }), 'route_layout');
+        assert.deepEqual(readFileSync(join(appRoot, '.next/framework-build.json')), manifest);
+      } finally {
+        rmSync(path, { recursive: true });
+      }
+    }
+    verifyFrameworkBuild({ appRoot, frontendRoot });
+  });
+  await test('source-less installation remains possible but graph, producer and startup refuse', () => {
+    verifyFrameworkBuild({ appRoot, frontendRoot });
+    const source = join(appRoot, 'src');
+    const removed = join(root, 'temporarily-removed-src');
+    renameSync(source, removed);
+    try {
+      identity();
+      denied(() => frameworkInputGraph({ appRoot, frontendRoot }), 'route_layout');
+      denied(() => prepareFrameworkBuild({ appRoot, frontendRoot }), 'route_layout');
+      denied(() => verifyFrameworkBuild({ appRoot, frontendRoot }), 'route_layout');
+      denied(() => frameworkDevelopmentRestartGraph({ appRoot, frontendRoot }), 'route_layout');
+    } finally {
+      renameSync(removed, source);
+    }
+  });
+  await test('qualified source directories cannot be aliases', () => {
+    verifyFrameworkBuild({ appRoot, frontendRoot });
+    for (const name of ['src', 'src/app']) {
+      const path = join(appRoot, name);
+      const displaced = join(root, `displaced-${name.replaceAll('/', '-')}`);
+      renameSync(path, displaced);
+      link(displaced, path);
+      try {
+        denied(identity, 'route_layout');
+      } finally {
+        unlinkSync(path);
+        renameSync(displaced, path);
+      }
+    }
+    verifyFrameworkBuild({ appRoot, frontendRoot });
+  });
+  await test('all live and dangling competing router aliases refuse without following them', () => {
+    verifyFrameworkBuild({ appRoot, frontendRoot });
+    for (const name of ['app', 'pages', 'src/pages']) {
+      for (const dangling of [false, true]) {
+        const path = join(appRoot, name);
+        link(dangling ? join(root, 'absent-router-target') : join(appRoot, 'src/app'), path);
+        try {
+          denied(() => verifyFrameworkBuild({ appRoot, frontendRoot }), 'route_layout');
+        } finally {
+          unlinkSync(path);
+        }
+      }
+    }
+    verifyFrameworkBuild({ appRoot, frontendRoot });
+  });
+  await test('actual case-insensitive router selection cannot bypass lowercase probes', () => {
+    const { findPagesDir } = actualRequire('next/dist/lib/find-pages-dir');
+    verifyFrameworkBuild({ appRoot, frontendRoot });
+    for (const name of ['App', 'Pages', 'src/Pages']) {
+      const path = join(appRoot, name);
+      put(join(path, 'page.tsx'), 'export default function Page(){return null}\n');
+      try {
+        const lower = join(appRoot, name.toLowerCase());
+        const selected = findPagesDir(appRoot);
+        if (selected.appDir === lower || selected.pagesDir === lower)
+          denied(() => verifyFrameworkBuild({ appRoot, frontendRoot }), 'route_layout');
+        else {
+          assert.equal(existsSync(lower), false);
+          verifyFrameworkBuild({ appRoot, frontendRoot });
+        }
+      } finally {
+        rmSync(path, { recursive: true });
+      }
+    }
+    verifyFrameworkBuild({ appRoot, frontendRoot });
+  });
+  await test('every actual client instrumentation root file fallback refuses', () => {
+    verifyFrameworkBuild({ appRoot, frontendRoot });
+    for (const extension of ['', '.js', '.mjs', '.tsx', '.ts', '.jsx', '.json', '.wasm']) {
+      assert.equal(pinnedClientInstrumentation(appRoot), false);
+      const path = join(appRoot, `instrumentation-client${extension}`);
+      put(path, 'not evaluated');
+      try {
+        assert.equal(pinnedClientInstrumentation(appRoot), realpathSync(path));
+        assert.equal(pinnedClientInstrumentation(appRoot, true), realpathSync(path));
+        denied(() => verifyFrameworkBuild({ appRoot, frontendRoot }), 'route_layout');
+        put(path, 'changed, never evaluated');
+        denied(() => verifyFrameworkBuild({ appRoot, frontendRoot }), 'route_layout');
+      } finally {
+        unlinkSync(path);
+      }
+    }
+    verifyFrameworkBuild({ appRoot, frontendRoot });
+  });
+  await test('actual client instrumentation directory fallback and dangling alias refuse', () => {
+    verifyFrameworkBuild({ appRoot, frontendRoot });
+    const path = join(appRoot, 'instrumentation-client');
+    put(join(path, 'index.js'), 'not evaluated');
+    try {
+      assert.equal(pinnedClientInstrumentation(appRoot), realpathSync(join(path, 'index.js')));
+      denied(identity, 'route_layout');
+    } finally {
+      rmSync(path, { recursive: true });
+    }
+    link(join(root, 'absent-instrumentation-target'), path);
+    try {
+      denied(identity, 'route_layout');
+    } finally {
+      unlinkSync(path);
+    }
+  });
+  await test('selected source hooks are bound and unrelated root server hooks remain unreachable', async () => {
+    verifyFrameworkBuild({ appRoot, frontendRoot });
+    const { findPagesDir } = actualRequire('next/dist/lib/find-pages-dir');
+    const { getFilesInDir } = actualRequire('next/dist/lib/get-files-in-dir');
+    const { getPossibleMiddlewareFilenames, getPossibleInstrumentationHookFilenames } =
+      actualRequire('next/dist/build/utils.js');
+    const extensions = ['tsx', 'ts', 'jsx', 'js'];
+    const sourceFiles = ['middleware.ts', 'instrumentation.ts', 'instrumentation-client.ts'];
+    const rootFiles = ['middleware.ts', 'instrumentation.ts'];
+    const beforeDevelopment = JSON.stringify(
+      frameworkInputGraph(identity(), { development: true }),
+    );
+    try {
+      for (const name of sourceFiles) put(join(appRoot, 'src', name), 'export {};\n');
+      for (const name of rootFiles) put(join(appRoot, name), 'not evaluated');
+      const selected = findPagesDir(appRoot);
+      const hookRoot = dirname(selected.pagesDir || selected.appDir);
+      assert.equal(hookRoot, join(appRoot, 'src'));
+      const productionHooks = [...(await getFilesInDir(hookRoot))].filter((name) =>
+        /^(?:middleware|instrumentation)\.(?:tsx|ts|jsx|js)$/.test(name),
+      );
+      assert.deepEqual(productionHooks.sort(), ['instrumentation.ts', 'middleware.ts']);
+      const developmentHooks = [
+        ...getPossibleMiddlewareFilenames(hookRoot, extensions),
+        ...getPossibleInstrumentationHookFilenames(hookRoot, extensions),
+      ];
+      for (const name of rootFiles)
+        assert.equal(developmentHooks.includes(join(appRoot, name)), false);
+      assert.equal(
+        pinnedClientInstrumentation(appRoot),
+        realpathSync(join(appRoot, 'src/instrumentation-client.ts')),
+      );
+      assert.equal(
+        JSON.stringify(frameworkInputGraph(identity(), { development: true })),
+        beforeDevelopment,
+      );
+      denied(() => verifyFrameworkBuild({ appRoot, frontendRoot }), 'graph_identity');
+      buildControlManifest();
+      verifyFrameworkBuild({ appRoot, frontendRoot });
+      altered(
+        join(appRoot, 'src/instrumentation.ts'),
+        () => 'export const changed = true;\n',
+        () => denied(() => verifyFrameworkBuild({ appRoot, frontendRoot }), 'graph_identity'),
+      );
+    } finally {
+      for (const name of sourceFiles) unlinkSync(join(appRoot, 'src', name));
+      for (const name of rootFiles) unlinkSync(join(appRoot, name));
+      buildControlManifest();
+    }
+  });
+  await test('development compiler/restart and fresh-template copy refuse unsupported layout', () => {
+    const old = process.env.BROWSERSLIST;
+    process.env.BROWSERSLIST = frameworkRuntimeEnvironment(identity(), 'development').BROWSERSLIST;
+    buildControlDevelopmentManifest();
+    const target = join(frontendRoot, 'apps/route-layout-copy');
+    cpSync(appRoot, target, {
+      recursive: true,
+      filter: (path) =>
+        !['.next', '.server', '.framework-state'].some(
+          (name) => path === join(appRoot, name) || path.startsWith(join(appRoot, name) + '/'),
+        ),
+    });
+    try {
+      verifyFrameworkDevelopment({ appRoot, frontendRoot });
+      const restart = JSON.stringify(frameworkDevelopmentRestartGraph(identity()));
+      put(join(appRoot, 'src/app/ordinary-hmr.tsx'), 'export const ordinary = true;\n');
+      verifyFrameworkDevelopment({ appRoot, frontendRoot });
+      assert.equal(JSON.stringify(frameworkDevelopmentRestartGraph(identity())), restart);
+      unlinkSync(join(appRoot, 'src/app/ordinary-hmr.tsx'));
+      for (const name of [
+        'app/page.tsx',
+        'pages/page.tsx',
+        'src/pages/page.tsx',
+        'instrumentation-client.ts',
+      ]) {
+        const path = join(appRoot, name);
+        put(path, 'not evaluated');
+        try {
+          denied(() => verifyFrameworkDevelopment({ appRoot, frontendRoot }), 'route_layout');
+          denied(() => frameworkDevelopmentRestartGraph({ appRoot, frontendRoot }), 'route_layout');
+        } finally {
+          if (name === 'instrumentation-client.ts') unlinkSync(path);
+          else rmSync(dirname(path), { recursive: true });
+        }
+      }
+      verifyFrameworkDevelopment({ appRoot, frontendRoot });
+      verifyFrameworkBuild({ appRoot, frontendRoot });
+      // Source is admitted first; only the fresh target gains the competing
+      // root. Its refused transfer must never create executable output.
+      const baseline = frameworkInputGraph(
+        verifyFrameworkInstallation({ appRoot: target, frontendRoot }),
+      );
+      assert.deepEqual(baseline, frameworkInputGraph(identity()));
+      put(join(target, 'app/page.tsx'), 'not evaluated');
+      denied(
+        () =>
+          copyQualifiedFrameworkBuild({
+            sourceAppRoot: appRoot,
+            targetAppRoot: target,
+            frontendRoot,
+          }),
+        'route_layout',
+      );
+      assert.equal(existsSync(join(target, '.next')), false);
+      assert.equal(existsSync(join(target, '.server')), false);
+    } finally {
+      rmSync(target, { recursive: true, force: true });
+      if (old === undefined) delete process.env.BROWSERSLIST;
+      else process.env.BROWSERSLIST = old;
+    }
+  });
+  await test('unchanged native bootstrap refuses root routes and imported helper drift before its marker', () => {
+    copy(
+      join(FRAMEWORK_FRONTEND_ROOT, 'apps/web/scripts/public-server.mjs'),
+      join(appRoot, 'scripts/public-server.mjs'),
+    );
+    const marker = join(root, 'route-runtime-imported');
+    const helper = join(appRoot, 'src/test/runtime-helper.mjs');
+    put(helper, "export const value='admitted';\n");
+    put(
+      join(appRoot, 'scripts/public-server-runtime.mjs'),
+      `import {writeFileSync} from 'node:fs';import {value} from '../src/test/runtime-helper.mjs';` +
+        `writeFileSync(${JSON.stringify(marker)},value);\n`,
+    );
+    buildControlManifest();
+    const run = () =>
+      spawnSync(process.execPath, ['scripts/public-server.mjs'], {
+        cwd: appRoot,
+        encoding: 'utf8',
+        timeout: 10_000,
+      });
+    try {
+      const baseline = run();
+      assert.equal(baseline.status, 0, baseline.stderr);
+      assert.equal(readFileSync(marker, 'utf8'), 'admitted');
+      unlinkSync(marker);
+      const manifest = readFileSync(join(appRoot, '.next/framework-build.json'));
+      for (const name of [
+        'app/page.tsx',
+        'pages/page.tsx',
+        'src/pages/page.tsx',
+        'instrumentation-client.ts',
+      ]) {
+        const path = join(appRoot, name);
+        put(path, 'never imported');
+        try {
+          const result = run();
+          assert.equal(result.status, 1);
+          assert.match(result.stderr, /Framework admission refused: route_layout/);
+          assert.equal(existsSync(marker), false);
+          assert.deepEqual(readFileSync(join(appRoot, '.next/framework-build.json')), manifest);
+        } finally {
+          if (name === 'instrumentation-client.ts') unlinkSync(path);
+          else rmSync(dirname(path), { recursive: true });
+        }
+      }
+      const added = join(appRoot, 'src/__tests__/extra.test.js');
+      for (const action of ['edit', 'delete', 'add']) {
+        if (action === 'edit') put(helper, "export const value='changed';\n");
+        else if (action === 'delete') unlinkSync(helper);
+        else put(added, 'export const extra=true;\n');
+        try {
+          const result = run();
+          assert.equal(result.status, 1);
+          assert.match(result.stderr, /Framework admission refused: graph_identity/);
+          assert.equal(existsSync(marker), false);
+          assert.deepEqual(readFileSync(join(appRoot, '.next/framework-build.json')), manifest);
+        } finally {
+          if (action === 'add') unlinkSync(added);
+          else put(helper, "export const value='admitted';\n");
+        }
+      }
+    } finally {
+      unlinkSync(join(appRoot, 'scripts/public-server.mjs'));
+      unlinkSync(join(appRoot, 'scripts/public-server-runtime.mjs'));
+      unlinkSync(helper);
+      if (existsSync(marker)) unlinkSync(marker);
+      buildControlManifest();
     }
   });
   for (const name of [
@@ -970,9 +1571,8 @@ try {
   });
   for (const name of ['.browserslistrc', 'browserslist', 'package.json']) {
     await test(`effective browser target ignores unowned ancestor ${name} configuration`, () => {
-      const require = createRequire(join(FRAMEWORK_FRONTEND_ROOT, 'apps/web/package.json'));
-      const loader = require('next/dist/compiled/browserslist');
-      const { getSupportedBrowsers } = require('next/dist/build/utils.js');
+      const loader = actualRequire('next/dist/compiled/browserslist');
+      const { getSupportedBrowsers } = actualRequire('next/dist/build/utils.js');
       const path = join(frontendRoot, 'apps', name);
       const old = process.env.BROWSERSLIST;
       const before = JSON.stringify(frameworkInputGraph(identity()));

@@ -1,7 +1,8 @@
 // @vitest-environment node
 import { execFileSync, spawnSync } from 'node:child_process';
-import { readdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -300,6 +301,17 @@ describe('P02d-7 exact demo identity boundary', () => {
       [frameworkGuard, source],
       ['frontend/scripts/framework-process-family.mjs', 'export const family = true;'],
     ]);
+  const provenanceEntry = 'frontend/scripts/test-framework-provenance.mjs';
+  const provenanceSource = readFileSync(join(root, provenanceEntry), 'utf8');
+  const provenanceSources = (source = provenanceSource) =>
+    guardSources()
+      .set(provenanceEntry, source)
+      .set('frontend/scripts/framework-development.mjs', 'export const development = true;')
+      .set(
+        'frontend/scripts/test-framework-metadata-contention.mjs',
+        'export const metadata = true;',
+      )
+      .set('frontend/scripts/test-framework-process-family.mjs', 'export const family = true;');
   it('resolves the actual guard loaders from the checked application package and retains the guard source', () => {
     const observed: { from: string; edge: string; anchors: string[] }[] = [];
     const selected = productionDemoSources(guardSources(), (from, edge, anchors) => {
@@ -412,6 +424,141 @@ describe('P02d-7 exact demo identity boundary', () => {
       ).toThrow('Unmodeled runtime import');
     },
   );
+  it.each([
+    ['dynamic prefixed module', "const hiddenModule = await import('node:module');", ''],
+    ['dynamic bare module', "const hiddenModule = await import('module');", ''],
+    ['required prefixed module', "const hiddenModule = require('node:module');", ''],
+    ['required bare module', "const hiddenModule = require('module');", ''],
+    ['bare builtin getter', "const hiddenModule = process.getBuiltinModule('module');", ''],
+    [
+      'prefixed builtin getter',
+      "const hiddenModule = process.getBuiltinModule('node:module');",
+      '',
+    ],
+    ['literal computed getter', "const hiddenModule = process['getBuiltinModule']('module');", ''],
+    [
+      'computed getter and module',
+      "const hiddenModule = process['get' + 'BuiltinModule']('node:' + 'module');",
+      '',
+    ],
+    [
+      'aliased builtin getter',
+      "const getter = process.getBuiltinModule; const hiddenModule = getter('node:module');",
+      '',
+    ],
+    [
+      'destructured builtin getter',
+      "const { getBuiltinModule: getter } = process; const hiddenModule = getter('module');",
+      '',
+    ],
+    [
+      'aliased process with computed getter',
+      "const hiddenProcess = process; const hiddenModule = hiddenProcess['get' + 'BuiltinModule']('module');",
+      '',
+    ],
+    [
+      'reflected builtin getter',
+      "const getter = Reflect.get(process, 'getBuiltinModule'); const hiddenModule = getter('module');",
+      '',
+    ],
+    [
+      'aliased global process',
+      "const hiddenGlobal = globalThis; const hiddenModule = hiddenGlobal['process']['getBuiltinModule']('module');",
+      '',
+    ],
+    [
+      'dynamically acquired process',
+      "const hiddenProcess = (await import('node:process')).default; const hiddenModule = hiddenProcess.getBuiltinModule('module');",
+      '',
+    ],
+    [
+      'required process',
+      "const hiddenProcess = require('process'); const hiddenModule = hiddenProcess.getBuiltinModule('module');",
+      '',
+    ],
+    [
+      'statically imported process',
+      "const hiddenModule = hiddenProcess['getBuiltinModule']('module');",
+      "import hiddenProcess from 'node:process';",
+    ],
+  ])(
+    'refuses %s in both closed sources while Node actually loads the concealed helper',
+    (_name, acquisition, preamble) => {
+      const privateRoot = mkdtempSync(join(tmpdir(), 'learnstack-source-factory-'));
+      const appRoot = join(privateRoot, 'frontend/apps/web');
+      const helper = 'frontend/apps/web/src/test/concealed-helper.cjs';
+      const helperSource = `module.exports = ${JSON.stringify(identity)};`;
+      try {
+        mkdirSync(join(appRoot, 'src/test'), { recursive: true });
+        writeFileSync(join(appRoot, 'package.json'), '{"type":"commonjs"}\n');
+        writeFileSync(join(privateRoot, helper), helperSource);
+        const load =
+          "const hiddenLoader = hiddenModule['create' + 'Require'](join(appRoot, 'package.json'));\n" +
+          "hiddenLoader('./src/test/concealed-helper.cjs');\n";
+        const actual = execFileSync(
+          process.execPath,
+          [
+            '--input-type=module',
+            '-e',
+            `${preamble}\nimport { createRequire } from 'node:module';\n` +
+              "import { join } from 'node:path';\n" +
+              `const appRoot = ${JSON.stringify(appRoot)};\n` +
+              "const require = createRequire(join(appRoot, 'package.json'));\n" +
+              acquisition +
+              '\n' +
+              load.replace(
+                "hiddenLoader('./src/test/concealed-helper.cjs');",
+                "console.log(hiddenLoader('./src/test/concealed-helper.cjs'));",
+              ),
+          ],
+          { encoding: 'utf8', cwd: privateRoot },
+        );
+        expect(actual.trim()).toBe(identity);
+        for (const [entry, source, marker, sources] of [
+          [
+            frameworkGuard,
+            frameworkGuardSource,
+            "  const require = createRequire(join(appRoot, 'package.json'));",
+            guardSources,
+          ],
+          [
+            provenanceEntry,
+            provenanceSource,
+            "const actualRequire = createRequire(join(FRAMEWORK_FRONTEND_ROOT, 'apps/web/package.json'));",
+            provenanceSources,
+          ],
+        ] as const) {
+          const selectedLoad =
+            entry === provenanceEntry
+              ? load.replace(
+                  "join(appRoot, 'package.json')",
+                  "join(FRAMEWORK_FRONTEND_ROOT, 'apps/web/package.json')",
+                )
+              : load;
+          const addition = `${acquisition}\n${selectedLoad}`.replaceAll(
+            /\brequire\(/g,
+            entry === provenanceEntry ? 'actualRequire(' : 'require(',
+          );
+          const dirty = `${preamble}\n${source.replace(marker, `${marker}\nvoid (async () => {\n${addition}\n})();`)}`;
+          expect(source).toContain(marker);
+          const files = sources(dirty).set(helper, helperSource);
+          expect(demoIdentityFindings(helper, helperSource, vocabulary)).toEqual([identity]);
+          expect(() =>
+            productionDemoSources(files, () => 'frontend/node_modules/clean/index.js'),
+          ).toThrow(`Unmodeled runtime import: ${entry}`);
+        }
+      } finally {
+        rmSync(privateRoot, { recursive: true, force: true });
+      }
+    },
+  );
+  it('keeps ordinary builtin imports outside the special loader model unchanged', () => {
+    const entry = 'frontend/apps/web/scripts/ordinary.mjs';
+    const source =
+      "import process from 'node:process'; import { createRequire } from 'node:module';\n" +
+      "await import('module'); require('node:module'); process.getBuiltinModule('module');";
+    expect(productionDemoSources(new Map([[entry, source]])).get(entry)).toBe(source);
+  });
   it('refuses unmodeled guard edges even after recognizing the app-relative loader', () => {
     const marker = "  const require = createRequire(join(appRoot, 'package.json'));";
     for (const edge of [
@@ -430,17 +577,9 @@ describe('P02d-7 exact demo identity boundary', () => {
     }
   });
   it('models the actual provenance control app anchor and refuses a changed or rebound control root', () => {
-    const entry = 'frontend/scripts/test-framework-provenance.mjs';
-    const source = readFileSync(join(root, entry), 'utf8');
-    const sources = (text: string) =>
-      guardSources()
-        .set(entry, text)
-        .set('frontend/scripts/framework-development.mjs', 'export const development = true;')
-        .set(
-          'frontend/scripts/test-framework-metadata-contention.mjs',
-          'export const metadata = true;',
-        )
-        .set('frontend/scripts/test-framework-process-family.mjs', 'export const family = true;');
+    const entry = provenanceEntry;
+    const source = provenanceSource;
+    const sources = provenanceSources;
     const observed: { from: string; edge: string }[] = [];
     const external = (from: string, edge: string) => {
       observed.push({ from, edge });
@@ -451,28 +590,49 @@ describe('P02d-7 exact demo identity boundary', () => {
       { from: 'frontend/apps/web/package.json', edge: 'next' },
       { from: 'frontend/apps/web/package.json', edge: 'next/dist/bin/next' },
       { from: 'frontend/apps/web/package.json', edge: 'typescript/bin/tsc' },
+      { from: 'frontend/apps/web/package.json', edge: 'next/dist/build/create-compiler-aliases' },
+      { from: 'frontend/apps/web/package.json', edge: 'next/dist/compiled/webpack/webpack' },
+      { from: 'frontend/apps/web/package.json', edge: 'next/dist/server/lib/find-page-file' },
+      { from: 'frontend/apps/web/package.json', edge: 'typescript' },
+      { from: 'frontend/apps/web/package.json', edge: 'next/dist/lib/find-pages-dir' },
+      { from: 'frontend/apps/web/package.json', edge: 'next/dist/lib/find-pages-dir' },
+      { from: 'frontend/apps/web/package.json', edge: 'next/dist/lib/find-pages-dir' },
+      { from: 'frontend/apps/web/package.json', edge: 'next/dist/lib/find-pages-dir' },
+      { from: 'frontend/apps/web/package.json', edge: 'next/dist/lib/get-files-in-dir' },
+      { from: 'frontend/apps/web/package.json', edge: 'next/dist/build/utils.js' },
       { from: 'frontend/apps/web/package.json', edge: 'next/dist/compiled/browserslist' },
       { from: 'frontend/apps/web/package.json', edge: 'next/dist/build/utils.js' },
     ]);
     const marker =
-      "const require = createRequire(join(FRAMEWORK_FRONTEND_ROOT, 'apps/web/package.json'));";
+      "const actualRequire = createRequire(join(FRAMEWORK_FRONTEND_ROOT, 'apps/web/package.json'));";
     expect(source).toContain(marker);
     for (const dirty of [
       source.replace(
         marker,
-        "const require = createRequire(join(otherRoot, 'apps/web/package.json'));",
+        "const actualRequire = createRequire(join(otherRoot, 'apps/web/package.json'));",
       ),
       source.replace(
         marker,
-        "const require = createRequire(join(FRAMEWORK_FRONTEND_ROOT, 'apps/other/package.json'));",
+        "const actualRequire = createRequire(join(FRAMEWORK_FRONTEND_ROOT, 'apps/other/package.json'));",
       ),
       source.replace(marker, `${marker}\nFRAMEWORK_FRONTEND_ROOT = otherRoot;`),
       source.replace(
         marker,
-        `${marker}\nfunction nested(FRAMEWORK_FRONTEND_ROOT) { require('./hidden'); }`,
+        `${marker}\nfunction nested(FRAMEWORK_FRONTEND_ROOT) { actualRequire('./hidden'); }`,
       ),
-      source.replace(marker, `${marker}\nrequire = otherRequire;`),
-      source.replace(marker, `${marker}\nrequire.resolve(selectedModule);`),
+      source.replace(marker, `${marker}\nactualRequire = otherRequire;`),
+      source.replace(
+        marker,
+        `${marker}\nfunction nested(actualRequire) { actualRequire('./hidden'); }`,
+      ),
+      source.replace(
+        marker,
+        `${marker}\nconst hiddenLoader = actualRequire; hiddenLoader('./hidden');`,
+      ),
+      source.replace(marker, `${marker}\nrequire('./hidden');`),
+      source.replace(marker, marker.replace('const actualRequire', 'let actualRequire')),
+      source.replace(marker, `function nested() { ${marker} }`),
+      source.replace(marker, `${marker}\nactualRequire.resolve(selectedModule);`),
       source.replace('  FRAMEWORK_FRONTEND_ROOT,', '  FRAMEWORK_FRONTEND_ROOT as OTHER_ROOT,'),
       source + '\nconst FRAMEWORK_FRONTEND_ROOT = otherRoot;',
     ]) {
@@ -481,6 +641,26 @@ describe('P02d-7 exact demo identity boundary', () => {
         'Unmodeled runtime import',
       );
     }
+  });
+  it('follows the hoisted provenance loader into local and transitive first-party helpers', () => {
+    const local = 'frontend/apps/web/src/test/provenance-local.cjs';
+    const nested = 'frontend/apps/web/src/test/provenance-nested.test.cjs';
+    const marker =
+      "const actualRequire = createRequire(join(FRAMEWORK_FRONTEND_ROOT, 'apps/web/package.json'));";
+    expect(provenanceSource).toContain(marker);
+    const source = provenanceSource.replace(
+      marker,
+      `${marker}\nactualRequire('./src/test/provenance-local.cjs');`,
+    );
+    const files = provenanceSources(source)
+      .set(local, "module.exports = require('./provenance-nested.test.cjs');")
+      .set(nested, `module.exports = ${JSON.stringify(identity)};`);
+    const selected = productionDemoSources(
+      files,
+      () => 'frontend/apps/web/node_modules/clean/index.js',
+    );
+    for (const helper of [local, nested]) expect(selected.has(helper)).toBe(true);
+    expect(demoIdentityFindings(nested, selected.get(nested)!, vocabulary)).toEqual([identity]);
   });
   it('models only the copied BFF observation harness generated imports and their actual sources', () => {
     const harness = 'frontend/apps/web/scripts/test-bff-proof-runtime-observation.mjs';
