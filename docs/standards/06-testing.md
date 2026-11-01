@@ -520,7 +520,8 @@ G38(d)'s guarded runner are already delivered.
 
 ### Version-qualified Next response cleanup
 
-[ADR-0083](../decisions/0083-owned-next-response-compression-cleanup.md) and
+[ADR-0083](../decisions/0083-owned-next-response-compression-cleanup.md),
+[ADR-0084](../decisions/0084-owned-frontend-runtime-process-families.md) and
 [Standard 07](07-frontend-architecture.md#version-qualified-next-response-cleanup)
 require distinct installation, generated-output and actual-owner evidence.
 Acceptance registers these obligations; it does not establish their execution.
@@ -567,6 +568,41 @@ Acceptance registers these obligations; it does not establish their execution.
   publication fences, refusal before headers, cancellation after headers and the
   existing shutdown failure boundary. Observe actual native development/production
   browser journeys separately from direct framework controls.
+
+- Under ADR-0084, prove owner and child startup stop latches before handshake,
+  before shutdown registration, between producer stages and during held real
+  `app.prepare()`, with SIGTERM, SIGINT and parent disconnect/death. No late
+  start/ready clears stop or permits listen. The one five-second watchdog starts
+  at the first stop, even before registration; neither registration nor a later
+  stop resets it. Expiry fails child and retains parent ownership until actual
+  family retirement; existing ten-second operation/body bounds remain unchanged.
+- Hold a real descendant after normal, failed and SIGKILL direct-child exit.
+  Refuse replacement until actual group absence. Prove initialized development
+  static-paths worker retirement and normal production/development restart.
+  Preserve actual admission/request/session/Next shutdown order. Runtime generic
+  broadcast-preload and group-kill mutants fail. Compiler/installer cancellation
+  still fails, including existing SDK cancellation controls and child-zero stop.
+- Check the distinct runtime result matrix: only actual listener-ready plus
+  requested graceful child-zero/no-signal stop and actual group absence succeeds.
+  Pre-ready/unsolicited zero, signal exits, faults, forged ready without binding
+  and parent loss fail. Handshake/IPC/log output never substitutes for bind plus
+  real HTTP/TLS checks. No new startup timeout is introduced.
+- Verify exact parent records and independent child graph/cache metadata without
+  child lease acquisition or cache preparation. Challenge/record/incarnation
+  confusion, wrong parent/mode, stale record, missing channel and direct child
+  entry refuse. Check owner builtins import closure and all boundary input
+  mutations, including copied literal child instrumentation before genuine build.
+- Capture immutable positive owner/runtime/producer family handles before proof
+  readiness. Owner-group absence alone does not release runtime roots. Exercise
+  parent loss, missing/stale handles, changed records, observation uncertainty,
+  preserved failure and positive all-family fixture reconciliation. No cached
+  group signal, forced cleanup, timer or receipt replaces actual retirement.
+- Migrate ingress/BFF bind, preparation, version-fetch, observe, advance,
+  render-control, sanitized native/sink upgrade, proof-listener and bounded
+  proof-shutdown schemas through the copied finite relay. Deliver each schema to
+  its existing host and retain forged/malformed/omitted/lost-frame, wrong-sender,
+  never-binds and runtime-replacement negatives. HMR/freshness/publication/session
+  proofs compare actual child incarnation, not only unchanged outer PID.
 
 Frontend type/lint/full guarded tests and public browser/Lighthouse proofs remain
 required. Complete final-source hosted A followed by full B uses the same source,

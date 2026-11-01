@@ -127,12 +127,13 @@ records hosted qualification. Phase 11 owns production qualification.
 | 0082 | [Current-Source CI Execution Windows](0082-current-source-ci-execution-windows.md) | Accepted 2026-11-01 after maintainer review: verified Architecture 25 / ordinary 30 minute whole-job and expected-owner observation bounds; base/native twenty, reserve, operation limits, counts and complete fresh A/B stay fixed. Dated ADR-0062/0063/0075 amendments preserve predecessor history; implementation and qualification stay in the [Phase 03 Status block](../roadmap/phase-03-identity-admin.md). |
 | 0083 | [Owned Next Response Compression Cleanup](0083-owned-next-response-compression-cleanup.md) | Accepted 2026-11-01 after conditional maintainer review: exact qualified frontend tuple, framework-owned compressor/terminal cleanup preserving bodyless wire behavior, clean generated runtime provenance and unchanged security/qualification gates. The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns implementation and proof state. |
 
+| 0084 | [Owned Frontend Runtime Process Families](0084-owned-frontend-runtime-process-families.md) | Accepted 2026-11-01 after conditional maintainer review corrections: one launch owner/private runtime child, irreversible startup stop, distinct runtime result and actual-family retirement. ADR-0083 remains Accepted outside that boundary; implementation and proof stay in the [Phase 03 Status](../roadmap/phase-03-identity-admin.md). |
+
 ## Proposed ADRs
 
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
-| 0084 | [Owned Frontend Runtime Process Families](0084-owned-frontend-runtime-process-families.md) | Proposed builtins native owner/runtime child and actual subprocess-group retirement; no topology implementation before approval | P03-3, ADR-0083 Step 2 corrections before runtime ownership activation |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
 the P02d-2 package on 2026-10-02. Their rows are now in Active ADRs; ADR-0049 remains

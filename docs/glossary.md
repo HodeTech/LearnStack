@@ -414,6 +414,15 @@ and recurrence definitions remain empty.
 | **BackgroundJobLifecycleProjection** | Closed read-model metadata declared by Tenancy for the job framework's minimal lifecycle inventory. It supplies status meanings without constructing module services or accepting a caller-selected query, route or predicate; [ADR-0047](decisions/0047-transactional-background-job-runtime.md#durable-recurrence-and-recipient-admission) owns its finite scope. |
 | **Job attempt** | One counted normal or finalize admission with typed AttemptId, immutable ordinal/deadline and write-once execution/outcome/quiescence evidence. Recovery probes are not counted attempts. |
 
+## Native Frontend Ownership
+
+| Term | Definition |
+|------|------------|
+| **Owner process** | The one builtins-only `public-server.mjs` process for a native frontend launch. It holds the frontend/app/SDK reservations, prepares output/cache and joins its private runtime family. It does not host the native listener or restart its child. [ADR-0084](decisions/0084-owned-frontend-runtime-process-families.md). |
+| **Runtime child** | The private child admitted by its exact owner/channel and current output identity before native/SDK/Next imports. It owns listener, admission, request/session and framework work in its new POSIX process group, while the parent retains durable output reservations. [ADR-0084](decisions/0084-owned-frontend-runtime-process-families.md). |
+| **Runtime incarnation** | One admitted runtime child's lifetime, attributed in proof by a fresh label bound to its authenticated channel/launch handle. The label is observation metadata and grants no cleanup or request/session authority. [ADR-0084](decisions/0084-owned-frontend-runtime-process-families.md). |
+| **Process family** | A positively captured qualified process-group leader and its inherited descendants. The launch owner joins actual direct-child close and group absence; direct exit or outer-group absence alone does not retire it. Qualified compiler/installer families and the runtime family retain distinct cancellation/result policies. [ADR-0084](decisions/0084-owned-frontend-runtime-process-families.md). |
+
 ## Foundation Infrastructure
 
 | Term | Definition |

@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 5,397 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 5,434 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -234,6 +234,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0083 Step 2 review round 2 and source binding corrections (2026-11-01)](#adr-0083-step-2-review-round-2-and-source-binding-corrections-2026-11-01) — 74 lines
   - [ADR-0083 Step 2 reserved source follow-up and current verification (2026-11-01)](#adr-0083-step-2-reserved-source-follow-up-and-current-verification-2026-11-01) — 69 lines
   - [ADR-0083 independent correction reviews close within scope (2026-11-01)](#adr-0083-independent-correction-reviews-close-within-scope-2026-11-01) — 28 lines
+  - [ADR-0084 maintainer corrections and acceptance (2026-11-01)](#adr-0084-maintainer-corrections-and-acceptance-2026-11-01) — 37 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -11174,3 +11175,40 @@ newly supplied review corrections. Complete those corrections and acceptance,
 then its three-step delivery sequence; do not ask again for the same approval.
 Full Step 3, initialized runtime/browser proof, final-source hosted A/B and
 maintainer-deferred manual accessibility remain open.
+
+### ADR-0084 maintainer corrections and acceptance (2026-11-01)
+
+The maintainer conditionally authorizes acceptance and implementation after
+correction of the runtime-family findings. The corrected ADR-0084 is Accepted
+after root and independent targeted seam verification of the requested
+corrections. Two carrier wording issues are corrected at application: the
+startup anchor is new, and the private challenge uses child-only environment
+transport before capture/scrub. Fresh Step 1 R1 and new R2 remain pending.
+It supersedes only
+ADR-0083's no-new-worker-topology boundary for one native launch; ADR-0083 remains
+Accepted, with its historical body and other decisions unchanged.
+
+The revision separates runtime success from producer cancellation failure,
+selects an irreversible owner/child startup latch and a new in-process native
+shutdown registration, anchors one existing five-second watchdog at first stop,
+and retains actual family joins after any child failure. Parent preparation,
+lease/cache authority, private IPC challenge and proof-incarnation metadata have
+separate owners. Copied ingress/BFF instrumentation uses finite graph-bound
+source profiles and a relay, with no arbitrary production preload/profile flags.
+
+Owner/child groups are distinct. Parent loss leaves durable records; the named
+Standard 07 maintainer procedure and isolated fixture reconciler require complete
+physical-family evidence and unchanged records. No stale-PID steal, runtime group
+broadcast, forced timer cleanup or production automatic reconciler is accepted.
+
+Step 1 reconciles Standards 07/06, Catalogue 21's existing Registered rule,
+glossary, index and Phase 03 Status, and appends ADR-0083/0070 navigation. The
+implementation sequence retains commit, fresh R1, verified corrections, new R2
+and verified corrections before progression. Step 2 implements/qualifies this
+boundary while preserving the corrected compiler/installer helper; Step 3 resumes
+ADR-0083's initialized router/worker/HMR, native/public/browser and complete
+same-final-source hosted A followed by B. Existing windows, reserve, per-test
+bounds, zero-skip population and manual-accessibility disposition are unchanged.
+
+This record establishes contract/carriers only. It is not executable runtime
+ownership, successful initialized-worker proof, P03-3 completion or hosted A/B.

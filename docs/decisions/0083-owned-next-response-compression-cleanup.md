@@ -244,3 +244,26 @@ corrected, reviewed by new R2 reviewers and corrected before progression.
   [Phase 03](../roadmap/phase-03-identity-admin.md).
 - [pnpm 9.12.3 patch metadata](https://github.com/pnpm/pnpm/blob/v9.12.3/packages/types/src/package.ts)
   and [patch command](https://github.com/pnpm/pnpm/blob/v9.12.3/patching/plugin-commands-patching/src/patchCommit.ts).
+
+## Amendments
+
+### Amendment 1 — Bounded native runtime family ownership (2026-11-01)
+
+Accepted [ADR-0084](0084-owned-frontend-runtime-process-families.md) supersedes only
+this record's no-new-worker-topology boundary for one launch-scoped native owner
+and its private runtime child. This record remains Accepted in place; its
+compression, exact qualification, security and request-lifetime decisions and
+historical body are unchanged. It is not a whole-record supersession or redirect.
+
+The parent retains frontend/app/SDK reservations through actual runtime-family
+retirement. The child retains native admission/request/session shutdown ordering,
+startup stop latching and the existing five-second failure policy, now anchored
+to the first latched request including startup.
+Compiler/installer cancellation remains failed; the distinct runtime result
+requires actual listener readiness, requested graceful stop and physical group
+absence. Phase 11 still owns production supervision and capacity proof.
+
+The acceptance package reconciles Standards 07/06, Catalogue 21's existing
+Registered rule, glossary, decision index and Phase 03 Status/delivery record,
+and appends corresponding ADR-0070 navigation. Acceptance supplies no runtime
+implementation, executed control or complete same-final-source hosted A/B.

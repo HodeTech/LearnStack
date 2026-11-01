@@ -467,7 +467,8 @@ real browser proof; a script-disabled browser has no script-based expiry promise
 
 ## Version-Qualified Next Response Cleanup
 
-**Derives from:** [ADR-0083](../decisions/0083-owned-next-response-compression-cleanup.md).
+**Derives from:** [ADR-0083](../decisions/0083-owned-next-response-compression-cleanup.md) and
+[ADR-0084](../decisions/0084-owned-frontend-runtime-process-families.md).
 The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns delivery state;
 acceptance does not establish an installed patch or implemented verifier.
 
@@ -539,22 +540,29 @@ acceptance does not establish an installed patch or implemented verifier.
   membership is validated, not just a caller-supplied subset. Actual build args
   and non-secret code-generation options belong to the producer identity;
   unqualified loaders/options or outside-root runtime resolution refuse.
-- Native production launch verifies the installed set, current relevant inputs
-  and generated graph before importing `.server`, SDK runtime or Next and before
-  listener creation. `public-server.mjs` itself is a builtins-only admission
-  bootstrap until those checks pass; a direct invocation cannot bypass them.
-  Its runtime does not recompile `.server` independently after verification.
+- Native production launch verifies installed bytes, current relevant inputs and
+  generated output before application/SDK/Next imports or listener creation.
+  `public-server.mjs` is a builtins-only owner: it acquires the existing lease,
+  verifies output and prepares the native cache before starting the private child.
+  `public-runtime-child.mjs` independently verifies the current parent records,
+  cache metadata and generated identity before importing runtime code. It never
+  acquires/releases the parent's lease or prepares/claims cache metadata. The
+  runtime does not recompile `.server` independently after verification.
 - Correct installed bytes beside an old `.next`, or an old build plus its own
   old manifest, refuse. A changed source/config/lock/patch or changed/extra/
   deleted loadable output refuses. Production output is immutable for its
   admitted lifetime; supported build/install/run operations serialize access.
-- Development starts with clean owned executable output and persistent compiler
-  cache. Its current verified compiler is the sole producer of incremental
-  framework copies. Gate each applicable compiler path before its generated
-  code can be admitted; ordinary source HMR remains supported. Dependency,
-  compiler/config or framework resolution changes close admission and require
-  a clean managed restart; failed validation cannot serve prior output as a
-  newly qualified compilation. Prove server/middleware/client/HMR coverage.
+- Development's `public-server.mjs --dev` owner invokes the existing clean
+  `buildFramework` producer before starting its private runtime child and retains
+  the returned development lease. The owner alone prepares the native cache.
+  The child's verified compiler owns incremental framework output under that
+  reservation; child verification does not transfer lease authority. Gate each
+  applicable compiler path before its code is admitted; ordinary source HMR stays
+  supported. Dependency/compiler/configuration or runtime-boundary input changes
+  close admission and require a clean managed restart. Failed validation cannot
+  serve old output as newly qualified compilation. Prove server, middleware,
+  client and HMR coverage. The separate framework-build CLI remains the
+  production/native producer; it exposes no public development mode.
 - Do not recursively remove an unowned or symlink-escaped output. Define output
   ownership/serialization before cleanup and reject ambiguous ownership. These
   are trusted source/install/build drift controls, not signatures against an
@@ -628,11 +636,97 @@ acceptance does not establish an installed patch or implemented verifier.
   framework/API and snapshot owners remain independently joined. No output,
   capacity return or successful stop follows from timeout/cancellation alone.
 - Unfinished actual work can retain current reservations for the process lifetime.
-  The native launcher's existing five-second shutdown watchdog logs fixed failure
-  and exits nonzero when joins remain incomplete; it is not a normal-request
-  timeout or successful cleanup. Existing operation/body deadlines remain their
-  owners' cancellation bounds. Phase 11 owns production supervision/capacity;
-  no new worker topology or total framework-memory bound is claimed here.
+  The native shutdown controller's existing five-second watchdog starts at the
+  first latched shutdown request, including startup before handler registration.
+  Registration or a repeated request cannot restart it. Expiry reports failure and
+  exits the child nonzero; it supplies neither cleanup nor group-retirement credit.
+  Existing operation/body deadlines retain their cancellation bounds. ADR-0084
+  adds one builtins owner for one native launch and its isolated runtime family.
+  This is the launch's ownership scope, not a restart/recovery supervisor. No
+  automatic replacement, new normal-request timeout, forced runtime-group timer
+  or total framework-memory bound is introduced. Phase 11 continues to own
+  production supervision and capacity proof.
+
+### Native runtime family ownership
+
+[ADR-0084](../decisions/0084-owned-frontend-runtime-process-families.md) selects one
+builtins-only owner and one private detached runtime child on qualified
+macOS/Linux surfaces. Owner and runtime groups are distinct. The parent holds
+all frontend/app/SDK reservations until actual direct-child close and runtime
+group absence; only signal-zero `ESRCH` establishes absence. Observation errors
+retain uncertainty. Runtime polling backs off from 10 to at most 250 ms, without
+a total timeout or success credit or nonzero signal to a cached runtime PGID. The generic producer
+helper retains its existing polling.
+
+The owner latches SIGTERM/SIGINT before asynchronous preparation and keeps the
+latch through release. It propagates cancellation through producer boundaries,
+joins started actual command families and refuses later startup. The dedicated
+child entry captures its fresh private IPC challenge before scrubbing and latches
+stop/disconnect before validation/import/prepare. Lease-record nonces remain
+disk-readable record bindings; proof-incarnation labels only attribute evidence.
+The generic producer preload is never a runtime entry.
+
+The child validates its exact parent/channel/mode/current records and waits for
+an authenticated start-or-stop response. An existing stop cannot be cleared by a
+handshake, ready frame or later start. Runtime startup exposes the single-use
+`startPublicRuntime(control)` registration before effectful asynchronous setup.
+Stop closes admission before native request/session and Next joins; real pending
+prepare remains owned and no later continuation may listen. One child-controller
+five-second watchdog begins with the first stop, even before registration, and
+never restarts. Expiry fails the child without signaling the runtime group; the
+outer actual-family join still retains records.
+
+`runFrameworkRuntimeFamily` preserves code, signal, validated handshake, actual
+listener readiness, requested stop, startup cancellation, parent loss, fault,
+direct close and group absence in a frozen final receipt. Success requires a real
+ready listener, requested graceful stop, child zero/no signal, no startup/parent/
+fault failure and actual group absence. Pre-ready or unsolicited zero and all
+signal/fault outcomes fail. Compiler/installer `runFrameworkProcessFamily` and
+`runOwnedNode` retain failed cancellation, including child-zero cancellation.
+
+Supported owner invocations have empty `execArgv` and no `NODE_OPTIONS` before
+owned admission/spawn. Node preloads execute before script entry; refusing those
+flags does not undo already executed arbitrary preload code. Copied proofs use
+only graph-bound literal child instrumentation prepared before genuine build,
+with finite copied-source profiles and a builtins-only relay. They never run
+child instrumentation in the owner or introduce production import/profile flags.
+Exact post-validation child imports, helper/relay files and the entire owner
+builtins import closure are producer and restart-critical inputs. Mechanical
+controls include nonbuiltin/transitive dirty imports and all listed relay schemas.
+
+#### Frontend runtime owner-loss recovery
+
+@cemil owns this procedure until Phase 11 names the operational owner. Parent
+loss requests the child's latched shutdown and leaves durable parent records.
+No child release, automatic stale-PID stealing or production reconciliation
+command is selected.
+
+1. Stop competing supported launches/mutations and preserve mutable roots. Take
+   a read-only snapshot of exact frontend/app/SDK record paths and bytes without
+   following aliases; never substitute a newly discovered record at another path.
+2. Identify every family from authenticated launch evidence, including any
+   producer active during startup. A missing/stale handle or uncertain group
+   observation cannot be replaced with PID age/death, stdio close or a signal.
+3. Establish actual retirement of all captured families, or retain documented
+   host-lifetime evidence showing that all pre-restart work ended. Never signal
+   cached groups. If that evidence is unavailable, retain records and roots.
+4. Under that exclusive stopped-launch condition, recheck exact unchanged record
+   identity and absence of replacement/external writers. Only after complete
+   evidence may @cemil manually retire those captured record files. Remove no
+   unrelated record, output root or cache-ownership metadata. Run the normal clean
+   managed producer before restart; any new ownership refusal stays a refusal.
+5. Preserve the evidence and failed shutdown outcome. Missing evidence or a
+   changed record retains the roots/records and escalates to @cemil. Manual
+   evidence-based retirement is the explicit operator action; no production
+   automatic reconciler or record-deletion command is introduced. Phase 11 owns
+   any later mechanized operational recovery design.
+
+Only isolated copied fixtures have a closed record reconciler: it can retire
+that exact launch's unchanged records after every captured family is absent.
+Missing handles, changed records or unknown retirement retain roots. Runtime
+`stop-test-child` requests graceful stop from the owner and joins owner/runtime
+families separately; no two-second runtime SIGKILL fallback or cached-PGID rescue
+supplies cleanup. BFF lifeline/parent-watch controls obey the same boundary.
 
 ## Routing
 

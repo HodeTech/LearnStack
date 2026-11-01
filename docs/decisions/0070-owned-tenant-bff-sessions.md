@@ -636,3 +636,20 @@ and complete qualification state; acceptance itself supplies no runtime proof.
 This is additive navigation. This record's Decision, historical body, status
 and date remain unchanged. The amendment number is allocated when appended;
 prior Proposed package numbering supplies no reservation.
+
+### Amendment 7 — Native runtime family ownership navigation (2026-11-01)
+
+Accepted [ADR-0084](0084-owned-frontend-runtime-process-families.md) places each
+supported native listener in one private runtime child under a builtins owner.
+The parent holds output reservations through actual runtime-family retirement;
+native listener, request/session, credential and publication owners remain in the
+child. Startup stop is irreversible, and the existing five-second failure policy
+uses one first-request watchdog across late registration and held preparation.
+No runtime group broadcast or timeout supplies request/worker cleanup credit.
+
+Standards 07/06 and Catalogue 21's existing Registered framework rule own ongoing
+rules and proof obligations. Glossary, decision index and Phase 03 carriers
+navigate the accepted boundary; ADR-0083 receives its bounded supersession
+amendment while remaining Accepted. This amendment changes none of this record's
+Decision, historical body, status or date. Acceptance is not executed native or
+hosted qualification.

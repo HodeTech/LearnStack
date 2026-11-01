@@ -6497,7 +6497,15 @@ Prior receipts do not qualify subsequent source changes.
   independent native/framework/API/snapshot work. The decisive controls follow
   [Testing 06](06-testing.md#version-qualified-next-response-cleanup); local proof
   replaces no complete same-final-source hosted A/B.
-- **Source:** [ADR-0083](../decisions/0083-owned-next-response-compression-cleanup.md)
+  ADR-0084 extends the same rule to the builtins owner/private-child import
+  closure, parent-only lease/cache mutation, irreversible startup cancellation,
+  first-request shutdown watchdog, distinct runtime result and actual family
+  joins. Producer cancellation remains failed. Direct close, ready IPC, timeout,
+  forced exit and outer-group absence cannot replace runtime retirement.
+  Copied profile/relay and input-graph controls preserve actual child attribution;
+  owner-loss recovery requires unchanged records and complete family evidence.
+- **Source:** [ADR-0083](../decisions/0083-owned-next-response-compression-cleanup.md),
+  [ADR-0084](../decisions/0084-owned-frontend-runtime-process-families.md)
   and [Standard 07](07-frontend-architecture.md#version-qualified-next-response-cleanup).
 - **Type:** installed/generated-source controls, actual Node/Next HTTP/HTTPS and
   native integration. **Kind:** structural, startup and behavioural.
@@ -6509,7 +6517,8 @@ Prior receipts do not qualify subsequent source changes.
   supported-loader, native/browser or source-bound hosted qualification.
 - **Status:** **Registered** — the complete runtime/held-owner and qualification
   obligations remain; delivered local controls alone do not promote this rule.
-- **Phase:** P03-3; ADR-0083 Steps 2–3 implement and qualify the extension.
+- **Phase:** P03-3; ADR-0083 Steps 2–3 and ADR-0084 implement and qualify
+  the extension.
 
 #### `Bff_Auth_Admission_And_Csrf_Are_Closed`
 
