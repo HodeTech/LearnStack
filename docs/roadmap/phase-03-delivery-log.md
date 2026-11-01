@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 4,558 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 4,610 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -219,7 +219,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 business-task observation R2 teardown correction (2026-11-01)](#p03-3-business-task-observation-r2-teardown-correction-2026-11-01) — 46 lines
   - [ADR-0083 proposal R2 corrections and runtime boundary (2026-11-01)](#adr-0083-proposal-r2-corrections-and-runtime-boundary-2026-11-01) — 62 lines
   - [P03-3 business-task observation review closeout (2026-11-01)](#p03-3-business-task-observation-review-closeout-2026-11-01) — 27 lines
-  - [ADR-0083 existing-stream failure transition precision (2026-11-01)](#adr-0083-existing-stream-failure-transition-precision-2026-11-01) — 22 lines
+  - [ADR-0083 existing-stream failure transition precision (2026-11-01)](#adr-0083-existing-stream-failure-transition-precision-2026-11-01) — 23 lines
+  - [ADR-0083 proposal review closeout and approval readiness (2026-11-01)](#adr-0083-proposal-review-closeout-and-approval-readiness-2026-11-01) — 51 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -10321,3 +10322,55 @@ independent owners. No event, callback, result or successful cleanup is invented
 This clarification implements no dependency/runtime change and relaxes no gate.
 Original R2 reviewers verify the final proposal; acceptance still requires the
 maintainer's approval.
+
+
+### ADR-0083 proposal review closeout and approval readiness (2026-11-01)
+
+The complete Proposed [ADR-0083](../decisions/0083-owned-next-response-compression-cleanup.md)
+and [three-step package](#adr-0083-proposed-owned-next-cleanup-package-2026-11-01)
+are ready for maintainer consideration with their append-only
+[R1 refinements](#adr-0083-proposal-r1-corrections-and-revised-package-2026-11-01),
+[R2 runtime/error-order refinements](#adr-0083-proposal-r2-corrections-and-runtime-boundary-2026-11-01)
+and [existing-stream precision](#adr-0083-existing-stream-failure-transition-precision-2026-11-01).
+The canonical ADR incorporates every proposed decision; the dated package owns
+exact acceptance carriers and step order. It is not Accepted or implemented.
+
+**Reviews.** Four independent reviewers complete two fresh rounds. R1 maintenance
+approves; R1 ownership's three Majors and one Minor are verified and corrected.
+New R2 proof's runtime-qualification Major and R2 protocol's inner-failure Major
+and prose Minor are verified and corrected. Both R2 reviewers approve their
+scoped final correction checks through `655fa669`, preserving original verdicts
+and evidence limits. The parent reads all six complete original/correction
+reports, including the final runtime and allocated-stream confirmations. There
+is no remaining actionable proposal finding in those reports.
+
+**Decision awaiting approval.** The proposal selects exact
+Node 22.23.1 / pnpm 9.12.3 / patched Next 15.5.28, all 27 pipe copies plus common
+compression/two routers and accurate maps, synchronous actual owner reservation,
+each boundary's pre-join failure transition and actual stream closure. It keeps
+independent work and native publication fences. Maintenance of internal bundles,
+exact-runtime requalification and possible transport failure before an error
+body are explicit costs. Already delivered HTTP results cannot be retracted.
+
+If accepted, Step 1 reconciles the exact named decision/standard/catalogue
+carriers; Step 2 implements the complete patch, provenance and actual runtime
+checks with decisive real controls; Step 3 proves actual native/browser/public
+behavior and complete same-final-source hosted A/B. Every step receives its own
+commit, fresh R1, verified fixes, new R2 and verified corrections. Historical
+passing subsets, prototype success and acceptance alone close none of those
+implementation/qualification gates.
+
+**Evidence now.** The nine private HTTPS controls and full source/map inventory
+establish a reachable mechanism and repair direction. Reserved-slot production
+behavior, full initialized patched router, every semantic copy, installation,
+actual independent native/API/pool owners and full qualification are unexecuted.
+The original hosted frame remains unattributed. The stock-browser counter's
+expected rejection and 64 released frames are not a passing full browser Fact.
+The separately authorized test-observation follow-up closes its reviews with
+thirteen targeted and five corpus passes; it changes no production source.
+
+Documentation fragment, roadmap structure, delivery-index, ADR lifecycle and
+whitespace checks pass; normal commits preserve the unrelated editor settings
+and stashes. Development remains the branch. Runtime dependency/configuration
+changes wait solely for the maintainer's requested new-ADR approval. No new
+hosted A/B, PR, P03-3 completion or manual accessibility pass is claimed.
