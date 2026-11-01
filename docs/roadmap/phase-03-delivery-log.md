@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 5,487 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 5,514 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -237,6 +237,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0084 maintainer corrections and acceptance (2026-11-01)](#adr-0084-maintainer-corrections-and-acceptance-2026-11-01) — 37 lines
   - [ADR-0084 Step 1 review round 1 and existing protocol correction (2026-11-01)](#adr-0084-step-1-review-round-1-and-existing-protocol-correction-2026-11-01) — 33 lines
   - [ADR-0084 Step 1 review round 2 and disclosure correction (2026-11-01)](#adr-0084-step-1-review-round-2-and-disclosure-correction-2026-11-01) — 20 lines
+  - [ADR-0084 Step 1 review closeout and implementation plan (2026-11-01)](#adr-0084-step-1-review-closeout-and-implementation-plan-2026-11-01) — 27 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -11267,3 +11268,30 @@ Commit this verified correction and obtain narrow independent confirmation
 before closing Step 1. Step 2 implementation, real family/startup/relay/recovery
 controls, initialized-worker proof, Step 3 and full final-source hosted A/B remain
 open. Manual accessibility remains maintainer-deferred and unexecuted.
+
+### ADR-0084 Step 1 review closeout and implementation plan (2026-11-01)
+
+Both fresh R1 reviews, verified protocol/table corrections, both new R2 reviews
+and their verified disclosure correction are complete. At `31610c34` both R2
+reviewers independently confirm the complete local carrier inventory and exact
+preservation of the prior accepted text. Root reads every complete report.
+No remaining actionable Step 1 finding remains in their bounded scope.
+
+Step 1 establishes the Accepted contract and canonical carriers only. Current
+checks resolve 3,137 fragments, preserve roadmap/index structure and pass the
+five corpus cases; normal commits preserve user settings and all five stashes.
+There is no runtime, initialized-worker, browser or hosted qualification claim.
+
+Step 2 integrates coordinated ownership areas: a separate runtime-family runner
+and child stop controller; parent lease/cache and read-only child admission with
+signal-aware preparation; partial native startup/ordered shutdown; and the four
+closed copied-proof profiles, family evidence, callers and source controls.
+Freeze the shared interfaces before parallel edits, preserve actual physical
+joins and existing producer cancellation failure, then run focused actual-process
+and full integration checks. Startup producer-family capture must be explicit;
+a later PID/stdio observation cannot reconstruct missing launch evidence.
+
+Commit the integrated Step 2 before fresh R1, verified correction and new R2.
+Step 3 then resumes ADR-0083's complete initialized runtime/public/browser and
+same-final-source hosted A followed by B, retaining all current bounds and
+negative witnesses. Manual accessibility remains deferred and unexecuted.
