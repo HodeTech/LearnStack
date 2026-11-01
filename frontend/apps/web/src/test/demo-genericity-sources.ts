@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { isBuiltin } from 'node:module';
 import { posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -420,26 +421,16 @@ export function productionDemoSources(
       ['test/page-response-fixture.js', 'frontend/apps/web/src/test/page-response-fixture.ts'],
     ]);
     const proofSeen = new Set<string>();
-    if (proofHarness) {
-      // Model only this owned temporary tree and its actual current-source compiler seams.
-      // Both generated imports are still followed to source; an unknown import is refused.
-      const compact = source.replace(/\s+/g, '');
-      for (const required of [
-        "constweb=fileURLToPath(newURL('../',import.meta.url));",
-        "constsource=join(web,'src/server/auth/request-runtime.ts');",
-        "constoriginal=readFileSync(source,'utf8');",
-        'constinstrumented=instrumentBffProofRequestRuntime(original);',
-        "constroot=mkdtempSync(join(tmpdir(),'learnstack-bff-observation-'));",
-        "for(constdirectoryof['','auth']){",
-        "constinput=join(web,'src/server',directory);",
-        'constpath=join(input,name);',
-        "compile(path,join(root,'server',directory,name.replace(/\\.ts$/,'.js')),path===source?instrumented:readFileSync(path,'utf8'),);",
-        "compile(join(web,'src/test/page-response-fixture.ts'),join(root,'test/page-response-fixture.js'),);",
-        'ts.transpileModule(text,',
-        'writeFileSync(output,result.outputText);',
-      ])
-        if (compact.split(required).length !== 2) return refused(path);
-    }
+    // This one test-only generator is source-bound: substring presence cannot
+    // prove which bytes it writes to the modules imported below. Any generator
+    // change requires an explicit pin update and review; both targets are still
+    // followed to their current source contents rather than exempted.
+    if (
+      proofHarness &&
+      createHash('sha256').update(source, 'utf8').digest('hex') !==
+        'd217cc042e967a01a245ed4d1915a068baa697498d4e2cf397032b195ec432eb'
+    )
+      return refused(path);
     const resolveCall = (node: ts.Node): node is ts.CallExpression =>
       ts.isCallExpression(node) &&
       ts.isPropertyAccessExpression(node.expression) &&

@@ -314,6 +314,18 @@ describe('P02d-7 exact demo identity boundary', () => {
         "path === source ? instrumented : readFileSync(path, 'utf8')",
         "readFileSync(path, 'utf8')",
       ),
+      source.replace(
+        '  const { createBffRequestRuntime }',
+        "  writeFileSync(join(root, 'test/page-response-fixture.js'), readFileSync(join(web, 'src/test/unmodeled-fixture.ts'), 'utf8'));\n  const { createBffRequestRuntime }",
+      ),
+      source.replace(
+        "text = readFileSync(input, 'utf8')",
+        "text = readFileSync(join(web, 'src/test/unmodeled-fixture.ts'), 'utf8')",
+      ),
+      source.replace(
+        '    const result = ts.transpileModule(text, {',
+        "    text = readFileSync(join(web, 'src/test/unmodeled-fixture.ts'), 'utf8');\n    const result = ts.transpileModule(text, {",
+      ),
       source + "\nawait import('./other.mjs');",
       source + "\nawait import(pathToFileURL(join(root, 'server/auth/request-runtime.js')));",
       source.replace(
