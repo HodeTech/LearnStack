@@ -123,24 +123,27 @@ create no stream. Duplicate installation refuses before allocating another
 compressor. A premature real response close requests destruction of that actual
 stream; destruction requested,
 `writableFinished`, timeout or a wrapper's completion is not close confirmation.
-Every pipe and router settlement boundary reports its own real rejection or
-abort to the owner before awaiting its cleanup promise. The transition is
-idempotent and retains the first primary error and separate cleanup faults;
-an inner pipe cannot wait for an outer router to observe its still-blocked
-rejection. A rejection before encoding selection seals against later creation
-before that boundary joins it. With no created resource, no transport event
-is required to retire that compression obligation. Its wrappers/header callback
-can no longer create a compressor; the existing native error boundary may use
-the captured, still-fenced uncompressed writer. This preserves its existing
-pre-header error policy without waiting for a response that only that caller
-can produce. A real abort with a still-live response requests actual response
-cancellation before joining. Normal early return alone cannot seal a slot while
-registered response-producing work can still create its stream. In particular,
-a genuinely rejecting source or end-work promise triggers the pipe transition
-before its finally join; a still-pending end-work promise remains held. Sealing
-compression allocation never resolves that work. Existing expected-abort
-classification remains; known physical cleanup and an operation fault are
-separate facts.
+Every pipe and router settlement boundary reports its own real rejection or abort to
+the owner before awaiting its cleanup promise. The transition is idempotent and
+retains the first primary error and separate cleanup faults; an inner pipe cannot wait
+for an outer router to observe its still-blocked rejection. A rejection before
+encoding selection seals against later creation before that boundary joins it. With no
+created resource, no transport event is required to retire that compression
+obligation. Its wrappers/header callback can no longer create a compressor; the
+existing native error boundary may use the captured, still-fenced uncompressed writer.
+This preserves its existing pre-header error policy without waiting for a response
+that only that caller can produce. A real abort with a still-live response requests
+actual response cancellation before joining. Normal early return alone cannot seal a
+slot while registered response-producing work can still create its stream. In
+particular, a genuinely rejecting source or end-work promise triggers the pipe
+transition before its finally join; a still-pending end-work promise remains held.
+Sealing compression allocation never resolves that work. If either boundary rejects
+after stream creation, the same transition requests actual response cancellation and
+destruction of its actual owned stream before its own cleanup await. It joins real
+stream close even when end work rejected before the compression wrapper could call
+`end()`. This cancels no unrelated owner and fabricates no event or callback. Existing
+expected-abort classification remains; known physical cleanup and an operation fault
+are separate facts.
 
 Construction failures account for every resource actually created. A compressor
 fault is observed immediately, requests actual response cancellation, and joins

@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 4,535 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 4,558 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -218,7 +218,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0083 proposal R1 corrections and revised package (2026-11-01)](#adr-0083-proposal-r1-corrections-and-revised-package-2026-11-01) — 71 lines
   - [P03-3 business-task observation R2 teardown correction (2026-11-01)](#p03-3-business-task-observation-r2-teardown-correction-2026-11-01) — 46 lines
   - [ADR-0083 proposal R2 corrections and runtime boundary (2026-11-01)](#adr-0083-proposal-r2-corrections-and-runtime-boundary-2026-11-01) — 62 lines
-  - [P03-3 business-task observation review closeout (2026-11-01)](#p03-3-business-task-observation-review-closeout-2026-11-01) — 26 lines
+  - [P03-3 business-task observation review closeout (2026-11-01)](#p03-3-business-task-observation-review-closeout-2026-11-01) — 27 lines
+  - [ADR-0083 existing-stream failure transition precision (2026-11-01)](#adr-0083-existing-stream-failure-transition-precision-2026-11-01) — 22 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -10297,3 +10298,26 @@ resolve the separate framework-handler issue, freeze the enlarged final test
 population, supply complete new hosted A/B, or execute deferred manual checks.
 The Proposed ADR-0083 and its own review/approval remain a separate dependency
 maintenance decision. No PR or P03-3 completion is claimed.
+
+
+### ADR-0083 existing-stream failure transition precision (2026-11-01)
+
+During R2 correction verification, the protocol reviewer verifies the second
+branch of the same failure-order rule: after a real compressed chunk has created
+the stream, rejected end work can bypass the compression wrapper's `end()`.
+Reporting that failure without requesting actual cancellation would leave the
+join waiting on an un-ended compressor. The editable Proposed ADR explicitly
+requires either pipe or router rejection with an existing stream to request
+actual response cancellation and destruction of that owned stream before its
+own cleanup await, then join actual stream close.
+
+This is the allocated-stream counterpart of the already stated empty-slot seal,
+not a new owner or permission to release independent work. Standard 07, Testing
+06, the Registered-rule acceptance text and Step 2/3 inherit both branches.
+Their real error controls cover failure before selection and after stream
+creation, including rejected end work before wrapper end, actual cancellation/
+close, primary identity, no late allocation, no unhandled rejection and held
+independent owners. No event, callback, result or successful cleanup is invented.
+This clarification implements no dependency/runtime change and relaxes no gate.
+Original R2 reviewers verify the final proposal; acceptance still requires the
+maintainer's approval.
