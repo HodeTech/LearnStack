@@ -64,11 +64,12 @@ public sealed partial class BackgroundJobPositiveSdkTests
         {
             using var startup = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             await runtime.StartAsync(startup.Token);
-            await probe.FirstWriteReady.Task.WaitAsync(TimeSpan.FromSeconds(50));
+            using var observation = new CancellationTokenSource(TimeSpan.FromSeconds(50));
+            await probe.FirstWriteReady.Task.WaitAsync(observation.Token);
             execution = NativeFinalizerControl(runtime, job);
             execution.Identity!.Stage.Should().Be(BackgroundJobExecutionStage.Finalize);
             execution.RunGate.IsClosed.Should().BeFalse();
-            var business = (Task<JobBusinessExecutionResult>)NativeSdkField(execution, "_business");
+            var business = await NativeSdkBusinessAsync(execution, observation.Token);
             business.IsCompleted.Should().BeFalse("the actual handler is held after its nested write");
             initial = await ReadNativeFinalizerFactsAsync(database, job);
             initial.Phase.Should().Be("finalizing");

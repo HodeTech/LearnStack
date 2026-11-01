@@ -6871,6 +6871,12 @@ and fixture definitions make the implemented controls non-vacuous.
   **Kind:** structural + startup + behavioural.
 - **Status:** **Implemented** — P02b-4 Step 9; `LearnStack.Tests.Architecture`,
   `OutboxDispatchConventionTests` ([canonical owner](../../backend/tests/LearnStack.Tests.Architecture/BackgroundJobRuntimeCompositionBoundaryTests.cs)).
+  Native integration observations in `BackgroundJobPositiveSdkTests.NativeWait.cs`
+  capture the actual business task under its publication lock within the existing
+  handler-observation budget. The direct-owner regression in
+  `BackgroundJobPositiveSdkTests.NativeBusinessPublication.cs` proves handler
+  progress can precede that publication, then verifies same-task capture and real
+  rollback/cleanup. It does not replace the separate native handoff/policy controls.
 
 ### `CI_Test_Shards_Are_Complete_And_Bounded`
 

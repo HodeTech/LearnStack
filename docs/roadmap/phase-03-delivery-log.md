@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 4,078 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 4,152 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -211,7 +211,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 sixth hosted A and native HTTPS end observation correction (2026-11-01)](#p03-3-sixth-hosted-a-and-native-https-end-observation-correction-2026-11-01) — 64 lines
   - [P03-3 native end correction reviews and generated-source provenance fix (2026-11-01)](#p03-3-native-end-correction-reviews-and-generated-source-provenance-fix-2026-11-01) — 53 lines
   - [P03-3 generated-source dependency and checkout correction (2026-11-01)](#p03-3-generated-source-dependency-and-checkout-correction-2026-11-01) — 37 lines
-  - [P03-3 checkout-test construction correction (2026-11-01)](#p03-3-checkout-test-construction-correction-2026-11-01) — 22 lines
+  - [P03-3 checkout-test construction correction (2026-11-01)](#p03-3-checkout-test-construction-correction-2026-11-01) — 23 lines
+  - [P03-3 seventh hosted A and business-task observation correction (2026-11-01)](#p03-3-seventh-hosted-a-and-business-task-observation-correction-2026-11-01) — 73 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -9833,3 +9834,77 @@ skips/todos; the full guard takes 52.149 seconds on stable source hashes.
 Fragment/roadmap/index and whitespace checks pass. A separate commit precedes
 the reviewers' final bounded recheck. Complete hosted
 A/B and separately deferred manual evidence remain open.
+
+
+### P03-3 seventh hosted A and business-task observation correction (2026-11-01)
+
+The complete [seventh A](https://github.com/HodeTech/LearnStack/actions/runs/41256696539)
+uses `e0b1880ea2b05cd19149e6b72b1b1d4ca8f7cadc`, tree
+`5f63959d314f4f743f0543a2e78c345dbb0990c7`. All 27 jobs terminate: 24 succeed;
+ordinary-7, ordinary-8 and their integration aggregate fail. The exact 7,944-case
+selected/completed/TRX unions contain 7,942 Passed and two Failed, with zero
+missing or skipped cases. Eighteen owners have passing natural-completion
+receipts. All 24 available original ZIPs are retained before source changes;
+independent API size/digest, CRC/path and case-union audits pass. The integration
+aggregate original is absent. Source-bound public/OpenAPI/scan replay passes its
+individual checks; no overall qualification or B is claimed. Both failed owner
+receipts report test failure, not whole-job exhaustion. Architecture 25 / ordinary
+30 minute windows and every inherited reserve/operation/count constraint remain.
+
+The full frontend job passes all 3,337 cases with zero skips/todos. Its preserved
+connector-decoded log is labeled as decoded text rather than original HTTP/ZIP
+bytes. No artifact, pass or test population from this failed attempt qualifies a
+later source.
+
+**Two distinct failures.** The counter browser Fact again fails its native wait.
+Its new closed observation records `probe=true`, `operation=persisted_wait`, and
+last milestone `next`: one pending handler, zero terminal/write/framework/pool
+counts. Listener/Next/session joins are fulfilled and requests remain pending.
+This establishes the expected mutant witness and narrows the retained owner;
+the aggregate sample is potentially stale and identifies no exact request or
+framework await. That handler investigation remains separate and unresolved.
+
+The second failure is the `(false,false)` NoPlan policy-window theory, case
+`6564ad39-8274-912c-108c-e2eae72b3bbe`, after 2.7324012 seconds. The retained
+closed source is `positive_sdk_native_wait:332`, an invalid-state lookup; raw
+caller/field details are absent. Two independent source diagnoses identify a
+publication gap: the real handler signals its nested write before the enclosing
+caller necessarily publishes its returned business task. The test immediately
+reflects a nullable slot through a helper that conflates null with a missing
+field. This is a source-supported mechanism, not a captured original scheduling
+trace. The unchanged local three-row test passes; those passes erase no failure.
+
+**Controlled proof and permanent correction.** An isolated tracked-source copy
+holds the real task after the actual executor returns and before normal
+`HoldBusiness` calls. Each of three native NoPlan rows proves old lookup refusal,
+new observation pending, then same actual task capture. All original policy,
+rollback, audit, no-effect and cleanup assertions pass; the three adjacent
+Finalizer policy rows also pass. This temporary runtime instrumentation is
+preserved privately and removed from the permanent candidate.
+
+The permanent correction changes test observation only. It rejects missing or
+wrong-shaped metadata immediately, reads the nullable task under the execution's
+actual lock and waits only within the existing handler phase budget. NoPlan
+shares its existing 45 seconds; Finalizer policy and each retry phase retain
+50 seconds; held Prepare settlement uses its existing deadline. There is no
+additional full timeout after the handler signal. All five analogous early reads
+use the same observer; nullable locked cleanup reads remain unchanged.
+
+A new direct-owner regression retains the actual SQL Prepare task locally while
+deliberately deferring normal owner publication. It proves null/old refusal, new
+pending observation and exact task identity after publication, then genuine
+rollback, disposed resources, absent provider effects and actual owner joins.
+It claims neither complete native handoff nor the separate NoPlan status path.
+The native policy rows retain those independent assertions. No runtime hook,
+production source or deadline change is shipped.
+
+**Validation.** The clean private candidate passes 11 targeted rows and strict
+Release build with zero warnings/errors. The same six test files then pass in
+the actual repository: strict solution build, 11/11 affected policy/retry/settlement
+and publication cases, plus 5/5 compiled corpus controls. Actual targeted test
+wall time is 113.212 seconds. All 1,079 runtime source files match the prior
+source. The new regression belongs to the next actual discovered population;
+the historical 7,944 manifest is not reused as a final-source census. This
+correction is committed and receives two fresh review rounds before progression.
+The separate handler issue, new complete A/B and maintainer-deferred unexecuted
+manual evidence remain open.
