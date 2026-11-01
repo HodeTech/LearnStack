@@ -27,9 +27,18 @@ export function protectPageResponse(
     Reflect.apply(end, response, []);
   };
   const allowed = () => {
-    // Node can drop writes without invoking their callbacks after socket.destroy()
-    // but before response.close. Do not acquire work that can never settle.
-    if (refusing || response.destroyed || response.socket?.destroyed) return false;
+    // Before close, Node can discard writes on destroyed sockets or buffer them
+    // forever once the socket's writable side has ended. Acquire no new credit
+    // in either state; already-issued callbacks retain their original ownership.
+    const socket = response.socket;
+    if (
+      refusing ||
+      response.destroyed ||
+      socket?.destroyed ||
+      socket?.writable === false ||
+      socket?.writableEnded === true
+    )
+      return false;
     try {
       check();
       return true;

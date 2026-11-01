@@ -16,7 +16,7 @@
 > remains unqualified. Both fresh task-observation rounds and verified fixes
 > [close](phase-03-delivery-log.md#p03-3-business-task-observation-review-closeout-2026-11-01); framework cleanup implementation/qualification and complete same-source hosted A/B remain open.
 > [ADR-0083](../decisions/0083-owned-next-response-compression-cleanup.md) is Accepted after [maintainer corrections](phase-03-delivery-log.md#adr-0083-maintainer-corrections-acceptance-and-step-1-2026-11-01);
-> [Step 1 and both reviews close](phase-03-delivery-log.md#adr-0083-step-1-review-closeout-2026-11-01); executable Steps 2–3 and qualification remain open.
+> [Step 1 and both reviews close](phase-03-delivery-log.md#adr-0083-step-1-review-closeout-2026-11-01). The [Step 2 implementation](phase-03-delivery-log.md#adr-0083-step-2-implementation-and-local-controls-2026-11-01) passes local controls; its independent reviews, Step 3 and qualification remain open.
 > [ADR-0082](../decisions/0082-current-source-ci-execution-windows.md) is Accepted for Architecture 25 / ordinary 30 minute windows;
 > both carrier rounds and the [budget implementation/reviews](phase-03-delivery-log.md#adr-0082-step-2-reviews-and-implementation-closeout-2026-11-01) close; complete fresh source-bound hosted A/B/original-archive qualification remains open.
 > [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md) / [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md) are Accepted; their separate eight-consumer prerequisite

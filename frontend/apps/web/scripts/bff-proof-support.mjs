@@ -49,27 +49,83 @@ export function bffProofCopy(locale, key) {
   return value;
 }
 
+const listenerFailures = new WeakMap();
+
+/** Return only observations minted by this helper, never arbitrary error fields. */
+export function bffListenerFailureDetail(error) {
+  return error !== null && typeof error === 'object' ? (listenerFailures.get(error) ?? null) : null;
+}
+
 /** Only the owned isolated protocol child can announce its physical listener. */
 export function waitForBffProofListener(child) {
+  const started = performance.now();
+  let frameworkReason = 'unobserved';
+  const refusal = (reason, message) => {
+    const error = new Error(message);
+    listenerFailures.set(
+      error,
+      Object.freeze({
+        reason,
+        elapsedMilliseconds: Math.min(120000, Math.max(0, Math.round(performance.now() - started))),
+        exitCode:
+          Number.isInteger(child.exitCode) && child.exitCode >= 0 && child.exitCode <= 255
+            ? child.exitCode
+            : null,
+        signal:
+          child.signalCode === null
+            ? 'none'
+            : ['SIGINT', 'SIGTERM', 'SIGKILL'].includes(child.signalCode)
+              ? child.signalCode
+              : 'other',
+        frameworkReason,
+      }),
+    );
+    return error;
+  };
   return new Promise((resolve, reject) => {
     if (child.exitCode !== null || child.signalCode !== null) {
-      reject(new Error('native listener closed before readiness'));
+      reject(refusal('closed', 'native listener closed before readiness'));
       return;
     }
-    const timer = setTimeout(() => finish(new Error('listener startup deadline')), 20_000);
+    let stderrOverlap = '';
+    const reportedReasons = new Set([
+      'owner_busy',
+      'graph_identity',
+      'development_identity',
+      'development_compiler',
+      'producer_failed',
+    ]);
+    const stderr = (chunk) => {
+      const text = stderrOverlap + chunk.toString();
+      if (frameworkReason === 'unobserved') {
+        const match = /Framework admission refused: ([a-z_]{1,64})\r?\n/.exec(text);
+        if (match) frameworkReason = reportedReasons.has(match[1]) ? match[1] : 'framework-other';
+        else if (text.includes('Framework runtime admission failed\n'))
+          frameworkReason = 'runtime-other';
+      }
+      // Credentials and arbitrary diagnostic text are never retained in the
+      // observation. This bounded overlap exists only until readiness settles.
+      stderrOverlap = text.slice(-512);
+    };
+    const timer = setTimeout(
+      () => finish(refusal('deadline', 'listener startup deadline')),
+      20_000,
+    );
     function finish(error, port) {
       clearTimeout(timer);
       child.removeListener('message', ready);
       child.removeListener('close', closed);
       child.removeListener('error', failed);
+      child.stderr?.removeListener('data', stderr);
+      stderrOverlap = '';
       if (error) reject(error);
       else resolve(port);
     }
     function closed() {
-      finish(new Error('native listener closed before readiness'));
+      finish(refusal('closed', 'native listener closed before readiness'));
     }
     function failed() {
-      finish(new Error('native listener startup failed'));
+      finish(refusal('error', 'native listener startup failed'));
     }
     function ready(value) {
       if (
@@ -80,9 +136,10 @@ export function waitForBffProofListener(child) {
         value.port < 1 ||
         value.port > 65535
       )
-        finish(new Error('owned listener readiness shape'));
+        finish(refusal('shape', 'owned listener readiness shape'));
       else finish(undefined, value.port);
     }
+    child.stderr?.on('data', stderr);
     child.once('message', ready);
     child.once('close', closed);
     child.once('error', failed);

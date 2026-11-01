@@ -23,6 +23,10 @@ const exemptEntries = new Set([
 const generatedOutputs = new Set([
   'frontend/apps/web/.next',
   'frontend/apps/web/.server',
+  // Runtime/install serialization records are generated machine state.
+  'frontend/.framework-state',
+  'frontend/apps/web/.framework-state',
+  'frontend/packages/sdk/.framework-state',
   'frontend/apps/web/coverage',
   'frontend/packages/sdk/dist',
   'frontend/packages/ui/dist',
@@ -57,6 +61,9 @@ const nonRuntimeFiles = new Set([
   'frontend/packages/sdk/tsconfig.tsbuildinfo',
   'frontend/packages/ui/tsconfig.tsbuildinfo',
   'frontend/pnpm-lock.yaml',
+  // pnpm applies this reviewed non-executable package carrier before admission.
+  'frontend/patches/next@15.5.28.patch',
+  'frontend/framework/next-response-cleanup/README.md',
   'frontend/pnpm-workspace.yaml',
   'scripts/adr-status.py',
   'scripts/assert-tests-ran.py',
@@ -432,7 +439,7 @@ export function productionDemoSources(
           [path, 'd217cc042e967a01a245ed4d1915a068baa697498d4e2cf397032b195ec432eb'],
           [
             'frontend/apps/web/scripts/bff-proof-host.mjs',
-            '5e8ea7586cd1b757ef456884475283fcb80cf8313747b5bfd34f67c64a399fb8',
+            '53dd634a77bce6c5219833fda92c9dba1b03fc78fd5c1c0986f0690ade102120',
           ],
         ] as const
       ).some(([target, expected]) => {

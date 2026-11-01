@@ -14,3 +14,12 @@ pnpm-lock.yaml
 
 # Generated native ingress output; format its TypeScript source.
 apps/web/.server/
+
+# Runtime/build owners and generated artifacts are not formatter subjects.
+**/.framework-state/**
+**/.next/**
+**/dist/**
+framework/next-response-cleanup/census.json
+framework/next-response-cleanup/originals.json
+framework/next-response-cleanup/pnpm.json
+patches/**

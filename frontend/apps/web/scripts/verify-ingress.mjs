@@ -3,14 +3,13 @@ import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import {
-  copyFileSync,
   cpSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
-  rmSync,
+  readdirSync,
   symlinkSync,
-  unlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { createServer, request as httpRequest } from 'node:http';
@@ -27,6 +26,11 @@ import {
   createPrivateScanner,
   fixtureEnvironment,
 } from './fixture-support.mjs';
+import {
+  frameworkProofBuildArguments,
+  prepareFrameworkProof,
+  reuseFrameworkProof,
+} from './framework-proof-support.mjs';
 import { createIngressReadiness, isReadinessNotification } from './ingress-readiness.mjs';
 import { stopTestChild } from './stop-test-child.mjs';
 
@@ -41,10 +45,12 @@ let api;
 let WebSocket;
 let sharp;
 let optimizerPixels;
-const optimizerImagePath = '/_next/static/media/ingress-optimizer-proof.png';
-const optimizerPath = '/_next/image?url=' + encodeURIComponent(optimizerImagePath) + '&w=64&q=75';
+let optimizerImagePath;
+let optimizerPath;
 const secret = randomBytes(32).toString('base64url');
 const scanners = [];
+// Only the owning ingress-control parent supplies this exact verified artifact.
+const frameworkTemplate = undefined;
 let verificationFailed = false;
 const responseScanner = createPrivateScanner([secret]);
 const diagnosticsLeaked = () => scanners.some((scanner) => scanner.leaked);
@@ -180,33 +186,47 @@ try {
     ].join('\n'),
     { mode: 0o600 },
   );
-  // Both the image fixture/cache and the later mutant belong to this copy.
-  // Never write into the caller's production build through a symlink.
-  cpSync(join(appRoot, '.next'), join(app, '.next'), {
-    recursive: true,
-    filter: (path) => path !== join(appRoot, '.next/cache'),
-  });
+  // Current sources and native output belong to this copy; no generated tree
+  // from another build can satisfy the guarded producer or native launch.
+  for (const name of [
+    'src',
+    'scripts',
+    'package.json',
+    'next.config.ts',
+    'next-env.d.ts',
+    'tsconfig.json',
+    'tsconfig.server.json',
+    'postcss.config.cjs',
+    'tailwind.config.ts',
+    '.eslintrc.cjs',
+  ])
+    cpSync(join(appRoot, name), join(app, name), {
+      recursive: true,
+      filter: (path) =>
+        !/\.test\.[jt]sx?$/.test(path) &&
+        path !== join(appRoot, 'src/test') &&
+        !path.startsWith(join(appRoot, 'src/test/')),
+    });
+  if (existsSync(join(appRoot, 'public')))
+    cpSync(join(appRoot, 'public'), join(app, 'public'), { recursive: true });
+  symlinkSync(join(appRoot, 'node_modules'), join(app, 'node_modules'), 'dir');
+  prepareFrameworkProof({ sourceApp: appRoot, app });
   const optimizerImage = await sharp({
     create: { width: 2, height: 2, channels: 4, background: '#216ba5' },
   })
     .png()
     .toBuffer();
   optimizerPixels = await sharp(optimizerImage).ensureAlpha().raw().toBuffer();
-  mkdirSync(join(app, '.next/static/media'), { recursive: true });
-  writeFileSync(join(app, '.next/static/media/ingress-optimizer-proof.png'), optimizerImage);
-  for (const name of ['.server', 'node_modules', 'src']) {
-    symlinkSync(join(appRoot, name), join(app, name), 'dir');
-  }
-  for (const name of ['package.json', 'next.config.ts', 'tsconfig.json']) {
-    copyFileSync(join(appRoot, name), join(app, name));
-  }
-  copyFileSync(
-    join(appRoot, 'scripts/development-hmr.mjs'),
-    join(app, 'scripts/development-hmr.mjs'),
-  );
-  copyFileSync(
-    join(appRoot, 'scripts/ingress-readiness.mjs'),
-    join(app, 'scripts/ingress-readiness.mjs'),
+  // A real static import makes Next emit the owned image before its build
+  // identity is sealed. Never add an unbound file into an admitted .next tree.
+  const imageSource = join(app, 'src/app/ingress-image-control');
+  mkdirSync(imageSource, { recursive: true });
+  writeFileSync(join(imageSource, 'ingress-optimizer-proof.png'), optimizerImage);
+  writeFileSync(
+    join(imageSource, 'route.ts'),
+    "import image from './ingress-optimizer-proof.png';\n" +
+      "export const dynamic = 'force-dynamic';\n" +
+      'export function GET() { return Response.json({src: image.src}); }\n',
   );
   writeFileSync(join(app, '.env.production.local'), 'DEBUG=next:*\n');
   writeFileSync(join(app, '.env.development.local'), 'DEBUG=next:*\n');
@@ -226,7 +246,7 @@ try {
   );
   // Observe automatic Next upgrade registrations in the disposable fixture only.
   // No diagnostic route, request value or probe is added to the shipped launcher.
-  const launcher = readFileSync(join(appRoot, 'scripts/public-server.mjs'), 'utf8');
+  const launcher = readFileSync(join(appRoot, 'scripts/public-server-runtime.mjs'), 'utf8');
   const handlerAnchor = '  const handle = app.getRequestHandler();';
   const listenerAnchor = "  server.listen(PUBLIC_HTTPS_PORT, '127.0.0.1',";
   const prepareAnchor = '  await app.prepare();';
@@ -234,7 +254,7 @@ try {
   for (const anchor of [handlerAnchor, listenerAnchor, prepareAnchor, importAnchor])
     assert.equal(launcher.split(anchor).length, 2, 'Ingress instrumentation anchor must be unique');
   writeFileSync(
-    join(app, 'scripts/public-server.mjs'),
+    join(app, 'scripts/public-server-runtime.mjs'),
     launcher
       .replace(
         importAnchor,
@@ -288,7 +308,7 @@ ${importAnchor}`,
     ${listenerAnchor.trimStart()}`,
       ),
   );
-  assert.notEqual(readFileSync(join(app, 'scripts/public-server.mjs'), 'utf8'), launcher);
+  assert.notEqual(readFileSync(join(app, 'scripts/public-server-runtime.mjs'), 'utf8'), launcher);
 
   await checkpoint('setup');
   await run();
@@ -301,7 +321,7 @@ ${importAnchor}`,
     assert.equal(diagnosticsLeaked(), false, 'Private material entered shutdown diagnostics');
 }
 
-function start(argv, dev = false) {
+function start(argv, dev = false, observeBinding = true) {
   owner.assertActive();
   const env = fixtureEnvironment({
     root: fixtureRoot,
@@ -309,12 +329,16 @@ function start(argv, dev = false) {
     debug: argv.some((argument) => argument.endsWith('public-server.mjs')) ? 'next:*' : '',
   });
   const child = owner.ownChild(
-    spawn(process.execPath, ['--import', join(app, 'scripts/bind-proof.mjs'), ...argv], {
-      cwd: app,
-      env,
-      stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
-      detached: process.platform !== 'win32',
-    }),
+    spawn(
+      process.execPath,
+      [...(observeBinding ? ['--import', join(app, 'scripts/bind-proof.mjs')] : []), ...argv],
+      {
+        cwd: app,
+        env,
+        stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+        detached: process.platform !== 'win32',
+      },
+    ),
   );
   const childReadiness = createIngressReadiness(child);
   readiness.set(child, childReadiness);
@@ -490,6 +514,39 @@ async function ready(child, tls, port) {
   console.warn('Ingress readiness observation: ' + JSON.stringify(observation));
 }
 
+async function buildCopiedFramework() {
+  const reused =
+    frameworkTemplate && existsSync(frameworkTemplate)
+      ? reuseFrameworkProof({ app, templateApp: frameworkTemplate })
+      : false;
+  if (!reused) {
+    // The bind/rescue probe owns long-lived server observations, not a compiler
+    // process: its rescue socket would otherwise keep a completed build alive.
+    const build = start(frameworkProofBuildArguments(app), false, false);
+    const code = await new Promise((resolve, reject) => {
+      const deadline = setTimeout(
+        () => reject(new Error('Owned production build deadline')),
+        180_000,
+      );
+      build.once('error', () => {
+        clearTimeout(deadline);
+        reject(new Error('Owned build startup'));
+      });
+      build.once('close', (code) => {
+        clearTimeout(deadline);
+        resolve(code);
+      });
+    });
+    assert.equal(code, 0, 'Owned current-source production build');
+  }
+  const candidates = readdirSync(join(app, '.next/static/media')).filter((name) =>
+    /^ingress-optimizer-proof\.[a-f0-9]+\.png$/.test(name),
+  );
+  assert.equal(candidates.length, 1, 'Owned imported optimizer image is unambiguous');
+  optimizerImagePath = '/_next/static/media/' + candidates[0];
+  optimizerPath = '/_next/image?url=' + encodeURIComponent(optimizerImagePath) + '&w=64&q=75';
+}
+
 async function run() {
   await new Promise((resolve, reject) => {
     api.once('error', reject);
@@ -506,6 +563,8 @@ async function run() {
     ),
     { mode: 0o600 },
   );
+  await buildCopiedFramework();
+  await checkpoint('built');
   const native = start([join(app, 'scripts/public-server.mjs')]);
   await ready(native, true, 3000);
   await checkpoint('native');
@@ -544,9 +603,7 @@ async function run() {
     assertOptimizerDisabled(response, method);
   }
 
-  const buildManifest = JSON.parse(
-    readFileSync(join(appRoot, '.next/build-manifest.json'), 'utf8'),
-  );
+  const buildManifest = JSON.parse(readFileSync(join(app, '.next/build-manifest.json'), 'utf8'));
   const asset = buildManifest.rootMainFiles.find((path) => path.endsWith('.js'));
   assert(asset, 'Built asset control must be nonempty');
   const assetPath = '/_next/' + asset;
@@ -729,9 +786,8 @@ async function run() {
 
   await stopTestChild(stock);
   await stopTestChild(native);
-  // Next 15.5.28 loads next.config.ts for this custom production server; its
-  // serialized build config contributes only isExperimentalCompile. Mutate the
-  // copied runtime configuration and restart, without touching shared output.
+  // The configuration mutant gets a fresh normal build. Re-labelling an old
+  // .next after changing next.config.ts cannot qualify the guarded launcher.
   const configPath = join(app, 'next.config.ts');
   const disabledConfig = readFileSync(configPath, 'utf8');
   const enabledConfig = disabledConfig.replace(
@@ -740,6 +796,7 @@ async function run() {
   );
   assert.notEqual(enabledConfig, disabledConfig, 'Optimizer configuration mutant was not planted');
   writeFileSync(configPath, enabledConfig);
+  await buildCopiedFramework();
   const optimizerMutant = start([join(app, 'scripts/public-server.mjs')]);
   await ready(optimizerMutant, true, 3000);
   for (const method of ['GET', 'HEAD']) {
@@ -763,11 +820,7 @@ async function run() {
   await stopTestChild(optimizerMutant);
   writeFileSync(configPath, disabledConfig);
 
-  // Development gets a fresh owned build directory.
-  rmSync(join(app, '.next'), { recursive: true, force: true });
-  // Next's development route discovery does not traverse a symlinked src tree.
-  unlinkSync(join(app, 'src'));
-  cpSync(join(appRoot, 'src'), join(app, 'src'), { recursive: true });
+  // The normal development producer owns the clean compiler/cache lifecycle.
   const development = start([join(app, 'scripts/public-server.mjs'), '--dev'], true);
   await ready(development, true, 3000);
   assert.equal(

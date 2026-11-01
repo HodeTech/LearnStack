@@ -101,6 +101,12 @@ describe('P02d-7 exact demo identity boundary', () => {
       'frontend/packages/sdk/src/server.ts',
       'frontend/packages/sdk/src/administration-server.ts',
       'frontend/apps/web/scripts/public-server.mjs',
+      'frontend/apps/web/scripts/public-server-runtime.mjs',
+      'frontend/apps/web/scripts/framework-build.mjs',
+      'frontend/apps/web/scripts/framework-proof-support.mjs',
+      'frontend/scripts/framework-installation.mjs',
+      'frontend/scripts/framework-development.mjs',
+      'frontend/framework/next-response-cleanup/owner.mjs',
       'frontend/apps/web/scripts/development-hmr.mjs',
       'frontend/apps/web/scripts/stop-test-child.mjs',
       'frontend/apps/web/scripts/verify-bff-protocol.mjs',
@@ -301,6 +307,7 @@ describe('P02d-7 exact demo identity boundary', () => {
       [host, instrumenter],
       ['frontend/apps/web/scripts/fixture-support.mjs', 'export const helper = true;'],
       ['frontend/apps/web/scripts/bff-proof-support.mjs', 'export const helper = true;'],
+      ['frontend/apps/web/scripts/framework-proof-support.mjs', 'export const helper = true;'],
     ]);
     const external = () => 'frontend/node_modules/typescript/index.js';
     const selected = productionDemoSources(files, external);

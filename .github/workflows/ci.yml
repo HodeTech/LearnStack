@@ -287,7 +287,7 @@ jobs:
 
       - name: Install production rendering fixture dependencies
         working-directory: frontend
-        run: pnpm install --frozen-lockfile
+        run: node scripts/install-frontend.mjs
 
       - name: Compile native web and authenticated SDK fixture entries
         working-directory: frontend
@@ -594,7 +594,7 @@ jobs:
             pnpm-${{ runner.os }}-
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: node scripts/install-frontend.mjs
 
       - name: Regenerate SDK from the committed contract and refuse drift
         env:
@@ -733,7 +733,7 @@ jobs:
         timeout-minutes: 5
         working-directory: frontend
         run: |
-          pnpm install --frozen-lockfile
+          node scripts/install-frontend.mjs
           # The hosted image already carries every Chromium shared library.
           # --with-deps only added CJK/Thai/X fonts through the runner's APT
           # mirror, whose slow downloads repeatedly exhausted this budget.

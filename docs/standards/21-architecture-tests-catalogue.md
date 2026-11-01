@@ -6501,12 +6501,14 @@ Prior receipts do not qualify subsequent source changes.
   and [Standard 07](07-frontend-architecture.md#version-qualified-next-response-cleanup).
 - **Type:** installed/generated-source controls, actual Node/Next HTTP/HTTPS and
   native integration. **Kind:** structural, startup and behavioural.
-- **Test owner:** planned
-  `frontend/apps/web/src/test/next-response-cleanup.test.ts` and the existing
-  `backend/tests/LearnStack.Tests.Integration/TenancyIdentity/TenantBffSessionTests.cs`.
-  Installation, generation, actual resource and held-owner controls for this rule
-  remain implementation obligations.
-- **Status:** **Registered** — acceptance supplies no implemented gate or runtime proof.
+- **Test owner:** `frontend/apps/web/src/test/next-response-cleanup.test.ts`,
+  `next-response-end-work.test.ts`, `next-response-maps.test.ts`,
+  `framework-provenance.test.ts`, `framework-install-hook.test.ts` and the
+  existing `backend/tests/LearnStack.Tests.Integration/TenancyIdentity/TenantBffSessionTests.cs`.
+  Parsed-copy and component controls do not replace initialized-router,
+  supported-loader, native/browser or source-bound hosted qualification.
+- **Status:** **Registered** — the complete runtime/held-owner and qualification
+  obligations remain; delivered local controls alone do not promote this rule.
 - **Phase:** P03-3; ADR-0083 Steps 2–3 implement and qualify the extension.
 
 #### `Bff_Auth_Admission_And_Csrf_Are_Closed`

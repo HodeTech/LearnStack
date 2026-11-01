@@ -100,6 +100,32 @@ export function closedHttpSurfaceFindings(sources: SourceCensus): Finding[] {
   return evaluateHttpSurface(sources, analyzeHttpSource);
 }
 
+// This is the complete admitted webpack hook, including the existing resolver
+// alias. Printing parsed syntax ignores layout and comments, not executable code.
+const approvedWebpackSource = ts.createSourceFile(
+  'approved-webpack.ts',
+  `const config = { webpack(configuration, context) {
+    if (context.dev) {
+      configuration.plugins.push(createFrameworkDevelopmentPlugin({
+        appRoot: process.cwd(),
+        kind: context.nextRuntime === 'edge' ? 'edge' : context.isServer ? 'server' : 'client',
+      }));
+    }
+    configuration.resolve.extensionAlias = {
+      ...configuration.resolve.extensionAlias,
+      '.js': ['.ts', '.tsx', '.js'],
+    };
+    return configuration;
+  } };`,
+  ts.ScriptTarget.Latest,
+  true,
+);
+const approvedWebpack = (
+  (approvedWebpackSource.statements[0] as ts.VariableStatement).declarationList.declarations[0]!
+    .initializer as ts.ObjectLiteralExpression
+).properties[0]!;
+const syntaxPrinter = ts.createPrinter({ removeComments: true });
+
 function evaluateHttpSurface(
   sources: SourceCensus,
   syntax: (name: string, source: string) => HttpSourceSyntax,
@@ -205,10 +231,16 @@ function evaluateHttpSurface(
     (item) =>
       ts.isStringLiteral(item.moduleSpecifier) && item.moduleSpecifier.text === 'next-intl/plugin',
   );
+  const developmentImport = imports.find(
+    (item) =>
+      ts.isStringLiteral(item.moduleSpecifier) &&
+      item.moduleSpecifier.text === '../../scripts/framework-development.mjs',
+  );
   const types = typeImport?.importClause?.namedBindings;
+  const developmentBindings = developmentImport?.importClause?.namedBindings;
   if (
-    nextFile?.statements.length !== 4 ||
-    imports.length !== 2 ||
+    nextFile?.statements.length !== 5 ||
+    imports.length !== 3 ||
     !typeImport?.importClause?.isTypeOnly ||
     typeImport.importClause.name ||
     !types ||
@@ -219,7 +251,17 @@ function evaluateHttpSurface(
     !pluginImport?.importClause ||
     pluginImport.importClause.isTypeOnly ||
     pluginImport.importClause.name?.text !== 'createNextIntlPlugin' ||
-    pluginImport.importClause.namedBindings
+    pluginImport.importClause.namedBindings ||
+    !developmentImport?.importClause ||
+    developmentImport.attributes ||
+    developmentImport.importClause.isTypeOnly ||
+    developmentImport.importClause.name ||
+    !developmentBindings ||
+    !ts.isNamedImports(developmentBindings) ||
+    developmentBindings.elements.length !== 1 ||
+    developmentBindings.elements[0]!.isTypeOnly ||
+    developmentBindings.elements[0]!.name.text !== 'createFrameworkDevelopmentPlugin' ||
+    developmentBindings.elements[0]!.propertyName
   )
     findings.push({
       file: next,
@@ -242,6 +284,22 @@ function evaluateHttpSurface(
       file: next,
       line: 1,
       reason: 'Fix: keep Next configuration free of unapproved routing hooks or spreads.',
+    });
+  const webpack = nextConfig?.properties.find(
+    (property) =>
+      property.name && ts.isIdentifier(property.name) && property.name.text === 'webpack',
+  );
+  if (
+    !webpack ||
+    !ts.isMethodDeclaration(webpack) ||
+    !nextFile ||
+    syntaxPrinter.printNode(ts.EmitHint.Unspecified, webpack, nextFile) !==
+      syntaxPrinter.printNode(ts.EmitHint.Unspecified, approvedWebpack, approvedWebpackSource)
+  )
+    findings.push({
+      file: next,
+      line: 1,
+      reason: 'Fix: retain the approved development plugin and webpack extension alias.',
     });
   const exports = nextFile?.statements.filter(ts.isExportAssignment);
   const exported = exports?.length === 1 ? exports[0]!.expression : undefined;

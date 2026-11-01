@@ -230,7 +230,7 @@ seed-admin-origins: seed-config ## Explicitly adopt the two fixed administration
 .PHONY: install
 install: .env hooks ## Restore backend NuGet + frontend pnpm deps + activate git hooks.
 	(cd backend && dotnet restore LearnStack.slnx)
-	(cd frontend && pnpm install --frozen-lockfile)
+	node frontend/scripts/install-frontend.mjs
 
 .PHONY: hooks
 hooks: ## Activate the repo's pre-commit hook (.githooks/pre-commit).

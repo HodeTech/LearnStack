@@ -265,6 +265,89 @@ describe('ADR-0053 production public boundaries', () => {
       'Ordinary text and helpers do not create actions.',
     );
   });
+  it.each([
+    [
+      'wrong development module',
+      (source: string) => source.replace('../../scripts/framework-development.mjs', './routing'),
+    ],
+    [
+      'renamed development binding',
+      (source: string) =>
+        source.replace(
+          '{ createFrameworkDevelopmentPlugin }',
+          '{ createFrameworkDevelopmentPlugin as plugin }',
+        ),
+    ],
+    [
+      'type-only development binding',
+      (source: string) =>
+        source.replace(
+          '{ createFrameworkDevelopmentPlugin }',
+          '{ type createFrameworkDevelopmentPlugin }',
+        ),
+    ],
+    [
+      'extra development binding',
+      (source: string) =>
+        source.replace(
+          '{ createFrameworkDevelopmentPlugin }',
+          '{ createFrameworkDevelopmentPlugin, route }',
+        ),
+    ],
+    [
+      'development import attributes',
+      (source: string) =>
+        source.replace(
+          "'../../scripts/framework-development.mjs';",
+          "'../../scripts/framework-development.mjs' with { type: 'json' };",
+        ),
+    ],
+    [
+      'computed plugin access',
+      (source: string) =>
+        source.replace('configuration.plugins.push(', "configuration['plugins'].push("),
+    ],
+    [
+      'unconditional development plugin',
+      (source: string) => source.replace('if (context.dev)', 'if (true)'),
+    ],
+    [
+      'routing mutation inside development condition',
+      (source: string) =>
+        source.replace(
+          'if (context.dev) {',
+          'if (context.dev) { configuration.rewrites = async () => [];',
+        ),
+    ],
+    [
+      'routing mutation in another condition',
+      (source: string) =>
+        source.replace(
+          'return configuration;',
+          'if (context.dev) configuration.redirects = async () => []; return configuration;',
+        ),
+    ],
+    [
+      'modified extension alias',
+      (source: string) => source.replace("'.js': ['.ts', '.tsx', '.js']", "'.js': ['.js']"),
+    ],
+    [
+      'wrong compiler context',
+      (source: string) =>
+        source.replace("context.nextRuntime === 'edge'", "context.nextRuntime === 'nodejs'"),
+    ],
+  ] as const)('refuses %s in the approved webpack configuration', (_name, mutate) => {
+    const current = httpSources();
+    const config = 'apps/web/next.config.ts';
+    const evaluate = createHttpSurfaceEvaluator();
+    clean(evaluate(current), 'The actual checked configuration is admitted.');
+    const dirty = { ...current, [config]: mutate(current[config]!) };
+    const findings = evaluate(dirty);
+    expect(findings).toEqual(closedHttpSurfaceFindings(dirty));
+    expect(findings.map((item) => item.file)).toContain(config);
+    expect(evaluate(current)).toEqual(closedHttpSurfaceFindings(current));
+    clean(evaluate(current), 'Restoring the original configuration restores admission.');
+  });
   it('keeps cached HTTP syntax equivalent to raw findings through actual dirty and restored source', () => {
     const evaluate = createHttpSurfaceEvaluator();
     const baseline = httpSources();

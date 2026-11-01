@@ -1,6 +1,21 @@
 import type { ChildProcess } from 'node:child_process';
 
 export function bffDevToolsFailureStage(error: unknown): string;
+export function bffListenerFailureDetail(error: unknown): Readonly<{
+  reason: 'closed' | 'deadline' | 'error' | 'shape';
+  elapsedMilliseconds: number;
+  exitCode: number | null;
+  signal: 'none' | 'SIGINT' | 'SIGTERM' | 'SIGKILL' | 'other';
+  frameworkReason:
+    | 'unobserved'
+    | 'owner_busy'
+    | 'graph_identity'
+    | 'development_identity'
+    | 'development_compiler'
+    | 'producer_failed'
+    | 'framework-other'
+    | 'runtime-other';
+}> | null;
 export function waitForBffProofListener(child: ChildProcess): Promise<number>;
 export function bffProofCopy(locale: string, key: string): string;
 export function bffPageKind(

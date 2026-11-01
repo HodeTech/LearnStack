@@ -11,10 +11,20 @@ overrides:
   chromium-bidi@157.0.8090-0>zod: 4.6.6
   ajv@8.20.0>fast-uri: 3.1.9
 
+pnpmfileChecksum: 2de4tltijw6wp5ka7cfxxblixe
+
+patchedDependencies:
+  next@15.5.28:
+    hash: fjcjttzow4pkqtrtiv5twjw2yy
+    path: patches/next@15.5.28.patch
+
 importers:
 
   .:
     devDependencies:
+      '@jridgewell/sourcemap-codec':
+        specifier: 1.5.5
+        version: 1.5.5
       lighthouse:
         specifier: 13.5.0
         version: 13.5.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))
@@ -38,10 +48,10 @@ importers:
         version: link:../../packages/ui
       next:
         specifier: 15.5.28
-        version: 15.5.28(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
+        version: 15.5.28(patch_hash=fjcjttzow4pkqtrtiv5twjw2yy)(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       next-intl:
         specifier: 4.14.9
-        version: 4.14.9(@types/react@19.2.14)(next@15.5.28(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
+        version: 4.14.9(@types/react@19.2.14)(next@15.5.28(patch_hash=fjcjttzow4pkqtrtiv5twjw2yy)(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       openid-client:
         specifier: 6.8.8
         version: 6.8.8
@@ -6014,7 +6024,7 @@ snapshots:
 
   next-intl-swc-plugin-extractor@4.14.9: {}
 
-  next-intl@4.14.9(@types/react@19.2.14)(next@15.5.28(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0):
+  next-intl@4.14.9(@types/react@19.2.14)(next@15.5.28(patch_hash=fjcjttzow4pkqtrtiv5twjw2yy)(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0):
     dependencies:
       '@eloqnt/config': 0.1.1
       '@eloqnt/format-json': 0.1.0
@@ -6024,7 +6034,7 @@ snapshots:
       '@swc/core': 1.16.13
       icu-minify: 4.14.9
       negotiator: 1.1.0
-      next: 15.5.28(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
+      next: 15.5.28(patch_hash=fjcjttzow4pkqtrtiv5twjw2yy)(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       next-intl-swc-plugin-extractor: 4.14.9
       react: 19.0.0
       use-intl: 4.14.9(@types/react@19.2.14)(react@19.0.0)
@@ -6033,7 +6043,7 @@ snapshots:
     transitivePeerDependencies:
       - '@swc/helpers'
 
-  next@15.5.28(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(react-dom@19.0.0(react@19.0.0))(react@19.0.0):
+  next@15.5.28(patch_hash=fjcjttzow4pkqtrtiv5twjw2yy)(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(react-dom@19.0.0(react@19.0.0))(react@19.0.0):
     dependencies:
       '@next/env': 15.5.28
       '@swc/helpers': 0.5.15

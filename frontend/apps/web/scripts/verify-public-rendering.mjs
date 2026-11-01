@@ -26,6 +26,7 @@ import {
   createPrivateScanner,
   fixtureEnvironment,
 } from './fixture-support.mjs';
+import { frameworkProofBuildArguments, prepareFrameworkProof } from './framework-proof-support.mjs';
 import {
   absentFromSerializedText,
   absentFromWholeResponse as assertAbsentFromWholeResponse,
@@ -1497,6 +1498,7 @@ try {
     });
   }
   symlinkSync(join(sourceApp, 'node_modules'), join(app, 'node_modules'), 'dir');
+  prepareFrameworkProof({ sourceApp, app });
   const coursesDirectory = join(app, 'src/app/(public)/[locale]/courses');
   let fixtureClient;
   if (foundation) {
@@ -1535,7 +1537,7 @@ try {
         "import { createConfiguredPublicClient } from '@/server/configured-public-client';\n" +
         'export default function Probe() { return <p>{String(createConfiguredPublicClient(null))}</p>; }\n',
     );
-    const rejected = start(process.execPath, [nextBin, 'build']);
+    const rejected = start(process.execPath, frameworkProofBuildArguments(app));
     assert.notEqual(
       await completion(rejected),
       0,
@@ -1544,7 +1546,6 @@ try {
     assert.match(rejected.output, /server-only/);
     assert.match(rejected.output, /client-import-probe\/page\.tsx/);
     rmSync(dirname(mutant), { recursive: true });
-    rmSync(join(app, '.next'), { recursive: true, force: true });
 
     stage = 'built client canary rejection';
     // This mutant must compile successfully. Only scanning real emitted browser
@@ -1556,7 +1557,7 @@ try {
         '{displayName}{' + JSON.stringify(configuration.secret) + '}</p>',
       ),
     );
-    const canary = start(process.execPath, [nextBin, 'build']);
+    const canary = start(process.execPath, frameworkProofBuildArguments(app));
     assert.equal(await completion(canary), 0, 'Client canary builds successfully');
     assert.throws(
       () => scanClientAssets(join(app, '.next/static'), true),
@@ -1564,17 +1565,10 @@ try {
       'The emitted client canary must be rejected by asset scanning',
     );
     writeFileSync(fixtureClient, clientComponent);
-    rmSync(join(app, '.next'), { recursive: true, force: true });
   }
 
   stage = 'healthy production build';
-  const ingress = start(process.execPath, [
-    join(sourceApp, 'node_modules/typescript/bin/tsc'),
-    '--project',
-    'tsconfig.server.json',
-  ]);
-  assert.equal(await completion(ingress), 0, 'Production ingress compilation');
-  const build = start(process.execPath, [nextBin, 'build']);
+  const build = start(process.execPath, frameworkProofBuildArguments(app));
   assert.equal(await completion(build), 0, 'Healthy production build');
   assert.ok(
     scanClientAssets(join(app, '.next/static'), !foundation).files > 0,

@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { ChildProcess, execFileSync, spawn } from 'node:child_process';
+import { PassThrough } from 'node:stream';
 
 import { describe, expect, it, vi } from 'vitest';
 
@@ -7,6 +8,7 @@ import { waitForBrowserDevTools } from '../../scripts/admission-browser.mjs';
 import {
   assertBffCookieAttributes,
   bffDevToolsFailureStage,
+  bffListenerFailureDetail,
   bffProofCopy,
   bffPageKind,
   createBffCookieScanner,
@@ -259,6 +261,69 @@ describe('BFF proof observation ownership', () => {
       for (const event of ['message', 'close', 'error']) expect(child.listenerCount(event)).toBe(0);
     },
   );
+  it('brands only bounded startup facts and retires stderr observation after a closed child', async () => {
+    const child = new ChildProcess();
+    const stderr = new PassThrough();
+    Object.assign(child, { stderr });
+    const waiting = waitForBffProofListener(child).catch((error: unknown) => error);
+    stderr.write('Framework admission refused: ow');
+    stderr.write('ner_busy\n' + 'PRIVATE-CANARY'.repeat(1000));
+    Object.assign(child, { exitCode: 1 });
+    child.emit('close', 1, null);
+    const error = await waiting;
+    const detail = bffListenerFailureDetail(error);
+    expect(detail).toMatchObject({
+      reason: 'closed',
+      exitCode: 1,
+      signal: 'none',
+      frameworkReason: 'owner_busy',
+    });
+    expect(detail!.elapsedMilliseconds).toBeGreaterThanOrEqual(0);
+    expect(detail!.elapsedMilliseconds).toBeLessThanOrEqual(120000);
+    expect(Object.isFrozen(detail)).toBe(true);
+    expect(JSON.stringify(detail)).not.toContain('PRIVATE-CANARY');
+    expect(stderr.listenerCount('data')).toBe(0);
+    expect(bffListenerFailureDetail(Object.assign(new Error('PRIVATE-CANARY'), detail))).toBeNull();
+    expect(bffListenerFailureDetail(null)).toBeNull();
+    stderr.destroy();
+  });
+  it('keeps unknown child diagnostic values out of the startup evidence', async () => {
+    const child = new ChildProcess();
+    const stderr = new PassThrough();
+    Object.assign(child, { stderr });
+    const waiting = waitForBffProofListener(child).catch((error: unknown) => error);
+    stderr.write('Framework admission refused: private_unknown_reason\n');
+    child.emit('message', { kind: 'PRIVATE-CANARY' });
+    const detail = bffListenerFailureDetail(await waiting);
+    expect(detail).toMatchObject({
+      reason: 'shape',
+      exitCode: null,
+      signal: 'none',
+      frameworkReason: 'framework-other',
+    });
+    expect(JSON.stringify(detail)).not.toContain('private_unknown_reason');
+    expect(JSON.stringify(detail)).not.toContain('PRIVATE-CANARY');
+    expect(stderr.listenerCount('data')).toBe(0);
+    stderr.destroy();
+  });
+  it('retires only its own stderr observer on successful listener admission', async () => {
+    const child = new ChildProcess();
+    const stderr = new PassThrough();
+    Object.assign(child, { stderr });
+    let chunks = 0;
+    const independent = () => {
+      chunks++;
+    };
+    stderr.on('data', independent);
+    const waiting = waitForBffProofListener(child);
+    child.emit('message', { kind: 'proof-listener', port: 49152 });
+    expect(await waiting).toBe(49152);
+    stderr.write('ordinary output');
+    expect(chunks).toBe(1);
+    expect(stderr.listenerCount('data')).toBe(1);
+    stderr.removeListener('data', independent);
+    stderr.destroy();
+  });
   it.each([
     ['/studio', 'studio'],
     ['/portal', 'portal'],

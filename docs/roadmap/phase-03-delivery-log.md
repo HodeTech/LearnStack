@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 4,794 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 4,881 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -223,7 +223,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0083 proposal review closeout and approval readiness (2026-11-01)](#adr-0083-proposal-review-closeout-and-approval-readiness-2026-11-01) — 52 lines
   - [ADR-0083 maintainer corrections, acceptance and Step 1 (2026-11-01)](#adr-0083-maintainer-corrections-acceptance-and-step-1-2026-11-01) — 143 lines
   - [ADR-0083 Step 1 review round 1 and status correction (2026-11-01)](#adr-0083-step-1-review-round-1-and-status-correction-2026-11-01) — 21 lines
-  - [ADR-0083 Step 1 review closeout (2026-11-01)](#adr-0083-step-1-review-closeout-2026-11-01) — 19 lines
+  - [ADR-0083 Step 1 review closeout (2026-11-01)](#adr-0083-step-1-review-closeout-2026-11-01) — 20 lines
+  - [ADR-0083 Step 2 implementation and local controls (2026-11-01)](#adr-0083-step-2-implementation-and-local-controls-2026-11-01) — 86 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -10561,3 +10562,90 @@ Steps 2–3 obligations. Private map/owner/carrier preparation is not a shipped
 implementation or complete proof. Proceed automatically to Step 2 under the
 approved sequence, preserving all inherited isolation, lifetime, wire, deadline
 and final-source A/B requirements. Manual evidence stays deferred/unexecuted.
+
+
+### ADR-0083 Step 2 implementation and local controls (2026-11-01)
+
+The version-bound correction, generated maps/census and supported admission
+owners are implemented under the Accepted decision. This is Step 2 delivery for
+review; Step 3 runtime/browser and complete same-source hosted A/B remain open.
+The catalogue rule remains Registered. No earlier failed hosted attempt or
+maintainer-deferred manual check becomes a pass.
+
+**Transformation and restore.** The parsed generator qualifies the complete
+original Next distribution, transforms 27 pipe copies, common compression and
+both routers, and composes 29 maps while preserving unchanged mappings,
+metadata and licenses. The compression bundle has no map. Renamed map siblings
+replace the old maps; frozen installation verifies all 30 JS/29 map subjects,
+obsolete-map absence and distribution membership. Generation checks original
+map bytes; pnpm's map-deletion effect alone does not validate their preimage.
+Two independent output directories reproduce all 61 generated artifacts exactly.
+The 49,269,096-byte patch has SHA-256
+`a97b6debebddd183952a275eb520c8c9196e4123f32db043ee081b475d1073b1`;
+the census has SHA-256
+`26fd3503526a4b3e54f6de2c9b0f84ecaf0876e22d01533bc4999d88f63c3232`.
+The large generated patch is an explicit maintenance cost, not handwritten
+application logic. Qualified originals and readable transformation inputs remain
+tracked separately. No shared pnpm store or installed source is hand-edited.
+
+Exact Node/pnpm declarations, the independently checked manager executable,
+early project hook and owned installer precede dependency mutation. A lifecycle
+preinstall hook alone is too late for that guarantee. Guarded lock preparation
+and normal frozen restoration pass with the regenerated patch. Eleven real
+pnpm controls verify raw mutation refusal and unchanged fixture contents;
+read-only/script entry paths remain usable. Make, demo and all three CI restore
+sites use the same installer. Setup/test guidance links the maintenance commands.
+
+**Generated output.** The builtins-only bootstrap verifies installation and a
+clean producer's exact source/output graph before SDK, application or framework
+runtime import/listen. It never signs an arbitrary existing build. Actual old
+managed output plus its old manifest refuses beside corrected installed bytes;
+module-load observation records no application/SDK/framework import or listener.
+Unknown prior generated directories are reversibly archived, never silently
+adopted or deleted. Fixtures own private SDK outputs and preserve the original
+qualified build manifest. Development compiler generations, restart inputs and
+publication admission are explicitly checked; actual HMR proof remains Step 3.
+No standalone, Docker or source-less packaging support is claimed.
+
+The third actual clean production producer passes with zero stderr. Immediate
+verification covers 217 inputs and 128 generated subjects (2,392,888 bytes);
+its manifest SHA-256 is
+`d9d2e0779f0523a9d9d229a15becb7b481e0eae83e8131534b3687db38e6738a`.
+Installed verification takes about 155 ms and generated verification about
+39 ms locally; these are observations, not cold/hosted performance guarantees.
+The first producer's exit-zero ESLint failure remains unqualified; subsequent
+source changes invalidated the second producer normally. A manual verifier's
+relative-path setup refusal is corrected to the actual absolute app root.
+
+**Actual ownership controls.** Forty-five focused tests pass, including 440
+HTTP child outcomes across every qualified pipe closure and both exact router
+initializers. Healthy wire comparisons and explicit original negative controls
+remain distinct. These tests adapt embedded/ESM module syntax and do not claim
+full initialized-router or supported ESM-loader qualification. Source/abort
+failure now joins explicitly passed real end work even before writer.close;
+normal native registered tasks remain separately owned. Actual encoder closure
+cannot settle that end work. Primary identity and separate end/cleanup faults
+remain observable. No operation deadline or resource retirement rule changes.
+
+Independent real HTTP/verified HTTPS controls confirm the native writer refuses
+new writes after actual socket writability/end closes, without acknowledging any
+already-issued callback. Independent map checks preserve 1,801,579 original
+segments, deliberately replace 378, verify 417 positions with Node's consumer,
+and observe Node load the actual renamed installed map.
+
+**Local combined checks.** The guarded frontend suite passes 3,400/3,400 cases
+(3,252 web and 148 SDK; 99 files), zero skips/todos, in about 67.5 seconds.
+Typecheck, lint, 51-file formatting admission, five corpus tests and Python CI
+controls (102 native, 83 shard, 40 result) pass. The existing metadata mutex had
+an independently reproduced compatible-reader liveness defect; acquisition now
+uses its existing 250 ms bound as retirement already did. Actual writer conflicts
+still refuse immediately. All 58 component controls pass, including four real
+process controls. Earlier full-run failures remain retained, with their exact
+limits; only the fourth complete current frontend run is a passing whole suite.
+
+Private exact commands, source snapshots, hashes and stdout/stderr are retained
+under `artifacts/p033-step10/adr0083/step2/` and the adjacent preparation evidence.
+Neither those local controls nor this record completes P03-3. Commit this step,
+run fresh independent R1, correct verified findings, then use new R2 reviewers
+before Step 3 and the final source freeze. Manual accessibility remains
+maintainer-deferred and unexecuted.

@@ -4,7 +4,6 @@ import { spawn, execFileSync } from 'node:child_process';
 import {
   cpSync,
   mkdirSync,
-  readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
@@ -18,12 +17,14 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
+  bffListenerFailureDetail,
   createBffCookieScanner,
   rememberBffCookies,
   observeBffProofShutdown,
   waitForBffProofListener,
 } from './bff-proof-support.mjs';
 import { createPrivateScanner, fixtureEnvironment } from './fixture-support.mjs';
+import { frameworkProofBuildArguments, prepareFrameworkProof } from './framework-proof-support.mjs';
 const source = fileURLToPath(new URL('../', import.meta.url));
 function file(path, value) {
   mkdirSync(join(path, '..'), { recursive: true });
@@ -146,7 +147,6 @@ export async function startBffProof({
   assert.ok(!isolatedProtocol || !external, 'isolated protocol excludes external capabilities');
   const app = join(root, 'frontend/apps/web');
   let listenerPort = 3000;
-  let sdkBuild = join(source, '../../packages/sdk/scripts/build-native.mjs');
   const scanners = [];
   // CSRF cookies may appear in their intended HTML/JSON response. They remain
   // forbidden in child/browser diagnostics, independently of body projections.
@@ -294,34 +294,22 @@ export async function startBffProof({
       replace(readFileSync(path, 'utf8'), 'activity: frame.activity,', "activity: 'passive',"),
     );
   }
-  if (isolatedProtocol) {
-    // Concurrent protocol copies share immutable dependencies, never SDK output.
-    const sdkSource = join(source, '../../packages/sdk');
-    const sdkRoot = join(root, 'frontend/packages/sdk');
-    mkdirSync(join(sdkRoot, 'scripts'), { recursive: true });
-    cpSync(join(sdkSource, 'src'), join(sdkRoot, 'src'), { recursive: true });
-    for (const name of ['package.json', 'tsconfig.json', 'tsconfig.native.json'])
-      cpSync(join(sdkSource, name), join(sdkRoot, name));
-    cpSync(join(sdkSource, 'scripts/build-native.mjs'), join(sdkRoot, 'scripts/build-native.mjs'));
-    symlinkSync(join(sdkSource, 'node_modules'), join(sdkRoot, 'node_modules'), 'dir');
-    sdkBuild = join(sdkRoot, 'scripts/build-native.mjs');
-    const dependencies = join(app, 'node_modules');
-    mkdirSync(join(dependencies, '@learnstack'), { recursive: true });
-    for (const name of readdirSync(join(source, 'node_modules'))) {
-      if (name === '@learnstack') continue;
-      symlinkSync(join(source, 'node_modules', name), join(dependencies, name), 'dir');
-    }
-    for (const name of readdirSync(join(source, 'node_modules/@learnstack')))
-      symlinkSync(
-        name === 'sdk' ? sdkRoot : join(source, 'node_modules/@learnstack', name),
-        join(dependencies, '@learnstack', name),
-        'dir',
-      );
-  } else symlinkSync(join(source, 'node_modules'), join(app, 'node_modules'), 'dir');
+  // Every proof owns its SDK output, including non-protocol browser/API copies.
+  symlinkSync(join(source, 'node_modules'), join(app, 'node_modules'), 'dir');
+  for (const name of ['tailwind.config.ts', 'postcss.config.cjs'])
+    cpSync(join(source, name), join(app, name));
   cpSync(join(source, 'scripts/development-hmr.mjs'), join(app, 'scripts/development-hmr.mjs'));
+  prepareFrameworkProof({ sourceApp: source, app });
   file(
     join(app, 'package.json'),
-    JSON.stringify({ name: 'learnstack-owned-bff-proof', private: true, type: 'module' }),
+    JSON.stringify({
+      name: 'learnstack-owned-bff-proof',
+      private: true,
+      type: 'module',
+      dependencies: JSON.parse(readFileSync(join(source, 'package.json'), 'utf8')).dependencies,
+      devDependencies: JSON.parse(readFileSync(join(source, 'package.json'), 'utf8'))
+        .devDependencies,
+    }),
   );
   file(
     join(app, 'tsconfig.json'),
@@ -336,6 +324,8 @@ export async function startBffProof({
         jsx: 'preserve',
         esModuleInterop: true,
         skipLibCheck: true,
+        allowJs: true,
+        incremental: true,
         resolveJsonModule: true,
         isolatedModules: true,
         plugins: [{ name: 'next' }],
@@ -347,7 +337,13 @@ export async function startBffProof({
   );
   file(
     join(app, 'next-env.d.ts'),
-    '/// <reference types="next" />\n/// <reference types="next/image-types/global" />\n',
+    // Match the qualified Next declaration writer before immutable build input
+    // capture. This scaffold must work in a fresh checkout with no prior build.
+    '/// <reference types="next" />\n' +
+      '/// <reference types="next/image-types/global" />\n' +
+      '/// <reference path="./.next/types/routes.d.ts" />\n\n' +
+      '// NOTE: This file should not be edited\n' +
+      '// see https://nextjs.org/docs/app/api-reference/config/typescript for more information.\n',
   );
   let nextConfiguration = readFileSync(join(source, 'next.config.ts'), 'utf8');
   if (!uiMode)
@@ -422,7 +418,7 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
     const history = join(app, 'src/components/auth/history.ts');
     file(history, replace(readFileSync(history, 'utf8'), 'location.reload()', 'void 0'));
   }
-  let launcher = readFileSync(join(source, 'scripts/public-server.mjs'), 'utf8');
+  let launcher = readFileSync(join(source, 'scripts/public-server-runtime.mjs'), 'utf8');
   if (mutation === 'diagnostics')
     launcher = replace(
       launcher,
@@ -559,7 +555,7 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
       "server.listen(0, '127.0.0.1', () => { const address = server.address(); if (!address || typeof address === 'string') throw new Error('Owned listener address absent'); process.send({kind: 'proof-listener', port: address.port});",
     );
   }
-  file(join(app, 'scripts/public-server.mjs'), launcher);
+  file(join(app, 'scripts/public-server-runtime.mjs'), launcher);
   execFileSync(
     'openssl',
     [
@@ -646,34 +642,11 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
   // qualify the native side while Next compiles different bundled sources.
   cpSync(join(source, 'tsconfig.server.json'), join(app, 'tsconfig.server.json'));
   mark('compile');
-  // The authenticated SDK subpath resolves to dist through the workspace link.
-  // Qualify standalone proof invocations too, not only callers that built it first.
-  const sdk = child([sdkBuild], env);
-  assert.equal((await sdk.completed).code, 0, 'owned current-source SDK compilation');
-  if (isolatedProtocol) {
-    const require = createRequire(join(app, 'package.json'));
-    const sdkRoot = join(root, 'frontend/packages/sdk');
-    for (const [resolved, target] of [
-      [require.resolve('@learnstack/sdk/server'), 'src/server.ts'],
-      [require.resolve('@learnstack/sdk/authenticated-server'), 'dist/authenticated-server.js'],
-      [require.resolve('@learnstack/sdk/administration-server'), 'dist/administration-server.js'],
-    ])
-      assert.equal(
-        realpathSync(resolved),
-        realpathSync(join(sdkRoot, target)),
-        'current owned SDK resolution',
-      );
-  }
-  const native = child(
-    [join(source, 'node_modules/typescript/bin/tsc'), '--project', 'tsconfig.server.json'],
-    env,
-  );
-  assert.equal((await native.completed).code, 0, 'owned current-source native compilation');
   mark('build');
   const build = child(
     mutation === 'held-build'
       ? ['-e', 'setInterval(() => {}, 1000)']
-      : [join(source, 'node_modules/next/dist/bin/next'), 'build'],
+      : frameworkProofBuildArguments(app),
     env,
   );
   if (mutation === 'held-build') mark('held-build'); // The owned child exists before the parent may close input.
@@ -688,6 +661,21 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
     process.stderr.write(diagnostics.slice(0, 2000) + '\n');
   }
   assert.equal(buildResult.code, 0, 'owned Next build');
+  // The guarded producer compiled the actual resolved copied SDK/native graph.
+  if (isolatedProtocol) {
+    const require = createRequire(join(app, 'package.json'));
+    const sdkRoot = join(root, 'frontend/packages/sdk');
+    for (const [resolved, target] of [
+      [require.resolve('@learnstack/sdk/server'), 'src/server.ts'],
+      [require.resolve('@learnstack/sdk/authenticated-server'), 'dist/authenticated-server.js'],
+      [require.resolve('@learnstack/sdk/administration-server'), 'dist/administration-server.js'],
+    ])
+      assert.equal(
+        realpathSync(resolved),
+        realpathSync(join(sdkRoot, target)),
+        'current owned SDK resolution',
+      );
+  }
   const buildTrace = devMode ? readFileSync(join(app, '.next/trace'), 'utf8') : '';
   if (devMode)
     assert.ok(buildTrace.length > 0, 'separate build leaves a nonempty real collector control');
@@ -720,7 +708,14 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
       server.process.send({ kind: 'render-control', action });
     });
   if (isolatedProtocol) {
-    listenerPort = await waitForBffProofListener(server.process);
+    try {
+      listenerPort = await waitForBffProofListener(server.process);
+    } catch (error) {
+      const detail = bffListenerFailureDetail(error);
+      if (detail)
+        process.stderr.write('BFF listener startup observation: ' + JSON.stringify(detail) + '\n');
+      throw error;
+    }
   } else {
     const until = Date.now() + 20_000;
     while (!server.scanner.tail.includes('Public HTTPS listener ready on 127.0.0.1:3000')) {

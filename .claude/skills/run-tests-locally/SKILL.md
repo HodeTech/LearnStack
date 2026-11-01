@@ -45,15 +45,13 @@ flags, and a triage map for the most common failure shapes.
 # Required toolchain
 dotnet --version    # 10.0.x
 node --version      # 22.23.1 (frontend/.nvmrc)
-pnpm --version
+pnpm --version      # exactly 9.12.3
 
-# Restore — from the directories that hold the solution and the workspace.
-# There is no solution and no package.json at the repository root, so both
-# commands fail there. `make install` is these two lines, after its `.env` and
-# `hooks` prerequisites (which copy `.env.example` and point core.hooksPath at
-# `.githooks/`).
+# Restore from the repository root. The frontend wrapper checks the actual
+# manager before dependency mutation. `make install` runs these two commands
+# after its `.env` and `hooks` prerequisites.
 (cd backend && dotnet restore LearnStack.slnx)
-(cd frontend && pnpm install --frozen-lockfile)
+node frontend/scripts/install-frontend.mjs
 
 # Docker must be running for Database/ and TenancyIdentity/ provider cases
 docker info >/dev/null && echo "docker OK"
@@ -236,7 +234,7 @@ From a fresh checkout without root `.env`, web `.env.local` or
 lifecycle:
 
 ```bash
-(cd frontend && pnpm install --frozen-lockfile)
+node frontend/scripts/install-frontend.mjs
 (cd frontend && pnpm exec playwright install --with-deps chromium)
 make demo DEMO_MODE=ci
 ```
@@ -419,8 +417,10 @@ record and CONTRIBUTING; do not infer them from a local audit.
 
 - **No Docker.** The `Requires=Docker` integration cases need it. Start Docker
   Desktop first, or run `--filter "Requires!=Docker"`.
-- **Stale lockfile.** `pnpm install --frozen-lockfile` after a `package.json`
-  change — the lockfile must match.
+- **Stale lockfile.** For an intentional manifest change, use
+  `node frontend/scripts/install-frontend.mjs --prepare-lock`, review the lock
+  diff, then run the normal guarded installer. Raw `pnpm install` refuses; do not
+  bypass the project hook or lifecycle controls.
 - **Skipped architecture test.** Forbidden. If a test is marked `[Skip]`, treat
   it as a bug.
 - **Port collisions.** Testcontainers PostgreSQL uses a random host port and can

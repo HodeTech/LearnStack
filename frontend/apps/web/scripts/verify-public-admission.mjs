@@ -27,6 +27,7 @@ import {
   createPrivateScanner,
   fixtureEnvironment,
 } from './fixture-support.mjs';
+import { frameworkProofBuildArguments, prepareFrameworkProof } from './framework-proof-support.mjs';
 
 const sourceApp = fileURLToPath(new URL('../', import.meta.url));
 const owner = createFixtureOwner();
@@ -318,7 +319,7 @@ function replaceOnce(path, needle, replacement) {
 function instrumentCopy() {
   // IPC-only observations in this disposable app. No diagnostic route, DTO,
   // binding, envelope or secret is sent to the parent or added to production.
-  const launcher = join(app, 'scripts/public-server.mjs');
+  const launcher = join(app, 'scripts/public-server-runtime.mjs');
   replaceOnce(
     launcher,
     'import { installPublicAdmissionRuntime }',
@@ -756,18 +757,10 @@ try {
     });
   }
   symlinkSync(join(sourceApp, 'node_modules'), join(app, 'node_modules'), 'dir');
+  prepareFrameworkProof({ sourceApp, app });
   instrumentCopy();
   stage = 'production build';
-  const compiler = start(process.execPath, [
-    join(sourceApp, 'node_modules/typescript/bin/tsc'),
-    '--project',
-    'tsconfig.server.json',
-  ]);
-  assert.equal(await completion(compiler), 0, 'Ingress build');
-  const build = start(process.execPath, [
-    join(sourceApp, 'node_modules/next/dist/bin/next'),
-    'build',
-  ]);
+  const build = start(process.execPath, frameworkProofBuildArguments(app));
   assert.equal(await completion(build), 0, 'Copied product build');
   assert.ok(scanAssets(join(app, '.next/static')) > 0);
   await checkpoint('build-complete');

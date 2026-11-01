@@ -50,12 +50,18 @@ function browserSetup(failure = '') {
   const files = fixture();
   for (const [name, body] of [
     [
+      'node',
+      `
+      printf 'node %s\\n' "$*" >> "$INVOCATION"
+      [ "$*" = 'scripts/install-frontend.mjs' ] || exit 99
+      [ "$FAILURE" != dependencies ] || exit 19
+    `,
+    ],
+    [
       'pnpm',
       `
       printf 'pnpm %s\\n' "$*" >> "$INVOCATION"
-      if [ "$*" = 'install --frozen-lockfile' ]; then
-        [ "$FAILURE" != dependencies ] || exit 19
-      elif [ "$*" = 'exec playwright install chromium' ]; then
+      if [ "$*" = 'exec playwright install chromium' ]; then
         [ "$FAILURE" != browser ] || exit 23
       else exit 99; fi
     `,
@@ -84,14 +90,14 @@ it('installs only the pinned Chromium build without any APT mirror dependency', 
   const files = browserSetup();
   expect(files.result.status).toBe(0);
   expect(readFileSync(files.invocation, 'utf8').trim().split('\n')).toEqual([
-    'pnpm install --frozen-lockfile',
+    'node scripts/install-frontend.mjs',
     'pnpm exec playwright install chromium',
   ]);
 });
 
 it.each([
-  ['dependencies', 19, ['pnpm install --frozen-lockfile']],
-  ['browser', 23, ['pnpm install --frozen-lockfile', 'pnpm exec playwright install chromium']],
+  ['dependencies', 19, ['node scripts/install-frontend.mjs']],
+  ['browser', 23, ['node scripts/install-frontend.mjs', 'pnpm exec playwright install chromium']],
 ] as const)('fails closed on browser setup %s', (failure, code, calls) => {
   const files = browserSetup(failure);
   expect(files.result.status).toBe(code);

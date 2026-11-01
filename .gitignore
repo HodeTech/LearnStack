@@ -23,6 +23,7 @@ TestResults/
 node_modules/
 .next/
 .server/
+.framework-state/
 dist/
 build/
 coverage/

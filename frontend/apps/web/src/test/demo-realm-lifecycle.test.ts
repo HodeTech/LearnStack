@@ -56,6 +56,16 @@ function fixture() {
       { mode: name === 'seed.sh' ? 0o700 : 0o600 },
     );
   mkdirSync(join(root, 'frontend/apps/web/scripts'));
+  mkdirSync(join(root, 'frontend/scripts'));
+  // These fixtures own realm/configuration ordering and cleanup, not package
+  // qualification. The separate install-hook suite executes the actual pnpm.
+  writeFileSync(
+    join(root, 'frontend/scripts/framework-installation.mjs'),
+    `export function resolveQualifiedPnpm({ frontendRoot }) {
+  if (frontendRoot !== ${JSON.stringify(join(root, 'frontend'))}) throw new Error('Unexpected framework workspace');
+  return { command: process.execPath, args: ['qualified-manager.cjs'] };
+}\n`,
+  );
   writeFileSync(
     join(root, 'frontend/apps/web/scripts/stop-test-child.mjs'),
     readFileSync(new URL('../../scripts/stop-test-child.mjs', import.meta.url)),
@@ -302,7 +312,13 @@ DemoProcesses.prototype.run = async function(command, args, options = {}) {
     if (f.scenario === 'seed-failure') throw f.seedFailure;
     return 'seed-result: {"version":2,"freshTenantIds":[],"qualifiedOriginTenantIds":[]}\\n';
   }
-  if (command === 'pnpm' && args.at(-1) === 'build') { f.events.push('renderer'); throw f.boundary; }
+  if (options.label === 'Locked frontend restore'
+    && (command !== process.execPath || args.length !== 1
+      || args[0] !== join(${JSON.stringify(f.root)}, 'frontend/scripts/install-frontend.mjs')))
+    throw new Error('Unexpected frontend restore boundary');
+  if (command === process.execPath && args[0] === 'qualified-manager.cjs' && args.at(-1) === 'build') {
+    f.events.push('renderer'); throw f.boundary;
+  }
   return '';
 };
 let failure = '', notice = '', preparationDispatched = false;
@@ -1131,6 +1147,16 @@ DemoProcesses.prototype.dispose = async function() {
       args: ['compose', 'version'],
       prerequisitesPreserved: true,
     });
+    expect(result.commands.find(({ label }) => label === 'Locked frontend restore')).toMatchObject({
+      command: process.execPath,
+      args: [join(f.root, 'frontend/scripts/install-frontend.mjs')],
+    });
+    expect(
+      result.commands.find(({ label }) => label === 'Production renderer build'),
+    ).toMatchObject({
+      command: process.execPath,
+      args: ['qualified-manager.cjs', '--filter', '@learnstack/web', 'build'],
+    });
     expect(result.migrationSelection).toBe(true);
     expect(result.identityFoundationRequested).toBe(true);
     expect(existsSync(join(f.root, '.env'))).toBe(false);
@@ -1246,7 +1272,9 @@ describe('private configuration refuses launch before commands', () => {
       expect(result.failure).toBe('realm: preflight/configuration');
       expect(
         result.commands
-          .filter(({ command }) => ['make', 'dotnet', 'pnpm'].includes(command))
+          .filter(({ command }) =>
+            ['make', 'dotnet', 'pnpm', 'node', process.execPath].includes(command),
+          )
           .every(({ args }) => args.includes('--version')),
       ).toBe(true);
       expect(
