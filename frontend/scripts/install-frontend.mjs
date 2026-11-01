@@ -1,5 +1,4 @@
 // The supported restore and lifecycle hooks use no installed dependency.
-import { spawnSync } from 'node:child_process';
 import { readFileSync, realpathSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,6 +9,10 @@ import {
   resolveQualifiedPnpm,
   verifyFrameworkInstallation,
 } from './framework-installation.mjs';
+import {
+  assertFrameworkProcessFamilySupport,
+  runFrameworkProcessFamily,
+} from './framework-process-family.mjs';
 
 const root = FRAMEWORK_FRONTEND_ROOT;
 const appRoot = join(root, 'apps/web');
@@ -73,24 +76,25 @@ async function main(values) {
   }
   if (option !== undefined && option !== '--prepare-lock') fail('install_arguments');
   const prepareLock = option === '--prepare-lock';
+  assertFrameworkProcessFamilySupport();
   const manager = resolveQualifiedPnpm({ frontendRoot: root });
   const lease = acquireFrameworkLease({ appRoot, frontendRoot: root, kind: 'install' });
   let failed = false;
   try {
-    const result = spawnSync(
+    await runFrameworkProcessFamily(
       manager.command,
       [
         ...manager.args,
         'install',
+        '--use-store-server=false',
         ...(prepareLock ? ['--lockfile-only', '--ignore-scripts'] : ['--frozen-lockfile']),
       ],
       {
         cwd: root,
         stdio: 'inherit',
-        env: { ...process.env, LEARNSTACK_FRAMEWORK_INSTALL_OWNER: lease.record.nonce },
+        environment: { ...process.env, LEARNSTACK_FRAMEWORK_INSTALL_OWNER: lease.record.nonce },
       },
     );
-    if (result.error || result.status !== 0 || result.signal !== null) fail('install_failed');
     if (!prepareLock)
       verifyFrameworkInstallation({ appRoot, frontendRoot: root, distribution: true });
   } catch (error) {

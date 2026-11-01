@@ -293,6 +293,195 @@ describe('P02d-7 exact demo identity boundary', () => {
         'Unmodeled runtime import',
       );
   });
+  const frameworkGuard = 'frontend/scripts/framework-installation.mjs';
+  const frameworkGuardSource = readFileSync(join(root, frameworkGuard), 'utf8');
+  const guardSources = (source = frameworkGuardSource) =>
+    new Map([
+      [frameworkGuard, source],
+      ['frontend/scripts/framework-process-family.mjs', 'export const family = true;'],
+    ]);
+  it('resolves the actual guard loaders from the checked application package and retains the guard source', () => {
+    const observed: { from: string; edge: string; anchors: string[] }[] = [];
+    const selected = productionDemoSources(guardSources(), (from, edge, anchors) => {
+      observed.push({ from, edge, anchors });
+      return `frontend/apps/web/node_modules/${edge}/index.js`;
+    });
+    expect(selected.has(frameworkGuard)).toBe(true);
+    expect(selected.has('frontend/scripts/framework-process-family.mjs')).toBe(true);
+    expect(observed).toEqual([
+      { from: 'frontend/apps/web/package.json', edge: 'next', anchors: [] },
+      { from: 'frontend/apps/web/package.json', edge: 'next/dist/bin/next', anchors: [] },
+      { from: 'frontend/apps/web/package.json', edge: 'typescript/bin/tsc', anchors: [] },
+    ]);
+  });
+  it('follows extra guard loader edges through local and externally resolved first-party test helpers', () => {
+    const local = 'frontend/apps/web/src/test/guard-local.ts';
+    const external = 'frontend/apps/web/src/test/guard-external.ts';
+    const nested = 'frontend/apps/web/src/test/guard-nested.test.ts';
+    const marker = "  const require = createRequire(join(appRoot, 'package.json'));";
+    const source = frameworkGuardSource.replace(
+      marker,
+      `${marker}\n  require('./src/test/guard-local.ts');\n  require.resolve('guard-helper');`,
+    );
+    expect(source).not.toBe(frameworkGuardSource);
+    const files = guardSources(source)
+      .set(local, "export * from './guard-nested.test';")
+      .set(external, `export const identity = ${JSON.stringify(identity)};`)
+      .set(nested, `export const identity = ${JSON.stringify(identity)};`);
+    const selected = productionDemoSources(files, (from, edge) => {
+      expect(from).toBe('frontend/apps/web/package.json');
+      return edge === 'guard-helper' ? external : `frontend/apps/web/node_modules/${edge}/index.js`;
+    });
+    for (const helper of [local, external, nested]) expect(selected.has(helper)).toBe(true);
+    for (const helper of [external, nested])
+      expect(demoIdentityFindings(helper, selected.get(helper)!, vocabulary)).toEqual([identity]);
+  });
+  it('refuses unknown, unchecked, rebound and shadowed guard loader roots or loader bindings', () => {
+    const marker = "  const require = createRequire(join(appRoot, 'package.json'));";
+    for (const [before, after] of [
+      [marker, "  const require = createRequire(join(otherRoot, 'package.json'));"],
+      ["join(identity.appRoot, 'package.json')", "join(identity.otherRoot, 'package.json')"],
+      ['appRoot = checkedRoot(appRoot);', 'appRoot = otherRoot;'],
+      ['appRoot = checkedRoot(appRoot);', 'appRoot = checkedRoot(otherRoot);'],
+      [marker, `appRoot = otherRoot;\n${marker}`],
+      [marker, `${marker}\n  appRoot = otherRoot;`],
+      [marker, `${marker}\n  ({ root: appRoot } = other);`],
+      [marker, `${marker}\n  ([...appRoot] = other);`],
+      [marker, `${marker}\n  for (appRoot of otherRoots) { require('./hidden'); }`],
+      [marker, `${marker}\n  function nested(appRoot) { require('./hidden'); }`],
+      [marker, `${marker}\n  function nested(require) { require('./hidden'); }`],
+      [marker, `${marker}\n  require = otherRequire;`],
+      [marker, `${marker}\n  require.resolve = otherResolve;`],
+      [marker, `${marker}\n  const loader = require; loader('./hidden');`],
+      [marker, `${marker}\n  const loader = createRequire; loader(otherRoot)('./hidden');`],
+      [marker, `${marker}\n  join = otherJoin;`],
+      [marker, `${marker}\n  checkedRoot = otherCheck;`],
+      [marker, `${marker}\n  createRequire = otherFactory;`],
+      [marker, "  const require = createRequire(join(appRoot, 'other.json'));"],
+      [marker, '  const require = createRequire(import.meta.url);'],
+      [
+        "  const require = createRequire(join(identity.appRoot, 'package.json'));",
+        "  const require = createRequire(join(identity.appRoot, 'package.json'));\n  identity.appRoot = otherRoot;",
+      ],
+      [marker, `${marker}\n  const extra = createRequire(join(otherRoot, 'package.json'));`],
+      [
+        "import { createRequire } from 'node:module';",
+        "import { createRequire } from './loader.mjs';",
+      ],
+    ]) {
+      const source = frameworkGuardSource.replace(before!, after!);
+      expect(source).not.toBe(frameworkGuardSource);
+      expect(
+        () =>
+          productionDemoSources(guardSources(source), () => 'frontend/node_modules/clean/index.js'),
+        after,
+      ).toThrow('Unmodeled runtime import');
+    }
+  });
+  it.each([
+    [
+      'aliased named factory',
+      "import { createRequire as hiddenFactory } from 'node:module';",
+      'hiddenFactory',
+    ],
+    [
+      'namespace factory',
+      "import * as hiddenModule from 'node:module';",
+      'hiddenModule.createRequire',
+    ],
+    [
+      'bare builtin aliased factory',
+      "import { createRequire as hiddenFactory } from 'module';",
+      'hiddenFactory',
+    ],
+  ])(
+    'refuses an additional %s that would hide a reachable first-party helper',
+    (_name, factoryImport, factory) => {
+      const helper = 'frontend/apps/web/src/test/concealed-helper.mjs';
+      const source =
+        `${factoryImport}\n${frameworkGuardSource}\n` +
+        `const hiddenLoader = ${factory}(join(FRAMEWORK_FRONTEND_ROOT, 'apps/web/package.json'));\n` +
+        "hiddenLoader('./src/test/concealed-helper.mjs');\n";
+      const files = guardSources(source).set(
+        helper,
+        `export const branch = ${JSON.stringify(identity)};`,
+      );
+      expect(demoIdentityFindings(helper, files.get(helper)!, vocabulary)).toEqual([identity]);
+      expect(() =>
+        productionDemoSources(files, () => 'frontend/node_modules/clean/index.js'),
+      ).toThrow('Unmodeled runtime import');
+    },
+  );
+  it('refuses unmodeled guard edges even after recognizing the app-relative loader', () => {
+    const marker = "  const require = createRequire(join(appRoot, 'package.json'));";
+    for (const edge of [
+      'require.resolve(selectedModule);',
+      "require('./src/test/missing.ts');",
+      "require['resolve']('next');",
+      'await import(selectedModule);',
+      "require.resolve('outside');",
+    ]) {
+      const source = frameworkGuardSource.replace(marker, `${marker}\n  ${edge}`);
+      expect(() =>
+        productionDemoSources(guardSources(source), (_from, name) =>
+          name === 'outside' ? '../foreign/helper.mjs' : `frontend/node_modules/${name}/index.js`,
+        ),
+      ).toThrow('Unmodeled runtime import');
+    }
+  });
+  it('models the actual provenance control app anchor and refuses a changed or rebound control root', () => {
+    const entry = 'frontend/scripts/test-framework-provenance.mjs';
+    const source = readFileSync(join(root, entry), 'utf8');
+    const sources = (text: string) =>
+      guardSources()
+        .set(entry, text)
+        .set('frontend/scripts/framework-development.mjs', 'export const development = true;')
+        .set(
+          'frontend/scripts/test-framework-metadata-contention.mjs',
+          'export const metadata = true;',
+        )
+        .set('frontend/scripts/test-framework-process-family.mjs', 'export const family = true;');
+    const observed: { from: string; edge: string }[] = [];
+    const external = (from: string, edge: string) => {
+      observed.push({ from, edge });
+      return `frontend/apps/web/node_modules/${edge}/index.js`;
+    };
+    expect(productionDemoSources(sources(source), external).has(entry)).toBe(true);
+    expect(observed).toEqual([
+      { from: 'frontend/apps/web/package.json', edge: 'next' },
+      { from: 'frontend/apps/web/package.json', edge: 'next/dist/bin/next' },
+      { from: 'frontend/apps/web/package.json', edge: 'typescript/bin/tsc' },
+      { from: 'frontend/apps/web/package.json', edge: 'next/dist/compiled/browserslist' },
+      { from: 'frontend/apps/web/package.json', edge: 'next/dist/build/utils.js' },
+    ]);
+    const marker =
+      "const require = createRequire(join(FRAMEWORK_FRONTEND_ROOT, 'apps/web/package.json'));";
+    expect(source).toContain(marker);
+    for (const dirty of [
+      source.replace(
+        marker,
+        "const require = createRequire(join(otherRoot, 'apps/web/package.json'));",
+      ),
+      source.replace(
+        marker,
+        "const require = createRequire(join(FRAMEWORK_FRONTEND_ROOT, 'apps/other/package.json'));",
+      ),
+      source.replace(marker, `${marker}\nFRAMEWORK_FRONTEND_ROOT = otherRoot;`),
+      source.replace(
+        marker,
+        `${marker}\nfunction nested(FRAMEWORK_FRONTEND_ROOT) { require('./hidden'); }`,
+      ),
+      source.replace(marker, `${marker}\nrequire = otherRequire;`),
+      source.replace(marker, `${marker}\nrequire.resolve(selectedModule);`),
+      source.replace('  FRAMEWORK_FRONTEND_ROOT,', '  FRAMEWORK_FRONTEND_ROOT as OTHER_ROOT,'),
+      source + '\nconst FRAMEWORK_FRONTEND_ROOT = otherRoot;',
+    ]) {
+      expect(dirty).not.toBe(source);
+      expect(() => productionDemoSources(sources(dirty), external)).toThrow(
+        'Unmodeled runtime import',
+      );
+    }
+  });
   it('models only the copied BFF observation harness generated imports and their actual sources', () => {
     const harness = 'frontend/apps/web/scripts/test-bff-proof-runtime-observation.mjs';
     const runtime = 'frontend/apps/web/src/server/auth/request-runtime.ts';

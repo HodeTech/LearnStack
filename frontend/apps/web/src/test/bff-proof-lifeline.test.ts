@@ -1,16 +1,63 @@
 // @vitest-environment node
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { spawn, type ChildProcess, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { expect, it } from 'vitest';
 
+import { createHeldChildControl } from './held-child-control';
 import { createFixtureOwner, fixtureEnvironment } from '../../scripts/fixture-support.mjs';
 
 const preload = new URL('../../scripts/bff-proof-lifeline.mjs', import.meta.url).href;
 const host = new URL('../../scripts/bff-proof-host.mjs', import.meta.url).href;
 const fixture = new URL('../../scripts/fixture-support.mjs', import.meta.url).href;
+
+function soleFatalOwnerRefusal(error: unknown): boolean {
+  if (
+    !(error instanceof AggregateError) ||
+    error.message !== 'Fixture cleanup failed' ||
+    error.errors.length !== 1
+  )
+    return false;
+  const child = error.errors[0];
+  return (
+    child instanceof AggregateError &&
+    child.message === 'Fixture child cleanup unconfirmed' &&
+    child.errors.length === 1 &&
+    child.errors[0] instanceof Error &&
+    child.errors[0].message === 'Owned fixture process stop was forced or unconfirmed'
+  );
+}
+
+it('never accepts a sentinel, output or additional cleanup error as the expected fatal-parent refusal', () => {
+  const gate = new Error('Owned fixture process stop was forced or unconfirmed');
+  const expected = new AggregateError(
+    [new AggregateError([gate], 'Fixture child cleanup unconfirmed')],
+    'Fixture cleanup failed',
+  );
+  expect(soleFatalOwnerRefusal(expected)).toBe(true);
+  for (const error of [
+    new AggregateError(
+      [...expected.errors, new Error('sentinel cleanup failed')],
+      'Fixture cleanup failed',
+    ),
+    new AggregateError(
+      [
+        new AggregateError(
+          [gate, new Error('output drain failed')],
+          'Fixture child cleanup unconfirmed',
+        ),
+      ],
+      'Fixture cleanup failed',
+    ),
+    new AggregateError(
+      [new AggregateError([new Error('other failure')], 'Fixture child cleanup unconfirmed')],
+      'Fixture cleanup failed',
+    ),
+  ])
+    expect(soleFatalOwnerRefusal(error)).toBe(false);
+});
 
 async function bounded<T>(work: Promise<T>, milliseconds = 5000): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -189,11 +236,17 @@ it('stops a blocked child group on owner SIGKILL without touching a separate own
   expect(process.platform).not.toBe('win32');
   const owner = createFixtureOwner();
   // Removal is deferred until both the rescued group and the owner are confirmed stopped.
+  const held = await createHeldChildControl();
   const root = mkdtempSync(join(tmpdir(), 'learnstack-bff-lifeline-kill-'));
   const marker = join(root, 'grandchild.json');
   let childPid: number | undefined;
   let childGroupRetired = false;
   let parentStarted = false;
+  let parent: ChildProcess | undefined;
+  let sentinel: ChildProcess | undefined;
+  let parentClosed: Promise<void> | undefined;
+  let sentinelClosed: Promise<void> | undefined;
+  let fatalOwnerCleanupRefused = false;
   let testFailed = false;
   let testError: unknown;
   const cleanupErrors: unknown[] = [];
@@ -209,7 +262,7 @@ it('stops a blocked child group on owner SIGKILL without touching a separate own
     }
   };
   try {
-    const sentinel = owner.ownChild(
+    sentinel = owner.ownChild(
       spawn(process.execPath, ['-e', "process.send('ready');setInterval(()=>{},1000)"], {
         cwd: root,
         env: fixtureEnvironment({ root }),
@@ -217,13 +270,16 @@ it('stops a blocked child group on owner SIGKILL without touching a separate own
         stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
       }),
     );
+    sentinelClosed = new Promise((resolve) => sentinel!.once('close', () => resolve()));
+    const sentinelHandle = sentinel;
     const sentinelReady = new Promise<void>((resolve, reject) => {
-      sentinel.once('message', () => resolve());
-      sentinel.once('error', reject);
+      sentinelHandle.once('message', () => resolve());
+      sentinelHandle.once('error', reject);
     });
+    const grandchild = `require('node:fs').writeFileSync(${JSON.stringify(marker)}, JSON.stringify({pid:process.pid}));\n${held.source()}`;
     const childCode = `
       require('node:child_process').execFileSync(process.execPath,
-        ['-e', "require('node:fs').writeFileSync(process.argv[1], JSON.stringify({pid:process.pid}));setInterval(()=>{},1000)", ${JSON.stringify(marker)}],
+        ['-e', ${JSON.stringify(grandchild)}],
         { stdio: 'ignore' });`;
     const program = `
       import { ownBffProofChild } from ${JSON.stringify(host)};
@@ -234,7 +290,7 @@ it('stops a blocked child group on owner SIGKILL without touching a separate own
         privateValues: [], cookieCanaries: [], scanners: [] });
       process.send({ kind: 'child', pid: child.process.pid });
       setInterval(() => {}, 1000);`;
-    const parent = owner.ownChild(
+    parent = owner.ownChild(
       spawn(process.execPath, ['--input-type=module', '-e', program], {
         cwd: root,
         env: fixtureEnvironment({ root }),
@@ -242,6 +298,7 @@ it('stops a blocked child group on owner SIGKILL without touching a separate own
         stdio: ['ignore', 'ignore', 'pipe', 'ipc'],
       }),
     );
+    parentClosed = new Promise((resolve) => parent!.once('close', () => resolve()));
     parentStarted = true;
     let parentExited = false;
     parent.on('message', (message: unknown) => {
@@ -257,13 +314,14 @@ it('stops a blocked child group on owner SIGKILL without touching a separate own
     });
     parent.once('exit', () => (parentExited = true));
     await bounded(sentinelReady);
+    expect(await held.ready()).toBeGreaterThan(1);
     await until(() => childPid !== undefined && existsSync(marker));
     const grandchildPid = JSON.parse(readFileSync(marker, 'utf8')).pid as number;
     expect(Number.isSafeInteger(childPid)).toBe(true);
     expect(Number.isSafeInteger(grandchildPid)).toBe(true);
     expect(childPid).not.toBe(sentinel.pid);
     process.kill(grandchildPid, 0);
-    process.kill(-parent.pid!, 'SIGKILL');
+    expect(parent.kill('SIGKILL')).toBe(true);
     await until(() => parentExited);
     await until(() => !groupAlive());
     expect(sentinel.exitCode).toBeNull();
@@ -274,20 +332,10 @@ it('stops a blocked child group on owner SIGKILL without touching a separate own
     testError = error;
   } finally {
     try {
-      // Only this invocation's live, not-yet-retired group is eligible for rescue.
-      if (groupAlive()) {
-        let signalFailed = false;
-        try {
-          process.kill(-childPid!, 'SIGKILL');
-        } catch (error) {
-          if ((error as NodeJS.ErrnoException).code === 'ESRCH') childGroupRetired = true;
-          else {
-            signalFailed = true;
-            cleanupErrors.push(error);
-          }
-        }
-        if (!signalFailed) await until(() => !groupAlive());
-      }
+      // Only the live nonce-bound test channel can release held work. A failed
+      // watcher never authorizes signaling a saved group number as rescue.
+      await held.dispose();
+      await until(() => !groupAlive());
     } catch (error) {
       cleanupErrors.push(error);
     } finally {
@@ -295,8 +343,31 @@ it('stops a blocked child group on owner SIGKILL without touching a separate own
       try {
         await owner.dispose();
       } catch (error) {
-        cleanupErrors.push(error);
+        if (parent?.signalCode === 'SIGKILL' && soleFatalOwnerRefusal(error)) {
+          fatalOwnerCleanupRefused = true;
+          if (!existsSync(root))
+            cleanupErrors.push(new Error('Fatal-owner uncertainty removed private root'));
+        } else cleanupErrors.push(error);
       }
+    }
+    try {
+      await bounded(Promise.all([parentClosed, sentinelClosed]));
+      const retired = new Set<number>();
+      await until(() =>
+        [parent, sentinel].every((child) => {
+          if (child?.pid === undefined || retired.has(child.pid)) return true;
+          try {
+            process.kill(-child.pid, 0);
+            return false;
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
+            retired.add(child.pid);
+            return true;
+          }
+        }),
+      );
+    } catch (error) {
+      cleanupErrors.push(error);
     }
     // An unreported child group or failed cleanup leaves ownership unconfirmed.
     if (!cleanupErrors.length && (!parentStarted || childPid !== undefined)) {
@@ -311,4 +382,5 @@ it('stops a blocked child group on owner SIGKILL without touching a separate own
     throw new AggregateError([testError, ...cleanupErrors], 'Lifeline control and cleanup failed');
   if (testFailed) throw testError;
   if (cleanupErrors.length) throw new AggregateError(cleanupErrors, 'Lifeline cleanup failed');
+  expect(fatalOwnerCleanupRefused).toBe(true);
 }, 15_000);

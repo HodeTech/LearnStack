@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 5,127 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 5,226 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -229,7 +229,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0084 proposed runtime-family package (2026-11-01)](#adr-0084-proposed-runtime-family-package-2026-11-01) — 79 lines
   - [ADR-0084 proposal review round 1 and corrections (2026-11-01)](#adr-0084-proposal-review-round-1-and-corrections-2026-11-01) — 62 lines
   - [ADR-0084 proposal round 2 carrier correction (2026-11-01)](#adr-0084-proposal-round-2-carrier-correction-2026-11-01) — 29 lines
-  - [ADR-0084 proposal review closeout and approval readiness (2026-11-01)](#adr-0084-proposal-review-closeout-and-approval-readiness-2026-11-01) — 33 lines
+  - [ADR-0084 proposal review closeout and approval readiness (2026-11-01)](#adr-0084-proposal-review-closeout-and-approval-readiness-2026-11-01) — 34 lines
+  - [ADR-0083 Step 2 independent corrections and local verification (2026-11-01)](#adr-0083-step-2-independent-corrections-and-local-verification-2026-11-01) — 98 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -10900,3 +10901,102 @@ close the proposed runtime-family boundary, complete Step 2 review or qualify
 Step 3. Before new topology code, request maintainer approval as instructed.
 Complete same-source hosted A/B and deferred/unexecuted manual accessibility
 retain their existing gates and meaning.
+
+
+### ADR-0083 Step 2 independent corrections and local verification (2026-11-01)
+
+The three R1 provenance findings receive corrections within Accepted ADR-0083.
+The additional persistent native owner remains the separate, unapproved
+ADR-0084 proposal. This record does not close Step 2, its corrected reviews,
+Step 3, initialized runtime qualification or complete same-source hosted A/B.
+
+**Mutable compiler and installer ownership.** Existing temporary Node commands
+run in private macOS/Linux process groups. Their current private IPC leader
+handles cancellation by signaling its own actual group; the parent never sends
+a nonzero signal to a cached group number. Direct child close is insufficient:
+reservations remain until actual group absence. Only ESRCH acknowledges absence;
+observation failure or lost leader/channel retains ownership, potentially
+indefinitely. No additional persistent runtime process is introduced. Installer
+invocations disable the optional pnpm store server for that invocation. Actual
+inert SDK/lifecycle, cancellation, leader/owner loss, late-write, preload and
+worker-thread controls keep their operation failures and original red evidence.
+
+**Environment and entry qualification.** Compiler/runtime environments use a
+finite projection and pinned Next's five existing default browser targets.
+Actual target-loader controls prove ancestor Browserslist files can change the
+old result without changing the source graph; the selected target now prevents
+that discovery. Ambient compiler selectors refuse before producer mutation.
+Exact original Next package metadata, main/bin entries and actual app-relative
+resolution are verified before runtime import. The generator records that
+metadata as a required input; the actual external-main bootstrap negative
+refuses before its marker executes.
+
+Two new generator outputs reproduce all 61 artifacts identically. The correction
+patch remains byte-identical at SHA-256
+`a97b6debebddd183952a275eb520c8c9196e4123f32db043ee081b475d1073b1`;
+the extended census is
+`5599007eda6a88b7164b7b8ba29e6321d93069a63033e5bdbaeddceb7407ef2d`.
+Git preserves the exact generated patch's upstream/context whitespace; ordinary
+source checks remain. Normal guarded frozen restoration passes.
+
+The finite environment initially exposed an actual next-intl/@swc/core carrier
+dependency on a native cache. The retained fifth whole-frontend run fails before
+three BFF witnesses and remains unqualified. A controlled six-case actual native
+load matrix isolates the cache selection from preload/IPC effects. The compiler
+and existing runtime now materialize vendor-attested native bytes in an exact
+app-owned cache after acquiring their current reservations. Unknown populated
+paths, aliases, unsafe permissions and wrong owners refuse without cleanup.
+Inherited HOME is absent. The relative cache policy enters producer identity;
+secrets and absolute user-cache paths do not. A disposable actual macOS carrier
+corruption/reload control restores the original attested bytes before use.
+This is not a generated Next cache or qualification of other platforms.
+
+**Fixture retention and test evidence.** A separate real inert process probe
+shows forced or already-fatal outer cleanup can delete private trees/records
+while an independently retained silent compiler is still alive. The old-source
+dirty twin reproduces both unsafe deletions; the fixed owner refuses and retains
+both trees and records. A genuinely completed family still removes its tree.
+These are mechanism controls, not attribution of a previous hosted Next failure.
+
+Forced/fatal stops and retained/unknown framework metadata now block recursive
+fixture removal. Every independent child/listener/output cleanup is attempted.
+Demo and ingress finally paths preserve the same negative boundary and original
+failure. The scan reads bounded ownership-format metadata, follows no aliases
+and does not inspect dependencies, generated output, native caches or private
+environment values. It provides no positive family handle or stale-record
+recovery. Those ADR-0084 capabilities remain unimplemented.
+
+The sixth complete frontend run retains 13 failures in old fixture assumptions,
+not a passing qualification. Tests now preserve actual cancellation/deadline and
+cleanup refusal as separate observations. Their held inert descendants use a
+test-only nonce channel and actual process absence; no saved group signal
+rescues an exited leader. Both correct ownership and deliberately nested
+surviving-work controls remain. Fatal-parent classification rejects unrelated
+cleanup errors, and all-resource cleanup preserves the original assertion.
+No runtime source exemption, BFF source pin, case timeout or worker count changes.
+
+**Current local verification.** The seventh guarded frontend run passes
+3,432/3,432 cases: 3,284 web plus 148 SDK in 101 files, zero skips/todos and
+zero stderr, about 74.9 seconds. This includes the 93 internal provenance
+controls and the corrected fixture/sourcegraph controls. Workspace typecheck
+(4.2 seconds) and lint (17.9 seconds), scoped frontend formatting, root-script
+syntax, five corpus tests and diff checks pass. All 3,121 document fragments
+resolve; roadmap structure and delivery-log indexes pass. A mistakenly broad
+formatting invocation included
+a hand-authored root script outside the repository's formatter boundary; its
+refusal is retained and the correctly scoped check passes without source churn.
+
+The fourth real clean production producer passes in about 19.4 seconds with
+zero stderr. All 32 corrected source subjects remain unchanged across the final
+format/build checks. Immediate verification covers 220 inputs and 128 generated
+subjects (2,392,888 bytes); the manifest SHA-256 is
+`adee3ddd55e980fd9cb2bd8fe056b08c86c701d5461d051e8cb36df78ecd1fb9`.
+Installed verification reads 59 subjects in about 157 ms; generated verification
+takes about 38 ms locally. Neither timing is a hosted performance guarantee.
+
+Exact raw commands, source hashes, red/green receipts and reports remain under
+`artifacts/p033-step10/adr0083/step2/` and its adjacent preparation evidence.
+Commit these independent corrections and use new reviewers before claiming
+their review closeout. The catalogue remains Registered. ADR-0084 approval,
+its implementation/reviews, full Step 3 and fresh final-source A/B remain open.
+Manual accessibility stays maintainer-deferred and unexecuted.

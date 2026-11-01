@@ -1,7 +1,15 @@
 // @vitest-environment node
 import type { ChildProcess } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { existsSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import type { Server } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,13 +17,18 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  assertNoRetainedFrameworkOwners,
   createFixtureOwner,
   createPrivateScanner,
   fixtureEnvironment,
 } from '../../scripts/fixture-support.mjs';
+import type * as StopTestChildModule from '../../scripts/stop-test-child.mjs';
 import { stopTestChild } from '../../scripts/stop-test-child.mjs';
 
-vi.mock('../../scripts/stop-test-child.mjs', () => ({ stopTestChild: vi.fn() }));
+vi.mock('../../scripts/stop-test-child.mjs', async (original) => ({
+  ...(await original<typeof StopTestChildModule>()),
+  stopTestChild: vi.fn(),
+}));
 
 afterEach(() => {
   vi.resetAllMocks();
@@ -201,6 +214,141 @@ describe('fixture positive environment', () => {
 });
 
 describe('fixture resource ownership', () => {
+  it.each([true, false])(
+    'retains every root after a %s-forced or already fatal child while draining all resources',
+    async (forced) => {
+      const owner = createFixtureOwner();
+      const roots = [0, 1].map(() =>
+        owner.ownRoot(mkdtempSync(join(tmpdir(), 'learnstack-owner-uncertain-'))),
+      );
+      const output = Object.assign(new EventEmitter(), { closed: false, readableEnded: false });
+      owner.ownChild({
+        stdout: output,
+        signalCode: forced ? null : 'SIGKILL',
+      } as unknown as ChildProcess);
+      owner.ownChild({} as ChildProcess);
+      const close = vi.fn((done: (error?: NodeJS.ErrnoException) => void) => done());
+      owner.ownServer({ close, closeAllConnections: vi.fn() } as unknown as Server);
+      vi.mocked(stopTestChild)
+        .mockResolvedValueOnce({ forced })
+        .mockResolvedValueOnce({ forced: false });
+      let settled = false;
+      const cleanup = owner.dispose().catch((error) => {
+        settled = true;
+        return error;
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(settled).toBe(false);
+      expect(close).toHaveBeenCalledOnce();
+      output.emit('end');
+      try {
+        expect(await cleanup).toBeInstanceOf(AggregateError);
+        expect(stopTestChild).toHaveBeenCalledTimes(2);
+        for (const root of roots) expect(existsSync(root)).toBe(true);
+      } finally {
+        for (const root of roots) rmSync(root, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it.each(['writer.json', 'readers/owner', 'gate', 'unknown.tmp'])(
+    'preserves all roots when owned %s metadata remains',
+    async (name) => {
+      const owner = createFixtureOwner();
+      const roots = [0, 1].map(() =>
+        owner.ownRoot(mkdtempSync(join(tmpdir(), 'learnstack-owner-metadata-'))),
+      );
+      const state = join(roots[1]!, 'frontend/packages/sdk/.framework-state');
+      mkdirSync(join(state, 'readers'), { recursive: true });
+      writeFileSync(join(state, 'format.json'), '{"format":1}\n');
+      if (name === 'gate') mkdirSync(join(state, name));
+      else writeFileSync(join(state, name), 'retained');
+      try {
+        await expect(owner.dispose()).rejects.toThrow('Fixture cleanup failed');
+        for (const root of roots) expect(existsSync(root)).toBe(true);
+        expect(existsSync(join(state, name))).toBe(true);
+      } finally {
+        for (const root of roots) rmSync(root, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it('removes completed owned metadata without traversing dependencies, generated output, caches or external links', async () => {
+    const owner = createFixtureOwner();
+    const root = owner.ownRoot(mkdtempSync(join(tmpdir(), 'learnstack-owner-complete-')));
+    const external = mkdtempSync(join(tmpdir(), 'learnstack-owner-external-'));
+    const state = join(root, 'frontend/apps/web/.framework-state');
+    mkdirSync(join(state, 'readers'), { recursive: true });
+    writeFileSync(join(state, 'format.json'), '{"format":1}\n');
+    for (const name of [
+      'output-next.json',
+      'output-server.json',
+      'output-dist.json',
+      'native-cache.json',
+      'development.json',
+      'compiler-client.json',
+    ])
+      writeFileSync(join(state, name), 'passive');
+    for (const directory of [
+      'node_modules',
+      '.next',
+      '.server',
+      'dist',
+      '.cache',
+      'swc-native-cache',
+    ]) {
+      mkdirSync(join(root, directory, '.framework-state'), { recursive: true });
+      writeFileSync(join(root, directory, '.framework-state/writer.json'), 'not inspected');
+    }
+    mkdirSync(join(state, 'swc-native-cache/.framework-state'), { recursive: true });
+    writeFileSync(join(state, 'swc-native-cache/.framework-state/writer.json'), 'not inspected');
+    mkdirSync(join(external, '.framework-state'));
+    writeFileSync(join(external, '.framework-state/writer.json'), 'foreign metadata');
+    symlinkSync(external, join(root, 'external-link'), 'dir');
+    try {
+      await expect(owner.dispose()).resolves.toBeUndefined();
+      expect(existsSync(root)).toBe(false);
+      expect(existsSync(join(external, '.framework-state/writer.json'))).toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+      rmSync(external, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    'missing-format',
+    'wrong-format',
+    'missing-readers',
+    'aliased-state',
+    'aliased-readers',
+  ])('refuses %s owned metadata without following aliases', (mode) => {
+    const root = mkdtempSync(join(tmpdir(), 'learnstack-owner-malformed-'));
+    const external = mkdtempSync(join(tmpdir(), 'learnstack-owner-alias-'));
+    const state = join(root, '.framework-state');
+    if (mode === 'aliased-state') symlinkSync(external, state, 'dir');
+    else {
+      mkdirSync(state);
+      if (mode !== 'missing-format')
+        writeFileSync(
+          join(state, 'format.json'),
+          mode === 'wrong-format' ? '{"format":2}\n' : '{"format":1}\n',
+        );
+      if (mode === 'aliased-readers') symlinkSync(external, join(state, 'readers'), 'dir');
+      else if (mode !== 'missing-readers') mkdirSync(join(state, 'readers'));
+    }
+    try {
+      expect(() => assertNoRetainedFrameworkOwners(root)).toThrow(
+        'Fixture framework ownership remains unconfirmed',
+      );
+      expect(existsSync(root)).toBe(true);
+      expect(existsSync(external)).toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+      rmSync(external, { recursive: true, force: true });
+    }
+  });
+
   it('joins cleanup once, keeps files until children stop, and refuses late acquisition', async () => {
     const owner = createFixtureOwner();
     const root = owner.ownRoot(mkdtempSync(join(tmpdir(), 'learnstack-owner-control-')));

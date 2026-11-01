@@ -1,9 +1,11 @@
 // @vitest-environment node
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
+import { once } from 'node:events';
 
 import { describe, expect, it } from 'vitest';
 
+import { createHeldChildControl, withTestCleanup } from './held-child-control';
 import { createBffBrowserCleanup } from '../../scripts/bff-proof-support.mjs';
 import { createFixtureOwner } from '../../scripts/fixture-support.mjs';
 import { stopTestChild } from '../../scripts/stop-test-child.mjs';
@@ -19,7 +21,7 @@ function absentGroup(child: ChildProcess): boolean {
   }
 }
 
-async function fixture(source: string) {
+async function fixture(source: string, held?: Awaited<ReturnType<typeof createHeldChildControl>>) {
   expect(process.platform).not.toBe('win32');
   const owner = createFixtureOwner();
   const child = owner.ownChild(
@@ -66,7 +68,12 @@ async function fixture(source: string) {
       child.stdout!.on('data', ready);
     });
   } catch (error) {
-    await dispose();
+    const attempts = await Promise.allSettled([held?.dispose(), dispose()]);
+    const failures = attempts
+      .filter((result) => result.status === 'rejected')
+      .map((result) => result.reason);
+    if (failures.length)
+      throw new AggregateError([error, ...failures], 'Owned readiness and cleanup failed');
     throw error;
   }
   const cleanup = createBffBrowserCleanup(() => ({
@@ -83,11 +90,34 @@ const delayedShutdown = `
 `;
 
 describe('BFF native launcher shutdown ownership', () => {
+  it('keeps the original assertion as first cause while attempting every independent test cleanup', async () => {
+    const primary = new Error('original test assertion');
+    const first = new Error('first cleanup');
+    const last = new Error('last cleanup');
+    const attempted: number[] = [];
+    const error = await withTestCleanup(async () => {
+      throw primary;
+    }, [
+      () => {
+        attempted.push(1);
+        throw first;
+      },
+      () => {
+        attempted.push(2);
+      },
+      async () => {
+        attempted.push(3);
+        throw last;
+      },
+    ]).catch((error) => error);
+    expect(attempted).toEqual([1, 2, 3]);
+    expect(error).toBeInstanceOf(AggregateError);
+    expect(error.errors).toEqual([primary, first, last]);
+  });
   it('pairs the close-before-group rejection with exit/group/close completion for actual inherited stdio', async () => {
-    const inheritedStdio = `
+    const inheritedStdio = (descendant: string) => `
       const { spawn } = require('node:child_process');
-      const descendant = spawn(process.execPath, ['-e',
-        'process.send("ready"); process.disconnect(); setInterval(() => {}, 1000);'],
+      const descendant = spawn(process.execPath, ['-e', ${JSON.stringify(descendant)}],
         { stdio: ['ignore', 1, 2, 'ipc'] });
       descendant.once('message', () => {
         descendant.unref();
@@ -96,8 +126,10 @@ describe('BFF native launcher shutdown ownership', () => {
       });
       setInterval(() => {}, 1000);
     `;
-    const oldOrder = await fixture(inheritedStdio);
-    try {
+    const oldControl = await createHeldChildControl();
+    const oldOrder = await fixture(inheritedStdio(oldControl.source()), oldControl);
+    await withTestCleanup(async () => {
+      await oldControl.ready();
       oldOrder.child.kill('SIGTERM');
       let timer!: ReturnType<typeof setTimeout>;
       const observedClose = await Promise.race([
@@ -111,21 +143,27 @@ describe('BFF native launcher shutdown ownership', () => {
       expect(oldOrder.child.exitCode).toBe(0);
       expect(oldOrder.child.signalCode).toBeNull();
       expect(absentGroup(oldOrder.child)).toBe(false);
+      // The held descendant cooperates through its still-live authenticated
+      // channel. A retired leader's cached PGID never authorizes its release.
+      await oldControl.release();
       expect(await stopTestChild(oldOrder.child)).toEqual({ forced: false });
       expect(await oldOrder.completed).toEqual({ code: 0, signal: null });
-    } finally {
-      await oldOrder.dispose();
-    }
-    const reordered = await fixture(inheritedStdio);
-    try {
-      await expect(reordered.cleanup.run()).resolves.toBeUndefined();
+    }, [() => oldControl.dispose(), () => oldOrder.dispose()]);
+    const reorderedControl = await createHeldChildControl();
+    const reordered = await fixture(inheritedStdio(reorderedControl.source()), reorderedControl);
+    await withTestCleanup(async () => {
+      await reorderedControl.ready();
+      const exited = once(reordered.child, 'exit');
+      const cleanup = reordered.cleanup.run();
+      await exited;
+      expect(absentGroup(reordered.child)).toBe(false);
+      await reorderedControl.release();
+      await expect(cleanup).resolves.toBeUndefined();
       expect(await reordered.completed).toEqual({ code: 0, signal: null });
       expect(await stopTestChild(reordered.child)).toEqual({ forced: false });
       expect(absentGroup(reordered.child)).toBe(true);
       expect(reordered.cleanup.failureStage).toBeNull();
-    } finally {
-      await reordered.dispose();
-    }
+    }, [() => reorderedControl.dispose(), () => reordered.dispose()]);
   }, 15_000);
   it('pairs the real two-second fallback control with a joined exit inside the launcher budget', async () => {
     const baseline = await fixture(delayedShutdown);
@@ -134,7 +172,7 @@ describe('BFF native launcher shutdown ownership', () => {
       expect(await baseline.completed).toEqual({ code: null, signal: 'SIGKILL' });
       expect(absentGroup(baseline.child)).toBe(true);
     } finally {
-      await baseline.dispose();
+      await expect(baseline.dispose()).rejects.toThrow('Fixture cleanup failed');
     }
     const joined = await fixture(delayedShutdown);
     try {
@@ -161,7 +199,7 @@ describe('BFF native launcher shutdown ownership', () => {
       expect(await stopTestChild(state.child)).toEqual({ forced: true });
       expect(absentGroup(state.child)).toBe(true);
     } finally {
-      await state.dispose();
+      await expect(state.dispose()).rejects.toThrow('Fixture cleanup failed');
     }
   }, 15_000);
 
@@ -191,13 +229,11 @@ describe('BFF native launcher shutdown ownership', () => {
     },
   );
 
-  it('refuses a zero-exit launcher whose owned descendant still requires forcing', async () => {
-    const descendant = `
-      process.on('SIGTERM', () => {});
-      process.stdout.write('ready\\n');
-      setInterval(() => {}, 1000);
-    `;
-    const state = await fixture(`
+  it('refuses a zero-exit launcher with a held descendant without signaling a stale group', async () => {
+    const control = await createHeldChildControl();
+    const descendant = control.source({ ignoreSigterm: true, stdoutReady: true });
+    const state = await fixture(
+      `
       const { spawn } = require('node:child_process');
       const child = spawn(process.execPath, ['-e', ${JSON.stringify(descendant)}],
         { stdio: ['ignore', 'pipe', 'ignore'] });
@@ -207,20 +243,32 @@ describe('BFF native launcher shutdown ownership', () => {
         process.stdout.write('ready\\n');
       });
       setInterval(() => {}, 1000);
-    `);
+    `,
+      control,
+    );
     let survivingGroup = false;
     void state.completed.then(() => {
       survivingGroup = !absentGroup(state.child);
     });
-    try {
+    await withTestCleanup(async () => {
+      await control.ready();
       await expect(state.cleanup.run()).rejects.toThrow('BFF browser cleanup failed');
       expect(await state.completed).toEqual({ code: 0, signal: null });
       expect(survivingGroup).toBe(true);
-      expect(state.cleanup.failureStage).toBe('cleanup-native-forced');
-      expect(await stopTestChild(state.child)).toEqual({ forced: true });
-      expect(absentGroup(state.child)).toBe(true);
-    } finally {
-      await state.dispose();
-    }
+      expect(state.cleanup.failureStage).toBe('cleanup-native-stop');
+      await expect(stopTestChild(state.child)).rejects.toThrow(
+        'Owned fixture process group did not stop',
+      );
+      expect(absentGroup(state.child)).toBe(false);
+    }, [
+      () => control.dispose(),
+      async () => {
+        if (state.child.exitCode === null && state.child.signalCode === null)
+          state.child.kill('SIGTERM');
+        await state.completed;
+      },
+      () => expect(state.dispose()).rejects.toThrow('Fixture cleanup failed'),
+    ]);
+    expect(absentGroup(state.child)).toBe(true);
   }, 15_000);
 });

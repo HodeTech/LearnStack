@@ -25,9 +25,16 @@
       }
     ]
   },
+  "packageMetadata": {
+    "path": "package.json",
+    "bytes": 3186,
+    "sha256": "c970fbf408a0cff68bce8d1ebe54cad3d546753fdc31cc57ea74c096532ec1bb",
+    "runtimeEntry": "dist/server/next.js",
+    "compilerEntry": "dist/bin/next"
+  },
   "generator": {
     "path": "scripts/generate-next-response-cleanup.mjs",
-    "sha256": "04dd2cc35c7caa90b31b18a4f2994fa70f02b26a6b8b15da9a0e6d533bb35a5a",
+    "sha256": "32a83f66a135168a0fa6b1d960e57c0144b0b6b909cd2ef33f3e22de8de4b6b4",
     "version": 1,
     "tools": {
       "typescript": "5.6.3",
@@ -36,7 +43,7 @@
     "inputs": [
       {
         "path": "scripts/generate-next-response-cleanup.mjs",
-        "sha256": "04dd2cc35c7caa90b31b18a4f2994fa70f02b26a6b8b15da9a0e6d533bb35a5a"
+        "sha256": "32a83f66a135168a0fa6b1d960e57c0144b0b6b909cd2ef33f3e22de8de4b6b4"
       },
       {
         "path": "scripts/next-response-patch/transform.mjs",
@@ -52,7 +59,7 @@
       },
       {
         "path": "framework/next-response-cleanup/originals.json",
-        "sha256": "25b3d48e25a2d6a6603a8d6e5ce8d093f73c8258eecd5f26b792a0e362f26916"
+        "sha256": "22883d71396910c484e44ff483fe7d8c0dc8ba39d693d93270ce9e50b15a50e1"
       },
       {
         "path": "framework/next-response-cleanup/pnpm.json",

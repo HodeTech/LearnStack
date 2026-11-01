@@ -4,6 +4,7 @@ import { PassThrough } from 'node:stream';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { createHeldChildControl, withTestCleanup } from './held-child-control';
 import { waitForBrowserDevTools } from '../../scripts/admission-browser.mjs';
 import {
   assertBffCookieAttributes,
@@ -25,6 +26,7 @@ import tr from '../i18n/messages/tr/auth.json';
 describe('BFF proof observation ownership', () => {
   it('distinguishes an actual zero-exit leader from inherited stdout/stderr still held by its descendant', async () => {
     expect(process.platform).not.toBe('win32');
+    const control = await createHeldChildControl();
     const owner = createFixtureOwner();
     const child = owner.ownChild(
       spawn(
@@ -33,10 +35,9 @@ describe('BFF proof observation ownership', () => {
           '-e',
           `
       const { spawn } = require('node:child_process');
-      const descendant = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'],
-        { stdio: ['ignore', 1, 2] });
-      descendant.unref();
-      process.exit(0);
+      const descendant = spawn(process.execPath, ['-e', ${JSON.stringify(control.source())}],
+        { stdio: ['ignore', 1, 2, 'ipc'] });
+      descendant.once('message',()=>{descendant.unref();process.exit(0);});
     `,
         ],
         { detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'] },
@@ -45,7 +46,8 @@ describe('BFF proof observation ownership', () => {
     child.once('error', () => {});
     const completed = new Promise<void>((resolve) => child.once('close', () => resolve()));
     const observation = observeBffProofShutdown(child);
-    try {
+    await withTestCleanup(async () => {
+      await control.ready();
       await new Promise<void>((resolve, reject) => {
         const timer = setTimeout(() => finish(new Error('Owned leader exit deadline')), 5000);
         const failed = () => finish(new Error('Owned leader spawn failed'));
@@ -62,13 +64,11 @@ describe('BFF proof observation ownership', () => {
         child.once('exit', exited);
       });
       expect(observation.snapshot()).toBe('absent,0,0,p,p,p,p,zero,0,open,open');
+      await control.release();
       expect(await stopTestChild(child)).toEqual({ forced: false });
       await completed;
       expect(observation.snapshot()).toBe('absent,0,0,p,p,p,p,zero,1,closed,closed');
-    } finally {
-      await owner.dispose();
-      await completed;
-    }
+    }, [() => control.dispose(), () => owner.dispose(), () => completed]);
   }, 10_000);
   it('observes only finite monotonic shutdown joins and snapshots actual exit versus close', () => {
     const child = new ChildProcess();

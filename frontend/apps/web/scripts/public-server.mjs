@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 import {
   acquireFrameworkLease,
   FrameworkAdmissionError,
+  frameworkRuntimeEnvironment,
+  prepareFrameworkNativeCache,
   verifyFrameworkBuild,
 } from '../../../scripts/framework-installation.mjs';
 
@@ -31,6 +33,7 @@ try {
     lease = acquireFrameworkLease({ appRoot, kind: 'production' });
     identity = verifyFrameworkBuild({ appRoot }).identity;
   }
+  prepareFrameworkNativeCache(identity, lease.record);
   let released = false;
   const release = () => {
     if (released) return;
@@ -49,6 +52,12 @@ try {
     writable: false,
     value: Object.freeze({ identity, mode: dev ? 'development' : 'production' }),
   });
+  // Runtime secrets remain a finite native projection. Ambient compiler
+  // selectors never reach Next's production/config or development/HMR loaders.
+  const environment = frameworkRuntimeEnvironment(identity, dev ? 'development' : 'production');
+  for (const key of Object.keys(process.env))
+    if (!Object.hasOwn(environment, key)) delete process.env[key];
+  Object.assign(process.env, environment);
   await import('./public-server-runtime.mjs');
 } catch (error) {
   try {

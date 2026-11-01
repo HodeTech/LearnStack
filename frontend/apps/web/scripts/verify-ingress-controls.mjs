@@ -18,9 +18,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { createFixtureOwner, fixtureEnvironment } from './fixture-support.mjs';
+import {
+  assertNoRetainedFrameworkOwners,
+  createFixtureOwner,
+  fixtureEnvironment,
+} from './fixture-support.mjs';
 import { copyQualifiedFrameworkBuild, prepareFrameworkProof } from './framework-proof-support.mjs';
-import { stopTestChild } from './stop-test-child.mjs';
+import { assertUnforcedTestChildStop, stopTestChild } from './stop-test-child.mjs';
 
 const appRoot = fileURLToPath(new URL('../', import.meta.url));
 const original = readFileSync(join(appRoot, 'scripts/verify-ingress.mjs'), 'utf8');
@@ -173,6 +177,9 @@ try {
     );
     let root;
     let pids = [];
+    let caseFailure;
+    let caseFailed = false;
+    let caseResult;
     let diagnostics = '';
     let triggered = false;
     let timer;
@@ -241,18 +248,44 @@ try {
       assert.equal(existsSync(root), false, 'Temporary fixture tree survived');
       for (const pid of pids) absent(pid);
       if (caseNumber % 5 === 0) console.warn('Ingress controls checked: ' + caseNumber);
-      return { root, pids };
+      caseResult = { root, pids };
+    } catch (error) {
+      caseFailed = true;
+      caseFailure = error;
     } finally {
       clearTimeout(timer);
       // The handle remains live until confirmed absent; no saved PID authorizes
       // any later signal. Nested children also hold the finally-only rescue pipe.
+      const failures = [];
       try {
-        await stopTestChild(runner);
-      } finally {
-        for (const socket of rescueSockets) socket.destroy();
-        if (root) rmSync(root, { recursive: true, force: true });
+        assertUnforcedTestChildStop(runner, await stopTestChild(runner));
+      } catch (error) {
+        failures.push(error);
+      }
+      for (const socket of rescueSockets) {
+        try {
+          socket.destroy();
+        } catch (error) {
+          failures.push(error);
+        }
+      }
+      if (!failures.length && root) {
+        try {
+          assertNoRetainedFrameworkOwners(root);
+          rmSync(root, { recursive: true, force: true });
+        } catch (error) {
+          failures.push(error);
+        }
+      }
+      if (failures.length) {
+        if (!caseFailed) {
+          caseFailed = true;
+          caseFailure = new AggregateError(failures, 'Ingress fixture cleanup unconfirmed');
+        } else console.warn('Ingress fixture cleanup unconfirmed; private files retained');
       }
     }
+    if (caseFailed) throw caseFailure;
+    return caseResult;
   }
 
   // Build the actual instrumented baseline once under the normal producer.

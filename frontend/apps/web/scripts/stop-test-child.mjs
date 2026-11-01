@@ -2,6 +2,18 @@
 // Retire an ownership handle permanently after absence. Repeated cleanup must
 // never signal a saved numeric PID after the owned group has stopped.
 const stopping = new WeakMap();
+
+// This is a negative cleanup gate, not proof that a separate compiler family
+// retired. A forced/fatal outer exit must not authorize private-root deletion.
+export function assertUnforcedTestChildStop(child, stopped) {
+  if (
+    !stopped ||
+    stopped.forced !== false ||
+    (child.signalCode && !['SIGTERM', 'SIGINT'].includes(child.signalCode))
+  )
+    throw new Error('Owned fixture process stop was forced or unconfirmed');
+}
+
 export function stopTestChild(child) {
   let pending = stopping.get(child);
   if (!pending) {
@@ -15,15 +27,23 @@ async function stopOwnedChild(child) {
   if (child.pid === undefined) return Object.freeze({ forced: false }); // Failed spawn owns no process.
   const group = process.platform !== 'win32';
   let retired = false;
+  const leaderExited = () => child.exitCode !== null || child.signalCode !== null;
   const signal = (name) => {
+    // An observed leader loss is not a generation-safe authority to signal its
+    // saved group number. Probe/retain/drain only; no recovery is inferred here.
+    if (leaderExited()) return false;
     try {
       if (group) process.kill(-child.pid, name);
       else if (child.exitCode === null && child.signalCode === null) child.kill(name);
+      return true;
     } catch (error) {
       // Neither permission refusal nor a sent signal proves absence. Poll below;
       // persistent refusal remains present and fails the bounded deadline.
-      if (error.code === 'ESRCH') retired = true;
-      else if (error.code !== 'EPERM') throw error;
+      if (error.code === 'ESRCH') {
+        retired = true;
+        return false;
+      } else if (error.code !== 'EPERM') throw error;
+      return true;
     }
   };
   const alive = () => {
@@ -51,8 +71,7 @@ async function stopOwnedChild(child) {
     const elapsed = Date.now() - started;
     if (elapsed >= 5000) throw new Error('Owned fixture process group did not stop');
     if (!forced && elapsed >= 2000) {
-      signal('SIGKILL');
-      forced = true;
+      forced = signal('SIGKILL');
     }
     await new Promise((resolve) => setTimeout(resolve, 20));
   }

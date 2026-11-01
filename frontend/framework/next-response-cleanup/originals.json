@@ -1,6 +1,13 @@
 {
   "schemaVersion": 1,
   "next": "15.5.28",
+  "packageMetadata": {
+    "path": "package.json",
+    "bytes": 3186,
+    "sha256": "c970fbf408a0cff68bce8d1ebe54cad3d546753fdc31cc57ea74c096532ec1bb",
+    "runtimeEntry": "dist/server/next.js",
+    "compilerEntry": "dist/bin/next"
+  },
   "files": [
     {
       "path": "dist/compiled/compression/index.js",

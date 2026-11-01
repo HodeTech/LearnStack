@@ -17,6 +17,8 @@ export function fixtureEnvironment(options: {
   bffValues?: Record<string, string>;
   debug?: string;
 }): NodeJS.ProcessEnv;
+/** Refuses retained/uncertain owned metadata; it grants no new cleanup authority. */
+export function assertNoRetainedFrameworkOwners(root: string): void;
 export function createFixtureOwner(options?: { exit?: (code: number) => void }): {
   ownRoot(path: string): string;
   ownChild<T extends ChildProcess>(child: T): T;

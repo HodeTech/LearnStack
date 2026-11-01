@@ -55,6 +55,8 @@ function fixture() {
     'packages/ui/package.json',
     'packages/config/package.json',
     'scripts/framework-installation.mjs',
+    'scripts/framework-process-family.mjs',
+    'scripts/framework-process-family-preload.mjs',
     'scripts/install-frontend.mjs',
     'framework/next-response-cleanup/census.json',
     'framework/next-response-cleanup/pnpm.json',

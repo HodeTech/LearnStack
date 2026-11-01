@@ -1,7 +1,113 @@
-import { realpathSync, rmSync } from 'node:fs';
+import {
+  closeSync,
+  fstatSync,
+  lstatSync,
+  openSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+} from 'node:fs';
 import { join } from 'node:path';
 
-import { stopTestChild } from './stop-test-child.mjs';
+import { assertUnforcedTestChildStop, stopTestChild } from './stop-test-child.mjs';
+
+/** Negative-only inspection of owned metadata; never reclaim or follow a dependency. */
+export function assertNoRetainedFrameworkOwners(root) {
+  const refused = () => {
+    throw new Error('Fixture framework ownership remains unconfirmed');
+  };
+  const omitted = new Set([
+    'node_modules',
+    '.next',
+    '.server',
+    'dist',
+    'coverage',
+    '.cache',
+    'swc-native-cache',
+    '.git',
+    '.claude',
+  ]);
+  function formatMatches(path) {
+    const before = lstatSync(path);
+    if (!before.isFile() || before.isSymbolicLink() || before.size > 128) return false;
+    const descriptor = openSync(path, 'r');
+    try {
+      const opened = fstatSync(descriptor);
+      if (
+        !opened.isFile() ||
+        opened.dev !== before.dev ||
+        opened.ino !== before.ino ||
+        opened.size !== before.size
+      )
+        return false;
+      const contents = readFileSync(descriptor, 'utf8');
+      const after = fstatSync(descriptor);
+      return (
+        after.mtimeMs === opened.mtimeMs &&
+        after.ctimeMs === opened.ctimeMs &&
+        contents === '{"format":1}\n'
+      );
+    } finally {
+      closeSync(descriptor);
+    }
+  }
+  function state(path) {
+    const entries = readdirSync(path, { withFileTypes: true });
+    const format = entries.find((entry) => entry.name === 'format.json');
+    const readers = entries.find((entry) => entry.name === 'readers');
+    if (
+      !format?.isFile() ||
+      format.isSymbolicLink() ||
+      !readers?.isDirectory() ||
+      readers.isSymbolicLink() ||
+      !formatMatches(join(path, 'format.json')) ||
+      readdirSync(join(path, 'readers')).length
+    )
+      refused();
+    for (const entry of entries) {
+      if (['format.json', 'readers'].includes(entry.name)) continue;
+      if (entry.name === 'swc-native-cache') {
+        if (!entry.isDirectory() || entry.isSymbolicLink()) refused();
+      } else if (
+        !entry.isFile() ||
+        entry.isSymbolicLink() ||
+        !/^(?:output-(?:next|server|dist)|native-cache|development|compiler-(?:client|server|edge))\.json$/.test(
+          entry.name,
+        )
+      )
+        refused(); // Includes writer.json, held gate, temporary/unknown metadata.
+    }
+  }
+  function visit(directory) {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      if (entry.name === '.framework-state') {
+        if (!entry.isDirectory() || entry.isSymbolicLink()) refused();
+        state(join(directory, entry.name));
+      } else if (entry.isDirectory() && !entry.isSymbolicLink() && !omitted.has(entry.name)) {
+        visit(join(directory, entry.name));
+      }
+    }
+  }
+  try {
+    const entry = lstatSync(root);
+    if (!entry.isDirectory() || entry.isSymbolicLink()) refused();
+    visit(root);
+  } catch (error) {
+    // An already absent owned tree needs no removal. Any other unreadable or
+    // malformed metadata is uncertainty, never a cleanup acknowledgement.
+    if (error.code !== 'ENOENT' || lstatPresent(root)) refused();
+  }
+  function lstatPresent(path) {
+    try {
+      lstatSync(path);
+      return true;
+    } catch (error) {
+      if (error.code === 'ENOENT') return false;
+      throw error;
+    }
+  }
+}
 
 const OUTPUT_BOUND = 65536;
 const PRIVATE_TOKEN = /(?<![A-Za-z0-9_.-])v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{43}(?![A-Za-z0-9_.=-])/;
@@ -160,14 +266,33 @@ export function createFixtureOwner({ exit = (code) => process.exit(code) } = {})
     cleanup ??= (async () => {
       const results = await Promise.allSettled([
         ...[...children].map(async (child) => {
-          await stopTestChild(child);
-          await drainOutput(child);
+          const failures = [];
+          try {
+            assertUnforcedTestChildStop(child, await stopTestChild(child));
+          } catch (error) {
+            failures.push(error);
+          }
+          try {
+            await drainOutput(child);
+          } catch (error) {
+            failures.push(error);
+          }
+          if (failures.length)
+            throw new AggregateError(failures, 'Fixture child cleanup unconfirmed');
         }),
         ...[...servers].map(closeServer),
       ]);
       const failures = results
         .filter((result) => result.status === 'rejected')
         .map((result) => result.reason);
+      if (!failures.length)
+        for (const root of roots) {
+          try {
+            assertNoRetainedFrameworkOwners(root);
+          } catch (error) {
+            failures.push(error);
+          }
+        }
       // Preserve the tree if a child/listener cannot be confirmed stopped.
       // Every resource still gets an attempt, and incomplete cleanup fails.
       for (const root of failures.length ? [] : roots) {

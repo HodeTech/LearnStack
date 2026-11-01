@@ -1,9 +1,11 @@
 // @vitest-environment node
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { createHeldChildControl, withTestCleanup } from './held-child-control';
 import { stopTestChild } from '../../scripts/stop-test-child.mjs';
 
 function absent(pid: number): boolean {
@@ -30,14 +32,17 @@ async function exit(child: ChildProcess): Promise<void> {
 
 describe('owned production fixture cleanup', () => {
   it.each([false, true])(
-    'stops an uncooperative descendant with exited leader = %s',
+    'uses live-group fallback or refuses a retired leader = %s',
     async (exitedLeader) => {
       // Linux/macOS are the native fixture targets; never signal the test runner's group.
       expect(process.platform).not.toBe('win32');
-      const descendant =
-        'process.on("SIGTERM", () => {}); process.stdout.write("ready\\n"); setInterval(() => {}, 1000);';
+      const control = await createHeldChildControl();
+      const nonce = randomBytes(32).toString('hex');
+      const descendant = control.source({ ignoreSigterm: true, stdoutReady: true });
       const source = `
         const { spawn } = require('node:child_process');
+        process.on('message',value=>{if(value?.kind==='release'&&value.nonce===${JSON.stringify(nonce)})process.exit(0);});
+        ${exitedLeader ? '' : "process.on('SIGTERM',()=>{});"}
         const child = spawn(process.execPath, ['-e', ${JSON.stringify(descendant)}],
           { stdio: ['ignore', 'pipe', 'ignore'] });
         child.stdout.once('data', () => {
@@ -48,9 +53,9 @@ describe('owned production fixture cleanup', () => {
       `;
       const leader = spawn(process.execPath, ['-e', source], {
         detached: true,
-        stdio: ['ignore', 'pipe', 'ignore'],
+        stdio: ['ignore', 'pipe', 'ignore', 'ipc'],
       });
-      try {
+      await withTestCleanup(async () => {
         const pid = await new Promise<number>((resolve, reject) => {
           const timer = setTimeout(() => reject(new Error('Descendant deadline')), 5000);
           leader.once('error', reject);
@@ -60,22 +65,47 @@ describe('owned production fixture cleanup', () => {
           });
         });
         expect(Number.isSafeInteger(pid) && pid > 0).toBe(true);
+        expect(await control.ready()).toBe(pid);
         expect(absent(pid)).toBe(false);
         if (exitedLeader) {
           await exit(leader);
           expect(leader.exitCode).toBe(0);
           expect(absent(pid)).toBe(false); // Positive surviving-descendant control.
         }
-        const stopped = await stopTestChild(leader);
-        expect(stopped).toEqual({ forced: true });
-        expect(Object.isFrozen(stopped)).toBe(true);
+        if (exitedLeader) {
+          await expect(stopTestChild(leader)).rejects.toThrow(
+            'Owned fixture process group did not stop',
+          );
+          expect(absent(pid)).toBe(false);
+          await control.release();
+        } else {
+          const stopped = await stopTestChild(leader);
+          expect(stopped).toEqual({ forced: true });
+          expect(Object.isFrozen(stopped)).toBe(true);
+        }
         await exit(leader);
+        const deadline = Date.now() + 5000;
+        while (!absent(pid)) {
+          if (Date.now() >= deadline) throw new Error('Held descendant did not retire');
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
         expect(absent(pid)).toBe(true);
         expect(absent(-leader.pid!)).toBe(true);
-      } finally {
-        if (leader.pid !== undefined && !absent(-leader.pid)) process.kill(-leader.pid, 'SIGKILL');
-        await exit(leader);
-      }
+      }, [
+        () => control.dispose(),
+        async () => {
+          if (leader.exitCode === null && leader.signalCode === null && leader.connected)
+            leader.send({ kind: 'release', nonce });
+          await exit(leader);
+        },
+        async () => {
+          const deadline = Date.now() + 5000;
+          while (leader.pid !== undefined && !absent(-leader.pid)) {
+            if (Date.now() >= deadline) throw new Error('Held test group did not retire');
+            await new Promise((resolve) => setTimeout(resolve, 10));
+          }
+        },
+      ]);
     },
     15_000,
   );
@@ -98,7 +128,7 @@ describe('owned production fixture cleanup', () => {
     }
   });
   it('retires immediately if the group disappears while signaling', async () => {
-    const child = { pid: 123458, exitCode: 0, signalCode: null } as ChildProcess;
+    const child = { pid: 123458, exitCode: null, signalCode: null } as ChildProcess;
     const kill = vi.spyOn(process, 'kill').mockImplementation((_pid, signal) => {
       if (signal === 'SIGTERM')
         throw Object.assign(new Error('Owned group absent'), { code: 'ESRCH' });
@@ -152,7 +182,7 @@ describe('owned production fixture cleanup', () => {
         });
       });
       try {
-        const child = { pid: 123456, exitCode: 0, signalCode: null } as ChildProcess;
+        const child = { pid: 123456, exitCode: null, signalCode: null } as ChildProcess;
         const stopped = stopTestChild(child);
         const checked = persistent
           ? expect(stopped).rejects.toThrow('Owned fixture process group did not stop')

@@ -22,6 +22,11 @@ This performs the frozen restore under an installation owner. Raw `pnpm install`
 refuses before dependency mutation. Do not disable the project hook, lifecycle
 scripts or patch application to make restoration proceed.
 
+Installer and compiler commands retain their reservations until the direct child
+has closed and its private process group is absent. A cancellation or lost
+control channel does not authorize release; uncertain work can retain ownership
+indefinitely. These process-family controls support macOS and Linux.
+
 From `frontend/`:
 
 ```bash
@@ -36,6 +41,12 @@ Production build starts from owned clean output and writes
 runtime graph before application/framework imports or listener creation. A
 corrected package beside old `.next` output, including its old manifest, refuses.
 There is no command that signs an arbitrary existing output directory.
+
+Compiler and native runtime environments use the qualified browser targets and
+an app-owned `.framework-state/swc-native-cache`, without inherited `HOME` or
+compiler option selectors. The cache materializes the installed vendor's
+attested native payload; it is separate from clean generated Next output. An
+unknown populated cache or an alias refuses admission instead of being cleared.
 
 For an intentional dependency-manifest change, from the repository root:
 
@@ -71,8 +82,9 @@ exact bytes before replacing the tracked patch and census. Then use the guarded
 lock update and frozen restore above, preserving the exact patch reference.
 
 The generated maps use `*.js.learnstack.map`; each actual source-map directive
-points to its new sibling. The patch deletes the old maps and adds complete
-replacement maps. Pnpm's deletion effect does not verify the old-map preimage.
+points to its new sibling. Git preserves the generated patch byte-for-byte,
+including required upstream/context whitespace. The patch deletes the old maps
+and adds complete replacement maps. Pnpm's deletion effect does not verify the old-map preimage.
 Original digests are checked by generation; installation relies on frozen
 package integrity and verification of the exact 30-JS/29-map patched subject set,
 obsolete-map absence and distribution membership.

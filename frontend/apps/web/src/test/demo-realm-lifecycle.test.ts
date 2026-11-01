@@ -589,7 +589,8 @@ export async function reconcileDevelopmentRealm({ selected, signal, seedIdentity
 }
 
 type ReadinessCleanupResult = {
-  reason: string;
+  readinessReason: string;
+  cleanupRefused: boolean;
   observedDocker: boolean;
   readinessTimeouts: number[];
   sameOwner: boolean;
@@ -607,17 +608,23 @@ function readinessCleanupFixture(kind: 'cancelled' | 'deadline') {
   const nestedRelease = join(f.root, 'release-nested-cleanup');
   const cleanupComplete = join(f.root, 'fixture-cleanup-complete');
   const dockerRetired = join(f.root, 'docker-retired');
+  const dockerRelease = join(f.root, 'release-owned-docker');
   const ownership = randomBytes(16).toString('hex');
   writeFileSync(
     join(f.root, 'bin/docker'),
     `#!${process.execPath}
-import { appendFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 const args = process.argv.slice(2);
 if (args.includes('config')) {
   process.on('SIGTERM', () => {});
   writeFileSync(${JSON.stringify(marker)}, JSON.stringify({ pid: process.pid, ownership: ${JSON.stringify(ownership)} }));
   writeFileSync(${JSON.stringify(heartbeat)}, '.');
-  setInterval(() => appendFileSync(${JSON.stringify(heartbeat)}, '.'), 20);
+  setInterval(() => {
+    if (existsSync(${JSON.stringify(dockerRelease)})
+        && readFileSync(${JSON.stringify(dockerRelease)}, 'utf8') === ${JSON.stringify(ownership)})
+      process.exit(0);
+    appendFileSync(${JSON.stringify(heartbeat)}, '.');
+  }, 20);
 } else if (args[0] === 'context') {
   process.stdout.write(JSON.stringify([{ Endpoints: { docker: { Host: 'unix:///fixture/docker.sock' } } }]));
 } else if (args.includes('up') || JSON.stringify(args) === JSON.stringify(['compose', 'version'])) process.exit(0);
@@ -636,18 +643,20 @@ else process.exit(19);
     stopHelper,
     `import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { stopTestChild as actualStop } from './stop-test-child-actual.mjs';
+export { assertUnforcedTestChildStop } from './stop-test-child-actual.mjs';
 export async function stopTestChild(child) {
   if (process.argv[1]?.endsWith('/wait-compose.mjs')) {
     writeFileSync(${JSON.stringify(nestedCleanup)}, 'started');
     while (!existsSync(${JSON.stringify(nestedRelease)}))
       await new Promise(resolve => setTimeout(resolve, 10));
   }
-  await actualStop(child);
+  const stopped = await actualStop(child);
   if (existsSync(${JSON.stringify(marker)})) {
     const value = JSON.parse(readFileSync(${JSON.stringify(marker)}, 'utf8'));
     if (value.ownership === ${JSON.stringify(ownership)} && value.pid === child.pid)
       writeFileSync(${JSON.stringify(dockerRetired)}, 'retired');
   }
+  return stopped;
 }
 `,
   );
@@ -683,9 +692,14 @@ DemoProcesses.prototype.start = function(...args) {
 const run = DemoProcesses.prototype.run;
 const readinessTimeouts = [];
 const readinessDeadlines = [];
+let readinessReason = '';
 let seedOwner;
 let sameOwner = true;
 DemoProcesses.prototype.run = function(command, args, options = {}) {
+  const observeReadiness = operation => options.label !== 'Compose readiness' ? operation : operation.catch(error => {
+    readinessReason = error.reason ?? 'unexpected';
+    throw error;
+  });
   if (options.label === 'Docker Compose prerequisite') seedOwner = this;
   if (options.label === 'Compose readiness') {
     readinessTimeouts.push(options.timeout);
@@ -696,11 +710,11 @@ DemoProcesses.prototype.run = function(command, args, options = {}) {
       const timeout = AbortSignal.timeout;
       AbortSignal.timeout = milliseconds => milliseconds === options.timeout
         ? deadline.signal : timeout(milliseconds);
-      try { return run.call(this, command, args, options); }
+      try { return observeReadiness(run.call(this, command, args, options)); }
       finally { AbortSignal.timeout = timeout; }
     }
   }
-  return run.call(this, command, args, options);
+  return observeReadiness(run.call(this, command, args, options));
 };
 const alive = pid => { try { process.kill(pid, 0); return true; } catch (error) { if (error.code === 'ESRCH') return false; throw error; } };
 let retired = false;
@@ -729,9 +743,13 @@ const poll = setInterval(() => {
 const watchdog = setTimeout(() => controller.abort(), 9000);
 let result;
 try {
-  let reason = '';
+  let cleanupRefused = false;
   try { await seedDevelopment({ selected: composeSelection('e2e'), signal: controller.signal }); }
-  catch (error) { reason = error.reason ?? 'unexpected'; }
+  catch (error) {
+    cleanupRefused = error instanceof AggregateError
+      && error.message === 'Owned process cleanup failed; private files retained';
+    if (!cleanupRefused) throw error;
+  }
   clearInterval(poll);
   clearTimeout(watchdog);
   const pid = ownedPid();
@@ -742,7 +760,7 @@ try {
   const before = existsSync(${JSON.stringify(heartbeat)}) ? readFileSync(${JSON.stringify(heartbeat)}, 'utf8') : '';
   await new Promise(resolve => setTimeout(resolve, 300));
   const after = existsSync(${JSON.stringify(heartbeat)}) ? readFileSync(${JSON.stringify(heartbeat)}, 'utf8') : '';
-  result = { reason, observedDocker: pid !== undefined, readinessTimeouts, sameOwner,
+  result = { readinessReason, cleanupRefused, observedDocker: pid !== undefined, readinessTimeouts, sameOwner,
     childSurvivesOwnerCleanup: childSurvived || (pid !== undefined && ownedDockerAlive(pid)),
     otherOwnedGroupSurvivesOwnerCleanup: groupSurvived || trackedGroupAlive(), heartbeatContinuesAfterCleanup: before !== after,
     nestedCleanupStarted: existsSync(${JSON.stringify(nestedCleanup)}) };
@@ -750,18 +768,28 @@ try {
   clearInterval(poll);
   clearTimeout(watchdog);
   writeFileSync(${JSON.stringify(nestedRelease)}, 'release');
-  await Promise.all(tracked.map(child => stopTestChild(child)));
+  // An observed leaderless group remains uncertain. Release only this fixture's
+  // nonce-bound inert Docker work; never signal a saved group after leader loss.
+  const stopped = await Promise.allSettled(tracked.map(child => stopTestChild(child)));
+  if (stopped.some(item => item.status === 'rejected')) {
+    if (!existsSync(${JSON.stringify(nestedCleanup)}) || stopped.some(item => item.status === 'rejected'
+        && item.reason?.message !== 'Owned fixture process group did not stop'))
+      throw new Error('Unexpected fixture stop refusal');
+  }
+  writeFileSync(${JSON.stringify(dockerRelease)}, ${JSON.stringify(ownership)});
+  const retirementDeadline = Date.now() + 3000;
   const pid = ownedPid();
   if (pid !== undefined && ownedDockerAlive(pid)) {
-    try { process.kill(-pid, 'SIGKILL'); }
-    catch (error) {
-      if (error.code !== 'ESRCH') throw error;
-      retired = true;
-      writeFileSync(${JSON.stringify(dockerRetired)}, 'retired');
-    }
-    const deadline = Date.now() + 3000;
     while (ownedDockerAlive(pid)) {
-      if (Date.now() >= deadline) throw new Error('Fixture Docker did not stop');
+      if (Date.now() >= retirementDeadline) throw new Error('Fixture Docker did not stop');
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+  }
+  for (const child of tracked) {
+    while (child.pid !== undefined && !retiredGroups.has(child.pid)) {
+      try { process.kill(-child.pid, 0); }
+      catch (error) { if (error.code === 'ESRCH') break; throw error; }
+      if (Date.now() >= retirementDeadline) throw new Error('Fixture group did not stop');
       await new Promise(resolve => setTimeout(resolve, 20));
     }
   }
@@ -793,15 +821,7 @@ process.stdout.write(JSON.stringify(result));
         return false;
       }
     };
-    if (groupAlive()) {
-      try {
-        process.kill(-value.pid, 'SIGKILL');
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
-        retired = true;
-        writeFileSync(dockerRetired, 'retired');
-      }
-    }
+    writeFileSync(dockerRelease, ownership);
     const deadline = Date.now() + 3000;
     while (groupAlive()) {
       if (Date.now() >= deadline) throw new Error('Fixture Docker did not stop');
@@ -817,6 +837,7 @@ process.stdout.write(JSON.stringify(result));
         nestedRelease,
         cleanupComplete,
         dockerRetired,
+        dockerRelease,
       ])
         rmSync(path, { force: true });
       let execution;
@@ -837,8 +858,8 @@ process.stdout.write(JSON.stringify(result));
         ),
       ).toBe(false);
       expect(execution.error).toBeUndefined();
-      expect(execution.status).toBe(0);
       expect(execution.stderr).toBe('');
+      expect(execution.status).toBe(0);
       expect(existsSync(cleanupComplete)).toBe(true);
       return JSON.parse(execution.stdout) as ReadinessCleanupResult;
     },
@@ -961,7 +982,8 @@ DemoProcesses.prototype.dispose = async function() {
         !result.otherOwnedGroupSurvivesOwnerCleanup &&
         !result.heartbeatContinuesAfterCleanup;
       const clean = await f.run();
-      expect(clean.reason).toBe(kind);
+      expect(clean.readinessReason).toBe(kind);
+      expect(clean.cleanupRefused).toBe(true);
       expect(clean.observedDocker).toBe(true);
       expect(clean.readinessTimeouts).toEqual([15000]);
       expect(clean.sameOwner).toBe(true);
@@ -971,11 +993,14 @@ DemoProcesses.prototype.dispose = async function() {
 
       f.plantNestedReadiness();
       const nested = await f.run();
-      expect(nested.reason).toBe(kind);
+      expect(nested.readinessReason).toBe(kind);
+      expect(nested.cleanupRefused).toBe(true);
       expect(nested.observedDocker).toBe(true);
       expect(nested.readinessTimeouts).toEqual([15000]);
       expect(nested.nestedCleanupStarted).toBe(true);
-      expect(nested.otherOwnedGroupSurvivesOwnerCleanup).toBe(false);
+      // The deliberately nested topology now retains its leaderless group;
+      // refusing a stale group signal must not make this dirty twin look clean.
+      expect(nested.otherOwnedGroupSurvivesOwnerCleanup).toBe(true);
       expect(stopped(nested)).toBe(false);
       expect(nested.childSurvivesOwnerCleanup).toBe(true);
       expect(nested.heartbeatContinuesAfterCleanup).toBe(true);

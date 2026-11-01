@@ -222,6 +222,271 @@ function testSource(path: string): boolean {
   );
 }
 
+/** Model the closed app-relative loaders, without exempting any of their edges. */
+function frameworkRequireOrigins(file: ts.SourceFile): Map<ts.Block, string> {
+  const refused: () => never = () => {
+    throw new Error(`Unmodeled runtime import: ${file.fileName}`);
+  };
+  const functions = new Map(
+    file.statements
+      .filter(ts.isFunctionDeclaration)
+      .filter((node) => node.name && node.body)
+      .map((node) => [node.name!.text, node]),
+  );
+  const imported = (name: string, module: string) =>
+    file.statements.filter(
+      (node) =>
+        ts.isImportDeclaration(node) &&
+        ts.isStringLiteral(node.moduleSpecifier) &&
+        node.moduleSpecifier.text === module &&
+        node.importClause?.namedBindings &&
+        ts.isNamedImports(node.importClause.namedBindings) &&
+        node.importClause.namedBindings.elements.some(
+          (element) => element.name.text === name && (element.propertyName?.text ?? name) === name,
+        ),
+    ).length === 1;
+  if (!imported('createRequire', 'node:module') || !imported('join', 'node:path')) refused();
+  if (
+    file.statements.filter(
+      (node) =>
+        ts.isImportDeclaration(node) &&
+        ts.isStringLiteral(node.moduleSpecifier) &&
+        ['node:module', 'module'].includes(node.moduleSpecifier.text),
+    ).length !== 1
+  )
+    refused();
+  const names = (name: ts.BindingName): string[] =>
+    ts.isIdentifier(name)
+      ? [name.text]
+      : name.elements.flatMap((element) =>
+          ts.isOmittedExpression(element) ? [] : names(element.name),
+        );
+  const declared = (node: ts.Node): string[] => {
+    if (ts.isVariableDeclaration(node) || ts.isParameter(node) || ts.isBindingElement(node))
+      return names(node.name);
+    if (
+      (ts.isFunctionDeclaration(node) ||
+        ts.isFunctionExpression(node) ||
+        ts.isClassDeclaration(node)) &&
+      node.name
+    )
+      return [node.name.text];
+    return [];
+  };
+  const rootOf = (node: ts.Node): string[] => {
+    if (ts.isIdentifier(node)) return [node.text];
+    if (ts.isParenthesizedExpression(node)) return rootOf(node.expression);
+    if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node))
+      return rootOf(node.expression);
+    if (ts.isSpreadElement(node)) return rootOf(node.expression);
+    if (ts.isArrayLiteralExpression(node)) return node.elements.flatMap(rootOf);
+    if (ts.isObjectLiteralExpression(node))
+      return node.properties.flatMap((property) =>
+        ts.isShorthandPropertyAssignment(property)
+          ? [property.name.text]
+          : ts.isPropertyAssignment(property)
+            ? rootOf(property.initializer)
+            : ts.isSpreadAssignment(property)
+              ? rootOf(property.expression)
+              : [],
+      );
+    return [];
+  };
+  const written = (node: ts.Node): string[] => {
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+      node.operatorToken.kind <= ts.SyntaxKind.LastAssignment
+    )
+      return rootOf(node.left);
+    if (
+      (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) &&
+      [ts.SyntaxKind.PlusPlusToken, ts.SyntaxKind.MinusMinusToken].includes(node.operator)
+    )
+      return rootOf(node.operand);
+    if (ts.isForInStatement(node) || ts.isForOfStatement(node)) return rootOf(node.initializer);
+    return [];
+  };
+  const visit = (node: ts.Node, action: (node: ts.Node) => void) => {
+    action(node);
+    ts.forEachChild(node, (child) => visit(child, action));
+  };
+  const provenanceControl = file.fileName === 'frontend/scripts/test-framework-provenance.mjs';
+  if (provenanceControl && !imported('FRAMEWORK_FRONTEND_ROOT', './framework-installation.mjs'))
+    refused();
+  const calls: ts.CallExpression[] = [];
+  visit(file, (node) => {
+    if (
+      ts.isImportDeclaration(node) &&
+      ts.isStringLiteral(node.moduleSpecifier) &&
+      node.moduleSpecifier.text === 'node:module' &&
+      (!node.importClause?.namedBindings ||
+        !ts.isNamedImports(node.importClause.namedBindings) ||
+        node.importClause.name ||
+        node.importClause.namedBindings.elements.length !== 1 ||
+        node.importClause.namedBindings.elements[0]!.name.text !== 'createRequire' ||
+        node.importClause.namedBindings.elements[0]!.propertyName)
+    )
+      refused();
+    if (
+      declared(node).some((name) =>
+        [
+          'createRequire',
+          'join',
+          ...(provenanceControl ? ['FRAMEWORK_FRONTEND_ROOT'] : []),
+        ].includes(name),
+      )
+    )
+      refused();
+    if (
+      written(node).some((name) =>
+        [
+          'createRequire',
+          'join',
+          'checkedRoot',
+          ...(provenanceControl ? ['FRAMEWORK_FRONTEND_ROOT'] : []),
+        ].includes(name),
+      )
+    )
+      refused();
+    if (
+      ts.isIdentifier(node) &&
+      node.text === 'createRequire' &&
+      !ts.isImportSpecifier(node.parent) &&
+      !(ts.isCallExpression(node.parent) && node.parent.expression === node)
+    )
+      refused();
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === 'createRequire'
+    )
+      calls.push(node);
+  });
+  // A new loader is a new model obligation, not an automatically trusted context.
+  if (calls.length !== (provenanceControl ? 1 : 2)) refused();
+  const origins = new Map<ts.Block, string>();
+  for (const call of calls) {
+    const declaration = call.parent;
+    if (
+      !ts.isVariableDeclaration(declaration) ||
+      !ts.isIdentifier(declaration.name) ||
+      declaration.name.text !== 'require' ||
+      !ts.isVariableDeclarationList(declaration.parent) ||
+      !(declaration.parent.flags & ts.NodeFlags.Const) ||
+      declaration.parent.declarations.length !== 1 ||
+      !ts.isVariableStatement(declaration.parent.parent) ||
+      !ts.isBlock(declaration.parent.parent.parent)
+    )
+      refused();
+    const body = declaration.parent.parent.parent as ts.Block;
+    const owner = body.parent;
+    const root = provenanceControl
+      ? 'FRAMEWORK_FRONTEND_ROOT'
+      : ts.isFunctionDeclaration(owner) && owner.name?.text === 'verifyFrameworkInstallation'
+        ? 'appRoot'
+        : 'identity';
+    if (
+      (provenanceControl
+        ? !ts.isArrowFunction(owner) ||
+          !ts.isCallExpression(owner.parent) ||
+          !ts.isIdentifier(owner.parent.expression) ||
+          owner.parent.expression.text !== 'test'
+        : !ts.isFunctionDeclaration(owner) ||
+          !owner.name ||
+          !['verifyFrameworkInstallation', 'compileFrameworkNative'].includes(owner.name.text) ||
+          functions.get(owner.name.text) !== owner) ||
+      origins.has(body)
+    )
+      refused();
+    const joined = call.arguments[0];
+    const rootArgument = joined && ts.isCallExpression(joined) ? joined.arguments[0] : undefined;
+    if (
+      call.arguments.length !== 1 ||
+      !joined ||
+      !ts.isCallExpression(joined) ||
+      !ts.isIdentifier(joined.expression) ||
+      joined.expression.text !== 'join' ||
+      joined.arguments.length !== 2 ||
+      !joined.arguments[1] ||
+      !ts.isStringLiteral(joined.arguments[1]) ||
+      joined.arguments[1].text !== (provenanceControl ? 'apps/web/package.json' : 'package.json') ||
+      !rootArgument ||
+      (root !== 'identity'
+        ? !ts.isIdentifier(rootArgument) || rootArgument.text !== root
+        : !ts.isPropertyAccessExpression(rootArgument) ||
+          !ts.isIdentifier(rootArgument.expression) ||
+          rootArgument.expression.text !== root ||
+          rootArgument.name.text !== 'appRoot')
+    )
+      refused();
+    if (!provenanceControl) {
+      if (!ts.isFunctionDeclaration(owner)) refused();
+      const parameters = owner.parameters.flatMap((parameter) => names(parameter.name));
+      if (parameters.filter((name) => name === root).length !== 1) refused();
+    }
+    const assignments: ts.BinaryExpression[] = [];
+    visit(body, (node) => {
+      if (
+        node !== declaration &&
+        declared(node).some((name) => [root, 'require', 'checkedRoot'].includes(name))
+      )
+        refused();
+      if (
+        written(node).some((name) =>
+          [root, 'require', 'checkedRoot', 'createRequire', 'join'].includes(name),
+        )
+      ) {
+        if (
+          root === 'appRoot' &&
+          ts.isBinaryExpression(node) &&
+          ts.isIdentifier(node.left) &&
+          node.left.text === root
+        )
+          assignments.push(node);
+        else refused();
+      }
+      if (ts.isIdentifier(node) && node.text === 'require' && node !== declaration.name) {
+        const parent = node.parent;
+        if (
+          !(
+            (ts.isCallExpression(parent) && parent.expression === node) ||
+            (ts.isPropertyAccessExpression(parent) &&
+              parent.expression === node &&
+              parent.name.text === 'resolve' &&
+              ts.isCallExpression(parent.parent) &&
+              parent.parent.expression === parent)
+          )
+        )
+          refused();
+      }
+    });
+    if (root === 'appRoot') {
+      const checked = assignments[0];
+      if (
+        assignments.length !== 1 ||
+        !checked ||
+        checked.operatorToken.kind !== ts.SyntaxKind.EqualsToken ||
+        !ts.isExpressionStatement(checked.parent) ||
+        checked.parent.parent !== body ||
+        checked.pos >= declaration.pos ||
+        !ts.isCallExpression(checked.right) ||
+        !ts.isIdentifier(checked.right.expression) ||
+        checked.right.expression.text !== 'checkedRoot' ||
+        checked.right.arguments.length !== 1 ||
+        !ts.isIdentifier(checked.right.arguments[0]!) ||
+        checked.right.arguments[0]!.text !== root ||
+        !functions.has('checkedRoot')
+      )
+        refused();
+    }
+    // The supported application is the concrete checkout instance of appRoot;
+    // every literal/local edge still goes through the ordinary source resolver.
+    origins.set(body, 'frontend/apps/web/package.json');
+  }
+  return origins;
+}
+
 /** A standalone exemption cannot hide a statically imported runtime helper. */
 export function productionDemoSources(
   all: ReadonlyMap<string, string>,
@@ -420,7 +685,19 @@ export function productionDemoSources(
   for (const [path, source] of result) {
     if (path.endsWith('.json')) continue;
     const file = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true);
-    const imports: { name: string; anchors?: string[] }[] = [];
+    const imports: { name: string; anchors?: string[]; from?: string }[] = [];
+    const requireOrigins = [
+      'frontend/scripts/framework-installation.mjs',
+      'frontend/scripts/test-framework-provenance.mjs',
+    ].includes(path)
+      ? frameworkRequireOrigins(file)
+      : undefined;
+    const requireOrigin = (node: ts.Node): string | undefined => {
+      if (!requireOrigins) return undefined;
+      for (let scope: ts.Node | undefined = node.parent; scope; scope = scope.parent)
+        if (ts.isBlock(scope) && requireOrigins.has(scope)) return requireOrigins.get(scope);
+      return refused(path);
+    };
     const proofHarness =
       path === 'frontend/apps/web/scripts/test-bff-proof-runtime-observation.mjs';
     const proofTargets = new Map([
@@ -552,14 +829,19 @@ export function productionDemoSources(
             anchors.push(anchor.arguments[0].text);
           }
         }
-        imports.push({ name: value.text, anchors });
+        imports.push({
+          name: value.text,
+          anchors,
+          from:
+            node.expression.kind === ts.SyntaxKind.ImportKeyword ? undefined : requireOrigin(node),
+        });
       }
       ts.forEachChild(node, visit);
     };
     visit(file);
     if (proofHarness && proofSeen.size !== proofTargets.size) return refused(path);
     for (const edge of imports)
-      for (const target of resolveEdge(edge.name, path, edge.anchors))
+      for (const target of resolveEdge(edge.name, edge.from ?? path, edge.anchors))
         result.set(target, all.get(target)!);
   }
   return result;

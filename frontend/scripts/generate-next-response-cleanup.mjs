@@ -106,8 +106,22 @@ export async function generateNextResponseCleanup({ packageRoot, outputRoot }) {
     originals.schemaVersion === 1 && originals.next === '15.5.28' && originals.files.length === 59,
     'unexpected original census',
   );
-  const pkg = JSON.parse(await regularBytes(join(packageRoot, 'package.json')));
-  invariant(pkg.version === originals.next, 'unqualified Next package');
+  const packageBytes = await regularBytes(join(packageRoot, 'package.json'));
+  const pkg = JSON.parse(packageBytes);
+  const packageMetadata = originals.packageMetadata;
+  invariant(
+    packageMetadata?.path === 'package.json' &&
+      packageMetadata.runtimeEntry === 'dist/server/next.js' &&
+      packageMetadata.compilerEntry === 'dist/bin/next' &&
+      packageBytes.length === packageMetadata.bytes &&
+      sha(packageBytes) === packageMetadata.sha256 &&
+      pkg.name === 'next' &&
+      pkg.version === originals.next &&
+      pkg.main === `./${packageMetadata.runtimeEntry}` &&
+      pkg.bin?.next === `./${packageMetadata.compilerEntry}` &&
+      pkg.exports === undefined,
+    'unqualified Next package metadata or entry',
+  );
   const ownerSource = (await regularBytes(join(frontendRoot, framework, 'owner.mjs'))).toString(
     'utf8',
   );
@@ -311,6 +325,7 @@ export async function generateNextResponseCleanup({ packageRoot, outputRoot }) {
     schemaVersion: 1,
     tuple: { node: '22.23.1', pnpm: '9.12.3', next: '15.5.28' },
     manager: JSON.parse(await regularBytes(join(frontendRoot, framework, 'pnpm.json'))),
+    packageMetadata,
     generator: {
       path: generatorInputs[0],
       sha256: inputs[0].sha256,

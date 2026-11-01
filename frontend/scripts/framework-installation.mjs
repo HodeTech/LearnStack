@@ -1,5 +1,5 @@
 // Builtins only: this module runs before application, SDK or framework code.
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import {
   closeSync,
@@ -22,6 +22,10 @@ import {
 import { createRequire } from 'node:module';
 import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  assertFrameworkProcessFamilySupport,
+  runFrameworkProcessFamily,
+} from './framework-process-family.mjs';
 
 export const FRAMEWORK_FORMAT = 1;
 export const FRAMEWORK_FRONTEND_ROOT = realpathSync(fileURLToPath(new URL('../', import.meta.url)));
@@ -117,7 +121,16 @@ const OUTER_FRAMEWORK_ENVIRONMENT = new Set([
   'NEXT_TELEMETRY_DISABLED',
   'NEXT_TRACE_SPAN_THRESHOLD_MS',
   'SWC_NATIVE_BINDING_CACHE',
+  'BROWSERSLIST',
 ]);
+// This is pinned Next's already-qualified default. Supplying the exact query
+// prevents Browserslist from searching unowned parent/home configuration.
+const QUALIFIED_BROWSERSLIST = 'chrome 64, edge 79, firefox 67, opera 51, safari 12';
+// Compiler subprocesses never inherit the ambient application/package-manager
+// environment. OS transport locations are not compiler option selectors.
+// HOME is intentionally absent: an unavailable private native cache must not
+// redirect materialization into an inherited user cache outside the app owner.
+const PROCESS_ENVIRONMENT_KEYS = ['PATH', 'TMPDIR', 'TMP', 'TEMP'];
 const DISALLOWED_BUILD_ENVIRONMENT = [
   'NODE_OPTIONS',
   'NEXT_PRIVATE_BUILD_WORKER',
@@ -350,11 +363,43 @@ export function verifyFrameworkInstallation({
   }
   const nextRoot = packageRoot(appRoot, 'next');
   const storeRoot = realpathSync(join(frontendRoot, 'node_modules'));
+  if (!inside(nextRoot, storeRoot)) refuse('next_resolution');
+  const metadata = census.packageMetadata;
+  const packageBytes = regularBytes(join(nextRoot, 'package.json'), 64 * 1024);
   if (
-    !inside(nextRoot, storeRoot) ||
-    jsonFile(join(nextRoot, 'package.json')).version !== census.tuple.next
+    metadata?.path !== 'package.json' ||
+    metadata.runtimeEntry !== 'dist/server/next.js' ||
+    metadata.compilerEntry !== 'dist/bin/next' ||
+    !SHA256.test(metadata.sha256) ||
+    metadata.bytes !== packageBytes.length ||
+    metadata.sha256 !== sha256(packageBytes)
   )
+    refuse('next_metadata');
+  const nextPackage = JSON.parse(packageBytes.toString('utf8'));
+  if (
+    nextPackage.name !== 'next' ||
+    nextPackage.version !== census.tuple.next ||
+    nextPackage.main !== `./${metadata.runtimeEntry}` ||
+    nextPackage.bin?.next !== `./${metadata.compilerEntry}` ||
+    Object.hasOwn(nextPackage, 'exports')
+  )
+    refuse('next_metadata');
+  const require = createRequire(join(appRoot, 'package.json'));
+  try {
+    // This qualified package has no exports map. Node's ESM legacy-main and
+    // CommonJS entry selection therefore share this exact checked main file.
+    for (const [actual, expected] of [
+      [require.resolve('next'), metadata.runtimeEntry],
+      [require.resolve('next/dist/bin/next'), metadata.compilerEntry],
+    ]) {
+      const target = canonicalPath(nextRoot, expected);
+      if (realpathSync(target) !== target || realpathSync(actual) !== target)
+        refuse('next_resolution');
+    }
+  } catch (error) {
+    if (error instanceof FrameworkAdmissionError) throw error;
     refuse('next_resolution');
+  }
   const subjects = new Set();
   let bytesRead = 0;
   for (const subject of census.files) {
@@ -676,12 +721,15 @@ function assertLocalEnvironmentKeys(appRoot) {
   }
 }
 function assertBuildEnvironment(frontendRoot = FRAMEWORK_FRONTEND_ROOT) {
+  if (process.env.BROWSERSLIST !== undefined && process.env.BROWSERSLIST !== QUALIFIED_BROWSERSLIST)
+    refuse('build_environment');
   if (DISALLOWED_BUILD_ENVIRONMENT.some((key) => process.env[key])) refuse('build_environment');
   if (
     Object.keys(process.env).some(
       (key) =>
-        /^(?:NEXT_|__NEXT_|SWC_|TURBOPACK|WEBPACK_)/.test(key) &&
-        !OUTER_FRAMEWORK_ENVIRONMENT.has(key),
+        /^(?:NEXT_|__NEXT_|SWC_|TURBOPACK|WEBPACK_|BROWSERSLIST|BABEL_|TS_NODE_|TS_JEST_|ESLINT_|POSTCSS_|TAILWIND_|IS_NEXT_WORKER|IS_TURBOPACK_TEST|EXPERIMENTAL_)/.test(
+          key,
+        ) && !OUTER_FRAMEWORK_ENVIRONMENT.has(key),
     )
   )
     refuse('build_environment');
@@ -697,16 +745,46 @@ function producerOptions(mode) {
   return {
     mode,
     args: [],
-    environment: { NODE_ENV: mode, NODE_PATH: 'workspace/node_modules/.pnpm/node_modules' },
+    environment: {
+      policy: 'closed-compiler-v1',
+      NODE_ENV: mode,
+      NODE_PATH: 'workspace/node_modules/.pnpm/node_modules',
+      NEXT_TELEMETRY_DISABLED: '1',
+      BROWSERSLIST: QUALIFIED_BROWSERSLIST,
+      SWC_NATIVE_BINDING_CACHE: 'app/.framework-state/swc-native-cache',
+    },
   };
+}
+function processEnvironment() {
+  return Object.fromEntries(
+    PROCESS_ENVIRONMENT_KEYS.filter((key) => process.env[key] !== undefined).map((key) => [
+      key,
+      process.env[key],
+    ]),
+  );
 }
 function producerEnvironment(identity, mode, extra = {}) {
   return {
-    ...process.env,
+    ...processEnvironment(),
     NODE_ENV: mode,
     NODE_PATH: join(identity.frontendRoot, 'node_modules/.pnpm/node_modules'),
+    NEXT_TELEMETRY_DISABLED: '1',
+    BROWSERSLIST: QUALIFIED_BROWSERSLIST,
+    // next-intl's pinned @swc/core carrier materializes its attested native
+    // payload here. A finite no-HOME fixture cannot fall back to a user cache;
+    // this canonical location stays under the existing app output owner.
+    SWC_NATIVE_BINDING_CACHE: join(identity.appRoot, '.framework-state/swc-native-cache'),
     ...extra,
   };
+}
+export function frameworkRuntimeEnvironment(identity, mode) {
+  assertBuildEnvironment(identity.frontendRoot);
+  const runtime = Object.fromEntries(
+    [...LOCAL_RUNTIME_ENVIRONMENT]
+      .filter((key) => process.env[key] !== undefined)
+      .map((key) => [key, process.env[key]]),
+  );
+  return { ...producerEnvironment(identity, mode), ...runtime };
 }
 function producerManager(manager) {
   return {
@@ -939,40 +1017,61 @@ export function cleanFrameworkOutputs(identity, { nativeOnly = false, owner } = 
     mkdirSync(output, { recursive: true, mode: 0o700 });
   }
 }
-async function runOwnedNode(script, args, { cwd, environment = process.env } = {}) {
-  await new Promise((resolvePromise, reject) => {
-    const child = spawn(process.execPath, [script, ...args], {
-      cwd,
-      env: environment,
-      stdio: 'inherit',
-    });
-    let childError;
-    let cancelled = false;
-    const cancel = (signal) => {
-      cancelled = true;
-      try {
-        child.kill(signal);
-      } catch (error) {
-        childError ??= error;
-      }
-    };
-    const terminate = () => cancel('SIGTERM');
-    const interrupt = () => cancel('SIGINT');
-    process.once('SIGTERM', terminate);
-    process.once('SIGINT', interrupt);
-    child.once('error', (error) => {
-      childError ??= error;
-    });
-    child.once('close', (code, signal) => {
-      process.removeListener('SIGTERM', terminate);
-      process.removeListener('SIGINT', interrupt);
-      // Error or cancellation is not child retirement. Always observe actual
-      // close before the producer can release its mutation reservations.
-      if (childError) reject(childError);
-      else if (!cancelled && code === 0 && signal === null) resolvePromise();
-      else reject(new FrameworkAdmissionError('producer_failed'));
-    });
-  });
+export function prepareFrameworkNativeCache(identity, owner) {
+  assertFrameworkProcessFamilySupport();
+  // This is vendor-attested native payload materialization, not generated Next
+  // output. Keep it under the existing app owner; never adopt populated unknown
+  // caches, follow aliases, or clear a directory merely to make loading work.
+  if (
+    !owner ||
+    owner.pid !== process.pid ||
+    !['native', 'build', 'development', 'production'].includes(owner.kind)
+  )
+    refuse('native_cache_owner');
+  for (const path of [
+    join(identity.appRoot, '.framework-state/writer.json'),
+    join(identity.frontendRoot, '.framework-state/readers', owner.nonce),
+  ])
+    if (canonical(jsonFile(path, 4096)) !== canonical(owner)) refuse('native_cache_owner');
+  const state = safeOutput(identity.appRoot, '.framework-state');
+  const cache = safeOutput(state, 'swc-native-cache');
+  const recordPath = join(state, 'native-cache.json');
+  const present = existsSync(recordPath);
+  if (present) {
+    const record = jsonFile(recordPath, 4096);
+    if (
+      record.format !== 1 ||
+      record.root !== identity.appRoot ||
+      record.path !== '.framework-state/swc-native-cache' ||
+      !/^[0-9a-f]{32}$/.test(record.nonce)
+    )
+      refuse('native_cache_ownership');
+  }
+  if (existsSync(cache)) {
+    const actual = lstatSync(cache);
+    if (
+      actual.uid !== process.getuid() ||
+      (actual.mode & 0o777) !== 0o700 ||
+      (!present && readdirSync(cache).length)
+    )
+      refuse('native_cache_ownership');
+    distributionPaths(cache); // Refuse every nested alias before vendor code loads.
+  }
+  if (!present)
+    writeFileSync(
+      recordPath,
+      `${canonical({ format: 1, root: identity.appRoot, path: '.framework-state/swc-native-cache', nonce: randomBytes(16).toString('hex') })}\n`,
+      { mode: 0o600, flag: 'wx' },
+    );
+  if (!existsSync(cache)) mkdirSync(cache, { mode: 0o700 });
+  return cache;
+}
+async function runOwnedNode(script, args, { cwd, environment } = {}) {
+  try {
+    await runFrameworkProcessFamily(process.execPath, [script, ...args], { cwd, environment });
+  } catch {
+    refuse('producer_failed');
+  }
 }
 
 async function compileFrameworkNative(identity, producer, mode) {
@@ -1013,6 +1112,7 @@ function finishFrameworkBuild(identity, manager, before) {
   return manifest;
 }
 export function prepareFrameworkBuild(options = {}) {
+  assertFrameworkProcessFamilySupport();
   assertBuildEnvironment();
   const identity = verifyFrameworkInstallation(options);
   assertLocalEnvironmentKeys(identity.appRoot);
@@ -1047,6 +1147,10 @@ function initializeFrameworkDevelopment(identity, manager) {
   return manifest;
 }
 export function verifyFrameworkDevelopment(options = {}) {
+  // Next legitimately adds its own private loader flags after bootstrap. The
+  // qualified initial environment is finite; HMR rechecks the effective target
+  // itself rather than rejecting framework-internal flags created afterwards.
+  if (process.env.BROWSERSLIST !== QUALIFIED_BROWSERSLIST) refuse('build_environment');
   const identity = verifyFrameworkInstallation(options);
   assertLocalEnvironmentKeys(identity.appRoot);
   const manifest = jsonFile(join(identity.appRoot, DEVELOPMENT), 16 * 1024 * 1024);
@@ -1107,9 +1211,11 @@ export async function produceFrameworkBuild({
   });
   let failed = false;
   try {
+    prepareFrameworkNativeCache(identity, lease.record);
     cleanFrameworkOutputs(identity, { nativeOnly, owner: lease.record });
     await runOwnedNode(join(identity.appRoot, 'scripts/ensure-routes-stub.mjs'), [], {
       cwd: identity.appRoot,
+      environment: producerEnvironment(identity, mode),
     });
     const inputs = frameworkInputGraph(identity);
     await compileFrameworkNative(identity, lease.record, mode);

@@ -1,5 +1,8 @@
 import { spawn } from 'node:child_process';
-import { stopTestChild } from '../frontend/apps/web/scripts/stop-test-child.mjs';
+import {
+  assertUnforcedTestChildStop,
+  stopTestChild,
+} from '../frontend/apps/web/scripts/stop-test-child.mjs';
 
 const commandReasons = new Set([
   'exit',
@@ -230,7 +233,7 @@ export class DemoProcesses {
     } finally {
       signal.removeEventListener('abort', cancelled);
       try {
-        await stopTestChild(running.child);
+        assertUnforcedTestChildStop(running.child, await stopTestChild(running.child));
       } catch (error) {
         // Retain this handle for dispose's cleanup failure; do not replace the
         // triggering command failure or attribute teardown's signal to it.
@@ -246,7 +249,9 @@ export class DemoProcesses {
     const results = await Promise.allSettled(
       [...this.#children].map(async ([child, { closed, result, daemon }]) => {
         const deadline = Date.now() + 5000;
-        await stopTestChild(child);
+        const failures = [];
+        try { assertUnforcedTestChildStop(child, await stopTestChild(child)); }
+        catch (error) { failures.push(error); }
         // Group absence does not establish stream EOF. A closed child has also
         // delivered its buffered stdout/stderr; bound this separate drain so
         // inherited/leaked pipes cannot hang teardown.
@@ -261,13 +266,16 @@ export class DemoProcesses {
               );
             }),
           ]);
+        } catch (error) {
+          failures.push(error);
         } finally {
           clearTimeout(timer);
         }
         if (daemon && result().failureReason === 'output')
-          throw new Error('Owned output was refused', {
+          failures.push(new Error('Owned output was refused', {
             cause: result().failed,
-          });
+          }));
+        if (failures.length) throw new AggregateError(failures, 'Owned command cleanup unconfirmed');
       }),
     );
     if (results.some((row) => row.status === 'rejected'))

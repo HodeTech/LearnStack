@@ -180,7 +180,9 @@ describe('R1 regression controls', () => {
       expect(publicDemoChildExited(child.child)).toBe(true);
       expect(JSON.stringify(publicDemoFailure('worker', error, context))).not.toContain(canary);
     } finally {
-      await processes.dispose();
+      // The original output refusal stays authoritative; its forced fallback
+      // cannot also acknowledge complete cleanup of another compiler family.
+      await expect(processes.dispose()).rejects.toThrow('Owned process cleanup failed');
     }
   }, 10000);
 

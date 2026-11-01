@@ -1,25 +1,29 @@
 // Counterfactual drift controls over copied, qualified package subjects. These
 // controls do not claim that a synthetic build manifest was produced by Next.
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createServer, request } from 'node:http';
 import {
   cpSync,
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { protectFrameworkDevelopmentResponse } from './framework-development.mjs';
 import { runFrameworkMetadataControl } from './test-framework-metadata-contention.mjs';
+import { runFrameworkFamilyControl } from './test-framework-process-family.mjs';
 import {
   acquireFrameworkLease,
   cleanFrameworkOutputs,
@@ -28,11 +32,16 @@ import {
   FrameworkAdmissionError,
   frameworkInputGraph,
   frameworkOutputGraph,
+  frameworkRuntimeEnvironment,
   pnpmPatchHash,
+  prepareFrameworkBuild,
+  prepareFrameworkNativeCache,
   resolveQualifiedPnpm,
   verifyFrameworkBuild,
+  verifyFrameworkDevelopment,
   verifyFrameworkInstallation,
 } from './framework-installation.mjs';
+import { runFrameworkProcessFamily } from './framework-process-family.mjs';
 
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
 function put(path, value) {
@@ -88,10 +97,20 @@ for (const folder of ['framework', 'patches', 'scripts'])
 for (const subject of sourceCensus.files)
   copy(join(actual.nextRoot, subject.path), join(nextRoot, subject.path));
 copy(join(actual.nextRoot, 'package.json'), join(nextRoot, 'package.json'));
+for (const entry of [
+  sourceCensus.packageMetadata.runtimeEntry,
+  sourceCensus.packageMetadata.compilerEntry,
+])
+  copy(join(actual.nextRoot, entry), join(nextRoot, entry));
 // Membership is a deliberately closed copied subset for this algorithm control;
 // the actual 7k-file distribution has its separate install/qualification check.
 const census = structuredClone(sourceCensus);
-census.distribution.paths = [...census.files.map((file) => file.path), 'package.json'].sort();
+census.distribution.paths = [
+  ...census.files.map((file) => file.path),
+  'package.json',
+  census.packageMetadata.runtimeEntry,
+  census.packageMetadata.compilerEntry,
+].sort();
 put(join(frontendRoot, 'framework/next-response-cleanup/census.json'), census);
 const appPackage = JSON.parse(
   readFileSync(join(FRAMEWORK_FRONTEND_ROOT, 'apps/web/package.json'), 'utf8'),
@@ -155,8 +174,12 @@ function buildControlManifest() {
       mode: 'production',
       args: [],
       environment: {
+        policy: 'closed-compiler-v1',
         NODE_ENV: 'production',
         NODE_PATH: 'workspace/node_modules/.pnpm/node_modules',
+        NEXT_TELEMETRY_DISABLED: '1',
+        BROWSERSLIST: 'chrome 64, edge 79, firefox 67, opera 51, safari 12',
+        SWC_NATIVE_BINDING_CACHE: 'app/.framework-state/swc-native-cache',
       },
     },
     inputs: frameworkInputGraph(current),
@@ -713,6 +736,324 @@ try {
       assert.equal(result.result, 'pass');
     });
   }
+  for (const mode of [
+    'sdk-cancel',
+    'sdk-direct-death',
+    'next-exit',
+    'next-success',
+    'late-cancel',
+    'installer-exit',
+    'pnpm-lifecycle',
+    'owner-death',
+  ]) {
+    await test(`real mutable process-family ${mode} retains ownership until actual closure`, async () => {
+      const result = await runFrameworkFamilyControl(mode);
+      assert.equal(result.result, 'pass');
+    });
+  }
+  for (const mode of ['nonce', 'parent', 'missing-nonce', 'missing-channel']) {
+    await test(`private compiler preload refuses invalid ${mode} before command execution`, async () => {
+      const marker = join(root, `invalid-preload-${mode}`);
+      const script = join(root, `invalid-preload-${mode}.cjs`);
+      put(
+        script,
+        `require('node:fs').writeFileSync(${JSON.stringify(marker)},'must not execute');\n`,
+      );
+      const environment = {
+        PATH: process.env.PATH,
+        LEARNSTACK_FRAMEWORK_FAMILY_NONCE: 'a'.repeat(32),
+        LEARNSTACK_FRAMEWORK_FAMILY_PARENT: String(process.pid),
+      };
+      if (mode === 'nonce') environment.LEARNSTACK_FRAMEWORK_FAMILY_NONCE = 'unqualified';
+      if (mode === 'parent') environment.LEARNSTACK_FRAMEWORK_FAMILY_PARENT = '0';
+      if (mode === 'missing-nonce') delete environment.LEARNSTACK_FRAMEWORK_FAMILY_NONCE;
+      const child = spawn(
+        process.execPath,
+        [
+          '--import',
+          new URL('./framework-process-family-preload.mjs', import.meta.url).href,
+          script,
+        ],
+        {
+          env: environment,
+          stdio:
+            mode === 'missing-channel'
+              ? ['ignore', 'pipe', 'pipe']
+              : ['ignore', 'pipe', 'pipe', 'ipc'],
+        },
+      );
+      let stderr = '';
+      child.stderr.on('data', (bytes) => {
+        stderr += bytes;
+      });
+      const result = await new Promise((resolve) =>
+        child.once('close', (code, signal) => resolve({ code, signal })),
+      );
+      assert.deepEqual(result, { code: 1, signal: null });
+      assert.match(stderr, /Framework private process control refused/);
+      assert.equal(existsSync(marker), false);
+      unlinkSync(script);
+    });
+  }
+  await test('worker threads skip the main-thread private compiler control', () => {
+    const script = join(root, 'preload-worker.mjs');
+    const body = join(root, 'preload-worker-body.mjs');
+    put(
+      body,
+      "import {parentPort} from 'node:worker_threads';parentPort.postMessage('worker-ran');\n",
+    );
+    const preload = new URL('./framework-process-family-preload.mjs', import.meta.url);
+    const writeWorker = (path) =>
+      put(
+        script,
+        `import {Worker} from 'node:worker_threads';\n` +
+          `const worker=new Worker(${JSON.stringify(body)},` +
+          `{execArgv:['--import',${JSON.stringify(path)}],` +
+          `env:{LEARNSTACK_FRAMEWORK_FAMILY_NONCE:'invalid',LEARNSTACK_FRAMEWORK_FAMILY_PARENT:'0'}});\n` +
+          `worker.on('message',value=>process.stdout.write(value));\n`,
+      );
+    const mutant = join(root, 'preload-worker-mutant.mjs');
+    try {
+      writeWorker(preload.href);
+      const result = spawnSync(process.execPath, [script], { encoding: 'utf8', timeout: 2500 });
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(result.stdout, 'worker-ran');
+      // Prove that this actual Worker executes its configured preload. Removing
+      // only the main-thread guard must turn the same malformed control into a
+      // refusal, rather than silently testing a path that never loads it.
+      put(mutant, readFileSync(preload, 'utf8').replace('isMainThread && ', ''));
+      writeWorker(mutant);
+      const dirty = spawnSync(process.execPath, [script], { encoding: 'utf8', timeout: 2500 });
+      assert.notEqual(dirty.status, 0);
+      assert.match(dirty.stderr, /Framework private process control refused/);
+    } finally {
+      unlinkSync(script);
+      unlinkSync(body);
+      if (existsSync(mutant)) unlinkSync(mutant);
+    }
+  });
+  await test('development compiler rechecks its exact effective browser target', () => {
+    const before = process.env.BROWSERSLIST;
+    process.env.BROWSERSLIST = 'ie 11';
+    try {
+      denied(() => verifyFrameworkDevelopment({ appRoot, frontendRoot }), 'build_environment');
+    } finally {
+      if (before === undefined) delete process.env.BROWSERSLIST;
+      else process.env.BROWSERSLIST = before;
+    }
+  });
+  for (const selector of [
+    'BROWSERSLIST',
+    'BROWSERSLIST_CONFIG',
+    'BROWSERSLIST_ENV',
+    'BABEL_ENV',
+    'ESLINT_USE_FLAT_CONFIG',
+    'TS_NODE_PROJECT',
+    'SWC_BINARY_PATH',
+  ]) {
+    await test(`ambient compiler selector ${selector} refuses before producer mutation`, () => {
+      const before = process.env[selector];
+      process.env[selector] = 'unqualified-control';
+      try {
+        denied(() => prepareFrameworkBuild({ appRoot, frontendRoot }), 'build_environment');
+      } finally {
+        if (before === undefined) delete process.env[selector];
+        else process.env[selector] = before;
+      }
+    });
+  }
+  await test('finite runtime/compiler projection drops arbitrary ambient variables without serializing secrets', () => {
+    const names = ['UNQUALIFIED_COMPILER_SELECTOR', 'KEYCLOAK_WEB_CLIENT_SECRET'];
+    const before = names.map((key) => process.env[key]);
+    process.env.UNQUALIFIED_COMPILER_SELECTOR = 'must never reach the compiler';
+    process.env.KEYCLOAK_WEB_CLIENT_SECRET = 'private control value';
+    try {
+      const value = frameworkRuntimeEnvironment(identity(), 'development');
+      assert.equal(value.UNQUALIFIED_COMPILER_SELECTOR, undefined);
+      assert.equal(value.KEYCLOAK_WEB_CLIENT_SECRET, 'private control value');
+      assert.equal(value.NODE_ENV, 'development');
+      assert.equal(value.NEXT_TELEMETRY_DISABLED, '1');
+      assert.equal(JSON.stringify(buildControlManifest()).includes('private control value'), false);
+    } finally {
+      names.forEach((key, index) => {
+        if (before[index] === undefined) delete process.env[key];
+        else process.env[key] = before[index];
+      });
+    }
+  });
+  await test('actual native binding ignores inherited HOME and uses only the owned compiler/runtime cache', async () => {
+    const current = identity();
+    const lease = acquireFrameworkLease({ appRoot, frontendRoot, kind: 'production' });
+    const script = join(root, 'native-binding-owned-probe.mjs');
+    const result = join(root, 'native-binding-owned-result.json');
+    const cache = prepareFrameworkNativeCache(current, lease.record);
+    const parentHome = process.env.HOME;
+    process.env.HOME = join(root, 'unqualified-parent-home');
+    put(
+      script,
+      `import {createRequire} from 'node:module';import {writeFileSync} from 'node:fs';\n` +
+        `const require=createRequire(${JSON.stringify(join(FRAMEWORK_FRONTEND_ROOT, 'apps/web/package.json'))});\n` +
+        `const plugin=createRequire(require.resolve('next-intl/plugin'));const core=plugin('@swc/core');\n` +
+        `const transformed=core.transformSync('const value: number = 1;', {jsc:{parser:{syntax:'typescript'}}});\n` +
+        `writeFileSync(${JSON.stringify(result)},JSON.stringify({loaded:typeof core.getBinaryMetadata().target==='string',compiled:typeof transformed.code==='string',ownedCache:process.env.SWC_NATIVE_BINDING_CACHE===${JSON.stringify(cache)},homeAbsent:process.env.HOME===undefined}));\n`,
+    );
+    try {
+      for (const mode of ['production', 'development']) {
+        const environment = frameworkRuntimeEnvironment(current, mode);
+        assert.equal(environment.HOME, undefined);
+        await runFrameworkProcessFamily(process.execPath, [script], {
+          cwd: appRoot,
+          environment,
+          stdio: 'ignore',
+        });
+        assert.deepEqual(JSON.parse(readFileSync(result)), {
+          loaded: true,
+          compiled: true,
+          ownedCache: true,
+          homeAbsent: true,
+        });
+      }
+    } finally {
+      if (parentHome === undefined) delete process.env.HOME;
+      else process.env.HOME = parentHome;
+      lease.release();
+      unlinkSync(script);
+      if (existsSync(result)) unlinkSync(result);
+    }
+  });
+  for (const mode of ['unknown-populated', 'symlink-root', 'unsafe-mode', 'nested-alias']) {
+    await test(`native binding cache refuses ${mode} without clearing or escaping its owner`, () => {
+      const target = join(frontendRoot, `cache-${mode}`);
+      const outside = join(root, `outside-cache-${mode}`);
+      mkdirSync(join(target, 'node_modules/@learnstack'), { recursive: true });
+      link(join(frontendRoot, 'packages/sdk'), join(target, 'node_modules/@learnstack/sdk'));
+      put(join(outside, 'sentinel'), 'must remain unchanged');
+      const lease = acquireFrameworkLease({ appRoot: target, frontendRoot, kind: 'production' });
+      const bound = { ...identity(), appRoot: realpathSync(target) };
+      const cache = join(target, '.framework-state/swc-native-cache');
+      const record = join(target, '.framework-state/native-cache.json');
+      try {
+        let reason;
+        if (mode === 'symlink-root') {
+          link(outside, cache);
+          reason = 'output_ownership';
+        } else if (mode === 'nested-alias') {
+          prepareFrameworkNativeCache(bound, lease.record);
+          link(outside, join(cache, 'foreign'));
+          reason = 'distribution_file';
+        } else {
+          mkdirSync(cache, { mode: 0o700 });
+          if (mode === 'unsafe-mode') chmodSync(cache, 0o755);
+          else put(join(cache, 'unknown.node'), 'unowned native bytes');
+          reason = 'native_cache_ownership';
+        }
+        denied(() => prepareFrameworkNativeCache(bound, lease.record), reason);
+        if (mode !== 'nested-alias') assert.equal(existsSync(record), false);
+        assert.equal(readFileSync(join(outside, 'sentinel'), 'utf8'), 'must remain unchanged');
+        if (mode === 'unknown-populated')
+          assert.equal(readFileSync(join(cache, 'unknown.node'), 'utf8'), 'unowned native bytes');
+      } finally {
+        lease.release();
+      }
+    });
+  }
+  await test('native binding cache requires the exact current app owner', () => {
+    const lease = acquireFrameworkLease({ appRoot, frontendRoot, kind: 'production' });
+    try {
+      denied(
+        () => prepareFrameworkNativeCache(identity(), { ...lease.record, nonce: '0'.repeat(32) }),
+        'native_cache_owner',
+      );
+    } finally {
+      lease.release();
+    }
+  });
+  for (const name of ['.browserslistrc', 'browserslist', 'package.json']) {
+    await test(`effective browser target ignores unowned ancestor ${name} configuration`, () => {
+      const require = createRequire(join(FRAMEWORK_FRONTEND_ROOT, 'apps/web/package.json'));
+      const loader = require('next/dist/compiled/browserslist');
+      const { getSupportedBrowsers } = require('next/dist/build/utils.js');
+      const path = join(frontendRoot, 'apps', name);
+      const old = process.env.BROWSERSLIST;
+      const before = JSON.stringify(frameworkInputGraph(identity()));
+      put(path, name === 'package.json' ? { browserslist: ['ie 11'] } : 'ie 11\n');
+      try {
+        delete process.env.BROWSERSLIST;
+        loader.clearCaches();
+        assert.deepEqual(getSupportedBrowsers(appRoot, false), ['ie 11']);
+        process.env.BROWSERSLIST = frameworkRuntimeEnvironment(
+          identity(),
+          'production',
+        ).BROWSERSLIST;
+        loader.clearCaches();
+        const expected = ['chrome 64', 'edge 79', 'firefox 67', 'opera 51', 'safari 12'];
+        assert.deepEqual(getSupportedBrowsers(appRoot, false), expected);
+        assert.deepEqual(getSupportedBrowsers(appRoot, true), expected);
+        assert.equal(JSON.stringify(frameworkInputGraph(identity())), before);
+      } finally {
+        unlinkSync(path);
+        loader.clearCaches();
+        if (old === undefined) delete process.env.BROWSERSLIST;
+        else process.env.BROWSERSLIST = old;
+      }
+    });
+  }
+  for (const field of ['main', 'exports', 'bin']) {
+    await test(`Next package ${field} drift refuses before actual entry resolution/import`, () =>
+      altered(
+        join(nextRoot, 'package.json'),
+        (before) => {
+          const value = JSON.parse(before);
+          value[field] =
+            field === 'main'
+              ? '../outside.cjs'
+              : field === 'bin'
+                ? { next: '../outside.cjs' }
+                : { '.': '../outside.cjs' };
+          return value;
+        },
+        () => denied(identity, 'next_metadata'),
+      ));
+  }
+  await test('actual bootstrap refuses an external Next main before executing its marker', () => {
+    const external = join(root, 'outside-next-entry.cjs');
+    const marker = join(root, 'outside-next-imported');
+    put(
+      external,
+      `require('node:fs').writeFileSync(${JSON.stringify(marker)},'unqualified');module.exports={};\n`,
+    );
+    copy(
+      join(FRAMEWORK_FRONTEND_ROOT, 'apps/web/scripts/public-server.mjs'),
+      join(appRoot, 'scripts/public-server.mjs'),
+    );
+    put(join(appRoot, 'scripts/public-server-runtime.mjs'), "import next from 'next';\n");
+    buildControlManifest();
+    try {
+      altered(
+        join(nextRoot, 'package.json'),
+        (before) => {
+          const value = JSON.parse(before);
+          value.main = external;
+          return value;
+        },
+        () => {
+          const result = spawnSync(process.execPath, ['scripts/public-server.mjs'], {
+            cwd: appRoot,
+            encoding: 'utf8',
+            timeout: 10000,
+          });
+          assert.equal(result.status, 1);
+          assert.match(result.stderr, /Framework admission refused: next_metadata/);
+          assert.equal(existsSync(marker), false);
+        },
+      );
+    } finally {
+      unlinkSync(join(appRoot, 'scripts/public-server.mjs'));
+      unlinkSync(join(appRoot, 'scripts/public-server-runtime.mjs'));
+      unlinkSync(external);
+      buildControlManifest();
+    }
+  });
 } finally {
   rmSync(root, { recursive: true, force: true });
 }
