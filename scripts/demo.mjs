@@ -504,6 +504,7 @@ export async function startDemo(mode) {
       cwd: appRoot,
       env: publicWebEnvironment(values, privateRoot),
       label: 'Owned native web',
+      ownedRuntime: true,
       observe: (chunk) => {
         webTail = (webTail + chunk.toString()).slice(-1024);
         if (webTail.includes('Public HTTPS listener ready on 127.0.0.1:3000'))

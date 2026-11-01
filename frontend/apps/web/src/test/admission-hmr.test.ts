@@ -15,6 +15,7 @@ describe('development admission proof controls', () => {
     'active-context',
     'retained-snapshot',
     'bad-status',
+    'replaced-runtime',
   ] as const)(
     '%s observes the intended freshness/lifetime boundary and restores owned source',
     async (mode) => {
@@ -22,9 +23,27 @@ describe('development admission proof controls', () => {
       const page = join(app, 'src/app/(public)/[locale]/courses/page.tsx');
       mkdirSync(join(app, 'src/app/(public)/[locale]/courses'), { recursive: true });
       writeFileSync(page, 'original disposable catalog source');
-      const child = { pid: 42, exitCode: null };
       const checkpoints: string[] = [];
       let calls = 0;
+      const family = Object.freeze({
+        pid: 43,
+        group: 43,
+        parentPid: 42,
+        leaseNonce: 'a'.repeat(32),
+        incarnation: 'b'.repeat(32),
+      });
+      const child = {
+        pid: 42,
+        exitCode: null,
+        runtimeBroker: {
+          capture: {
+            family: () =>
+              mode === 'replaced-runtime' && calls > 1
+                ? Object.freeze({ ...family, incarnation: 'c'.repeat(32) })
+                : family,
+          },
+        },
+      };
       let stopped = false;
       let watcherClosed = false;
       try {
@@ -84,12 +103,13 @@ describe('development admission proof controls', () => {
             'active-context': 'hmr-initial-release',
             'retained-snapshot': 'hmr-initial-release',
             'bad-status': 'hmr-initial-status',
+            'replaced-runtime': 'hmr-refresh-site',
           }[mode as Exclude<typeof mode, 'clean'>];
           await expect(run).rejects.toMatchObject({
             message: 'Development admission proof failed',
             admissionStage: stage,
           });
-          const changed = mode === 'old-site' || mode === 'old-source';
+          const changed = ['old-site', 'old-source', 'replaced-runtime'].includes(mode);
           expect(calls).toBe(changed ? 2 : 1);
           expect(checkpoints).toEqual(
             changed ? ['hmr-before', 'hmr-change', 'hmr-restore'] : ['hmr-before'],

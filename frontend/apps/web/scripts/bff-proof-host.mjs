@@ -24,6 +24,7 @@ import {
   waitForBffProofListener,
 } from './bff-proof-support.mjs';
 import { createPrivateScanner, fixtureEnvironment } from './fixture-support.mjs';
+import { createCopiedRuntimeHostBroker } from './framework-proof-host-broker.mjs';
 import { frameworkProofBuildArguments, prepareFrameworkProof } from './framework-proof-support.mjs';
 const source = fileURLToPath(new URL('../', import.meta.url));
 function file(path, value) {
@@ -80,11 +81,13 @@ export function ownBffProofChild({
   privateValues,
   cookieCanaries,
   scanners,
+  profile = 'none',
 }) {
   owner.assertActive();
+  const runtime = args[0] === 'scripts/public-server.mjs';
   // This helper alone mints the parent identity for each detached POSIX group.
   // The watcher is confined to that live group leader, never an arbitrary PID.
-  const useLifeline = globalThis.process.platform !== 'win32';
+  const useLifeline = globalThis.process.platform !== 'win32' && !runtime;
   const process = owner.ownChild(
     spawn(
       globalThis.process.execPath,
@@ -101,6 +104,7 @@ export function ownBffProofChild({
       },
     ),
   );
+  const broker = runtime ? createCopiedRuntimeHostBroker(process, { app, profile }) : null;
   const scanner = createPrivateScanner(privateValues);
   const cookieScanner = createBffCookieScanner(cookieCanaries);
   scanners.push(scanner, cookieScanner);
@@ -117,12 +121,205 @@ export function ownBffProofChild({
   process.once('error', () => {});
   return {
     process,
+    broker,
+    proofChannel: broker?.proof ?? process,
     scanner,
     completed: new Promise((resolve) =>
       process.once('close', (code, signal) => resolve({ code, signal })),
     ),
   };
 }
+export function instrumentCopiedBffRuntime(
+  sourceText,
+  {
+    mutation,
+    external,
+    uiMode,
+    isolatedProtocol,
+    disabledOwnPreference,
+    fakeIssuer,
+    fakeLogout,
+    sites,
+    marker,
+    clockBase,
+  },
+) {
+  let launcher = sourceText;
+  if (mutation === 'diagnostics')
+    launcher = replace(
+      launcher,
+      "    process.env.NEXT_TRACE_SPAN_THRESHOLD_MS = '9007199254740991';",
+      '',
+    );
+  if (mutation === 'shutdown')
+    launcher = replace(launcher, '  let failed = false;', '  let failed = true;');
+  if (!external) {
+    launcher = replace(
+      launcher,
+      "import { readFileSync } from 'node:fs';",
+      "import { randomBytes } from 'node:crypto';\nimport { readFileSync } from 'node:fs';",
+    );
+    launcher = replace(
+      launcher,
+      '  let stopping = false;',
+      '  let releaseProofRender = () => {};\n  let stopping = false;',
+    );
+    launcher = replace(
+      launcher,
+      `      const provider = createTenantProvider(bff, globalThis.fetch);`,
+      `    let now = 0; let refreshes = 0; let accounts = 0; const administrations = {};
+    let renderArmed = false; const renderWork = new Set();
+    const releaseRender = () => { renderArmed = false; for (const release of renderWork) release(); };
+    releaseProofRender = releaseRender;
+    Object.defineProperty(globalThis, Symbol.for('learnstack.proof-render-gate'), {value: () => {
+      if (!renderArmed) return;
+      renderArmed = false;
+      const framework = globalThis[Symbol.for('@next/request-context')]?.get();
+      if (!framework || typeof framework.waitUntil !== 'function') throw new Error('Owned framework context absent');
+      let release; const work = new Promise(resolve => { release = resolve; });
+      renderWork.add(release); framework.waitUntil(work);
+      return work.finally(() => renderWork.delete(release));
+    }});
+    for (const event of ['disconnect', 'SIGINT', 'SIGTERM', 'exit']) process.once(event, releaseRender);
+    control.proof.onCommand(async value => { if (value.kind === 'render-control') {
+      if (value.action === 'arm') { if (renderArmed || renderWork.size) throw new Error('Owned render already held'); renderArmed = true; }
+      if (value.action === 'release') releaseRender();
+      control.proof.emit({kind: 'render-state', held: renderWork.size, frames: bffRequests?.counts() ?? 0, snapshots: bffRequests?.snapshotCounts() ?? null});
+    } else if (value.kind === 'advance') {
+      now += value.milliseconds;
+      await (await import('next/dist/trace/index.js')).flushAllTraces();
+      control.proof.emit({ kind: 'snapshot', now, refreshes, accounts, administrations: {...administrations} });
+    } });
+    const credentials = () => ({ accessToken: '${marker}', refreshToken: '${marker}', idToken: '${marker}', identity: { issuer: ${JSON.stringify(fakeIssuer)}, subject: 'owned-subject', actorId: '019a154b-0000-7000-8000-000000000011', tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null, displayLabel: 'Fixture account' }, accessExpiresAt: now + 900000, refreshExpiresAt: now + 3600000 });
+    const member = {membershipId: '019a154b-0000-7000-8000-000000000012', userId: '019a154b-0000-7000-8000-000000000011', organizationId: null, status: 'Active', displayName: 'Fixture member', preferredLocale: null, roleIds: ['019a154b-0000-7000-8000-000000000013'], version: '0'};
+    const role = {roleId: '019a154b-0000-7000-8000-000000000013', builtInKey: 'TenantAdmin', capabilityScope: 'Tenant', version: '0', grants: [{scope: 'Tenant', key: 'identity.membership.admin'}], adoptedReleaseVersion: 1, adoptedReleaseFingerprint: 'a'.repeat(64)};
+    const ownProfile = {displayName: 'Fixture member', preferredLocale: ${disabledOwnPreference ? "'fr'" : 'null'}, version: '0'};
+    const pageInfo = {nextCursor: null, previousCursor: null, hasNext: false, hasPrevious: false};
+    const success = (data, version = false) => ({kind: 'success', status: 200, data: structuredClone(data), etag: version ? '"' + data.version + '"' : null, location: null, replayed: false});
+    const fixtureAdministration = async (_token, binding, operation) => {
+      administrations[operation.kind] = (administrations[operation.kind] ?? 0) + 1;
+      switch (operation.kind) {
+        case 'getOwnCapabilities': return success({canReadTenantMembers: true, canReadOrganizationMembers: true, canWriteMemberProfiles: true, canManageMemberships: true, canReadRoles: true, canChangeRoleGrants: true, canAdoptRoleRelease: true, canWriteOwnProfile: true, canManageOrganizations: true});
+        case 'getOwnProfile': return success(ownProfile, true);
+        case 'listMemberships':
+        case 'listOrganizationMemberships': { if (${mutation === 'unavailable-pages'}) return {kind: 'transport-error'}; const {roleIds, version, ...item} = member; return success({items: [item], pageInfo}); }
+        case 'getMembership': return operation.id === member.membershipId ? success(member, true) : {kind: 'invalid-request'};
+        case 'listRoles': { const {grants, adoptedReleaseVersion, adoptedReleaseFingerprint, ...item} = role; return success({items: [item]}); }
+        case 'getRole': return operation.id === role.roleId ? success(role, true) : {kind: 'invalid-request'};
+        case 'getPermissions': return success({items: [{scope: 'Tenant', key: 'identity.membership.admin', labelKey: 'lockey_permission_identity_membership_admin', canGrant: true}], release: {version: 1, fingerprint: 'a'.repeat(64), tenantAdminDelta: []}});
+        case 'getOwnContexts': return success({items: [{tenantId: binding.tenantId, organizationId: binding.organizationId, tenantName: (${JSON.stringify(sites)}).find(site => site.host === binding.host).displayName, organizationName: null, entryOrigin: 'https://' + binding.host, canUseCurrentHost: true}], pageInfo});
+        case 'setOwnProfile': Object.assign(ownProfile, operation.profile); ownProfile.version = String(BigInt(ownProfile.version) + 1n); return success({version: ownProfile.version}, true);
+        case 'setMembershipProfile': if (operation.id !== member.membershipId) break; Object.assign(member, operation.profile); member.version = String(BigInt(member.version) + 1n); return success({version: member.version}, true);
+        case 'replaceMembershipRoles': if (operation.id !== member.membershipId) break; member.roleIds = [...operation.roleIds]; member.version = String(BigInt(member.version) + 1n); return success({version: member.version}, true);
+        case 'changeMembershipStatus': if (operation.id !== member.membershipId) break; member.status = operation.status; member.version = String(BigInt(member.version) + 1n); return success({version: member.version}, true);
+        case 'changeRoleGrants': if (operation.id !== role.roleId) break; role.grants = [...operation.grants]; role.version = String(BigInt(role.version) + 1n); return success({version: role.version}, true);
+        case 'adoptRoleManifest': if (operation.id !== role.roleId) break; role.adoptedReleaseVersion = operation.manifestVersion; role.adoptedReleaseFingerprint = operation.manifestFingerprint; role.version = String(BigInt(role.version) + 1n); return success({version: role.version}, true);
+      }
+      return {kind: 'invalid-request'};
+    };
+    const fixtureDependencies = { provider: { begin: async callbackUri => ({ transaction: { callbackUri, state: randomBytes(32).toString('base64url'), nonce: randomBytes(32).toString('base64url'), verifier: randomBytes(32).toString('base64url') }, redirectUrl: ${JSON.stringify(fakeIssuer + '/protocol/openid-connect/auth')} }), redeem: async () => credentials(), refresh: async () => { ++refreshes; return credentials(); }, logoutUrl: () => ${JSON.stringify(fakeLogout)} }, account: async (_token, binding) => { ++accounts; return ({ actorId: '019a154b-0000-7000-8000-000000000011', tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null, displayName: (${JSON.stringify(sites)}).find(site => site.host === binding.host).displayName }); }, native: { self: async () => ({state: 'active', association: {authorityId: '10000000-0000-4000-8000-000000000099', subjectKey: 'a'.repeat(64), actorId: '019a154b-0000-7000-8000-000000000011'}}), bootstrap: async () => {throw new Error('Unused fixture create');}, contexts: async (_token,binding) => ({items: [{tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null, tenantName: (${JSON.stringify(sites)}).find(site => site.host === binding.host).displayName, organizationName: null, entryOrigin: 'https://' + binding.host, canUseCurrentHost: true}], endCursor: null, hasNextPage: false}), admit: async (_token,binding) => ({authorityId: '10000000-0000-4000-8000-000000000099', subjectKey: 'a'.repeat(64), actorId: '019a154b-0000-7000-8000-000000000011', tenantId: binding.tenantId, organizationId: binding.organizationId}), verifyAssociation: () => {} }, administration: fixtureAdministration, clock: { monotonic: () => now, utc: () => ${clockBase} + now } };
+    const provider = fixtureDependencies.provider;`,
+    );
+    for (const [name, original] of [
+      ['account', 'createAccountSiteCaller(nativeConfiguration, globalThis.fetch)'],
+      ['native', 'createNativeSessionApi(nativeConfiguration, globalThis.fetch)'],
+    ])
+      launcher = replace(
+        launcher,
+        `      const ${name} = ${original};`,
+        `      const ${name} = fixtureDependencies.${name};`,
+      );
+    launcher = replace(
+      launcher,
+      `      const administration = createNativeAdministrationCaller(
+        nativeConfiguration,
+        globalThis.fetch,
+      );`,
+      '      const administration = fixtureDependencies.administration;',
+    );
+    launcher = replace(
+      launcher,
+      "        diagnostic: (reason) => console.warn('BFF session lifecycle', { reason }),",
+      "        diagnostic: (reason) => console.warn('BFF session lifecycle', { reason }),\n        clock: fixtureDependencies.clock,",
+    );
+    launcher = replace(
+      launcher,
+      '      ownShutdown(() => admission.shutdown());',
+      '      ownShutdown(() => admission.shutdown());\n      releaseProofRender();',
+    );
+  }
+  if (uiMode && !external) {
+    // Observe real native shutdown promises in this copied launcher only.
+    launcher = replace(
+      launcher,
+      '  let stopping = false;',
+      `  const proofShutdown = {kind: 'proof-shutdown', entered: false, watchdog: false,
+      listener: 'pending', next: 'pending', sessions: 'pending', requests: 'pending'};
+  const reportShutdown = (milestone) => {
+    let sample = [0, 0, 0, 0, 0];
+    try { sample = bffRequests?.proofCounts() ?? sample; } catch { control.requestStop('protocol-fault'); }
+    try { control.proof.emit({...proofShutdown, milestone, sample}); }
+    catch { control.requestStop('protocol-fault'); }
+  };
+  const observeShutdownJoin = (key, promise) => {
+    void Promise.resolve(promise).then(
+      () => { proofShutdown[key] = 'fulfilled'; reportShutdown(key); },
+      () => { proofShutdown[key] = 'rejected'; reportShutdown(key); },
+    );
+    return promise;
+  };
+  let stopping = false;`,
+    );
+    launcher = replace(
+      launcher,
+      '    stopping = true;\n    shutdownPromise = Promise.resolve().then(async () => {',
+      `    stopping = true;
+    proofShutdown.entered = true; reportShutdown('entered');
+    shutdownPromise = Promise.resolve().then(async () => {`,
+    );
+    launcher = replace(
+      launcher,
+      '      ownShutdown(() => bffRequests.stop());',
+      "      ownShutdown(() => observeShutdownJoin('requests', bffRequests.stop()));",
+    );
+    launcher = replace(
+      launcher,
+      '      ownShutdown(() => bffSessions.stop());',
+      "      ownShutdown(() => observeShutdownJoin('sessions', bffSessions.stop()));",
+    );
+    launcher = replace(
+      launcher,
+      'new Promise((resolve, reject) =>\n              server.close((error) => (error ? reject(error) : resolve())),\n            ),',
+      "observeShutdownJoin('listener', new Promise((resolve, reject) =>\n              server.close((error) => (error ? reject(error) : resolve())),\n            )),",
+    );
+    launcher = replace(
+      launcher,
+      'if (app) ownShutdown(() => app.close());',
+      "if (app) ownShutdown(() => observeShutdownJoin('next', app.close()));",
+    );
+  }
+  if (isolatedProtocol) {
+    // Only the physical test listener changes. Logical Host/origin, ingress,
+    // Next's configured port, TLS and all production admission remain intact.
+    launcher = replace(
+      launcher,
+      "server.listen(PUBLIC_HTTPS_PORT, '127.0.0.1', () => {",
+      "server.listen(0, '127.0.0.1', () => {",
+    );
+    launcher = replace(
+      launcher,
+      'address.port !== PUBLIC_HTTPS_PORT',
+      '!Number.isInteger(address.port) || address.port < 1 || address.port > 65535',
+    );
+    launcher = replace(
+      launcher,
+      "if (!ready) throw new Error('Public HTTPS listener failed');",
+      "if (!ready) throw new Error('Public HTTPS listener failed');\n              control.proof.emit({ kind: 'proof-listener', port: address.port });",
+    );
+  }
+  return launcher;
+}
+
 export async function startBffProof({
   owner,
   root,
@@ -161,6 +358,7 @@ export async function startBffProof({
       privateValues,
       cookieCanaries,
       scanners,
+      profile: external ? 'none' : 'bff',
     });
   }
   function get(path, cookie, extra = {}) {
@@ -299,7 +497,7 @@ export async function startBffProof({
   for (const name of ['tailwind.config.ts', 'postcss.config.cjs'])
     cpSync(join(source, name), join(app, name));
   cpSync(join(source, 'scripts/development-hmr.mjs'), join(app, 'scripts/development-hmr.mjs'));
-  prepareFrameworkProof({ sourceApp: source, app });
+  prepareFrameworkProof({ sourceApp: source, app, profile: external ? 'none' : 'bff' });
   file(
     join(app, 'package.json'),
     JSON.stringify({
@@ -418,144 +616,24 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
     const history = join(app, 'src/components/auth/history.ts');
     file(history, replace(readFileSync(history, 'utf8'), 'location.reload()', 'void 0'));
   }
-  let launcher = readFileSync(join(source, 'scripts/public-server-runtime.mjs'), 'utf8');
-  if (mutation === 'diagnostics')
-    launcher = replace(
-      launcher,
-      "  process.env.NEXT_TRACE_SPAN_THRESHOLD_MS = '9007199254740991';",
-      '',
-    );
-  if (mutation === 'shutdown')
-    launcher = replace(launcher, 'process.exit(failed ? 1 : 0)', 'process.exit(1)');
-  if (!external) {
-    launcher = replace(
-      launcher,
-      "import { BffConfigurationError, bffConfiguration } from '../.server/auth/configuration.js';",
-      "import { BffConfigurationError, bffConfiguration } from '../.server/auth/configuration.js';\nimport { randomBytes } from 'node:crypto';",
-    );
-    launcher = replace(
-      launcher,
-      `    const dependencies = {
-      provider: createTenantProvider(bff, globalThis.fetch),
-      account: createAccountSiteCaller(nativeConfiguration, globalThis.fetch),
-      native: createNativeSessionApi(nativeConfiguration, globalThis.fetch),
-      administration: createNativeAdministrationCaller(nativeConfiguration, globalThis.fetch),
-      diagnostic: (reason) => console.warn('BFF session lifecycle', { reason }),
-    };`,
-      `    let now = 0; let refreshes = 0; let accounts = 0; const administrations = {};
-    let renderArmed = false; const renderWork = new Set();
-    const releaseRender = () => { renderArmed = false; for (const release of renderWork) release(); };
-    Object.defineProperty(globalThis, Symbol.for('learnstack.proof-render-gate'), {value: () => {
-      if (!renderArmed) return;
-      renderArmed = false;
-      const framework = globalThis[Symbol.for('@next/request-context')]?.get();
-      if (!framework || typeof framework.waitUntil !== 'function') throw new Error('Owned framework context absent');
-      let release; const work = new Promise(resolve => { release = resolve; });
-      renderWork.add(release); framework.waitUntil(work);
-      return work.finally(() => renderWork.delete(release));
-    }});
-    for (const event of ['disconnect', 'SIGINT', 'SIGTERM', 'exit']) process.once(event, releaseRender);
-    process.on('message', value => { if (value?.kind === 'render-control' && ['arm', 'release', 'status'].includes(value.action)) {
-      if (value.action === 'arm') { if (renderArmed || renderWork.size) throw new Error('Owned render already held'); renderArmed = true; }
-      if (value.action === 'release') releaseRender();
-      process.send?.({kind: 'render-state', held: renderWork.size, frames: bffRequests?.counts() ?? 0, snapshots: bffRequests?.snapshotCounts() ?? null});
-    }});
-    process.on('message', async value => { if (value && value.kind === 'advance' && [0, 60000, 901000].includes(value.milliseconds)) { now += value.milliseconds; await (await import('next/dist/trace/index.js')).flushAllTraces(); process.send?.({ kind: 'snapshot', now, refreshes, accounts, administrations: {...administrations} }); } });
-    const credentials = () => ({ accessToken: '${marker}', refreshToken: '${marker}', idToken: '${marker}', identity: { issuer: ${JSON.stringify(fakeIssuer)}, subject: 'owned-subject', actorId: '019a154b-0000-7000-8000-000000000011', tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null, displayLabel: 'Fixture account' }, accessExpiresAt: now + 900000, refreshExpiresAt: now + 3600000 });
-    const member = {membershipId: '019a154b-0000-7000-8000-000000000012', userId: '019a154b-0000-7000-8000-000000000011', organizationId: null, status: 'Active', displayName: 'Fixture member', preferredLocale: null, roleIds: ['019a154b-0000-7000-8000-000000000013'], version: '0'};
-    const role = {roleId: '019a154b-0000-7000-8000-000000000013', builtInKey: 'TenantAdmin', capabilityScope: 'Tenant', version: '0', grants: [{scope: 'Tenant', key: 'identity.membership.admin'}], adoptedReleaseVersion: 1, adoptedReleaseFingerprint: 'a'.repeat(64)};
-    const ownProfile = {displayName: 'Fixture member', preferredLocale: ${disabledOwnPreference ? "'fr'" : 'null'}, version: '0'};
-    const pageInfo = {nextCursor: null, previousCursor: null, hasNext: false, hasPrevious: false};
-    const success = (data, version = false) => ({kind: 'success', status: 200, data: structuredClone(data), etag: version ? '"' + data.version + '"' : null, location: null, replayed: false});
-    const fixtureAdministration = async (_token, binding, operation) => {
-      administrations[operation.kind] = (administrations[operation.kind] ?? 0) + 1;
-      switch (operation.kind) {
-        case 'getOwnCapabilities': return success({canReadTenantMembers: true, canReadOrganizationMembers: true, canWriteMemberProfiles: true, canManageMemberships: true, canReadRoles: true, canChangeRoleGrants: true, canAdoptRoleRelease: true, canWriteOwnProfile: true, canManageOrganizations: true});
-        case 'getOwnProfile': return success(ownProfile, true);
-        case 'listMemberships':
-        case 'listOrganizationMemberships': { if (${mutation === 'unavailable-pages'}) return {kind: 'transport-error'}; const {roleIds, version, ...item} = member; return success({items: [item], pageInfo}); }
-        case 'getMembership': return operation.id === member.membershipId ? success(member, true) : {kind: 'invalid-request'};
-        case 'listRoles': { const {grants, adoptedReleaseVersion, adoptedReleaseFingerprint, ...item} = role; return success({items: [item]}); }
-        case 'getRole': return operation.id === role.roleId ? success(role, true) : {kind: 'invalid-request'};
-        case 'getPermissions': return success({items: [{scope: 'Tenant', key: 'identity.membership.admin', labelKey: 'lockey_permission_identity_membership_admin', canGrant: true}], release: {version: 1, fingerprint: 'a'.repeat(64), tenantAdminDelta: []}});
-        case 'getOwnContexts': return success({items: [{tenantId: binding.tenantId, organizationId: binding.organizationId, tenantName: (${JSON.stringify(sites)}).find(site => site.host === binding.host).displayName, organizationName: null, entryOrigin: 'https://' + binding.host, canUseCurrentHost: true}], pageInfo});
-        case 'setOwnProfile': Object.assign(ownProfile, operation.profile); ownProfile.version = String(BigInt(ownProfile.version) + 1n); return success({version: ownProfile.version}, true);
-        case 'setMembershipProfile': if (operation.id !== member.membershipId) break; Object.assign(member, operation.profile); member.version = String(BigInt(member.version) + 1n); return success({version: member.version}, true);
-        case 'replaceMembershipRoles': if (operation.id !== member.membershipId) break; member.roleIds = [...operation.roleIds]; member.version = String(BigInt(member.version) + 1n); return success({version: member.version}, true);
-        case 'changeMembershipStatus': if (operation.id !== member.membershipId) break; member.status = operation.status; member.version = String(BigInt(member.version) + 1n); return success({version: member.version}, true);
-        case 'changeRoleGrants': if (operation.id !== role.roleId) break; role.grants = [...operation.grants]; role.version = String(BigInt(role.version) + 1n); return success({version: role.version}, true);
-        case 'adoptRoleManifest': if (operation.id !== role.roleId) break; role.adoptedReleaseVersion = operation.manifestVersion; role.adoptedReleaseFingerprint = operation.manifestFingerprint; role.version = String(BigInt(role.version) + 1n); return success({version: role.version}, true);
-      }
-      return {kind: 'invalid-request'};
-    };
-    const dependencies = { provider: { begin: async callbackUri => ({ transaction: { callbackUri, state: randomBytes(32).toString('base64url'), nonce: randomBytes(32).toString('base64url'), verifier: randomBytes(32).toString('base64url') }, redirectUrl: ${JSON.stringify(fakeIssuer + '/protocol/openid-connect/auth')} }), redeem: async () => credentials(), refresh: async () => { ++refreshes; return credentials(); }, logoutUrl: () => ${JSON.stringify(fakeLogout)} }, account: async (_token, binding) => { ++accounts; return ({ actorId: '019a154b-0000-7000-8000-000000000011', tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null, displayName: (${JSON.stringify(sites)}).find(site => site.host === binding.host).displayName }); }, native: { self: async () => ({state: 'active', association: {authorityId: '10000000-0000-4000-8000-000000000099', subjectKey: 'a'.repeat(64), actorId: '019a154b-0000-7000-8000-000000000011'}}), bootstrap: async () => {throw new Error('Unused fixture create');}, contexts: async (_token,binding) => ({items: [{tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null, tenantName: (${JSON.stringify(sites)}).find(site => site.host === binding.host).displayName, organizationName: null, entryOrigin: 'https://' + binding.host, canUseCurrentHost: true}], endCursor: null, hasNextPage: false}), admit: async (_token,binding) => ({authorityId: '10000000-0000-4000-8000-000000000099', subjectKey: 'a'.repeat(64), actorId: '019a154b-0000-7000-8000-000000000011', tenantId: binding.tenantId, organizationId: binding.organizationId}), verifyAssociation: () => {} }, administration: fixtureAdministration, clock: { monotonic: () => now, utc: () => ${clockBase} + now } };`,
-    );
-  }
-  if (uiMode && !external) {
-    // Diagnostic-only instrumentation in the private copied launcher. Observe the
-    // original promises, bounds and exits without acquiring shutdown authority.
-    launcher = replace(
-      launcher,
-      '  let stopping = false;',
-      `  const proofShutdown = {kind: 'proof-shutdown', entered: false, watchdog: false,
-      listener: 'pending', next: 'pending', sessions: 'pending', requests: 'pending'};
-  const reportShutdown = (milestone) => {
-    try {
-      let sample = null;
-      try { sample = bffRequests?.proofCounts() ?? null; } catch {}
-      if (process.connected) process.send({...proofShutdown, milestone, sample}, () => {});
-    } catch {}
-  };
-  const observeShutdownJoin = (key, promise) => {
-    void Promise.resolve(promise).then(
-      () => { proofShutdown[key] = 'fulfilled'; reportShutdown(key); },
-      () => { proofShutdown[key] = 'rejected'; reportShutdown(key); },
-    );
-    return promise;
-  };
-  let stopping = false;`,
-    );
-    launcher = replace(
-      launcher,
-      '    stopping = true;',
-      "    stopping = true; proofShutdown.entered = true; reportShutdown('entered');",
-    );
-    launcher = replace(
-      launcher,
-      '    const requestsStopped = bffRequests?.stop();',
-      "    const requestsStopped = observeShutdownJoin('requests', bffRequests?.stop());",
-    );
-    launcher = replace(
-      launcher,
-      '    const sessionsStopped = bffSessions?.stop();',
-      "    const sessionsStopped = observeShutdownJoin('sessions', bffSessions?.stop());",
-    );
-    launcher = replace(
-      launcher,
-      "    const deadline = setTimeout(() => {\n      console.error('Public server shutdown failed');",
-      "    const deadline = setTimeout(() => {\n      proofShutdown.watchdog = true; reportShutdown('watchdog');\n      console.error('Public server shutdown failed');",
-    );
-    launcher = replace(
-      launcher,
-      '    server.closeAllConnections();',
-      "    observeShutdownJoin('listener', closed);\n    server.closeAllConnections();",
-    );
-    launcher = replace(
-      launcher,
-      '      app.close(),',
-      "      observeShutdownJoin('next', app.close()),",
-    );
-  }
-  if (isolatedProtocol) {
-    // Only the physical test listener changes. Logical Host/origin, ingress,
-    // Next's configured port, TLS and all production admission remain intact.
-    launcher = replace(
-      launcher,
-      "server.listen(PUBLIC_HTTPS_PORT, '127.0.0.1', () => {",
-      "server.listen(0, '127.0.0.1', () => { const address = server.address(); if (!address || typeof address === 'string') throw new Error('Owned listener address absent'); process.send({kind: 'proof-listener', port: address.port});",
-    );
-  }
-  file(join(app, 'scripts/public-server-runtime.mjs'), launcher);
+  file(
+    join(app, 'scripts/public-server-runtime.mjs'),
+    instrumentCopiedBffRuntime(
+      readFileSync(join(source, 'scripts/public-server-runtime.mjs'), 'utf8'),
+      {
+        mutation,
+        external,
+        uiMode,
+        isolatedProtocol,
+        disabledOwnPreference,
+        fakeIssuer,
+        fakeLogout,
+        sites,
+        marker,
+        clockBase,
+      },
+    ),
+  );
   execFileSync(
     'openssl',
     [
@@ -685,31 +763,31 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
     devMode ? { ...env, NODE_ENV: 'development' } : env,
     true,
   );
-  if (uiMode && !external) server.shutdown = observeBffProofShutdown(server.process);
+  if (uiMode && !external) server.shutdown = observeBffProofShutdown(server.proofChannel);
   const advance = (milliseconds) =>
     new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('owned IPC deadline')), 5000);
-      server.process.once('message', (snapshot) => {
+      server.proofChannel.once('message', (snapshot) => {
         clearTimeout(timer);
         if (snapshot?.kind !== 'snapshot') reject(new Error('owned IPC shape'));
         else resolve(snapshot);
       });
-      server.process.send({ kind: 'advance', milliseconds });
+      server.broker.send({ kind: 'advance', milliseconds });
     });
   const renderControl = (action) =>
     new Promise((resolve, reject) => {
       assert.ok(['arm', 'release', 'status'].includes(action));
       const timer = setTimeout(() => reject(new Error('owned render IPC deadline')), 5000);
-      server.process.once('message', (state) => {
+      server.proofChannel.once('message', (state) => {
         clearTimeout(timer);
         if (state?.kind !== 'render-state') reject(new Error('owned render IPC shape'));
         else resolve(state);
       });
-      server.process.send({ kind: 'render-control', action });
+      server.broker.send({ kind: 'render-control', action });
     });
   if (isolatedProtocol) {
     try {
-      listenerPort = await waitForBffProofListener(server.process);
+      listenerPort = await waitForBffProofListener(server.proofChannel);
     } catch (error) {
       const detail = bffListenerFailureDetail(error);
       if (detail)
@@ -723,6 +801,7 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
       assert.ok(Date.now() < until, 'listener startup deadline');
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
+    assert.ok(server.broker.capture.family(), 'Native runtime family captured before readiness');
   }
   return { app, server, advance, renderControl, get, scanners, cookieCanaries };
 }

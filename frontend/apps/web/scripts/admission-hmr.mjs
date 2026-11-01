@@ -38,7 +38,8 @@ export default async function HmrAdmissionProbe() {
   try {
     writeFileSync(path, page('admission-hmr-before'));
     child = await startNative(true);
-    const pid = child.pid;
+    const family = child.runtimeBroker?.capture.family();
+    assert.ok(family, 'Development runtime family captured before HMR');
     await checkpoint('hmr-before');
     stage = 'hmr-initial-request';
     const before = await call('/' + configuration.locale + '/courses');
@@ -77,7 +78,11 @@ export default async function HmrAdmissionProbe() {
       after.body.includes(configuration.tenants[0].name + ' HMR refresh'),
       'HMR reads the changed live API site instead of retaining the old snapshot',
     );
-    assert.equal(child.pid, pid, 'Both renders use the same native development process');
+    assert.deepEqual(
+      child.runtimeBroker.capture.family(),
+      family,
+      'Both renders use the same native development incarnation',
+    );
     assert.equal(child.exitCode, null);
     stage = 'hmr-refresh-release';
     await assertReleased(child);

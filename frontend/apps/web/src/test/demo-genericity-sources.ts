@@ -328,6 +328,9 @@ function frameworkRequireOrigins(file: ts.SourceFile): Map<ts.Block | ts.SourceF
     'getuid',
     'ppid',
     'argv',
+    // Fixed native-parent verification and retained control diagnostics. These
+    // are concrete members, never a general process/builtin-loader exemption.
+    ...(provenanceControl ? ['kill', 'stderr'] : ['connected', 'send', 'kill']),
   ]);
   const calls: ts.CallExpression[] = [];
   visit(file, (node) => {
@@ -774,7 +777,7 @@ export function productionDemoSources(
           [path, 'd217cc042e967a01a245ed4d1915a068baa697498d4e2cf397032b195ec432eb'],
           [
             'frontend/apps/web/scripts/bff-proof-host.mjs',
-            '53dd634a77bce6c5219833fda92c9dba1b03fc78fd5c1c0986f0690ade102120',
+            '959dca0856687435d7876200346289c7482c6031f0beaa64520f56128e815669',
           ],
         ] as const
       ).some(([target, expected]) => {

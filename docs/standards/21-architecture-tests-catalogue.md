@@ -6513,8 +6513,10 @@ Prior receipts do not qualify subsequent source changes.
   native integration. **Kind:** structural, startup and behavioural.
 - **Test owner:** `frontend/apps/web/src/test/next-response-cleanup.test.ts`,
   `next-response-end-work.test.ts`, `next-response-maps.test.ts`,
-  `framework-provenance.test.ts`, `framework-install-hook.test.ts` and the
-  existing `backend/tests/LearnStack.Tests.Integration/TenancyIdentity/TenantBffSessionTests.cs`.
+  `framework-provenance.test.ts`, `framework-install-hook.test.ts`,
+  `framework-runtime-controls.test.ts`, `framework-owner-imports.test.ts`,
+  `framework-proof-relay.test.ts`, `demo-runtime-owner.test.ts` and the existing
+  `backend/tests/LearnStack.Tests.Integration/TenancyIdentity/TenantBffSessionTests.cs`.
   Parsed-copy and component controls do not replace initialized-router,
   supported-loader, native/browser or source-bound hosted qualification.
 - **Status:** **Registered** — the complete runtime/held-owner and qualification

@@ -11,6 +11,7 @@ import {
   realpathSync,
   symlinkSync,
   unlinkSync,
+  writeFileSync,
 } from 'node:fs';
 import { join, resolve } from 'node:path';
 
@@ -132,7 +133,78 @@ function isolateSDK({ sourceApp, app }) {
 }
 
 /** Link the qualified dependency guard; executable output is always produced in the copy. */
-export function prepareFrameworkProof({ sourceApp, app }) {
+function replaceOnce(source, needle, replacement) {
+  assert.equal(source.split(needle).length, 2, 'Copied proof source anchor must be unique');
+  return source.replace(needle, replacement);
+}
+
+function bindCopiedProof(app, profile) {
+  assert.ok(['none', 'ingress', 'admission', 'bff'].includes(profile), 'Closed copied profile');
+  const ownerPath = join(app, 'scripts/public-server.mjs');
+  let owner = readFileSync(ownerPath, 'utf8');
+  owner = replaceOnce(owner, 'let lease;', 'let lease;\nlet copiedProof;');
+  owner = replaceOnce(
+    owner,
+    '  prepareFrameworkNativeCache,',
+    '  prepareFrameworkNativeCache,\n  frameworkLeaseSnapshot,',
+  );
+  owner = replaceOnce(
+    owner,
+    '  // Copied-proof owner instrumentation is inserted before generation.',
+    `  // Copied-proof owner instrumentation is inserted before generation.
+  const { createCopiedParentProof } = await import('./framework-proof-relay.mjs');
+  copiedProof = createCopiedParentProof('${profile}');`,
+  );
+  owner = replaceOnce(
+    owner,
+    'buildFramework({ appRoot, mode, signal: startup.signal })',
+    'buildFramework({ appRoot, mode, signal: startup.signal, onLease: copiedProof.onLease, onFamily: copiedProof.onProducerFamily })',
+  );
+  owner = replaceOnce(
+    owner,
+    '    identity = verifyFrameworkBuild({ appRoot }).identity;',
+    '    identity = verifyFrameworkBuild({ appRoot }).identity;\n    copiedProof.onLease(frameworkLeaseSnapshot(identity, lease.record));',
+  );
+  owner = replaceOnce(
+    owner,
+    '    signal: startup.signal,\n  });',
+    '    signal: startup.signal,\n    proof: copiedProof,\n    onFamily: copiedProof.onRuntimeFamily,\n  });',
+  );
+  owner = replaceOnce(
+    owner,
+    '  try {\n    lease?.release();',
+    `  try {
+    await copiedProof?.close();
+    lease?.release();`,
+  );
+  writeFileSync(ownerPath, owner);
+
+  const childPath = join(app, 'scripts/public-runtime-child.mjs');
+  let child = readFileSync(childPath, 'utf8');
+  child = replaceOnce(
+    child,
+    '  // Copied-proof child instrumentation is inserted after admission.',
+    `  // Copied-proof child instrumentation is inserted after admission.
+  const { createCopiedChildProof } = await import('./framework-proof-relay.mjs');`,
+  );
+  child = replaceOnce(
+    child,
+    '  const control = await child.admit(framework);',
+    `  const control = await child.admit(framework, { proof: createCopiedChildProof('${profile}') });`,
+  );
+  if (profile === 'ingress')
+    child = replaceOnce(
+      child,
+      '  if (control) {\n    const { startPublicRuntime }',
+      `  if (control) {
+    const { installCopiedIngressBinding } = await import('./framework-proof-ingress-bind.mjs');
+    installCopiedIngressBinding(control.proof);
+    const { startPublicRuntime }`,
+    );
+  writeFileSync(childPath, child);
+}
+
+export function prepareFrameworkProof({ sourceApp, app, profile = 'none' }) {
   const dependencyScripts = resolve(sourceApp, '../../scripts');
   const fixtureScripts = resolve(app, '../../scripts');
   assert.notEqual(fixtureScripts, dependencyScripts, 'Proof output must be isolated');
@@ -148,8 +220,16 @@ export function prepareFrameworkProof({ sourceApp, app }) {
   } else symlinkSync(dependencyScripts, fixtureScripts, 'dir');
   mkdirSync(join(app, 'scripts'), { recursive: true });
   isolateSDK({ sourceApp, app });
-  for (const name of ['framework-build.mjs', 'public-server.mjs', 'ensure-routes-stub.mjs'])
+  for (const name of [
+    'framework-build.mjs',
+    'public-server.mjs',
+    'public-runtime-child.mjs',
+    'framework-proof-relay.mjs',
+    'framework-proof-ingress-bind.mjs',
+    'ensure-routes-stub.mjs',
+  ])
     copyFileSync(join(sourceApp, 'scripts', name), join(app, 'scripts', name));
+  bindCopiedProof(app, profile);
 }
 
 /** The supported producer verifies actual manager/package inputs before generation. */

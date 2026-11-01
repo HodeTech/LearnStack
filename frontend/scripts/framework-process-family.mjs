@@ -37,11 +37,16 @@ function groupPresent(group) {
 export async function runFrameworkProcessFamily(
   command,
   args,
-  { cwd, environment, stdio = 'inherit' } = {},
+  { cwd, environment, stdio = 'inherit', signal: abortSignal, onFamily } = {},
 ) {
   assertFrameworkProcessFamilySupport();
   if (command !== process.execPath || !['inherit', 'ignore'].includes(stdio))
     throw new FrameworkProcessFamilyError('command');
+  if (abortSignal !== undefined && !(abortSignal instanceof AbortSignal))
+    throw new FrameworkProcessFamilyError('signal');
+  if (abortSignal?.aborted) throw new FrameworkProcessFamilyError('failed');
+  if (onFamily !== undefined && typeof onFamily !== 'function')
+    throw new FrameworkProcessFamilyError('observer');
   return new Promise((resolve, reject) => {
     const nonce = randomBytes(16).toString('hex');
     const child = spawn(command, ['--import', PRELOAD, ...args], {
@@ -63,6 +68,7 @@ export async function runFrameworkProcessFamily(
     let ready = false;
     let requested;
     let observationFailed = false;
+    let observerWork = Promise.resolve();
     const sendRequest = () => {
       if (!requested || !ready || exited || !child.connected) return;
       try {
@@ -88,6 +94,8 @@ export async function runFrameworkProcessFamily(
     const interrupt = () => cancel('SIGINT');
     process.on('SIGTERM', terminate);
     process.on('SIGINT', interrupt);
+    abortSignal?.addEventListener('abort', terminate, { once: true });
+    if (abortSignal?.aborted) terminate();
     const inspect = () => {
       if (!closed) return;
       let present;
@@ -106,11 +114,17 @@ export async function runFrameworkProcessFamily(
         setTimeout(inspect, 10);
         return;
       }
-      process.removeListener('SIGTERM', terminate);
-      process.removeListener('SIGINT', interrupt);
-      if (fault || !ready || cancelled || code !== 0 || signal !== null)
-        reject(new FrameworkProcessFamilyError('failed'));
-      else resolve();
+      // The observer violated its synchronous contract, but its returned work
+      // still belongs to this owner. Neither a rejection nor group absence
+      // permits release while that work remains outstanding.
+      void observerWork.then(() => {
+        process.removeListener('SIGTERM', terminate);
+        process.removeListener('SIGINT', interrupt);
+        abortSignal?.removeEventListener('abort', terminate);
+        if (fault || !ready || cancelled || code !== 0 || signal !== null)
+          reject(new FrameworkProcessFamilyError('failed'));
+        else resolve();
+      });
     };
     child.on('error', (error) => {
       fault ??= error;
@@ -128,6 +142,27 @@ export async function runFrameworkProcessFamily(
         return;
       }
       ready = true;
+      if (onFamily) {
+        try {
+          const result = onFamily(
+            Object.freeze({
+              pid: child.pid,
+              group: child.pid,
+              parentPid: process.pid,
+            }),
+          );
+          if (result !== undefined) {
+            observerWork = Promise.resolve(result).then(
+              () => {},
+              () => {},
+            );
+            throw new FrameworkProcessFamilyError('observer');
+          }
+        } catch (error) {
+          fault ??= error;
+          cancel('SIGTERM');
+        }
+      }
       sendRequest();
     });
     child.once('exit', () => {

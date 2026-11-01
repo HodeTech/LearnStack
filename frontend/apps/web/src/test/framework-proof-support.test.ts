@@ -45,17 +45,40 @@ beforeEach(() => {
     symlinkSync(dependency, join(sourceApp, 'node_modules', name), 'dir');
   }
 
-  for (const name of ['framework-build.mjs', 'public-server.mjs', 'ensure-routes-stub.mjs'])
-    writeFileSync(join(sourceApp, 'scripts', name), `// ${name}\n`);
+  for (const name of [
+    'framework-build.mjs',
+    'public-server.mjs',
+    'public-runtime-child.mjs',
+    'framework-proof-relay.mjs',
+    'framework-proof-ingress-bind.mjs',
+    'ensure-routes-stub.mjs',
+  ])
+    writeFileSync(
+      join(sourceApp, 'scripts', name),
+      ['public-server.mjs', 'public-runtime-child.mjs'].includes(name)
+        ? readFileSync(new URL(`../../scripts/${name}`, import.meta.url), 'utf8')
+        : `// ${name}\n`,
+    );
 });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
 
 it('copies the exact supported bootstrap/producer and links only qualified dependency scripts', () => {
   prepareFrameworkProof({ sourceApp, app });
-  for (const name of ['framework-build.mjs', 'public-server.mjs', 'ensure-routes-stub.mjs'])
+  for (const name of [
+    'framework-build.mjs',
+    'framework-proof-relay.mjs',
+    'framework-proof-ingress-bind.mjs',
+    'ensure-routes-stub.mjs',
+  ])
     expect(readFileSync(join(app, 'scripts', name), 'utf8')).toBe(
       readFileSync(join(sourceApp, 'scripts', name), 'utf8'),
     );
+  expect(readFileSync(join(app, 'scripts/public-server.mjs'), 'utf8')).toContain(
+    "createCopiedParentProof('none')",
+  );
+  expect(readFileSync(join(app, 'scripts/public-runtime-child.mjs'), 'utf8')).toContain(
+    "createCopiedChildProof('none')",
+  );
   expect(realpathSync(join(root, 'copy/frontend/scripts'))).toBe(
     realpathSync(join(root, 'source/frontend/scripts')),
   );

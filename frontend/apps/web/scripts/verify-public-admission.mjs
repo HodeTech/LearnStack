@@ -27,12 +27,16 @@ import {
   createPrivateScanner,
   fixtureEnvironment,
 } from './fixture-support.mjs';
+import { instrumentCopiedAdmissionRuntime } from './framework-proof-admission-source.mjs';
+import { createCopiedRuntimeHostBroker } from './framework-proof-host-broker.mjs';
 import { frameworkProofBuildArguments, prepareFrameworkProof } from './framework-proof-support.mjs';
+import { stopTestChild } from './stop-test-child.mjs';
 
 const sourceApp = fileURLToPath(new URL('../', import.meta.url));
 const owner = createFixtureOwner();
 const scanners = [];
 const pendingMessages = new Map();
+const runtimeBrokers = new WeakMap();
 let nextMessage = 0;
 let root;
 let app;
@@ -112,7 +116,15 @@ function start(command, args, dev = false, ipc = false) {
   Object.defineProperty(child, 'output', {
     get: () => outputs.map((scanner) => scanner.tail).join('\n'),
   });
-  child.on('message', (message) => {
+  const nativeRuntime = args[0] === join(app, 'scripts/public-server.mjs');
+  const broker = nativeRuntime
+    ? createCopiedRuntimeHostBroker(child, { app, profile: 'admission' })
+    : null;
+  if (broker) {
+    runtimeBrokers.set(child, broker);
+    child.runtimeBroker = broker;
+  }
+  (broker?.proof ?? child).on('message', (message) => {
     if (message?.kind === 'shutdown') child.shutdownCounts = message.counts;
     else if (message?.id) pendingMessages.get(child)?.get(message.id)?.(message);
   });
@@ -141,7 +153,10 @@ async function control(child, op, value) {
   }
   try {
     const result = new Promise((resolve) => messages.set(id, resolve));
-    child.send({ id, op, value });
+    const command = value === undefined ? { id, op } : { id, op, value };
+    const broker = runtimeBrokers.get(child);
+    if (broker) broker.send(command);
+    else child.send(command);
     return await bounded(result, 10_000, 'Native observation deadline');
   } finally {
     messages.delete(id);
@@ -233,7 +248,12 @@ async function startNative(dev = false) {
     if (/Public HTTPS listener ready on 127\.0\.0\.1:3000/.test(child.output)) {
       try {
         const health = await call('/api/healthz');
-        if (health.status === 200 && JSON.parse(health.body).status === 'healthy') return child;
+        if (
+          health.status === 200 &&
+          JSON.parse(health.body).status === 'healthy' &&
+          runtimeBrokers.get(child)?.capture.family()
+        )
+          return child;
       } catch {
         /* Only the exempt readiness request is retried. */
       }
@@ -252,6 +272,7 @@ async function stopNative(child, signal = 'SIGTERM') {
   assert.equal(child.exitCode, null, 'Native server remains live before shutdown');
   child.kill(signal);
   assert.equal(await completion(child, 10_000), 0, 'Native shutdown without escalation');
+  await stopTestChild(child);
   empty(child.shutdownCounts);
   pendingMessages.delete(child);
 }
@@ -320,92 +341,7 @@ function instrumentCopy() {
   // IPC-only observations in this disposable app. No diagnostic route, DTO,
   // binding, envelope or secret is sent to the parent or added to production.
   const launcher = join(app, 'scripts/public-server-runtime.mjs');
-  replaceOnce(
-    launcher,
-    'import { installPublicAdmissionRuntime }',
-    "import { createNativeCompletionObserver } from './admission-completion.mjs';\nimport { createPublicAdmissionRuntime, installPublicAdmissionRuntime }",
-  );
-  replaceOnce(
-    launcher,
-    '  const admission = installPublicAdmissionRuntime(bff.enabled);',
-    `  const admission = installPublicAdmissionRuntime(bff.enabled);
-  const completions = createNativeCompletionObserver();
-  const snapshotIds = new WeakMap();
-  let snapshotsSeen = 0;
-  let reads = 0;
-  let immutable = true;
-  let lateRefused = 0;
-  let lateAccepted = 0;
-  let finishLate;
-  const originalOrigin = process.env.LEARNSTACK_PUBLIC_API_ORIGIN;
-  const fixture = {
-    mode: 'normal', finished: Promise.resolve(),
-    record(site) {
-      reads++;
-      if (!snapshotIds.has(site)) snapshotIds.set(site, ++snapshotsSeen);
-      immutable &&= Object.isFrozen(site) && Object.isFrozen(site.enabledLocales)
-        && (site.theme === null || Object.isFrozen(site.theme));
-      const name = site.displayName;
-      const locale = site.enabledLocales[0];
-      try { site.displayName = 'fixture mutation'; } catch {}
-      try { site.enabledLocales[0] = 'fixture mutation'; } catch {}
-      immutable &&= site.displayName === name && site.enabledLocales[0] === locale;
-      if (site.theme !== null) {
-        const primary = site.theme.primary;
-        try { site.theme.primary = 'fixture mutation'; } catch {}
-        immutable &&= site.theme.primary === primary;
-      }
-    },
-    late(refused) { if (refused) lateRefused++; else lateAccepted++; }
-  };
-  Object.defineProperty(globalThis, Symbol.for('learnstack.fixture.admission'), { value: fixture });
-  Object.defineProperty(globalThis, Symbol.for('learnstack.fixture.duplicate'), {
-    value: createPublicAdmissionRuntime().holder, writable: false, enumerable: false, configurable: false
-  });
-  process.on('message', async (message) => {
-    if (!message || !Number.isInteger(message.id)) return;
-    if (message.op === 'mode') {
-      if (!['normal','missing','mismatch','duplicate','late','configuration','wrong-status'].includes(message.value)) return;
-      fixture.mode = message.value;
-      process.env.LEARNSTACK_PUBLIC_API_ORIGIN = message.value === 'configuration' ? 'invalid' : originalOrigin;
-      if (message.value === 'late') fixture.finished = new Promise((resolve) => { finishLate = resolve; });
-    } else if (!['observe', 'settled'].includes(message.op)) return;
-    if (message.op === 'settled') await completions.settled();
-    process.send?.({ id: message.id, ...admission.counts(), snapshotsSeen, reads, immutable, lateRefused, lateAccepted });
-  });`,
-  );
-  replaceOnce(
-    launcher,
-    '      if (!binding) return refuseIngress(response);',
-    `      if (!binding) return refuseIngress(response);
-      if (fixture.mode === 'late') response.once('finish', () => finishLate?.());`,
-  );
-  replaceOnce(
-    launcher,
-    `.then(() =>
-          admission.run(binding, request, response, () =>
-            bffRequests
-              ? bffRequests.run(binding, request, response, () => handle(request, response))
-              : handle(request, response),
-          ),
-        )`,
-    `.then(() => fixture.mode === 'missing'
-          ? handle(request, response)
-          : admission.run(fixture.mode === 'mismatch' ? { ...binding, target: '/mismatch' } : binding,
-              request, response, () => {
-                completions.track(response);
-                return bffRequests
-                  ? bffRequests.run(binding, request, response, () => handle(request, response))
-                  : handle(request, response);
-              }))`,
-  );
-  replaceOnce(
-    launcher,
-    '    stopping = true;\n    admission.shutdown();',
-    `    stopping = true;
-    admission.shutdown();
-    await new Promise((resolve) => process.send?.({ kind: 'shutdown', counts: admission.counts() }, resolve));`,
-  );
+  writeFileSync(launcher, instrumentCopiedAdmissionRuntime(readFileSync(launcher, 'utf8')));
 
   writeFileSync(
     join(app, 'src/server/admission-fixture.ts'),
@@ -757,7 +693,7 @@ try {
     });
   }
   symlinkSync(join(sourceApp, 'node_modules'), join(app, 'node_modules'), 'dir');
-  prepareFrameworkProof({ sourceApp, app });
+  prepareFrameworkProof({ sourceApp, app, profile: 'admission' });
   instrumentCopy();
   stage = 'production build';
   const build = start(process.execPath, frameworkProofBuildArguments(app));

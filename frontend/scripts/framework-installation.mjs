@@ -912,6 +912,159 @@ function ownerState(root) {
     refuse('owner_state');
   return state;
 }
+
+function existingOwnerState(root) {
+  const state = safeOutput(root, '.framework-state');
+  const readers = safeOutput(state, 'readers');
+  for (const path of [state, readers]) {
+    const entry = lstatSync(path);
+    if (entry.uid !== process.getuid() || (entry.mode & 0o777) !== 0o700) refuse('runtime_owner');
+  }
+  if (canonical(ownerJSON(join(state, 'format.json'))) !== '{"format":1}') refuse('runtime_owner');
+  return state;
+}
+
+function ownerBytes(path) {
+  const entry = lstatSync(path);
+  if (
+    !entry.isFile() ||
+    entry.isSymbolicLink() ||
+    entry.nlink !== 1 ||
+    entry.uid !== process.getuid() ||
+    (entry.mode & 0o777) !== 0o600
+  )
+    refuse('runtime_owner');
+  return regularBytes(path, 4096);
+}
+
+function ownerJSON(path) {
+  try {
+    return JSON.parse(ownerBytes(path).toString('utf8'));
+  } catch (error) {
+    if (error instanceof FrameworkAdmissionError) throw error;
+    refuse('runtime_owner');
+  }
+}
+
+function leaseLocations(identity, record) {
+  return [
+    {
+      root: identity.frontendRoot,
+      path: join(identity.frontendRoot, '.framework-state/readers', record.nonce),
+      shared: true,
+    },
+    {
+      root: identity.appRoot,
+      path: join(identity.appRoot, '.framework-state/writer.json'),
+      shared: false,
+    },
+    {
+      root: packageRoot(identity.appRoot, '@learnstack/sdk'),
+      path: join(
+        packageRoot(identity.appRoot, '@learnstack/sdk'),
+        '.framework-state',
+        record.kind === 'production' ? `readers/${record.nonce}` : 'writer.json',
+      ),
+      shared: record.kind === 'production',
+    },
+  ];
+}
+
+function freezeData(value) {
+  if (value && typeof value === 'object') {
+    for (const child of Object.values(value)) freezeData(child);
+    Object.freeze(value);
+  }
+  return value;
+}
+
+// This is read-only launch evidence, never a lease/release capability. Private
+// copied proofs may observe it before a startup producer family is issued.
+export function frameworkLeaseSnapshot(identity, record) {
+  assertFrameworkProcessFamilySupport();
+  if (
+    !record ||
+    canonical(Object.keys(record).sort()) !== canonical(['format', 'kind', 'nonce', 'pid']) ||
+    record.format !== FRAMEWORK_FORMAT ||
+    !Number.isSafeInteger(record.pid) ||
+    record.pid <= 0 ||
+    !/^[0-9a-f]{32}$/.test(record.nonce ?? '') ||
+    !['build', 'native', 'production', 'development'].includes(record.kind)
+  )
+    refuse('runtime_owner');
+  const expected = `${canonical(record)}\n`;
+  const records = leaseLocations(identity, record).map(({ root, path, shared }) => {
+    const state = existingOwnerState(root);
+    if (
+      (shared && existsSync(join(state, 'writer.json'))) ||
+      (!shared && readdirSync(join(state, 'readers')).length)
+    )
+      refuse('runtime_owner');
+    const bytes = ownerBytes(path).toString('utf8');
+    if (bytes !== expected) refuse('runtime_owner');
+    return { root, path, bytes };
+  });
+  return freezeData({ record: { ...record }, records });
+}
+
+export function verifyFrameworkRuntimeChild({
+  appRoot,
+  frontendRoot = FRAMEWORK_FRONTEND_ROOT,
+  mode,
+  parentPid,
+  leaseNonce,
+} = {}) {
+  assertFrameworkProcessFamilySupport();
+  const assertParent = () => {
+    if (
+      !['production', 'development'].includes(mode) ||
+      !Number.isSafeInteger(parentPid) ||
+      parentPid <= 0 ||
+      parentPid !== process.ppid ||
+      parentPid === process.pid ||
+      !/^[0-9a-f]{32}$/.test(leaseNonce ?? '') ||
+      !process.connected ||
+      typeof process.send !== 'function'
+    )
+      refuse('runtime_parent');
+    try {
+      process.kill(parentPid, 0);
+      // detached spawn establishes leadership; Node has no getpgrp/getsid API.
+      // This only corroborates the current private group before native import.
+      process.kill(-process.pid, 0);
+    } catch {
+      refuse('runtime_parent');
+    }
+  };
+  assertParent();
+  const identity =
+    mode === 'production'
+      ? verifyFrameworkBuild({ appRoot, frontendRoot }).identity
+      : verifyFrameworkDevelopment({ appRoot, frontendRoot });
+  frameworkLeaseSnapshot(identity, {
+    format: FRAMEWORK_FORMAT,
+    pid: parentPid,
+    nonce: leaseNonce,
+    kind: mode,
+  });
+  const state = safeOutput(identity.appRoot, '.framework-state');
+  const cache = safeOutput(state, 'swc-native-cache');
+  const metadata = ownerJSON(join(state, 'native-cache.json'));
+  if (
+    canonical(Object.keys(metadata).sort()) !== canonical(['format', 'nonce', 'path', 'root']) ||
+    metadata.format !== 1 ||
+    metadata.root !== identity.appRoot ||
+    metadata.path !== '.framework-state/swc-native-cache' ||
+    !/^[0-9a-f]{32}$/.test(metadata.nonce ?? '')
+  )
+    refuse('native_cache_ownership');
+  const entry = lstatSync(cache);
+  if (entry.uid !== process.getuid() || (entry.mode & 0o777) !== 0o700)
+    refuse('native_cache_ownership');
+  distributionPaths(cache);
+  assertParent();
+  return freezeData({ identity, mode });
+}
 function resourceLease(root, record, shared) {
   const state = ownerState(root);
   const gate = join(state, 'gate');
@@ -1122,15 +1275,35 @@ export function prepareFrameworkNativeCache(identity, owner) {
   if (!existsSync(cache)) mkdirSync(cache, { mode: 0o700 });
   return cache;
 }
-async function runOwnedNode(script, args, { cwd, environment } = {}) {
+function assertProducerSignal(signal) {
+  if (signal !== undefined && !(signal instanceof AbortSignal)) refuse('producer_signal');
+  if (signal?.aborted) refuse('producer_cancelled');
+}
+
+async function producerBoundary(signal) {
+  assertProducerSignal(signal);
+  // Allow a queued owner signal to reach its already-installed latch before
+  // entering another synchronous mutation or issuing a new command family.
+  await new Promise((resolve) => setImmediate(resolve));
+  assertProducerSignal(signal);
+}
+
+async function runOwnedNode(script, args, { cwd, environment, signal, onFamily } = {}) {
+  await producerBoundary(signal);
   try {
-    await runFrameworkProcessFamily(process.execPath, [script, ...args], { cwd, environment });
+    await runFrameworkProcessFamily(process.execPath, [script, ...args], {
+      cwd,
+      environment,
+      signal,
+      onFamily,
+    });
   } catch {
     refuse('producer_failed');
   }
+  await producerBoundary(signal);
 }
 
-async function compileFrameworkNative(identity, producer, mode) {
+async function compileFrameworkNative(identity, producer, mode, signal, onFamily) {
   const sdkRoot = packageRoot(identity.appRoot, '@learnstack/sdk');
   const require = createRequire(join(identity.appRoot, 'package.json'));
   await runOwnedNode(join(sdkRoot, 'scripts/build-native.mjs'), [], {
@@ -1138,10 +1311,14 @@ async function compileFrameworkNative(identity, producer, mode) {
     environment: producerEnvironment(identity, mode, {
       LEARNSTACK_FRAMEWORK_PRODUCER_OWNER: producer.nonce,
     }),
+    signal,
+    onFamily,
   });
   await runOwnedNode(require.resolve('typescript/bin/tsc'), ['--project', 'tsconfig.server.json'], {
     cwd: identity.appRoot,
     environment: producerEnvironment(identity, mode),
+    signal,
+    onFamily,
   });
 }
 function finishFrameworkBuild(identity, manager, before) {
@@ -1245,6 +1422,16 @@ export function frameworkDevelopmentRestartGraph(identity) {
   assertQualifiedConfiguration(identity.appRoot, jsonFile(join(identity.appRoot, 'package.json')));
   assertQualifiedRouteLayout(identity.appRoot, { sourceRequired: true });
   const result = [];
+  result.push(
+    ...prefixed(
+      'app/scripts',
+      subjectFiles(join(identity.appRoot, 'scripts'), { extensions: CODE_EXTENSIONS }),
+    ),
+    ...prefixed(
+      'workspace/scripts',
+      subjectFiles(join(identity.frontendRoot, 'scripts'), { extensions: CODE_EXTENSIONS }),
+    ),
+  );
   for (const file of APP_CONFIG_FILES) result.push(...inputFile('app', identity.appRoot, file));
   for (const file of OPTIONAL_APP_CONFIG_FILES)
     result.push(...inputFile('app', identity.appRoot, file, true));
@@ -1268,34 +1455,60 @@ export async function produceFrameworkBuild({
   frontendRoot,
   mode = 'production',
   nativeOnly = false,
+  signal,
+  onLease,
+  onFamily,
 } = {}) {
+  assertProducerSignal(signal);
+  if (onLease !== undefined && typeof onLease !== 'function') refuse('producer_observer');
+  if (onFamily !== undefined && typeof onFamily !== 'function') refuse('producer_observer');
   if (!['production', 'development'].includes(mode)) refuse('producer_mode');
   const { identity, manager } = prepareFrameworkBuild({ appRoot, frontendRoot });
+  await producerBoundary(signal);
   const lease = acquireFrameworkLease({
     ...identity,
     kind: nativeOnly ? 'native' : mode === 'development' ? 'development' : 'build',
   });
   let failed = false;
   try {
+    if (onLease) {
+      const observed = onLease(frameworkLeaseSnapshot(identity, lease.record));
+      if (observed && typeof observed.then === 'function') {
+        // Unexpected asynchronous observation is a failure, but its issued
+        // work cannot be discarded merely because it violated the sync seam.
+        await Promise.resolve(observed).catch(() => {});
+        refuse('producer_observer');
+      }
+    }
+    await producerBoundary(signal);
     prepareFrameworkNativeCache(identity, lease.record);
+    await producerBoundary(signal);
     cleanFrameworkOutputs(identity, { nativeOnly, owner: lease.record });
     await runOwnedNode(join(identity.appRoot, 'scripts/ensure-routes-stub.mjs'), [], {
       cwd: identity.appRoot,
       environment: producerEnvironment(identity, mode),
+      signal,
+      onFamily,
     });
     const inputs = frameworkInputGraph(identity);
-    await compileFrameworkNative(identity, lease.record, mode);
+    await compileFrameworkNative(identity, lease.record, mode, signal, onFamily);
+    await producerBoundary(signal);
     const compiledIdentity = verifyFrameworkInstallation(identity);
     sameGraph(frameworkInputGraph(compiledIdentity), inputs);
+    await producerBoundary(signal);
     if (nativeOnly) return { identity, manager };
     if (mode === 'development') {
+      await producerBoundary(signal);
       initializeFrameworkDevelopment(identity, manager);
       return { identity, manager, lease };
     }
     await runOwnedNode(join(identity.nextRoot, 'dist/bin/next'), ['build'], {
       cwd: identity.appRoot,
       environment: producerEnvironment(identity, mode),
+      signal,
+      onFamily,
     });
+    await producerBoundary(signal);
     const manifest = finishFrameworkBuild(identity, manager, inputs);
     return { identity, manager, manifest };
   } catch (error) {

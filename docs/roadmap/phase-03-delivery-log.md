@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 5,514 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 5,583 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -237,7 +237,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0084 maintainer corrections and acceptance (2026-11-01)](#adr-0084-maintainer-corrections-and-acceptance-2026-11-01) — 37 lines
   - [ADR-0084 Step 1 review round 1 and existing protocol correction (2026-11-01)](#adr-0084-step-1-review-round-1-and-existing-protocol-correction-2026-11-01) — 33 lines
   - [ADR-0084 Step 1 review round 2 and disclosure correction (2026-11-01)](#adr-0084-step-1-review-round-2-and-disclosure-correction-2026-11-01) — 20 lines
-  - [ADR-0084 Step 1 review closeout and implementation plan (2026-11-01)](#adr-0084-step-1-review-closeout-and-implementation-plan-2026-11-01) — 27 lines
+  - [ADR-0084 Step 1 review closeout and implementation plan (2026-11-01)](#adr-0084-step-1-review-closeout-and-implementation-plan-2026-11-01) — 28 lines
+  - [ADR-0084 Step 2 implementation and integration checks (2026-11-01)](#adr-0084-step-2-implementation-and-integration-checks-2026-11-01) — 68 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -11295,3 +11296,72 @@ Commit the integrated Step 2 before fresh R1, verified correction and new R2.
 Step 3 then resumes ADR-0083's complete initialized runtime/public/browser and
 same-final-source hosted A followed by B, retaining all current bounds and
 negative witnesses. Manual accessibility remains deferred and unexecuted.
+
+
+### ADR-0084 Step 2 implementation and integration checks (2026-11-01)
+
+The Accepted runtime topology is implemented on `development`. This record starts
+Step 2's fresh independent reviews; it does not close them or qualify Step 3.
+ADR-0083 remains Accepted outside ADR-0084's named process boundary.
+
+**Ownership.** The public dev/start entry is a builtins-only owner. It keeps the
+frontend/app/SDK reservations, owns development generation and cache preparation,
+and starts one detached private runtime. The child independently checks its
+parent/channel/mode, unchanged records, current graph and cache metadata without
+claiming or mutating ownership. Its own-group signal-zero probe corroborates the
+created group; authenticated detached spawn supplies the provenance. The separate
+build entry and existing producer cancellation failure remain intact.
+
+The owner and child retain irreversible early-stop latches. Native startup
+registers partial shutdown before asynchronous setup, tracks actual imports,
+prepare and listen, and refuses later allocation/listen after stop. One original
+five-second watchdog starts at the first child stop. Admission closes before
+request/session/Next joins. The final runtime receipt preserves the actual child
+outcome and direct-close/group-absence evidence; no timeout or cached group signal
+releases reservations. Unexpected parent observer work remains joined. Unknown
+pre-HELLO traffic requests the exact child's authenticated abort without granting
+start or substituting exit for close.
+
+**Copied proofs and drivers.** Four literal source profiles retain their finite
+commands, counters, completion barrier and actual runtime incarnation. The host
+broker separates ownership frames from proof consumers and independently derives
+record locations. The shared guard's frontend reader lives in the verified guard
+workspace; app and SDK records remain copied. No message supplies deletion paths.
+Private reconciliation requires unchanged records and complete captured-family
+retirement. Missing evidence retains records/roots.
+
+Copied command work drains before terminal. BFF shutdown releases held render work
+at the native admission-stop boundary. Copied owners join projected IPC sends,
+close their host channel before release, and route unexpected host loss through
+their own early-stop latch. Production has no proof selector or relay. Demo's exact
+native launch uses a separate soft-only owner stop; other command cleanup retains
+its previous policy. Runtime fixture teardown has no two-second group-kill rescue.
+
+**Verification.** On Node 22.23.1 / pnpm 9.12.3, typecheck and lint pass. The full
+unchanged guarded frontend runner passes **3,479/3,479** cases across 105 files:
+3,331 web and 148 SDK; zero skips/todos and zero stderr, 89.410 seconds. Source
+hashes stay unchanged during the run. The 112-case provenance component passes
+inside its unchanged 30-second child/35-second wrapper limits. Twenty-one actual
+inert process controls, native inert-dependency/actual-TLS controls, all four
+copied import closures, finite relay/broker controls and original negative
+controls execute through the guarded suite. These remain distinct evidence kinds.
+
+Actual production UI and development BFF protocol paths also pass. A normal clean
+production build passes in 22.786 seconds with zero stderr. Independent verification
+binds 344 inputs and 128 generated files (2,392,888 bytes), manifest SHA-256
+`3404ee661b5887131b2a2fbfbf446f2c5f55f4a6581b99fa2f601b635ee7afcf`.
+The Next patch/census and accepted toolchain tuple are unchanged.
+
+Retained earlier red runs expose and close test environment typing, import order,
+new exact source-model members, copied helper exports, HMR incarnation fixtures
+and the shared-guard record-root error. The last error also has real before/after
+BFF startup evidence. No failed or incomplete run is counted as current proof;
+no test deadline, failure phase or authority boundary is weakened.
+
+**Next.** Commit this implementation, run fresh independent R1, fix verified
+findings and commit, then run new independent R2 and fix/commit its verified
+findings. Step 3 retains initialized pending-prepare/static-paths worker,
+owner-loss/recovery, complete framework/native/API/browser and same-final-source
+hosted A/B obligations. Local controls do not replace those proofs or promote
+`Next_Response_Cleanup_Is_Installed_And_Owned` beyond Registered. Manual
+accessibility remains maintainer-deferred and unexecuted.

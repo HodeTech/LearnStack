@@ -2,13 +2,16 @@
 // controls do not claim that a synthetic build manifest was produced by Next.
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { createServer, request } from 'node:http';
 import {
   cpSync,
   chmodSync,
   existsSync,
+  lstatSync,
+  linkSync,
   mkdirSync,
+  readdirSync,
   mkdtempSync,
   readFileSync,
   realpathSync,
@@ -21,7 +24,7 @@ import {
 import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
-import test from 'node:test';
+import nodeTest from 'node:test';
 import { protectFrameworkDevelopmentResponse } from './framework-development.mjs';
 import { runFrameworkMetadataControl } from './test-framework-metadata-contention.mjs';
 import { runFrameworkFamilyControl } from './test-framework-process-family.mjs';
@@ -33,11 +36,13 @@ import {
   FrameworkAdmissionError,
   frameworkDevelopmentRestartGraph,
   frameworkInputGraph,
+  frameworkLeaseSnapshot,
   frameworkOutputGraph,
   frameworkRuntimeEnvironment,
   pnpmPatchHash,
   prepareFrameworkBuild,
   prepareFrameworkNativeCache,
+  produceFrameworkBuild,
   resolveQualifiedPnpm,
   verifyFrameworkBuild,
   verifyFrameworkDevelopment,
@@ -82,6 +87,8 @@ const sourceCensus = JSON.parse(
   ),
 );
 const root = mkdtempSync(join(tmpdir(), 'learnstack-framework-provenance-'));
+let retainRoot = false;
+const activeRuntimeLaunches = new Set();
 const frontendRoot = join(root, 'frontend');
 const appRoot = join(frontendRoot, 'apps/web');
 const nextRoot = join(frontendRoot, 'node_modules/next');
@@ -147,6 +154,226 @@ put(join(appRoot, 'scripts/control.mjs'), 'export const control = true;\n');
 put(join(appRoot, 'src/server/control.ts'), 'export const control = true;\n');
 put(join(appRoot, 'src/app/page.tsx'), 'export default function Page() { return null; }\n');
 
+async function test(name, work) {
+  const result = await nodeTest(name, work);
+  if (retainRoot || activeRuntimeLaunches.size)
+    throw new Error('Provenance runtime ownership is uncertain; retained fixture cannot be reused');
+  return result;
+}
+function runtimeCleanup(work) {
+  if (!retainRoot && activeRuntimeLaunches.size === 0) work();
+}
+function copyRuntimeEntries() {
+  for (const name of ['public-server.mjs', 'public-runtime-child.mjs'])
+    copy(join(FRAMEWORK_FRONTEND_ROOT, 'apps/web/scripts', name), join(appRoot, 'scripts', name));
+}
+function removeRuntimeEntries() {
+  for (const name of ['public-server.mjs', 'public-runtime-child.mjs', 'public-server-runtime.mjs'])
+    unlinkSync(join(appRoot, 'scripts', name));
+}
+function inertRuntimeSource(marker, imported = '') {
+  return `import {writeFileSync} from 'node:fs'; import {createServer} from 'node:http';
+${imported || "const value = 'admitted';"}
+export async function startPublicRuntime(control) {
+  let server; let listening; let stopped;
+  control.registerShutdown(() => stopped ??= (async () => {
+    if (listening) await listening;
+    if (server?.listening) {
+      const closed = new Promise((resolve,reject) => server.close(error => error ? reject(error) : resolve()));
+      server.closeAllConnections(); await closed;
+    }
+  })());
+  if (control.stopRequested()) return;
+  server = createServer((_request,response) => response.end(value));
+  server.on('error', () => control.requestStop('listener-fault'));
+  listening = new Promise((resolve,reject) => {
+    server.once('error', reject);
+    server.listen(0,'127.0.0.1',() => {
+      if (!control.stopRequested()) {
+        if (!control.listenerReady(server)) return reject(new Error('Inert listener refused'));
+        writeFileSync(${JSON.stringify(marker)}, JSON.stringify({pid:process.pid,parentPid:process.ppid,port:server.address().port,value}));
+      }
+      resolve();
+    });
+  });
+  await listening;
+}
+`;
+}
+function ownerEnvironment(extra = {}) {
+  return { PATH: process.env.PATH, NODE_ENV: 'production', NEXT_TELEMETRY_DISABLED: '1', ...extra };
+}
+function refusedOwner(args = [], environment = {}) {
+  const child = spawnSync(process.execPath, [...args, 'scripts/public-server.mjs'], {
+    cwd: appRoot,
+    encoding: 'utf8',
+    timeout: 10_000,
+    env: ownerEnvironment(environment),
+  });
+  if (child.error || child.signal || child.status === null) retainRoot = true;
+  return child;
+}
+function familyAbsent(pid) {
+  try {
+    process.kill(-pid, 0);
+    return false;
+  } catch (error) {
+    if (error.code === 'ESRCH') return true;
+    throw error;
+  }
+}
+async function until(predicate, failure, timeout = 10_000) {
+  const deadline = Date.now() + timeout;
+  while (!predicate()) {
+    if (failure?.()) throw new Error('Runtime control exited before its expected observation');
+    if (Date.now() >= deadline) throw new Error('Runtime control observation deadline exceeded');
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+}
+function runtimeProcess(entry, options = {}) {
+  const child = spawn(process.execPath, [entry], {
+    cwd: appRoot,
+    env: ownerEnvironment(),
+    stdio: ['ignore', 'pipe', 'pipe'],
+    ...options,
+  });
+  activeRuntimeLaunches.add(child);
+  let stdout = '';
+  let stderr = '';
+  let result;
+  child.stdout.on('data', (bytes) => {
+    stdout += bytes;
+  });
+  child.stderr.on('data', (bytes) => {
+    stderr += bytes;
+  });
+  child.once('error', () => {
+    retainRoot = true;
+  });
+  const closed = new Promise((resolve) =>
+    child.once('close', (code, signal) => {
+      result = { code, signal };
+      resolve(result);
+    }),
+  );
+  return { child, closed, result: () => result, stderr: () => stderr, stdout: () => stdout };
+}
+async function actualHttp(marker, expectedParent) {
+  const observed = JSON.parse(readFileSync(marker, 'utf8'));
+  assert.equal(observed.parentPid, expectedParent);
+  assert.equal(Number.isSafeInteger(observed.pid) && observed.pid > 0, true);
+  assert.equal(
+    Number.isInteger(observed.port) && observed.port > 0 && observed.port <= 65535,
+    true,
+  );
+  const response = await new Promise((resolve, reject) => {
+    const call = request(
+      { host: '127.0.0.1', port: observed.port, path: '/', agent: false },
+      (response) => {
+        let body = '';
+        response.setEncoding('utf8');
+        response.on('data', (bytes) => {
+          body += bytes;
+        });
+        response.once('end', () => resolve({ status: response.statusCode, body }));
+        response.once('error', reject);
+      },
+    );
+    call.once('error', reject);
+    call.end();
+  });
+  assert.deepEqual(response, { status: 200, body: 'admitted' });
+  assert.equal(observed.value, 'admitted');
+  return observed;
+}
+async function gracefulOwner(marker) {
+  const launch = runtimeProcess('scripts/public-server.mjs');
+  let runtime;
+  try {
+    await until(() => existsSync(marker), launch.result);
+    runtime = await actualHttp(marker, launch.child.pid);
+    assert.equal(launch.result(), undefined);
+    assert.equal(launch.child.kill('SIGTERM'), true);
+    await until(launch.result);
+    assert.deepEqual(await launch.closed, { code: 0, signal: null }, launch.stderr());
+    assert.equal(familyAbsent(runtime.pid), true);
+    activeRuntimeLaunches.delete(launch.child);
+    return runtime;
+  } catch (error) {
+    retainRoot = true;
+    if (!launch.result()) launch.child.kill('SIGTERM');
+    throw error;
+  }
+}
+function metadataSnapshot() {
+  const entries = [];
+  function visit(path) {
+    const entry = lstatSync(path);
+    assert.equal(entry.isSymbolicLink(), false);
+    entries.push({
+      path,
+      mode: entry.mode & 0o777,
+      links: entry.nlink,
+      bytes: entry.isFile() ? hash(readFileSync(path)) : null,
+    });
+    if (entry.isDirectory()) for (const name of readdirSync(path).sort()) visit(join(path, name));
+  }
+  for (const base of [frontendRoot, appRoot, join(frontendRoot, 'packages/sdk')])
+    visit(join(base, '.framework-state'));
+  return entries;
+}
+async function privateRuntime(record, marker, overrides = {}, ipc = true, detached = true) {
+  const challenge = randomBytes(16).toString('hex');
+  const launch = runtimeProcess('scripts/public-runtime-child.mjs', {
+    detached,
+    env: {
+      ...frameworkRuntimeEnvironment(controlIdentity, record.kind),
+      LEARNSTACK_RUNTIME_CHALLENGE: challenge,
+      LEARNSTACK_RUNTIME_PARENT: String(process.pid),
+      LEARNSTACK_RUNTIME_MODE: record.kind,
+      LEARNSTACK_RUNTIME_LEASE_NONCE: record.nonce,
+      LEARNSTACK_RUNTIME_INCARNATION: randomBytes(16).toString('hex'),
+      ...overrides,
+    },
+    stdio: ipc ? ['ignore', 'pipe', 'pipe', 'ipc'] : ['ignore', 'pipe', 'pipe'],
+  });
+  let ready = false;
+  let handshake = false;
+  launch.child.on('message', (message) => {
+    assert.equal(message.tag, 'learnstack-runtime-v1');
+    assert.equal(message.challenge, challenge);
+    if (message.kind === 'hello') {
+      assert.equal(message.pid, launch.child.pid);
+      assert.equal(message.parentPid, process.pid);
+      handshake = true;
+      launch.child.send({ tag: message.tag, kind: 'start', challenge });
+    } else if (message.kind === 'ready') ready = true;
+  });
+  try {
+    await until(() => launch.result() || (ready && existsSync(marker)));
+    if (ready) {
+      const runtime = await actualHttp(marker, process.pid);
+      assert.equal(runtime.pid, launch.child.pid);
+      launch.child.send({ tag: 'learnstack-runtime-v1', kind: 'stop', challenge, reason: 'abort' });
+    }
+    await until(launch.result);
+    const result = await launch.closed;
+    if (detached) await until(() => familyAbsent(launch.child.pid));
+    else {
+      // This negative created no child-led group. It must refuse before the
+      // private handshake/runtime import; its PID is not a family handle.
+      assert.equal(result.code, 1);
+      assert.equal(handshake, false);
+      assert.equal(ready, false);
+    }
+    activeRuntimeLaunches.delete(launch.child);
+    return { ...result, ready, handshake, stderr: launch.stderr() };
+  } catch (error) {
+    retainRoot = true;
+    if (!launch.result()) launch.child.kill('SIGTERM');
+    throw error;
+  }
+}
 function identity() {
   return verifyFrameworkInstallation({ appRoot, frontendRoot });
 }
@@ -480,32 +707,23 @@ try {
     }
   });
   await test('the actual native bootstrap rejects old output identity before runtime import', () => {
-    copy(
-      join(FRAMEWORK_FRONTEND_ROOT, 'apps/web/scripts/public-server.mjs'),
-      join(appRoot, 'scripts/public-server.mjs'),
-    );
+    copyRuntimeEntries();
     const marker = join(root, 'runtime-imported');
-    put(
-      join(appRoot, 'scripts/public-server-runtime.mjs'),
-      `import {writeFileSync} from 'node:fs'; writeFileSync(${JSON.stringify(marker)}, 'incorrect');\n`,
-    );
+    put(join(appRoot, 'scripts/public-server-runtime.mjs'), inertRuntimeSource(marker));
     const before = readFileSync(join(appRoot, '.next/framework-build.json'));
     const old = JSON.parse(before);
     old.identity.censusSha256 = '0'.repeat(64);
     put(join(appRoot, '.next/framework-build.json'), old);
     try {
-      const child = spawnSync(process.execPath, ['scripts/public-server.mjs'], {
-        cwd: appRoot,
-        encoding: 'utf8',
-        timeout: 10_000,
-      });
+      const child = refusedOwner();
       assert.equal(child.status, 1);
       assert.match(child.stderr, /Framework admission refused: build_manifest/);
       assert.equal(existsSync(marker), false);
     } finally {
-      unlinkSync(join(appRoot, 'scripts/public-server.mjs'));
-      unlinkSync(join(appRoot, 'scripts/public-server-runtime.mjs'));
-      writeFileSync(join(appRoot, '.next/framework-build.json'), before);
+      runtimeCleanup(() => {
+        removeRuntimeEntries();
+        writeFileSync(join(appRoot, '.next/framework-build.json'), before);
+      });
     }
   });
   await test('optional executed ESLint configuration presence and bytes are bound', () => {
@@ -1049,31 +1267,20 @@ try {
       else process.env.BROWSERSLIST = old;
     }
   });
-  await test('unchanged native bootstrap refuses root routes and imported helper drift before its marker', () => {
+  await test('unchanged native bootstrap refuses root routes and imported helper drift before its marker', async () => {
     const previousManifest = readFileSync(join(appRoot, '.next/framework-build.json'));
-    copy(
-      join(FRAMEWORK_FRONTEND_ROOT, 'apps/web/scripts/public-server.mjs'),
-      join(appRoot, 'scripts/public-server.mjs'),
-    );
+    copyRuntimeEntries();
     const marker = join(root, 'route-runtime-imported');
     const helper = join(appRoot, 'src/test/runtime-helper.mjs');
     put(helper, "export const value='admitted';\n");
     put(
       join(appRoot, 'scripts/public-server-runtime.mjs'),
-      `import {writeFileSync} from 'node:fs';import {value} from '../src/test/runtime-helper.mjs';` +
-        `writeFileSync(${JSON.stringify(marker)},value);\n`,
+      inertRuntimeSource(marker, "import {value} from '../src/test/runtime-helper.mjs';"),
     );
     buildControlManifest();
-    const run = () =>
-      spawnSync(process.execPath, ['scripts/public-server.mjs'], {
-        cwd: appRoot,
-        encoding: 'utf8',
-        timeout: 10_000,
-      });
+    const run = () => refusedOwner();
     try {
-      const baseline = run();
-      assert.equal(baseline.status, 0, baseline.stderr);
-      assert.equal(readFileSync(marker, 'utf8'), 'admitted');
+      await gracefulOwner(marker);
       unlinkSync(marker);
       const manifest = readFileSync(join(appRoot, '.next/framework-build.json'));
       for (const name of [
@@ -1112,11 +1319,12 @@ try {
         }
       }
     } finally {
-      unlinkSync(join(appRoot, 'scripts/public-server.mjs'));
-      unlinkSync(join(appRoot, 'scripts/public-server-runtime.mjs'));
-      unlinkSync(helper);
-      if (existsSync(marker)) unlinkSync(marker);
-      writeFileSync(join(appRoot, '.next/framework-build.json'), previousManifest);
+      runtimeCleanup(() => {
+        removeRuntimeEntries();
+        unlinkSync(helper);
+        if (existsSync(marker)) unlinkSync(marker);
+        writeFileSync(join(appRoot, '.next/framework-build.json'), previousManifest);
+      });
     }
   });
   for (const name of [
@@ -1154,16 +1362,10 @@ try {
   }
   await test('native bootstrap rejects a shadow config before application or config evaluation', () => {
     const previousManifest = readFileSync(join(appRoot, '.next/framework-build.json'));
-    copy(
-      join(FRAMEWORK_FRONTEND_ROOT, 'apps/web/scripts/public-server.mjs'),
-      join(appRoot, 'scripts/public-server.mjs'),
-    );
+    copyRuntimeEntries();
     const marker = join(root, 'shadow-config-evaluated');
     const runtimeMarker = join(root, 'shadow-runtime-imported');
-    put(
-      join(appRoot, 'scripts/public-server-runtime.mjs'),
-      `import {writeFileSync} from 'node:fs'; writeFileSync(${JSON.stringify(runtimeMarker)}, 'incorrect');\n`,
-    );
+    put(join(appRoot, 'scripts/public-server-runtime.mjs'), inertRuntimeSource(runtimeMarker));
     buildControlManifest();
     verifyFrameworkBuild({ appRoot, frontendRoot });
     const shadow = join(appRoot, 'next.config.mjs');
@@ -1172,20 +1374,17 @@ try {
       `import {writeFileSync} from 'node:fs'; writeFileSync(${JSON.stringify(marker)}, 'incorrect'); export default {};\n`,
     );
     try {
-      const child = spawnSync(process.execPath, ['scripts/public-server.mjs'], {
-        cwd: appRoot,
-        encoding: 'utf8',
-        timeout: 10_000,
-      });
+      const child = refusedOwner();
       assert.equal(child.status, 1);
       assert.match(child.stderr, /Framework admission refused: configuration_variant/);
       assert.equal(existsSync(marker), false);
       assert.equal(existsSync(runtimeMarker), false);
     } finally {
-      unlinkSync(shadow);
-      unlinkSync(join(appRoot, 'scripts/public-server.mjs'));
-      unlinkSync(join(appRoot, 'scripts/public-server-runtime.mjs'));
-      writeFileSync(join(appRoot, '.next/framework-build.json'), previousManifest);
+      runtimeCleanup(() => {
+        unlinkSync(shadow);
+        removeRuntimeEntries();
+        writeFileSync(join(appRoot, '.next/framework-build.json'), previousManifest);
+      });
     }
   });
   await test('old manifest beside corrected package refuses', () =>
@@ -1689,11 +1888,11 @@ try {
       external,
       `require('node:fs').writeFileSync(${JSON.stringify(marker)},'unqualified');module.exports={};\n`,
     );
-    copy(
-      join(FRAMEWORK_FRONTEND_ROOT, 'apps/web/scripts/public-server.mjs'),
-      join(appRoot, 'scripts/public-server.mjs'),
+    copyRuntimeEntries();
+    put(
+      join(appRoot, 'scripts/public-server-runtime.mjs'),
+      "import 'next';\n" + inertRuntimeSource(marker),
     );
-    put(join(appRoot, 'scripts/public-server-runtime.mjs'), "import next from 'next';\n");
     buildControlManifest();
     try {
       altered(
@@ -1704,23 +1903,266 @@ try {
           return value;
         },
         () => {
-          const result = spawnSync(process.execPath, ['scripts/public-server.mjs'], {
-            cwd: appRoot,
-            encoding: 'utf8',
-            timeout: 10000,
-          });
+          const result = refusedOwner();
           assert.equal(result.status, 1);
           assert.match(result.stderr, /Framework admission refused: next_metadata/);
           assert.equal(existsSync(marker), false);
         },
       );
     } finally {
-      unlinkSync(join(appRoot, 'scripts/public-server.mjs'));
-      unlinkSync(join(appRoot, 'scripts/public-server-runtime.mjs'));
-      unlinkSync(external);
+      runtimeCleanup(() => {
+        removeRuntimeEntries();
+        unlinkSync(external);
+        writeFileSync(join(appRoot, '.next/framework-build.json'), previousManifest);
+      });
+    }
+  });
+  for (const mode of ['production', 'development']) {
+    await test(`private runtime ${mode} verifies unchanged parent ownership and refuses binding drift`, async () => {
+      const previousManifest = readFileSync(join(appRoot, '.next/framework-build.json'));
+      const developmentPath = join(appRoot, '.framework-state/development.json');
+      const previousDevelopment = existsSync(developmentPath)
+        ? readFileSync(developmentPath)
+        : undefined;
+      const marker = join(root, `private-runtime-${mode}`);
+      copyRuntimeEntries();
+      put(join(appRoot, 'scripts/public-server-runtime.mjs'), inertRuntimeSource(marker));
+      buildControlManifest();
+      buildControlDevelopmentManifest();
+      const lease = acquireFrameworkLease({ appRoot, frontendRoot, kind: mode });
+      try {
+        prepareFrameworkNativeCache(controlIdentity, lease.record);
+        const evidence = frameworkLeaseSnapshot(controlIdentity, lease.record);
+        assert.equal(Object.isFrozen(evidence), true);
+        assert.equal(Object.isFrozen(evidence.records), true);
+        assert.equal(evidence.records.length, 3);
+        assert.equal(
+          evidence.records[0].path,
+          join(realpathSync(frontendRoot), '.framework-state/readers', lease.record.nonce),
+        );
+        assert.equal(
+          evidence.records[1].path,
+          join(realpathSync(appRoot), '.framework-state/writer.json'),
+        );
+        assert.equal(
+          evidence.records[2].path,
+          join(
+            realpathSync(frontendRoot),
+            'packages/sdk/.framework-state',
+            mode === 'production' ? `readers/${lease.record.nonce}` : 'writer.json',
+          ),
+        );
+        const before = metadataSnapshot();
+        const baseline = await privateRuntime(lease.record, marker);
+        assert.deepEqual(
+          {
+            code: baseline.code,
+            signal: baseline.signal,
+            handshake: baseline.handshake,
+            ready: baseline.ready,
+          },
+          { code: 0, signal: null, handshake: true, ready: true },
+          baseline.stderr,
+        );
+        assert.deepEqual(
+          metadataSnapshot(),
+          before,
+          'Child validation/startup must not acquire a lease or mutate cache metadata',
+        );
+        unlinkSync(marker);
+        const recordPath = evidence.records[1].path;
+        const cachePath = join(appRoot, '.framework-state/native-cache.json');
+        const statePath = join(appRoot, '.framework-state');
+        const changes = [
+          { name: 'non-detached child', detached: false },
+          {
+            name: 'parent PID',
+            environment: { LEARNSTACK_RUNTIME_PARENT: String(process.pid + 1) },
+          },
+          { name: 'lease nonce', environment: { LEARNSTACK_RUNTIME_LEASE_NONCE: '0'.repeat(32) } },
+          {
+            name: 'mode',
+            environment: {
+              LEARNSTACK_RUNTIME_MODE: mode === 'production' ? 'development' : 'production',
+            },
+          },
+          {
+            name: 'cache metadata',
+            path: cachePath,
+            change: () =>
+              put(cachePath, { ...JSON.parse(readFileSync(cachePath)), root: root + '/wrong-app' }),
+          },
+          {
+            name: 'parent record',
+            path: recordPath,
+            change: () => put(recordPath, { ...lease.record, pid: lease.record.pid + 1 }),
+          },
+          {
+            name: 'record hard link',
+            change: () => linkSync(recordPath, join(root, 'private-record-alias')),
+            restore: () => unlinkSync(join(root, 'private-record-alias')),
+          },
+          {
+            name: 'record permission',
+            change: () => chmodSync(recordPath, 0o644),
+            restore: () => chmodSync(recordPath, 0o600),
+          },
+          {
+            name: 'owner directory permission',
+            change: () => chmodSync(statePath, 0o755),
+            restore: () => chmodSync(statePath, 0o700),
+          },
+        ];
+        for (const change of changes.filter(
+          (change) => mode === 'production' || ['lease nonce', 'mode'].includes(change.name),
+        )) {
+          // Requalify exact parent records immediately before this one mutation.
+          assert.deepEqual(frameworkLeaseSnapshot(controlIdentity, lease.record), evidence);
+          const original = change.path ? readFileSync(change.path) : undefined;
+          try {
+            change.change?.();
+            const changed = metadataSnapshot();
+            const result = await privateRuntime(
+              lease.record,
+              marker,
+              change.environment,
+              true,
+              change.detached ?? true,
+            );
+            assert.equal(result.code, 1, change.name);
+            assert.equal(result.signal, null, change.name);
+            assert.equal(result.handshake, false, change.name);
+            assert.equal(result.ready, false, change.name);
+            assert.equal(existsSync(marker), false, change.name);
+            assert.match(result.stderr, /Framework private runtime admission failed/);
+            assert.deepEqual(
+              metadataSnapshot(),
+              changed,
+              `${change.name}: refusal remains read-only`,
+            );
+          } finally {
+            runtimeCleanup(() => {
+              if (change.path) writeFileSync(change.path, original);
+              change.restore?.();
+              if (existsSync(marker)) unlinkSync(marker);
+            });
+          }
+        }
+        assert.deepEqual(frameworkLeaseSnapshot(controlIdentity, lease.record), evidence);
+        assert.deepEqual(metadataSnapshot(), before);
+      } finally {
+        runtimeCleanup(() => {
+          lease.release();
+          removeRuntimeEntries();
+          if (existsSync(marker)) unlinkSync(marker);
+          writeFileSync(join(appRoot, '.next/framework-build.json'), previousManifest);
+          if (previousDevelopment) writeFileSync(developmentPath, previousDevelopment);
+          else unlinkSync(developmentPath);
+        });
+      }
+    });
+  }
+  await test('direct private runtime entry and owner Node flags refuse before inert listener allocation', async () => {
+    const previousManifest = readFileSync(join(appRoot, '.next/framework-build.json'));
+    const marker = join(root, 'entry-flags-runtime');
+    copyRuntimeEntries();
+    put(join(appRoot, 'scripts/public-server-runtime.mjs'), inertRuntimeSource(marker));
+    buildControlManifest();
+    try {
+      verifyFrameworkBuild({ appRoot, frontendRoot });
+      const before = metadataSnapshot();
+      const direct = spawnSync(process.execPath, ['scripts/public-runtime-child.mjs'], {
+        cwd: appRoot,
+        env: ownerEnvironment(),
+        encoding: 'utf8',
+        timeout: 10_000,
+      });
+      if (direct.error || direct.signal || direct.status === null) retainRoot = true;
+      assert.equal(direct.status, 1);
+      assert.match(direct.stderr, /Framework private runtime admission failed/);
+      assert.equal(existsSync(marker), false);
+      assert.deepEqual(metadataSnapshot(), before);
+      for (const [args, environment] of [
+        [['--no-warnings'], {}],
+        [[], { NODE_OPTIONS: '--no-warnings' }],
+        [[], { NODE_OPTIONS: '' }],
+      ]) {
+        const refused = refusedOwner(args, environment);
+        assert.equal(refused.status, 1);
+        assert.match(refused.stderr, /Framework admission refused: runtime_arguments/);
+        assert.equal(existsSync(marker), false);
+        assert.deepEqual(metadataSnapshot(), before);
+      }
+    } finally {
+      runtimeCleanup(() => {
+        removeRuntimeEntries();
+        if (existsSync(marker)) unlinkSync(marker);
+        writeFileSync(join(appRoot, '.next/framework-build.json'), previousManifest);
+      });
+    }
+  });
+  await test('runtime boundary inputs are restart-critical while ordinary route source remains HMR eligible', () => {
+    const previousManifest = readFileSync(join(appRoot, '.next/framework-build.json'));
+    copyRuntimeEntries();
+    put(
+      join(appRoot, 'scripts/public-server-runtime.mjs'),
+      inertRuntimeSource(join(root, 'unused-restart-marker')),
+    );
+    buildControlManifest();
+    try {
+      verifyFrameworkBuild({ appRoot, frontendRoot });
+      const before = frameworkDevelopmentRestartGraph(controlIdentity);
+      for (const [path, input] of [
+        [
+          join(appRoot, 'scripts/public-server-runtime.mjs'),
+          'app/scripts/public-server-runtime.mjs',
+        ],
+        [join(appRoot, 'scripts/public-runtime-child.mjs'), 'app/scripts/public-runtime-child.mjs'],
+        [
+          join(frontendRoot, 'scripts/framework-runtime-child-control.mjs'),
+          'workspace/scripts/framework-runtime-child-control.mjs',
+        ],
+      ]) {
+        const original = readFileSync(path);
+        try {
+          writeFileSync(path, Buffer.concat([original, Buffer.from('\n')]));
+          onlyInputChanged(before, frameworkDevelopmentRestartGraph(controlIdentity), input);
+          unlinkSync(path);
+          onlyInputChanged(before, frameworkDevelopmentRestartGraph(controlIdentity), input);
+        } finally {
+          writeFileSync(path, original);
+        }
+      }
+      const page = join(appRoot, 'src/app/page.tsx');
+      altered(
+        page,
+        (bytes) => Buffer.concat([bytes, Buffer.from('\n')]),
+        () => {
+          assert.deepEqual(frameworkDevelopmentRestartGraph(controlIdentity), before);
+        },
+      );
+      verifyFrameworkBuild({ appRoot, frontendRoot });
+    } finally {
+      removeRuntimeEntries();
       writeFileSync(join(appRoot, '.next/framework-build.json'), previousManifest);
     }
   });
+  await test('an already-cancelled producer cannot claim ownership or mutate existing generation', async () => {
+    const manifest = readFileSync(join(appRoot, '.next/framework-build.json'));
+    const outputs = frameworkOutputGraph(controlIdentity);
+    const metadata = metadataSnapshot();
+    const cancellation = new AbortController();
+    cancellation.abort('SIGTERM');
+    await assert.rejects(
+      produceFrameworkBuild({ appRoot, frontendRoot, signal: cancellation.signal }),
+      (error) => error instanceof FrameworkAdmissionError && error.reason === 'producer_cancelled',
+    );
+    assert.deepEqual(readFileSync(join(appRoot, '.next/framework-build.json')), manifest);
+    assert.deepEqual(frameworkOutputGraph(controlIdentity), outputs);
+    assert.deepEqual(metadataSnapshot(), metadata);
+  });
 } finally {
-  rmSync(root, { recursive: true, force: true });
+  if (!retainRoot && activeRuntimeLaunches.size === 0)
+    rmSync(root, { recursive: true, force: true });
+  else process.stderr.write(`Framework provenance fixture retained: ${root}\n`);
 }

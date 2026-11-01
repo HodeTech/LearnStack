@@ -643,7 +643,7 @@ else process.exit(19);
     stopHelper,
     `import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { stopTestChild as actualStop } from './stop-test-child-actual.mjs';
-export { assertUnforcedTestChildStop } from './stop-test-child-actual.mjs';
+export { assertUnforcedTestChildStop, stopProductionRuntimeOwner } from './stop-test-child-actual.mjs';
 export async function stopTestChild(child) {
   if (process.argv[1]?.endsWith('/wait-compose.mjs')) {
     writeFileSync(${JSON.stringify(nestedCleanup)}, 'started');

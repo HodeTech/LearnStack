@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 
 import { browserFailureDetail } from './admission-browser.mjs';
 import { createPrivateScanner } from './fixture-support.mjs';
+import { createBffShutdownValidator } from './framework-proof-relay.mjs';
 import { stopTestChild } from './stop-test-child.mjs';
 
 /** Preserve only the readiness helper's branded, finite observations. */
@@ -116,6 +117,7 @@ export function waitForBffProofListener(child) {
       child.removeListener('message', ready);
       child.removeListener('close', closed);
       child.removeListener('error', failed);
+      child.removeListener('child-error', failed);
       child.stderr?.removeListener('data', stderr);
       stderrOverlap = '';
       if (error) reject(error);
@@ -143,6 +145,7 @@ export function waitForBffProofListener(child) {
     child.once('message', ready);
     child.once('close', closed);
     child.once('error', failed);
+    child.once('child-error', failed);
   });
 }
 
@@ -251,68 +254,17 @@ export function rememberBffCookies(headers, canaries) {
 /** Scalar observation of the copied launcher's existing shutdown joins, never cleanup authority. */
 export function observeBffProofShutdown(child) {
   const joins = ['listener', 'next', 'sessions', 'requests'];
-  const states = new Set(['pending', 'fulfilled', 'rejected']);
-  let state = {
-    kind: 'proof-shutdown',
-    entered: false,
-    watchdog: false,
-    listener: 'pending',
-    next: 'pending',
-    sessions: 'pending',
-    requests: 'pending',
-  };
-  let frames = 0;
+  const validator = createBffShutdownValidator();
   let invalid = false;
-  let sample = 'absent';
   let closed = false;
   const observe = (value) => {
     // Other fixture IPC belongs to its existing owner, not this observation.
     if (value?.kind !== 'proof-shutdown') return;
-    ++frames;
-    if (
-      invalid ||
-      frames > 6 ||
-      Object.keys(value).sort().join(',') !==
-        'entered,kind,listener,milestone,next,requests,sample,sessions,watchdog' ||
-      value.entered !== true ||
-      typeof value.watchdog !== 'boolean' ||
-      joins.some((key) => !states.has(value[key]))
-    ) {
+    try {
+      validator.observe(value);
+    } catch {
       invalid = true;
-      return;
     }
-    const changed = joins.filter((key) => value[key] !== state[key]);
-    if (
-      (frames === 1 && (changed.length !== 0 || value.watchdog)) ||
-      (frames > 1 &&
-        (state.watchdog ||
-          (value.watchdog ? changed.length !== 0 : changed.length !== 1) ||
-          changed.some((key) => state[key] !== 'pending' || value[key] === 'pending')))
-    ) {
-      invalid = true;
-      return;
-    }
-    const milestone = frames === 1 ? 'entered' : value.watchdog ? 'watchdog' : changed[0];
-    if (
-      value.milestone !== milestone ||
-      !Array.isArray(value.sample) ||
-      value.sample.length !== 5 ||
-      Array.from(value.sample).some((count) => !Number.isInteger(count) || count < 0 || count > 256)
-    ) {
-      sample = 'invalid';
-    } else if (sample !== 'invalid') {
-      sample = ['valid', milestone, ...value.sample].join(',');
-    }
-    // Copy only independently validated scalar members; never retain a raw frame.
-    state = {
-      kind: 'proof-shutdown',
-      entered: true,
-      watchdog: value.watchdog,
-      listener: value.listener,
-      next: value.next,
-      sessions: value.sessions,
-      requests: value.requests,
-    };
   };
   const close = () => {
     closed = true;
@@ -324,6 +276,7 @@ export function observeBffProofShutdown(child) {
     !stream ? 'absent' : stream.closed ? 'closed' : stream.readableEnded ? 'ended' : 'open';
   return Object.freeze({
     snapshot() {
+      const { frames, state } = validator.snapshot();
       const joined = { pending: 'p', fulfilled: 'f', rejected: 'r' };
       return [
         invalid ? 'invalid' : frames ? 'valid' : 'absent',
@@ -343,7 +296,7 @@ export function observeBffProofShutdown(child) {
       ].join(',');
     },
     sample() {
-      return invalid ? 'invalid' : sample;
+      return invalid ? 'invalid' : validator.snapshot().sample;
     },
   });
 }

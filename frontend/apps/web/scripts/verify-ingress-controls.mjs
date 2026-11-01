@@ -121,8 +121,8 @@ try {
   );
   base = replaceOne(
     base,
-    "  import { Server } from 'node:net';",
-    "  import { Server } from 'node:net';\n  import { connect as connectCleanup } from 'node:net';\n" +
+    "import { Server } from 'node:net';",
+    "import { Server } from 'node:net';\nimport { connect as connectCleanup } from 'node:net';\n" +
       "  const cleanupControl = connectCleanup({ host: '127.0.0.1', port: " +
       rescuePort +
       ' });\n' +
@@ -149,7 +149,14 @@ try {
     currentCase = name;
     const directory = join(proof, String(++caseNumber));
     mkdirSync(directory);
-    for (const file of ['fixture-support.mjs', 'stop-test-child.mjs', 'ingress-readiness.mjs'])
+    for (const file of [
+      'fixture-support.mjs',
+      'stop-test-child.mjs',
+      'ingress-readiness.mjs',
+      'framework-proof-host-broker.mjs',
+      'framework-proof-relay.mjs',
+      'framework-proof-ingress-source.mjs',
+    ])
       copyFileSync(join(appRoot, 'scripts', file), join(directory, file));
     // The helper's relative builtins-only guard import retains its real source root.
     symlinkSync(
@@ -308,7 +315,7 @@ try {
               (name) => path === join(sourceAppRoot, name),
             ),
         });
-        prepareFrameworkProof({ sourceApp: appRoot, app: templateApp });
+        prepareFrameworkProof({ sourceApp: appRoot, app: templateApp, profile: 'ingress' });
         copyQualifiedFrameworkBuild({ sourceAppRoot, targetAppRoot: templateApp });
         runner.send({ kind: 'continue', stage: 'built' });
       },

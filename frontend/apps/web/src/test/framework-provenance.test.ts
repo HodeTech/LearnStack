@@ -19,8 +19,8 @@ test('qualified framework provenance refuses drift and preserves owned boundarie
       NEXT_TELEMETRY_DISABLED: '1',
     },
   });
-  expect(result).toMatch(/# tests 107\b/);
-  expect(result).toMatch(/# pass 107\b/);
+  expect(result).toMatch(/# tests 112\b/);
+  expect(result).toMatch(/# pass 112\b/);
   expect(result).toMatch(/# fail 0\b/);
   expect(result).toMatch(/# cancelled 0\b/);
   expect(result).toMatch(/# skipped 0\b/);

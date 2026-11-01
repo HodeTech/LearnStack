@@ -103,6 +103,11 @@ describe('P02d-7 exact demo identity boundary', () => {
       'frontend/packages/sdk/src/administration-server.ts',
       'frontend/apps/web/scripts/public-server.mjs',
       'frontend/apps/web/scripts/public-server-runtime.mjs',
+      'frontend/apps/web/scripts/public-runtime-child.mjs',
+      'frontend/scripts/framework-runtime-family.mjs',
+      'frontend/scripts/framework-runtime-child-control.mjs',
+      'frontend/apps/web/scripts/framework-proof-relay.mjs',
+      'frontend/apps/web/scripts/framework-proof-host-broker.mjs',
       'frontend/apps/web/scripts/framework-build.mjs',
       'frontend/apps/web/scripts/framework-proof-support.mjs',
       'frontend/scripts/framework-installation.mjs',
@@ -300,6 +305,7 @@ describe('P02d-7 exact demo identity boundary', () => {
     new Map([
       [frameworkGuard, source],
       ['frontend/scripts/framework-process-family.mjs', 'export const family = true;'],
+      ['frontend/scripts/framework-runtime-family.mjs', 'export const runtime = true;'],
     ]);
   const provenanceEntry = 'frontend/scripts/test-framework-provenance.mjs';
   const provenanceSource = readFileSync(join(root, provenanceEntry), 'utf8');
@@ -677,6 +683,7 @@ describe('P02d-7 exact demo identity boundary', () => {
       ['frontend/apps/web/scripts/fixture-support.mjs', 'export const helper = true;'],
       ['frontend/apps/web/scripts/bff-proof-support.mjs', 'export const helper = true;'],
       ['frontend/apps/web/scripts/framework-proof-support.mjs', 'export const helper = true;'],
+      ['frontend/apps/web/scripts/framework-proof-host-broker.mjs', 'export const helper = true;'],
     ]);
     const external = () => 'frontend/node_modules/typescript/index.js';
     const selected = productionDemoSources(files, external);

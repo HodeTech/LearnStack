@@ -108,6 +108,9 @@ export function createIngressReadiness(child) {
   child.once('error', () => {
     spawnFailed = true;
   });
+  child.once('child-error', () => {
+    spawnFailed = true;
+  });
   child.on('message', (message) => {
     if (child.pid === undefined || message?.pid !== child.pid) return;
     if (message.kind === 'readiness' && phases.indexOf(message.phase) > phases.indexOf(phase)) {

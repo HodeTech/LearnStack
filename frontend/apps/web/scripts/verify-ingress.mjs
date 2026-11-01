@@ -26,6 +26,8 @@ import {
   createPrivateScanner,
   fixtureEnvironment,
 } from './fixture-support.mjs';
+import { createCopiedRuntimeHostBroker } from './framework-proof-host-broker.mjs';
+import { instrumentCopiedIngressRuntime } from './framework-proof-ingress-source.mjs';
 import {
   frameworkProofBuildArguments,
   prepareFrameworkProof,
@@ -57,6 +59,8 @@ const diagnosticsLeaked = () => scanners.some((scanner) => scanner.leaked);
 const fence = randomBytes(16).toString('hex');
 const children = [];
 const readiness = new WeakMap();
+const runtimeBrokers = new WeakMap();
+const brokerFor = (child) => runtimeBrokers.get(child);
 const upgrades = [];
 const observations = new Map();
 let observationId = 0;
@@ -210,7 +214,7 @@ try {
   if (existsSync(join(appRoot, 'public')))
     cpSync(join(appRoot, 'public'), join(app, 'public'), { recursive: true });
   symlinkSync(join(appRoot, 'node_modules'), join(app, 'node_modules'), 'dir');
-  prepareFrameworkProof({ sourceApp: appRoot, app });
+  prepareFrameworkProof({ sourceApp: appRoot, app, profile: 'ingress' });
   const optimizerImage = await sharp({
     create: { width: 2, height: 2, channels: 4, background: '#216ba5' },
   })
@@ -230,85 +234,26 @@ try {
   );
   writeFileSync(join(app, '.env.production.local'), 'DEBUG=next:*\n');
   writeFileSync(join(app, '.env.development.local'), 'DEBUG=next:*\n');
+  // Stock Next comparisons retain this distinct preload; the native copied
+  // child installs its literal listener observer after private validation.
   writeFileSync(
     join(app, 'scripts/bind-proof.mjs'),
     `
-  import { Server } from 'node:net';
-  const listen = Server.prototype.listen;
-  Server.prototype.listen = function (...args) {
-    this.once('listening', () => {
-      const address = this.address();
-      if (address && typeof address === 'object') process.send?.({ kind: 'bound', pid: process.pid, port: address.port, address: address.address });
-    });
-    return listen.apply(this, args);
-  };
-  `,
+import { Server } from 'node:net';
+const listen = Server.prototype.listen;
+Server.prototype.listen = function (...args) {
+  this.once('listening', () => {
+    const address = this.address();
+    if (address && typeof address === 'object') process.send?.({ kind: 'bound', pid: process.pid, port: address.port, address: address.address });
+  });
+  return Reflect.apply(listen, this, args);
+};
+`,
   );
   // Observe automatic Next upgrade registrations in the disposable fixture only.
   // No diagnostic route, request value or probe is added to the shipped launcher.
-  const launcher = readFileSync(join(appRoot, 'scripts/public-server-runtime.mjs'), 'utf8');
-  const handlerAnchor = '  const handle = app.getRequestHandler();';
-  const listenerAnchor = "  server.listen(PUBLIC_HTTPS_PORT, '127.0.0.1',";
-  const prepareAnchor = '  await app.prepare();';
-  const importAnchor = "  const { default: next } = await import('next');";
-  for (const anchor of [handlerAnchor, listenerAnchor, prepareAnchor, importAnchor])
-    assert.equal(launcher.split(anchor).length, 2, 'Ingress instrumentation anchor must be unique');
-  writeFileSync(
-    join(app, 'scripts/public-server-runtime.mjs'),
-    launcher
-      .replace(
-        importAnchor,
-        `  if (process.argv.includes('--dev')) {
-    const { boundNextVersionFetch } = await import('./ingress-readiness.mjs');
-    globalThis.fetch = boundNextVersionFetch(globalThis.fetch, (observation) => {
-      if (process.connected) process.send({ kind: 'version-fetch', pid: process.pid, ...observation }, () => {});
-    });
-  }
-${importAnchor}`,
-      )
-      .replace(
-        prepareAnchor,
-        `  process.send?.({ kind: 'readiness', pid: process.pid, phase: 'preparing' });
-  await app.prepare();
-  process.send?.({ kind: 'readiness', pid: process.pid, phase: 'prepared' });`,
-      )
-      .replace(
-        handlerAnchor,
-        `  let nextCalls = 0;
-    let sinkCalls = 0;
-    const nextHandle = app.getRequestHandler();
-    const handle = (...args) => { nextCalls++; return nextHandle(...args); };
-    const emit = upgradeSink.emit.bind(upgradeSink);
-    upgradeSink.emit = (event, ...args) => {
-      if (event === 'upgrade') sinkCalls++;
-      return emit(event, ...args);
-    };
-    process.on('message', async (message) => {
-      if (message?.kind !== 'observe') return;
-      const marker = message.fence + ':' + message.id + ':end\\n';
-      await Promise.all([process.stdout, process.stderr].map((stream) =>
-        new Promise((resolve) => stream.write(marker, resolve))));
-      process.send?.({ id: message.id, nextCalls, sinkCalls, debugDisabled: process.env.DEBUG === '-*', environmentSafe: process.env.NODE_TLS_REJECT_UNAUTHORIZED === '1' && ['NODE_OPTIONS', 'NODE_EXTRA_CA_CERTS', 'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'INGRESS_ENV_CANARY'].every((key) => process.env[key] === undefined) });
-    });`,
-      )
-      .replace(
-        listenerAnchor,
-        `  for (const [surface, target] of [['native', server], ['sink', upgradeSink]]) {
-      const register = target.on.bind(target);
-      target.on = (event, listener) => register(event, event !== 'upgrade' ? listener :
-        (request, socket, head) => {
-          process.send?.({ surface, sanitized:
-            !request.headers['x-matched-path'] &&
-            !request.headers['x-middleware-subrequest'] &&
-            request.rawHeaders.filter((value, index) => index % 2 === 0 &&
-              value.toLowerCase() === 'host').length === 1 });
-          return listener(request, socket, head);
-        });
-    }
-    ${listenerAnchor.trimStart()}`,
-      ),
-  );
-  assert.notEqual(readFileSync(join(app, 'scripts/public-server-runtime.mjs'), 'utf8'), launcher);
+  const launcher = join(app, 'scripts/public-server-runtime.mjs');
+  writeFileSync(launcher, instrumentCopiedIngressRuntime(readFileSync(launcher, 'utf8')));
 
   await checkpoint('setup');
   await run();
@@ -323,6 +268,7 @@ ${importAnchor}`,
 
 function start(argv, dev = false, observeBinding = true) {
   owner.assertActive();
+  const nativeRuntime = argv[0] === join(app, 'scripts/public-server.mjs');
   const env = fixtureEnvironment({
     root: fixtureRoot,
     nodeEnv: dev ? 'development' : 'production',
@@ -331,7 +277,12 @@ function start(argv, dev = false, observeBinding = true) {
   const child = owner.ownChild(
     spawn(
       process.execPath,
-      [...(observeBinding ? ['--import', join(app, 'scripts/bind-proof.mjs')] : []), ...argv],
+      [
+        ...(observeBinding && !nativeRuntime
+          ? ['--import', join(app, 'scripts/bind-proof.mjs')]
+          : []),
+        ...argv,
+      ],
       {
         cwd: app,
         env,
@@ -340,9 +291,14 @@ function start(argv, dev = false, observeBinding = true) {
       },
     ),
   );
-  const childReadiness = createIngressReadiness(child);
+  const broker = nativeRuntime
+    ? createCopiedRuntimeHostBroker(child, { app, profile: 'ingress' })
+    : null;
+  if (broker) runtimeBrokers.set(child, broker);
+  const proofChannel = broker?.proof ?? child;
+  const childReadiness = createIngressReadiness(proofChannel);
   readiness.set(child, childReadiness);
-  child.on('message', (message) => {
+  proofChannel.on('message', (message) => {
     if (isReadinessNotification(message)) return;
     if (message.id) observations.get(message.id)?.receive(message);
     else upgrades.push(message);
@@ -388,7 +344,18 @@ function observe(child) {
         resolve(result);
       },
     });
-    child.send({ kind: 'observe', id, fence }, (error) => {
+    const command = { kind: 'observe', id, fence };
+    if (brokerFor(child)) {
+      try {
+        brokerFor(child).send(command);
+      } catch (error) {
+        clearTimeout(timer);
+        observations.delete(id);
+        reject(error);
+      }
+      return;
+    }
+    child.send(command, (error) => {
       if (!error) return;
       clearTimeout(timer);
       observations.delete(id);
@@ -511,6 +478,8 @@ async function ready(child, tls, port) {
     probe: () => call(tls, port, '/api/healthz'),
     assertActive: owner.assertActive,
   });
+  if (brokerFor(child))
+    assert.ok(brokerFor(child).capture.family(), 'Native runtime family captured before readiness');
   console.warn('Ingress readiness observation: ' + JSON.stringify(observation));
 }
 
@@ -785,7 +754,9 @@ async function run() {
   assert.equal(diagnosticsLeaked(), false, 'Private material entered diagnostics');
 
   await stopTestChild(stock);
-  await stopTestChild(native);
+  const nativeStopped = await stopTestChild(native);
+  assert.equal(nativeStopped.ownerCode, 0, 'Native owner joined its runtime family');
+  assert.equal(nativeStopped.ownerSignal, null);
   // The configuration mutant gets a fresh normal build. Re-labelling an old
   // .next after changing next.config.ts cannot qualify the guarded launcher.
   const configPath = join(app, 'next.config.ts');
@@ -817,7 +788,9 @@ async function run() {
   }
   await observe(optimizerMutant);
   assert.equal(diagnosticsLeaked(), false, 'Private material entered optimizer diagnostics');
-  await stopTestChild(optimizerMutant);
+  const optimizerStopped = await stopTestChild(optimizerMutant);
+  assert.equal(optimizerStopped.ownerCode, 0, 'Optimizer mutant owner joined its runtime family');
+  assert.equal(optimizerStopped.ownerSignal, null);
   writeFileSync(configPath, disabledConfig);
 
   // The normal development producer owns the clean compiler/cache lifecycle.
@@ -855,6 +828,8 @@ async function run() {
   assert.equal(diagnosticsLeaked(), false, 'Private material entered development diagnostics');
 
   async function verifyHmrShutdown(child, signal) {
+    const incarnation = brokerFor(child)?.capture.family()?.incarnation;
+    assert.match(incarnation, /^[0-9a-f]{32}$/, 'Actual development incarnation captured');
     const client = new WebSocket('wss://127.0.0.1:3000/_next/webpack-hmr', {
       ca: certificate,
       servername: 'localhost',
@@ -906,7 +881,7 @@ async function run() {
         'Exactly the accepted HMR upgrade must reach Next',
       );
       assert.equal(client.readyState, WebSocket.OPEN, 'HMR must remain open when shutdown begins');
-      // No stopTestChild here: its SIGKILL escalation would hide a hung launcher.
+      assert.equal(brokerFor(child).capture.family().incarnation, incarnation);
       await new Promise((resolve, reject) => {
         let exited = false;
         let closed = false;
@@ -942,6 +917,9 @@ async function run() {
         client.once('close', onClose);
         child.kill(signal);
       });
+      const stopped = await stopTestChild(child);
+      assert.equal(stopped.ownerCode, 0, 'Development owner joined its runtime family');
+      assert.equal(stopped.ownerSignal, null);
     } finally {
       client.terminate();
     }
