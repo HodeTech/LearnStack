@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 4,881 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 5,002 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -224,7 +224,9 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0083 maintainer corrections, acceptance and Step 1 (2026-11-01)](#adr-0083-maintainer-corrections-acceptance-and-step-1-2026-11-01) — 143 lines
   - [ADR-0083 Step 1 review round 1 and status correction (2026-11-01)](#adr-0083-step-1-review-round-1-and-status-correction-2026-11-01) — 21 lines
   - [ADR-0083 Step 1 review closeout (2026-11-01)](#adr-0083-step-1-review-closeout-2026-11-01) — 20 lines
-  - [ADR-0083 Step 2 implementation and local controls (2026-11-01)](#adr-0083-step-2-implementation-and-local-controls-2026-11-01) — 86 lines
+  - [ADR-0083 Step 2 implementation and local controls (2026-11-01)](#adr-0083-step-2-implementation-and-local-controls-2026-11-01) — 87 lines
+  - [ADR-0083 Step 2 review round 1 and runtime-family decision gap (2026-11-01)](#adr-0083-step-2-review-round-1-and-runtime-family-decision-gap-2026-11-01) — 42 lines
+  - [ADR-0084 proposed runtime-family package (2026-11-01)](#adr-0084-proposed-runtime-family-package-2026-11-01) — 78 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -10649,3 +10651,124 @@ Neither those local controls nor this record completes P03-3. Commit this step,
 run fresh independent R1, correct verified findings, then use new R2 reviewers
 before Step 3 and the final source freeze. Manual accessibility remains
 maintainer-deferred and unexecuted.
+
+
+### ADR-0083 Step 2 review round 1 and runtime-family decision gap (2026-11-01)
+
+Three fresh independent R1 reviewers inspect implementation `b55efacb` against
+`4852f73f`. Ownership and integration approve their assigned slices with no
+verified finding. Provenance requests changes with three verified Majors. The
+parent reads all three complete reports and all three counterexample scripts/
+receipts; no Step 2 review closeout or new runtime qualification follows.
+
+1. Cancellation releases compiler reservations after direct child exit while a
+   compiler grandchild remains alive. A replacement lease acquires about seven
+   milliseconds after cancellation, then the old private compiler writes output
+   about 1.2 seconds later. The proof uses the real managed producer and unchanged
+   SDK script with an explicitly inert private compiler, not a full Next build.
+2. Inherited `BROWSERSLIST=ie 11` passes unchanged input identity while the actual
+   pinned Next browser-target loader selects IE11 instead of its defaults.
+   `BROWSERSLIST_CONFIG` can also select outside the recorded input graph.
+3. Changing only copied installed Next package.json `main` to an outside-root
+   module leaves the original verifier-control manifest admitted. The actual
+   unchanged bootstrap imports that module. The manifest is explicitly synthetic;
+   the control proves entry admission, not a real Next-produced runtime.
+
+The independent ownership reviewer reruns all 440 copy controls, all 30 JS
+regenerations and 29 map checks, plus eleven actual middleware bodyless/refusal
+HTTP cases. The integration reviewer independently passes 482 cases in six
+focused files. Provenance independently passes its real installed/manager
+baseline and all 58 existing component controls; those controls do not cover
+its three new counterexamples. Full reports and original failing controls are
+retained in `artifacts/p033-step10/adr0083/step2/reviews/`.
+
+Compiler/installer joining, finite compiler configuration and actual package
+entry qualification are corrections within ADR-0083 and proceed independently.
+Further source tracing finds development Next subprocess workers whose end is
+not joined by the native synchronous exit hook. The proposed complete remedy
+adds one persistent owner/runtime-child boundary, beyond ADR-0083's selected
+no-new-worker-topology boundary. It therefore requires [ADR-0084](../decisions/0084-owned-frontend-runtime-process-families.md)
+and prior maintainer approval. Neither an uncertain record deletion nor a
+permanently broken normal restart is substituted for that decision. Step 2 R1
+remains Request changes; fresh corrected implementation reviews, Step 3 and
+same-final-source hosted A/B remain open. Manual evidence remains deferred and
+unexecuted.
+
+
+### ADR-0084 proposed runtime-family package (2026-11-01)
+
+[ADR-0084](../decisions/0084-owned-frontend-runtime-process-families.md) is Proposed.
+It selects one builtins-only owner process per native frontend instance, with
+one isolated runtime child and actual process-group retirement before releasing
+existing frontend/app/SDK reservations. No persistent runtime topology is changed
+before approval. The initial containment is macOS/Linux; unqualified platforms
+refuse. Additional startup/memory cost, potentially indefinite shutdown and
+conservative durable records after owner death are explicit costs.
+
+**Scope and independent work.** Fixing the already-reviewed temporary compiler/
+installer children, compiler environment and Next loader metadata does not wait
+for this new topology decision. Those fixes remain ADR-0083 work and do not
+close the native runtime-family gap. The original compression patch, toolchain,
+request/session/API/snapshot owners, security SLA and full final-source A/B stay.
+
+**Three subordinate steps.** Keep the maintainer's commit, fresh R1, verified
+fix/commit, new R2 and fix sequence for every step. These are corrections within
+unfinished ADR-0083 Steps 2–3, not a new phase or a production-ready declaration.
+
+1. After explicit approval, accept ADR-0084 and apply the carrier text below.
+   Commit/review the acceptance reconciliation before the new persistent owner.
+2. Implement the owner/private-child/process-family boundary and every supported
+   native/copied caller, including PID/readiness/source-pin changes. Finish the
+   three ADR-0083 R1 corrections, verify actual nested-process and entry/env
+   negatives, normal dev/production restart and unknown-retirement retention.
+   Review the corrected full implementation in two fresh rounds; acceptance or
+   the earlier 58 component controls does not establish these properties.
+3. Resume ADR-0083 Step 3's real router/worker/HMR, native/public/provider/browser
+   proof, final actual discovery and complete same-source A then B. Retain/audit
+   A before full B, with all 27 jobs, 20 natural execution owners and 25 original
+   ZIPs per layout. Existing deadlines, reserve and test-worker counts remain.
+
+**Append-ready acceptance carriers (proposals only).**
+
+- ADR-0083, next available dated amendment, **Owned frontend runtime families**:
+  “ADR-0084 narrowly supersedes this record's no-new-worker-topology boundary for
+  one builtins native owner and its isolated runtime child. Existing output
+  reservations outlive direct child close and actual remaining group members.
+  All other compression, exact tuple, independent request/resource, security and
+  complete qualification decisions remain. This record's historical body and
+  Decision remain unchanged; acceptance supplies no runtime or hosted proof.”
+- ADR-0070, next available dated navigation amendment, same title:
+  “ADR-0084 places the existing native runtime under a builtins process owner.
+  No credential, cookie, provider, request/session or API authority moves to the
+  parent. Actual descendant retirement precedes output-reservation release;
+  failure or a closed pipe supplies no such acknowledgement. The historical
+  Decision remains unchanged. Phase 03 owns implementation and proof.”
+- Standard 07, **Generated runtime provenance** and **Supervision**:
+  “Under ADR-0084, supported macOS/Linux native dev/production and copied launch
+  paths hold existing frontend/app/SDK reservations in a builtins owner around
+  one isolated runtime child. Verify current parent-bound records and actual
+  installation/build in the child before runtime import/listen. Join actual
+  child close and group absence before release; uncertainty retains ownership.
+  Preserve all request/publication fences and inherited shutdown failure rules.
+  No arbitrary daemon or unqualified platform containment is implied.” Replace
+  only the conflicting no-new-topology reading; retain other supervision limits.
+- Testing 06, existing qualified Next cleanup section:
+  “Prove actual nested compiler/runtime and installer descendants outlive direct
+  parent exit without releasing reservations, including abnormal child death,
+  closed stdio, actual dev workers, normal restart and wrong child handshake.
+  Timers, signal delivery and diagnostic disposal are not retirement proof.
+  Retain initialized router/native/browser and full source-bound hosted gates.”
+- Catalogue 21, existing `Next_Response_Cleanup_Is_Installed_And_Owned`:
+  add ADR-0084 to Source and process-family/entry/restart controls to Asserts and
+  Test owner. Keep Registered until actual complete obligations qualify it.
+- Decision index: move ADR-0084 Proposed to Active only after approval. Phase 03
+  Status links this package and preserves open Step 2/3 and manual dispositions.
+  On implementation, reconcile the frontend maintenance guide, setup/test skills,
+  Make/demo/CI and every copied proof/native caller; document observed platform,
+  PID, stdio and cost bounds without inventing packaging support.
+
+No Accepted ADR or canonical executable policy is amended by this proposal.
+Two fresh independent proposal rounds and verified corrections precede the
+maintainer question. New runtime ownership remains gated; independent existing
+corrections continue. This record establishes neither a completed Step 2 nor a
+qualified P03-3 runtime.

@@ -132,6 +132,7 @@ records hosted qualification. Phase 11 owns production qualification.
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
+| 0084 | [Owned Frontend Runtime Process Families](0084-owned-frontend-runtime-process-families.md) | Proposed builtins native owner/runtime child and actual subprocess-group retirement; no topology implementation before approval | P03-3, ADR-0083 Step 2 corrections before runtime ownership activation |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
 the P02d-2 package on 2026-10-02. Their rows are now in Active ADRs; ADR-0049 remains
