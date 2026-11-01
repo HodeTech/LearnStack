@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 4,774 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 4,794 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -222,7 +222,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0083 existing-stream failure transition precision (2026-11-01)](#adr-0083-existing-stream-failure-transition-precision-2026-11-01) — 23 lines
   - [ADR-0083 proposal review closeout and approval readiness (2026-11-01)](#adr-0083-proposal-review-closeout-and-approval-readiness-2026-11-01) — 52 lines
   - [ADR-0083 maintainer corrections, acceptance and Step 1 (2026-11-01)](#adr-0083-maintainer-corrections-acceptance-and-step-1-2026-11-01) — 143 lines
-  - [ADR-0083 Step 1 review round 1 and status correction (2026-11-01)](#adr-0083-step-1-review-round-1-and-status-correction-2026-11-01) — 20 lines
+  - [ADR-0083 Step 1 review round 1 and status correction (2026-11-01)](#adr-0083-step-1-review-round-1-and-status-correction-2026-11-01) — 21 lines
+  - [ADR-0083 Step 1 review closeout (2026-11-01)](#adr-0083-step-1-review-closeout-2026-11-01) — 19 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -10540,3 +10541,23 @@ service, browser, full suite or hosted workflow; no implementation proof follows
 The parent reads both complete reports and verifies the shared finding before
 this correction commit. Two new independent R2 reviewers examine Step 1 and
 its correction before executable Step 2 begins.
+
+
+### ADR-0083 Step 1 review closeout (2026-11-01)
+
+Two new independent R2 reviewers approve `676f5b21` with zero actionable findings.
+Both re-read the complete eleven-document acceptance diff and R1 status
+correction. They independently verify all five cited evidence digests and the
+74/24 assertion populations, review immutable ADR history and registered control
+status, and preserve the installed/generated/actual-runtime proof distinctions.
+The parent reads all four complete Step 1 reports. No installer, build, browser,
+full suite or hosted workflow is run by those reviewers.
+
+Step 1 and its two fresh rounds/verified Minor correction are complete. The
+maintainer's conditional approval is applied; no additional acceptance question
+blocks this corrected ADR. The new rule remains Registered, and the named patch,
+census, toolchain/build guards and actual runtime qualifications are executable
+Steps 2–3 obligations. Private map/owner/carrier preparation is not a shipped
+implementation or complete proof. Proceed automatically to Step 2 under the
+approved sequence, preserving all inherited isolation, lifetime, wire, deadline
+and final-source A/B requirements. Manual evidence stays deferred/unexecuted.
