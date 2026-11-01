@@ -56,17 +56,19 @@ export function markRuntimeTestChild(child) {
       if (
         !lease ||
         !handle ||
-        Object.keys(handle).sort().join(',') !== 'group,leaseNonce,parentPid,pid' ||
+        Object.keys(handle).sort().join(',') !== 'group,leaseNonce,ordinal,parentPid,pid' ||
         !Number.isSafeInteger(handle.pid) ||
         handle.pid < 1 ||
+        !Number.isSafeInteger(handle.ordinal) ||
+        handle.ordinal !== producers.size + 1 ||
         handle.group !== handle.pid ||
         handle.parentPid !== child.pid ||
         handle.leaseNonce !== lease.nonce ||
-        producers.has(handle.pid)
+        producers.has(handle.ordinal)
       )
         throw new Error('Runtime fixture producer family capture refused');
       const copy = Object.freeze({ ...handle });
-      producers.set(copy.pid, copy);
+      producers.set(copy.ordinal, copy);
       return copy;
     },
     captureFamily(handle) {
@@ -99,7 +101,9 @@ export function markRuntimeTestChild(child) {
       return (
         closed &&
         Boolean(family) &&
-        [child.pid, ...producers.keys(), family.group].every((group) => state.retired.has(group))
+        [child.pid, ...[...producers.values()].map((handle) => handle.group), family.group].every(
+          (group) => state.retired.has(group),
+        )
       );
     },
   });
@@ -181,7 +185,7 @@ async function stopOwnedRuntimeChild(child, state) {
   const groups = [
     ...new Set([
       child.pid,
-      ...state.producers.keys(),
+      ...[...state.producers.values()].map((handle) => handle.group),
       ...(state.family ? [state.family.group] : []),
     ]),
   ];

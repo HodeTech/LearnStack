@@ -157,9 +157,19 @@ export function createCopiedRuntimeHostBroker(child, { app, profile }) {
         const family = capture.family();
         if (!family) fail();
         validator.observation(value, family.pid);
+        const projected =
+          profile === 'ingress' && value.kind === 'version-fetch'
+            ? Object.freeze({
+                kind: 'version-fetch',
+                pid: value.pid,
+                state: value.state,
+                errorKind: value.errorKind,
+                elapsedMilliseconds: value.elapsedMilliseconds,
+              })
+            : value;
         proof.emit(
           'message',
-          profile === 'bff' && value.kind === 'proof-reply' ? value.payload : value,
+          profile === 'bff' && value.kind === 'proof-reply' ? value.payload : projected,
         );
       }
     } catch {

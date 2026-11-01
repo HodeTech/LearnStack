@@ -155,9 +155,10 @@ test('completed IDs cannot replay, while distinct out-of-order IDs remain valid'
 test('ingress readiness and concurrent version fetches preserve causal transitions', () => {
   const ingress = createCopiedHostProofValidator('ingress');
   const pid = 123;
-  const fetch = (state, errorKind, elapsedMilliseconds) => ({
+  const fetch = (sequence, state, errorKind, elapsedMilliseconds) => ({
     kind: 'version-fetch',
     pid,
+    sequence,
     state,
     errorKind,
     elapsedMilliseconds,
@@ -166,24 +167,26 @@ test('ingress readiness and concurrent version fetches preserve causal transitio
   ingress.observation({ kind: 'readiness', pid, phase: 'preparing' }, pid);
   ingress.observation({ kind: 'readiness', pid, phase: 'prepared' }, pid);
   assert.throws(() => ingress.observation({ kind: 'readiness', pid, phase: 'prepared' }, pid));
-  assert.throws(() => ingress.observation(fetch('failed', 'connection_refused', 1), pid));
-  ingress.observation(fetch('pending', 'none', 4), pid);
-  ingress.observation(fetch('pending', 'none', 7), pid);
-  assert.throws(() => ingress.observation(fetch('failed', 'none', 8), pid));
-  assert.throws(() => ingress.observation(fetch('settled', 'timeout', 8), pid));
-  ingress.observation(fetch('failed', 'connection_refused', 9), pid);
-  ingress.observation(fetch('settled', 'none', 10), pid);
-  assert.throws(() => ingress.observation(fetch('settled', 'none', 11), pid));
+  assert.throws(() => ingress.observation(fetch(1, 'failed', 'connection_refused', 1), pid));
+  ingress.observation(fetch(1, 'pending', 'none', 4), pid);
+  ingress.observation(fetch(2, 'pending', 'none', 7), pid);
+  assert.throws(() => ingress.observation(fetch(1, 'failed', 'none', 8), pid));
+  assert.throws(() => ingress.observation(fetch(1, 'settled', 'timeout', 8), pid));
+  ingress.observation(fetch(1, 'failed', 'connection_refused', 9), pid);
+  assert.throws(() => ingress.observation(fetch(1, 'failed', 'connection_refused', 9), pid));
+  ingress.observation(fetch(2, 'settled', 'none', 10), pid);
+  assert.throws(() => ingress.observation(fetch(2, 'settled', 'none', 11), pid));
 });
 
 test('swallowed invalid version callback poisons proof, while concurrent real callbacks settle', async () => {
   const bad = child('ingress');
   const badFetch = boundNextVersionFetch(
     () => Promise.resolve({ ok: true }),
-    (observation) => {
+    (observation, sequence) => {
       bad.receiver.emit({
         kind: 'version-fetch',
         pid: process.pid,
+        sequence,
         ...observation,
         ...(observation.state === 'pending' ? { errorKind: 'timeout' } : {}),
       });
@@ -200,20 +203,53 @@ test('swallowed invalid version callback poisons proof, while concurrent real ca
   const releases = [];
   const validFetch = boundNextVersionFetch(
     () => new Promise((resolve) => releases.push(resolve)),
-    (observation) =>
-      valid.receiver.emit({ kind: 'version-fetch', pid: process.pid, ...observation }),
+    (observation, sequence) =>
+      valid.receiver.emit({ kind: 'version-fetch', pid: process.pid, sequence, ...observation }),
   );
   const first = validFetch('https://registry.npmjs.org/-/package/next/dist-tags');
   const second = validFetch('https://registry.npmjs.org/-/package/next/dist-tags');
-  releases[1]({ value: 2 });
+  releases[1]({ value: 1 });
   releases[0]({ value: 1 });
-  assert.deepEqual(await Promise.all([first, second]), [{ value: 1 }, { value: 2 }]);
+  assert.deepEqual(await Promise.all([first, second]), [{ value: 1 }, { value: 1 }]);
   assert.deepEqual(
     valid.sent.map((frame) => frame.payload.state),
     ['pending', 'pending', 'settled', 'settled'],
   );
+  assert.deepEqual(
+    valid.sent.map((frame) => frame.payload.sequence),
+    [1, 2, 2, 1],
+  );
   assert.deepEqual(valid.stops, []);
   await valid.receiver.drain();
+});
+
+test('real fetch wrapper refuses replayed A terminal while B remains pending', async () => {
+  const proof = child('ingress');
+  const releases = [];
+  const fetch = boundNextVersionFetch(
+    () => new Promise((resolve) => releases.push(resolve)),
+    (observation, sequence) => {
+      const frame = { kind: 'version-fetch', pid: process.pid, sequence, ...observation };
+      proof.receiver.emit(frame);
+      if (observation.state === 'settled' && sequence === 1) proof.receiver.emit(frame);
+    },
+  );
+  const first = fetch('https://registry.npmjs.org/-/package/next/dist-tags');
+  const second = fetch('https://registry.npmjs.org/-/package/next/dist-tags');
+  releases[0]({ value: 'same' });
+  assert.deepEqual(await first, { value: 'same' });
+  assert.deepEqual(
+    proof.sent.map((frame) => frame.payload.sequence),
+    [1, 2, 1],
+  );
+  assert.deepEqual(proof.stops, ['protocol-fault']);
+  releases[1]({ value: 'same' });
+  assert.deepEqual(await second, { value: 'same' });
+  assert.deepEqual(
+    proof.sent.map((frame) => frame.payload.sequence),
+    [1, 2, 1, 2],
+  );
+  await assert.rejects(proof.receiver.drain(), /protocol refused/);
 });
 
 test('BFF validates full native operation union and ordered shutdown frames', () => {
@@ -481,6 +517,110 @@ test(
       );
       assert.equal(messages[2].sequence, 1);
       assert.equal(messages[3].refused, true);
+    } finally {
+      if (owner.exitCode === null && owner.signalCode === null) owner.kill('SIGKILL');
+    }
+  },
+);
+
+test(
+  'copied parent mints distinct producer ordinals for reused PID and refuses handle replay',
+  { timeout: 5000 },
+  async () => {
+    const script = `
+    import { createCopiedParentProof } from ${JSON.stringify(new URL('./framework-proof-relay.mjs', import.meta.url).href)};
+    const proof = createCopiedParentProof('none');
+    proof.onLease({ record: { format: 1, kind: 'development', pid: process.pid, nonce: 'a'.repeat(32) }, records: [{}, {}, {}] });
+    const first = Object.freeze({ pid: 34567, group: 34567, parentPid: process.pid });
+    const second = Object.freeze({ pid: 34567, group: 34567, parentPid: process.pid });
+    proof.onProducerFamily(first);
+    proof.onProducerFamily(second);
+    let refused = false;
+    try { proof.onProducerFamily(first); } catch { refused = true; }
+    process.send({ kind: 'replay-refused', refused });
+    await proof.close();
+  `;
+    const owner = spawn(process.execPath, ['--input-type=module', '-e', script], {
+      stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
+    });
+    const messages = [];
+    owner.on('message', (message) => messages.push(message));
+    const closed = new Promise((resolve, reject) => {
+      owner.once('error', reject);
+      owner.once('close', (code, signal) => resolve({ code, signal }));
+    });
+    try {
+      assert.deepEqual(await closed, { code: 0, signal: null });
+      assert.deepEqual(
+        messages.map((message) => message.kind),
+        ['runtime-lease', 'producer-family', 'producer-family', 'replay-refused'],
+      );
+      assert.deepEqual(
+        messages.slice(1, 3).map((message) => message.ordinal),
+        [1, 2],
+      );
+      assert.deepEqual(
+        messages.slice(1, 3).map((message) => message.pid),
+        [34567, 34567],
+      );
+      assert.equal(messages[3].refused, true);
+    } finally {
+      if (owner.exitCode === null && owner.signalCode === null) owner.kill('SIGKILL');
+    }
+  },
+);
+
+test(
+  'copied parent refuses duplicate fetch A terminal while B remains pending',
+  { timeout: 5000 },
+  async () => {
+    const script = `
+    import { createCopiedParentProof } from ${JSON.stringify(new URL('./framework-proof-relay.mjs', import.meta.url).href)};
+    const proof = createCopiedParentProof('ingress');
+    const incarnation = 'b'.repeat(32);
+    const childPid = 34567;
+    proof.onLease({ record: { format: 1, kind: 'production', pid: process.pid, nonce: 'a'.repeat(32) }, records: [{}, {}, {}] });
+    const receiver = proof.attach({ childPid, incarnation, send() {}, onFault() { throw Error('fault'); } });
+    proof.onRuntimeFamily({ pid: childPid, group: childPid, parentPid: process.pid,
+      leaseNonce: 'a'.repeat(32), incarnation });
+    const observe = (sequence, state) => ({ tag: 'learnstack-proof-v1', incarnation,
+      payload: { kind: 'version-fetch', pid: childPid, sequence, state,
+        errorKind: 'none', elapsedMilliseconds: 1 } });
+    receiver.receive(observe(1, 'pending'));
+    receiver.receive(observe(2, 'pending'));
+    receiver.receive(observe(1, 'settled'));
+    let refused = false;
+    try { receiver.receive(observe(1, 'settled')); } catch { refused = true; }
+    process.send({ kind: 'replay-refused', refused });
+    await proof.close();
+  `;
+    const owner = spawn(process.execPath, ['--input-type=module', '-e', script], {
+      stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
+    });
+    const messages = [];
+    owner.on('message', (message) => messages.push(message));
+    const closed = new Promise((resolve, reject) => {
+      owner.once('error', reject);
+      owner.once('close', (code, signal) => resolve({ code, signal }));
+    });
+    try {
+      assert.deepEqual(await closed, { code: 0, signal: null });
+      assert.deepEqual(
+        messages.map((message) => message.kind),
+        [
+          'runtime-lease',
+          'runtime-family',
+          'version-fetch',
+          'version-fetch',
+          'version-fetch',
+          'replay-refused',
+        ],
+      );
+      assert.deepEqual(
+        messages.slice(2, 5).map((message) => message.sequence),
+        [1, 2, 1],
+      );
+      assert.equal(messages[5].refused, true);
     } finally {
       if (owner.exitCode === null && owner.signalCode === null) owner.kill('SIGKILL');
     }

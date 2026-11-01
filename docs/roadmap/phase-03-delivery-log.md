@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 5,653 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 5,705 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -239,7 +239,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0084 Step 1 review round 2 and disclosure correction (2026-11-01)](#adr-0084-step-1-review-round-2-and-disclosure-correction-2026-11-01) — 20 lines
   - [ADR-0084 Step 1 review closeout and implementation plan (2026-11-01)](#adr-0084-step-1-review-closeout-and-implementation-plan-2026-11-01) — 28 lines
   - [ADR-0084 Step 2 implementation and integration checks (2026-11-01)](#adr-0084-step-2-implementation-and-integration-checks-2026-11-01) — 69 lines
-  - [ADR-0084 Step 2 review round 1 and verified corrections (2026-11-01)](#adr-0084-step-2-review-round-1-and-verified-corrections-2026-11-01) — 69 lines
+  - [ADR-0084 Step 2 review round 1 and verified corrections (2026-11-01)](#adr-0084-step-2-review-round-1-and-verified-corrections-2026-11-01) — 70 lines
+  - [ADR-0084 Step 2 review round 2 and proof-correlation closeout (2026-11-01)](#adr-0084-step-2-review-round-2-and-proof-correlation-closeout-2026-11-01) — 51 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -11436,3 +11437,55 @@ moving to Step 3. Initialized preparation/static-paths worker, owner-loss recove
 complete transport/native/API/browser and complete same-final-source hosted A/B
 proof remain open; the catalogue rule stays Registered. Manual accessibility is
 maintainer-deferred and unexecuted.
+
+
+### ADR-0084 Step 2 review round 2 and proof-correlation closeout (2026-11-01)
+
+Two new independent reviewers inspect `5dbd3bcd`. The ownership reviewer approves
+bounded Step 2, independently running 25 actual process controls, the actual-TLS
+native control with inert dependencies and 20 relay/driver controls. The proof
+reviewer requests two corrections. Root reads both complete reports and verifies
+the counterexamples against the exact historical modules; no rollback or live
+OS PID-wrap experiment is required.
+
+**Concurrent fetches.** A count of outstanding version lookups permits replayed
+terminal A to consume pending B. The real bounded wrapper now assigns one private
+sequence per issued lookup. Child, parent and host require the matching pending
+sequence; concurrent reverse-order and identical results remain valid. Rejected
+emission faults its owning proof/drain even if the informational wrapper catches
+it. Only after validation does the broker project the unchanged consumer shape.
+Its last-observed diagnostic remains distinct from aggregate outstanding work.
+
+**Producer generations.** A later serial producer may reuse a retired numeric PID.
+The copied parent gives each actual distinct launch handle a consecutive ordinal;
+the host captures by ordinal and refuses replay. The generic family handle stays
+unchanged. After owner close, retirement observes each distinct numeric group
+from all captured generations. No saved group receives a nonzero signal, and
+record reconciliation still requires exact unchanged records and all-family
+retirement. The original producer/runtime numeric-reuse control remains.
+
+**Independent correction review.** The R2 proof reviewer rechecks both corrections
+and closes both findings. All 40 focused cases pass: 18 relay, seven broker, six
+stop and nine copied-source controls, with zero skips/todos. A separate probe uses
+three real detached inert process groups and exact private records: reconciliation
+refuses while producer and runtime live, still refuses with runtime alone, and
+succeeds only after all groups actually close and signal-zero reports absence.
+The two modeled producer generations share a number; this is no claim of a live
+OS PID wrap. Failed launch outcomes and physical cleanup remain separate.
+
+**Current qualification.** Typecheck and lint pass. The full guarded frontend
+runner passes **3,481/3,481** cases across 106 files: 3,333 web and 148 SDK,
+zero skips/todos, 92.743 seconds and zero stderr. Source hashes remain unchanged.
+A normal clean production build passes in 19.024 seconds with zero stderr;
+independent verification binds 345 inputs and 128 outputs (2,392,888 bytes),
+manifest SHA-256
+`68d7a44180174b578e7378f37c71b677ba595da8c861179b0727392bda101c90`.
+The 3,143-fragment Markdown audit, roadmap/index guards, five corpus checks and
+`git diff --check` pass. The Accepted toolchain, patch/census, deadlines, capacities
+and CI windows remain unchanged. Both fresh review rounds and their verified
+corrections close Step 2.
+
+Step 3 retains initialized real preparation,
+static-paths worker, owner-loss/recovery, complete framework/native/API/browser
+and complete same-final-source hosted A/B qualification. The catalogue rule stays
+Registered. Manual accessibility remains maintainer-deferred and unexecuted.

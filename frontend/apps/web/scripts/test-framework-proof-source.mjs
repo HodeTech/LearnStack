@@ -139,6 +139,10 @@ test('ingress copied runtime preserves dual output fences and actual bind observ
     assert.ok(transformed.includes('Promise.all([process.stdout, process.stderr]'));
     assert.ok(transformed.includes("control.proof.emit({ surface: 'native'"));
     assert.ok(transformed.includes("control.proof.emit({ surface: 'sink'"));
+    assert.ok(
+      transformed.includes('boundNextVersionFetch(globalThis.fetch, (observation, sequence)'),
+    );
+    assert.ok(transformed.includes("kind: 'version-fetch', pid: process.pid, sequence"));
     const path = join(f.root, 'public-server-runtime.mjs');
     writeFileSync(path, transformed);
     execFileSync(process.execPath, ['--check', path]);

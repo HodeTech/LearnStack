@@ -141,11 +141,12 @@ function ingressObservation(value, childPid) {
   if (exact(value, ['kind', 'pid', 'phase']) && value.kind === 'readiness')
     return value.pid === childPid && ['preparing', 'prepared'].includes(value.phase);
   if (
-    exact(value, ['kind', 'pid', 'state', 'errorKind', 'elapsedMilliseconds']) &&
+    exact(value, ['kind', 'pid', 'sequence', 'state', 'errorKind', 'elapsedMilliseconds']) &&
     value.kind === 'version-fetch'
   )
     return (
       value.pid === childPid &&
+      positive(value.sequence) &&
       FETCH_STATES.has(value.state) &&
       FETCH_ERRORS.has(value.errorKind) &&
       count(value.elapsedMilliseconds) &&
@@ -268,12 +269,13 @@ export function createBffShutdownValidator() {
 function createState(profile) {
   if (!PROFILES.has(profile)) fail();
   const pending = new Map();
+  const pendingFetches = new Set();
   const usedIds = new Set();
   const bffShutdown = createBffShutdownValidator();
   let shutdownFrames = 0;
   let listenerSeen = false;
   let readinessPhase = 'launched';
-  let fetchActive = 0;
+  let nextFetchSequence = 1;
   let nextSequence = 1;
   let expectedNow = 0;
   let commandPending = null;
@@ -317,16 +319,17 @@ function createState(profile) {
       }
       if (value.kind === 'version-fetch') {
         if (value.state === 'pending') {
-          if (value.errorKind !== 'none' || fetchActive === Number.MAX_SAFE_INTEGER) fail();
-          fetchActive++;
+          if (value.errorKind !== 'none' || value.sequence !== nextFetchSequence) fail();
+          pendingFetches.add(value.sequence);
+          nextFetchSequence++;
         } else {
           if (
-            fetchActive === 0 ||
+            !pendingFetches.has(value.sequence) ||
             (value.state === 'settled' && value.errorKind !== 'none') ||
             (value.state === 'failed' && value.errorKind === 'none')
           )
             fail();
-          fetchActive--;
+          pendingFetches.delete(value.sequence);
         }
       }
       if (Object.hasOwn(value, 'id')) {
@@ -398,7 +401,8 @@ export function createCopiedParentProof(profile) {
   let lease;
   let runtimeFamily;
   let authenticatedChild;
-  const producerPids = new Set();
+  const producerHandles = new WeakSet();
+  let nextProducerOrdinal = 1;
   let channelFault;
   let hostMessageListener;
   let closing;
@@ -473,13 +477,16 @@ export function createCopiedParentProof(profile) {
         !positive(handle.pid) ||
         handle.group !== handle.pid ||
         handle.parentPid !== process.pid ||
-        producerPids.has(handle.pid)
+        producerHandles.has(handle) ||
+        !positive(nextProducerOrdinal)
       )
         fail();
-      producerPids.add(handle.pid);
+      producerHandles.add(handle);
+      const ordinal = nextProducerOrdinal++;
       sendHost(
         Object.freeze({
           kind: 'producer-family',
+          ordinal,
           pid: handle.pid,
           group: handle.group,
           parentPid: handle.parentPid,

@@ -42,9 +42,11 @@ function probeKind(error) {
 
 /** Bound only Next 15.5.28's one-argument informational lookup in this fixture. */
 export function boundNextVersionFetch(delegate, notify) {
+  let nextSequence = 1;
   return function (...args) {
     if (args.length !== 1 || args[0] !== 'https://registry.npmjs.org/-/package/next/dist-tags')
       return Reflect.apply(delegate, this, args);
+    const sequence = nextSequence++;
     const started = performance.now();
     const controller = new AbortController();
     let timedOut = false;
@@ -55,14 +57,17 @@ export function boundNextVersionFetch(delegate, notify) {
     timer.unref?.();
     const emit = (state, errorKind = 'none') => {
       try {
-        notify({
-          state,
-          errorKind,
-          elapsedMilliseconds: Math.min(
-            120000,
-            Math.max(0, Math.round(performance.now() - started)),
-          ),
-        });
+        notify(
+          {
+            state,
+            errorKind,
+            elapsedMilliseconds: Math.min(
+              120000,
+              Math.max(0, Math.round(performance.now() - started)),
+            ),
+          },
+          sequence,
+        );
       } catch {
         /* Observation cannot change the original fetch outcome. */
       }

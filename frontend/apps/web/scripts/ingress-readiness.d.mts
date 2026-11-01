@@ -4,7 +4,10 @@ export function isReadinessNotification(message: unknown): boolean;
 
 export function boundNextVersionFetch(
   delegate: typeof fetch,
-  notify: (observation: { state: string; errorKind: string; elapsedMilliseconds: number }) => void,
+  notify: (
+    observation: { state: string; errorKind: string; elapsedMilliseconds: number },
+    sequence: number,
+  ) => void,
 ): typeof fetch;
 
 export function createIngressReadiness(child: ChildProcess): {

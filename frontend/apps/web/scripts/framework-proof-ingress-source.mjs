@@ -22,8 +22,8 @@ export function instrumentCopiedIngressRuntime(sourceText) {
       `    if (dev) {
       const { boundNextVersionFetch } = await ownSetup(import('./ingress-readiness.mjs'));
       assertStarting();
-      globalThis.fetch = boundNextVersionFetch(globalThis.fetch, (observation) => {
-        control.proof.emit({ kind: 'version-fetch', pid: process.pid, ...observation });
+      globalThis.fetch = boundNextVersionFetch(globalThis.fetch, (observation, sequence) => {
+        control.proof.emit({ kind: 'version-fetch', pid: process.pid, sequence, ...observation });
       });
     }
 ${importAnchor}`,

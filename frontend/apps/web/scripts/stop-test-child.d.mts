@@ -14,6 +14,7 @@ export type RuntimeTestLease = Readonly<{
   kind: 'production' | 'development';
 }>;
 export type RuntimeTestProducerFamily = Readonly<{
+  ordinal: number;
   pid: number;
   group: number;
   parentPid: number;

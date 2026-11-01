@@ -72,6 +72,7 @@ test('reused producer PID joins each distinct group once without a saved group s
   const capture = markRuntimeTestChild(child);
   capture.captureLease({ format: 1, kind: 'development', nonce: 'a'.repeat(32), pid: child.pid });
   capture.captureProducerFamily({
+    ordinal: 1,
     pid: 34567,
     group: 34567,
     parentPid: child.pid,
@@ -82,6 +83,59 @@ test('reused producer PID joins each distinct group once without a saved group s
     group: 34567,
     parentPid: child.pid,
     leaseNonce: 'a'.repeat(32),
+    incarnation: 'b'.repeat(32),
+  });
+  const originalKill = process.kill;
+  const probes = [];
+  process.kill = (pid, signal) => {
+    assert.equal(signal, 0);
+    probes.push(pid);
+    const error = new Error('group absent');
+    error.code = 'ESRCH';
+    throw error;
+  };
+  try {
+    assert.deepEqual(await stopTestChild(child), {
+      forced: false,
+      ownerCode: 0,
+      ownerSignal: null,
+    });
+    assert.deepEqual(probes, [-23456, -34567]);
+    assert.equal(capture.retired(), true);
+  } finally {
+    process.kill = originalKill;
+  }
+});
+
+test('sequential producer generations may reuse a PID and both remain captured for retirement', async () => {
+  const child = new EventEmitter();
+  child.pid = 23456;
+  child.exitCode = null;
+  child.signalCode = null;
+  child.kill = (signal) => {
+    assert.equal(signal, 'SIGTERM');
+    queueMicrotask(() => {
+      child.exitCode = 0;
+      child.emit('close', 0, null);
+    });
+    return true;
+  };
+  const capture = markRuntimeTestChild(child);
+  const nonce = 'a'.repeat(32);
+  capture.captureLease({ format: 1, kind: 'development', nonce, pid: child.pid });
+  const producer = { pid: 34567, group: 34567, parentPid: child.pid, leaseNonce: nonce };
+  capture.captureProducerFamily({ ...producer, ordinal: 1 });
+  capture.captureProducerFamily({ ...producer, ordinal: 2 });
+  assert.deepEqual(
+    capture.producers().map((handle) => handle.ordinal),
+    [1, 2],
+  );
+  assert.throws(() => capture.captureProducerFamily({ ...producer, ordinal: 2 }));
+  capture.captureFamily({
+    pid: 34567,
+    group: 34567,
+    parentPid: child.pid,
+    leaseNonce: nonce,
     incarnation: 'b'.repeat(32),
   });
   const originalKill = process.kill;
