@@ -14,8 +14,8 @@
 > Manual evidence remains unexecuted and maintainer-owned for PR review. The [Step 10 source reviews](phase-03-delivery-log.md#p03-3-step-10-review-round-2-and-virtual-dispatch-correction-2026-10-31)
 > close both fresh independent rounds and verified corrections. The [seventh A and task-observation correction](phase-03-delivery-log.md#p03-3-seventh-hosted-a-and-business-task-observation-correction-2026-11-01)
 > validate the business-task publication boundary. The [R1 cleanup correction](phase-03-delivery-log.md#p03-3-business-task-observation-r1-cleanup-correction-2026-11-01)
-> precedes R2 completion; fixture-teardown error preservation, the separate native
-> handler investigation and complete same-source hosted A/B remain open.
+> and [R2 teardown correction](phase-03-delivery-log.md#p03-3-business-task-observation-r2-teardown-correction-2026-11-01) await final fix verification; the separate native
+> handler proposal and complete same-source hosted A/B remain open.
 > [ADR-0083](../decisions/0083-owned-next-response-compression-cleanup.md) proposes pinned framework/compressor cleanup maintenance;
 > its new dependency policy awaits maintainer approval before implementation.
 > [ADR-0082](../decisions/0082-current-source-ci-execution-windows.md) is Accepted for Architecture 25 / ordinary 30 minute windows;

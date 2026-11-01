@@ -21,22 +21,59 @@ public sealed partial class BackgroundJobPositiveSdkTests
 {
     [Fact]
     public Task Business_observation_waits_for_the_actual_Prepare_task_publication() =>
-        AssertBusinessPublicationAsync(injectPrimaryFailure: false);
+        AssertBusinessPublicationAsync(new BusinessPublicationFixtureScope());
 
     [Fact]
-    public Task Business_observation_preserves_the_primary_failure_while_joining_actual_Prepare_work() =>
-        AssertBusinessPublicationAsync(injectPrimaryFailure: true);
-
-    private async Task AssertBusinessPublicationAsync(bool injectPrimaryFailure)
+    public async Task Business_observation_preserves_the_primary_failure_while_joining_actual_Prepare_work()
     {
-        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        var primary = new InvalidOperationException("The publication fixture primary failure.");
+        var secondary = new InvalidOperationException("The publication fixture disposal failure.");
+        var disposer = new BusinessPublicationThrowingDisposer(secondary);
+        var scope = new BusinessPublicationFixtureScope();
+        var observed = await Record.ExceptionAsync(() => AssertBusinessPublicationAsync(scope, primary, disposer));
+
+        // The caller sees the primary only after every real fixture scope has unwound.
+        observed.Should().BeSameAs(primary);
+        scope.ActualWorkVerified.Should().BeTrue();
+        disposer.Disposed.Should().BeTrue();
+        scope.TeardownFailures.Should().ContainSingle().Which.Error.SourceException.Should().BeSameAs(secondary);
+        scope.Diagnostics.Should().ContainSingle().Which.Should().Be(
+            "Native business publication fixture teardown;primary=preserved;boundary=control;result=failed;ownerJoin=not_inferred.");
+    }
+
+    [Fact]
+    public async Task Business_observation_reports_fixture_teardown_failure_without_a_primary_failure()
+    {
+        var secondary = new InvalidOperationException("The publication fixture disposal failure.");
+        var disposer = new BusinessPublicationThrowingDisposer(secondary);
+        var scope = new BusinessPublicationFixtureScope();
+        var observed = await Record.ExceptionAsync(() => ObserveBusinessFixtureScopesAsync(scope, async () =>
+        {
+            await using var control = scope.Observe(disposer, "control");
+        }));
+
+        observed.Should().BeSameAs(secondary);
+        disposer.Disposed.Should().BeTrue();
+        scope.PrimaryFailure.Should().BeNull();
+        scope.TeardownFailures.Should().ContainSingle().Which.Error.SourceException.Should().BeSameAs(secondary);
+        scope.Diagnostics.Should().ContainSingle().Which.Should().Be(
+            "Native business publication fixture teardown;primary=absent;boundary=control;result=failed;ownerJoin=not_inferred.");
+    }
+
+    private Task AssertBusinessPublicationAsync(BusinessPublicationFixtureScope scope, Exception? injected = null,
+        IAsyncDisposable? disposalControl = null) => ObserveBusinessFixtureScopesAsync(scope, async () =>
+    {
+        await using var controlDisposal = scope.Observe(disposalControl, "control");
+        var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using var databaseDisposal = scope.Observe(database, "database");
         await BackgroundJobSchemaSeed.SeedTenantsAsync(database.AppConnectionString);
-        await using var provider = await BackgroundJobProviderJournalDatabase.CreateAsync(schema.Postgres);
+        var provider = await BackgroundJobProviderJournalDatabase.CreateAsync(schema.Postgres);
+        await using var providerDisposal = scope.Observe(provider, "provider");
         var prepared = OrganizationId.From(Guid.CreateVersion7());
         var finalized = OrganizationId.From(Guid.CreateVersion7());
         var probe = new NativeNoPlanPrepareProbe();
         var construction = new BackgroundJobPositiveProviderConstructionProbe();
-        await using var host = Fixture.Host(database, provider.Settings, construction, services =>
+        var host = Fixture.Host(database, provider.Settings, construction, services =>
         {
             services.AddSingleton(probe);
             var request = Fixture.RequestType("Prepare");
@@ -45,6 +82,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
             services.RemoveAll(contract);
             services.AddTransient(contract, typeof(NativeNoPlanPermanentPrepare<,>).MakeGenericType(request, plan));
         });
+        await using var hostDisposal = scope.Observe(host, "host");
         var executor = host.Services.GetRequiredService<JobExecutor>();
         var submitted = await Fixture.SubmitAsync(host.Services, Fixture.Parameters(Guid.CreateVersion7(), prepared, finalized));
         submitted.IsSuccess.Should().BeTrue();
@@ -52,7 +90,8 @@ public sealed partial class BackgroundJobPositiveSdkTests
         var routing = host.Services.GetRequiredService<PostgresBackgroundJobRoutingStore>();
         var claim = await routing.TryClaimAsync(job, await GenerationAsync(database, job));
         claim.Should().NotBeNull();
-        await using var source = new PrivilegedDataSource(() => OutboxDispatcherDataSource.Build(database.OutboxConnectionString));
+        var source = new PrivilegedDataSource(() => OutboxDispatcherDataSource.Build(database.OutboxConnectionString));
+        await using var sourceDisposal = scope.Observe(source, "source");
         var runtime = new BackgroundJobRuntimeGate(Fixture.Registry.Infrastructure);
         var bounds = new BackgroundJobRuntimeOptions { RenewalInterval = TimeSpan.FromSeconds(1) };
         var controller = new BackgroundJobControl(source, Fixture.Registry, executor, runtime, bounds,
@@ -70,9 +109,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
         var joined = false;
         Task<bool>? executionJoin = null;
         Task? privateCompletion = null;
-        ExceptionDispatchInfo? failure = null;
         ExceptionDispatchInfo? cleanupFailure = null;
-        var injected = injectPrimaryFailure ? new InvalidOperationException("The publication fixture primary failure.") : null;
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
         try
         {
@@ -140,7 +177,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
         }
         catch (Exception error) when (NativeWaitCatchable(error))
         {
-            failure = ExceptionDispatchInfo.Capture(error);
+            scope.PrimaryFailure = ExceptionDispatchInfo.Capture(error);
         }
         finally
         {
@@ -152,7 +189,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
             {
                 cleanupBoundary ??= boundary;
                 cleanupFailure ??= error;
-                failure ??= error;
+                scope.PrimaryFailure ??= error;
             }
             async Task<bool> CleanupStepAsync(string boundary, Func<Task> step)
             {
@@ -215,7 +252,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
             }
             var controlJoined = await CleanupStepAsync("control", () => controller.Completion);
             var generationJoined = await CleanupStepAsync("generation", () => generation.Completion);
-            if (failure is not null)
+            if (scope.PrimaryFailure is not null)
             {
                 static string State(bool issued, bool complete) => !issued ? "not_issued" : complete ? "joined" : "incomplete";
                 try
@@ -230,10 +267,8 @@ public sealed partial class BackgroundJobPositiveSdkTests
                 catch (Exception error) when (NativeWaitCatchable(error)) { }
             }
         }
-        if (injected is not null && ReferenceEquals(failure?.SourceException, injected))
+        if (injected is not null && ReferenceEquals(scope.PrimaryFailure?.SourceException, injected))
         {
-            Action rethrow = failure!.Throw;
-            rethrow.Should().Throw<InvalidOperationException>().Which.Should().BeSameAs(injected);
             cleanupFailure?.Throw();
             result.Should().NotBeNull();
             result!.KnownRollback.Should().BeTrue();
@@ -244,7 +279,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
         }
         else
         {
-            failure?.Throw();
+            scope.PrimaryFailure?.Throw();
             injected.Should().BeNull("the requested primary failure must be observed before publication");
         }
         joined.Should().BeTrue();
@@ -254,13 +289,72 @@ public sealed partial class BackgroundJobPositiveSdkTests
         probe.Prepares.Should().Be(1);
         construction.Calls.Should().Be(0);
         (await BackgroundJobRuntimeRows.CountOrganizationAsync(database.AppConnectionString, finalized.Value)).Should().Be(0);
-        await using var external = new NpgsqlConnection(provider.Settings.ConnectionString);
+        var external = new NpgsqlConnection(provider.Settings.ConnectionString);
+        await using var externalDisposal = scope.Observe(external, "external");
         await external.OpenAsync();
-        await using var effects = new NpgsqlCommand("""
+        var effects = new NpgsqlCommand("""
             SELECT (SELECT count(*) FROM provider_operations)+(SELECT count(*) FROM provider_attempts)
                 +(SELECT count(*) FROM provider_calls)+(SELECT count(*) FROM provider_effects)
             """, external) { CommandTimeout = 5 };
+        await using var effectsDisposal = scope.Observe(effects, "effects");
         ((long)(await effects.ExecuteScalarAsync())!).Should().Be(0);
+        scope.ActualWorkVerified = true;
+    });
+
+    private async Task ObserveBusinessFixtureScopesAsync(BusinessPublicationFixtureScope scope, Func<Task> scenario)
+    {
+        try { await scenario(); }
+        catch (Exception error) when (NativeWaitCatchable(error))
+        {
+            scope.PrimaryFailure ??= ExceptionDispatchInfo.Capture(error);
+        }
+        // All fixture disposals have finished. Their failures never certify owner
+        // cleanup; isolated failed-test database teardown may still force DROP.
+        foreach (var teardown in scope.TeardownFailures)
+        {
+            var diagnostic = "Native business publication fixture teardown;primary="
+                + (scope.PrimaryFailure is null ? "absent" : "preserved")
+                + ";boundary=" + teardown.Boundary + ";result=failed;ownerJoin=not_inferred.";
+            scope.Diagnostics.Add(diagnostic);
+            try { output.WriteLine(diagnostic); }
+            catch (Exception error) when (NativeWaitCatchable(error)) { }
+        }
+        scope.PrimaryFailure?.Throw();
+        if (scope.TeardownFailures.Count > 0) scope.TeardownFailures[0].Error.Throw();
+    }
+
+    private sealed class BusinessPublicationFixtureScope
+    {
+        internal ExceptionDispatchInfo? PrimaryFailure { get; set; }
+        internal bool ActualWorkVerified { get; set; }
+        internal List<(string Boundary, ExceptionDispatchInfo Error)> TeardownFailures { get; } = [];
+        internal List<string> Diagnostics { get; } = [];
+
+        internal IAsyncDisposable Observe(IAsyncDisposable? resource, string boundary) => new FixtureDisposal(this, resource, boundary);
+
+        private sealed class FixtureDisposal(BusinessPublicationFixtureScope scope, IAsyncDisposable? resource, string boundary) : IAsyncDisposable
+        {
+            public async ValueTask DisposeAsync()
+            {
+                if (resource is null) return;
+                try { await resource.DisposeAsync(); }
+                catch (Exception error) when (NativeWaitCatchable(error))
+                {
+                    scope.TeardownFailures.Add((boundary, ExceptionDispatchInfo.Capture(error)));
+                }
+            }
+        }
+    }
+
+    private sealed class BusinessPublicationThrowingDisposer(Exception failure) : IAsyncDisposable
+    {
+        internal bool Disposed { get; private set; }
+
+        public ValueTask DisposeAsync()
+        {
+            Disposed = true;
+            throw failure;
+        }
     }
 
     private static async Task<ExceptionDispatchInfo?> ObserveBusinessCleanupAsync(Task actual, CancellationToken cancellationToken)

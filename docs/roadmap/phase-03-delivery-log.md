@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 4,400 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 4,446 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -215,7 +215,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 seventh hosted A and business-task observation correction (2026-11-01)](#p03-3-seventh-hosted-a-and-business-task-observation-correction-2026-11-01) — 74 lines
   - [P03-3 business-task observation R1 cleanup correction (2026-11-01)](#p03-3-business-task-observation-r1-cleanup-correction-2026-11-01) — 36 lines
   - [ADR-0083 proposed owned Next cleanup package (2026-11-01)](#adr-0083-proposed-owned-next-cleanup-package-2026-11-01) — 141 lines
-  - [ADR-0083 proposal R1 corrections and revised package (2026-11-01)](#adr-0083-proposal-r1-corrections-and-revised-package-2026-11-01) — 70 lines
+  - [ADR-0083 proposal R1 corrections and revised package (2026-11-01)](#adr-0083-proposal-r1-corrections-and-revised-package-2026-11-01) — 71 lines
+  - [P03-3 business-task observation R2 teardown correction (2026-11-01)](#p03-3-business-task-observation-r2-teardown-correction-2026-11-01) — 45 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -10159,3 +10160,49 @@ owners and complete fresh final-source hosted A/B remain required. Two new
 independent proposal R2 reviewers inspect these corrections and the complete
 proposal. Maintainer approval remains necessary before any dependency/runtime
 implementation; manual accessibility evidence stays deferred and unexecuted.
+
+
+### P03-3 business-task observation R2 teardown correction (2026-11-01)
+
+Two new independent R2 reviewers inspect the complete correction through
+`bc477fee`. Both identify a Major: method-scoped async fixture disposal occurs
+after the inner exception-preservation block and can replace the original
+failure. The injected-primary assertion runs before that compiler-generated
+unwind, so its passing result does not cover a throwing disposer.
+
+One review initially also interprets failed isolated fixture force-DROP as a
+production ownership violation and requests a deferred fixture bundle. The
+independent lifecycle review distinguishes failed-test teardown from a positive
+runtime cleanup witness. Source inspection confirms teardown never supplies
+`clean` or `joined`. The original reviewer appends a contextual correction,
+withdraws the separate production-violation claim and agrees no background
+fixture framework is required. Its original report/verdict remains preserved;
+the primary-exception Major is retained and fixed.
+
+A per-file fixture scope now keeps primary exception dispatch information beyond
+all async disposals. Narrow wrappers record each nonfatal teardown failure
+separately and allow remaining teardown to run. Only after all those scopes
+unwind does the caller receive the primary exception, or the first disposal
+failure when no primary exists. Closed diagnostics expose boundary/state only;
+no teardown result acknowledges actual runtime cleanup. Failed isolated tests
+may still force-drop their own fixture under its existing bounds; that is an
+explicit failed/unqualified teardown, never positive product-owner evidence.
+The unchanged 45-second assertion/shared 15-second inner observation budgets do
+not claim an end-to-end bound for the existing fixture disposal helpers.
+
+The real SQL primary scenario includes an actual throwing `IAsyncDisposable`.
+After genuine rollback, resource disposal and owner joins, the outer caller
+checks the identical primary exception object and the separately recorded
+teardown failure. A new teardown-only Fact verifies the actual disposal error
+is still surfaced when no primary exists. The genuine canceled-observation/
+held-SQL dirty control and all prior independent NoPlan/finalizer assertions
+remain. No production source, cleanup witness or policy clock changes.
+
+Strict normal Release build passes with zero warnings/errors. All thirteen
+affected rows pass in 115.362 command seconds, with zero skipped cases; five
+compiled corpus checks and scoped format pass. Tested hashes stay equal before
+and after every command. The new small Fact belongs to the next actual source
+population; no historical 7,944-case manifest qualifies it. Original R2 reviewers
+recheck this committed fix and its caller-boundary evidence. Their final
+correction dispositions, the separate browser framework proposal and complete
+fresh hosted A/B remain open. Manual evidence remains deferred and unexecuted.
