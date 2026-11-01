@@ -10,7 +10,7 @@ Proposed
 This proposal adds a version-specific dependency-maintenance obligation. It does
 not relax ADR-0070/0071/0078/0079 ownership, authorization or publication rules.
 No installed package, lockfile or runtime policy changes before acceptance.
-The [three-step package](../roadmap/phase-03-delivery-log.md#adr-0083-proposed-owned-next-cleanup-package-2026-11-01)
+The [three-step package](../roadmap/phase-03-delivery-log.md#adr-0083-proposal-r1-corrections-and-revised-package-2026-11-01)
 owns the proposed carriers, review order and evidence limits.
 
 ## Decision Drivers
@@ -108,12 +108,36 @@ The compression middleware synchronously installs one immutable, response-local
 owner slot and cleanup promise at middleware entry, before any new stream can be
 created. The slot records actual header/encoding selection, response finish/close
 and actual compressor creation/error/close before allowing output. A handler
-return cannot declare that no later compressor exists. Missing selection waits
-for the actual transport terminal; identity/HEAD/no-body paths create no stream.
-Duplicate installation refuses before allocating another compressor. A premature real
-response close requests destruction of that actual stream; destruction requested,
+return cannot declare that no later compressor exists. Absent selection in a
+normal live operation waits for actual selection or transport terminal; the
+rejection/abort transitions below are separate. Identity/HEAD/no-body paths
+create no stream. Duplicate installation refuses before allocating another
+compressor. A premature real response close requests destruction of that actual stream; destruction requested,
 `writableFinished`, timeout or a wrapper's completion is not close confirmation.
-A stream fault remains a fault and cannot produce successful cleanup.
+A real router rejection before encoding selection seals the slot against later
+stream creation before joining it. With no created resource, no transport event
+is required to retire that compression obligation. Its wrappers/header callback
+can no longer create a compressor; the existing native error boundary may use
+the captured, still-fenced uncompressed writer. This preserves its existing
+pre-header error policy without waiting for a response that only that caller
+can produce. A real abort with a still-live response requests actual response
+cancellation before joining. Normal early return alone cannot seal a slot while
+registered response-producing work can still create its stream.
+
+Construction failures account for every resource actually created. A compressor
+fault is observed immediately, requests actual response cancellation, and joins
+actual stream close before publishing its failed cleanup result. The owner
+observes rejection immediately even if no consumer has reached finally. This
+transport failure may close the connection before any error body can be sent;
+it does not change ordinary API/BFF refusal classification. The physical close
+and failed operation are reported honestly, never as a successful response.
+
+If the handler and cleanup both fail, retain both errors and preserve the
+handler's original exception identity. On an otherwise successful handler,
+cleanup failure yields a failed handler/cleanup outcome. Headers or body bytes
+already delivered cannot be retracted: emit no second response or synthetic
+rollback, and do not change an already-committed wire status. Existing native
+publication/output fences still apply before every output operation.
 
 The pipe's transport promise observes actual finish or close without emitting
 synthetic events or invoking somebody else's callback. Its real end-work await
@@ -121,17 +145,15 @@ remains before pipe completion. Its `finally` joins the compressor's original
 cleanup promise, including abort/error paths. The outer router's actual request
 handler also joins the same promise in `finally`, covering static/direct `end`
 paths that do not enter a pipe. Joining one promise twice creates no second
-stream owner. Original request result/error semantics remain. A primary request error keeps
-its identity when cleanup also fails; cleanup fault is retained separately. A
-cleanup failure on an otherwise successful request prevents successful cleanup,
-and cannot be swallowed or converted into a successful response.
+stream owner. The primary-error and irreversible-wire rules above apply to both
+joins. A cleanup failure cannot become positive cleanup even when the peer has already
+received a successful HTTP result.
 
 The response-local capability is private to the patched framework and contains
 no credential, user input or authority selector. Duplicate ownership, late or
 inconsistent registration and a missing required owner on a middleware-applied
 response fail closed. A valid direct pipe consumer without compression is not
-misclassified as missing that middleware. Healthy
-uncompressed, HEAD and no-body responses with no compressor do not acquire a
+misclassified as missing that middleware. Healthy uncompressed, HEAD and no-body responses with no compressor do not acquire a
 fictional stream. No generic native-handler release shortcut is added.
 
 ### Reopen and removal
@@ -183,7 +205,14 @@ independent review rounds and verified correction commits before progression:
    family used by supported builds loads corrected code. Join direct-end paths
    as well as stream pipes; retain every actual resource on failure. Reconcile
    private fixture dependency/source provenance so it executes the same patched
-   installed package. Do not broaden its live-source exemptions.
+   installed package. Do not broaden its live-source exemptions. Prove real
+   initialized-router rejection before headers/selection, abort before selection,
+   synchronous construction failure and early stream fault; no error-path join
+   may wait for the caller's own future error response. Cover primary-plus-cleanup
+   errors and irreversible output before/after headers/finish. Explicit event-order
+   controls cover already-terminal attachment, close during blocked write/end,
+   actual held callbacks and drain, and exact listener retirement; no synthetic
+   event or callback supplies success.
 3. Run real healthy and peer-close controls, held independent native/framework/
    API/pool controls, actual development/production browser journeys, frontend
    type/lint/full guarded suite and public browser/Lighthouse proof. Freeze the

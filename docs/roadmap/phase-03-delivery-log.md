@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 4,329 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 4,400 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -214,7 +214,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 checkout-test construction correction (2026-11-01)](#p03-3-checkout-test-construction-correction-2026-11-01) — 23 lines
   - [P03-3 seventh hosted A and business-task observation correction (2026-11-01)](#p03-3-seventh-hosted-a-and-business-task-observation-correction-2026-11-01) — 74 lines
   - [P03-3 business-task observation R1 cleanup correction (2026-11-01)](#p03-3-business-task-observation-r1-cleanup-correction-2026-11-01) — 36 lines
-  - [ADR-0083 proposed owned Next cleanup package (2026-11-01)](#adr-0083-proposed-owned-next-cleanup-package-2026-11-01) — 140 lines
+  - [ADR-0083 proposed owned Next cleanup package (2026-11-01)](#adr-0083-proposed-owned-next-cleanup-package-2026-11-01) — 141 lines
+  - [ADR-0083 proposal R1 corrections and revised package (2026-11-01)](#adr-0083-proposal-r1-corrections-and-revised-package-2026-11-01) — 70 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -10087,3 +10088,74 @@ same actual controls. Manual keyboard/focus/reflow/contrast/VoiceOver evidence
 remains explicitly maintainer-deferred and unexecuted. Only this new policy
 awaits approval; independently authorized corrections and proposal review can
 continue. Runtime/dependency changes begin only after that approval.
+
+
+### ADR-0083 proposal R1 corrections and revised package (2026-11-01)
+
+Two fresh independent proposal reviewers examine `d3b6981c`. Maintenance review
+approves its scope and independently verifies all 27 runtime/map pairs, marker
+census completeness and retained private source hashes. Ownership review finds
+three Major decision ambiguities and one Minor proof omission. These findings
+are verified and corrected in the Proposed ADR; no package/runtime policy is
+implemented. Both original reports remain retained.
+
+**Error-order contract.** A router rejection before encoding selection seals
+its slot and permanently disables later compression creation before joining.
+With no actual stream, that compression obligation needs no future response
+terminal. Its captured uncompressed writer remains subject to the existing
+native fence, allowing the caller's existing pre-header error response without
+a circular wait. Real abort with a live response requests actual response
+cancellation first. A normal return cannot seal away stream creation still
+owned by registered response-producing work. This is a failed-operation path,
+not permission for detached writes after ownership ends.
+
+**Construction and stream faults.** Immediately observe owner rejection and
+stream errors, including before the first join. Account for every actually
+created resource; request actual stream/response cancellation and await real
+stream close before settling failed cleanup. A compressor fault may terminate
+the connection before any HTTP error body is sent. This is a disclosed transport
+failure, not a changed ordinary API/BFF denial status. Duplicate/late creation
+remains refused before allocation. Preserve a primary request error's identity
+and separately retain cleanup failure; no unhandled rejection or lost owner
+is licensed by the two finally joins.
+
+**Irreversible wire.** A cleanup fault fails handler/cleanup ownership even if
+headers or the complete HTTP response have already reached the peer. Already
+sent status/body cannot be rolled back. No second response or synthetic rollback
+is emitted. Retain the failed cleanup result and original publication fence;
+never infer a clean handler from successful wire delivery or vice versa.
+
+**Acceptance-carrier refinement.** The original three-step package and all
+unchanged carriers remain. The following proposed texts replace the ambiguous
+error/proof clauses for acceptance; the earlier Proposed record is history.
+
+- Standard 07 adds: “Before-selection router rejection seals against later
+  compression creation and retires only the empty compression obligation before
+  propagating the error to the existing fenced native error boundary. Real
+  abort/stream fault requests actual cancellation before join; construction
+  errors account for every created stream. Observe faults immediately and join
+  actual close. Preserve primary error identity and separately retain cleanup
+  failure. Cleanup can fail after successful wire delivery; no already-sent
+  status/body is retracted, second response emitted or rollback fabricated.”
+- Testing 06 and Step 2/3 explicitly require: “Run a real initialized router with
+  pre-header/pre-selection handler rejection and close/abort before selection,
+  proving error propagation, no circular wait and no late stream allocation.
+  Cover actual synchronous construction failure, fault before join and combined
+  primary/cleanup failure, including absence of unhandled rejection. Exercise
+  already-terminal attachment, close during a blocked write and during end,
+  independent held write/end callbacks and drain, paired-listener retirement,
+  and actual finish/close without fabricated events/callbacks. Faults before
+  headers, after headers and after finish respect the irreversible wire boundary
+  and preserve the original native output fences. Healthy wire/backpressure
+  remains equal; no observation timeout acknowledges actual cleanup.”
+- The existing new Registered catalogue rule includes those decisive error-order,
+  event-order and independent-operation controls. Status promotion still waits
+  for actual implementation/proofs; no separate rule or relaxed gate is added.
+
+The prototype's nine controls remain mechanism evidence only. It does not
+implement the synchronous reserved-slot and error-order refinements or initialize
+the patched router. Full code, maps, package installation, actual native held
+owners and complete fresh final-source hosted A/B remain required. Two new
+independent proposal R2 reviewers inspect these corrections and the complete
+proposal. Maintainer approval remains necessary before any dependency/runtime
+implementation; manual accessibility evidence stays deferred and unexecuted.
