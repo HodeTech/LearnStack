@@ -125,13 +125,13 @@ records hosted qualification. Phase 11 owns production qualification.
 | 0080 | [Fixed Seed Prerequisite Read Scope](0080-fixed-seed-prerequisite-read-scope.md) | Accepted 2026-10-29 after maintainer review: separate same-owner temporary seed metadata authority, scope-only restoration/write barriers and complete tenant-bound seed-write proof; implementation/qualification stays in the [Phase 03 Status block](../roadmap/phase-03-identity-admin.md). |
 | 0081 | [Fixed Seed Completion Before Origin Adoption](0081-fixed-seed-completion-before-origin-adoption.md) | Accepted 2026-10-29 after maintainer review: separate single-consumer completion-purpose read census on the existing owner, qualified marker 2 and retained local foundation with an explicit global/provider boundary; ADR-0080's census of eight pristine consumers remains unchanged. Implementation/qualification stays in the [Phase 03 Status block](../roadmap/phase-03-identity-admin.md). |
 | 0082 | [Current-Source CI Execution Windows](0082-current-source-ci-execution-windows.md) | Accepted 2026-11-01 after maintainer review: verified Architecture 25 / ordinary 30 minute whole-job and expected-owner observation bounds; base/native twenty, reserve, operation limits, counts and complete fresh A/B stay fixed. Dated ADR-0062/0063/0075 amendments preserve predecessor history; implementation and qualification stay in the [Phase 03 Status block](../roadmap/phase-03-identity-admin.md). |
+| 0083 | [Owned Next Response Compression Cleanup](0083-owned-next-response-compression-cleanup.md) | Accepted 2026-11-01 after conditional maintainer review: exact qualified frontend tuple, framework-owned compressor/terminal cleanup preserving bodyless wire behavior, clean generated runtime provenance and unchanged security/qualification gates. The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns implementation and proof state. |
 
 ## Proposed ADRs
 
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
-| 0083 | [Owned Next Response Compression Cleanup](0083-owned-next-response-compression-cleanup.md) | Proposed Node 22.23.1 / exact-version Next patch for transport terminal observation and actual compressor joins across all pipe/router copies; no installed dependency or policy change before approval | P03-3 Step 10 correctness and final-source qualification |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
 the P02d-2 package on 2026-10-02. Their rows are now in Active ADRs; ADR-0049 remains

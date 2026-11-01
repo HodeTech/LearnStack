@@ -2,265 +2,245 @@
 
 ## Status
 
-Proposed
+Accepted
 
 **Date:** 2026-11-01
-**Deciders:** @cemil (approval pending)
+**Deciders:** @cemil
 
-This proposal adds a version-specific dependency-maintenance obligation. It does
-not relax ADR-0070/0071/0078/0079 ownership, authorization or publication rules.
-No installed package, lockfile or runtime policy changes before acceptance.
-The [three-step package](../roadmap/phase-03-delivery-log.md#adr-0083-proposal-r2-corrections-and-runtime-boundary-2026-11-01)
-owns the proposed carriers, review order and evidence limits.
+The maintainer conditionally authorizes acceptance and implementation after
+review corrections. The [acceptance record](../roadmap/phase-03-delivery-log.md#adr-0083-maintainer-corrections-acceptance-and-step-1-2026-11-01)
+records their disposition and the unchanged
+[three-step delivery sequence](../roadmap/phase-03-delivery-log.md#adr-0083-proposed-owned-next-cleanup-package-2026-11-01),
+including subsequent refinements. Acceptance establishes the contract; it does
+not establish a checked-in patch, installed gate or qualified runtime.
 
 ## Decision Drivers
 
-- The pinned Next 15.5.28 response pipe can wait for `finish` after an actual
-  response `close` that emits no `finish`. Default compression can also retain
-  its paused readable side after the response closes.
-- The original handler and compressor must settle before request ownership is
-  released. A transport terminal event cannot replace unrelated actual work.
-- Preserve compression, response bytes, backpressure, native publication fences,
-  all existing deadlines and complete final-source hosted A/B qualification.
-- Make local framework maintenance reproducible and fail closed on package,
-  patch, compiled-copy or source-map drift; no shared-store mutation or runtime
-  string replacement supplies production behavior.
+- Pinned Next can wait for `finish` after actual `close` without `finish` and
+  retain a paused compressor. Native request ownership must join both.
+- Preserve existing compression selection and healthy wire behavior, including
+  encoders actually created for early-flushed bodyless responses.
+- Verified installed code alone does not qualify stale generated Next output.
+- Preserve independent work, native publication fences, all operation deadlines
+  and complete same-final-source hosted A/B qualification.
+- Make framework maintenance, exact toolchain enforcement and security updates
+  explicit without suspending Security 11's seven-day Critical/high fix SLA.
 
 ## Considered Options
 
-1. **A version-pinned pnpm patch with framework-owned cleanup** (chosen).
-   Correct terminal observation and compression ownership in the installed
-   package, including every embedded pipe copy and direct-response paths.
-2. **Disable Next compression** (valid topology alternative, not selected).
-   Removes the encoder but changes bandwidth/deployment behavior and does not
-   repair the separate finish-only pipe path.
-3. **Upgrade to a released upstream correction** (preferred removal trigger,
-   not established today). An open pull request is not a verified release and
-   its terminal-only change does not prove actual compressor cleanup.
-4. **Release the native request on response close or enlarge shutdown waits**
-   (rejected). These hide retained work or change a different policy without
-   supplying actual cleanup.
+1. **Exact-version pnpm patch with framework-owned cleanup** (chosen).
+   Correct all compiled copies, join actual resource closure and bind generated
+   output to a clean verified producer.
+2. **Disable compression** (not selected). Changes wire/bandwidth policy and
+   leaves the finish-only pipe problem.
+3. **Disable bundled compression and add a custom server wrapper** (not selected).
+   Splits ownership and still requires the pipe correction, another compressor
+   adapter and its lifecycle/provenance proof.
+4. **Adopt a released upstream equivalent** (removal trigger, not established).
+   An open pull request and terminal-only correction prove no complete repair.
+5. **Release native ownership on close or extend shutdown waits** (rejected).
+   Neither supplies actual cleanup of independent work.
 
 ## Decision
 
-LearnStack maintains one exact-version pnpm patch for Next 15.5.28, qualified
-with exactly Node 22.23.1. Supported entry points reject other Node versions
-before Next import or listener creation. The framework
-observes actual response `finish` or `close`, owns premature-close cancellation
-and actual closure of its compressor, and joins that cleanup through both its
-pipe and outer router request handler. Actual end work and the native request's
-other retained work remain independently joined. Package installation and
-runtime-source controls reject missing, partial, changed or unqualified patches.
-The supported build, native development/production, copied-fixture and packaged
-entry points verify the actual Node version and exact installed package bytes
-before importing Next or listening. The root engine declaration, `.nvmrc`, CI
-selection and supported packaged/deployment declarations match this qualified
-Node version; an advisory engine field alone is not enforcement.
+- LearnStack admits an explicitly qualified exact Node/pnpm/Next tuple, initially
+  Node 22.23.1 / pnpm 9.12.3 / patched Next 15.5.28. Actual executables and
+  installed correction bytes are checked at their supported boundaries.
+- A version-bound pnpm patch corrects every compiled pipe copy and the common
+  compression/router owners. Actual terminal observation resolves on finish or
+  close; actual compressor closure, operation faults and independent work remain
+  separately owned. Existing compression selection and wire behavior remain.
+- Supported generation starts clean and binds runtime output to the verified
+  package, sources and producer. Native launch rejects stale or changed generated
+  code before importing application/framework runtime or opening a listener.
+- Replacement tuples require equivalent reviewed controls and complete
+  qualification. The exact pin neither suspends the security fix SLA nor grants
+  an emergency exemption from the existing qualification gates.
 
 ## Context
 
 ### Evidence and limits
 
-The seventh complete P03-3 hosted A fails two cases on its recorded source. Its
-browser counter proves the expected history mutant, but cleanup still fails.
-The last aggregate observation has one pending handler and no pending terminal,
-write, registered framework or snapshot-pool counts. The sample may be stale;
-it identifies neither the exact request nor the handler's await site.
+The [seventh hosted A](../roadmap/phase-03-delivery-log.md#p03-3-seventh-hosted-a-and-business-task-observation-correction-2026-11-01)
+fails a browser cleanup case and a separate NoPlan observation case. The latter
+is not evidence for this decision. The browser's last aggregate sample has one
+pending handler and zero terminal/write/registered-framework/pool counts. It may
+be stale and identifies no exact request or await site.
 
-A private direct HTTPS probe uses the actual pinned Next pipe, bundled
-compression and current native response fence. Closing its own peer after the
-wrapped end call reproduces a pending handler and paused, unclosed compressor.
-Changing only the pipe's terminal observation settles that handler while the
-compressor remains retained. A private two-owner prototype joins real compressor
-close and settles the original pipe; healthy compressed bytes remain equal.
-Held real end work still prevents settlement until its actual release.
+Nine private HTTPS controls reproduce stock pipe/compressor retention and a
+repair mechanism, including the need for a router join on direct-end paths.
+Seventy-four subsequent HTTP/HTTPS controls confirm actual bodyless allocation:
+early-flushed, unknown-length 204/304 responses can allocate gzip/deflate and
+select its header while transmitting zero body bytes. Held real end work and
+peer close reproduce retained stock encoders/pipes. Status, empty producers or
+zero wire bytes cannot certify absence of a resource.
 
-These controls establish a reachable framework defect and a concrete repair
-mechanism. They do not attribute the hosted frame, qualify the whole patched
-package, prove all actual native/API/pool boundaries, or replace complete hosted
-A/B. A separate instrumented stock-browser counter exits with its intended
-rejection and actual cleanup; its 64 observed frames all release. It does not
-reproduce the failed frame and is not a passing full browser Fact.
+The [acceptance record](../roadmap/phase-03-delivery-log.md#adr-0083-maintainer-corrections-acceptance-and-step-1-2026-11-01)
+owns retained local evidence paths/digests. These are mechanism controls, not a
+shipped patch, full initialized router, all-copy execution, actual native/API/pool
+qualification or attribution of the hosted frame. The separate stock-browser
+counter's intended rejection and 64 released frames are not a full browser pass.
 
-The pinned upstream pipe waits only for `finish`. Upstream PR #100529 is open at
-review time; its terminal-observation correction is corroboration, not a shipped
-cleanup guarantee. Recheck actual release bytes before replacing this patch.
+The [pinned upstream pipe](https://github.com/vercel/next.js/blob/v15.5.28/packages/next/src/server/pipe-readable.ts)
+waits for finish. [Upstream pull request #100529](https://github.com/vercel/next.js/pull/100529)
+is open at review time and resolves its terminal observation on close. It proves
+no compressor disposal. Verify the actual released/installed bytes and equivalent
+controls before replacing this maintenance patch.
 
-### Exact maintenance surface
+### Implementation artifacts and verification unit
 
-The patch is checked into `frontend/patches/next@15.5.28.patch`, referenced by the
-exact `pnpm.patchedDependencies` key in the workspace root package manifest and
-recorded by the existing pnpm 9.12.3 lockfile. The qualified tuple is Node
-22.23.1 / pnpm 9.12.3 / patched Next 15.5.28. An upgrade to any member requires
-reviewed equivalent controls before its entry points are admitted. Normal frozen
-installation applies
-it. Non-applied patches remain errors. No environment override, postinstall
-mutation, startup loader or permissive fallback selects a correction.
+The private inventory finds 27 compiled pipe copies: two standalone CJS/ESM
+modules and 25 copies embedded in runtime bundles. With common compression and
+two routers, the initial transformation covers **30 JS files and 29 existing
+maps**. The compression bundle has no map; the census records this exception.
+Inventory is not execution of every compiled branch.
 
-The installed-package census currently finds 27 pipe implementations: CommonJS,
-ESM and embedded production/development, regular/experimental/Turbo runtime
-copies. It also identifies the common bundled compression owner and two router
-copies. Patch all of these; a currently unused copy is not silently exempt.
-A checked-in machine-readable census owns exact paths and original/patched
-hashes. Correct associated source maps and embedded source content; retain
-upstream license/provenance. Deterministic parsed edits and reviewable source
-changes, rather than manual minified-string edits, produce the checked-in patch.
+Step 2 creates the following tracked artifacts; none exists by acceptance alone:
 
-This is a bounded maintenance surface, not approval to patch arbitrary Next
-internals. A changed package version, new implementation, unsupported map or
-unmatched transformation refuses qualification and reopens the maintenance work.
+| Artifact | Purpose |
+|---|---|
+| `frontend/patches/next@15.5.28.patch` | Exact initial package patch |
+| `frontend/framework/next-response-cleanup/census.json` | Tuple, generator identity, paths and original/patched SHA-256 |
+| `frontend/framework/next-response-cleanup/owner.mjs` | Readable transformation input for actual ownership |
+| `frontend/scripts/generate-next-response-cleanup.mjs` | Parsed installed-JS transformation and map composition |
+| `frontend/scripts/framework-installation.mjs` | Builtins-only toolchain/installed-source admission |
+| `frontend/scripts/install-frontend.mjs` | Supported verified executable restore |
+| `frontend/apps/web/scripts/framework-build.mjs` | Clean owned generation and build manifest |
 
-### Actual owner and terminal contract
+The generator edits qualified installed JavaScript by parsed location and
+composes its edit map with each original map. It updates mappings and embedded
+source content, preserves unchanged segments and licenses, and rejects unknown
+or unmatched copies. Editing only `sourcesContent` or stale map comments fails.
+Original and patched digests cover every changed JS/map and common owner.
 
-The compression middleware synchronously installs one immutable, response-local
-owner slot and cleanup promise at middleware entry, before any new stream can be
-created. The slot records actual header/encoding selection, response finish/close
-and actual compressor creation/error/close before allowing output. A handler
-return cannot declare that no later compressor exists. Absent selection in a
-normal live operation waits for actual selection or transport terminal; the
-rejection/abort transitions below are separate. Identity/HEAD/no-body paths
-create no stream. Duplicate installation refuses before allocating another
-compressor. A premature real response close requests destruction of that actual
-stream; destruction requested,
-`writableFinished`, timeout or a wrapper's completion is not close confirmation.
-Every pipe and router settlement boundary reports its own real rejection or abort to
-the owner before awaiting its cleanup promise. The transition is idempotent and
-retains the first primary error and separate cleanup faults; an inner pipe cannot wait
-for an outer router to observe its still-blocked rejection. A rejection before
-encoding selection seals against later creation before that boundary joins it. With no
-created resource, no transport event is required to retire that compression
-obligation. Its wrappers/header callback can no longer create a compressor; the
-existing native error boundary may use the captured, still-fenced uncompressed writer.
-This preserves its existing pre-header error policy without waiting for a response
-that only that caller can produce. A real abort with a still-live response requests
-actual response cancellation before joining. Normal early return alone cannot seal a
-slot while registered response-producing work can still create its stream. In
-particular, a genuinely rejecting source or end-work promise triggers the pipe
-transition before its finally join; a still-pending end-work promise remains held.
-Sealing compression allocation never resolves that work. If either boundary rejects
-after stream creation, the same transition requests actual response cancellation and
-destruction of its actual owned stream before its own cleanup await. It joins real
-stream close even when end work rejected before the compression wrapper could call
-`end()`. This cancels no unrelated owner and fabricates no event or callback. Existing
-expected-abort classification remains; known physical cleanup and an operation fault
-are separate facts.
+`frontend/package.json` gains the exact `pnpm.patchedDependencies` reference and
+pnpm-generated lock identity in Step 2; current overrides remain. Non-applied
+patches remain errors. Verification reads actual Node, Next metadata, patch/lock
+relationship and the qualified 30-JS/29-map set, not every framework/cache file.
+The complete distribution census is an install/qualification control. Supported
+startup also verifies the generated runtime graph described in Standard 07;
+that set has its own enumeration and measurements.
 
-Construction failures account for every resource actually created. A compressor
-fault is observed immediately, requests actual response cancellation, and joins
-actual stream close before publishing its failed cleanup result. The owner
-observes rejection immediately even if no consumer has reached finally. This
-transport failure may close the connection before any error body can be sent;
-it does not change ordinary API/BFF refusal classification. The physical close
-and failed operation are reported honestly, never as a successful response.
+### Toolchain, generated output and maintenance
 
-If the handler and cleanup both fail, retain both errors and preserve the
-handler's original exception identity. On an otherwise successful handler,
-cleanup failure yields a failed handler/cleanup outcome. Headers or body bytes
-already delivered cannot be retracted: emit no second response or synthetic
-rollback, and do not change an already-committed wire status. Existing native
-publication/output fences still apply before every output operation.
+Step 2 changes Node/pnpm engine declarations to exact values and enables strict
+engine/manager settings. The actual selected pnpm executable is independently
+checked before install/build mutation; declarations, Corepack, PATH selection
+and user-agent text alone are insufficient. Native runtime startup checks Node
+and verified install/build provenance, and need not run a package manager.
+README, Standard 03, `.nvmrc` and CI declarations align with the qualified tuple.
 
-The pipe's transport promise observes actual finish or close without emitting
-synthetic events or invoking somebody else's callback. Its real end-work await
-remains before pipe completion. Its `finally` joins the compressor's original
-cleanup promise, including abort/error paths. The outer router's actual request
-handler also joins the same promise in `finally`, covering static/direct `end`
-paths that do not enter a pipe. Joining one promise twice creates no second
-stream owner. The primary-error and irreversible-wire rules above apply to both
-joins. A cleanup failure cannot become positive cleanup even when the peer has already
-received a successful HTTP result.
+[Standard 07](../standards/07-frontend-architecture.md#version-qualified-next-response-cleanup)
+owns clean generation, generated-copy inventory, production input/output
+manifest, development cache ownership and entry-point rules. Production rejects
+old `.next` beside a corrected install; development starts from owned clean
+output and verifies its compiler path before incremental output is admitted.
+Current build, native and copied fixtures are covered. Source-less packaging or
+standalone deployment is not delivered; any later introduction must qualify its
+immutable artifact and entry point before support is claimed.
 
-The response-local capability is private to the patched framework and contains
-no credential, user input or authority selector. Duplicate ownership, late or
-inconsistent registration and a missing required owner on a middleware-applied
-response fail closed. A valid direct pipe consumer without compression is not
-misclassified as missing that middleware. Healthy uncompressed, HEAD and no-body
-responses with no compressor do not acquire a
-fictional stream. No generic native-handler release shortcut is added.
+These controls address drift within a trusted source/install/build environment.
+They are not signatures against an actor able to alter code, verifier, manifest
+and output together. Supported install/build/run owners serialize their mutable
+outputs; arbitrary external co-writers are outside the integrity claim.
 
-### Reopen and removal
+Security maintenance keeps [Security 11](../standards/11-security.md#dependency-hygiene)'s
+seven-day Critical/high fix deadline. Updates receive priority regeneration,
+actual-owner controls and complete qualification before admission. A pin never
+licenses a known-vulnerable runtime beyond the deadline; likely inability to
+meet it reopens the choice immediately. This decision neither extends that SLA
+nor permits an unqualified release. Any emergency departure requires a separate
+bounded accepted decision; initial P03-3 A/B is unchanged. Routine equivalent
+tuple updates use the reviewed census/declarations and qualification path rather
+than rewriting this historical initial tuple.
 
-Reopen this choice if the Node/pnpm/Next version or runtime family changes,
-source/census/map verification fails, healthy wire/backpressure changes, or a retained
-owner escapes its gate, or a verified upstream release provides equivalent cleanup.
-Removing the patch requires the same actual early-close, healthy and independent-owner
-controls and complete final-source qualification; deleting the patch to make an
-installation proceed is not a repair. The maintainer owns this review through P03-3
-and subsequent dependency upgrades; Phase 11 retains production capacity
-qualification, not this correctness proof.
+### Terminal, operation and supervision boundaries
+
+[Standard 07](../standards/07-frontend-architecture.md#version-qualified-next-response-cleanup)
+owns the complete selection/error/close contract. No-resource requires actual
+no-compression selection or a sealed allocation path with no object created.
+Every actual encoder, including a bodyless encoder never ended, is joined at
+actual close. Either actual response finish or close accounts for remaining
+encoders; an earlier finish never exempts them. Native refusal can finish through
+a captured writer after allocation, even removing the final encoding header;
+that does not erase the actual resource. The terminal observation resolves for
+actual finish **or** close;
+close without finish records incomplete delivery, not a new synthetic fault.
+Existing expected-abort behavior remains. Source/end-work and cleanup faults
+retain their failures and primary error identity after real resource retirement.
+
+Each pipe/router error boundary transitions its owner before its own join,
+including empty-slot sealing and cancellation of an existing stream. Neither
+branch releases genuinely pending end work, native callbacks, registered
+framework/API work or snapshot reservations. The existing
+[native output fences](../standards/07-frontend-architecture.md#native-entry-and-administration)
+remain; already-sent HTTP bytes/status cannot be retracted or replaced.
+
+Unfinished actual work can retain its current reservation for the process
+lifetime. The launcher's existing five-second **shutdown** watchdog reports
+failure and exits nonzero if shutdown joins do not finish; it is not a normal
+request deadline or cleanup witness. Existing ten-second operation/body limits
+request cancellation without granting retirement. No new retention timer,
+request timeout or worker topology is introduced. Phase 11 owns production
+supervision/capacity proof. Returning capacity while its actual required work
+is still pending is an ownership escape; retained unfinished work is not release.
 
 ## Consequences
 
 ### Positive
 
-- Actual framework and compressor cleanup can finish without discarding the
-  native handler or weakening independent work ownership.
-- Compression and healthy response behavior remain part of the qualification
-  contract; reproducible installation exposes the local maintenance burden.
+- Framework and compressor work can retire without discarding native ownership.
+- Generated runtime and installed correction share a verified producer identity.
+- Existing healthy encoding/wire and independent-work behavior remain decisive.
 
 ### Negative
 
-- LearnStack temporarily maintains internal Next code across 27 pipe copies,
-  shared compression/router owners and maps. Minified runtime diffs are large;
-  upgrades, including a Node patch change, require explicit regenerated evidence
-  and review.
-- Cleanup can wait indefinitely for actual retained work. Existing timeouts
-  report failure and retain ownership; they do not authorize a successful join.
-- A reproduced local framework defect does not guarantee the hosted browser
-  failure is resolved. A further failure requires diagnosis, not a weaker gate.
+- Internal minified bundles and accurate maps remain local maintenance until a
+  verified upstream equivalent qualifies. Tuple upgrades need regenerated proof.
+- Hash verification has startup/build cost; installed and generated scopes are
+  measured separately. No per-request whole-tree/cache scan is introduced.
+- A genuine compressor fault can close transport before an error body. Successful
+  wire delivery cannot erase a later cleanup failure or prove actual retirement.
+- A never-settling operation retains capacity; this is not a total memory or
+  availability guarantee. No longer deadline can substitute for real cleanup.
 
 ### Neutral
 
-- No database, provider, tenant/native trust source, permission, audit or session
-  policy changes. No response buffering, deadline increase, skipped test,
-  fabricated finish/callback or forced-cleanup success is introduced.
-- Maintainer-deferred manual accessibility evidence stays unexecuted.
+- No database, credential, tenant authorization, audit, provider or session scope
+  changes. Existing CI windows, reserve, test deadlines and complete A/B remain.
+- This decision neither executes nor changes P03-3's existing maintainer-deferred
+  manual accessibility evidence.
 
 ## Implementation Notes
 
-The P03-3 delivery package owns three committed steps, each with two fresh
-independent review rounds and verified correction commits before progression:
+The [three-step package](../roadmap/phase-03-delivery-log.md#adr-0083-proposed-owned-next-cleanup-package-2026-11-01)
+and [maintainer revision](../roadmap/phase-03-delivery-log.md#adr-0083-maintainer-corrections-acceptance-and-step-1-2026-11-01)
+own carriers and exact gates. Each step is committed, reviewed in fresh R1,
+corrected, reviewed by new R2 reviewers and corrected before progression.
 
-1. Accept this decision and reconcile its named carriers. Record an additive
-   navigation amendment in ADR-0070; its ownership decision stays unchanged.
-2. Implement the exact patch/census/generator, actual Node/version drift gate
-   and frozen-install controls; align engine/toolchain/deployment declarations. Prove
-   every changed copy matches the semantic correction and every actual runtime
-   family used by supported builds loads corrected code. Join direct-end paths
-   as well as stream pipes; retain every actual resource on failure. Reconcile
-   private fixture dependency/source provenance so it executes the same patched
-   installed package. Do not broaden its live-source exemptions. Prove real
-   initialized-router rejection before headers/selection, abort before selection,
-   a rejecting real pipe source/end-work promise before headers, synchronous
-   construction failure and early stream fault; no inner or outer error-path join
-   may wait for the caller's own future error response. Cover primary-plus-cleanup
-   errors and irreversible output before/after headers/finish. Explicit event-order
-   controls cover already-terminal attachment, close during blocked write/end,
-   actual held callbacks and drain, and exact listener retirement; no synthetic
-   event or callback supplies success.
-3. Run real healthy and peer-close controls, held independent native/framework/
-   API/pool controls, actual development/production browser journeys, frontend
-   type/lint/full guarded suite and public browser/Lighthouse proof. Freeze the
-   actual final source/population, then retain and independently audit complete
-   hosted A followed by full B on the identical source/toolchain/plan. No failed
-   historical subset qualifies this extension.
-
-Standard 07 owns the installed-framework maintenance and cleanup rules; Testing
-06 owns actual proof, Catalogue 21 owns rule registration/status, and the Phase
-03 Status block alone owns packet state. Proposal acceptance promotes no test
-rule or runtime gate. Detailed proof and carrier edits live in the delivery log.
+1. Accept the corrected decision, reconcile Standards 03/06/07/11 and Catalogue
+   21, index and phase Status; allocate ADR-0070's next navigation amendment only
+   when actually appending it. Executable enforcement remains Step 2.
+2. Deliver the patch, maps/census, actual manager/runtime checks, owned clean
+   builds, generated-code manifest and all supported/copy entry points. Prove
+   stale generated code beside fixed packages refuses before import/listen.
+3. Prove actual owner/router/native/public/browser behavior, including early
+   bodyless headers, error/callback/drain orders, held independent work and full
+   frontend checks. Freeze actual final source/population and retain/audit full
+   A before full B: 27 successful jobs, 20 natural owners, 25 original ZIPs,
+   exact zero-skip unions and unchanged 203-second reserve in both layouts.
 
 ## References
 
-- [Owned tenant BFF sessions](0070-owned-tenant-bff-sessions.md),
-  [uncertain AccountSite refusals](0071-uncertain-account-site-refusals.md),
+- [BFF ownership](0070-owned-tenant-bff-sessions.md),
+  [uncertain AccountSite](0071-uncertain-account-site-refusals.md),
   [native scope](0078-native-session-scope-and-self-entry.md) and
-  [bounded administration](0079-bounded-identity-administration.md).
-- [Frontend architecture](../standards/07-frontend-architecture.md),
+  [administration](0079-bounded-identity-administration.md).
+- [Frontend coding](../standards/03-frontend-coding.md),
   [Testing](../standards/06-testing.md),
-  [Architecture tests catalogue](../standards/21-architecture-tests-catalogue.md)
-  and [Phase 03](../roadmap/phase-03-identity-admin.md).
-- [Pinned Next source](https://github.com/vercel/next.js/blob/v15.5.28/packages/next/src/server/pipe-readable.ts)
-  and [open upstream proposal](https://github.com/vercel/next.js/pull/100529).
+  [Frontend architecture](../standards/07-frontend-architecture.md),
+  [Security](../standards/11-security.md),
+  [Catalogue](../standards/21-architecture-tests-catalogue.md) and
+  [Phase 03](../roadmap/phase-03-identity-admin.md).
 - [pnpm 9.12.3 patch metadata](https://github.com/pnpm/pnpm/blob/v9.12.3/packages/types/src/package.ts)
-  and [patch-commit implementation](https://github.com/pnpm/pnpm/blob/v9.12.3/patching/plugin-commands-patching/src/patchCommit.ts).
+  and [patch command](https://github.com/pnpm/pnpm/blob/v9.12.3/patching/plugin-commands-patching/src/patchCommit.ts).

@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 4,610 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 4,753 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -220,7 +220,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0083 proposal R2 corrections and runtime boundary (2026-11-01)](#adr-0083-proposal-r2-corrections-and-runtime-boundary-2026-11-01) — 62 lines
   - [P03-3 business-task observation review closeout (2026-11-01)](#p03-3-business-task-observation-review-closeout-2026-11-01) — 27 lines
   - [ADR-0083 existing-stream failure transition precision (2026-11-01)](#adr-0083-existing-stream-failure-transition-precision-2026-11-01) — 23 lines
-  - [ADR-0083 proposal review closeout and approval readiness (2026-11-01)](#adr-0083-proposal-review-closeout-and-approval-readiness-2026-11-01) — 51 lines
+  - [ADR-0083 proposal review closeout and approval readiness (2026-11-01)](#adr-0083-proposal-review-closeout-and-approval-readiness-2026-11-01) — 52 lines
+  - [ADR-0083 maintainer corrections, acceptance and Step 1 (2026-11-01)](#adr-0083-maintainer-corrections-acceptance-and-step-1-2026-11-01) — 142 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -10374,3 +10375,146 @@ whitespace checks pass; normal commits preserve the unrelated editor settings
 and stashes. Development remains the branch. Runtime dependency/configuration
 changes wait solely for the maintainer's requested new-ADR approval. No new
 hosted A/B, PR, P03-3 completion or manual accessibility pass is claimed.
+
+
+### ADR-0083 maintainer corrections, acceptance and Step 1 (2026-11-01)
+
+**Authority and scope.** The maintainer directs review of the supplied findings,
+necessary corrections, then acceptance and continued implementation. That is
+conditional authorization for the corrected ADR-0083 and three-step package;
+it is not another request to wait for approval. The verified corrections below
+complete that condition. ADR-0083 is Accepted; Step 1 adopts ongoing contracts
+and registers proof obligations. It creates no patch, runtime gate or qualified
+build. Steps 2–3 and their own commits/two fresh review rounds remain required.
+
+**Review dispositions.**
+
+| Maintainer finding | Verified disposition |
+|---|---|
+| Bodyless no-resource contradiction | Confirmed with actual middleware: preserve stock selection/wire, own every actually created encoder; no new 204/304 exclusion |
+| Installed bytes omit stale generated output | Confirmed embedded pipe in current `.next/server/vendor-chunks`; select owned clean generation plus production input/output manifest and clean verified development compiler paths |
+| Actual pnpm version unspecified | Supported install/build checks the executable actually invoked before mutation, plus strict exact engine/manager settings; startup verifies its guarded producer provenance |
+| Patch/lock/census described as existing | Rewrite as named Step 2 artifacts; acceptance creates none; the package already has `pnpm.overrides`, but no patchedDependencies entry |
+| Inventory terminology and scope | 27 compiled copies: two standalone and 25 embedded; 30 changed JS/29 existing maps with common compression/two routers; compression has no map |
+| Wrong three-step anchor | Link the original actual package and this acceptance/refinement separately |
+| Exact engine versus minimum prose | Select exact Node/pnpm declarations and strict settings in Step 2; reconcile README/Standard 03 requirements now, with executable enforcement separate |
+| Security seven-day SLA | Preserve deadline and full proof; prioritize replacement qualification and escalate likely miss immediately; no automatic emergency bypass or permission to retain known-vulnerable runtime |
+| Hash unit and cost | Bound installed checks to qualified 30-JS/29-map/metadata/patch/lock identity; independently inventory/verify generated executable graph; never scan caches per request |
+| Timeout and indefinite retention | Name existing five-second shutdown watchdog/nonzero failure and unchanged operation/body cancellation bounds; no new normal-request timeout or worker topology |
+| Close-without-finish outcome | Terminal observation resolves on either real event; expected abort/incomplete delivery, operation faults and confirmed resource retirement remain separate |
+| Traceability and other editorial findings | Add actual run/evidence links, exact local digests, current native-fence reference, temporary-maintenance removal trigger, missing alternative and bounded manual/packaging statements |
+| Pre-reserved amendment number | Prior Proposed number is historical; read current ADR-0070 when appending and allocate its next number then; six is allocated at this actual write |
+
+**Bodyless proof.** A private harness uses actual Node 22.23.1 / installed Next
+15.5.28, verified owned HTTP/HTTPS and current native fence. All 74 selection/
+wire assertions pass. Four direct installed controls match observed copies.
+Early-flushed unknown-length 204/304 allocate real gzip/deflate and selected
+encoding headers with zero body bytes. Known-zero length/no early flush and
+actual no-compression branches differ; method/status is not a resource witness.
+Eight held real end-work controls preserve original pipe pending. Four true
+connection-close variants retain stock encoders and pipes after real release;
+diagnostic encoder disposal reaches actual close but leaves stock pipe pending.
+Those dirty states remain failures, not positive product cleanup.
+
+**Retained local evidence.** These paths are private ignored receipts, not
+checked-in runtime or release artifacts. Their canonical proof is delivered
+by the subsequent committed tests and complete qualification. Digests are
+SHA-256 of the retained exact JSON bytes:
+
+| Private path | SHA-256 |
+|---|---|
+| `artifacts/p033-step10/adr0082/qualification-e0b1880e/browser-handler-failure/owned-close-prototype.json` | `449ca2af1c62400b3f10f7345d13c3b2ad47deeea04363fbcc4807904a04a5f1` |
+| `artifacts/p033-step10/adr0082/qualification-e0b1880e/browser-handler-failure/owned-close-runtime-census.json` | `170cbcce5f5c5da7e4a8fd73a451e95103e24d35173bd5e0d5a94a2a15dcc768` |
+| `artifacts/p033-step10/adr0083/maintainer-review/bodyless/bodyless-controls.json` | `4f05558996ad50b5b3d5f598c60f58494331427a84f171055ba724e522cb647c` |
+| `artifacts/p033-step10/adr0083/maintainer-review/bodyless/artifact-manifest.json` | `eab0c6aece6ce143f52c15589606e41eb10e1095f1c243659c7b28f1b0da9b70` |
+
+The additional retained actual-terminal refusal JSON is `artifacts/p033-step10/adr0083/maintainer-review/bodyless/refusal-terminal/refusal-terminal-controls.json`,
+SHA-256 `5f9fa72b3ded98b8865d3c2f12e924a80397f94a27e489a7915c53dad5505dbc`. It records actual allocation/fence/finish/close ordering and
+separate diagnostic teardown; this is no shipped correction receipt.
+
+The bodyless directory retains harness, exact input sources, 74-row matrix,
+validator and separate diagnostic-disposal observations. The earlier nine-case
+prototype remains mechanism proof only; its creation-time publication/plain
+finally is not the final reserved-owner/error policy. All 27 copies/maps are
+inventory, not execution of all branches. The original hosted frame remains
+unattributed. No private config, user service, installed dependency or trust
+store was changed to obtain these receipts.
+
+**Additional actual-terminal control.** The parent identifies that finish-first
+can also strand an encoder after native fence refusal. Twenty-four further real
+HTTP/HTTPS controls confirm it. Sixteen encoders remain unclosed after actual
+response finish then close; eight have never ended. Eight allocating prior
+prototype cases keep its cleanup promise pending. All preserve the existing
+empty no-store 503 and removed encoding/type/Vary headers. The actual allocation
+fact survives those header changes. Explicit flush/empty-end controls select no
+encoder. Only separately recorded diagnostic disposal reaches actual stream
+close; it is no positive product receipt. The old 74-case artifacts remain
+byte-identical. The contract now accounts for every remaining encoder on either
+actual response terminal, while keeping genuine independent work held.
+
+**Generated runtime decision.** Supported production generation starts from
+owned clean executable outputs/cache, verifies package/toolchain before and
+input/package stability after the real build, then writes its completed manifest
+last. Native launch checks exact current input/output membership and digests
+before any `.server`/SDK/Next runtime import or listener. Old output beside fixed
+node_modules and old output with its old manifest both refuse. Development
+starts clean and admits only its current verified compiler outputs; ordinary
+source HMR remains, config/dependency changes require guarded restart. Current
+copied fixtures build their actual instrumented sources through the same guard.
+No raw positive Next build or copied-old-output relabel is an alternative.
+
+The integrity model is trusted source/install/build with serialized owned
+outputs, not a signature against an actor able to replace verifier and manifest.
+No standalone/source-less/Docker deployment is delivered. Such future packaging
+must first qualify immutable artifacts and its entrypoint. The exact generated
+server/native/SDK graph is derived from real output/traces; mutable request
+traces/static delivery data/cache are not per-request integrity scans. A local
+read-only hash pass over the 59 installed subjects reads 52,586,948 bytes in
+0.036 seconds and immediate repeat 0.020 seconds; this is likely warm local
+measurement, not cold/CI fit or complete generated-graph qualification.
+
+**Amended delivery order.** The original three-step sequence remains, with this
+entry superseding contradictory Proposed carrier wording and numbering:
+
+1. **Contract acceptance and reconciliation.** ADR-0083, index, Standard 03,
+   Standard 06, Standard 07, Standard 11, Catalogue 21, README requirements,
+   ADR-0070's actual next navigation amendment, Phase Status and this record.
+   The new exact rule remains Registered. This Step 1 commit receives fresh R1,
+   verified corrections/commit, new R2 and verified corrections before Step 2.
+2. **Patch and guarded generation.** Add the named parsed generator/readable
+   input/census, 30-JS/29-map transformation, accurate maps, exact pnpm patch/
+   lock reference, actual manager/Node admission, strict engine/manager settings,
+   owned clean builds, generated runtime manifest and every supported/copy
+   entry point. Reconcile Make/demo/CI install and build paths and source-proof
+   harness provenance. Record cold/warm costs separately. Prove wrong actual
+   executable, missing/tampered subject, stale `.next` beside fixed package,
+   changed/extra/deleted generated code, output escape/concurrency and failed
+   build admission negatives. No gate can bless arbitrary old artifacts.
+   Commit and perform both fresh review rounds with verified fixes.
+3. **Actual lifecycle and complete qualification.** Real initialized router,
+   static/direct-end and pipe controls, preserved early-flush bodyless stock
+   wire and actual allocations, held end-work and native/framework/API/pool
+   owners, source/error/close/callback/drain ordering and original failure
+   precedence. No successful wire result proves resource retirement. Complete
+   frontend/type/lint/public browser/Lighthouse and native dev/production proof;
+   freeze actual enlarged final population/source/toolchain/plan, then full A
+   and full B: 27 successful jobs, 20 natural owners, 25 original ZIPs, exact
+   zero-skip unions and unchanged 203-second reserve in both layouts. Retain
+   and independently audit A before B. Commit/review both rounds and close
+   adjacent documentation before the reviewable PR; never merge automatically.
+
+**Security and outcome boundary.** Replacement tuples receive priority actual
+controls and complete qualification within the unchanged Critical/high seven-day
+fix SLA. A pin supplies no delay permission and no automatic pre-proof release.
+A likely miss immediately reopens the choice; an emergency gate departure needs
+its own explicit bounded accepted decision. This neither assumes every future
+fix will pass nor changes initial P03-3 A/B. Terminal observation resolves for
+actual finish or close; an actual early close remains incomplete delivery and
+expected cancellation, not fabricated successful response. Operation/source/
+end-work and cleanup faults retain their failure and primary identity.
+
+**Status.** The supplied findings are resolved as contract/proof specifications.
+Acceptance does not supply implementation or production readiness. No previous
+failed A, private probe, prior source census or manual deferral becomes a pass.
+Step 1 review, Steps 2–3 and full same-final-source A/B remain open. Manual
+keyboard/focus/reflow/contrast/VoiceOver remains maintainer-deferred/unexecuted.

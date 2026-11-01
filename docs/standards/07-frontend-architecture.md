@@ -465,6 +465,175 @@ Equal en/tr namespaces and actual keyboard/focus/error/reflow/contrast/assistive
 technology evidence are required. Veiled restoration and no-script recovery need
 real browser proof; a script-disabled browser has no script-based expiry promise.
 
+## Version-Qualified Next Response Cleanup
+
+**Derives from:** [ADR-0083](../decisions/0083-owned-next-response-compression-cleanup.md).
+The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns delivery state;
+acceptance does not establish an installed patch or implemented verifier.
+
+### Qualified inputs and installation
+
+- Admit only the exact current Node/pnpm/Next tuple in the reviewed
+  `frontend/framework/next-response-cleanup/census.json`. The initial tuple is
+  recorded by ADR-0083; no supported range follows from one qualified version.
+- `frontend/scripts/framework-installation.mjs` uses Node builtins before any
+  framework/application import. It checks actual Node, actual app-relative Next
+  resolution/version, patch and lockfile identity, census/generator identity and
+  every original/patched subject required by its mode. Runtime verifies patched
+  subjects; original subjects are generation/qualification inputs, not fallbacks.
+- The initial bounded installed set is 30 JS files and 29 maps: 27 compiled pipe
+  copies, common compression and two routers. Compression has no map; record
+  that explicit exception. Verify complete distribution membership at install/
+  qualification and exact qualified file bytes at supported build/start. Do not
+  hash the entire framework tree or persistent caches per request.
+- `frontend/scripts/generate-next-response-cleanup.mjs` parses qualified installed
+  JavaScript, applies the reviewed semantic edits and composes actual mapping
+  edits with each original map. Preserve unchanged mapping segments, source
+  indices, metadata/ignore lists and license provenance; update transformed
+  source content. Stale mappings or source-content-only changes refuse.
+- Step 2 supplies the versioned readable owner input, patch and census, recording
+  generator version/hash and SHA-256 for every input/output JS/map. Normal pnpm
+  patch installation applies the exact reference in `frontend/package.json` and
+  `frontend/pnpm-lock.yaml`; unused/non-applying patches are errors. No shared
+  store mutation, startup loader transform or permissive fallback is allowed.
+- Supported restore/build paths independently verify the actual selected pnpm
+  executable before mutation or Next execution. `packageManager`, engine text,
+  Corepack, PATH choice and user-agent text alone supply no admission. The
+  verifier resolves/probes the executable actually invoked; it does not probe
+  one binary and subsequently invoke another through a fresh PATH lookup.
+- Exact Node/pnpm engines and strict engine/manager configuration are additional
+  controls. Make/demo/CI and direct supported package install paths use the same
+  actual-executable admission, including lifecycle checks where applicable.
+  A runtime starting a prebuilt verified artifact need not invoke pnpm; it
+  verifies the guarded producer's manager provenance and actual Node instead.
+- A tuple or correction change receives equivalent owner/install/map controls
+  and complete reviewed qualification before admission. Security 11's seven-day
+  Critical/high fix SLA remains unchanged; prioritize the work and escalate a
+  likely miss immediately. This pin grants neither extra time nor an automatic
+  pre-proof emergency release. A different emergency policy needs an explicitly
+  bounded accepted decision. Do not rewrite the historical initial tuple.
+
+### Generated runtime provenance
+
+- Supported production build is an owned clean producer, exposed through
+  `frontend/apps/web/scripts/framework-build.mjs`; raw positive `next build`
+  invocations migrate to it. Verify qualified package/toolchain before generation,
+  begin with no reusable executable output/cache from an earlier build, and
+  verify package and source/config identity again after the real build exits.
+- The producer writes `.next/framework-build.json` last, outside its own digest
+  subject set. It binds the guard/
+  generator/census and patch identity, actual producer tuple, complete relevant
+  source/config graph and actual generated executable output. It cannot bless an
+  arbitrary pre-existing directory. Interrupted/failed builds have no valid
+  completed identity and cannot replace an admitted output.
+- Inventory generated framework copies from the actual Next runtime output and
+  file traces. Include every loadable server JS/JSON/map and required root
+  manifest, native `.server` output and emitted SDK graph resolved by the native
+  launcher. Compare exact relative membership, size and SHA-256; additions and
+  deletions fail as well as changed listed bytes. No fixed development file
+  count stands in for the production graph. Static delivery bytes and mutable
+  request traces/caches are separate from executable server provenance.
+- The source/config input set covers the app, SDK/UI source and their workspace
+  configuration, actual Next/TypeScript/build entry configuration, manifests,
+  lockfile, patch/census/generator and emitted native/SDK resolution. Exact input
+  membership is validated, not just a caller-supplied subset. Actual build args
+  and non-secret code-generation options belong to the producer identity;
+  unqualified loaders/options or outside-root runtime resolution refuse.
+- Native production launch verifies the installed set, current relevant inputs
+  and generated graph before importing `.server`, SDK runtime or Next and before
+  listener creation. `public-server.mjs` itself is a builtins-only admission
+  bootstrap until those checks pass; a direct invocation cannot bypass them.
+  Its runtime does not recompile `.server` independently after verification.
+- Correct installed bytes beside an old `.next`, or an old build plus its own
+  old manifest, refuse. A changed source/config/lock/patch or changed/extra/
+  deleted loadable output refuses. Production output is immutable for its
+  admitted lifetime; supported build/install/run operations serialize access.
+- Development starts with clean owned executable output and persistent compiler
+  cache. Its current verified compiler is the sole producer of incremental
+  framework copies. Gate each applicable compiler path before its generated
+  code can be admitted; ordinary source HMR remains supported. Dependency,
+  compiler/config or framework resolution changes close admission and require
+  a clean managed restart; failed validation cannot serve prior output as a
+  newly qualified compilation. Prove server/middleware/client/HMR coverage.
+- Do not recursively remove an unowned or symlink-escaped output. Define output
+  ownership/serialization before cleanup and reject ambiguous ownership. These
+  are trusted source/install/build drift controls, not signatures against an
+  actor who can replace the verifier, source, manifest and outputs together.
+  Arbitrary external co-writers violate the immutable/owned-output premise.
+- Copied public/admission/ingress/BFF fixtures carry the same verifier and clean
+  producer. Their manifests bind their actual post-instrumentation inputs and
+  resolved dependencies, not another checkout's identity. Rebuild config/source
+  mutants before behavioral assertions; do not sign or re-label stale output.
+  A raw stock server used only for a negative isolation test is explicitly
+  scoped and cannot become a supported launch path.
+- Build input/environment binding has a closed non-secret code-generation
+  scope. Never serialize secrets or low-entropy secret hashes into manifests.
+  Account for the real loader and compiler graph before declaring closure.
+- Current native/production and copied fixtures are supported subjects. No
+  Dockerfile, standalone or source-less deployment is delivered by this rule.
+  When introduced, packaging must bind and verify an immutable accepted artifact
+  before import/listen; unsupported modes have no implied qualification.
+- Measure installed and generated verification bytes/time separately on local
+  and hosted platforms, including cold/warm cases. No per-request whole-package,
+  generated-tree or persistent-cache hash scan is introduced.
+
+### Actual response and compressor ownership
+
+- Compression middleware reserves one immutable response-local owner before
+  wrapping methods or constructing a stream. Duplicate ownership refuses before
+  another allocation. Record actual selection/allocation, transport finish/close,
+  resource closure and operation/cleanup faults separately.
+- A no-resource disposition requires actual no-compression selection or a sealed
+  allocation path with no object created. Method/status, empty producer, zero
+  wire bytes and handler return alone prove none. Preserve stock selection,
+  threshold, negotiation and healthy headers/body. Early-flushed unknown-length
+  204/304 or empty responses can allocate gzip/deflate; join every actual encoder.
+- The terminal observation resolves for actual finish or close, matching existing
+  expected-abort behavior. Close before finish means incomplete delivery; it
+  supplies no synthetic finish, end, callback or unrelated work completion.
+- On either actual response finish or close, account for every actual encoder
+  and cancel any still-unretired encoder before joining its actual close. An
+  earlier finish cannot skip cleanup at close. A native pre-header refusal can
+  finish through the captured writer after allocation, leaving an encoder never
+  ended and removing its encoding header; the allocation fact remains. Let a
+  naturally closing encoder reach actual close without changing healthy wire.
+  Destroy requested, writable flags, timeout or successful wire delivery is no
+  resource-close witness. This retires no independent work or callback.
+- Each real pipe/router rejection or abort reports to the same owner before its
+  own cleanup await. This idempotent transition preserves the first primary
+  error and separate cleanup faults. An inner pipe cannot wait for its outer
+  router to observe a still-blocked rejection.
+- With no stream created, seal all later allocation and retire only the empty
+  compression obligation, allowing the existing captured/fenced native error
+  writer to respond without a circular terminal wait. Normal early return cannot
+  discard response-producing work that is still registered and owned.
+- With a stream created, that failure transition requests actual response and
+  owned-stream cancellation before joining actual close, including real rejected
+  end work before the compression wrapper's end call. Observe construction/
+  stream faults immediately; account for every actual partial allocation and
+  prevent unhandled rejection. No timeout invents a failure acknowledgement.
+- Both the actual pipe and common router join the same original owner promise,
+  on all return/throw paths. The router covers direct/static end. Repeated joins
+  duplicate no ownership. A genuine pending end-work promise remains held after
+  transport/encoder close; a genuinely rejected one retains its failure.
+- Keep upstream cause wrapping and the primary exception at the joining boundary;
+  finally cannot replace it with a cleanup error. Preserve operation error after
+  physical closure. Expected peer cancellation with clean retirement introduces
+  no synthetic cleanup failure. Immediate compressor fault can close transport
+  before an error body, while ordinary API/BFF refusal classifications remain.
+- Successful HTTP bytes/status already delivered cannot be retracted. Emit no
+  second response or synthetic rollback. Cleanup faults remain failed outcomes,
+  separately from the irreversible wire result and confirmed physical retirement.
+- Existing native publication, actual handler, write/end callback, registered
+  framework/API and snapshot owners remain independently joined. No output,
+  capacity return or successful stop follows from timeout/cancellation alone.
+- Unfinished actual work can retain current reservations for the process lifetime.
+  The native launcher's existing five-second shutdown watchdog logs fixed failure
+  and exits nonzero when joins remain incomplete; it is not a normal-request
+  timeout or successful cleanup. Existing operation/body deadlines remain their
+  owners' cancellation bounds. Phase 11 owns production supervision/capacity;
+  no new worker topology or total framework-memory bound is claimed here.
+
 ## Routing
 
 - File-based App Router.

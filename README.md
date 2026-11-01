@@ -110,8 +110,12 @@ Use Docker with **Compose V2**, Git, Make, Bash, Python 3, curl and OpenSSL
 | Tool | Repository requirement |
 |---|---|
 | .NET SDK | `10.0.112` with the roll-forward policy in [backend/global.json](backend/global.json) |
-| Node.js | `>=22.23.1`, as declared in [frontend/package.json](frontend/package.json) |
+| Node.js | Exactly `22.23.1` under [ADR-0083](docs/decisions/0083-owned-next-response-compression-cleanup.md) |
 | pnpm | `9.12.3`, pinned in [frontend/package.json](frontend/package.json) |
+
+ADR-0083 requires the exact Node/pnpm toolchain. Executable enforcement and
+installed/generated framework verification are implementation obligations;
+[Phase 03](docs/roadmap/phase-03-identity-admin.md) owns their delivery state.
 
 ### 2. Bootstrap from the repository root
 

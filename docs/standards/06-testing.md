@@ -15,6 +15,8 @@ The current CI execution windows derive from
 [ADR-0082](../decisions/0082-current-source-ci-execution-windows.md), which
 narrowly supersedes the predecessor window clauses in
 [ADR-0075](../decisions/0075-ordinary-ci-job-window.md).
+Version-qualified framework cleanup and generated-output proofs derive from
+[ADR-0083](../decisions/0083-owned-next-response-compression-cleanup.md).
 UI localization controls derive from [ADR-0027](../decisions/0027-frontend-i18n.md)
 and the [Accepted P02d-6 package](../roadmap/phase-02d-delivery-log.md#p02d-6-decision-package-2026-10-09).
 Protected native page/form lifetime and scoped UI controls derive from
@@ -515,6 +517,65 @@ environment, both hosts/locales and assistive technology. If pending, P6 complet
 is not claimed. Full Playwright Test/axe remains Phase 06; the narrow seeded
 demo/browser/Lighthouse proof is delivered by P02d-7. G38(a)'s transport proofs and
 G38(d)'s guarded runner are already delivered.
+
+### Version-qualified Next response cleanup
+
+[ADR-0083](../decisions/0083-owned-next-response-compression-cleanup.md) and
+[Standard 07](07-frontend-architecture.md#version-qualified-next-response-cleanup)
+require distinct installation, generated-output and actual-owner evidence.
+Acceptance registers these obligations; it does not establish their execution.
+
+- Verify the actual Node and selected pnpm executables at their supported
+  boundaries. Wrong patch/major versions, correct declarations paired with wrong
+  executables, missing or partial patches, changed census bytes and stale maps
+  must refuse. Verify equivalent semantics in every transformed copy and execute
+  actual supported development/production runtime families; an unused copy is no
+  exemption.
+- Prove clean generation and its input/output manifest. Old or changed `.next`
+  beside a corrected package, changed generated native output, mismatched sources
+  or producer, and unsupported development cache/compile paths refuse before
+  runtime import or listener creation. Copied fixtures consume the same verified
+  correction and generation provenance without broader live-source exemptions.
+- Use real healthy and peer-close HTTP/HTTPS controls with identity/gzip/deflate,
+  HEAD, empty, 204/304, static/direct-end and streamed responses. Include early
+  header flush with unknown length and an empty producer. Observe actual encoding
+  selection, compressor allocation/close, handler settlement, headers and wire
+  bytes separately. Zero body bytes or a bodyless status cannot certify no encoder.
+  Include actual native fence refusal after middleware allocation: preserve the
+  empty no-store 503 and removed encoding headers, observe real finish then close,
+  and join even a never-ended encoder. Final headers or prior finish cannot erase
+  allocation. A premature-close-only owner must fail this retained-resource case.
+  Preserve healthy encoding, bytes and backpressure. The terminal-only dirty
+  control must expose retained compression after its pipe settles.
+- Exercise a real initialized router and actual pipe rejection before headers or
+  encoding selection, abort before selection, synchronous construction failure,
+  early stream fault and rejected end work with an existing stream. Each boundary
+  transitions before joining, seals late allocation and joins every real resource
+  without waiting for its caller's future error response. Primary error identity
+  and separate cleanup faults survive, including combined failure and faults after
+  headers/finish; no unhandled rejection, second response or rollback is permitted.
+  Duplicate, missing or late required owner registration refuses; duplicate
+  installation cannot allocate another compressor.
+- Cover already-terminal attachment, close during blocked write/end, separately
+  held real write/end callbacks, drain and exact listener retirement. Actual finish
+  or close resolves terminal observation; premature close preserves expected-abort
+  classification without certifying delivery. No invented event, callback, timeout
+  or diagnostic disposal supplies positive cleanup.
+- Hold actual end work and independent native handler, registered framework,
+  provider/API and snapshot-pool work through transport/compressor closure.
+  Reservations remain held until their own required work settles. Preserve native
+  publication fences, refusal before headers, cancellation after headers and the
+  existing shutdown failure boundary. Observe actual native development/production
+  browser journeys separately from direct framework controls.
+
+Frontend type/lint/full guarded tests and public browser/Lighthouse proofs remain
+required. Complete final-source hosted A followed by full B uses the same source,
+toolchain, plan and discovered population: all 27 successful jobs, 20 natural VM
+owners, 25 original ZIPs and exact zero-skip unions. The existing CI windows,
+203-second reserve and per-test deadlines remain unchanged. Retain and audit A
+before B; local controls, failed subsets and diagnostic disposal replace neither.
+Manual accessibility evidence retains its separate maintainer-owned disposition
+in [Phase 03](../roadmap/phase-03-identity-admin.md).
 
 ## Tenant Isolation Tests
 

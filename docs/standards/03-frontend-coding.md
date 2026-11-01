@@ -3,6 +3,8 @@
 **Status:** Active
 **Derives from:** [ADR 0009 — Frontend Single App First](../decisions/0009-frontend-single-app-first.md).
 Public UI localization derives from [ADR-0027](../decisions/0027-frontend-i18n.md).
+Exact frontend toolchain requirements derive from
+[ADR-0083](../decisions/0083-owned-next-response-compression-cleanup.md).
 The bounded protected document/form contract derives from
 [ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md) and
 [ADR-0079](../decisions/0079-bounded-identity-administration.md); its implementation
@@ -20,8 +22,16 @@ TypeScript, React, and Next.js coding conventions. Frontend *architecture* (App 
 
 ### Current toolchain and lint subjects
 
-[ADR-0054](../decisions/0054-bounded-public-renderer-admission.md) remediation pins
-Node 22.23.1 in CI and `frontend/.nvmrc`; the workspace declares the same minimum.
+[ADR-0083](../decisions/0083-owned-next-response-compression-cleanup.md) requires
+the exact initial tuple Node 22.23.1 / pnpm 9.12.3 / patched Next 15.5.28.
+The Node/pnpm engine declarations, packageManager, `.nvmrc`, CI and supported
+entry points must agree; a declared minimum or package-manager name alone does
+not enforce this requirement. Actual executable admission, installed correction
+and clean generated-output verification follow
+[Standard 07](07-frontend-architecture.md#version-qualified-next-response-cleanup).
+Acceptance alone supplies no executable gate or qualified patch; the
+[Phase 03 Status block](../roadmap/phase-03-identity-admin.md) owns delivery state.
+
 Web CI and staged lint share `scripts/lint-web.mjs` inside the app: source, scripts
 and root JS/TS configurations, including `.mts`/`.cts`. Generated `next-env.d.ts`,
 `.next` and `.server` are excluded. Native ESM/CJS TypeScript helpers use an explicit

@@ -30,6 +30,8 @@ model, and session-variable placement**),
 Fixed-seed scope-only verification derives from
 [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md); its separate
 completion purpose derives from [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md).
+Exact frontend dependency maintenance derives from
+[ADR-0083](../decisions/0083-owned-next-response-compression-cleanup.md).
 Public-read additions derive from
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md); the private web
 ingress/caller and anonymous visitor budgets derive from
@@ -968,6 +970,11 @@ and the edge has no way to know it.
   advisory of **any** severity anywhere in the graph, transitive packages included, and CI
   fails on it (`NuGetAuditMode` `all`, `NuGetAuditLevel` `low`, warnings as errors under
   CI) — so the seven days are a deadline for a fix, never for noticing.
+- [ADR-0083](../decisions/0083-owned-next-response-compression-cleanup.md)'s exact
+  frontend pin neither suspends this fix deadline nor exempts a security update
+  from qualification. Its maintainer prioritizes the reviewed replacement path;
+  likely inability to meet the deadline reopens the choice immediately. No
+  unqualified release or emergency bypass is authorized by that decision.
 - Lockfiles committed — `frontend/pnpm-lock.yaml` today. The backend has no NuGet lock
   files yet; they arrive in [Phase 11](../roadmap/phase-11-production-hardening.md).
 - No transitive dependency mismatch — `pnpm install --frozen-lockfile` in CI today, and

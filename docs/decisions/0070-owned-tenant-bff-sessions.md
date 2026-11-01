@@ -614,3 +614,25 @@ The snapshot cap is separate from session count: 128 global/eight per owner,
 256 KiB serialized each, retained through actual settlement. The original
 body/metadata and prior amendments remain historical. P03-3 owns real provider,
 API, native HTTPS, browser, late-response and cleanup qualification before delivery.
+
+
+### Amendment 6 — Version-qualified framework cleanup navigation (2026-11-01)
+
+Accepted [ADR-0083](0083-owned-next-response-compression-cleanup.md) adds a
+version-qualified framework-maintenance and generated-output contract. It owns
+actual transport/compressor retirement through the original pipe/router promises,
+including encoders created for early-flushed bodyless responses. Actual terminal
+observation resolves on finish or close without asserting successful delivery.
+Native handlers, callbacks, registered framework/API work, snapshot reservations
+and publication fences remain independently owned under this record.
+
+The correction is applied through the qualified package and clean generated
+runtime, not a native close shortcut. Its actual-executable admission, complete
+source/map census, generated-output provenance and error/close obligations live
+in [Standard 07](../standards/07-frontend-architecture.md#version-qualified-next-response-cleanup).
+The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns implementation
+and complete qualification state; acceptance itself supplies no runtime proof.
+
+This is additive navigation. This record's Decision, historical body, status
+and date remain unchanged. The amendment number is allocated when appended;
+prior Proposed package numbering supplies no reservation.

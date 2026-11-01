@@ -73,6 +73,9 @@ separate obligations are tracked below.
 Accepted fixed-origin completion extensions derive from
 [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md);
 its separate obligations are tracked below.
+Version-qualified framework cleanup and generated-output obligations derive from
+[ADR-0083](../decisions/0083-owned-next-response-compression-cleanup.md);
+the new rule and extension below remain Registered until their controls ship.
 The implemented Identity obligations and extensions name their actual proof
 owners below; the [phase Status block](../roadmap/phase-03-identity-admin.md) owns
 current qualification and review state.
@@ -6442,7 +6445,15 @@ Prior receipts do not qualify subsequent source changes.
   controls distinguish these events from the later `writableFinished` getter.
   The framework hook accounts for registered work, with the selected
   RSC source controls above closing additional application work.
-- **Source:** ADR-0070/0071/0078/0079; Security 11 § Tenant BFF sessions and native entry.
+  ADR-0083 additionally requires the original framework pipe/router to join actual
+  compressor cleanup without releasing independent native handler, callback,
+  framework/API or snapshot owners on transport close. This extension remains
+  Registered under `Next_Response_Cleanup_Is_Installed_And_Owned`; it replaces
+  none of the existing native lifetime controls.
+- **Source:** ADR-0070/0071/0078/0079 and
+  [ADR-0083](../decisions/0083-owned-next-response-compression-cleanup.md);
+  Security 11 § Tenant BFF sessions and native entry, and
+  [Standard 07](07-frontend-architecture.md#version-qualified-next-response-cleanup).
 - **Type:** unit and actual response-owning routes. **Kind:** behavioural.
 - **Test owner:** `frontend/apps/web/src/server/auth/session-store.test.ts` and
   `frontend/apps/web/src/test/bff-session-routes.test.ts`, with composed caller/
@@ -6463,7 +6474,40 @@ Prior receipts do not qualify subsequent source changes.
   reject unknown fields and expose no request, person or credential values.
 - **Status:** **Implemented** — actual owner/route controls above and
   `TenantBffSessionTests` real refresh/maximum and shutdown/failure controls.
+  The ADR-0083 framework extension remains **Registered** under the rule below.
 - **Phase:** P02b-7 Steps 2–5; P03-3 Steps 8–9 extend entry, operation and snapshot ownership.
+
+#### `Next_Response_Cleanup_Is_Installed_And_Owned`
+
+- **Asserts:** exact actual toolchain admission, frozen patch/lock/census/map
+  identity and verified clean generation cover every supported entry point.
+  Stale generated output beside corrected installed bytes refuses before runtime
+  import/listen. Every transformed semantic copy is accounted for and supported
+  runtime families execute corrected code. The synchronous compression owner
+  records actual selection/allocation and joins real compressor close through
+  both pipe and router, including direct-end and early-flushed bodyless paths.
+  Zero wire bytes, removed encoding headers or prior finish do not prove no
+  encoder. Both real terminal edges account for actual resources, including native
+  refusal after allocation. Real terminal observation, expected
+  abort, operation faults and physical cleanup remain distinct. Each error
+  boundary transitions before its join; primary identity and separate cleanup
+  faults survive without circular error-response waits or unhandled rejection.
+  Healthy wire/backpressure, actual callbacks/drain and native publication fences
+  remain intact. Transport closure, timeout or diagnostic disposal cannot release
+  independent native/framework/API/snapshot work. The decisive controls follow
+  [Testing 06](06-testing.md#version-qualified-next-response-cleanup); local proof
+  replaces no complete same-final-source hosted A/B.
+- **Source:** [ADR-0083](../decisions/0083-owned-next-response-compression-cleanup.md)
+  and [Standard 07](07-frontend-architecture.md#version-qualified-next-response-cleanup).
+- **Type:** installed/generated-source controls, actual Node/Next HTTP/HTTPS and
+  native integration. **Kind:** structural, startup and behavioural.
+- **Test owner:** planned
+  `frontend/apps/web/src/test/next-response-cleanup.test.ts` and the existing
+  `backend/tests/LearnStack.Tests.Integration/TenancyIdentity/TenantBffSessionTests.cs`.
+  Installation, generation, actual resource and held-owner controls for this rule
+  remain implementation obligations.
+- **Status:** **Registered** — acceptance supplies no implemented gate or runtime proof.
+- **Phase:** P03-3; ADR-0083 Steps 2–3 implement and qualify the extension.
 
 #### `Bff_Auth_Admission_And_Csrf_Are_Closed`
 
