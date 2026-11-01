@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 4,188 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 4,329 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -213,7 +213,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 generated-source dependency and checkout correction (2026-11-01)](#p03-3-generated-source-dependency-and-checkout-correction-2026-11-01) — 37 lines
   - [P03-3 checkout-test construction correction (2026-11-01)](#p03-3-checkout-test-construction-correction-2026-11-01) — 23 lines
   - [P03-3 seventh hosted A and business-task observation correction (2026-11-01)](#p03-3-seventh-hosted-a-and-business-task-observation-correction-2026-11-01) — 74 lines
-  - [P03-3 business-task observation R1 cleanup correction (2026-11-01)](#p03-3-business-task-observation-r1-cleanup-correction-2026-11-01) — 35 lines
+  - [P03-3 business-task observation R1 cleanup correction (2026-11-01)](#p03-3-business-task-observation-r1-cleanup-correction-2026-11-01) — 36 lines
+  - [ADR-0083 proposed owned Next cleanup package (2026-11-01)](#adr-0083-proposed-owned-next-cleanup-package-2026-11-01) — 140 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -9945,3 +9946,144 @@ reviewers inspect the complete correction after that commit. Their verdicts,
 any verified fixes, the separate browser-handler issue and complete fresh
 final-source A/B remain open; no historical passing subset qualifies a new
 source. Manual accessibility evidence stays maintainer-deferred and unexecuted.
+
+
+### ADR-0083 proposed owned Next cleanup package (2026-11-01)
+
+**Proposal and authority.** [ADR-0083](../decisions/0083-owned-next-response-compression-cleanup.md)
+proposes an exact-version pnpm patch of Next 15.5.28. The maintainer's ADR-0082
+approval covers whole-job windows, not this new dependency-maintenance policy.
+The new proposal changes no installed package, lockfile, application runtime,
+compression setting, response/deadline rule, grant or production surface.
+Independent authorized NoPlan review corrections continue before this decision
+is presented; neither correction supplies complete final-source hosted A/B.
+
+**Reproduced mechanism, not hosted attribution.** The seventh A's counter records
+its expected mutant witness and an aggregate pending handler at cleanup. It
+identifies no exact request/await site. An unchanged stock private browser
+counter observation subsequently exits with its expected rejection and clean
+shutdown: 64 observed frames release, none remain active, no overflow. That run
+is not a passing complete browser Fact and does not reproduce the stuck frame.
+
+Nine private direct HTTPS controls use Node 22.23.1, installed Next 15.5.28,
+its actual pipe/compression and the current response fence. Stock early close
+retains the original handler and paused gzip; terminal-only correction settles
+the handler while retaining gzip. Framework-owned stream destruction on actual
+premature response close plus an actual stream-close join settles both. Healthy
+stock/candidate gzip bytes are identical: 44 bytes encode the same 8,192-byte
+body. Real end work remains pending after transport/stream close until released.
+An independent illustrative owner remains pending until its own release; it is
+not actual BFF/API/pool proof. Installed static direct-end work returns before
+stream closure; the private common-router join-body control waits for closure.
+The full initialized patched router is unexecuted.
+
+The prototype publishes at stream creation and uses plain finally. Production
+synchronous slot reservation, duplicate/late-registration refusal and original/
+cleanup error precedence remain implementation gates, not delivered proof.
+All nine controls pass in 1.291 seconds and dispose only their own listeners,
+sockets and certificate files. Dirty-state records precede diagnostic-only
+stream disposal; disposal never turns those dirty controls into successful
+product cleanup. The 27-copy source-map census is inventory, not execution of
+every compiled branch. The exact private sources, chronology and original
+failed-run evidence remain retained.
+
+**Selected proposal.** Keep compression and native actual-operation ownership.
+Patch all 27 pipe copies, common bundled compression and both CJS/ESM routers;
+accurately regenerate associated source maps. Reserve an immutable response
+owner slot synchronously at compression middleware entry. Observe actual
+selection/terminal/stream closure and forbid duplicate or late creation. The
+pipe and router both join its original promise; direct end cannot bypass it.
+Do not release real end work, native handlers, issued writes, registered framework
+work, API or snapshot owners from a transport close or timeout. Preserve primary
+request failures while retaining separate cleanup faults; otherwise successful
+work with failed cleanup fails. No source-loader monkeypatch, postinstall store
+mutation, compression disablement or silent version fallback is selected.
+
+**Three-step delivery and review order.** Each step is committed, independently
+reviewed in R1, corrected/committed, reviewed by new R2 agents, then corrected and
+validated before progression. Acceptance is not runtime qualification.
+
+1. Accept ADR-0083 only with maintainer approval; move its Proposed index row to
+   Active. Apply the exact carrier texts below, keep the new rule Registered,
+   and update only Phase 03's Status for packet state. Preserve every Accepted
+   body/status/date; add the own-record navigation amendment.
+2. Add the deterministic parsed patch generator, qualified original/patched
+   census, accurate maps, exact-version pnpm manifest/lock identity and frozen
+   installation controls. Extend supported build, native dev/production,
+   copied-proof and packaged entry points with fail-closed checks before Next
+   import/listen. Produce/apply in an isolated staging tree; never mutate the
+   shared store. Prove duplicate/missing/late slot, real construction/stream
+   error, primary-plus-cleanup error, no-compression/HEAD/empty body, gzip/deflate,
+   native backpressure and early-close paths. Exercise every changed semantic
+   copy or an equivalent parsed semantic comparison plus the actual supported
+   development/production route families. The generated minified diff size is
+   a disclosed maintenance cost, not an excuse to omit a copy or stale map.
+3. Prove unchanged native handler/write/framework/API/snapshot lifetimes with
+   real held owners, actual router/static/streamed early-close and healthy
+   requests, actual stock browser trilogy/counter witness, development native
+   controls, frontend type/lint/full guard and public browser/Lighthouse proof.
+   Register Implemented status only after decisive controls pass. Resolve the
+   separate NoPlan corrections and freeze actual source/tree, toolchain, plan
+   and newly discovered population. Complete and retain all 27-job/20-natural-
+   owner/25-original-ZIP A, independently audit it, then full B on the identical
+   freeze. Both layouts require exact zero-skip selected/executed/TRX unions.
+   Original failed runs, partial siblings and failed-only reruns qualify none.
+
+**Append-ready acceptance carriers.** These texts are proposals until acceptance;
+standards and Accepted ADRs are not changed by this record.
+
+- `docs/decisions/0070-owned-tenant-bff-sessions.md`, new **Amendment 6 —
+  Framework-owned compression cleanup maintenance (2026-11-01)**:
+  “ADR-0083 adds exact-version framework dependency maintenance for transport
+  terminal observation and actual compressor cleanup. The pipe and common
+  router join the same middleware-owned actual operation. Native handler,
+  end-work, write, framework/API/snapshot lifetimes and all publication fences
+  remain unchanged. This amendment is additive navigation; this record's
+  Decision and historical body remain unchanged. Acceptance and local prototype
+  results do not establish implementation or complete hosted qualification.”
+- `docs/standards/07-frontend-architecture.md`, new **Version-qualified Next
+  response cleanup**, `Derives from: ADR-0083`:
+  “Supported frontend build, native development/production, copied-fixture and
+  packaged entry points verify the exact installed Next version, pnpm patch
+  identity and complete qualified source/map census before importing Next or
+  listening. Missing/partial/changed/unused patches refuse; no fallback or
+  shared-store/runtime-loader mutation is permitted. The version-bound package
+  owns a synchronous immutable compression slot, actual transport/stream
+  terminal observation, duplicate/late refusal and joins through pipe and
+  router, including direct end. Real work and actual cleanup remain distinct;
+  primary and cleanup failures remain separately owned. Dependency upgrades
+  requalify or remove this patch only after equivalent actual cleanup proof.”
+- `docs/standards/06-testing.md`, new proof paragraph under the existing frontend
+  native lifecycle contract:
+  “Next response cleanup qualification uses real healthy and peer-close HTTP(S),
+  actual stream/handler settlement and dirty terminal-only controls. Cover
+  identity/gzip/deflate, HEAD/empty/static/streamed output, backpressure, actual
+  end-work and independent native/framework/API/snapshot owners, and
+  construction/error/disposal cases. Every patched semantic copy and supported
+  runtime family is accounted for; installed version/hash/map/patch negatives
+  fail closed. Diagnostic disposal and timeout never supply positive cleanup.
+  Local proof does not replace the complete same-final-source hosted A/B.”
+- `docs/standards/21-architecture-tests-catalogue.md`, register exact
+  `Next_Response_Cleanup_Is_Installed_And_Owned`:
+  **Asserts:** exact frozen patch/census/map/entry-point closure and real
+  transport/compressor/handler ownership; no altered response/publication fence
+  or independent-work release. **Type:** installed-source structural controls
+  plus actual Node/Next healthy/dirty HTTP(S) and native integration proof.
+  **Owner:** frontend test/verification entry points and existing native BFF
+  integration fixture. **Status:** Registered; ADR-0083 acceptance supplies no
+  Implemented claim. **Source:** ADR-0083 and Standard 07. Extend the existing
+  `Bff_Session_Refresh_And_Revocation_Have_One_Owner` source/assertions to link
+  the qualified framework operation; do not replace its actual native controls.
+- Decision index, Phase 03 Status and this delivery log: record acceptance and
+  each verified step/review/qualification separately. No packet-state history
+  is copied into CLAUDE, root README or the roadmap index.
+
+**Cost and decision boundary.** The proposal makes LearnStack responsible for
+internal framework code across large minified bundles and correct source maps.
+Default compression and healthy bytes stay in the proof; no performance or
+hosted-fit guarantee follows from the prototype. An upstream open pull request
+is not a released fix. Removal requires verified shipped equivalence and the
+same actual controls. Manual keyboard/focus/reflow/contrast/VoiceOver evidence
+remains explicitly maintainer-deferred and unexecuted. Only this new policy
+awaits approval; independently authorized corrections and proposal review can
+continue. Runtime/dependency changes begin only after that approval.

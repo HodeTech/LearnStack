@@ -14,14 +14,14 @@
 > Manual evidence remains unexecuted and maintainer-owned for PR review. The [Step 10 source reviews](phase-03-delivery-log.md#p03-3-step-10-review-round-2-and-virtual-dispatch-correction-2026-10-31)
 > close both fresh independent rounds and verified corrections. The [seventh A and task-observation correction](phase-03-delivery-log.md#p03-3-seventh-hosted-a-and-business-task-observation-correction-2026-11-01)
 > validate the business-task publication boundary. The [R1 cleanup correction](phase-03-delivery-log.md#p03-3-business-task-observation-r1-cleanup-correction-2026-11-01)
-> precedes two new R2 reviews; a separate native handler investigation and
-> complete same-source hosted A/B qualification remain open.
+> precedes R2 completion; fixture-teardown error preservation, the separate native
+> handler investigation and complete same-source hosted A/B remain open.
+> [ADR-0083](../decisions/0083-owned-next-response-compression-cleanup.md) proposes pinned framework/compressor cleanup maintenance;
+> its new dependency policy awaits maintainer approval before implementation.
 > [ADR-0082](../decisions/0082-current-source-ci-execution-windows.md) is Accepted for Architecture 25 / ordinary 30 minute windows;
 > both carrier rounds and the [budget implementation/reviews](phase-03-delivery-log.md#adr-0082-step-2-reviews-and-implementation-closeout-2026-11-01) close; complete fresh source-bound hosted A/B/original-archive qualification remains open.
-> [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md) and
-> [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md)
-> are Accepted; their separate eight-consumer prerequisite and one-consumer
-> completion controls pass locally, including owner barriers and competing commits.
+> [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md) / [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md) are Accepted; their separate eight-consumer prerequisite
+> and one-consumer completion controls pass locally, including barriers and races.
 > This remains the critical-path phase after [Phase 02b](phase-02b-events-auth.md).
 > The [decision register](#the-decision-register) owns gate state; dated decisions,
 > reviews and proof boundaries live in the [delivery log](phase-03-delivery-log.md).
