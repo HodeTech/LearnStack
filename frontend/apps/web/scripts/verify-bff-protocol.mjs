@@ -23,7 +23,10 @@ const deadline = setTimeout(() => {
 }, 120_000);
 deadline.unref();
 const devMode = ['--dev', '--without-native-diagnostics'].includes(process.argv[2]);
-const uiMode = devMode || process.argv[2] === '--ui';
+const heldNativeStop = ['--with-held-native-stop', '--without-watchdog-observation'].includes(
+  process.argv[2],
+);
+const uiMode = devMode || process.argv[2] === '--ui' || heldNativeStop;
 let stage = 'setup';
 let releaseHeldRender;
 const pendingOwnedRequests = [];
@@ -37,6 +40,8 @@ try {
           '--dev',
           '--without-native-diagnostics',
           '--without-successful-native-stop',
+          '--with-held-native-stop',
+          '--without-watchdog-observation',
         ].includes(process.argv[2])),
     'closed proof mode',
   );
@@ -60,7 +65,11 @@ try {
             ? 'diagnostics'
             : process.argv[2] === '--without-successful-native-stop'
               ? 'shutdown'
-              : undefined,
+              : process.argv[2] === '--with-held-native-stop'
+                ? 'held-native-stop'
+                : process.argv[2] === '--without-watchdog-observation'
+                  ? 'watchdog-observation'
+                  : undefined,
       mark: (value) => {
         stage = value;
       },
@@ -221,6 +230,91 @@ try {
     'callback never invokes AccountSite',
   );
   const active = await selectEntry(callback, 'institution.example.test:3000', '/studio');
+  if (heldNativeStop) {
+    stage = 'native-watchdog-render';
+    await renderControl('arm');
+    releaseHeldRender = () => renderControl('release');
+    const held = get('/studio?_rsc=watchdog', active, {
+      headers: { RSC: '1', Accept: '*/*', 'Sec-Fetch-Dest': 'empty' },
+      allowAborted: true,
+    });
+    pendingOwnedRequests.push(held);
+    void held.catch(() => {});
+    const until = Date.now() + 5000;
+    let retained;
+    do {
+      retained = await renderControl('status');
+      if (retained.held === 1) break;
+      assert.ok(Date.now() < until, 'actual UI reaches registered framework work');
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    } while (retained.held !== 1);
+    assert.ok(retained.frames > 0);
+    assert.equal(retained.snapshots.active, 1);
+    assert.ok(retained.snapshots.bytes > 0);
+    const family = server.broker.capture.family();
+    assert.ok(family, 'actual child family captured before stop');
+    let closed = false;
+    void server.completed.then(() => {
+      closed = true;
+    });
+    let watchdog;
+    const started = performance.now();
+    const observe = (value) => {
+      if (value?.kind !== 'proof-shutdown' || value.milestone !== 'watchdog') return;
+      watchdog = {
+        value,
+        beforeClose: !closed,
+        beforeRetirement: !server.broker.capture.retired(),
+        elapsed: performance.now() - started,
+      };
+    };
+    server.proofChannel.on('message', observe);
+    stage = 'native-watchdog-join';
+    const settlement = await stopTestChild(server.process);
+    const stopped = await server.completed;
+    server.proofChannel.removeListener('message', observe);
+    // The failed child cannot consume another command; no release is invented.
+    releaseHeldRender = undefined;
+    const interrupted = await held;
+    assert.ok(interrupted.aborted || interrupted.status === 503, 'actual held response closes');
+    assert.equal(settlement.forced, false);
+    assert.equal(stopped.code, 1, 'actual watchdog shutdown remains failed');
+    assert.equal(stopped.signal, null);
+    assert.equal(server.broker.capture.family(), family, 'same actual child incarnation');
+    assert.equal(server.broker.capture.retired(), true, 'physical family join is still required');
+    server.broker.assertHealthy();
+    stage = 'native-watchdog-observation';
+    assert.ok(watchdog, 'actual controller watchdog reaches the existing host observer');
+    assert.equal(watchdog.beforeClose, true);
+    assert.equal(watchdog.beforeRetirement, true);
+    assert.ok(watchdog.elapsed >= 4500, 'the real first-stop watchdog supplied the observation');
+    assert.equal(watchdog.value.watchdog, true);
+    assert.ok(watchdog.value.sample[3] > 0, 'registered actual framework work remains owned');
+    assert.ok(watchdog.value.sample[4] > 0, 'the actual page snapshot remains reserved');
+    assert.equal(watchdog.value.requests, 'pending');
+    assert.match(server.shutdown.snapshot(), /^valid,1,1,/);
+    assert.equal(
+      server.shutdown.sample(),
+      ['valid', 'watchdog', ...watchdog.value.sample].join(','),
+    );
+    assertBffPrivateOutput(scanners);
+    process.stderr.write(
+      'BFF watchdog observation: ' +
+        JSON.stringify({
+          elapsedMilliseconds: Math.min(120000, Math.max(0, Math.round(watchdog.elapsed))),
+          sample: watchdog.value.sample,
+          beforeClose: watchdog.beforeClose,
+          beforeRetirement: watchdog.beforeRetirement,
+          retired: server.broker.capture.retired(),
+          ownerCode: stopped.code,
+          ownerSignal: stopped.signal ?? 'none',
+        }) +
+        '\n',
+    );
+    stage = 'native-watchdog-observed';
+    // Keep the original nonzero native outcome on the existing failed-proof path.
+    assert.equal(stopped.code, 0, 'held native shutdown cannot publish success');
+  }
   function assertFlightEnvelope(response) {
     assert.equal(response.status, 200);
     assert.match(response.headers['content-type'], /text\/x-component/);

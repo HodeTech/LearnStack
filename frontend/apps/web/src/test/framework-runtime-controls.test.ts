@@ -24,7 +24,7 @@ test('runtime family controls join actual children and retain shutdown failures'
     },
   );
   const count = result.match(/^# tests (\d+)$/m)?.[1];
-  expect(count).toBe('21');
+  expect(count).toBe('25');
   expect(result).toMatch(new RegExp(`^# pass ${count}$`, 'm'));
   expect(result).toMatch(/^# fail 0$/m);
   expect(result).toMatch(/^# cancelled 0$/m);

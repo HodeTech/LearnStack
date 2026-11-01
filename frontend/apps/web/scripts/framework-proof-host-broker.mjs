@@ -130,6 +130,7 @@ export function createCopiedRuntimeHostBroker(child, { app, profile }) {
   const metadata = new EventEmitter();
   let records;
   let fault = null;
+  let nextBffSequence = 1;
   const failClosed = () => {
     fault ??= new Error('Copied runtime host protocol refused');
     metadata.emit('fault', fault);
@@ -156,7 +157,10 @@ export function createCopiedRuntimeHostBroker(child, { app, profile }) {
         const family = capture.family();
         if (!family) fail();
         validator.observation(value, family.pid);
-        proof.emit('message', value);
+        proof.emit(
+          'message',
+          profile === 'bff' && value.kind === 'proof-reply' ? value.payload : value,
+        );
       }
     } catch {
       failClosed();
@@ -184,8 +188,13 @@ export function createCopiedRuntimeHostBroker(child, { app, profile }) {
     capture,
     send(value) {
       if (fault || !capture.family() || !child.connected) fail();
-      validator.command(value);
-      child.send(value, (error) => {
+      const wire =
+        profile === 'bff'
+          ? Object.freeze({ kind: 'proof-command', sequence: nextBffSequence, payload: value })
+          : value;
+      validator.command(wire);
+      if (profile === 'bff') nextBffSequence++;
+      child.send(wire, (error) => {
         if (error) failClosed();
       });
     },

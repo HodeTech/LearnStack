@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { test } from 'node:test';
 
-import { stopProductionRuntimeOwner } from './stop-test-child.mjs';
+import {
+  markRuntimeTestChild,
+  stopProductionRuntimeOwner,
+  stopTestChild,
+} from './stop-test-child.mjs';
 
 function owner({ code = 0, signal = null, alreadyExited = false, delivery = true } = {}) {
   const child = new EventEmitter();
@@ -50,4 +54,54 @@ test('undeliverable owner stop cannot be treated as a clean close', async () => 
   const child = owner({ delivery: false });
   await assert.rejects(stopProductionRuntimeOwner(child), /process failed/);
   assert.deepEqual(child.signals, ['SIGTERM']);
+});
+
+test('reused producer PID joins each distinct group once without a saved group signal', async () => {
+  const child = new EventEmitter();
+  child.pid = 23456;
+  child.exitCode = null;
+  child.signalCode = null;
+  child.kill = (signal) => {
+    assert.equal(signal, 'SIGTERM');
+    queueMicrotask(() => {
+      child.exitCode = 0;
+      child.emit('close', 0, null);
+    });
+    return true;
+  };
+  const capture = markRuntimeTestChild(child);
+  capture.captureLease({ format: 1, kind: 'development', nonce: 'a'.repeat(32), pid: child.pid });
+  capture.captureProducerFamily({
+    pid: 34567,
+    group: 34567,
+    parentPid: child.pid,
+    leaseNonce: 'a'.repeat(32),
+  });
+  capture.captureFamily({
+    pid: 34567,
+    group: 34567,
+    parentPid: child.pid,
+    leaseNonce: 'a'.repeat(32),
+    incarnation: 'b'.repeat(32),
+  });
+  const originalKill = process.kill;
+  const probes = [];
+  process.kill = (pid, signal) => {
+    assert.equal(signal, 0);
+    probes.push(pid);
+    const error = new Error('group absent');
+    error.code = 'ESRCH';
+    throw error;
+  };
+  try {
+    assert.deepEqual(await stopTestChild(child), {
+      forced: false,
+      ownerCode: 0,
+      ownerSignal: null,
+    });
+    assert.deepEqual(probes, [-23456, -34567]);
+    assert.equal(capture.retired(), true);
+  } finally {
+    process.kill = originalKill;
+  }
 });

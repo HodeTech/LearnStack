@@ -151,3 +151,54 @@ test('broker refuses a copied scripts link redirected away from the actual guard
     f.remove();
   }
 });
+
+test('BFF broker projects raw consumer replies but refuses a later stale wire', async () => {
+  const f = await fixture();
+  try {
+    const broker = f.createCopiedRuntimeHostBroker(f.child, { app: f.app, profile: 'bff' });
+    const projected = [];
+    broker.proof.on('message', (value) => projected.push(value));
+    f.child.emit('message', { kind: 'runtime-lease', record: f.record });
+    f.child.emit('message', {
+      kind: 'runtime-family',
+      pid: 34567,
+      group: 34567,
+      parentPid: f.child.pid,
+      leaseNonce: f.record.nonce,
+      incarnation: 'b'.repeat(32),
+    });
+    const snapshot = (now) => ({
+      kind: 'snapshot',
+      now,
+      refreshes: 0,
+      accounts: 0,
+      administrations: {},
+    });
+    broker.send({ kind: 'advance', milliseconds: 0 });
+    assert.deepEqual(f.child.sent[0], {
+      kind: 'proof-command',
+      sequence: 1,
+      payload: { kind: 'advance', milliseconds: 0 },
+    });
+    f.child.emit('message', { kind: 'proof-reply', sequence: 1, payload: snapshot(0) });
+    broker.send({ kind: 'advance', milliseconds: 60000 });
+    f.child.emit('message', { kind: 'proof-reply', sequence: 2, payload: snapshot(60000) });
+    assert.deepEqual(projected, [snapshot(0), snapshot(60000)]);
+    broker.send({ kind: 'render-control', action: 'status' });
+    assert.deepEqual(f.child.sent[2], {
+      kind: 'proof-command',
+      sequence: 3,
+      payload: { kind: 'render-control', action: 'status' },
+    });
+    f.child.emit('message', {
+      kind: 'proof-reply',
+      sequence: 2,
+      payload: { kind: 'render-state', held: 0, frames: 0, snapshots: null },
+    });
+    assert.throws(() => broker.assertHealthy());
+    assert.equal(projected.length, 2);
+    assert.deepEqual(f.child.killed, ['SIGTERM']);
+  } finally {
+    f.remove();
+  }
+});

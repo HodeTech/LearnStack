@@ -145,6 +145,8 @@ export function instrumentCopiedBffRuntime(
   },
 ) {
   let launcher = sourceText;
+  const heldNativeStop = ['held-native-stop', 'watchdog-observation'].includes(mutation);
+  assert.ok(!heldNativeStop || (uiMode && !external), 'Held native stop requires copied BFF UI');
   if (mutation === 'diagnostics')
     launcher = replace(
       launcher,
@@ -180,7 +182,7 @@ export function instrumentCopiedBffRuntime(
       renderWork.add(release); framework.waitUntil(work);
       return work.finally(() => renderWork.delete(release));
     }});
-    for (const event of ['disconnect', 'SIGINT', 'SIGTERM', 'exit']) process.once(event, releaseRender);
+    ${heldNativeStop ? '' : "for (const event of ['disconnect', 'SIGINT', 'SIGTERM', 'exit']) process.once(event, releaseRender);"}
     control.proof.onCommand(async value => { if (value.kind === 'render-control') {
       if (value.action === 'arm') { if (renderArmed || renderWork.size) throw new Error('Owned render already held'); renderArmed = true; }
       if (value.action === 'release') releaseRender();
@@ -242,11 +244,12 @@ export function instrumentCopiedBffRuntime(
       "        diagnostic: (reason) => console.warn('BFF session lifecycle', { reason }),",
       "        diagnostic: (reason) => console.warn('BFF session lifecycle', { reason }),\n        clock: fixtureDependencies.clock,",
     );
-    launcher = replace(
-      launcher,
-      '      ownShutdown(() => admission.shutdown());',
-      '      ownShutdown(() => admission.shutdown());\n      releaseProofRender();',
-    );
+    if (!heldNativeStop)
+      launcher = replace(
+        launcher,
+        '      ownShutdown(() => admission.shutdown());',
+        '      ownShutdown(() => admission.shutdown());\n      releaseProofRender();',
+      );
   }
   if (uiMode && !external) {
     // Observe real native shutdown promises in this copied launcher only.
@@ -261,6 +264,14 @@ export function instrumentCopiedBffRuntime(
     try { control.proof.emit({...proofShutdown, milestone, sample}); }
     catch { control.requestStop('protocol-fault'); }
   };
+  ${
+    mutation === 'watchdog-observation'
+      ? ''
+      : `control.proof.onWatchdog(() => {
+    proofShutdown.watchdog = true;
+    reportShutdown('watchdog');
+  });`
+  }
   const observeShutdownJoin = (key, promise) => {
     void Promise.resolve(promise).then(
       () => { proofShutdown[key] = 'fulfilled'; reportShutdown(key); },
@@ -611,6 +622,24 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
     // The observation exists only in this copied fixture, after the UI source copy.
     const path = join(app, 'src/server/auth/request-runtime.ts');
     file(path, instrumentBffProofRequestRuntime(readFileSync(path, 'utf8')));
+  }
+  if (['held-native-stop', 'watchdog-observation'].includes(mutation)) {
+    // Hold actual App Router work registered with the native request owner.
+    // The ordinary copied UI keeps its existing shutdown release behavior.
+    assert.ok(uiMode && !external, 'Held native stop requires copied BFF UI');
+    const path = join(app, 'src/app/(studio)/studio/page.tsx');
+    let page = readFileSync(path, 'utf8');
+    page = "import { preparedPage } from '@/server/auth/page';\n" + page;
+    page = replace(
+      page,
+      'export default function StudioHomePage() {',
+      `export default async function StudioHomePage() {
+  const page = await preparedPage();
+  page.assertActive();
+  const gate = Reflect.get(globalThis, Symbol.for('learnstack.proof-render-gate'));
+  if (typeof gate === 'function') await gate();`,
+    );
+    file(path, page);
   }
   if (mutation === 'history') {
     const history = join(app, 'src/components/auth/history.ts');

@@ -147,6 +147,12 @@ export function createFrameworkRuntimeChildControl() {
       readyBeforeStop = ready;
       watchdog = setTimeout(() => {
         // A stalled IPC flush must not extend the original shutdown deadline.
+        try {
+          proofReceiver?.watchdog?.();
+        } catch {
+          // A copied observation cannot change the existing failure deadline.
+          fault ??= 'protocol-fault';
+        }
         process.exit(1);
       }, 5000);
     }
@@ -291,6 +297,7 @@ export function createFrameworkRuntimeChildControl() {
       nativeControl.proof = Object.freeze({
         emit: (payload) => proofReceiver.emit(payload),
         onCommand: (fn) => proofReceiver.onCommand(fn),
+        onWatchdog: (fn) => proofReceiver.onWatchdog(fn),
       });
     return Object.freeze(nativeControl);
   }

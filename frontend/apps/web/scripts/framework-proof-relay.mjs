@@ -1,4 +1,5 @@
 // Copied-source fixture protocol only. Production owner and child do not import it.
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { isIP } from 'node:net';
 
 const TAG = 'learnstack-proof-v1';
@@ -108,6 +109,23 @@ function bffCommand(value) {
     (exact(value, ['kind', 'action']) &&
       value.kind === 'render-control' &&
       ['arm', 'release', 'status'].includes(value.action))
+  );
+}
+function bffCommandWire(value) {
+  return (
+    exact(value, ['kind', 'sequence', 'payload']) &&
+    value.kind === 'proof-command' &&
+    positive(value.sequence) &&
+    bffCommand(value.payload)
+  );
+}
+function bffReplyWire(value) {
+  return (
+    exact(value, ['kind', 'sequence', 'payload']) &&
+    value.kind === 'proof-reply' &&
+    positive(value.sequence) &&
+    ['snapshot', 'render-state'].includes(value.payload?.kind) &&
+    bffObservation(value.payload)
   );
 }
 
@@ -250,22 +268,37 @@ export function createBffShutdownValidator() {
 function createState(profile) {
   if (!PROFILES.has(profile)) fail();
   const pending = new Map();
+  const usedIds = new Set();
   const bffShutdown = createBffShutdownValidator();
   let shutdownFrames = 0;
   let listenerSeen = false;
   let readinessPhase = 'launched';
+  let fetchActive = 0;
+  let nextSequence = 1;
+  let expectedNow = 0;
   let commandPending = null;
   function command(value) {
     if (profile === 'none') fail();
     if (profile === 'ingress') {
-      if (!ingressCommand(value) || pending.has(value.id)) fail();
+      if (!ingressCommand(value) || usedIds.has(value.id)) fail();
       pending.set(value.id, value.fence);
+      usedIds.add(value.id);
     } else if (profile === 'admission') {
-      if (!admissionCommand(value) || pending.has(value.id)) fail();
+      if (!admissionCommand(value) || usedIds.has(value.id)) fail();
       pending.set(value.id, value.op);
+      usedIds.add(value.id);
     } else {
-      if (!bffCommand(value) || commandPending !== null) fail();
-      commandPending = value.kind === 'advance' ? 'snapshot' : 'render-state';
+      if (!bffCommandWire(value) || value.sequence !== nextSequence || commandPending !== null)
+        fail();
+      commandPending = Object.freeze({
+        sequence: value.sequence,
+        kind: value.payload.kind === 'advance' ? 'snapshot' : 'render-state',
+      });
+      if (value.payload.kind === 'advance') {
+        if (!Number.isSafeInteger(expectedNow + value.payload.milliseconds)) fail();
+        expectedNow += value.payload.milliseconds;
+      }
+      nextSequence++;
     }
   }
   function observation(value, childPid) {
@@ -273,8 +306,28 @@ function createState(profile) {
     if (profile === 'ingress') {
       if (!ingressObservation(value, childPid)) fail();
       if (value.kind === 'readiness') {
-        if (value.phase !== (readinessPhase === 'launched' ? 'preparing' : 'prepared')) fail();
+        const expected =
+          readinessPhase === 'launched'
+            ? 'preparing'
+            : readinessPhase === 'preparing'
+              ? 'prepared'
+              : null;
+        if (value.phase !== expected) fail();
         readinessPhase = value.phase;
+      }
+      if (value.kind === 'version-fetch') {
+        if (value.state === 'pending') {
+          if (value.errorKind !== 'none' || fetchActive === Number.MAX_SAFE_INTEGER) fail();
+          fetchActive++;
+        } else {
+          if (
+            fetchActive === 0 ||
+            (value.state === 'settled' && value.errorKind !== 'none') ||
+            (value.state === 'failed' && value.errorKind === 'none')
+          )
+            fail();
+          fetchActive--;
+        }
       }
       if (Object.hasOwn(value, 'id')) {
         if (!pending.has(value.id)) fail();
@@ -296,14 +349,22 @@ function createState(profile) {
         pending.delete(value.id);
       }
     } else {
-      if (!bffObservation(value)) fail();
-      if (value.kind === 'proof-listener') {
+      if (value?.kind === 'proof-reply') {
+        if (
+          !bffReplyWire(value) ||
+          !commandPending ||
+          value.sequence !== commandPending.sequence ||
+          value.payload.kind !== commandPending.kind ||
+          (value.payload.kind === 'snapshot' && value.payload.now !== expectedNow)
+        )
+          fail();
+        commandPending = null;
+      } else if (value?.kind === 'proof-listener') {
+        if (!bffObservation(value)) fail();
         if (listenerSeen) fail();
         listenerSeen = true;
-      } else if (value.kind === 'snapshot' || value.kind === 'render-state') {
-        if (commandPending !== value.kind) fail();
-        commandPending = null;
       } else {
+        if (!shutdownShape(value)) fail();
         bffShutdown.observe(value);
       }
     }
@@ -500,10 +561,13 @@ export function createCopiedChildProof(profile) {
         fail();
       attached = true;
       let handler;
+      let watchdogHandler;
+      let watchdogFired = false;
       let sealed = false;
       let handlerFailed = false;
       let drainPromise;
       const pending = new Set();
+      const commandContext = profile === 'bff' ? new AsyncLocalStorage() : null;
       const handlerFault = () => {
         handlerFailed = true;
         requestStop('protocol-fault');
@@ -515,7 +579,9 @@ export function createCopiedChildProof(profile) {
           state.command(payload);
           if (!handler) fail();
           try {
-            const result = handler(payload);
+            const result = commandContext
+              ? commandContext.run(payload.sequence, () => handler(payload.payload))
+              : handler(payload);
             if (result && typeof result.then === 'function') {
               let tracked;
               tracked = Promise.resolve(result).then(
@@ -534,12 +600,42 @@ export function createCopiedChildProof(profile) {
           }
         },
         emit(payload) {
-          state.observation(payload, process.pid);
-          send(envelope(incarnation, payload));
+          try {
+            const wire =
+              profile === 'bff' && ['snapshot', 'render-state'].includes(payload?.kind)
+                ? Object.freeze({
+                    kind: 'proof-reply',
+                    sequence: commandContext.getStore(),
+                    payload,
+                  })
+                : payload;
+            state.observation(wire, process.pid);
+            send(envelope(incarnation, wire));
+          } catch {
+            try {
+              handlerFault();
+            } finally {
+              fail();
+            }
+          }
         },
         onCommand(fn) {
           if (sealed || handler || typeof fn !== 'function') fail();
           handler = fn;
+        },
+        onWatchdog(fn) {
+          if (profile !== 'bff' || sealed || watchdogHandler || typeof fn !== 'function') fail();
+          watchdogHandler = fn;
+        },
+        watchdog() {
+          if (profile !== 'bff' || watchdogFired) return;
+          watchdogFired = true;
+          if (!watchdogHandler) return;
+          try {
+            if (watchdogHandler() !== undefined) fail();
+          } catch {
+            handlerFault();
+          }
         },
         drain() {
           if (!drainPromise) {

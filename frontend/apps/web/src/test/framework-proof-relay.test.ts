@@ -12,9 +12,9 @@ const environment: NodeJS.ProcessEnv = {
 };
 
 test.each([
-  ['apps/web/scripts/test-framework-proof-relay.mjs', 8],
-  ['scripts/framework-proof-host-broker.test.mjs', 3],
-  ['apps/web/scripts/test-production-runtime-owner-stop.mjs', 4],
+  ['apps/web/scripts/test-framework-proof-relay.mjs', 15],
+  ['scripts/framework-proof-host-broker.test.mjs', 4],
+  ['apps/web/scripts/test-production-runtime-owner-stop.mjs', 5],
   ['apps/web/scripts/test-framework-proof-source.mjs', 9],
 ] as const)(
   'copied proof runner %s passes every closed-schema control',

@@ -6515,7 +6515,8 @@ Prior receipts do not qualify subsequent source changes.
   `next-response-end-work.test.ts`, `next-response-maps.test.ts`,
   `framework-provenance.test.ts`, `framework-install-hook.test.ts`,
   `framework-runtime-controls.test.ts`, `framework-owner-imports.test.ts`,
-  `framework-proof-relay.test.ts`, `demo-runtime-owner.test.ts` and the existing
+  `framework-proof-relay.test.ts`, `demo-runtime-owner.test.ts`,
+  `bff-watchdog-observation.test.ts` and the existing
   `backend/tests/LearnStack.Tests.Integration/TenancyIdentity/TenantBffSessionTests.cs`.
   Parsed-copy and component controls do not replace initialized-router,
   supported-loader, native/browser or source-bound hosted qualification.

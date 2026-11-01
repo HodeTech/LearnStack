@@ -176,10 +176,14 @@ async function stopOwnedRuntimeChild(child, state) {
     }
   }
   await state.close;
+  // A retired producer number can later be reused by the runtime leader.
+  // Each distinct numeric group needs one irreversible ESRCH observation.
   const groups = [
-    child.pid,
-    ...state.producers.keys(),
-    ...(state.family ? [state.family.group] : []),
+    ...new Set([
+      child.pid,
+      ...state.producers.keys(),
+      ...(state.family ? [state.family.group] : []),
+    ]),
   ];
   const retired = state.retired;
   let delay = 10;

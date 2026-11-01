@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 5,583 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 5,653 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -238,7 +238,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0084 Step 1 review round 1 and existing protocol correction (2026-11-01)](#adr-0084-step-1-review-round-1-and-existing-protocol-correction-2026-11-01) — 33 lines
   - [ADR-0084 Step 1 review round 2 and disclosure correction (2026-11-01)](#adr-0084-step-1-review-round-2-and-disclosure-correction-2026-11-01) — 20 lines
   - [ADR-0084 Step 1 review closeout and implementation plan (2026-11-01)](#adr-0084-step-1-review-closeout-and-implementation-plan-2026-11-01) — 28 lines
-  - [ADR-0084 Step 2 implementation and integration checks (2026-11-01)](#adr-0084-step-2-implementation-and-integration-checks-2026-11-01) — 68 lines
+  - [ADR-0084 Step 2 implementation and integration checks (2026-11-01)](#adr-0084-step-2-implementation-and-integration-checks-2026-11-01) — 69 lines
+  - [ADR-0084 Step 2 review round 1 and verified corrections (2026-11-01)](#adr-0084-step-2-review-round-1-and-verified-corrections-2026-11-01) — 69 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -11365,3 +11366,73 @@ owner-loss/recovery, complete framework/native/API/browser and same-final-source
 hosted A/B obligations. Local controls do not replace those proofs or promote
 `Next_Response_Cleanup_Is_Installed_And_Owned` beyond Registered. Manual
 accessibility remains maintainer-deferred and unexecuted.
+
+
+### ADR-0084 Step 2 review round 1 and verified corrections (2026-11-01)
+
+Two fresh independent reviewers inspect `aee0a22d` and request changes. Root reads
+both complete reports and verifies the reported state-machine and observation
+failures. Their scope excludes the explicitly open Step 3 qualification; neither
+review claims a full independent execution of all local or hosted evidence.
+
+**Startup races.** A responsive child held before HELLO receives no ordinary stop
+until HELLO, delaying its first watchdog. Separately, a stop before actual bind can
+be classified as graceful when the child binds before consuming queued IPC. The
+runner now immediately sends the existing authenticated stop on its exact live
+channel, retains it for a later HELLO and never grants start after cancellation.
+Its first-stop readiness observation is irreversible and survives later child
+ready/terminal frames. An early cancellation terminal grants no handshake or
+family authority. Actual close and group absence still own release.
+
+The new causal controls retain their failing pre-fix results. They exercise both
+SIGTERM/SIGINT during responsive pre-HELLO validation, a real late bind after stop,
+late HELLO receiving stop again without start, and the original ready-before-stop
+positive. No second timer, group signal or changed cancellation-success policy is
+introduced. Twenty-five inert actual-process controls pass inside the unchanged
+30-second child/35-second wrapper limits.
+
+**Proof correlation.** Completed ingress/admission IDs cannot be reused; distinct
+out-of-order positive IDs remain valid. Readiness has a terminal prepared state.
+Version-fetch transitions account for concurrent pending calls and valid outcome/
+error combinations. Private BFF command/reply sequences and originating async
+context prevent a prior reply from satisfying new work; cumulative clock checks
+retain the fixed advance semantics. Existing consumer shapes and unsolicited
+listener/shutdown observations remain unchanged. These are closed copied-proof
+implementation controls, with no production selector or new authority.
+
+Root additionally verifies that a rejected observation can be swallowed by the
+informational fetch callback. Rejection now faults its owning proof and makes
+its drain reject even if that caller catches the exception. The real bounded
+fetch wrapper supplies both the planted failure and valid concurrent controls.
+Fixture cleanup also deduplicates numeric group observations when a completed
+producer PID is reused; one-way ESRCH retirement and the saved-group signal ban
+remain intact. Thirty-three focused relay/broker/stop/source cases pass.
+
+**Actual watchdog producer.** The copied BFF registers a synchronous observer on
+the original child-controller deadline. It reports the real native counts before
+the existing failed exit, without waiting for IPC acknowledgement, changing the
+five-second interval or granting cleanup credit. A genuine production UI/RSC
+control holds actual registered framework work and a reserved snapshot. The
+original targeted run observes the watchdog at 5,003 ms with `[0,0,0,1,1]`, before
+owner-close/family-retirement acknowledgement. It then independently requires
+physical family retirement and owner code 1/no signal. No native success notice
+is emitted. Omitting only the observer fails at the missing-observation check,
+not merely because the child exits nonzero. Both controls are rerun by the full
+current guarded suite.
+
+**Current checks.** Typecheck and lint pass. The guarded workspace run passes
+**3,481/3,481** cases across 106 files: 3,333 web and 148 SDK, zero skips/todos,
+111.512 seconds and zero stderr. Source hashes stay unchanged during the run.
+The provenance component and runtime-family wrapper remain inside their unchanged
+bounds. A normal clean production build passes in 19.507 seconds with zero stderr;
+independent verification binds 345 inputs and 128 outputs (2,392,888 bytes),
+manifest SHA-256
+`6d301cd6badb3345817790b98e87f881129042c51b10e688ed214c3ec0c6c3be`.
+The Next patch/census, toolchain, operation deadlines and hosted windows are
+unchanged. Earlier passing source and red reproductions remain separate history.
+
+Commit the verified R1 corrections and obtain new independent R2 reviews before
+moving to Step 3. Initialized preparation/static-paths worker, owner-loss recovery,
+complete transport/native/API/browser and complete same-final-source hosted A/B
+proof remain open; the catalogue rule stays Registered. Manual accessibility is
+maintainer-deferred and unexecuted.

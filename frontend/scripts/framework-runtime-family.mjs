@@ -74,6 +74,7 @@ export async function runFrameworkRuntimeFamily({
     let handshakeValidated = false;
     let listenerReady = false;
     let requestedStop = false;
+    let startupCancelled = false;
     let fault = null;
     let terminal;
     let code = null;
@@ -96,8 +97,12 @@ export async function runFrameworkRuntimeFamily({
       throw new Error('Asynchronous runtime operation refused');
     }
     function stop() {
+      if (!requestedStop && !listenerReady) startupCancelled = true;
       requestedStop = true;
-      if (!handshakeValidated || !child.connected || exited || terminal) return;
+      // The private challenge already binds this exact spawned channel. A
+      // startup stop must reach the child latch before asynchronous validation
+      // or the eventual hello can hold up its first-stop watchdog.
+      if (!child.connected || exited || terminal) return;
       try {
         child.send({ tag: TAG, kind: 'stop', challenge, reason: 'abort' }, (error) => {
           if (error) fault ??= 'channel-fault';
@@ -109,21 +114,9 @@ export async function runFrameworkRuntimeFamily({
     function protocolFault() {
       fault ??= 'protocol-fault';
       if (handshakeValidated) return stop();
-      requestedStop = true;
       if (preHandshakeFault) return;
       preHandshakeFault = true;
-      // A private child can authenticate this stop even before hello. Ask it
-      // to latch and retire on its own actual channel; never grant a later
-      // hello and never signal a remembered process group.
-      if (child.connected && !exited) {
-        try {
-          child.send({ tag: TAG, kind: 'stop', challenge, reason: 'abort' }, (error) => {
-            if (error) fault ??= 'channel-fault';
-          });
-        } catch {
-          fault ??= 'channel-fault';
-        }
-      }
+      stop();
     }
     const abort = () => stop();
     abortSignal?.addEventListener('abort', abort, { once: true });
@@ -161,7 +154,8 @@ export async function runFrameworkRuntimeFamily({
             listenerReady,
             requestedStop: requestedStop || Boolean(terminal?.requestedStop),
             startupCancelled:
-              (requestedStop || Boolean(terminal?.requestedStop)) && !terminal?.ready,
+              startupCancelled ||
+              ((requestedStop || Boolean(terminal?.requestedStop)) && !terminal?.ready),
             parentLost: Boolean(terminal?.parentLost),
             fault: fault ?? terminal?.fault ?? null,
             directChildClosed: true,
@@ -299,7 +293,8 @@ export async function runFrameworkRuntimeFamily({
       }
       if (
         message.kind === 'terminal' &&
-        handshakeValidated &&
+        (handshakeValidated ||
+          (!preHandshakeFault && requestedStop && startupCancelled && message.ready === false)) &&
         exact(message, [
           'tag',
           'kind',
