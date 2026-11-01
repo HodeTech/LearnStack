@@ -52,9 +52,9 @@ The qualified route layout is canonical `src/app`. Competing root routes and
 project-root client instrumentation refuse admission. Production source identity
 conservatively includes test-named files under `src`; editing them also requires
 a new production build. Native/server source changes require a managed restart;
-ordinary Next source HMR remains supported. Raw private dotenv files are omitted
-from identity. Executable-looking reserved environment paths refuse before their
-contents are read or hashed.
+ordinary Next source HMR remains supported. App-root private dotenv configuration
+stays outside identity. Every reserved environment path inside inventoried source
+refuses before its contents are read or hashed, regardless of its suffix.
 
 For an intentional dependency-manifest change, from the repository root:
 

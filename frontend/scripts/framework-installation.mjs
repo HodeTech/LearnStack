@@ -35,7 +35,6 @@ const DEVELOPMENT = '.framework-state/development.json';
 const SHA256 = /^[0-9a-f]{64}$/;
 const CODE_EXTENSIONS = /\.(?:[cm]?js|json|map|node|wasm)$/;
 const PRIVATE_ENVIRONMENT_SOURCE = /(?:^|\/)\.env(?:\.|$)/i;
-const EXECUTABLE_ENVIRONMENT_SOURCE = /\.(?:[cm]?[jt]sx?|json|node|wasm)$/i;
 const APP_CONFIG_FILES = [
   'package.json',
   'next.config.ts',
@@ -612,16 +611,11 @@ function subjectFiles(root, { extensions, exclude = [], privateEnvironment = fal
     )) {
       const name = prefix ? `${prefix}/${entry.name}` : entry.name;
       if (privateEnvironment && PRIVATE_ENVIRONMENT_SOURCE.test(name)) {
-        // Never read/hash private dotenv bytes. A reserved executable name,
-        // directory or alias cannot silently hide imported code behind that
-        // privacy exception, so refuse its presence before reading it.
-        if (
-          !entry.isFile() ||
-          entry.isSymbolicLink() ||
-          EXECUTABLE_ENVIRONMENT_SOURCE.test(entry.name)
-        )
-          refuse('private_source');
-        continue;
+        // A normal module import can load even .env.local as code. Reserve
+        // every dotenv name inside source and refuse metadata-only, before
+        // reading/hashing any content. App-root dotenv configuration remains
+        // outside the source tree and is checked separately by key only.
+        refuse('private_source');
       }
       if (exclude.some((pattern) => pattern.test(name))) continue;
       const path = join(directory, entry.name);
@@ -657,7 +651,8 @@ export function frameworkInputGraph(identity, { development = false } = {}) {
   for (const name of OPTIONAL_APP_CONFIG_FILES)
     result.push(...inputFile('app', appRoot, name, true));
   // Test-named source can be imported by ordinary runtime code and is bound
-  // conservatively with every other source file. Private dotenv bytes remain
+  // conservatively with every other source file. Reserved source dotenv names
+  // refuse without reading their bytes; app-root dotenv configuration remains
   // outside identity. Ordinary Next source is omitted only from the development
   // graph: the running verified compiler owns its HMR.
   result.push(
@@ -1178,6 +1173,9 @@ export function prepareFrameworkBuild(options = {}) {
   const identity = verifyFrameworkInstallation(options);
   assertQualifiedRouteLayout(identity.appRoot, { sourceRequired: true });
   assertLocalEnvironmentKeys(identity.appRoot);
+  // Refuse unsupported source before manager probes, leases or owned-output
+  // cleanup. The producer still captures/rechecks its graph under ownership.
+  frameworkInputGraph(identity);
   const manager = resolveQualifiedPnpm(identity);
   return { identity, manager };
 }

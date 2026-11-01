@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 5,300 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 5,369 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -232,6 +232,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0084 proposal review closeout and approval readiness (2026-11-01)](#adr-0084-proposal-review-closeout-and-approval-readiness-2026-11-01) — 34 lines
   - [ADR-0083 Step 2 independent corrections and local verification (2026-11-01)](#adr-0083-step-2-independent-corrections-and-local-verification-2026-11-01) — 98 lines
   - [ADR-0083 Step 2 review round 2 and source binding corrections (2026-11-01)](#adr-0083-step-2-review-round-2-and-source-binding-corrections-2026-11-01) — 74 lines
+  - [ADR-0083 Step 2 reserved source follow-up and current verification (2026-11-01)](#adr-0083-step-2-reserved-source-follow-up-and-current-verification-2026-11-01) — 69 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -11075,3 +11076,72 @@ Exact subjects, commands, receipts and complete review/author reports remain in
 these verified corrections, then obtain independent fix verification before
 closing their review disposition. ADR-0084 approval and implementation, Step 3,
 full final-source A/B and maintainer-owned manual accessibility remain open.
+
+### ADR-0083 Step 2 reserved source follow-up and current verification (2026-11-01)
+
+Correction commit `d090922c` receives independent fix verification. The loader
+review approves its bounded correction and independently runs 48/48 cases.
+Provenance verifies both original source-selection findings, then identifies
+one additional Major: a static import can consume a synthetic source named
+`.env.local` despite the suffix-based source-privacy exception.
+
+The reviewer and root reproduce that graph omission with pinned Next's
+production-server module/resolver rules in a private webpack harness. The entry
+uses `!!` to bypass its incomplete SWC setup; the imported helper uses those
+actual rules. This is an isolated module/graph counterexample, not a full Next
+build, initialized router or actual private-data read. Original receipts remain.
+
+**Reserved source correction.** Every `.env` or `.env.*` entry inside the
+inventoried source roots now refuses by name, case-insensitively, before content
+reading/hashing, regardless of suffix or type. App-root dotenv remains separate
+runtime configuration with its existing key-only validation and no value/hash
+in identity. Native dev/restart still inventories `src/server`; ordinary UI HMR
+is unchanged. This does not confine arbitrary trusted imports/private-data reads
+outside those source roots.
+
+The existing graph preflight also runs before manager probes, lease acquisition,
+cache preparation or output cleanup. Under-owner capture/rechecks remain. Tests
+prove the refusal preserves the previous output graph, exact manifest and absent
+writer record. No scanner, privilege, dependency patch or runtime topology is
+added. Actual resolver selection, unreadable synthetic entries, root-config
+rotation, directories and aliases remain covered.
+
+**Concurrent fit correction.** The ninth full frontend run fails its provenance
+child at 30,009 ms; 3,301/3,302 web cases pass and SDK does not run. That result
+remains red. Tests now reuse one admitted private-fixture identity only for
+synthetic expected records and pure projections, restore original manifest bytes
+instead of re-signing teardown, and consume the actual qualification returned by
+the copy operation. All 107 controls and mutation variants, actual positive/refusal
+verifiers, actual 59-subject qualification and the 30/35-second limits remain.
+There is no runtime verification cache, smaller fake package, additional mode,
+worker increase or timeout extension.
+
+Same-source focused runs pass 107/107 in 29.355 and 23.338 seconds; both remain
+retained. The tenth complete guarded frontend run passes 3,450/3,450: 3,302 web
+plus 148 SDK in 101 files, zero skips/todos and zero stderr, about 80.6 seconds.
+Its provenance wrapper takes 23.6 seconds. Workspace typecheck (4.5 seconds),
+lint (18.7 seconds) and scoped formatting pass. These local observations do not
+prove hosted fit.
+
+The sixth real clean production build passes in about 19.7 seconds, zero stderr.
+All six final source subjects remain unchanged through validation. Verification
+covers 326 inputs, 128 generated subjects (2,392,888 bytes) and 59 installed
+subjects. The original manifest SHA-256 is
+`7aac139013354b0e3f51c146adc56f3c90aa7587fb4e6e78778a67592a295525`.
+Installed/generated verification takes about 157/43 ms locally.
+
+A private copy preserves that exact original manifest. Fourteen causal startup
+negatives refuse before any observed framework/native/generated runtime import;
+five reserved-source cases also refuse producer preparation. Synthetic app-root
+dotenv rotation remains identity-neutral. All synchronous probe children close,
+no retained framework metadata remains and this owned probe tree is removed.
+That cleanup claim does not cover the timed-out ninth run: its unknown private
+roots/records remain retained, with no stale PID/group signaling or reclamation.
+No live matching provenance/family control was observed at the author's check.
+
+Commands, original reds, final hashes and complete reports remain under
+`artifacts/p033-step10/adr0083/step2/`. Commit this correction and verify it
+independently before closing its disposition. The maintainer now authorizes
+ADR-0084 acceptance/implementation after the newly supplied review corrections;
+it remains Proposed while that work proceeds. Step 3, complete final-source
+hosted A/B and maintainer-deferred, unexecuted accessibility remain open.

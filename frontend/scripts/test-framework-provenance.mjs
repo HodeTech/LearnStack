@@ -150,8 +150,12 @@ put(join(appRoot, 'src/app/page.tsx'), 'export default function Page() { return 
 function identity() {
   return verifyFrameworkInstallation({ appRoot, frontendRoot });
 }
+// This admitted fixture definition constructs only synthetic expected records
+// and pure projections. Every actual positive/refusal gate below still invokes
+// the unchanged verifier; no production verification result is cached or skipped.
+const controlIdentity = identity();
 function buildControlManifest() {
-  const current = identity();
+  const current = controlIdentity;
   put(join(appRoot, '.next/server/control.js'), 'exports.current = true;\n');
   put(join(appRoot, '.next/server/control.json'), { current: true });
   put(join(appRoot, '.next/BUILD_ID'), 'control-build\n');
@@ -192,7 +196,7 @@ function buildControlManifest() {
   return manifest;
 }
 function buildControlDevelopmentManifest() {
-  const current = identity();
+  const current = controlIdentity;
   const manifest = {
     format: 1,
     mode: 'development',
@@ -273,7 +277,7 @@ try {
   await test('qualified manager probes and actual 59 installed subjects', () => {
     assert.equal(actual.installed.files, 59);
     assert.equal(actualManager.version, actual.tuple.pnpm);
-    assert.equal(identity().installed.files, 59);
+    assert.equal(controlIdentity.installed.files, 59);
     verifyFrameworkInstallation({ appRoot, frontendRoot, distribution: true });
   });
   await test('pnpm identity normalizes CRLF but SHA-256 is a distinct carrier identity', () => {
@@ -383,7 +387,10 @@ try {
     try {
       const lease = acquireFrameworkLease({ appRoot, frontendRoot, kind: 'build' });
       try {
-        denied(() => cleanFrameworkOutputs(identity(), { owner: lease.record }), 'output_unowned');
+        denied(
+          () => cleanFrameworkOutputs(controlIdentity, { owner: lease.record }),
+          'output_unowned',
+        );
       } finally {
         lease.release();
       }
@@ -399,7 +406,7 @@ try {
     );
     const lease = acquireFrameworkLease({ appRoot, frontendRoot, kind: 'build' });
     try {
-      cleanFrameworkOutputs(identity(), { owner: lease.record });
+      cleanFrameworkOutputs(controlIdentity, { owner: lease.record });
       assert.equal(existsSync(join(appRoot, '.next/types/routes.d.ts')), false);
     } finally {
       lease.release();
@@ -502,6 +509,7 @@ try {
     }
   });
   await test('optional executed ESLint configuration presence and bytes are bound', () => {
+    const previousManifest = readFileSync(join(appRoot, '.next/framework-build.json'));
     const path = join(appRoot, '.eslintrc.cjs');
     put(path, 'module.exports = {root:true};\n');
     try {
@@ -522,7 +530,7 @@ try {
       }
     } finally {
       unlinkSync(path);
-      buildControlManifest();
+      writeFileSync(join(appRoot, '.next/framework-build.json'), previousManifest);
     }
   });
   await test('optional ESLint ignore discovery is bound', () => {
@@ -693,19 +701,58 @@ try {
       writeFileSync(join(appRoot, '.next/framework-build.json'), previousManifest);
     }
   });
-  await test('private dotenv bytes stay excluded while reserved executable entries refuse unread', () => {
+  await test('root dotenv rotation stays private while every reserved source entry refuses', () => {
     verifyFrameworkBuild({ appRoot, frontendRoot });
     const bound = { appRoot: realpathSync(appRoot), frontendRoot: realpathSync(frontendRoot) };
     const production = frameworkInputGraph(bound);
     const development = frameworkInputGraph(bound, { development: true });
     const restart = frameworkDevelopmentRestartGraph(bound);
-    const raw = ['src/.env.local', 'src/server/.ENV.development'];
-    for (const name of raw) put(join(appRoot, name), 'PRIVATE_FIXTURE_SENTINEL=never-bind\n');
+    const rootEnvironment = join(appRoot, '.env.local');
+    assert.equal(existsSync(rootEnvironment), false);
+    put(rootEnvironment, 'DEBUG=private-fixture-before\n');
     try {
       assert.deepEqual(frameworkInputGraph(bound), production);
       assert.deepEqual(frameworkInputGraph(bound, { development: true }), development);
       assert.deepEqual(frameworkDevelopmentRestartGraph(bound), restart);
       verifyFrameworkBuild({ appRoot, frontendRoot });
+      put(rootEnvironment, 'DEBUG=private-fixture-after\n');
+      assert.deepEqual(frameworkInputGraph(bound), production);
+      assert.deepEqual(frameworkInputGraph(bound, { development: true }), development);
+      assert.deepEqual(frameworkDevelopmentRestartGraph(bound), restart);
+      verifyFrameworkBuild({ appRoot, frontendRoot });
+      const importedRaw = join(appRoot, 'src/test/.env.local');
+      const page = join(appRoot, 'src/app/private-source/page.js');
+      put(importedRaw, "export const value='reserved-raw-code';\n");
+      put(
+        page,
+        "import {value} from '../../test/.env.local';export default function Page(){return value;}\n",
+      );
+      try {
+        assert.equal(
+          pinnedNextResolution(appRoot, '../../test/.env.local', false, dirname(page)),
+          realpathSync(importedRaw),
+        );
+      } finally {
+        rmSync(dirname(page), { recursive: true });
+      }
+      chmodSync(importedRaw, 0o000);
+      try {
+        denied(() => frameworkInputGraph(bound), 'private_source');
+        denied(() => verifyFrameworkBuild({ appRoot, frontendRoot }), 'private_source');
+        const outputs = frameworkOutputGraph(bound);
+        const manifest = readFileSync(join(appRoot, '.next/framework-build.json'));
+        assert.equal(existsSync(join(appRoot, '.framework-state/writer.json')), false);
+        denied(() => prepareFrameworkBuild({ appRoot, frontendRoot }), 'private_source');
+        assert.deepEqual(frameworkOutputGraph(bound), outputs);
+        assert.deepEqual(readFileSync(join(appRoot, '.next/framework-build.json')), manifest);
+        assert.equal(existsSync(join(appRoot, '.framework-state/writer.json')), false);
+        // Ordinary UI source stays outside the native dev/restart graph.
+        assert.deepEqual(frameworkInputGraph(bound, { development: true }), development);
+        assert.deepEqual(frameworkDevelopmentRestartGraph(bound), restart);
+      } finally {
+        chmodSync(importedRaw, 0o600);
+        unlinkSync(importedRaw);
+      }
       const executable = join(appRoot, 'src/server/.env.mjs');
       put(executable, "export const value='reserved-code';\n");
       const child = spawnSync(
@@ -720,7 +767,14 @@ try {
       assert.equal(child.status, 0, child.stderr);
       assert.equal(child.stdout, 'reserved-code');
       unlinkSync(executable);
-      for (const name of ['.env.mjs', '.ENV.ts', '.env.private.json']) {
+      for (const name of [
+        '.env',
+        '.env.local',
+        '.ENV.development',
+        '.env.mjs',
+        '.ENV.ts',
+        '.env.private.json',
+      ]) {
         const path = join(appRoot, 'src/server', name);
         put(path, 'never read as source');
         chmodSync(path, 0o000);
@@ -748,7 +802,7 @@ try {
         unlinkSync(alias);
       }
     } finally {
-      for (const name of raw) unlinkSync(join(appRoot, name));
+      unlinkSync(rootEnvironment);
     }
     verifyFrameworkBuild({ appRoot, frontendRoot });
   });
@@ -762,7 +816,7 @@ try {
   });
   await test('all actual competing Next route selections refuse the same admitted manifest', () => {
     const { findPagesDir } = actualRequire('next/dist/lib/find-pages-dir');
-    verifyFrameworkBuild({ appRoot, frontendRoot });
+    // The preceding canonical-layout control admitted this exact manifest.
     const manifest = readFileSync(join(appRoot, '.next/framework-build.json'));
     for (const name of ['app', 'pages', 'src/pages']) {
       const path = join(appRoot, name);
@@ -782,7 +836,7 @@ try {
     verifyFrameworkBuild({ appRoot, frontendRoot });
   });
   await test('source-less installation remains possible but graph, producer and startup refuse', () => {
-    verifyFrameworkBuild({ appRoot, frontendRoot });
+    // The preceding route table restored and admitted the original manifest.
     const source = join(appRoot, 'src');
     const removed = join(root, 'temporarily-removed-src');
     renameSync(source, removed);
@@ -813,7 +867,7 @@ try {
     verifyFrameworkBuild({ appRoot, frontendRoot });
   });
   await test('all live and dangling competing router aliases refuse without following them', () => {
-    verifyFrameworkBuild({ appRoot, frontendRoot });
+    // Share the exact baseline just restored/admitted by the source-alias table.
     for (const name of ['app', 'pages', 'src/pages']) {
       for (const dangling of [false, true]) {
         const path = join(appRoot, name);
@@ -829,7 +883,6 @@ try {
   });
   await test('actual case-insensitive router selection cannot bypass lowercase probes', () => {
     const { findPagesDir } = actualRequire('next/dist/lib/find-pages-dir');
-    verifyFrameworkBuild({ appRoot, frontendRoot });
     for (const name of ['App', 'Pages', 'src/Pages']) {
       const path = join(appRoot, name);
       put(join(path, 'page.tsx'), 'export default function Page(){return null}\n');
@@ -849,7 +902,6 @@ try {
     verifyFrameworkBuild({ appRoot, frontendRoot });
   });
   await test('every actual client instrumentation root file fallback refuses', () => {
-    verifyFrameworkBuild({ appRoot, frontendRoot });
     for (const extension of ['', '.js', '.mjs', '.tsx', '.ts', '.jsx', '.json', '.wasm']) {
       assert.equal(pinnedClientInstrumentation(appRoot), false);
       const path = join(appRoot, `instrumentation-client${extension}`);
@@ -867,7 +919,6 @@ try {
     verifyFrameworkBuild({ appRoot, frontendRoot });
   });
   await test('actual client instrumentation directory fallback and dangling alias refuse', () => {
-    verifyFrameworkBuild({ appRoot, frontendRoot });
     const path = join(appRoot, 'instrumentation-client');
     put(join(path, 'index.js'), 'not evaluated');
     try {
@@ -885,6 +936,7 @@ try {
   });
   await test('selected source hooks are bound and unrelated root server hooks remain unreachable', async () => {
     verifyFrameworkBuild({ appRoot, frontendRoot });
+    const previousManifest = readFileSync(join(appRoot, '.next/framework-build.json'));
     const { findPagesDir } = actualRequire('next/dist/lib/find-pages-dir');
     const { getFilesInDir } = actualRequire('next/dist/lib/get-files-in-dir');
     const { getPossibleMiddlewareFilenames, getPossibleInstrumentationHookFilenames } =
@@ -893,7 +945,7 @@ try {
     const sourceFiles = ['middleware.ts', 'instrumentation.ts', 'instrumentation-client.ts'];
     const rootFiles = ['middleware.ts', 'instrumentation.ts'];
     const beforeDevelopment = JSON.stringify(
-      frameworkInputGraph(identity(), { development: true }),
+      frameworkInputGraph(controlIdentity, { development: true }),
     );
     try {
       for (const name of sourceFiles) put(join(appRoot, 'src', name), 'export {};\n');
@@ -916,7 +968,7 @@ try {
         realpathSync(join(appRoot, 'src/instrumentation-client.ts')),
       );
       assert.equal(
-        JSON.stringify(frameworkInputGraph(identity(), { development: true })),
+        JSON.stringify(frameworkInputGraph(controlIdentity, { development: true })),
         beforeDevelopment,
       );
       denied(() => verifyFrameworkBuild({ appRoot, frontendRoot }), 'graph_identity');
@@ -930,12 +982,15 @@ try {
     } finally {
       for (const name of sourceFiles) unlinkSync(join(appRoot, 'src', name));
       for (const name of rootFiles) unlinkSync(join(appRoot, name));
-      buildControlManifest();
+      writeFileSync(join(appRoot, '.next/framework-build.json'), previousManifest);
     }
   });
   await test('development compiler/restart and fresh-template copy refuse unsupported layout', () => {
     const old = process.env.BROWSERSLIST;
-    process.env.BROWSERSLIST = frameworkRuntimeEnvironment(identity(), 'development').BROWSERSLIST;
+    process.env.BROWSERSLIST = frameworkRuntimeEnvironment(
+      controlIdentity,
+      'development',
+    ).BROWSERSLIST;
     buildControlDevelopmentManifest();
     const target = join(frontendRoot, 'apps/route-layout-copy');
     cpSync(appRoot, target, {
@@ -947,10 +1002,10 @@ try {
     });
     try {
       verifyFrameworkDevelopment({ appRoot, frontendRoot });
-      const restart = JSON.stringify(frameworkDevelopmentRestartGraph(identity()));
+      const restart = JSON.stringify(frameworkDevelopmentRestartGraph(controlIdentity));
       put(join(appRoot, 'src/app/ordinary-hmr.tsx'), 'export const ordinary = true;\n');
       verifyFrameworkDevelopment({ appRoot, frontendRoot });
-      assert.equal(JSON.stringify(frameworkDevelopmentRestartGraph(identity())), restart);
+      assert.equal(JSON.stringify(frameworkDevelopmentRestartGraph(controlIdentity)), restart);
       unlinkSync(join(appRoot, 'src/app/ordinary-hmr.tsx'));
       for (const name of [
         'app/page.tsx',
@@ -975,7 +1030,7 @@ try {
       const baseline = frameworkInputGraph(
         verifyFrameworkInstallation({ appRoot: target, frontendRoot }),
       );
-      assert.deepEqual(baseline, frameworkInputGraph(identity()));
+      assert.deepEqual(baseline, frameworkInputGraph(controlIdentity));
       put(join(target, 'app/page.tsx'), 'not evaluated');
       denied(
         () =>
@@ -995,6 +1050,7 @@ try {
     }
   });
   await test('unchanged native bootstrap refuses root routes and imported helper drift before its marker', () => {
+    const previousManifest = readFileSync(join(appRoot, '.next/framework-build.json'));
     copy(
       join(FRAMEWORK_FRONTEND_ROOT, 'apps/web/scripts/public-server.mjs'),
       join(appRoot, 'scripts/public-server.mjs'),
@@ -1060,7 +1116,7 @@ try {
       unlinkSync(join(appRoot, 'scripts/public-server-runtime.mjs'));
       unlinkSync(helper);
       if (existsSync(marker)) unlinkSync(marker);
-      buildControlManifest();
+      writeFileSync(join(appRoot, '.next/framework-build.json'), previousManifest);
     }
   });
   for (const name of [
@@ -1097,6 +1153,7 @@ try {
       ));
   }
   await test('native bootstrap rejects a shadow config before application or config evaluation', () => {
+    const previousManifest = readFileSync(join(appRoot, '.next/framework-build.json'));
     copy(
       join(FRAMEWORK_FRONTEND_ROOT, 'apps/web/scripts/public-server.mjs'),
       join(appRoot, 'scripts/public-server.mjs'),
@@ -1128,7 +1185,7 @@ try {
       unlinkSync(shadow);
       unlinkSync(join(appRoot, 'scripts/public-server.mjs'));
       unlinkSync(join(appRoot, 'scripts/public-server-runtime.mjs'));
-      buildControlManifest();
+      writeFileSync(join(appRoot, '.next/framework-build.json'), previousManifest);
     }
   });
   await test('old manifest beside corrected package refuses', () =>
@@ -1244,12 +1301,16 @@ try {
         ),
     });
     // cpSync preserves our package links by target rather than materializing them.
-    copyQualifiedFrameworkBuild({ sourceAppRoot: appRoot, targetAppRoot: target, frontendRoot });
+    const qualified = copyQualifiedFrameworkBuild({
+      sourceAppRoot: appRoot,
+      targetAppRoot: target,
+      frontendRoot,
+    });
+    assert.equal(qualified.identity.appRoot, realpathSync(target));
     assert.deepEqual(
       readFileSync(join(target, '.next/framework-build.json')),
       readFileSync(join(appRoot, '.next/framework-build.json')),
     );
-    verifyFrameworkBuild({ appRoot: target, frontendRoot });
     denied(
       () =>
         copyQualifiedFrameworkBuild({
@@ -1281,7 +1342,12 @@ try {
     });
     unlinkSync(join(target, 'node_modules/@learnstack/sdk'));
     link(sdk, join(target, 'node_modules/@learnstack/sdk'));
-    copyQualifiedFrameworkBuild({ sourceAppRoot: appRoot, targetAppRoot: target, frontendRoot });
+    const qualified = copyQualifiedFrameworkBuild({
+      sourceAppRoot: appRoot,
+      targetAppRoot: target,
+      frontendRoot,
+    });
+    assert.equal(qualified.identity.appRoot, realpathSync(target));
     assert.deepEqual(
       readFileSync(join(target, '.next/framework-build.json')),
       readFileSync(join(appRoot, '.next/framework-build.json')),
@@ -1290,7 +1356,6 @@ try {
       readFileSync(join(sdk, 'dist/control.js')),
       readFileSync(join(frontendRoot, 'packages/sdk/dist/control.js')),
     );
-    verifyFrameworkBuild({ appRoot: target, frontendRoot });
   });
   await test('native development refusal acknowledges only unissued write/end callbacks', async () => {
     const outcomes = [];
@@ -1469,7 +1534,7 @@ try {
     process.env.UNQUALIFIED_COMPILER_SELECTOR = 'must never reach the compiler';
     process.env.KEYCLOAK_WEB_CLIENT_SECRET = 'private control value';
     try {
-      const value = frameworkRuntimeEnvironment(identity(), 'development');
+      const value = frameworkRuntimeEnvironment(controlIdentity, 'development');
       assert.equal(value.UNQUALIFIED_COMPILER_SELECTOR, undefined);
       assert.equal(value.KEYCLOAK_WEB_CLIENT_SECRET, 'private control value');
       assert.equal(value.NODE_ENV, 'development');
@@ -1483,7 +1548,7 @@ try {
     }
   });
   await test('actual native binding ignores inherited HOME and uses only the owned compiler/runtime cache', async () => {
-    const current = identity();
+    const current = controlIdentity;
     const lease = acquireFrameworkLease({ appRoot, frontendRoot, kind: 'production' });
     const script = join(root, 'native-binding-owned-probe.mjs');
     const result = join(root, 'native-binding-owned-result.json');
@@ -1530,7 +1595,7 @@ try {
       link(join(frontendRoot, 'packages/sdk'), join(target, 'node_modules/@learnstack/sdk'));
       put(join(outside, 'sentinel'), 'must remain unchanged');
       const lease = acquireFrameworkLease({ appRoot: target, frontendRoot, kind: 'production' });
-      const bound = { ...identity(), appRoot: realpathSync(target) };
+      const bound = { ...controlIdentity, appRoot: realpathSync(target) };
       const cache = join(target, '.framework-state/swc-native-cache');
       const record = join(target, '.framework-state/native-cache.json');
       try {
@@ -1562,7 +1627,8 @@ try {
     const lease = acquireFrameworkLease({ appRoot, frontendRoot, kind: 'production' });
     try {
       denied(
-        () => prepareFrameworkNativeCache(identity(), { ...lease.record, nonce: '0'.repeat(32) }),
+        () =>
+          prepareFrameworkNativeCache(controlIdentity, { ...lease.record, nonce: '0'.repeat(32) }),
         'native_cache_owner',
       );
     } finally {
@@ -1575,21 +1641,21 @@ try {
       const { getSupportedBrowsers } = actualRequire('next/dist/build/utils.js');
       const path = join(frontendRoot, 'apps', name);
       const old = process.env.BROWSERSLIST;
-      const before = JSON.stringify(frameworkInputGraph(identity()));
+      const before = JSON.stringify(frameworkInputGraph(controlIdentity));
       put(path, name === 'package.json' ? { browserslist: ['ie 11'] } : 'ie 11\n');
       try {
         delete process.env.BROWSERSLIST;
         loader.clearCaches();
         assert.deepEqual(getSupportedBrowsers(appRoot, false), ['ie 11']);
         process.env.BROWSERSLIST = frameworkRuntimeEnvironment(
-          identity(),
+          controlIdentity,
           'production',
         ).BROWSERSLIST;
         loader.clearCaches();
         const expected = ['chrome 64', 'edge 79', 'firefox 67', 'opera 51', 'safari 12'];
         assert.deepEqual(getSupportedBrowsers(appRoot, false), expected);
         assert.deepEqual(getSupportedBrowsers(appRoot, true), expected);
-        assert.equal(JSON.stringify(frameworkInputGraph(identity())), before);
+        assert.equal(JSON.stringify(frameworkInputGraph(controlIdentity)), before);
       } finally {
         unlinkSync(path);
         loader.clearCaches();
@@ -1616,6 +1682,7 @@ try {
       ));
   }
   await test('actual bootstrap refuses an external Next main before executing its marker', () => {
+    const previousManifest = readFileSync(join(appRoot, '.next/framework-build.json'));
     const external = join(root, 'outside-next-entry.cjs');
     const marker = join(root, 'outside-next-imported');
     put(
@@ -1651,7 +1718,7 @@ try {
       unlinkSync(join(appRoot, 'scripts/public-server.mjs'));
       unlinkSync(join(appRoot, 'scripts/public-server-runtime.mjs'));
       unlinkSync(external);
-      buildControlManifest();
+      writeFileSync(join(appRoot, '.next/framework-build.json'), previousManifest);
     }
   });
 } finally {
