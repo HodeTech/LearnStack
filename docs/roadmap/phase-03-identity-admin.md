@@ -14,7 +14,7 @@
 > Manual evidence remains unexecuted and maintainer-owned for PR review. The [Step 10 source reviews](phase-03-delivery-log.md#p03-3-step-10-review-round-2-and-virtual-dispatch-correction-2026-10-31)
 > close both fresh independent rounds and verified corrections. The [seventh A](phase-03-delivery-log.md#p03-3-seventh-hosted-a-and-business-task-observation-correction-2026-11-01)
 > remains unqualified. Both fresh task-observation rounds and verified fixes
-> [close](phase-03-delivery-log.md#p03-3-business-task-observation-review-closeout-2026-11-01); the framework handler proposal and complete same-source hosted A/B remain open.
+> [close](phase-03-delivery-log.md#p03-3-business-task-observation-review-closeout-2026-11-01); framework cleanup implementation/qualification and complete same-source hosted A/B remain open.
 > [ADR-0083](../decisions/0083-owned-next-response-compression-cleanup.md) is Accepted after [maintainer corrections](phase-03-delivery-log.md#adr-0083-maintainer-corrections-acceptance-and-step-1-2026-11-01);
 > Step 1 reconciles the contract; its fresh reviews and executable Steps 2–3 remain open.
 > [ADR-0082](../decisions/0082-current-source-ci-execution-windows.md) is Accepted for Architecture 25 / ordinary 30 minute windows;
