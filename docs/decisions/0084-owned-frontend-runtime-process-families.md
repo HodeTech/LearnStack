@@ -83,14 +83,18 @@ ADR-0083 and proceed independently. They cannot close this runtime boundary.
   wrong-nonce or stale-record invocation refuses before runtime import/listen.
 - The child independently verifies current installation and its production or
   development graph; a serialized identity from its parent is not authority.
-  Existing native credentials use their finite runtime projection. Private
+  Existing native credentials use their finite runtime projection. Credential
   values never enter argv, records, manifests, diagnostics or handshake fields.
-- Stdin/stdout/stderr retain their existing meaning. A separate private IPC
-  channel carries only finite owner control. Runtime readiness still comes
-  from the actual native listener; parent spawn or IPC connection is not ready.
+  The local owner nonce is private control metadata in its existing record,
+  distinct from provider/session credentials and any proof-incarnation label.
+- Stdin/stdout/stderr retain their existing meaning. Production owner-control
+  IPC has a closed finite protocol. Runtime readiness still comes from the
+  actual native listener; parent spawn or IPC connection is not ready.
 - The CLI PID observed by demo/tests is the owner PID. Callers signal and join
   that process, without inferring runtime completion from inherited pipe close.
-  Child PID observations are diagnostics, never cleanup acknowledgements.
+  An owner starts exactly one runtime child and never replaces/restarts it.
+  Runtime incarnation observations attribute proof; they grant neither cleanup
+  credit nor request/session authority.
 
 ### Actual retirement and failure
 
@@ -101,12 +105,27 @@ permission/observation errors retain uncertainty. Polling observes physical
 state and creates no timeout or cleanup credit. Native Windows and other
 unqualified process surfaces refuse before mutation or listener creation.
 
-SIGTERM/SIGINT requests shutdown of the owned group. The existing child shutdown
-path still joins listener, request/session and Next work, with its five-second
-failure watchdog. A delivered signal, watchdog expiry, zero direct exit code or
+SIGTERM/SIGINT to the owner sends an idempotent shutdown request over its live
+private child channel. The actual child invokes its existing native shutdown
+path, first closing admission and requesting the existing request/session stop,
+then joining listener, request/session and Next work under the existing order
+and five-second failure watchdog. The parent does not broadcast a signal to
+workers needed by those joins. Framework-requested worker cancellation keeps
+its existing owner and failure semantics.
+
+Nonzero signals are never addressed to a cached numeric runtime PGID, including
+after child/channel loss or during record recovery. A probe is not generation
+authority for a later signal. After child loss the parent only observes/retains;
+it cannot force a remaining worker into a success acknowledgement. Compiler/
+installer cancellation is a separate command-family protocol, not permission
+to bypass the runtime's graceful request-lifetime boundary.
+
+A delivered cancellation request, watchdog expiry, zero direct exit code or
 closed stdio cannot release reservations while a descendant remains. Requested
 graceful exit zero succeeds only after the whole group disappears. Unexpected
-exit, nonzero or signal failure stays failure after actual retirement.
+exit, nonzero or signal failure stays failure after actual retirement. Receipts
+distinguish the child's watchdog/result from later outer CLI completion; the
+owner can remain alive beyond five seconds without extending that watchdog.
 
 Unfinished descendants or uncertain group observation can retain the owner and
 reservations indefinitely. No new forced-kill timer or normal-request deadline
@@ -121,6 +140,51 @@ pnpm installation disables its optional detached store server for that invocatio
 Qualification inventories the actual tool descendants; a newly detached mutable
 writer reopens this decision before support is claimed. This is trusted-source
 ownership, not hostile-process containment or a total resource bound.
+
+### Copied callers and proof attribution
+
+`framework-proof-support.mjs` explicitly copies the private runtime child beside
+the native bootstrap. The shared builtins `framework-process-family.mjs` uses
+the same qualified workspace-script resolution as the existing guard. Both are
+members of production/development input graphs and restart-critical boundary
+inputs; changed, missing or additional executable boundary input refuses or
+requires a genuine new owned build. No borrowed stale child or loader exemption.
+
+The caller inventory includes `stop-test-child.mjs`, `fixture-support.mjs`,
+`ingress-readiness.mjs`, `verify-ingress.mjs`, `bff-proof-host.mjs`,
+`admission-hmr.mjs`, `verify-public-rendering.mjs`, public admission, direct
+provenance fixtures, and the Make/demo/CI drivers. Their owner/group, forced
+cleanup, stdio and runtime-PID assumptions must be reconciled together.
+
+Before counting readiness, a fixture captures an immutable authenticated handle
+binding its owner launch, exact record nonces, runtime incarnation and created
+group. Ordinary parent completion supplies the full join. If the owner dies,
+absence of its old group is insufficient: the fixture independently observes
+every captured family. Missing/stale handle or uncertain retirement fails
+cleanup and preserves roots and records. No cached-PGID kill is authorized.
+Only a closed fixture reconciler, bound to that launch's exact unchanged
+records, may retire its records after all captured families actually disappear.
+Forced/failed shutdown remains failure. This is evidenced fixture cleanup,
+not automatic production stale-record recovery or deletion on PID age/death.
+Fault controls use isolated metadata/output roots and never poison or remove
+unrelated workspace records.
+
+Copied ingress/BFF instrumentation uses a separately tagged, finite test-only
+relay between the existing proof-host IPC and actual child instrumentation.
+Commands are the existing bounded `observe(id, fence)`, `advance(milliseconds)`
+and `render-control(arm|release|status)` shapes; replies retain their finite
+bind/prepare/version-fetch, counter, snapshot and render-state schemas. Only
+instrumented copies add this relay. Production owner control accepts no generic
+proof payload, request data or credential. Preloads attach to the actual runtime
+child and enter its post-instrumentation source graph before the real producer;
+the owner must not synthesize framework observations or run the child's preload.
+
+Relays validate actual child sender, incarnation, shape and bounds. Listener
+bind and actual HTTP/TLS checks remain decisive. HMR, freshness, publication,
+isolation and session proofs compare the same real runtime incarnation before
+and after their actions, retaining behavior/source assertions. An unchanged
+outer PID alone is insufficient. Wrong-sender, lost-channel, never-binds and
+deliberate-runtime-replacement controls must fail their intended proof guards.
 
 ## Consequences
 
@@ -171,10 +235,13 @@ verified correction, new R2 and correction before progression.
 Decisive controls include a held real descendant after direct-child normal,
 failed and SIGKILL exit; replacement refusal until actual group absence; actual
 development static-paths worker shutdown; production/dev normal restart; parent
-death and wrong child handshake; watchdog failure with remaining work; compiler/
-pnpm cancellation; actual loader-metadata and external compiler-option refusals;
-and unchanged listener/browser/native lifetime and disclosure behavior. A timer,
-fake close/drain, killed flag or diagnostic disposal proves none of these.
+death with independent family evidence and root retention; wrong child handshake;
+no stale-group signal after leader loss; ordered shutdown with real held worker/
+request work; child watchdog failure, owner still live and final nonzero result;
+compiler/pnpm cancellation; actual loader-metadata and external compiler-option
+refusals; explicit child/helper input mutations; proof-relay/runtime-replacement
+negatives; and unchanged listener/browser/native lifetime and disclosure behavior.
+A timer, fake close/drain, killed flag or diagnostic disposal proves none of these.
 
 ## References
 

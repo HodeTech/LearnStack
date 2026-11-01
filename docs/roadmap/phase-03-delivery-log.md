@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 5,002 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 5,064 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -226,7 +226,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0083 Step 1 review closeout (2026-11-01)](#adr-0083-step-1-review-closeout-2026-11-01) — 20 lines
   - [ADR-0083 Step 2 implementation and local controls (2026-11-01)](#adr-0083-step-2-implementation-and-local-controls-2026-11-01) — 87 lines
   - [ADR-0083 Step 2 review round 1 and runtime-family decision gap (2026-11-01)](#adr-0083-step-2-review-round-1-and-runtime-family-decision-gap-2026-11-01) — 42 lines
-  - [ADR-0084 proposed runtime-family package (2026-11-01)](#adr-0084-proposed-runtime-family-package-2026-11-01) — 78 lines
+  - [ADR-0084 proposed runtime-family package (2026-11-01)](#adr-0084-proposed-runtime-family-package-2026-11-01) — 79 lines
+  - [ADR-0084 proposal review round 1 and corrections (2026-11-01)](#adr-0084-proposal-review-round-1-and-corrections-2026-11-01) — 61 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -10772,3 +10773,65 @@ Two fresh independent proposal rounds and verified corrections precede the
 maintainer question. New runtime ownership remains gated; independent existing
 corrections continue. This record establishes neither a completed Step 2 nor a
 qualified P03-3 runtime.
+
+
+### ADR-0084 proposal review round 1 and corrections (2026-11-01)
+
+Two fresh independent R1 reviewers request changes to `b7f088a4`. The parent
+reads both complete reports and verifies the cited callers. Four carrier Majors,
+one distinct contract Major, one Minor and one proof-clarity suggestion are
+resolved in the Proposed ADR; none is represented as an existing runtime exploit.
+Original proposal text remains historical; the corrected ADR and carrier
+refinements below govern the current proposal, still awaiting maintainer approval.
+
+- Preserve orderly shutdown: the owner requests the actual child's existing
+  shutdown through live private IPC. It does not broadcast termination to
+  workers needed by held request/session/Next joins. Child watchdog failure and
+  later outer completion are separate observations; no shutdown limit expands.
+- Preserve generation-bound signaling: after child/channel loss, retain and
+  observe. Never address a nonzero signal to a saved numeric runtime group,
+  including recovery. Signal zero proves current existence/absence, not a live
+  generation for a later kill. The contract reviewer confirms three real private
+  groups survive normal, failed and SIGKILL leader exit and reach actual ESRCH
+  only after descendant completion; transient EPERM remains uncertainty. This
+  is a mechanism check, not PID-reuse reproduction or initialized runtime proof.
+- Preserve fixture ownership: `stop-test-child`/fixture disposal cannot infer the
+  separately grouped runtime's death from the old owner group. Capture an
+  authenticated launch/family handle, independently observe all families on
+  owner death, and preserve roots/records on missing or uncertain evidence.
+  Only closed fixture cleanup may reconcile its exact unchanged records after
+  positive whole-family disappearance; no production stale-PID stealing.
+- Preserve actual proof IPC: enumerate finite ingress/BFF commands/replies and
+  separately tagged test-only routing to actual child instrumentation. Bind
+  runtime preloads in the copied post-instrumentation graph. Production owner
+  control has no generic relay; wrong sender, channel loss and no actual bind
+  remain decisive negatives alongside actual HTTP/TLS listener checks.
+- Preserve same-runtime proof: start one child with no replacement. Existing
+  HMR/freshness/publication/isolation/session checks compare real runtime
+  incarnation before and after, not the unchanged CLI owner PID. Deliberate
+  replacement must fail the proof. That identity supplies no cleanup or API
+  authority. Keep original behavior and source assertions.
+- Preserve source closure: name the new private child and shared helper,
+  explicit fixture copy/link and production/development/restart input membership.
+  Mutating, deleting or adding boundary code refuses or triggers a genuine
+  owned rebuild. No blanket loader or instrumentation exemption is selected.
+
+**Acceptance-carrier refinements (still proposals).** Standard 07's proposed
+text additionally requires ordered live-child IPC shutdown, no saved-group
+nonzero signaling, unchanged actual held-work/failure joins, and positive
+full-family fixture cleanup evidence. Testing 06 additionally requires actual
+held worker/request ordering, separate watchdog/outer completion, stale-signal
+refusal, owner-death/root-retention, exact source mutation, proof-relay and
+runtime-replacement controls. Catalogue 21's existing Registered rule carries
+those exact proof obligations and child/helper ownership without promotion.
+The ADR-0083/0070 append-ready navigation, index/phase and inherited gate carriers
+stay bounded as in the original package. No Accepted body or executable
+persistent topology changes in this proposal correction.
+
+Full reports and the three process controls are retained under
+`artifacts/p033-step10/adr0084/proposal/reviews/`. Commit this revision, then two
+new independent R2 reviewers must check the complete current proposal and fixes
+before the maintainer question. Independent ADR-0083 compiler/environment/entry
+corrections continue; they neither accept ADR-0084 nor complete its runtime side.
+Manual evidence stays maintainer-deferred/unexecuted and full final-source A/B
+remains required.
