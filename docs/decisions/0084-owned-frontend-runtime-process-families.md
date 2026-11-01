@@ -520,3 +520,32 @@ alternatives, rationale or consequences. It records a false-at-entry enumeration
 under [ADR-0041](0041-correcting-false-statements-in-accepted-adrs.md)'s default
 inline-erratum mechanism, not an in-place expansion of
 accepted body text. Runtime implementation and full qualification remain open.
+
+### Amendment 2 — Correction carrier disclosure (2026-11-01)
+
+Amendment 1's local disclosure did not name every carrier changed by correction
+commit `a6089485`. Its comparison with `087f4c54` shows six changed files; the
+local amendment named Standard 07 but omitted four other outside carriers.
+Documentation 13 and ADR-0041 require this inventory in the changed Accepted ADR,
+not only in a delivery record or Git diff.
+
+The complete correction inventory is:
+
+- This ADR: three dated inline errata before the caller, profile and command
+  enumerations, and Amendment 1. Original accepted lines remain unchanged.
+- [Standard 07](../standards/07-frontend-architecture.md#copied-runtime-proof-protocols):
+  the finite existing-proof profiles, admission shapes/completion barrier,
+  ingress output fences and BFF consumer/message-routing obligations.
+- [Testing 06](../standards/06-testing.md#version-qualified-next-response-cleanup):
+  matching admission protocol and actual-completion negative controls.
+- [Catalogue 21](../standards/21-architecture-tests-catalogue.md#next_response_cleanup_is_installed_and_owned):
+  those obligations within the same Registered rule, without status promotion.
+- [Decision index](README.md): the Active-table continuity repair for this ADR.
+- [Phase 03 delivery log](../roadmap/phase-03-delivery-log.md#adr-0084-step-1-review-round-1-and-existing-protocol-correction-2026-11-01):
+  the appended R1/correction record and regenerated index.
+
+This appended disclosure and the new dated R2 record in that same delivery log
+complete the current correction. No existing accepted paragraph or Amendment 1
+text is replaced. The Decision, Status, Date, Deciders, rationale, alternatives,
+consequences and current runtime/proof policies remain unchanged. This adds no
+new protocol, product authority or runtime implementation claim.

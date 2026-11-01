@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 5,467 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 5,487 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -236,6 +236,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0083 independent correction reviews close within scope (2026-11-01)](#adr-0083-independent-correction-reviews-close-within-scope-2026-11-01) — 28 lines
   - [ADR-0084 maintainer corrections and acceptance (2026-11-01)](#adr-0084-maintainer-corrections-and-acceptance-2026-11-01) — 37 lines
   - [ADR-0084 Step 1 review round 1 and existing protocol correction (2026-11-01)](#adr-0084-step-1-review-round-1-and-existing-protocol-correction-2026-11-01) — 33 lines
+  - [ADR-0084 Step 1 review round 2 and disclosure correction (2026-11-01)](#adr-0084-step-1-review-round-2-and-disclosure-correction-2026-11-01) — 20 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -11246,3 +11247,23 @@ claimed as executed by this documentation change. Commit the verified R1 fixes,
 then use new independent R2 reviewers before Step 2. Runtime implementation,
 initialized-worker/Step 3 proof and complete final-source hosted A/B remain open;
 manual accessibility stays maintainer-deferred and unexecuted.
+
+### ADR-0084 Step 1 review round 2 and disclosure correction (2026-11-01)
+
+Two new independent R2 reviewers inspect `a6089485`. Both verify the R1 admission
+protocol correction, table continuity, unchanged accepted text and
+bounded ownership contract. They identify the same remaining Major: Amendment 1
+fails to enumerate every carrier changed by the R1 correction. Root reads both
+complete reports and confirms the six-file diff against `087f4c54`.
+
+ADR-0084 receives appended Amendment 2 naming the three inline errata/Amendment 1,
+Standard 07, Testing 06, Catalogue 21, decision index and the Phase 03 correction
+record/index. It also discloses this additive R2 record and its own disclosure.
+The original body and prior amendment remain unchanged. No protocol, permission,
+topology, deadline or runtime code changes. The current disclosure is local to
+the changed Accepted ADR as Documentation 13/ADR-0041 require.
+
+Commit this verified correction and obtain narrow independent confirmation
+before closing Step 1. Step 2 implementation, real family/startup/relay/recovery
+controls, initialized-worker proof, Step 3 and full final-source hosted A/B remain
+open. Manual accessibility remains maintainer-deferred and unexecuted.
