@@ -88,6 +88,8 @@ FAILURE_SOURCES = {
     'OutboxProcessorTests.cs': 'outbox_processor',
     'BffNativeDriver.cs': 'bff_native_driver',
     'TenantBffSessionTests.cs': 'bff_session',
+    'FrameworkOwnershipDriver.cs': 'framework_ownership_driver',
+    'TenantBffSessionTests.FrameworkOwnership.cs': 'framework_ownership_test',
     'TenantRealmApiTests.WarmQualification.cs': 'realm_warm_qualification',
     'BackgroundJobPositiveSdkTests.CausalRestart.cs': 'positive_sdk_causal_restart',
     'BackgroundJobPositiveSdkTests.CausalRestartObservations.cs': 'positive_sdk_causal_observation',
@@ -867,6 +869,46 @@ def closed_native_recovery_details(raw):
 
 BFF_BROWSER_FAILURE_CASE = ('LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests.'
     'Native_https_browser_stores_host_cookies_and_revalidates_logout_history_with_a_live_counter_control')
+FRAMEWORK_OWNERSHIP_FAILURE_CASES = {
+    'LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests.'
+    'Parent_EOF_during_actual_Next_prepare_joins_its_family_and_removes_the_private_tree',
+    'LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests.'
+    'Parent_EOF_bridge_refuses_false_retirement_extra_output_and_retained_private_work',
+}
+FRAMEWORK_OWNERSHIP_FIXED_FAILURES = {
+    'Framework ownership fixture source is unavailable.': 'source',
+    'Framework ownership fixture could not start.': 'spawn',
+    'Framework ownership fixture start input failed.': 'input',
+    'Framework ownership fixture EOF input failed.': 'eof_input',
+    'Framework ownership fixture rejected its prepare-held frame.': 'prepare_frame',
+    'Framework ownership fixture rejected its closed frame.': 'closed_frame',
+    'Framework ownership fixture lacked a live held preparation.': 'held_preparation',
+    'Framework ownership fixture exceeded its EOF grace.': 'eof_grace',
+    'Framework ownership fixture exceeded its overall deadline.': 'overall_deadline',
+    'Framework ownership fixture had an unexpected exit.': 'exit',
+    'Framework ownership fixture emitted an unexpected extra frame.': 'extra_frame',
+    'Framework ownership fixture output transport failed.': 'output_transport',
+    'Framework ownership fixture emitted unexpected stderr.': 'stderr',
+    'Framework ownership fixture retained its private tree.': 'retained_tree',
+    'Framework ownership fixture private tree could not be inspected.': 'tree_inspection',
+    'Framework ownership fixture frame exceeded its bound.': 'frame_bound',
+    'Framework ownership fixture frame was truncated.': 'truncated_frame',
+    'Framework ownership fixture required forced cleanup.': 'forced_cleanup',
+    'Framework ownership fixture lost its expected failed exit.': 'lost_exit',
+    'Framework ownership fixture cleanup could not be confirmed.': 'cleanup_deadline',
+}
+
+
+def closed_framework_ownership_details(raw):
+    message = raw.get('ErrorMessage')
+    if not isinstance(message, str) or len(message) > 512:
+        return None
+    prefix = 'System.InvalidOperationException : '
+    if message.startswith(prefix):
+        message = message[len(prefix):]
+    reason = FRAMEWORK_OWNERSHIP_FIXED_FAILURES.get(message)
+    return {'stage': 'framework_ownership', 'reason': reason} if reason else None
+
 BFF_BROWSER_FAILURE_STAGES = {
     'input', 'input-issuer', 'input-api', 'input-secrets', 'input-sites', 'setup', 'compile', 'build',
     'start', 'command', 'request', 'request-deadline', 'request-connect', 'request-tls', 'request-socket',
@@ -1071,6 +1113,8 @@ def closed_failure_details(case, raw):
         return closed_native_recovery_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
     if case['name'] == NATIVE_HANDOFF_FAILURE_CASE:
         return closed_native_handoff_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
+    if case['name'] in FRAMEWORK_OWNERSHIP_FAILURE_CASES:
+        return closed_framework_ownership_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
     if case['name'] == BFF_BROWSER_FAILURE_CASE:
         return closed_bff_browser_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
     if case['name'] in OUTBOX_STARTUP_FAILURE_CASES:

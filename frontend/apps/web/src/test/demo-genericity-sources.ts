@@ -48,6 +48,9 @@ const dependencyRoots = new Set([
 const sourceExtension = /\.(?:[cm]?[jt]sx?|json)$/;
 const declaration = /\.d\.[cm]?[jt]sx?$/;
 const nonRuntimeFiles = new Set([
+  // Parsed only by pure controls; the extracted fixture is never executed or imported.
+  'frontend/scripts/fixtures/router-minified-join.txt',
+  'frontend/scripts/fixtures/router-minified-join.provenance.json',
   'frontend/.gitignore',
   'frontend/.npmrc',
   'frontend/.nvmrc',
@@ -228,6 +231,8 @@ function frameworkRequireOrigins(file: ts.SourceFile): Map<ts.Block | ts.SourceF
     throw new Error(`Unmodeled runtime import: ${file.fileName}`);
   };
   const provenanceControl = file.fileName === 'frontend/scripts/test-framework-provenance.mjs';
+  const routerParserControl =
+    file.fileName === 'frontend/apps/web/scripts/framework-router-generated-pipes.mjs';
   const loader = provenanceControl ? 'actualRequire' : 'require';
   const functions = new Map(
     file.statements
@@ -448,7 +453,11 @@ function frameworkRequireOrigins(file: ts.SourceFile): Map<ts.Block | ts.SourceF
         ? body !== file
         : !ts.isFunctionDeclaration(owner) ||
           !owner.name ||
-          !['verifyFrameworkInstallation', 'compileFrameworkNative'].includes(owner.name.text) ||
+          !(
+            routerParserControl
+              ? ['describeRouterParser', 'loadParser']
+              : ['verifyFrameworkInstallation', 'compileFrameworkNative']
+          ).includes(owner.name.text) ||
           functions.get(owner.name.text) !== owner) ||
       origins.has(body)
     )
@@ -537,6 +546,31 @@ function frameworkRequireOrigins(file: ts.SourceFile): Map<ts.Block | ts.SourceF
     // The supported application is the concrete checkout instance of appRoot;
     // every literal/local edge still goes through the ordinary source resolver.
     origins.set(body, 'frontend/apps/web/package.json');
+  }
+  if (routerParserControl) {
+    const expected = new Map([
+      ['describeRouterParser', ['resolve:typescript', 'resolve:typescript/package.json']],
+      ['loadParser', ['require:typescript']],
+    ]);
+    for (const [body] of origins) {
+      const owner = body.parent;
+      if (!ts.isFunctionDeclaration(owner) || !owner.name) refused();
+      const edges: string[] = [];
+      visit(body, (node) => {
+        if (!ts.isCallExpression(node)) return;
+        const direct = ts.isIdentifier(node.expression) && node.expression.text === loader;
+        const resolved =
+          ts.isPropertyAccessExpression(node.expression) &&
+          ts.isIdentifier(node.expression.expression) &&
+          node.expression.expression.text === loader &&
+          node.expression.name.text === 'resolve';
+        if (!direct && !resolved) return;
+        const argument = node.arguments[0];
+        if (node.arguments.length !== 1 || !argument || !ts.isStringLiteral(argument)) refused();
+        edges.push((direct ? 'require:' : 'resolve:') + argument.text);
+      });
+      if (JSON.stringify(edges) !== JSON.stringify(expected.get(owner.name.text))) refused();
+    }
   }
   return origins;
 }
@@ -743,6 +777,7 @@ export function productionDemoSources(
     const requireOrigins = [
       'frontend/scripts/framework-installation.mjs',
       'frontend/scripts/test-framework-provenance.mjs',
+      'frontend/apps/web/scripts/framework-router-generated-pipes.mjs',
     ].includes(path)
       ? frameworkRequireOrigins(file)
       : undefined;
@@ -777,7 +812,7 @@ export function productionDemoSources(
           [path, 'd217cc042e967a01a245ed4d1915a068baa697498d4e2cf397032b195ec432eb'],
           [
             'frontend/apps/web/scripts/bff-proof-host.mjs',
-            '86013905d0c937637c413b681105f14fde5e50794e9136fde4d5691cdc98f1f7',
+            'f725b730eb985254c80eeebe5e56a7b77d771c6cbec67f44318acc5c46b62c44',
           ],
         ] as const
       ).some(([target, expected]) => {

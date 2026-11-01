@@ -24,8 +24,21 @@ import {
   waitForBffProofListener,
 } from './bff-proof-support.mjs';
 import { createPrivateScanner, fixtureEnvironment } from './fixture-support.mjs';
+import { installCopiedExternalProviderCa } from './framework-external-provider-ca-source.mjs';
+import { instrumentCopiedOverlap } from './framework-overlap-proof-source.mjs';
+import { instrumentFrameworkOwnershipMatrix } from './framework-ownership-matrix-source.mjs';
+import { instrumentFrameworkOwnershipProof } from './framework-ownership-proof-source.mjs';
 import { createCopiedRuntimeHostBroker } from './framework-proof-host-broker.mjs';
 import { frameworkProofBuildArguments, prepareFrameworkProof } from './framework-proof-support.mjs';
+import {
+  copiedRouterMatrixRouteSource,
+  instrumentCopiedRouterMatrix,
+} from './framework-router-matrix-source.mjs';
+import {
+  instrumentCopiedTransport,
+  instrumentCopiedTransportMiddleware,
+} from './framework-transport-proof-source.mjs';
+import { verifyFrameworkInstallation } from '../../../scripts/framework-installation.mjs';
 const source = fileURLToPath(new URL('../', import.meta.url));
 function file(path, value) {
   mkdirSync(join(path, '..'), { recursive: true });
@@ -331,7 +344,7 @@ export function instrumentCopiedBffRuntime(
   return launcher;
 }
 
-export async function startBffProof({
+export async function prepareBffProof({
   owner,
   root,
   privateValues,
@@ -341,6 +354,10 @@ export async function startBffProof({
   uiMode = false,
   disabledOwnPreference = false,
   mutation,
+  ownershipCase,
+  transportProof = false,
+  routerMatrix = false,
+  overlapProof = false,
   clockBase = 1800000000000,
   external,
   isolatedProtocol = false,
@@ -353,6 +370,31 @@ export async function startBffProof({
   ],
 }) {
   assert.ok(!isolatedProtocol || !external, 'isolated protocol excludes external capabilities');
+  assert.equal(typeof transportProof, 'boolean', 'closed transport fixture selection');
+  assert.equal(typeof routerMatrix, 'boolean', 'closed router matrix fixture selection');
+  assert.equal(typeof overlapProof, 'boolean', 'closed overlap fixture selection');
+  if (routerMatrix) assert.equal(transportProof, true, 'router matrix requires copied transport');
+  if (overlapProof) assert.equal(transportProof, true, 'overlap requires copied transport');
+  assert.ok(!(routerMatrix && overlapProof), 'copied proof variants are mutually exclusive');
+  if (transportProof)
+    assert.ok(
+      uiMode &&
+        isolatedProtocol &&
+        !devMode &&
+        !external &&
+        !mutation &&
+        ownershipCase === undefined,
+      'isolated production UI transport fixture',
+    );
+  if (ownershipCase !== undefined) {
+    assert.ok(
+      ['prepare-sigterm', 'worker-positive', 'matrix'].includes(ownershipCase),
+      'closed ownership case',
+    );
+    assert.ok(isolatedProtocol && !uiMode && !external && !mutation, 'isolated ownership fixture');
+    if (ownershipCase !== 'matrix')
+      assert.equal(devMode, ownershipCase === 'worker-positive', 'ownership mode');
+  }
   const app = join(root, 'frontend/apps/web');
   let listenerPort = 3000;
   const scanners = [];
@@ -663,6 +705,81 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
       },
     ),
   );
+  if (transportProof) {
+    const middleware = join(app, 'src/middleware.ts');
+    file(middleware, instrumentCopiedTransportMiddleware(readFileSync(middleware, 'utf8')));
+    const path = join(app, 'scripts/public-server-runtime.mjs');
+    const copied = instrumentCopiedTransport({
+      source: readFileSync(path, 'utf8'),
+      identity: verifyFrameworkInstallation({ appRoot: app }),
+    });
+    file(path, copied.runtime);
+    file(join(app, 'scripts/framework-proof-transport-observer.mjs'), copied.observer);
+  }
+  if (overlapProof) {
+    const runtime = join(app, 'scripts/public-server-runtime.mjs');
+    const requestRuntime = join(app, 'src/server/auth/request-runtime.ts');
+    const snapshotPool = join(app, 'src/server/auth/page-snapshot-pool.ts');
+    const sessionStore = join(app, 'src/server/auth/session-store.ts');
+    const page = join(app, 'src/app/(studio)/studio/page.tsx');
+    const observer = join(app, 'scripts/framework-proof-transport-observer.mjs');
+    const copied = instrumentCopiedOverlap({
+      runtime: readFileSync(runtime, 'utf8'),
+      requestRuntime: readFileSync(requestRuntime, 'utf8'),
+      snapshotPool: readFileSync(snapshotPool, 'utf8'),
+      sessionStore: readFileSync(sessionStore, 'utf8'),
+      page: readFileSync(page, 'utf8'),
+      observer: readFileSync(observer, 'utf8'),
+    });
+    file(runtime, copied.runtime);
+    file(requestRuntime, copied.requestRuntime);
+    file(snapshotPool, copied.snapshotPool);
+    file(sessionStore, copied.sessionStore);
+    file(page, copied.page);
+    file(observer, copied.observer);
+    file(join(app, 'scripts/framework-proof-overlap.mjs'), copied.coordinator);
+  }
+  if (routerMatrix) {
+    file(
+      join(app, 'src/app/(public)/en/courses/transport/route.ts'),
+      copiedRouterMatrixRouteSource,
+    );
+    const runtimePath = join(app, 'scripts/public-server-runtime.mjs');
+    const observerPath = join(app, 'scripts/framework-proof-transport-observer.mjs');
+    for (const name of ['framework-router-generated-pipes.mjs', 'framework-router-pipe-ledger.mjs'])
+      file(join(app, 'scripts', name), readFileSync(join(source, 'scripts', name), 'utf8'));
+    const copied = instrumentCopiedRouterMatrix({
+      runtime: readFileSync(runtimePath, 'utf8'),
+      observer: readFileSync(observerPath, 'utf8'),
+      identity: verifyFrameworkInstallation({ appRoot: app }),
+    });
+    file(runtimePath, copied.runtime);
+    file(observerPath, copied.observer);
+  }
+  if (ownershipCase !== undefined) {
+    const inputs = {
+      ownershipCase,
+      configuration: readFileSync(join(app, 'next.config.ts'), 'utf8'),
+      runtime: readFileSync(join(app, 'scripts/public-server-runtime.mjs'), 'utf8'),
+    };
+    const copied =
+      ownershipCase === 'matrix'
+        ? instrumentFrameworkOwnershipMatrix({
+            ...inputs,
+            child: readFileSync(join(app, 'scripts/public-runtime-child.mjs'), 'utf8'),
+            owner: readFileSync(join(app, 'scripts/public-server.mjs'), 'utf8'),
+            rootPage: readFileSync(join(app, 'src/app/page.tsx'), 'utf8'),
+          })
+        : instrumentFrameworkOwnershipProof(inputs);
+    file(join(app, 'next.config.ts'), copied.configuration);
+    file(join(app, 'scripts/public-server-runtime.mjs'), copied.runtime);
+    if (ownershipCase === 'matrix') {
+      file(join(app, 'scripts/public-runtime-child.mjs'), copied.child);
+      file(join(app, 'scripts/public-server.mjs'), copied.owner);
+      file(join(app, 'src/app/page.tsx'), copied.rootPage);
+    }
+    if (copied.page) file(join(app, 'src/app/en/courses/[slug]/page.tsx'), copied.page);
+  }
   execFileSync(
     'openssl',
     [
@@ -742,32 +859,35 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
     },
   });
   if (external) {
-    file(join(root, 'provider-ca.pem'), external.authority);
-    env.NODE_EXTRA_CA_CERTS = join(root, 'provider-ca.pem');
+    const trust = installCopiedExternalProviderCa({ root, app, authority: external.authority });
+    env.NODE_EXTRA_CA_CERTS = trust.caPath;
   }
   // Compile the copied current sources: never let stale workstation output
   // qualify the native side while Next compiles different bundled sources.
   cpSync(join(source, 'tsconfig.server.json'), join(app, 'tsconfig.server.json'));
-  mark('compile');
-  mark('build');
-  const build = child(
-    mutation === 'held-build'
-      ? ['-e', 'setInterval(() => {}, 1000)']
-      : frameworkProofBuildArguments(app),
-    env,
-  );
-  if (mutation === 'held-build') mark('held-build'); // The owned child exists before the parent may close input.
-  const buildResult = await build.completed;
-  if (buildResult.code !== 0 && !external) {
-    const diagnostics = build.scanner.tail
-      .split('\n')
-      .filter((line) => /error|warning|cannot|failed/i.test(line))
-      .join('\n')
-      .replaceAll(secret, '[private]')
-      .replaceAll(marker, '[private]');
-    process.stderr.write(diagnostics.slice(0, 2000) + '\n');
+  async function buildFixture() {
+    mark('compile');
+    mark('build');
+    const build = child(
+      mutation === 'held-build'
+        ? ['-e', 'setInterval(() => {}, 1000)']
+        : frameworkProofBuildArguments(app),
+      env,
+    );
+    if (mutation === 'held-build') mark('held-build'); // The owned child exists before the parent may close input.
+    const buildResult = await build.completed;
+    if (buildResult.code !== 0 && !external) {
+      const diagnostics = build.scanner.tail
+        .split('\n')
+        .filter((line) => /error|warning|cannot|failed/i.test(line))
+        .join('\n')
+        .replaceAll(secret, '[private]')
+        .replaceAll(marker, '[private]');
+      process.stderr.write(diagnostics.slice(0, 2000) + '\n');
+    }
+    assert.equal(buildResult.code, 0, 'owned Next build');
   }
-  assert.equal(buildResult.code, 0, 'owned Next build');
+  await buildFixture();
   // The guarded producer compiled the actual resolved copied SDK/native graph.
   if (isolatedProtocol) {
     const require = createRequire(join(app, 'package.json'));
@@ -786,54 +906,93 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
   const buildTrace = devMode ? readFileSync(join(app, '.next/trace'), 'utf8') : '';
   if (devMode)
     assert.ok(buildTrace.length > 0, 'separate build leaves a nonempty real collector control');
-  mark('start');
-  const server = child(
-    ['scripts/public-server.mjs', ...(devMode ? ['--dev'] : [])],
-    devMode ? { ...env, NODE_ENV: 'development' } : env,
-    true,
-  );
-  if (uiMode && !external) server.shutdown = observeBffProofShutdown(server.proofChannel);
-  const advance = (milliseconds) =>
-    new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('owned IPC deadline')), 5000);
-      server.proofChannel.once('message', (snapshot) => {
-        clearTimeout(timer);
-        if (snapshot?.kind !== 'snapshot') reject(new Error('owned IPC shape'));
-        else resolve(snapshot);
-      });
-      server.broker.send({ kind: 'advance', milliseconds });
-    });
-  const renderControl = (action) =>
-    new Promise((resolve, reject) => {
-      assert.ok(['arm', 'release', 'status'].includes(action));
-      const timer = setTimeout(() => reject(new Error('owned render IPC deadline')), 5000);
-      server.proofChannel.once('message', (state) => {
-        clearTimeout(timer);
-        if (state?.kind !== 'render-state') reject(new Error('owned render IPC shape'));
-        else resolve(state);
-      });
-      server.broker.send({ kind: 'render-control', action });
-    });
-  if (isolatedProtocol) {
-    try {
-      listenerPort = await waitForBffProofListener(server.proofChannel);
-    } catch (error) {
-      const detail = bffListenerFailureDetail(error);
-      if (detail)
-        process.stderr.write('BFF listener startup observation: ' + JSON.stringify(detail) + '\n');
-      throw error;
-    }
-  } else {
-    const until = Date.now() + 20_000;
-    while (!server.scanner.tail.includes('Public HTTPS listener ready on 127.0.0.1:3000')) {
-      assert.equal(server.process.exitCode, null, 'native listener alive');
-      assert.ok(Date.now() < until, 'listener startup deadline');
-      await new Promise((resolve) => setTimeout(resolve, 25));
-    }
-    assert.ok(server.broker.capture.family(), 'Native runtime family captured before readiness');
-  }
-  return { app, server, advance, renderControl, get, scanners, cookieCanaries };
+  let launched = false;
+  return Object.freeze({
+    ...(ownershipCase === 'matrix' ? { rebuild: buildFixture } : {}),
+    launch(mode) {
+      owner.assertActive();
+      if (ownershipCase !== 'matrix') {
+        assert.equal(mode, undefined, 'Ordinary fixture mode is fixed');
+        assert.equal(launched, false, 'Prepared fixture launches once');
+      } else assert.ok(['production', 'development'].includes(mode), 'Closed matrix launch mode');
+      const development = ownershipCase === 'matrix' ? mode === 'development' : devMode;
+      launched = true;
+      mark('start');
+      const server = child(
+        ['scripts/public-server.mjs', ...(development ? ['--dev'] : [])],
+        development ? { ...env, NODE_ENV: 'development' } : env,
+        true,
+      );
+      if (uiMode && !external) server.shutdown = observeBffProofShutdown(server.proofChannel);
+      const advance = (milliseconds) =>
+        new Promise((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error('owned IPC deadline')), 5000);
+          server.proofChannel.once('message', (snapshot) => {
+            clearTimeout(timer);
+            if (snapshot?.kind !== 'snapshot') reject(new Error('owned IPC shape'));
+            else resolve(snapshot);
+          });
+          server.broker.send({ kind: 'advance', milliseconds });
+        });
+      const renderControl = (action) =>
+        new Promise((resolve, reject) => {
+          assert.ok(['arm', 'release', 'status'].includes(action));
+          const timer = setTimeout(() => reject(new Error('owned render IPC deadline')), 5000);
+          server.proofChannel.once('message', (state) => {
+            clearTimeout(timer);
+            if (state?.kind !== 'render-state') reject(new Error('owned render IPC shape'));
+            else resolve(state);
+          });
+          server.broker.send({ kind: 'render-control', action });
+        });
+      const view = {
+        app,
+        server,
+        advance,
+        renderControl,
+        get,
+        scanners,
+        cookieCanaries,
+        listenerPort: () => listenerPort,
+      };
+      const ready = (async () => {
+        if (isolatedProtocol) {
+          try {
+            listenerPort = await waitForBffProofListener(server.proofChannel);
+          } catch (error) {
+            const detail = bffListenerFailureDetail(error);
+            if (detail && !['prepare-sigterm', 'matrix'].includes(ownershipCase))
+              process.stderr.write(
+                'BFF listener startup observation: ' + JSON.stringify(detail) + '\n',
+              );
+            throw error;
+          }
+        } else {
+          const until = Date.now() + 20_000;
+          while (!server.scanner.tail.includes('Public HTTPS listener ready on 127.0.0.1:3000')) {
+            assert.equal(server.process.exitCode, null, 'native listener alive');
+            assert.ok(Date.now() < until, 'listener startup deadline');
+            await new Promise((resolve) => setTimeout(resolve, 25));
+          }
+          assert.ok(
+            server.broker.capture.family(),
+            'Native runtime family captured before readiness',
+          );
+        }
+        return view;
+      })();
+      // The caller owns readiness even when stop deliberately precedes readiness.
+      void ready.catch(() => {});
+      return { ...view, ready };
+    },
+  });
 }
+
+export async function startBffProof(options) {
+  const prepared = await prepareBffProof(options);
+  return prepared.launch().ready;
+}
+
 export const jar = (response) =>
   (response.headers['set-cookie'] ?? [])
     .map((value) => value.split(';', 1)[0])

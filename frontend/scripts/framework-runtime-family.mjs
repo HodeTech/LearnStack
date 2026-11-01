@@ -155,7 +155,8 @@ export async function runFrameworkRuntimeFamily({
             requestedStop: requestedStop || Boolean(terminal?.requestedStop),
             startupCancelled:
               startupCancelled ||
-              ((requestedStop || Boolean(terminal?.requestedStop)) && !terminal?.ready),
+              ((requestedStop || Boolean(terminal?.requestedStop)) &&
+                !(terminal?.ready ?? listenerReady)),
             parentLost: Boolean(terminal?.parentLost),
             fault: fault ?? terminal?.fault ?? null,
             directChildClosed: true,

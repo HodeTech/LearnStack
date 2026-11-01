@@ -1,6 +1,7 @@
 // Actual-source controls only. The installed-package verifier and reverse-edit
 // hashes supply original/patched bytes; installed bytes are never assumed stock.
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createServer, request } from 'node:http';
 import { createRequire, Module } from 'node:module';
 import { dirname, join } from 'node:path';
@@ -11,6 +12,7 @@ import { gunzipSync } from 'node:zlib';
 import ts from 'typescript';
 
 import { loadQualifiedResponseSources } from '../../../scripts/next-response-patch/control-sources.mjs';
+import { transformJavascript } from '../../../scripts/next-response-patch/transform.mjs';
 import { protectPageResponse } from '../src/server/auth/page-response.ts';
 
 const frontendRoot = fileURLToPath(new URL('../../../', import.meta.url));
@@ -529,16 +531,329 @@ async function runEndWorkCase({ path, variant, pipe, scenario }) {
 }
 
 const results = [];
+const tick = () => new Promise((resolve) => setImmediate(resolve));
+const observeDrain = (predicate) => observe(predicate, 'Actual drain control did not settle');
+async function runDrainCase(pipe, kind) {
+  const realZlib = require('zlib');
+  const events = [],
+    writes = [],
+    streams = [],
+    sockets = new Set();
+  const heldSource = kind === 'held-source';
+  const heldEnd = kind === 'held-end' || kind === 'held-end-error';
+  const refusal = kind !== 'healthy' && kind !== 'healthy-backpressure';
+  const chunkSize = kind === 'healthy-backpressure' ? 512 * 1024 : 8192;
+  const first = Buffer.alloc(chunkSize, 65),
+    second = Buffer.alloc(chunkSize, 66),
+    third = Buffer.alloc(chunkSize, 67);
+  const failure = new Error('owned source or end failure');
+  let controller, endController, actual, response, peer, client, actualError;
+  let invalidated = false,
+    state = 'unissued',
+    endState = heldEnd ? 'pending' : 'not-held';
+  let nativeCredits = 0,
+    nativeIssued = 0,
+    nativeCompleted = 0;
+  const endReader = heldEnd
+    ? new ReadableStream({
+        start(value) {
+          endController = value;
+        },
+      }).getReader()
+    : null;
+  const endWork = endReader?.read();
+  if (endWork)
+    void endWork.then(
+      () => {
+        endState = 'fulfilled';
+      },
+      () => {
+        endState = 'rejected';
+      },
+    );
+  const observedZlib = new Proxy(realZlib, {
+    get(target, property, receiver) {
+      if (property === 'createGzip')
+        return (...args) => {
+          const stream = Reflect.apply(target[property], target, args);
+          streams.push(stream);
+          events.push('encoder-allocated');
+          stream.once('drain', () => events.push('actual-encoder-drain'));
+          stream.once('close', () =>
+            events.push(stream.writableEnded ? 'encoder-close-ended' : 'encoder-close-unended'),
+          );
+          if (refusal) invalidated = true;
+          return stream;
+        };
+      return Reflect.get(target, property, receiver);
+    },
+  });
+  const compress = loadCommonJs(
+    compressionRecord.patched,
+    join(nextRoot, compressionRecord.path),
+    observedZlib,
+  );
+  const server = createServer((req, res) => {
+    response = res;
+    res.once('finish', () => events.push('response-finish'));
+    res.once('close', () => {
+      events.push('response-close');
+      if (refusal)
+        setImmediate(() => {
+          try {
+            controller.enqueue(second);
+            controller.enqueue(third);
+            events.push('two-source-chunks-after-close');
+            if (kind === 'source-error') controller.error(failure);
+            else if (!heldSource) controller.close();
+          } catch {
+            events.push('source-operation-refused');
+          }
+        });
+    });
+    protectPageResponse(
+      res,
+      () => {
+        if (invalidated) throw new Error('owned invalidation');
+      },
+      () => {},
+      () => {
+        nativeCredits++;
+        nativeIssued++;
+        let completed = false;
+        return () => {
+          assert.equal(completed, false);
+          completed = true;
+          nativeCredits--;
+          nativeCompleted++;
+        };
+      },
+    );
+    compress({ threshold: 0 })(req, res, () => {});
+    res.setHeader('Content-Type', 'text/plain');
+    const write = res.write;
+    res.write = function (...args) {
+      const result = Reflect.apply(write, this, args);
+      writes.push({ returned: result, afterClose: events.includes('response-close') });
+      return result;
+    };
+    const readable = new ReadableStream({
+      start(value) {
+        controller = value;
+        controller.enqueue(first);
+        if (!refusal) {
+          controller.enqueue(second);
+          controller.close();
+        }
+      },
+      cancel() {
+        events.push('source-cancel');
+      },
+    });
+    state = 'pending';
+    actual = pipe(readable, res, endWork);
+    actual.then(
+      () => {
+        state = 'fulfilled';
+      },
+      (error) => {
+        state = 'rejected';
+        actualError = error;
+      },
+    );
+  });
+  server.on('connection', (socket) => {
+    sockets.add(socket);
+    socket.once('close', () => sockets.delete(socket));
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const wire = new Promise((resolve, reject) => {
+    client = request(
+      {
+        hostname: '127.0.0.1',
+        port: server.address().port,
+        path: '/',
+        agent: false,
+        headers: { 'accept-encoding': 'gzip' },
+      },
+      (res) => {
+        peer = res;
+        const chunks = [];
+        res.on('data', (chunk) => chunks.push(chunk));
+        res.once('error', reject);
+        res.once('end', () =>
+          resolve({
+            status: res.statusCode,
+            encoding: res.headers['content-encoding'] ?? null,
+            cache: res.headers['cache-control'] ?? null,
+            body: Buffer.concat(chunks),
+          }),
+        );
+      },
+    );
+    client.once('error', reject);
+    client.end();
+  });
+  try {
+    const result = await wire;
+    await observeDrain(
+      () => events.includes('response-close') && streams.length === 1 && streams[0].closed,
+    );
+    if (refusal) {
+      assert.equal(result.status, 503);
+      assert.equal(result.encoding, null);
+      assert.equal(result.cache, 'no-store');
+      assert.equal(result.body.length, 0);
+      assert.ok(events.includes('encoder-close-unended'));
+      await observeDrain(
+        () =>
+          events.includes('two-source-chunks-after-close') ||
+          events.includes('source-operation-refused'),
+      );
+      assert.ok(events.includes('two-source-chunks-after-close'));
+      if (heldSource || heldEnd) {
+        for (let index = 0; index < 5; index++) await tick();
+        assert.equal(
+          state,
+          'pending',
+          'actual held work cannot be retired by response/encoder close',
+        );
+        if (heldSource) controller.close();
+        else if (kind === 'held-end-error') endController.error(failure);
+        else endController.close();
+      }
+    } else {
+      assert.equal(result.status, 200);
+      assert.equal(result.encoding, 'gzip');
+      assert.deepEqual(gunzipSync(result.body), Buffer.concat([first, second]));
+    }
+    await observeDrain(() => state !== 'pending');
+    if (kind === 'source-error' || kind === 'held-end-error') {
+      assert.equal(state, 'rejected');
+      assert.equal(actualError?.cause, failure);
+      if (kind === 'held-end-error')
+        assert.equal(
+          response[Symbol.for('learnstack.next.responseCompressionOwner')].failureState()
+            .endFailure,
+          failure,
+        );
+    } else assert.equal(state, 'fulfilled');
+    if (heldEnd) assert.equal(endState, kind === 'held-end-error' ? 'rejected' : 'fulfilled');
+    await observeDrain(() => nativeCredits === 0);
+    assert.equal(nativeCompleted, nativeIssued);
+    if (!refusal)
+      assert.ok(nativeIssued > 0, 'healthy real native writes have actual callback owners');
+    if (refusal && kind !== 'source-error') {
+      assert.equal(writes.filter((entry) => !entry.returned && entry.afterClose).length, 2);
+      assert.equal(writes[0]?.returned, true);
+    }
+    if (kind === 'healthy-backpressure') {
+      assert.ok(writes.some((entry) => !entry.returned && !entry.afterClose));
+      assert.ok(events.includes('actual-encoder-drain'));
+    }
+    return {
+      kind,
+      status: result.status,
+      handler: state,
+      encoderClosed: streams[0].closed,
+      sourceWasHeld: heldSource,
+      endWasHeld: heldEnd,
+      errorIdentity: kind === 'source-error' || kind === 'held-end-error',
+      nativeIssued,
+      nativeCompleted,
+    };
+  } finally {
+    if (heldSource && state === 'pending') {
+      try {
+        controller.close();
+      } catch {
+        /* The actual source may already be terminal. */
+      }
+    }
+    if (heldEnd && endState === 'pending') {
+      try {
+        endController.close();
+      } catch {
+        /* The actual end source may already be terminal. */
+      }
+    }
+    peer?.destroy();
+    client?.destroy();
+    response?.destroy();
+    const closed = new Promise((resolve) => server.close(resolve));
+    for (const socket of sockets) socket.destroy();
+    await closed;
+    for (const stream of streams) if (!stream.destroyed) stream.destroy();
+    await observeDrain(() => streams.every((stream) => stream.closed) && sockets.size === 0);
+    endReader?.releaseLock();
+  }
+}
+
+// Exact qualified originals prove both parser shapes, and each dirty control
+// must refuse rather than silently applying a broader source rewrite.
+function drainShapeControls() {
+  const ownerSource = readFileSync(
+    join(frontendRoot, 'framework/next-response-cleanup/owner.mjs'),
+    'utf8',
+  );
+  const selected = [
+    'dist/server/pipe-readable.js',
+    'dist/compiled/next-server/pages-api.runtime.prod.js',
+  ];
+  const transform = (code, path) =>
+    transformJavascript({ code, filename: path, kind: 'pipe', ownerSource });
+  for (const path of selected) {
+    const record = pipes.find((item) => item.path === path);
+    assert.ok(record);
+    const edits = transform(record.original, path);
+    assert.ok(
+      edits.some((item) => item.text.includes('__learnstackNextCleanupResponseClosed=true;')),
+    );
+    assert.ok(
+      edits.some((item) =>
+        item.text.includes('__learnstackNextCleanupResponseClosed?void 0:await'),
+      ),
+    );
+  }
+  const record = pipes.find((item) => item.path === selected[0]);
+  assert.ok(record);
+  for (const [before, after] of [
+    ["res.once('close'", "res.once('error'"],
+    ['await drained.promise', 'await other.promise'],
+    ['if (!ok)', 'if (ok)'],
+    ["res.off('drain', onDrain)", "res.off('drain', otherListener)"],
+  ]) {
+    assert.equal(record.original.split(before).length, 2, 'unique dirty control');
+    assert.throws(() => transform(record.original.replace(before, after), record.path));
+  }
+  return selected.length + 4;
+}
+
 const endWorkResults = [];
+const drainResults = [];
 const pipes = records.filter((record) => record.kind === 'pipe');
 const routers = records.filter((record) => record.kind === 'router');
 assert.equal(pipes.length, 27);
 assert.equal(routers.length, 2);
+const drainShapeCases = drainShapeControls();
+assert.equal(drainShapeCases, 6);
 for (const record of pipes) {
   for (const variant of ['original', 'patched']) {
     const pipe = activatePipe(record, variant);
     for (const early of [false, true])
       results.push(await runCase({ path: record.path, variant, pipe, early }));
+    if (variant === 'patched') {
+      for (const kind of [
+        'healthy',
+        'healthy-backpressure',
+        'fence-three',
+        'held-source',
+        'held-end',
+        'source-error',
+        'held-end-error',
+      ])
+        drainResults.push({ path: record.path, ...(await runDrainCase(pipe, kind)) });
+    }
     for (const scenario of [
       'source-before-selection',
       'source-after-selection',
@@ -565,6 +880,9 @@ for (const record of routers) {
       results.push(await runCase({ path: record.path, variant, router, early }));
   }
 }
+assert.equal(drainResults.length, 189);
+for (const record of pipes)
+  assert.equal(drainResults.filter((row) => row.path === record.path).length, 7);
 for (const record of [...pipes, ...routers]) {
   const healthy = results.filter((row) => row.path === record.path && !row.early);
   assert.equal(healthy.length, 2);
@@ -576,6 +894,12 @@ process.stdout.write(
     kind: 'qualified-next-response-controls',
     cases: results.length + endWorkResults.length,
     actualPipeClosures: pipes.length,
+    drainCases: drainResults.length,
+    drainCopies: new Set(drainResults.map((row) => row.path)).size,
+    drainShapeCases,
+    drainRealCloseAndHandlerJoined: drainResults.every(
+      (row) => row.encoderClosed && row.handler !== 'pending',
+    ),
     exactRouterInitializers: routers.length,
     healthyWireMatches: pipes.length + routers.length,
     negativeStockRetentionControls: results.filter((row) => row.negativeStockRetention).length,

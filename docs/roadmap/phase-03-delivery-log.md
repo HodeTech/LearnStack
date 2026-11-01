@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 5,705 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 5,832 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -240,7 +240,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0084 Step 1 review closeout and implementation plan (2026-11-01)](#adr-0084-step-1-review-closeout-and-implementation-plan-2026-11-01) — 28 lines
   - [ADR-0084 Step 2 implementation and integration checks (2026-11-01)](#adr-0084-step-2-implementation-and-integration-checks-2026-11-01) — 69 lines
   - [ADR-0084 Step 2 review round 1 and verified corrections (2026-11-01)](#adr-0084-step-2-review-round-1-and-verified-corrections-2026-11-01) — 70 lines
-  - [ADR-0084 Step 2 review round 2 and proof-correlation closeout (2026-11-01)](#adr-0084-step-2-review-round-2-and-proof-correlation-closeout-2026-11-01) — 51 lines
+  - [ADR-0084 Step 2 review round 2 and proof-correlation closeout (2026-11-01)](#adr-0084-step-2-review-round-2-and-proof-correlation-closeout-2026-11-01) — 52 lines
+  - [ADR-0084 Step 3 local implementation and runtime controls (2026-11-02)](#adr-0084-step-3-local-implementation-and-runtime-controls-2026-11-02) — 126 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -11489,3 +11490,130 @@ Step 3 retains initialized real preparation,
 static-paths worker, owner-loss/recovery, complete framework/native/API/browser
 and complete same-final-source hosted A/B qualification. The catalogue rule stays
 Registered. Manual accessibility remains maintainer-deferred and unexecuted.
+
+
+### ADR-0084 Step 3 local implementation and runtime controls (2026-11-02)
+
+This is the pre-review implementation record for ADR-0084 Step 3 and the remaining
+ADR-0083 runtime controls. Step 2 closes at `0cd5f159`; this work adds qualification
+carriers and fixes a reproduced response-pipe wait. It does not close Step 3 or
+qualify a hosted source. Accepted ADR bodies, toolchain versions, CI windows,
+resource limits and request deadlines remain unchanged.
+
+**Response pipe.** A real multi-chunk close can leave the writer awaiting a drain
+that the closed transport cannot provide. The qualified transform observes actual
+transport closure before that drain wait while continuing to join source/end and
+callback work. Regeneration is byte-identical twice; the locked distribution,
+original subjects and installed patched subjects verify. The patch SHA-256 is
+`863166d4c37584d4112495c1ebee265ba7c99807199ea2976a22c4959742ce37`;
+the census is
+`fe51ba1f8d2e937df9a8915890ed91f4453686a1868d655062af7146135d8907`.
+No dependency version changes. All 27 compiled pipe copies execute the seven new
+real HTTP cases (189 passes), alongside the existing 440 controls and six shape
+controls. The normal guarded cleanup wrapper passes all 19 cases. Actual early
+header-flush HEAD/204/304/empty HTTP and HTTPS controls preserve stock wire
+selection and join a compressor when one is allocated; 124 controls pass.
+
+**Actual runtime families.** The startup matrix passes 17 cases/17 launches;
+12 families retire and five deliberately unauthenticated pre-HELLO families retain
+their evidence. The initialized-worker matrix passes five cases/13 launches;
+recovery passes seven cases/nine launches. Direct exit, signal, watchdog, early
+stop, channel loss, delayed worker writes, replacement refusal, observation failure
+and exact-record reconciliation remain distinct. The runtime result classifier
+now also requires actual listener readiness. The first complete frontend attempt
+hits its unchanged 180-second allocation after late scheduling; this remains a
+failed attempt. A stable partition schedules the three existing ownership groups
+first without changing within-partition order, four-worker capacity or deadlines.
+Its three causal controls and the subsequent complete guarded run pass. Unknown
+family evidence is not removed using PID absence or an elapsed timer.
+
+**Real response owners.** Copied actual UI controls pass identity, conditional
+gzip/deflate and refusal paths, then independently hold and release framework,
+render, API, snapshot and native-stop work after the actual compressor closes.
+The overlap case's first handler is already fulfilled before stop; it is not
+reported as a held-handler proof. The actual App Router matrix records the loaded
+generated module, byte range, response mark and all three pipe entries. It first
+proves the stock filtered identity response, then uses a copied-fixture scalar
+Content-Type precondition for HTTPS gzip and HTTP deflate. The normal production
+wire contract is unchanged. The first two actual App attempts remain failed;
+the third and the final guarded execution pass. Generated-source inventory is
+not execution of every compiled branch or native Next ESM. Parser-loader models
+cover two exact functions/three literal edges with dirty controls; no general
+JavaScript source or loader exemption is added.
+
+**Boundary regressions.** The ingress proof's obsolete empty/sink-only upgrade
+expectation is replaced by the actual closed phase ledger: production refusals,
+unsupported development paths and actual HMR retain their distinct ordering.
+Three causal ledger controls reject omission/reordering/extra work. Cleanup
+controls first expose a copied-broker relative-import failure, then poisoned
+parent environment during same-process reuse. Canonical helper symlinks and a
+fixed clean-environment test helper repair these fixture boundaries without
+changing production guards or timeouts. The actual ingress run passes and all
+20 actual cleanup controls pass. Four inert reuse controls include a retained
+real descendant. Earlier failed attempts and the diagnostic attempt remain
+failed records.
+
+The first full BFF class executes 11 cases, passing seven and failing four real
+provider starts (expected 303, observed 503). Source tracing finds that the new
+owner/child boundary drops the external fixture's startup CA. The exact inner
+503/TLS exception is not observed and is not claimed. The fixture now binds its
+own exclusive private PEM and SHA-256 to the copied owner before the genuine
+build, passing that exact path only to its actual child at Node startup. Stable
+file-descriptor/path checks, wrong/missing CA controls and a path-replacement
+control pass. The production owner, environment allowlist, issuer and TLS
+validation stay unchanged. The second full class passes **11/11**, including all
+four previously failing real-provider flows and two new ownership bridge Facts.
+
+**Diagnostics and test ownership.** Closed proof wrappers suppress actual raw
+JSON/assertion/child failure payloads while retaining original cleanup; six
+permanent canary controls pass. The C# bridge accepts bounded ordered UTF-8
+frames and requires actual family/root retirement; dirty false-retirement,
+extra-frame, invalid-UTF-8 and retained-root controls refuse. CI's exact source
+census includes both new C# files. Catalogue 21 lists the new test owners under
+existing rules; `Next_Response_Cleanup_Is_Installed_And_Owned` remains Registered.
+
+**Local qualification, with source boundaries.** The strict complete Release
+build passes without warnings/errors. All 3,432 unit cases and all 604 architecture
+cases pass with zero skips. That full architecture run freezes 1,952 backend and
+384 frontend inputs; later frontend-only additions do not inherit its source
+claim. The final full frontend run freezes 397 graph inputs and both runner
+inputs: normal typecheck, lint and build pass; **3,520/3,520** guarded cases pass
+(3,372 web across 111 files plus 148 SDK across six), zero skips/todos and zero
+stderr, in 170.372 seconds. The existing 180-second guard remains unchanged.
+The 103 offline native CI controls pass. Actual integration classes pass public
+rendering **20/20**, public admission **1/1**, local launch **3/3**, then BFF
+**11/11**; each retains unchanged source hashes and zero skipped cases. The BFF
+run freezes all 1,982 backend and final 397 frontend inputs and takes 484.295
+seconds. The earlier public runs freeze the preceding 394-input frontend graph.
+
+The final guarded App measurement records 1,581 ms from launch request to actual
+readiness and sampled owner/runtime RSS of 242,928/551,952 KiB. These include test
+inspector/parser instrumentation; they are neither a matched uninstrumented
+baseline, unique memory nor a peak/capacity guarantee. Hosted Linux evidence
+remains required. Private failures, source envelopes, counters and raw evidence
+are retained separately; a later green result does not relabel an earlier run.
+
+**Next.** Commit this implementation with normal hooks, then execute the existing
+CI demo from a fresh clean development checkout and complete both new independent
+review rounds and verified corrections. Freeze the resulting program source and
+actual discovered populations before complete hosted A then B with original
+archive verification. No new hosted attempt or PR is claimed here. Manual
+keyboard/focus/reflow/contrast/VoiceOver remains maintainer-deferred and unexecuted.
+
+Final pre-commit checks also pass all 12 architecture cases that inspect frontend
+layout, generic names and customization registries against the final 397-input
+graph, with all 1,982 backend inputs unchanged. Markdown resolves 3,145 fragment
+links; roadmap structure and all three generated delivery indexes pass. All four
+corpus regression scripts pass and the corrected lifecycle parser walk succeeds;
+the initial direct CLI invocation omitted its required stdin and is retained as
+an invocation failure, not a corpus defect. `git diff --check` passes.
+
+The first normal commit is refused during the hook's automatic stash restoration:
+formatting two catch blocks in a newly added C# file produces an add/add conflict.
+Root verifies that only whitespace changes, retains the formatted version, restores
+the original empty index/user settings and preserves all five pre-existing stashes.
+Only that hook's newly created, fully restored stash is removed. A fresh complete
+Release build passes without warnings/errors, then both actual ownership bridge
+Facts pass (2/2, zero skips). The preceding 11-case BFF proof is recorded against
+its pre-format bytes; the normalization does not inherit a new exact-source run.
+Normal hooks remain mandatory for the subsequent commit.

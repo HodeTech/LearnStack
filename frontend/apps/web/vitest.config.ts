@@ -3,6 +3,8 @@ import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 
+import FrameworkOwnershipSequencer from './src/test/framework-ownership-sequencer';
+
 /**
  * Per-app, not an export from `@learnstack/config`.
  *
@@ -23,6 +25,7 @@ export default defineConfig({
     // TypeScript/ESLint graphs. Bound competing file workers instead of making
     // unrelated five-second controls depend on the workstation's CPU count.
     maxWorkers: 4,
+    sequence: { sequencer: FrameworkOwnershipSequencer },
     // Off, and the suite depends on it being off. Both test files import
     // describe/it/expect/afterEach from 'vitest' explicitly, so the
     // injected form is a knob nothing uses. It is also load-bearing in

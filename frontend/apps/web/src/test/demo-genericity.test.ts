@@ -307,6 +307,85 @@ describe('P02d-7 exact demo identity boundary', () => {
       ['frontend/scripts/framework-process-family.mjs', 'export const family = true;'],
       ['frontend/scripts/framework-runtime-family.mjs', 'export const runtime = true;'],
     ]);
+  const parserEntry = 'frontend/apps/web/scripts/framework-router-generated-pipes.mjs';
+  const parserSource = readFileSync(join(root, parserEntry), 'utf8');
+  const parserSources = (source = parserSource) => guardSources().set(parserEntry, source);
+  const parserResolver = (_from: string, edge: string) =>
+    `frontend/apps/web/node_modules/${edge}/index.js`;
+  const parserLoaderMarker =
+    "  const require = createRequire(join(identity.appRoot, 'package.json'));";
+  it('binds both copied parser loaders and their three exact edges to the actual app package', () => {
+    expect(parserSource.split(parserLoaderMarker)).toHaveLength(3);
+    const observed: { from: string; edge: string; anchors: string[] }[] = [];
+    const selected = productionDemoSources(parserSources(), (from, edge, anchors) => {
+      observed.push({ from, edge, anchors });
+      return parserResolver(from, edge);
+    });
+    expect(selected.get(parserEntry)).toBe(parserSource);
+    expect(observed).toEqual([
+      { from: 'frontend/apps/web/package.json', edge: 'next', anchors: [] },
+      { from: 'frontend/apps/web/package.json', edge: 'next/dist/bin/next', anchors: [] },
+      { from: 'frontend/apps/web/package.json', edge: 'typescript/bin/tsc', anchors: [] },
+      { from: 'frontend/apps/web/package.json', edge: 'typescript', anchors: [] },
+      { from: 'frontend/apps/web/package.json', edge: 'typescript/package.json', anchors: [] },
+      { from: 'frontend/apps/web/package.json', edge: 'typescript', anchors: [] },
+    ]);
+  });
+  const parserLoaderMutants = [
+    [
+      'foreign first root',
+      parserLoaderMarker,
+      parserLoaderMarker.replace('identity.appRoot', 'otherRoot'),
+    ],
+    [
+      'foreign runtime root',
+      'function loadParser(identity, expected) {',
+      'function loadParser(identity, expected) {\n  identity.appRoot = otherRoot;',
+    ],
+    [
+      'alternate package anchor',
+      parserLoaderMarker,
+      parserLoaderMarker.replace('package.json', 'other.json'),
+    ],
+    [
+      'factory alias',
+      "import { createRequire } from 'node:module';",
+      "import { createRequire as hidden } from 'node:module';",
+    ],
+    ['loader alias', parserLoaderMarker, parserLoaderMarker + '\n  const hidden = require;'],
+    ['loader rebind', parserLoaderMarker, parserLoaderMarker + '\n  require = other;'],
+    [
+      'loader shadow',
+      parserLoaderMarker,
+      parserLoaderMarker + "\n  function nested(require) { return require('typescript'); }",
+    ],
+    [
+      'root shadow',
+      parserLoaderMarker,
+      parserLoaderMarker + "\n  function nested(identity) { return require('typescript'); }",
+    ],
+    ['dynamic parser', "const ts = require('typescript');", 'const ts = require(selectedModule);'],
+    ['extra local edge', parserLoaderMarker, parserLoaderMarker + "\n  require('./hidden.cjs');"],
+    [
+      'different package',
+      "require.resolve('typescript/package.json')",
+      "require.resolve('foreign/package.json')",
+    ],
+    [
+      'unmodeled owner',
+      'function loadParser(identity, expected)',
+      'function alternateParser(identity, expected)',
+    ],
+  ] as const;
+  for (const [name, before, after] of parserLoaderMutants)
+    it('refuses copied parser ' + name, () => {
+      expect(parserSource).toContain(before);
+      const changed = parserSource.replace(before, after);
+      expect(changed).not.toBe(parserSource);
+      expect(() => productionDemoSources(parserSources(changed), parserResolver)).toThrow(
+        'Unmodeled runtime import',
+      );
+    });
   const provenanceEntry = 'frontend/scripts/test-framework-provenance.mjs';
   const provenanceSource = readFileSync(join(root, provenanceEntry), 'utf8');
   const provenanceSources = (source = provenanceSource) =>
@@ -676,17 +755,43 @@ describe('P02d-7 exact demo identity boundary', () => {
     const host = 'frontend/apps/web/scripts/bff-proof-host.mjs';
     const instrumenter = readFileSync(join(root, host), 'utf8');
     const files = new Map([
+      ...guardSources(),
       [harness, source],
       [runtime, 'export const runtime = true;'],
       [fixture, `export const special = ${JSON.stringify(identity)};`],
       [host, instrumenter],
       ['frontend/apps/web/scripts/fixture-support.mjs', 'export const helper = true;'],
+      [
+        'frontend/apps/web/scripts/framework-external-provider-ca-source.mjs',
+        'export const helper = true;',
+      ],
       ['frontend/apps/web/scripts/bff-proof-support.mjs', 'export const helper = true;'],
       ['frontend/apps/web/scripts/framework-proof-support.mjs', 'export const helper = true;'],
       ['frontend/apps/web/scripts/framework-proof-host-broker.mjs', 'export const helper = true;'],
+      [
+        'frontend/apps/web/scripts/framework-ownership-matrix-source.mjs',
+        'export const helper = true;',
+      ],
+      [
+        'frontend/apps/web/scripts/framework-ownership-proof-source.mjs',
+        'export const helper = true;',
+      ],
+      [
+        'frontend/apps/web/scripts/framework-transport-proof-source.mjs',
+        'export const helper = true;',
+      ],
+      [
+        'frontend/apps/web/scripts/framework-router-matrix-source.mjs',
+        'export const helper = true;',
+      ],
+      [
+        'frontend/apps/web/scripts/framework-overlap-proof-source.mjs',
+        'export const helper = true;',
+      ],
     ]);
     const external = () => 'frontend/node_modules/typescript/index.js';
     const selected = productionDemoSources(files, external);
+    expect(selected.get(frameworkGuard)).toBe(frameworkGuardSource);
     expect(selected.has(runtime)).toBe(true);
     expect(selected.has(fixture)).toBe(true);
     expect(demoIdentityFindings(fixture, selected.get(fixture)!, vocabulary)).toEqual([identity]);
@@ -814,6 +919,7 @@ describe('P02d-7 exact demo identity boundary', () => {
       'scripts/demo.mjs',
       'scripts/node_modules/probe/index.js',
       'frontend/apps/web/src/test/probe.test.ts',
+      'frontend/scripts/fixtures/router-minified-join.runtime.mjs',
     ])
       expect(demoSourceClassification(path)).toBe('runtime');
     for (const path of [
@@ -838,6 +944,8 @@ describe('P02d-7 exact demo identity boundary', () => {
       'third-party/hangfire/core/corresponding-source.tar.gz',
       'third-party/hangfire/qualification/MaintenanceProbe.cs',
       'frontend/apps/web/src/app/globals.css',
+      'frontend/scripts/fixtures/router-minified-join.txt',
+      'frontend/scripts/fixtures/router-minified-join.provenance.json',
     ])
       expect(demoSourceClassification(path)).toBe('other');
   });

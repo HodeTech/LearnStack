@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "scope": "exact-extracted-minified-function-parser-fixture-only-no-build-admission",
+  "tuple": {
+    "node": "22.23.1",
+    "pnpm": "9.12.3",
+    "next": "15.5.28",
+    "typescript": "5.6.3"
+  },
+  "fixture": {
+    "bytes": 456,
+    "sha256": "2c8d94cf05ea19c2c42b745b8c0efa52e4fd47c5cb75e18ca304952ebfcf4738"
+  },
+  "origins": [
+    {
+      "path": "next/server/chunks/772.js",
+      "bytes": 155777,
+      "sha256": "b9f949e62c0a0319ded22a7df6b69556ae17f9b93e16575671c7dad389dc9217",
+      "startUtf16": 115450,
+      "endUtf16": 115905
+    },
+    {
+      "path": "next/server/pages/_error.js",
+      "bytes": 83641,
+      "sha256": "1fd5dc19e4ecf70d07eb5d5a4c573b8f2f866601922ca1315f82612ade14c231",
+      "startUtf16": 23723,
+      "endUtf16": 24178
+    }
+  ]
+}

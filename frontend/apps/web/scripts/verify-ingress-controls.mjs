@@ -151,19 +151,18 @@ try {
     mkdirSync(directory);
     for (const file of [
       'fixture-support.mjs',
-      'stop-test-child.mjs',
       'ingress-readiness.mjs',
-      'framework-proof-host-broker.mjs',
-      'framework-proof-relay.mjs',
       'framework-proof-ingress-source.mjs',
     ])
       copyFileSync(join(appRoot, 'scripts', file), join(directory, file));
-    // The helper's relative builtins-only guard import retains its real source root.
-    symlinkSync(
-      join(appRoot, 'scripts/framework-proof-support.mjs'),
-      join(directory, 'framework-proof-support.mjs'),
-      'file',
-    );
+    // Resolve guard-dependent helpers from their qualified source root. The
+    // copied fixture and canonical broker must also share the same stop map.
+    for (const file of [
+      'framework-proof-support.mjs',
+      'framework-proof-host-broker.mjs',
+      'stop-test-child.mjs',
+    ])
+      symlinkSync(join(appRoot, 'scripts', file), join(directory, file), 'file');
     const script = join(directory, 'fixture.mjs');
     writeFileSync(script, source);
     const runner = owner.ownChild(
@@ -393,32 +392,35 @@ try {
     expectedMessage: 'TLS must reject untrusted CA and wrong hostname',
   });
 
-  function emitted(source, expression) {
-    return replaceOne(
-      source,
-      'const configuration = publicServerConfiguration(values, root);',
-      'const configuration = publicServerConfiguration(values, root);\n' +
-        '  const emitted = ' +
-        expression +
-        ';\n' +
-        '  process.stderr.write(emitted.slice(0, 13));\n' +
-        "  setTimeout(() => process.stderr.write(emitted.slice(13) + '\\n' + 'z'.repeat(70000)), 10);",
-    );
+  // Apply the fixed mutant to the actual copied launcher before its producer.
+  function launcherMutant(source, replacements) {
+    const anchor =
+      "  writeFileSync(launcher, instrumentCopiedIngressRuntime(readFileSync(launcher, 'utf8')));";
+    const injected =
+      "  { let copied = readFileSync(launcher, 'utf8');\n" +
+      '    for (const [before, after] of ' +
+      JSON.stringify(replacements) +
+      ') {\n' +
+      "      assert.equal(copied.split(before).length, 2, 'Planted launcher anchor refused');\n" +
+      '      copied = copied.replace(before, after);\n' +
+      '    }\n' +
+      '    writeFileSync(launcher, instrumentCopiedIngressRuntime(copied)); }';
+    return replaceOne(source, anchor, injected);
   }
-  // Patch the disposable launcher source, leaving every fixture check intact.
   function launcherOutput(source, expression) {
-    return replaceOne(
-      source,
-      "const launcher = readFileSync(join(appRoot, 'scripts/public-server-runtime.mjs'), 'utf8');",
-      'const launcher = ' +
-        JSON.stringify(
-          emitted(
-            readFileSync(join(appRoot, 'scripts/public-server-runtime.mjs'), 'utf8'),
-            expression,
-          ),
-        ) +
-        ';',
-    );
+    const anchor = 'const configuration = publicServerConfiguration(values, root);';
+    return launcherMutant(source, [
+      [
+        anchor,
+        anchor +
+          '\n' +
+          '  const emitted = ' +
+          expression +
+          ';\n' +
+          '  process.stderr.write(emitted.slice(0, 13));\n' +
+          "  setTimeout(() => process.stderr.write(emitted.slice(13) + '\\n' + 'z'.repeat(70000)), 10);",
+      ],
+    ]);
   }
   await runCase(
     'benign version text and large output clean control',
@@ -439,21 +441,22 @@ try {
     { expectedMessage: 'Private material entered diagnostics' },
   );
 
-  const shutdownLauncher = replaceOne(
-    readFileSync(join(appRoot, 'scripts/public-server-runtime.mjs'), 'utf8'),
-    'const configuration = publicServerConfiguration(values, root);',
-    'const configuration = publicServerConfiguration(values, root);\n' +
-      "  process.prependOnceListener('SIGTERM', () => process.stderr.write(configuration.secret + '\\n'));",
-  );
-  await runCase(
-    'shutdown-only secret mutant',
-    replaceOne(
-      shortTls,
-      "const launcher = readFileSync(join(appRoot, 'scripts/public-server-runtime.mjs'), 'utf8');",
-      'const launcher = ' + JSON.stringify(shutdownLauncher) + ';',
-    ),
-    { expectedMessage: 'Private material entered shutdown diagnostics' },
-  );
+  const shutdownConfiguration = 'const configuration = publicServerConfiguration(values, root);';
+  const shutdownLauncher = launcherMutant(shortTls, [
+    ['  let shutdownPromise;', '  let shutdownPromise;\n  let shutdownDiagnostic = () => {};'],
+    [
+      '    if (shutdownPromise) return shutdownPromise;',
+      '    if (shutdownPromise) return shutdownPromise;\n    shutdownDiagnostic();',
+    ],
+    [
+      shutdownConfiguration,
+      shutdownConfiguration +
+        "\n  shutdownDiagnostic = () => process.stderr.write(configuration.secret + '\\n');",
+    ],
+  ]);
+  await runCase('shutdown-only secret mutant', shutdownLauncher, {
+    expectedMessage: 'Private material entered shutdown diagnostics',
+  });
 
   // A stale healthy listener must be left alone and must never satisfy readiness.
   const foreign = owner.ownServer(
@@ -497,16 +500,17 @@ try {
     "  await callUpgrade('Host: localhost:3000');\n  await observe(native);\n  return;\n  const nativeState",
   );
   await runCase('unsupported upgrade clean closure', upgradeOnly, { expectedCode: 0 });
-  const unclosedLauncher = replaceOne(
-    readFileSync(join(appRoot, 'scripts/public-server-runtime.mjs'), 'utf8'),
-    'if (!dev || !admitIncomingRequest(request, configuration.secret)) return socket.destroy();',
-    'if (!dev || !admitIncomingRequest(request, configuration.secret)) return;',
-  );
-  const unclosedUpgrade = replaceOne(
-    upgradeOnly,
-    "const launcher = readFileSync(join(appRoot, 'scripts/public-server-runtime.mjs'), 'utf8');",
-    'const launcher = ' + JSON.stringify(unclosedLauncher) + ';',
-  );
+  const rejectedUpgrade =
+    '      if (\n' +
+    '        stopping ||\n' +
+    '        control.stopRequested() ||\n' +
+    '        !dev ||\n' +
+    '        !admitIncomingRequest(request, configuration.secret)\n' +
+    '      )\n' +
+    '        return socket.destroy();';
+  const unclosedUpgrade = launcherMutant(upgradeOnly, [
+    [rejectedUpgrade, rejectedUpgrade.replace('return socket.destroy();', 'return;')],
+  ]);
   await runCase('unclosed upgrade mutant', unclosedUpgrade, {
     expectedMessage: 'Server did not close unsupported upgrade',
   });

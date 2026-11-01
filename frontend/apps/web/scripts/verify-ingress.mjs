@@ -28,11 +28,7 @@ import {
 } from './fixture-support.mjs';
 import { createCopiedRuntimeHostBroker } from './framework-proof-host-broker.mjs';
 import { instrumentCopiedIngressRuntime } from './framework-proof-ingress-source.mjs';
-import {
-  frameworkProofBuildArguments,
-  prepareFrameworkProof,
-  reuseFrameworkProof,
-} from './framework-proof-support.mjs';
+import { frameworkProofBuildArguments, prepareFrameworkProof } from './framework-proof-support.mjs';
 import { createIngressReadiness, isReadinessNotification } from './ingress-readiness.mjs';
 import { stopTestChild } from './stop-test-child.mjs';
 
@@ -62,10 +58,69 @@ const readiness = new WeakMap();
 const runtimeBrokers = new WeakMap();
 const brokerFor = (child) => runtimeBrokers.get(child);
 const upgrades = [];
+const upgradeEvidence = createUpgradeEvidence();
 const observations = new Map();
 let observationId = 0;
 let bootstrapCalls = 0;
 let listenerFailed = false;
+
+/** Consume every validated relay observation in the fixed order of this proof. */
+function createUpgradeEvidence() {
+  const native = { surface: 'native', sanitized: false };
+  const sink = { surface: 'sink', sanitized: true };
+  const phases = [
+    ['production', Array.from({ length: 6 }, () => native)],
+    ['development', Array.from({ length: 4 }, () => native)],
+    ['hmr', [native, sink]],
+    ['hmr', [native, sink]],
+  ];
+  let cursor = 0;
+  let index = 0;
+  const refuse = () => {
+    throw new Error('Ingress upgrade observations refused');
+  };
+  const matches = (actual, expected) => {
+    if (actual.length !== expected.length) return false;
+    for (let ordinal = 0; ordinal < expected.length; ordinal++) {
+      if (!Object.hasOwn(actual, ordinal)) return false;
+      const row = actual[ordinal];
+      const item = expected[ordinal];
+      if (
+        !row ||
+        typeof row !== 'object' ||
+        Array.isArray(row) ||
+        Object.keys(row).sort().join(',') !== 'sanitized,surface' ||
+        row.surface !== item.surface ||
+        row.sanitized !== item.sanitized
+      )
+        return false;
+    }
+    return true;
+  };
+  return Object.freeze({
+    consume(phase, messages) {
+      const selected = phases[index];
+      if (!selected || selected[0] !== phase || !Array.isArray(messages)) refuse();
+      const expected = selected[1];
+      const actual = messages.slice(cursor);
+      if (!matches(actual, expected)) refuse();
+      cursor = messages.length;
+      index++;
+    },
+    complete(messages) {
+      if (
+        !Array.isArray(messages) ||
+        index !== phases.length ||
+        cursor !== messages.length ||
+        !matches(
+          messages,
+          phases.flatMap((phase) => phase[1]),
+        )
+      )
+        refuse();
+    },
+  });
+}
 
 try {
   fixtureRoot = owner.ownRoot(mkdtempSync(join(tmpdir(), 'learnstack-production-ingress-')));
@@ -483,11 +538,39 @@ async function ready(child, tls, port) {
   console.warn('Ingress readiness observation: ' + JSON.stringify(observation));
 }
 
+async function reuseCopiedFramework() {
+  const helper = start(
+    [join(app, 'scripts/framework-proof-reuse.mjs'), app, frameworkTemplate],
+    false,
+    false,
+  );
+  let failed = false;
+  let output = false;
+  helper.once('error', () => {
+    failed = true;
+  });
+  for (const stream of [helper.stdout, helper.stderr])
+    stream.on('data', () => {
+      output = true;
+    });
+  const result = await new Promise((resolve) =>
+    helper.once('close', (code, signal) => resolve({ code, signal })),
+  );
+  const stopped = await stopTestChild(helper);
+  if (
+    failed ||
+    output ||
+    stopped.forced ||
+    result.signal !== null ||
+    ![0, 10].includes(result.code)
+  )
+    throw new Error('Fixture template reuse refused');
+  return result.code === 0;
+}
+
 async function buildCopiedFramework() {
   const reused =
-    frameworkTemplate && existsSync(frameworkTemplate)
-      ? reuseFrameworkProof({ app, templateApp: frameworkTemplate })
-      : false;
+    frameworkTemplate && existsSync(frameworkTemplate) ? await reuseCopiedFramework() : false;
   if (!reused) {
     // The bind/rescue probe owns long-lived server observations, not a compiler
     // process: its rescue socket would otherwise keep a completed build alive.
@@ -560,8 +643,14 @@ async function run() {
   for (const path of ['/_next/webpack-hmr', '/unmatched', '/studio', '/api/healthz'])
     await callUpgrade('Host: localhost:3000', path);
   await callUpgrade('Host: localhost:3000', '/_next/webpack-hmr', 'POST');
-  assert.equal((await observe(native)).sinkCalls, 0, 'Production upgrades reached Next');
-  assert.deepEqual(upgrades, [], 'Production upgrades reached an automatic sink listener');
+  const productionUpgrades = await observe(native);
+  assert.equal(productionUpgrades.sinkCalls, 0, 'Production upgrades reached Next');
+  assert.equal(
+    productionUpgrades.nextCalls,
+    nativeState.nextCalls,
+    'Production upgrades reached Next',
+  );
+  upgradeEvidence.consume('production', upgrades);
   assert.equal(bootstrapCalls, 0, 'Production upgrades reached bootstrap');
 
   await assertOptimizerImage(
@@ -796,8 +885,10 @@ async function run() {
   // The normal development producer owns the clean compiler/cache lifecycle.
   const development = start([join(app, 'scripts/public-server.mjs'), '--dev'], true);
   await ready(development, true, 3000);
+  const beforeDevelopmentUpgrades = await observe(development);
+  const beforeDevelopmentBootstrap = bootstrapCalls;
   assert.equal(
-    (await observe(development)).debugDisabled,
+    beforeDevelopmentUpgrades.debugDisabled,
     true,
     'Development dotenv re-enabled DEBUG',
   );
@@ -808,11 +899,23 @@ async function run() {
     ['/_next/webpack-hmr', 'POST'],
   ])
     await callUpgrade('Host: localhost:3000', path, method);
+  const afterDevelopmentUpgrades = await observe(development);
   assert.equal(
-    (await observe(development)).sinkCalls,
+    afterDevelopmentUpgrades.sinkCalls,
     0,
     'Unsupported development upgrade reached Next',
   );
+  assert.equal(
+    afterDevelopmentUpgrades.nextCalls,
+    beforeDevelopmentUpgrades.nextCalls,
+    'Unsupported development upgrade reached Next',
+  );
+  assert.equal(
+    bootstrapCalls,
+    beforeDevelopmentBootstrap,
+    'Unsupported development upgrades reached bootstrap',
+  );
+  upgradeEvidence.consume('development', upgrades);
   for (const signal of ['SIGTERM', 'SIGINT']) {
     const child =
       signal === 'SIGTERM'
@@ -821,10 +924,7 @@ async function run() {
     if (child !== development) await ready(child, true, 3000);
     await verifyHmrShutdown(child, signal);
   }
-  assert.deepEqual(upgrades, [
-    { surface: 'sink', sanitized: true },
-    { surface: 'sink', sanitized: true },
-  ]);
+  upgradeEvidence.complete(upgrades);
   assert.equal(diagnosticsLeaked(), false, 'Private material entered development diagnostics');
 
   async function verifyHmrShutdown(child, signal) {
@@ -880,6 +980,7 @@ async function run() {
         1,
         'Exactly the accepted HMR upgrade must reach Next',
       );
+      upgradeEvidence.consume('hmr', upgrades);
       assert.equal(client.readyState, WebSocket.OPEN, 'HMR must remain open when shutdown begins');
       assert.equal(brokerFor(child).capture.family().incarnation, incarnation);
       await new Promise((resolve, reject) => {

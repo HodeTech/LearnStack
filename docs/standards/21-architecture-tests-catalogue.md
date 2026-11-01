@@ -6281,6 +6281,8 @@ test-only instrumentation stays in the disposable copied app.
   `frontend/apps/web/src/test/public-boundaries.test.ts`,
   `PublicServerRenderingTests`, `verify-public-rendering.mjs` and
   `frontend/apps/web/scripts/verify-ingress.mjs`, with facade/runtime unit controls.
+  `frontend/apps/web/src/test/ingress-upgrade-evidence.test.ts` checks exact
+  native/sink phase accounting and rejects missing, extra or altered observations.
 - **Phase:** 02d (P02d-6 remediation Steps 1–3).
 
 ## P02d-7 public demo and Lighthouse controls
@@ -6516,8 +6518,13 @@ Prior receipts do not qualify subsequent source changes.
   `framework-provenance.test.ts`, `framework-install-hook.test.ts`,
   `framework-runtime-controls.test.ts`, `framework-owner-imports.test.ts`,
   `framework-proof-relay.test.ts`, `demo-runtime-owner.test.ts`,
-  `bff-watchdog-observation.test.ts` and the existing
-  `backend/tests/LearnStack.Tests.Integration/TenancyIdentity/TenantBffSessionTests.cs`.
+  `bff-watchdog-observation.test.ts`, `framework-response-bodyless.test.ts`,
+  `framework-response-transport.test.ts`, `framework-response-overlap.test.ts`,
+  `framework-router-matrix.test.ts`, `framework-runtime-ownership.test.ts`,
+  `framework-runtime-workers.test.ts`, `framework-runtime-recovery.test.ts`,
+  `framework-proof-closed-boundary.test.ts` and the existing
+  `backend/tests/LearnStack.Tests.Integration/TenancyIdentity/TenantBffSessionTests`
+  partial class, including `TenantBffSessionTests.FrameworkOwnership.cs`.
   Parsed-copy and component controls do not replace initialized-router,
   supported-loader, native/browser or source-bound hosted qualification.
 - **Status:** **Registered** — the complete runtime/held-owner and qualification

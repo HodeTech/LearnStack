@@ -793,12 +793,14 @@ except launcher.Refusal as failure:
                 'BackgroundJobPositiveSdkTests.NativeSettlementPrepare.cs',
                 'BackgroundJobRecurrenceStoreTests.NativeOwnership.cs',
                 'BackgroundJobRecurrenceStoreTests.Runtime.cs',
-                'TenantRealmApiTests.WarmQualification.cs', 'BffNativeDriver.cs', 'TenantBffSessionTests.cs'}
+                'TenantRealmApiTests.WarmQualification.cs', 'BffNativeDriver.cs', 'TenantBffSessionTests.cs',
+                'FrameworkOwnershipDriver.cs', 'TenantBffSessionTests.FrameworkOwnership.cs'}
         self.assertEqual(expected, set(self.owner.FAILURE_SOURCES))
         self.assertEqual(len(expected), len(set(self.owner.FAILURE_SOURCES.values())))
         for filename, code in self.owner.FAILURE_SOURCES.items():
             directory = 'TenancyIdentity' if filename in {
-                'TenantRealmApiTests.WarmQualification.cs', 'BffNativeDriver.cs', 'TenantBffSessionTests.cs'} else 'Database'
+                'TenantRealmApiTests.WarmQualification.cs', 'BffNativeDriver.cs', 'TenantBffSessionTests.cs',
+                'FrameworkOwnershipDriver.cs', 'TenantBffSessionTests.FrameworkOwnership.cs'} else 'Database'
             self.assertTrue((ROOT / 'backend/tests/LearnStack.Tests.Integration' / directory / filename).is_file())
             progress.failure_locations.clear()
             item = self.execution_result(cases[0]); item['Outcome'] = 2
@@ -1442,6 +1444,32 @@ except launcher.Refusal as failure:
             self.assertNotIn('PRIVATE-CANARY', exported)
             self.assertNotIn('/private/', exported)
             self.assertNotIn('Source contention failure;', exported)
+
+    def test_framework_ownership_details_accept_only_exact_private_bridge_failures(self):
+        source = (ROOT / 'backend/tests/LearnStack.Tests.Integration/TenancyIdentity/FrameworkOwnershipDriver.cs').read_text()
+        self.assertEqual({'framework_ownership_driver', 'framework_ownership_test'},
+                         {self.owner.FAILURE_SOURCES[name] for name in
+                          ('FrameworkOwnershipDriver.cs', 'TenantBffSessionTests.FrameworkOwnership.cs')})
+        self.assertEqual(2, len(self.owner.FRAMEWORK_OWNERSHIP_FAILURE_CASES))
+        for name in self.owner.FRAMEWORK_OWNERSHIP_FAILURE_CASES:
+            case = {**self.case(1), 'name': name}
+            for message, reason in self.owner.FRAMEWORK_OWNERSHIP_FIXED_FAILURES.items():
+                if reason in ('prepare_frame', 'closed_frame'):
+                    self.assertIn('Framework ownership fixture rejected its " + phase + " frame.', source)
+                else:
+                    self.assertIn(message, source)
+                self.assertEqual({'stage': 'framework_ownership', 'reason': reason},
+                                 self.owner.closed_failure_details(case, {'ErrorMessage': message}))
+                self.assertEqual({'stage': 'framework_ownership', 'reason': reason},
+                                 self.owner.closed_failure_details(case,
+                                     {'ErrorMessage': 'System.InvalidOperationException : ' + message}))
+            for invalid in ('PRIVATE-CANARY', 'Framework ownership fixture rejected its open frame.',
+                            'Framework ownership fixture retained its private tree. PRIVATE-CANARY'):
+                self.assertIsNone(self.owner.closed_failure_details(case, {'ErrorMessage': invalid}))
+            self.assertIsNone(self.owner.closed_failure_details({**case, 'assembly': 'other'},
+                              {'ErrorMessage': 'Framework ownership fixture retained its private tree.'}))
+            self.assertIsNone(self.owner.closed_failure_details({**case, 'name': name + '_other'},
+                              {'ErrorMessage': 'Framework ownership fixture retained its private tree.'}))
 
     def test_bff_browser_details_preserve_only_existing_closed_reasons_and_journey(self):
         case = {**self.case(1), 'name': self.owner.BFF_BROWSER_FAILURE_CASE}

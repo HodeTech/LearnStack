@@ -76,8 +76,11 @@ if (process.env.TEST_MODE === 'late-hello-race') {
   await new Promise(resolve => setTimeout(resolve, 200));
 }
 let watchdogHook;
+let proofReadyObservation;
 const proof = ['proof','proof-receive-async','proof-drain','proof-drain-reject','watchdog-proof'].includes(process.env.TEST_MODE) ? {
   attach({send,incarnation}) {
+    if (process.env.TEST_MODE === 'watchdog-proof') proofReadyObservation = () =>
+      send({tag:'learnstack-proof-v1',incarnation,payload:{kind:'listener-ready-observed'}});
     send({tag:'learnstack-proof-v1',incarnation,payload:{kind:'child-ready'}});
     return { receive(frame) {
       if (frame.payload?.kind !== 'parent-ack') throw new Error('invalid proof reply');
@@ -129,6 +132,7 @@ if (control) {
   }
   if (process.env.TEST_MODE !== 'pre-ready') server.listen(0, '127.0.0.1', () => {
     if (control.listenerReady(server)) writeFileSync(process.env.TEST_MARKER, 'ready');
+    proofReadyObservation?.();
     if (process.env.TEST_MODE === 'unrequested-zero') process.exit(0);
   });
   else writeFileSync(process.env.TEST_MARKER, 'prepared');
@@ -224,10 +228,15 @@ test('first-stop watchdog fails stuck shutdown and notifies the copied-only obse
   const fixtures = [fixture(), fixture()];
   try {
     const aborts = fixtures.map(() => new AbortController());
+    let readyObserved = false;
     const proof = {
       attach({ send, incarnation }) {
         return {
           receive(frame) {
+            if (frame.payload.kind === 'listener-ready-observed') {
+              readyObserved = true;
+              return;
+            }
             assert.equal(frame.payload.kind, 'child-ready');
             send({ tag: 'learnstack-proof-v1', incarnation, payload: { kind: 'parent-ack' } });
           },
@@ -243,7 +252,9 @@ test('first-stop watchdog fails stuck shutdown and notifies the copied-only obse
     ];
     await waitUntil(
       () =>
-        fixtures.every((f) => existsSync(f.marker)) && existsSync(fixtures[1].marker + '.proof'),
+        fixtures.every((f) => existsSync(f.marker)) &&
+        existsSync(fixtures[1].marker + '.proof') &&
+        readyObserved,
     );
     const start = Date.now();
     for (const abort of aborts) abort.abort();
@@ -255,6 +266,11 @@ test('first-stop watchdog fails stuck shutdown and notifies the copied-only obse
       assert.equal(receipt.groupAbsent, true);
       assert.notEqual(receipt.fault, null);
     }
+    // The same child channel delivers actual ready before its proof observation.
+    // A missing terminal must not erase that already accepted readiness.
+    assert.equal(receipts[1].listenerReady, true);
+    assert.equal(receipts[1].requestedStop, true);
+    assert.equal(receipts[1].startupCancelled, false);
     assert.equal(existsSync(fixtures[1].marker + '.watchdog'), true);
     assert.equal(existsSync(fixtures[1].marker + '.missing-hook'), false);
   } finally {

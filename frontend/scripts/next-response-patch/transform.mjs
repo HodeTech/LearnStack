@@ -162,6 +162,170 @@ function transformPipe(code, source, joinFunction) {
     `${res}.off('finish',${PREFIX}Terminal);${res}.off('close',${PREFIX}Terminal);${resolve};};` +
     `${res}.once('finish',${PREFIX}Terminal);return ${res}.once('close',${PREFIX}Terminal);})()`;
   edits.push(edit(finish, source, terminal));
+
+  // The actual close resolves the current drain wait exactly once. A later
+  // false write must not wait on a newly detached drain after that close.
+  const drainAwait = one(
+    nodes(
+      writer.body,
+      (n) =>
+        ts.isAwaitExpression(n) &&
+        ts.isPropertyAccessExpression(n.expression) &&
+        n.expression.name.text === 'promise' &&
+        ts.isIdentifier(n.expression.expression),
+    ),
+    'writer drain await',
+  );
+  const drainName = drainAwait.expression.expression.text;
+  const drainDeclaration = one(
+    nodes(
+      writer.body,
+      (n) =>
+        ts.isVariableDeclaration(n) &&
+        ts.isIdentifier(n.name) &&
+        n.name.text === drainName &&
+        n.initializer &&
+        ts.isNewExpression(n.initializer),
+    ),
+    'writer drain declaration',
+  );
+  const reset = one(
+    nodes(
+      writer.body,
+      (n) =>
+        ts.isBinaryExpression(n) &&
+        n.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+        ts.isIdentifier(n.left) &&
+        n.left.text === drainName &&
+        ts.isNewExpression(n.right),
+    ),
+    'writer drain reset',
+  );
+  invariant(
+    reset.right.getText(source) === drainDeclaration.initializer.getText(source),
+    'drain constructor changed',
+  );
+  invariant(drainAwait.end <= reset.getStart(source), 'drain order changed');
+  const covers = (outer, inner) => outer.pos <= inner.pos && outer.end >= inner.end;
+  const guard = one(
+    nodes(writer.body, (n) => {
+      if (!covers(n, drainAwait) || !covers(n, reset)) return false;
+      if (ts.isIfStatement(n))
+        return (
+          !n.elseStatement &&
+          covers(n.thenStatement, drainAwait) &&
+          covers(n.thenStatement, reset) &&
+          ts.isPrefixUnaryExpression(n.expression) &&
+          n.expression.operator === ts.SyntaxKind.ExclamationToken &&
+          ts.isIdentifier(n.expression.operand)
+        );
+      return (
+        ts.isBinaryExpression(n) &&
+        n.operatorToken.kind === ts.SyntaxKind.BarBarToken &&
+        ts.isIdentifier(n.left) &&
+        covers(n.right, drainAwait) &&
+        covers(n.right, reset)
+      );
+    }),
+    'false-write drain guard',
+  );
+  if (ts.isBinaryExpression(guard)) {
+    let expression = guard;
+    while (
+      ts.isParenthesizedExpression(expression.parent) ||
+      (ts.isBinaryExpression(expression.parent) &&
+        expression.parent.operatorToken.kind === ts.SyntaxKind.CommaToken)
+    )
+      expression = expression.parent;
+    invariant(ts.isExpressionStatement(expression.parent), 'false-write guard result is observed');
+  }
+  const ok = ts.isIfStatement(guard) ? guard.expression.operand.text : guard.left.text;
+  const write = enclosingFunction(drainAwait);
+  one(
+    nodes(
+      write.body,
+      (n) =>
+        ts.isVariableDeclaration(n) &&
+        ts.isIdentifier(n.name) &&
+        n.name.text === ok &&
+        n.initializer &&
+        ts.isCallExpression(n.initializer) &&
+        ts.isPropertyAccessExpression(n.initializer.expression) &&
+        n.initializer.expression.expression.getText(source) === res &&
+        n.initializer.expression.name.text === 'write',
+    ),
+    'actual response write binding',
+  );
+  const close = one(
+    nodes(
+      writer.body,
+      (n) =>
+        ts.isCallExpression(n) &&
+        ts.isPropertyAccessExpression(n.expression) &&
+        n.expression.expression.getText(source) === res &&
+        n.expression.name.text === 'once' &&
+        n.arguments.length === 2 &&
+        ts.isStringLiteral(n.arguments[0]) &&
+        n.arguments[0].text === 'close' &&
+        ts.isArrowFunction(n.arguments[1]) &&
+        ts.isBlock(n.arguments[1].body) &&
+        nodes(
+          n.arguments[1].body,
+          (call) =>
+            ts.isCallExpression(call) &&
+            ts.isPropertyAccessExpression(call.expression) &&
+            ts.isIdentifier(call.expression.expression) &&
+            call.expression.expression.text === drainName &&
+            call.expression.name.text === 'resolve',
+        ).length === 1,
+    ),
+    'actual close drain callback',
+  );
+  const closeBody = close.arguments[1].body;
+  const removal = one(
+    nodes(
+      closeBody,
+      (n) =>
+        ts.isCallExpression(n) &&
+        ts.isPropertyAccessExpression(n.expression) &&
+        n.expression.expression.getText(source) === res &&
+        n.expression.name.text === 'off' &&
+        n.arguments.length === 2 &&
+        ts.isStringLiteral(n.arguments[0]) &&
+        n.arguments[0].text === 'drain',
+    ),
+    'close removes actual drain listener',
+  );
+  one(
+    nodes(
+      writer.body,
+      (n) =>
+        ts.isCallExpression(n) &&
+        ts.isPropertyAccessExpression(n.expression) &&
+        n.expression.expression.getText(source) === res &&
+        n.expression.name.text === 'on' &&
+        n.arguments.length === 2 &&
+        ts.isStringLiteral(n.arguments[0]) &&
+        n.arguments[0].text === 'drain' &&
+        n.arguments[1].getText(source) === removal.arguments[1].getText(source),
+    ),
+    'actual drain listener binding',
+  );
+  const closed = `${PREFIX}ResponseClosed`;
+  edits.push(
+    {
+      start: writer.body.getStart(source) + 1,
+      end: writer.body.getStart(source) + 1,
+      text: `let ${closed}=false;`,
+    },
+    {
+      start: closeBody.getStart(source) + 1,
+      end: closeBody.getStart(source) + 1,
+      text: `${closed}=true;`,
+    },
+    edit(drainAwait, source, `(${closed}?void 0:${drainAwait.getText(source)})`),
+    edit(reset, source, `(!${closed}&&(${reset.getText(source)}))`),
+  );
   return edits;
 }
 
