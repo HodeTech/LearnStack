@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,339 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,430 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -252,7 +252,9 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0084 Step 3 native drain-point correction (2026-11-02)](#adr-0084-step-3-native-drain-point-correction-2026-11-02) — 34 lines
   - [ADR-0084 Step 3 initialized-router R1 qualification corrections (2026-11-02)](#adr-0084-step-3-initialized-router-r1-qualification-corrections-2026-11-02) — 50 lines
   - [ADR-0084 Step 3 R1 corrective validation closeout (2026-11-02)](#adr-0084-step-3-r1-corrective-validation-closeout-2026-11-02) — 22 lines
-  - [ADR-0084 Step 3 fresh R2 source-review closeout (2026-11-02)](#adr-0084-step-3-fresh-r2-source-review-closeout-2026-11-02) — 44 lines
+  - [ADR-0084 Step 3 fresh R2 source-review closeout (2026-11-02)](#adr-0084-step-3-fresh-r2-source-review-closeout-2026-11-02) — 45 lines
+  - [P03-3 d628 hosted A failure and bounded diagnostic (2026-11-02)](#p03-3-d628-hosted-a-failure-and-bounded-diagnostic-2026-11-02) — 42 lines
+  - [ADR-0085 proposed public-demo CI window package (2026-11-02)](#adr-0085-proposed-public-demo-ci-window-package-2026-11-02) — 48 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -12135,3 +12137,94 @@ hosted A/B attempts and original-archive/resource/surface checks, including the
 clean-VM public demo. Historical failed attempts and earlier-prefix local passes
 qualify no later source. The catalogue rule stays Registered. Manual accessibility
 remains maintainer-deferred and unexecuted; there is no new maintainer decision.
+
+
+### P03-3 d628 hosted A failure and bounded diagnostic (2026-11-02)
+
+[Run 41385487207, attempt 1](https://github.com/HodeTech/LearnStack/actions/runs/41385487207)
+is a complete failed A on `d6281d7f`, tree
+`4880835d702d56fb41e0644440aae08371d2b327`: 27 completed jobs, 12 success and
+15 failure. No B is started. All 12 available original ZIPs are retained;
+independent API size/SHA-256, streamed CRC and source/job/attempt checks pass.
+The eight passing producers validate against the current plan and 7,949-case
+manifest. The backend aggregate contains exactly 4,476 Passed cases; native
+separately contains 31 Passed, with zero skipped and natural resource/cleanup
+evidence. The 3,442 ordinary outcomes and integration aggregate are unavailable.
+This is not a passing full-suite union or qualification of a later source.
+
+Frontend typecheck and all twelve ordinary jobs refuse the normal native-only
+producer before case execution. Their fixed error does not identify the hosted
+inner reason. The pinned setup action's actual self-installer produces a POSIX
+pnpm shim that adds a manager NODE_PATH, which the closed build environment
+rejects. Root's equivalent fresh-copy comparison reproduces default-shim native
+exit 1 / typed build_environment versus authenticated real-CLI native exit 0.
+Both retain the same three qualified manager files and 417 inputs; actual command
+families retire, without a timeout or signal. This is a local Darwin/Node22 causal
+pair, not direct observation of the Linux/action-Node24 child's environment.
+
+A separate actual self-install with step-scoped extend-node-path=false produces
+a shim without that injection. Its first nested web typecheck reaches TypeScript
+but fails because the frontend-only diagnostic copy lacks repository-root script
+modules; that code-2 receipt remains failed. A new fresh copy adds the 91 frozen
+root source files (2,093,647 bytes), preserving their independent hash inventory.
+The unchanged nested typecheck then passes in 5.287 seconds, with zero stderr,
+joined actual family and unchanged canonical inputs. This supports an independent
+three-action transport correction; arbitrary NODE_PATH remains forbidden.
+
+The clean-VM demo is also failed. Its original artifact contains nine screenshots
+and 26 matching audit JSON/HTML pairs. All completed pairs pass their recorded
+budgets, but the final required audit is cancelled by the earlier external
+absolute deadline; its internal worker stage is unknown. Setup is 313.853 seconds,
+proof 663.381 seconds, and reported owned cleanup passes in 12.539 seconds.
+Progress is observed through report 26; neither a hang nor successful completion
+with more time is proved. The separate new clock proposal below changes no
+current executable policy. Manual accessibility remains deferred and unexecuted.
+
+
+### ADR-0085 proposed public-demo CI window package (2026-11-02)
+
+[ADR-0085](../decisions/0085-public-demo-ci-execution-window.md) is Proposed.
+The maintainer decision is public-demo alone: 20 to 22 job minutes and 17 to
+19 first-step work minutes, preserving the 180-second nominal reserve, internal
+720-second proof, all operation/cleanup limits, four 61-second quiet windows,
+serial fresh workers and the nine-page/27-audit population. This is two extra
+execution minutes per affected job, not a workflow-latency bound or measured
+minimum. Censored final work and changing setup cost prevent a fit guarantee.
+The independent pnpm transport correction does not depend on this decision.
+
+The proposal receives two fresh independent review rounds before the maintainer
+is asked to accept it and this three-step implementation plan:
+
+1. On explicit acceptance, commit the decision/index/standard carriers and dated
+   bounded disclosures in ADR-0056 and ADR-0082. Keep both original records
+   Accepted outside this narrow change and preserve their historical bodies.
+   Complete two fresh independent carrier-review rounds and verified fixes.
+2. Commit only the public-demo workflow ceiling/first-step deadline and their
+   actual-shell controls. Run the focused validation and two fresh independent
+   implementation-review rounds; fix verified findings. No other job or inner
+   duration, reserve, count, admission or resource rule changes.
+3. After the independent transport correction closes, freeze the final commit,
+   source graph, toolchain, plan and actual population. Run complete hosted A,
+   retain/audit every original and all required surfaces, then full B only if A
+   qualifies. Retain and independently audit B on the same source. Close the
+   shared ADR-0083/0084 qualification and this window extension only with that
+   evidence and the required review loops. Failed d628 has no qualifying B.
+
+Acceptance carriers are ADR-0056 § Pacing, runtime and artifacts (only its
+20-minute job ceiling), ADR-0082 Decision (only public-demo's application of
+all-remaining-job ceilings), Testing 06's corresponding authority/exception,
+Catalogue 21's public-demo control ownership, decision index and Phase 03 records.
+Infrastructure 20 and ADR-0054 contain no public-demo ceiling to replace and need
+no substantive change. At acceptance append the next available dated amendment
+in each affected Accepted ADR; no amendment number is reserved by this proposal.
+The disclosures state the supersession and unchanged proof/reserve boundaries,
+not an erratum or rewritten original Decision.
+
+Implementation controls execute the real first-step shell at a fixed date,
+verify 22/19 and the 180-second difference, first-step-before-checkout ordering,
+and the unchanged other job ceilings. They retain expired/negative-remainder
+refusal before resource startup, INT plus 35-second kill-grace propagation,
+nonzero/forced failure, sandbox/receipt status and artifact allowlist. Existing
+720-second/four-quiet-window/27-pair/serial/cleanup controls stay mandatory;
+source controls prove no hosted fit. No clock change precedes approval, and
+local passes or approval alone cannot promote qualification or manual evidence.

@@ -133,6 +133,7 @@ records hosted qualification. Phase 11 owns production qualification.
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
+| 0085 | [Public Demo CI Execution Window](0085-public-demo-ci-execution-window.md) | Proposed 22-minute job / 19-minute first-step work deadline; 180-second reserve and 12-minute proof remain fixed | Maintainer approval before P03-3 clock implementation; fresh complete hosted A/B still required |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
 the P02d-2 package on 2026-10-02. Their rows are now in Active ADRs; ADR-0049 remains
