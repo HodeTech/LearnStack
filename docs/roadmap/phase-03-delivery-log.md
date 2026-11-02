@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 7,631 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 7,783 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -282,6 +282,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 c9b correction implementation and local validation (2026-11-02)](#p03-3-c9b-correction-implementation-and-local-validation-2026-11-02) — 65 lines
   - [P03-3 c9b correction R1 review closeout (2026-11-02)](#p03-3-c9b-correction-r1-review-closeout-2026-11-02) — 49 lines
   - [P03-3 c9b correction R2 closeout and renewed qualification (2026-11-02)](#p03-3-c9b-correction-r2-closeout-and-renewed-qualification-2026-11-02) — 65 lines
+  - [P03-3 363b hosted A originals and isolated frontend diagnosis (2026-11-02)](#p03-3-363b-hosted-a-originals-and-isolated-frontend-diagnosis-2026-11-02) — 68 lines
+  - [P03-3 363b isolated Linux controls and diagnostic precision (2026-11-02)](#p03-3-363b-isolated-linux-controls-and-diagnostic-precision-2026-11-02) — 84 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -13456,3 +13458,155 @@ Full-package Vitest JSON retention limits, local/hosted SDK differences and
 isolated/full-run timing distinctions remain explicit. Manual accessibility
 remains maintainer-deferred and unexecuted. No clock, authority, concurrency,
 capacity, population or production-readiness change is selected.
+
+### P03-3 363b hosted A originals and isolated frontend diagnosis (2026-11-02)
+
+[Hosted A run 41473948899, attempt 1](https://github.com/HodeTech/LearnStack/actions/runs/41473948899)
+uses source `363b791f28163528a13eaddd49e64f9505a7b17f`, tree
+`6c1b744a9ceb0f2fcf99d1140934fb5a347a6b75` and the unchanged fixed OpenAPI
+base `e55aa5d7bfcba4ccc2357fa0c2276025e14f8d55`. All 27 jobs are terminal:
+26 succeed and the frontend Test step fails. Native production ingress is
+therefore skipped. This is a failed A; no B starts and no complete frontend
+or whole-workflow qualification is claimed.
+
+All 25 available original ZIPs are retained. Two fresh independent auditors
+inspect the current originals. The owner fully reads both semantic reports,
+scripts and JSON outputs, including the public auditor's completion check;
+all ten file digests match. A separate owner verification recomputes original
+ZIP/API/index sizes, SHA-256 and CRC, and every one of the 957 file members
+against both opaque member inventories. It also checks 1,982 backend, 424
+frontend and 20 supplemental source inputs, their current Git blobs and all
+106 retained local proof files. The source freeze ends only after these checks.
+
+- Backend audit: `363b-originals-backend-audit.md`, SHA-256
+  `f2ac733d740e7918210525392f93cb5c1d054a5d154d7b0ef8ec38a27703dc99`.
+  All 7,949 unique selected cases agree with passing journals and canonical
+  sanitized TRX: 3,872 base, 604 Architecture, 3,442 ordinary and 31 native.
+  All 20 closed receipt validators and both original aggregates pass; the
+  shared base witness is not counted twice. Canonical hosted TRX intentionally
+  omit raw runner execution IDs. Natural workload/cleanup acknowledgements
+  pass with no forced cleanup; unknown Docker memory/startup counts remain
+  unknown. Hosted SDK 10.0.403 remains distinct from local SDK 10.0.302.
+  Architecture-0 completes its population within the current ceiling; this
+  single observation proves neither causal optimization nor statistical fit.
+- Public/frontend audit: `363b-public-frontend-audit.md`, SHA-256
+  `9d50e77648f4e1f0de5732866aa6dd196642abe5469f0634150595c2055b9eb0`.
+  All 27 matching Lighthouse JSON/HTML pairs pass hard budgets; eight of nine
+  LCP medians have advisory warnings. Nine screenshots are retained without
+  visual or manual accessibility approval. Public setup/proof/cleanup are
+  309.349/659.477/10.722 seconds. OpenAPI originals and all 60 comparison
+  fixtures match their source and expected outcomes. Leakwatch's retained
+  SARIF has zero scoped findings; its driver reports `dev`, so the pinned
+  installation is not an independent executable-version attestation.
+- Independent owner closeout: `363b-root-original-evidence-closeout.json`,
+  SHA-256 `6d9221e359e8755cfa018416d31087ddb2eaf508d667138b443f4f054fb008b8`.
+
+The frontend records four failures before the later 180-second package guard:
+the first pure router source-control subprocess reaches its existing
+ten-second bound; the startup, worker and recovery groups report
+`ready-term:start`, `worker-exit-zero:start` and `worker-owner-death:start`.
+Their null readiness fields mean no accepted branded refusal was recorded,
+not proof of startup success or failure. The current projection omits mode,
+completed-case count and the operation within each broad stage. Sticky failed
+scope retention also does not itself prove a physical cleanup failure.
+
+The corrected guard classification places the package deadline after these
+four failures. The earlier extraction's false `packageGuard180Exceeded` used
+the wrong literal and is not evidence that the guard was absent. Neither
+that later deadline nor missing diagnostics establish the earlier causes.
+Static inspection identifies repeated whole-bundle parsing in the pure router
+control, but no executed profile establishes its timing cause.
+
+Next, diagnose one existing worker group in a fresh, task-owned Linux source
+copy with qualified dependencies, a real owned Next build, private bounded
+operation observations and the original test/driver/internal deadlines.
+Linux ARM64 evidence remains separate from hosted x64 and complete-package
+concurrency. Keep user configuration, services, ports, trust and caches intact.
+Any verified correction still needs a normal commit and two fresh independent
+review rounds before new final-source A/B. No clock, authority, capacity,
+population or production-readiness change is selected. Manual accessibility
+remains maintainer-deferred and unexecuted.
+
+### P03-3 363b isolated Linux controls and diagnostic precision (2026-11-02)
+
+The isolated Linux investigation does not establish the cause of the failed
+hosted x64 frontend. Its qualified diagnostic copies retain all original
+assertions, cases, deadlines, failure outcomes and cleanup authority. Private
+instrumentation is explicitly distinguished from canonical-source qualification.
+No performance improvement or complete-package fit is inferred.
+
+The initial Node image lacks `ps`, OpenSSL and CA certificates; its first
+preparation fails before installation or application tests. That failed container,
+volume and original evidence remain retained. A separate image installs real
+Debian prerequisites without changing the Node 22.23.1 executable bytes or any
+host configuration. Supported frozen pnpm 9.12.3 installation and complete
+Next 15.5.28 distribution/59-subject verification then pass. The private copy
+contains 439 distinct source/configuration inputs: the 424 framework entries,
+twenty supplemental paths with six overlaps, and the existing Vitest config.
+
+The first pure router probe fails 29/31 because the private transport omits two
+test fixture assets. It is retained as failed evidence, not a canonical bug or
+timeout. A separately hashed read-only supplement provides only the minified
+join text and its provenance. The unchanged 31-control script then passes in
+3.272 seconds under its original ten-second boundary. Successful `execFileSync`
+does not expose stderr through that API; the record explicitly leaves it unknown.
+One actual workers group passes all five scenarios in 58.533 seconds. A later
+four-file run, with four-CPU affinity and the unchanged four-worker Vitest config,
+passes all eight outer cases, including loops checking the expected 79 inner
+source controls. Startup/workers/recovery reach their original 17/5/7 rows and
+cleanup paths. Its longest outer case is 113.052 seconds. These warmed Linux
+ARM64 observations neither recreate hosted x64 nor include the full package's
+later ordinary-file load or 180-second wrapper. They justify no relaxed clock.
+
+The canonical correction therefore improves diagnostic precision, rather than
+claiming a runtime fix. The complete private capsule is validated before its
+projection adds current mode, bounded completed-case count, last marked
+operation, root HTTP status and an allowlisted failure code. Each launch resets
+the status; the real `GET /` response supplies its one primitive status read
+before the existing 200 assertion. Own data descriptors supply failure codes
+before cleanup; no error getter, stack, message or cause is read for that field.
+Markers describe the last instrumented span, not an exact fault location.
+Readiness remains an outer-owner/proof-channel observation, not runtime-child
+retirement, and null readiness proves neither success nor failure.
+
+Router process failures add only an observed contiguous TAP ordinal prefix from
+bounded own-data stdout. Unknown, malformed, oversized or unavailable captures
+remain unknown; only newline-complete records count. No title or stdout text is
+published, and progress cannot qualify the failed child. Independent receiver
+schema/range checks, actual source-wiring mutants, per-launch status-reset and
+constant-status mutants, getter/canary and poisoned-Buffer controls preserve the
+closed boundary. The original five Node controls and seven copied-wrapper
+scenarios remain. No retry, assertion removal or new cleanup capability exists.
+
+All eight current local stages pass with unchanged 424 frontend, 23 supplemental
+and 1,982 backend input maps before/after every command. The supplementary census
+now explicitly binds Vitest configuration and the two router assets; it does not
+expand the production framework graph. Node source controls pass 5/5; the focused
+three-file suite passes 45/45. Guarded frontend validation passes 3,567 cases with
+zero skips/todos: 3,413 web cases in 115 files and 154 SDK cases in nine files.
+Package durations are 170.53/76.57 seconds; command wall time is 251.014 seconds.
+Typecheck/lint/production build pass in 4.376/31.623/21.873 seconds. Both real
+renderer pipe-failure variants pass in 33.716 seconds; the nonempty corpus check
+passes five cases in 1.395 seconds. Every captured stderr stream is empty.
+Full-suite temporary Vitest JSON retention limits remain as previously disclosed;
+the focused JSON and actual .NET TRX are separately retained originals.
+
+A fresh current-source Linux ARM64 inert regression passes all seven scenarios
+plus its summary, with no forced shutdown, OOM or invalid diagnostic line. Actual
+stopped-container state and exact owned-container removal precede that narrow
+disposal credit. This is not initialized Next or hosted x64 qualification.
+Backend sources remain byte-identical to the previous strict build, twenty
+discovery commands and full 604-case Architecture proof; those are reused
+source-bound receipts, not newly executed backend suites. The current renderer
+and corpus commands additionally bind the changed frontend. Local SDK 10.0.302
+and hosted SDK 10.0.403 remain distinct.
+
+Standard 07 and the existing Registered cleanup rule describe these observations
+without promoting qualification. After the normal implementation commit, two
+new independent R1 reviewers inspect privacy, source semantics, actual evidence
+and the updated private source/proof gate. Verified fixes precede two new R2
+reviewers. Only a subsequent completely qualified A permits all-job B on the
+same source/tree/plan/toolchain/population. The earlier A remains failed and its
+causes unknown. Manual accessibility remains maintainer-deferred and unexecuted.
+No policy, clock, permission, runtime topology, capacity or worker-concurrency
+change is selected.

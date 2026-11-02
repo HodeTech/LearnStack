@@ -64,6 +64,11 @@ it('projects only closed ownership failure evidence and rejects dirty or oversiz
     group: 'workers',
     stage: 'worker-ordered-stop:hold-real-render',
     currentCase: 'worker-ordered-stop',
+    currentMode: 'development',
+    completedCaseCount: 4,
+    operation: 'retire',
+    rootHttpStatus: 200,
+    failureCode: 'ERR_ASSERTION',
     admissionReason: 'owner_busy',
     readiness: { reason: 'closed', elapsedMilliseconds: 10, ownerExitCode: 1, ownerSignal: 'none' },
     cleanupConfirmed: false,
@@ -79,6 +84,11 @@ it('projects only closed ownership failure evidence and rejects dirty or oversiz
     { ...clean, stage: canary },
     { ...clean, currentCase: canary },
     { ...clean, admissionReason: canary },
+    { ...clean, currentMode: canary },
+    { ...clean, operation: canary },
+    { ...clean, failureCode: canary },
+    { ...clean, completedCaseCount: canary },
+    { ...clean, rootHttpStatus: canary },
     { ...clean, retained: canary },
     { ...clean, group: canary },
     { ...clean, currentCase: null },
@@ -94,8 +104,95 @@ it('projects only closed ownership failure evidence and rejects dirty or oversiz
   expect(ownershipDiagnostic(JSON.stringify(zero), 'workers')).toMatchObject(zero);
   const pending = { ...clean, admissionReason: null, readiness: null };
   expect(ownershipDiagnostic(JSON.stringify(pending), 'workers')).toMatchObject(pending);
-  const absent = { ...pending, stage: 'build', currentCase: null };
+  const absent = {
+    ...pending,
+    stage: 'build',
+    currentCase: null,
+    currentMode: null,
+    rootHttpStatus: null,
+  };
   expect(ownershipDiagnostic(JSON.stringify(absent), 'workers')).toMatchObject(absent);
+  for (const [group, maximum] of [
+    ['startup', 17],
+    ['workers', 5],
+    ['recovery', 7],
+  ] as const) {
+    for (const completedCaseCount of [0, maximum]) {
+      const row = { ...absent, group, completedCaseCount };
+      expect(ownershipDiagnostic(JSON.stringify(row), group)).toMatchObject(row);
+    }
+    for (const completedCaseCount of [-1, maximum + 1, 1.5, null, '1'])
+      expect(
+        ownershipDiagnostic(JSON.stringify({ ...absent, group, completedCaseCount }), group),
+      ).toBeNull();
+  }
+  for (const currentMode of ['production', 'development']) {
+    const row = { ...clean, currentMode };
+    expect(ownershipDiagnostic(JSON.stringify(row), 'workers')).toMatchObject(row);
+  }
+  for (const dirty of [
+    { ...clean, currentMode: null },
+    { ...absent, currentMode: 'production' },
+    { ...absent, rootHttpStatus: 200 },
+    ...[-1, 99, 600, 1.5, '200', {}, []].map((rootHttpStatus) => ({ ...clean, rootHttpStatus })),
+  ])
+    expect(ownershipDiagnostic(JSON.stringify(dirty), 'workers')).toBeNull();
+  for (const rootHttpStatus of [null, 100, 200, 503, 599]) {
+    const row = { ...clean, rootHttpStatus };
+    expect(ownershipDiagnostic(JSON.stringify(row), 'workers')).toMatchObject(row);
+  }
+  for (const failureCode of [
+    null,
+    'ERR_ASSERTION',
+    'ENOENT',
+    'ESRCH',
+    'EPERM',
+    'EACCES',
+    'ETIMEDOUT',
+    'ECONNRESET',
+    'ECONNREFUSED',
+    'EPIPE',
+  ]) {
+    const row = { ...clean, failureCode };
+    expect(ownershipDiagnostic(JSON.stringify(row), 'workers')).toMatchObject(row);
+  }
+  for (const operation of [
+    'build',
+    'launch',
+    'ready',
+    'http-root',
+    'signal',
+    'retire',
+    'row',
+    'worker-request',
+    'worker-entered',
+    'worker-identity',
+    'records',
+    'worker-fault',
+    'runtime-absent',
+    'competitor',
+    'worker-release',
+    'worker-response',
+    'worker-returned',
+    'owner-completed',
+    'restart-build',
+    'cleanup',
+  ]) {
+    const row = { ...clean, operation };
+    expect(ownershipDiagnostic(JSON.stringify(row), 'workers')).toMatchObject(row);
+  }
+  for (const key of Object.keys(clean)) {
+    const dirty: Record<string, unknown> = { ...clean };
+    delete dirty[key];
+    expect(ownershipDiagnostic(JSON.stringify(dirty), 'workers')).toBeNull();
+  }
+  const raw = JSON.stringify(clean);
+  expect(
+    ownershipDiagnostic(raw + ' '.repeat(2048 - Buffer.byteLength(raw)), 'workers'),
+  ).toMatchObject(clean);
+  expect(
+    ownershipDiagnostic(raw + ' '.repeat(2049 - Buffer.byteLength(raw)), 'workers'),
+  ).toBeNull();
   for (const reason of ['deadline', 'closed', 'error', 'shape'])
     for (const ownerSignal of ['none', 'SIGINT', 'SIGTERM', 'SIGKILL', 'other']) {
       const observed = {
@@ -164,6 +261,7 @@ it('projects router process classifications without exporting caught payloads', 
     status: null,
     signal: 'SIGTERM',
     elapsedMs: 10040,
+    completedControls: 0,
   });
   expect(JSON.stringify(observed)).not.toContain(canary);
   expect(routerDiagnostic(canary, bad, 1)).toBeNull();
@@ -228,6 +326,94 @@ it('projects router process classifications without exporting caught payloads', 
       1,
     ),
   ).toBeNull();
+});
+
+it('observes only a bounded contiguous TAP prefix without granting success or reading getters', () => {
+  const script = 'framework-router-fault.test.mjs';
+  const failed = (stdout: unknown) => ({
+    code: 'ETIMEDOUT',
+    status: 1,
+    signal: null,
+    stdout,
+    stderr: canary,
+    message: canary,
+  });
+  const observe = (stdout: unknown) => routerDiagnostic(script, failed(stdout), 10000);
+  const passed = (count: number) =>
+    Array.from({ length: count }, (_, index) => `ok ${index + 1} - ${canary}`).join('\n') + '\n';
+  for (const [name, maximum] of [
+    ['framework-router-fault.test.mjs', 31],
+    ['framework-router-fault-gate.test.mjs', 10],
+    ['framework-router-registration.test.mjs', 4],
+    ['framework-router-next-chain.test.mjs', 3],
+    ['framework-router-fault-prefix.test.mjs', 13],
+    ['framework-router-registration-capture.test.mjs', 9],
+  ] as const) {
+    const result = routerDiagnostic(name, failed(passed(maximum)), 10000);
+    expect(result).toMatchObject({ class: 'timeout', status: 1, completedControls: maximum });
+    expect(JSON.stringify(result)).not.toContain(canary);
+    expect(
+      routerDiagnostic(name, failed(passed(maximum + 1)), 10000)?.completedControls,
+    ).toBeNull();
+  }
+  expect(observe(passed(3) + `not ok 4 - ${canary}\nok 5 - ${canary}\n`)).toMatchObject({
+    class: 'timeout',
+    completedControls: 3,
+  });
+  expect(observe(`not ok 1 - ${canary}\n`)?.completedControls).toBe(0);
+  expect(observe('ok 1 - partial')?.completedControls).toBe(0);
+  expect(observe(passed(1) + 'ok 2 - partial')?.completedControls).toBe(1);
+  for (const stdout of ['', canary, `# ${canary}\n  ok 1 - ${canary}\n`])
+    expect(observe(stdout)?.completedControls).toBe(0);
+  expect(observe(passed(2).replaceAll('\n', '\r\n'))?.completedControls).toBe(2);
+  for (const stdout of [
+    `ok 2 - ${canary}\n`,
+    passed(1) + `ok 3 - ${canary}\n`,
+    passed(1) + `ok 1 - ${canary}\n`,
+    `ok 0 - ${canary}\n`,
+    `ok 01 - ${canary}\n`,
+    `ok 1 ${canary}\n`,
+    `ok 9007199254740992 - ${canary}\n`,
+    'x'.repeat(65537),
+    'é'.repeat(32769),
+    Buffer.alloc(65537),
+    Buffer.from([0xff]),
+    undefined,
+    null,
+    {},
+    [],
+    Object(passed(1)),
+    new Uint8Array([1]),
+  ])
+    expect(observe(stdout)?.completedControls).toBeNull();
+  const exact = passed(1) + '#'.repeat(65536 - Buffer.byteLength(passed(1)));
+  expect(observe(exact)?.completedControls).toBe(1);
+  expect(observe(Buffer.from(exact, 'utf8'))?.completedControls).toBe(1);
+  const padded = Buffer.from('XX' + passed(2) + 'YY');
+  expect(observe(padded.subarray(2, padded.length - 2))?.completedControls).toBe(2);
+  let reads = 0;
+  const getter = Object.defineProperty({ code: 'ETIMEDOUT' }, 'stdout', {
+    get() {
+      reads++;
+      throw new Error(canary);
+    },
+  });
+  expect(routerDiagnostic(script, getter, 10000)?.completedControls).toBeNull();
+  const inherited = Object.create({ stdout: passed(1) });
+  expect(routerDiagnostic(script, inherited, 10000)?.completedControls).toBeNull();
+  const bytes = Buffer.from(passed(2), 'utf8');
+  for (const name of ['toString', 'length', 'byteLength', 'byteOffset', 'buffer'])
+    Object.defineProperty(bytes, name, {
+      get() {
+        reads++;
+        throw new Error(canary);
+      },
+    });
+  const result = observe(bytes);
+  expect(result?.completedControls).toBe(2);
+  expect(reads).toBe(0);
+  expect(JSON.stringify(result)).not.toContain(canary);
+  expect(routerDiagnostic(script, { code: 'ETIMEDOUT' }, 10000)?.completedControls).toBeNull();
 });
 
 // The receiver intentionally revalidates. Its finite set must track the actual validator.
@@ -341,7 +527,7 @@ it('keeps receiver cases, stages and admission reasons equal to matrix authority
     [receiverCases, matrixCases],
     [receiverReasons, matrixReasons],
     [receiverStages, matrixStages],
-    ...['readinessReasons', 'ownerSignals'].map(
+    ...['readinessReasons', 'ownerSignals', 'operations', 'failureCodes'].map(
       (name) =>
         [
           Array.from(runInNewContext(initializer(receiver, name)) as string[]),
@@ -353,6 +539,59 @@ it('keeps receiver cases, stages and admission reasons equal to matrix authority
     expect(actual.slice(1)).not.toEqual(expected);
     expect([...actual, canary]).not.toEqual(expected);
   }
+  expect(runInNewContext('(' + initializer(receiver, 'completedCaseMaximum') + ')')).toEqual(
+    runInNewContext('(' + initializer(matrix, 'completedCaseMaximum') + ')'),
+  );
+  const routerWrapper = readFileSync(
+    new URL('./framework-router-faults.test.ts', import.meta.url),
+    'utf8',
+  );
+  function routerCaps(text: string) {
+    const file = ts.createSourceFile(
+      'router.ts',
+      text,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TS,
+    );
+    const entries: Array<readonly [string, number]> = [];
+    function visit(node: ts.Node) {
+      if (ts.isForOfStatement(node) && node.initializer.getText(file) === 'const [script, count]') {
+        const expression = ts.isAsExpression(node.expression)
+          ? node.expression.expression
+          : node.expression;
+        expect(ts.isArrayLiteralExpression(expression)).toBe(true);
+        if (!ts.isArrayLiteralExpression(expression))
+          throw new Error('Router control census refused');
+        for (const entry of expression.elements) {
+          expect(ts.isArrayLiteralExpression(entry)).toBe(true);
+          if (!ts.isArrayLiteralExpression(entry) || entry.elements.length !== 2)
+            throw new Error('Router control census refused');
+          const [name, count] = entry.elements;
+          if (!name || !count || !ts.isStringLiteral(name) || !ts.isNumericLiteral(count))
+            throw new Error('Router control census refused');
+          entries.push([name.text, Number(count.text)]);
+        }
+      }
+      ts.forEachChild(node, visit);
+    }
+    visit(file);
+    expect(entries).toHaveLength(6);
+    return Object.fromEntries(entries);
+  }
+  const receiverCaps = runInNewContext('(' + initializer(receiver, 'scriptCaps') + ')');
+  expect(receiverCaps).toEqual(routerCaps(routerWrapper));
+  expect(Object.keys(receiverCaps)).toEqual(
+    Array.from(runInNewContext(initializer(receiver, 'scripts'))),
+  );
+  expect(receiverCaps).not.toEqual(
+    routerCaps(
+      routerWrapper.replace(
+        "['framework-router-fault.test.mjs', 31]",
+        "['framework-router-fault.test.mjs', 30]",
+      ),
+    ),
+  );
 });
 
 it('keeps the validated matrix projection before the single bounded stdout write', () => {
@@ -426,6 +665,11 @@ it('keeps the validated matrix projection before the single bounded stdout write
       'group',
       'stage',
       'currentCase',
+      'currentMode',
+      'completedCaseCount',
+      'operation',
+      'rootHttpStatus',
+      'failureCode',
       'admissionReason',
       'readiness',
       'cleanupConfirmed',
@@ -520,6 +764,11 @@ it('keeps actual wrapper failures generic while emitting finite observations', a
       group: 'workers',
       stage: 'worker-ordered-stop:hold-real-render',
       currentCase: 'worker-ordered-stop',
+      currentMode: 'development',
+      completedCaseCount: 4,
+      operation: 'retire',
+      rootHttpStatus: 200,
+      failureCode: 'ERR_ASSERTION',
       admissionReason: 'owner_busy',
       readiness: {
         reason: 'closed',

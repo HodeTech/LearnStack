@@ -6538,11 +6538,17 @@ Prior receipts do not qualify subsequent source changes.
   A leased `.next` directory alone does not prove a compiler started; failed or
   forced test shutdown cannot authorize recursive deletion of retained records.
   Failure diagnostics project the existing fully validated ownership capsule
-  before exposing only finite stage/case/reason and cleanup observations. A
+  before exposing only finite stage/case/mode/count, last marked operation,
+  root HTTP status, allowlisted own-data failure code and cleanup observations.
+  Per-launch status reset and independent exact-schema/range controls prevent
+  stale or unvalidated values from entering the projection. The operation is
+  a last marked span, not an exact fault location or new completion evidence. A
   branded readiness failure preserves its closed reason, bounded elapsed time
   and primitive outer-owner/proof-channel status, without claiming runtime-child
   retirement. Router source controls expose fixed names and bounded primitive
-  classifications, without raw caught payloads. Closed-error and reporter canary
+  classifications and a bounded observed TAP prefix, without raw caught
+  payloads or stdout text. Unavailable/buffered progress is not proof of no work;
+  observed progress cannot qualify a failed process. Closed-error and reporter canary
   controls preserve that boundary, including actual copied-wrapper children,
   dirty schemas and a sink closed after the observed child result. Diagnostic
   completion never establishes fixture-family retirement.

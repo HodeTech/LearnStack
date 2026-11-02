@@ -105,6 +105,11 @@ async function withFailureValidator(source, run) {
   assert.equal(file.parseDiagnostics.length, 0);
   const names = new Set([
     'exact',
+    'groups',
+    'operations',
+    'failureCodes',
+    'completedCaseMaximum',
+    'failureCodeObservation',
     'eventNames',
     'admissionReasons',
     'readinessReasons',
@@ -164,7 +169,7 @@ async function withFailureValidator(source, run) {
         JSON.stringify(ownershipMatrixCases) +
         ';\n' +
         selected.join('\n') +
-        '\nexport {validateFailureEvidence, projectFailureEvidence, listenerFailureObservation, listenerFailures};\n',
+        '\nexport {validateFailureEvidence, projectFailureEvidence, listenerFailureObservation, listenerFailures, failureCodeObservation};\n',
       { flag: 'wx', mode: 0o600 },
     );
     const module = await import(pathToFileURL(path).href);
@@ -173,10 +178,80 @@ async function withFailureValidator(source, run) {
     rmSync(root, { recursive: true, force: true });
   }
 }
+function assertDiagnosticWiring(source) {
+  const file = ts.createSourceFile(
+    'matrix.mjs',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.JS,
+  );
+  const functions = new Map();
+  function visit(node) {
+    if (ts.isFunctionDeclaration(node) && node.name) functions.set(node.name.text, node);
+    ts.forEachChild(node, visit);
+  }
+  visit(file);
+  const statements = (name) =>
+    functions.get(name).body.statements.map((node) => node.getText(file).replace(/\s+/g, ''));
+  assert.deepEqual(statements('launch').slice(0, 2), [
+    "operation='launch';",
+    'rootHttpStatus=null;',
+  ]);
+  for (const name of ['ready', 'worker']) {
+    const body = statements(name);
+    const ready = body.indexOf('awaitrunning.ready;');
+    assert.equal(body[ready - 1], "operation='ready';");
+    assert.deepEqual(
+      body.slice(ready + 1, ready + 6),
+      [
+        "operation='http-root';",
+        "constresponse=awaitown(running.get('/'));",
+        'conststatus=response.status;',
+        'rootHttpStatus=Number.isSafeInteger(status)&&status>=100&&status<=599?status:null;',
+        'assert.equal(status,200);',
+      ],
+      name + ' observes one real root response before the original assertion',
+    );
+  }
+  const entry = functions.get('runPrivateMatrix');
+  const caught = entry.body.statements.findLast(ts.isTryStatement).catchClause;
+  assert.equal(caught.variableDeclaration.name.getText(file), 'error');
+  assert.deepEqual(
+    caught.block.statements.slice(0, 2).map((node) => node.getText(file).replace(/\s+/g, '')),
+    ['failureCode=failureCodeObservation(error);', 'constevidence=failureEvidence();'],
+  );
+  const snapshot = functions
+    .get('failureEvidence')
+    .body.statements.find(
+      (node) =>
+        ts.isVariableStatement(node) &&
+        node.declarationList.declarations[0].name.getText(file) === 'evidence',
+    ).declarationList.declarations[0].initializer;
+  const values = new Map(
+    snapshot.properties.map((node) => [
+      node.name.getText(file),
+      ts.isShorthandPropertyAssignment(node)
+        ? node.name.getText(file)
+        : node.initializer.getText(file),
+    ]),
+  );
+  assert.equal(values.get('operation'), 'operation');
+  assert.equal(values.get('failureCode'), 'failureCode');
+  assert.equal(values.get('rootHttpStatus'), 'null');
+  assert.ok(
+    statements('failureEvidence').some((value) =>
+      value.includes('if(evidence.current!==null)evidence.rootHttpStatus=rootHttpStatus;'),
+    ),
+  );
+}
 function failureCapsule() {
   return {
     group: 'workers',
     stage: 'worker-ordered-stop:hold-real-render',
+    operation: 'worker-entered',
+    rootHttpStatus: 200,
+    failureCode: null,
     current: {
       case: 'worker-ordered-stop',
       mode: 'development',
@@ -235,6 +310,23 @@ test('failure and deadline paths share the actual closed held-render validator; 
   }
   visit(entry);
   assert.deepEqual(paths, ['deadline', 'failure']);
+  assertDiagnosticWiring(source);
+  for (const [anchor, mutant] of [
+    ['failureCode = failureCodeObservation(error);', 'failureCode = null;'],
+    [
+      "operation = 'launch';\n    rootHttpStatus = null;",
+      "operation = 'launch';\n    rootHttpStatus = 200;",
+    ],
+    ['const status = response.status;', 'const status = 200;'],
+    ['rootHttpStatus = rootHttpStatus', 'rootHttpStatus = null'],
+  ]) {
+    assert.ok(source.includes(anchor));
+    assert.throws(
+      () => assertDiagnosticWiring(source.replace(anchor, mutant)),
+      'actual observation wiring mutant is refused',
+    );
+  }
+
   await withFailureValidator(source, (validate, project, observations) => {
     for (const path of paths)
       assert.doesNotThrow(
@@ -255,12 +347,129 @@ test('failure and deadline paths share the actual closed held-render validator; 
       group: 'workers',
       stage: 'worker-ordered-stop:hold-real-render',
       currentCase: 'worker-ordered-stop',
+      currentMode: 'development',
+      completedCaseCount: 0,
+      operation: 'worker-entered',
+      rootHttpStatus: 200,
+      failureCode: null,
       admissionReason: null,
       readiness: null,
       retained: true,
       cleanupConfirmed: false,
     });
     assert.doesNotMatch(JSON.stringify(project(clean, 'workers')), /pid|8765|1234/i);
+    for (const code of [
+      'ERR_ASSERTION',
+      'ENOENT',
+      'ESRCH',
+      'EPERM',
+      'EACCES',
+      'ETIMEDOUT',
+      'ECONNRESET',
+      'ECONNREFUSED',
+      'EPIPE',
+    ]) {
+      const error = Object.create(null, { code: { value: code } });
+      assert.equal(observations.failureCodeObservation(error), code);
+      const capsule = structuredClone(clean);
+      capsule.failureCode = code;
+      assert.equal(project(capsule, 'workers').failureCode, code);
+    }
+    let privateReads = 0;
+    const dirtyError = { code: 'ERR_ASSERTION' };
+    for (const key of ['stack', 'message', 'cause'])
+      Object.defineProperty(dirtyError, key, {
+        get() {
+          privateReads++;
+          throw new Error('PRIVATE-CANARY');
+        },
+      });
+    assert.equal(observations.failureCodeObservation(dirtyError), 'ERR_ASSERTION');
+    Object.defineProperty(dirtyError, 'code', {
+      get() {
+        privateReads++;
+        throw new Error('PRIVATE-CANARY');
+      },
+    });
+    assert.equal(observations.failureCodeObservation(dirtyError), null);
+    assert.equal(privateReads, 0, 'no error getter, stack, message or cause is inspected');
+    for (const error of [
+      null,
+      undefined,
+      'PRIVATE-CANARY',
+      1,
+      Object.create({ code: 'ERR_ASSERTION' }),
+      { code: 'PRIVATE-CANARY' },
+      { code: Object('ERR_ASSERTION') },
+      new Proxy(
+        {},
+        {
+          getOwnPropertyDescriptor() {
+            throw new Error('PRIVATE-CANARY');
+          },
+        },
+      ),
+    ])
+      assert.equal(observations.failureCodeObservation(error), null);
+    for (const key of ['operation', 'rootHttpStatus', 'failureCode']) {
+      const omitted = structuredClone(clean);
+      delete omitted[key];
+      assert.throws(() => project(omitted, 'workers'));
+    }
+    for (const [key, values] of [
+      ['operation', [null, undefined, '', 'PRIVATE-CANARY', 1, Object('ready')]],
+      ['failureCode', [undefined, '', 'PRIVATE-CANARY', 1, Object('ERR_ASSERTION')]],
+      ['rootHttpStatus', [undefined, 99, 600, 200.5, NaN, Infinity, '200', Object(200)]],
+    ])
+      for (const value of values) {
+        const dirty = structuredClone(clean);
+        dirty[key] = value;
+        assert.throws(() => project(dirty, 'workers'));
+      }
+    for (const status of [null, 100, 200, 404, 599]) {
+      const capsule = structuredClone(clean);
+      capsule.rootHttpStatus = status;
+      assert.equal(project(capsule, 'workers').rootHttpStatus, status);
+    }
+    for (const [group, maximum, scenario] of [
+      ['startup', 17, 'ready-term'],
+      ['workers', 5, 'worker-positive'],
+      ['recovery', 7, 'prepare-disconnect'],
+    ]) {
+      const capsule = {
+        ...failureCapsule(),
+        group,
+        stage: 'build',
+        operation: 'build',
+        current: null,
+        rootHttpStatus: null,
+      };
+      const completed = {
+        case: scenario,
+        mode: group === 'workers' ? 'development' : 'production',
+        events: [],
+        ownerReceipt: null,
+        productionManifest: {
+          sha256: 'a'.repeat(64),
+          inputs: 1,
+          outputs: 1,
+          node: '22.23.1',
+          pnpm: '9.12.3',
+        },
+        outcome: { forced: false, ownerCode: 0, ownerSignal: null },
+      };
+      capsule.completedCases = Array(maximum).fill(completed);
+      const projected = project(capsule, group);
+      assert.equal(projected.completedCaseCount, maximum);
+      assert.equal(projected.currentCase, null);
+      assert.equal(projected.currentMode, null);
+      assert.equal(projected.rootHttpStatus, null);
+      capsule.rootHttpStatus = 200;
+      assert.throws(() => project(capsule, group), 'no status without validated current case');
+      capsule.rootHttpStatus = null;
+      capsule.completedCases.push(completed);
+      assert.throws(() => project(capsule, group), 'each group has its own case-count bound');
+    }
     const branded = Object.freeze({
       reason: 'deadline',
       elapsedMilliseconds: 20000,

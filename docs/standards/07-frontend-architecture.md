@@ -787,15 +787,25 @@ Missing handles, changed records or unknown retirement retain roots. Runtime
 families separately; no two-second runtime SIGKILL fallback or cached-PGID rescue
 supplies cleanup. BFF lifeline/parent-watch controls obey the same boundary.
 
-Copied ownership proof failures project only the validated finite group, stage,
-case, admission reason and cleanup/retention observations. A branded listener
-failure adds its closed readiness reason, bounded elapsed time and primitive
-owner/proof-channel exit/signal observation. This observes the outer owner, not
-the actual runtime child's retirement. Router source-control failures expose
-only their fixed script/counter, primitive process classification and bounded
-elapsed time. Raw child output, causes, process identities and record nonces stay
-private; the proof still throws its existing closed error. These observations
-grant no cleanup, ownership or successful-result authority.
+Copied ownership proof failures validate their complete private capsule before
+projecting finite group, stage, case, mode, completed-case count, last marked
+operation, root HTTP status, allowlisted failure code and cleanup/retention
+observations. Root HTTP status is reset on every launch and observes only that
+fixture's `GET /`, without its body or headers. Failure codes come only from own
+data properties; error getters, messages, stacks and causes are not evidence.
+An operation marker identifies the last instrumented span, not necessarily the
+exact failed statement. A branded listener failure adds its closed readiness
+reason, bounded elapsed time and primitive owner/proof-channel exit/signal
+observation. This observes the outer owner, not the actual runtime child's
+retirement. Null readiness proves neither readiness success nor failure.
+Router source-control failures expose only their fixed script/counter, primitive
+process classification, bounded elapsed time and observed contiguous TAP control
+prefix. That prefix is read from bounded captured stdout without exposing its
+text; unavailable or malformed capture remains unknown. Missing or buffered TAP
+does not establish that no work ran. Raw child output, causes, process identities
+and record nonces stay private; the proof still throws its existing closed
+error. None of these observations grants completion, cleanup, ownership or
+successful-result authority.
 
 ## Routing
 

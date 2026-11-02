@@ -30,6 +30,40 @@ import { createQualifiedPrivateFrameworkSource } from './framework-private-sourc
 import { FRAMEWORK_FRONTEND_ROOT } from '../../../scripts/framework-installation.mjs';
 
 const groups = ['startup', 'workers', 'recovery'];
+const completedCaseMaximum = { startup: 17, workers: 5, recovery: 7 };
+const operations = [
+  'build',
+  'launch',
+  'ready',
+  'http-root',
+  'signal',
+  'retire',
+  'row',
+  'worker-request',
+  'worker-entered',
+  'worker-identity',
+  'records',
+  'worker-fault',
+  'runtime-absent',
+  'competitor',
+  'worker-release',
+  'worker-response',
+  'worker-returned',
+  'owner-completed',
+  'restart-build',
+  'cleanup',
+];
+const failureCodes = [
+  'ERR_ASSERTION',
+  'ENOENT',
+  'ESRCH',
+  'EPERM',
+  'EACCES',
+  'ETIMEDOUT',
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'EPIPE',
+];
 const admissionReasons = [
   'unobserved',
   'owner_busy',
@@ -189,8 +223,40 @@ function listenerFailureObservation(error) {
     return null; // Diagnostic failure cannot alter the already failed readiness promise.
   }
 }
+// Only an own data descriptor supplies a finite code; never invoke an error getter.
+function failureCodeObservation(error) {
+  try {
+    if (error === null || (typeof error !== 'object' && typeof error !== 'function')) return null;
+    const descriptor = Object.getOwnPropertyDescriptor(error, 'code');
+    if (!descriptor || !Object.hasOwn(descriptor, 'value')) return null;
+    const code = descriptor.value;
+    return failureCodes.includes(code) ? code : null;
+  } catch {
+    return null; // Observation failure preserves the original failure and cleanup path.
+  }
+}
 function validateFailureEvidence(evidence, group) {
-  exact(evidence, ['group', 'stage', 'current', 'completedCases', 'retained', 'cleanupConfirmed']);
+  exact(evidence, [
+    'group',
+    'stage',
+    'current',
+    'completedCases',
+    'retained',
+    'cleanupConfirmed',
+    'operation',
+    'rootHttpStatus',
+    'failureCode',
+  ]);
+  assert.ok(groups.includes(group));
+  assert.ok(operations.includes(evidence.operation));
+  assert.ok(evidence.failureCode === null || failureCodes.includes(evidence.failureCode));
+  assert.ok(
+    evidence.rootHttpStatus === null ||
+      (Number.isSafeInteger(evidence.rootHttpStatus) &&
+        evidence.rootHttpStatus >= 100 &&
+        evidence.rootHttpStatus <= 599),
+  );
+  if (evidence.current === null) assert.equal(evidence.rootHttpStatus, null);
   assert.equal(evidence.group, group);
   const stages = [
     'build',
@@ -209,7 +275,10 @@ function validateFailureEvidence(evidence, group) {
   }
   assert.equal(typeof evidence.retained, 'boolean');
   assert.equal(typeof evidence.cleanupConfirmed, 'boolean');
-  assert.ok(Array.isArray(evidence.completedCases) && evidence.completedCases.length <= 17);
+  assert.ok(
+    Array.isArray(evidence.completedCases) &&
+      evidence.completedCases.length <= completedCaseMaximum[group],
+  );
   for (const value of evidence.completedCases) validateCompletedCase(value);
   if (evidence.current !== null) {
     exact(evidence.current, [
@@ -240,6 +309,11 @@ function projectFailureEvidence(evidence, group) {
     group: evidence.group,
     stage: evidence.stage,
     currentCase: evidence.current?.case ?? null,
+    currentMode: evidence.current?.mode ?? null,
+    completedCaseCount: evidence.completedCases.length,
+    operation: evidence.operation,
+    rootHttpStatus: evidence.rootHttpStatus,
+    failureCode: evidence.failureCode,
     admissionReason: evidence.current?.admissionReason ?? null,
     readiness: evidence.current?.readiness ?? null,
     cleanupConfirmed: evidence.cleanupConfirmed,
@@ -399,6 +473,10 @@ async function runPrivateMatrix(group) {
   const fixtures = [];
   const results = [];
   let stage = 'build';
+  // Last entered operation, not a claim that the operation caused the failure.
+  let operation = 'build';
+  let rootHttpStatus = null;
+  let failureCode = null;
   let cancelling = false;
   const own = (promise) => {
     pending.push(promise);
@@ -529,6 +607,9 @@ async function runPrivateMatrix(group) {
       completedCases,
       retained: true,
       cleanupConfirmed: false,
+      operation,
+      rootHttpStatus: null,
+      failureCode,
     };
     const current = fixtures.findLast((value) => value.current);
     try {
@@ -541,12 +622,15 @@ async function runPrivateMatrix(group) {
           admissionReason: current.current.admissionReason,
           readiness: current.current.readiness,
         };
+      if (evidence.current !== null) evidence.rootHttpStatus = rootHttpStatus;
     } catch {
       /* Malformed observations are never emitted as evidence. */
     }
     return evidence;
   }
   function launch(value, mode, scenario) {
+    operation = 'launch';
+    rootHttpStatus = null;
     assert.ok(ownershipMatrixCases.includes(scenario));
     for (const name of readdirSync(value.controls)) rmSync(join(value.controls, name));
     writeFileSync(join(value.controls, 'events.jsonl'), '', { mode: 0o600 });
@@ -567,6 +651,7 @@ async function runPrivateMatrix(group) {
     return running;
   }
   function records(value) {
+    operation = 'records';
     const snapshots = value.current.running.server.broker.records();
     assert.equal(snapshots?.length, 3);
     for (const record of snapshots) {
@@ -581,6 +666,7 @@ async function runPrivateMatrix(group) {
       assert.equal(readOwnershipObservation(record.path, 4096), record.bytes);
   }
   function row(value, outcome, extra = {}) {
+    operation = 'row';
     const { mode, scenario, running } = value.current;
     const actual = ownerReceipt(value);
     const observations = events(value);
@@ -618,6 +704,7 @@ async function runPrivateMatrix(group) {
     }
   }
   async function retire(value, expectedCode) {
+    operation = 'retire';
     const running = value.current.running;
     const result = await scope.retire(running.server, expectedCode);
     assert.ok(
@@ -629,13 +716,19 @@ async function runPrivateMatrix(group) {
   }
   async function ready(value, mode, scenario, staleBroker) {
     const running = launch(value, mode, scenario);
+    operation = 'ready';
     await running.ready;
-    assert.equal((await own(running.get('/'))).status, 200);
+    operation = 'http-root';
+    const response = await own(running.get('/'));
+    const status = response.status;
+    rootHttpStatus = Number.isSafeInteger(status) && status >= 100 && status <= 599 ? status : null;
+    assert.equal(status, 200);
     if (staleBroker) {
       const current = records(value);
       assert.throws(() => staleBroker.reconcile(), /evidence refused/);
       unchanged(current);
     }
+    operation = 'signal';
     running.server.process.kill(scenario === 'ready-int' ? 'SIGINT' : 'SIGTERM');
     const outcome = await retire(value, 0);
     row(value, outcome, { staleCaptureRefused: Boolean(staleBroker) });
@@ -747,8 +840,10 @@ async function runPrivateMatrix(group) {
     row(value, outcome, { cleanupRefused: true, retained: true, receiptIsObservationOnly: true });
   }
   async function competing(value) {
+    operation = 'competitor';
     const held = records(value);
     for (const mode of ['production', 'development']) {
+      operation = 'competitor';
       const other = value.prepared.launch(mode);
       scope.track(other.server);
       own(other.ready);
@@ -759,15 +854,23 @@ async function runPrivateMatrix(group) {
   }
   async function worker(value, scenario) {
     const running = launch(value, 'development', scenario);
+    operation = 'ready';
     await running.ready;
-    assert.equal((await own(running.get('/'))).status, 200);
+    operation = 'http-root';
+    const response = await own(running.get('/'));
+    const status = response.status;
+    rootHttpStatus = Number.isSafeInteger(status) && status >= 100 && status <= 599 ? status : null;
+    assert.equal(status, 200);
     let settled = false;
+    operation = 'worker-request';
     const request = own(
       running.get('/en/courses/ownership').finally(() => {
         settled = true;
       }),
     );
+    operation = 'worker-entered';
     await until(() => has(value, 'worker-entered'));
+    operation = 'worker-identity';
     const entered = events(value).find((event) => event.event === 'worker-entered');
     const family = running.server.broker.capture.family();
     assert.equal(entered.parentPid, family.pid);
@@ -804,9 +907,11 @@ async function runPrivateMatrix(group) {
     }
     if (scenario !== 'worker-positive') {
       stage = scenario + ':direct-exit';
+      operation = 'worker-fault';
       if (scenario === 'worker-ordered-stop') running.server.process.kill('SIGTERM');
       else if (scenario === 'worker-owner-death') running.server.process.kill('SIGKILL');
       else release(value, 'fault');
+      operation = 'runtime-absent';
       await until(() => absent(family.pid));
       assert.equal(
         absent(entered.pid),
@@ -903,7 +1008,9 @@ async function runPrivateMatrix(group) {
       }
     }
     stage = scenario + ':worker-release';
+    operation = 'worker-release';
     release(value, 'worker');
+    operation = 'worker-response';
     if (scenario === 'worker-positive') {
       const response = await request;
       assert.equal(response.status, 200);
@@ -916,6 +1023,7 @@ async function runPrivateMatrix(group) {
         'actual held render response is interrupted',
       );
     }
+    operation = 'worker-returned';
     await until(() => has(value, 'worker-returned') && absent(entered.pid));
     const returned = events(value).filter((event) => event.event === 'worker-returned');
     assert.equal(returned.length, 1);
@@ -935,6 +1043,7 @@ async function runPrivateMatrix(group) {
           }
           return actualKill(pid, signal);
         };
+        operation = 'retire';
         joining = own(scope.observeExpectedOwnerDeath(running.server));
         await until(() => uncertainObservations > 0);
         assert.equal(running.server.broker.capture.retired(), false);
@@ -946,7 +1055,11 @@ async function runPrivateMatrix(group) {
       }
       outcome = await joining;
     } else {
-      if (scenario === 'worker-positive') running.server.process.kill('SIGTERM');
+      if (scenario === 'worker-positive') {
+        operation = 'signal';
+        running.server.process.kill('SIGTERM');
+      }
+      operation = 'owner-completed';
       await running.server.completed;
       const receipt = ownerReceipt(value);
       assert.ok(receipt && receipt.directChildClosed && receipt.groupAbsent);
@@ -1064,6 +1177,7 @@ async function runPrivateMatrix(group) {
           release(value, 'prepare');
           if (scenario === 'prepare-disconnect') row(value, await retire(value, 1));
           else {
+            operation = 'retire';
             const outcome = await scope.observeExpectedOwnerDeath(running.server);
             const negatives = await recoveryNegatives(value);
             row(value, outcome, negatives);
@@ -1072,12 +1186,14 @@ async function runPrivateMatrix(group) {
       const staleBroker = await worker(value, 'worker-owner-death');
       const negatives = await recoveryNegatives(value);
       results[results.length - 1].recovery = negatives;
+      operation = 'restart-build';
       stage = 'restart:build';
       await value.prepared.rebuild();
       preserveManifest(value);
       await ready(value, 'production', 'ready-term', staleBroker);
       await ready(value, 'development', 'ready-term', staleBroker);
     }
+    operation = 'cleanup';
     stage = 'cleanup';
     await Promise.allSettled(pending);
     const disposition = await scope.dispose();
@@ -1092,7 +1208,8 @@ async function runPrivateMatrix(group) {
     process.off('SIGTERM', cancel);
     process.off('SIGINT', cancel);
     process.stdout.write(JSON.stringify(receipt) + '\n');
-  } catch {
+  } catch (error) {
+    failureCode = failureCodeObservation(error);
     const evidence = failureEvidence();
     releaseCleanup();
     try {
