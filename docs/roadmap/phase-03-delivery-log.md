@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 7,076 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 7,113 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -272,6 +272,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 corrective R2 source review closeout and renewed qualification (2026-11-02)](#p03-3-corrective-r2-source-review-closeout-and-renewed-qualification-2026-11-02) — 38 lines
   - [P03-3 28ff hosted A originals and cold lint diagnosis (2026-11-02)](#p03-3-28ff-hosted-a-originals-and-cold-lint-diagnosis-2026-11-02) — 58 lines
   - [P03-3 cold lint output correction and local validation (2026-11-02)](#p03-3-cold-lint-output-correction-and-local-validation-2026-11-02) — 54 lines
+  - [P03-3 cold lint R1 review closeout (2026-11-02)](#p03-3-cold-lint-r1-review-closeout-2026-11-02) — 37 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -12891,3 +12892,40 @@ verified fixes are committed before two new R2 reviewers. Only then can a new
 final-source freeze and complete hosted A/B qualify the combined work. Manual
 accessibility remains maintainer-deferred and unexecuted. The hosted frontend
 inner failure remains unattributed.
+
+### P03-3 cold lint R1 review closeout (2026-11-02)
+
+The normal seven-file correction commit is
+`aaa86cdb51a797f299b776362a2dd7f8ea586f03`, tree
+`72a319c4f9e9cf5940baeee8dc8d905712eccbd5`. Normal hooks pass and its pre-hook
+and committed trees agree. The unrelated VS Code digest and five stash
+identities are preserved. Two new independent R1 reviewers inspect the full
+source/documentation change and adjacent ownership paths. The implementation
+owner fully reads both reports. Neither verifies an actionable Blocker, Major,
+Minor or Suggestion; no code correction is required by this round.
+
+- Lifetime/security report: `cold-lint-r1-lifetimes.md`, SHA-256
+  `15b6217afeb332fe96a712fdf7fb5cf7cc9e87688f5a08286227bafff751ac51`.
+  It traces actual target results, bounded capture, family joins, the shared
+  cancellation deadline, all three leases, real guard and unchanged dirty output.
+- Evidence/documentation report: `cold-lint-r1-evidence.md`, SHA-256
+  `ad5b93e88814fb4db974fb7c849092aad2436cde4ee59dc13aee24d71e80b455`.
+  It independently reconciles current receipts, streams, TRX, source maps,
+  appended history and normal-commit identity. The original zero-case corpus
+  result remains uncredited; the real corrective five-case TRX supplies the pass.
+
+The evidence reviewer fully reads the final 395-line private freeze helper,
+SHA-256 `733236ee70ebbdaa996b0b6e939cd60fec7221aa83dea164ebd2496d21ee5990`,
+and executes only its read-only prefix on the reviewed commit. All 93 proof
+files, 423 frontend inputs, 20 supplemental inputs, 1,982 backend inputs, the
+59-file installed census, 7,949-case manifest and both distinct 20-owner
+assignments verify. No envelope is published. Final-helper invalid-HEAD and
+optimized-execution controls refuse; all nine older envelopes remain unchanged.
+The optional exclusive normal-push/full-A dispatch helper is source-reviewed
+without execution.
+
+This documentation-only closeout precedes two new independent R2 source reviews.
+A final-source freeze and complete hosted A/B remain open. The failed 28ff A,
+local counterfactual and unchanged-backend proof retain their recorded limits;
+the hosted inner cause remains unknown. Manual accessibility remains
+maintainer-deferred and unexecuted.
