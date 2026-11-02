@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,617 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,634 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -260,7 +260,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0085 proposal R2 closeout and approval readiness (2026-11-02)](#adr-0085-proposal-r2-closeout-and-approval-readiness-2026-11-02) — 26 lines
   - [P03-3 pnpm transport R1 closeout and runtime attribution (2026-11-02)](#p03-3-pnpm-transport-r1-closeout-and-runtime-attribution-2026-11-02) — 24 lines
   - [P03-3 pnpm transport R2 review closeout (2026-11-02)](#p03-3-pnpm-transport-r2-review-closeout-2026-11-02) — 28 lines
-  - [ADR-0085 maintainer corrections, acceptance and Step 1 (2026-11-02)](#adr-0085-maintainer-corrections-acceptance-and-step-1-2026-11-02) — 42 lines
+  - [ADR-0085 maintainer corrections, acceptance and Step 1 (2026-11-02)](#adr-0085-maintainer-corrections-acceptance-and-step-1-2026-11-02) — 43 lines
+  - [ADR-0085 Step 1 R1 and decision-index correction (2026-11-02)](#adr-0085-step-1-r1-and-decision-index-correction-2026-11-02) — 16 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -12421,3 +12422,20 @@ status does not promote this new extension; its controls await Step 2 and its
 hosted proof awaits Step 3. Executable workflow clocks remain 20/17 in Step 1;
 acceptance is neither implementation nor evidence that 22/19 fits. Manual
 keyboard/focus/reflow/contrast/VoiceOver remains deferred and unexecuted.
+
+
+### ADR-0085 Step 1 R1 and decision-index correction (2026-11-02)
+
+The nine-document acceptance commit is `aeeaaa0b`. Two fresh independent R1
+reviewers inspect its policy/corpus and contracts/testability/evidence boundaries.
+One verified Minor is corrected: the blank line before ADR-0085 in the decision
+index split the Active table; the row is now contiguous with its predecessor.
+No other verified finding remains. The parent reads both reports in full.
+
+The three predecessor ADR prefixes and reference tails remain byte-identical;
+only their own dated amendments are inserted. Workflow, shell-test and both
+current guide bytes are unchanged, as planned for Step 2. Acceptance checks pass:
+3,187 fragment links, roadmap structure, three current indexes and all seven
+ADR-status controls; the real lifecycle parser reads ADR-0085 as Accepted.
+These are source/document checks, not implementation or hosted qualification.
+A new independent R2 follows this correction before clock implementation.
