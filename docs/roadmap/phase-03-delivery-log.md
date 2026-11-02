@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,294 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,339 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -251,7 +251,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0084 Step 3 generated-route path correction and second execution (2026-11-02)](#adr-0084-step-3-generated-route-path-correction-and-second-execution-2026-11-02) — 40 lines
   - [ADR-0084 Step 3 native drain-point correction (2026-11-02)](#adr-0084-step-3-native-drain-point-correction-2026-11-02) — 34 lines
   - [ADR-0084 Step 3 initialized-router R1 qualification corrections (2026-11-02)](#adr-0084-step-3-initialized-router-r1-qualification-corrections-2026-11-02) — 50 lines
-  - [ADR-0084 Step 3 R1 corrective validation closeout (2026-11-02)](#adr-0084-step-3-r1-corrective-validation-closeout-2026-11-02) — 21 lines
+  - [ADR-0084 Step 3 R1 corrective validation closeout (2026-11-02)](#adr-0084-step-3-r1-corrective-validation-closeout-2026-11-02) — 22 lines
+  - [ADR-0084 Step 3 fresh R2 source-review closeout (2026-11-02)](#adr-0084-step-3-fresh-r2-source-review-closeout-2026-11-02) — 44 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -12089,3 +12090,48 @@ whole-corpus documentation checks also pass before the corrective commit. A
 fresh independent Step 3 R2 remains mandatory. The catalogue rule stays
 Registered, clean-runner demo and complete same-final-source hosted A/B remain
 open, and manual accessibility remains maintainer-deferred and unexecuted.
+
+
+### ADR-0084 Step 3 fresh R2 source-review closeout (2026-11-02)
+
+The R1 corrections are committed as `82761daa`, tree
+`89184a05d2fa4b94286a687f5f48f9af78d4a54f`, through normal hooks. All 32 owned
+file hashes and the pre-hook tree remain unchanged; the unrelated editor file
+and five existing stashes are preserved. Three new independent R2 reviewers
+cover patch/maps, lifetimes/initialized-router evidence, and privacy/CI/setup
+boundaries relative to closed Step 2 `0cd5f159`. Their bounded verdicts contain
+no verified Blocker, Major or Minor. The parent reads all three complete reports.
+
+The patch reviewer independently regenerates the same patch/census twice and
+checks all 59 subjects, 7,279 installed paths and 88 patch effects. Its map walk
+preserves 1,801,416 original segments and verifies 78,340 inserted mappings.
+Actual all-copy/drain/bodyless controls pass; the six listener fault controls
+fail the old owner and pass the correction. A private guard-omission mutant
+fails its actual drain control. These are causal component checks, not initialized
+Next branch execution. The lifetime reviewer independently passes 75 controls,
+checks loaded middleware/pipe attribution and constructor/family retirement,
+and matches the current 417-input/14-extra source envelope. The boundary reviewer
+passes 73 targeted cases, 22 router component cases and 103/83/40 offline CI
+controls, and independently matches all 1,982 backend inputs to the actual
+retained discovery. Overlapping controls are not added to normal suite totals.
+
+The reports explicitly divide complete authored-source review from generated
+byte/map verification and mapping-level adjacent review; no reviewer claims to
+read every body of every changed test or to rerun the full heavy qualification.
+The timing-plan source weights retain their original R1 archive audit; R2 checks
+the plan structure rather than independently re-extracting those eight historical
+ZIPs. Initial private carrier/path/status-summary invocation errors are retained
+and distinguished from the successful executions. No canonical source is changed
+by this R2. Private report SHA-256 identities are:
+
+- `r2-patch.md`: `b1b90eebd8318ff8d56fd262e68379ced5dc00bbb9cb2ff132e4532f385670c6`.
+- `r2-lifetimes.md`: `7b4dc34e2dd59e4a68852e19a4c3629103600aae93fb7a28b8c1049eae8392f4`.
+- `r2-boundaries.md`: `179a8690a8afbabcbfe2f22ced420d1b113177206d6eadd45cba9af681a93527`.
+
+Source implementation and both required independent review rounds close within
+these boundaries. Step 3 qualification remains open: freeze the final commit
+and program inputs, push development, then require two complete same-source
+hosted A/B attempts and original-archive/resource/surface checks, including the
+clean-VM public demo. Historical failed attempts and earlier-prefix local passes
+qualify no later source. The catalogue rule stays Registered. Manual accessibility
+remains maintainer-deferred and unexecuted; there is no new maintainer decision.
