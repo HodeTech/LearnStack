@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 7,932 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,083 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -286,6 +286,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 363b isolated Linux controls and diagnostic precision (2026-11-02)](#p03-3-363b-isolated-linux-controls-and-diagnostic-precision-2026-11-02) — 84 lines
   - [P03-3 diagnostic precision R1 corrections and measured source work (2026-11-02)](#p03-3-diagnostic-precision-r1-corrections-and-measured-source-work-2026-11-02) — 92 lines
   - [P03-3 diagnostic precision R2 closeout and renewed qualification (2026-11-02)](#p03-3-diagnostic-precision-r2-closeout-and-renewed-qualification-2026-11-02) — 57 lines
+  - [P03-3 c737 hosted A originals and complete Linux diagnosis (2026-11-02)](#p03-3-c737-hosted-a-originals-and-complete-linux-diagnosis-2026-11-02) — 92 lines
+  - [P03-3 platform expectation and closed bodyless diagnostic correction (2026-11-02)](#p03-3-platform-expectation-and-closed-bodyless-diagnostic-correction-2026-11-02) — 59 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -13761,3 +13763,154 @@ proofs. Only a fully qualified A permits Re-run all jobs B on identical source,
 tree, plan, toolchain and population. Any failed A retains its original evidence
 before a new source correction. Local passes, these reviews and the pure-helper
 measurement establish no hosted cause or fit, and no manual evidence.
+
+### P03-3 c737 hosted A originals and complete Linux diagnosis (2026-11-02)
+
+[Hosted A run 41500357948, attempt 1](https://github.com/HodeTech/LearnStack/actions/runs/41500357948)
+uses source `c737566ffd87a31942f5004cd10df20db5fc6486`, tree
+`433d2920f81b610f7dca8df833585390380a542b` and fixed OpenAPI base
+`e55aa5d7bfcba4ccc2357fa0c2276025e14f8d55`. All 27 jobs are terminal:
+24 succeed; frontend, ordinary-3 and the integration aggregate fail. This is
+a failed A. No B starts and no whole-workflow qualification is claimed.
+
+All 24 available original ZIPs, totaling 41,345,490 bytes, are retained.
+Two new independent auditors inspect the originals. The owner fully reads
+both reports, scripts and semantic JSON and verifies their digests. Separate
+owner checks reconcile API/index/ZIP sizes, SHA-256 and CRC, all 950 members
+against both opaque inventories, 141 exported producer members and the actual
+7,665-case journal/TRX union. Current 1,982 backend, 424 framework and 23
+supplementary input hashes and all 152 local proof files remain unchanged.
+The source freeze ends only after these checks.
+
+- Backend report `c737-originals-backend-audit.md`, SHA-256
+  `ccc9e736aeb96a3a4c52612f22afdf4562a4db1ef930c6f7a89917ac8557b005`.
+  Of 7,949 selected cases, 7,665 actually pass; ordinary-3's 284 cases have
+  no execution evidence. Zero backend failed/skipped cases are observed.
+  Its original 554-byte ZIP contains only an incomplete receipt refusing
+  `vm_evidence_missing` before workload launch. That reason does not distinguish
+  command launch, timeout, output bound, exit status or unsupported output.
+  No VM-type, CPU or OOM cause is established. The integration aggregate
+  refuses closed and is the sole missing expected original archive.
+- Public/frontend report `c737-public-frontend-audit.md`, SHA-256
+  `be720e8641bb277c08eda9d5421562b07f5495eedb21d029521bbfb4be5669fc`.
+  Public-demo completes all 27 JSON/HTML audit pairs and hard budgets; LCP
+  warns on 25/27 samples and all nine URL medians. Setup/proof/cleanup are
+  290.605/652.298/11.156 seconds. Screenshots remain opaque to this audit.
+  OpenAPI originals and all 60 fixtures match source and expected outcomes;
+  scoped Leakwatch results remain zero, not a global absence attestation.
+  Five delivered frontend failures precede the later package guard. Three
+  positive development cases reach their 20-second readiness deadline; the
+  first pure control reaches ten seconds with no complete TAP prefix.
+  Neither those records nor the fifth failure identify a hosted root cause.
+- Owner original closeout SHA-256:
+  `1e51caf86e30318ba8a28ba2d5f1c3a8bdf648bfd6708a3166feb8633f1dd0e3`.
+
+A fresh private Git-object export closes the prior narrow input gap: all
+2,799 selected files, 93,860,593 bytes, original blob identities and executable
+bits match before/after. It includes the full 115 web and nine SDK test-file
+census, committed environment examples, vendor distribution, root scripts,
+hooks and backend migration source. No user environment, editor configuration,
+host Git directory, worktrees or predecessor dependency volume is copied.
+Manifest SHA-256 is
+`49e8da00cdf02a41b20d4671891b989cff934c4fd9b7d98baa6909ffba3157f3`.
+
+The actual Linux ARM64 diagnostic uses a new prerequisite image and fresh
+work/store volumes, with the real qualified Node/pnpm/Next tuple. It preserves
+CI's SDK-generation/drift, typecheck, lint, build and full `pnpm test` order,
+four web workers and every original inner bound. Two private setup errors
+are preserved separately: applying a 64 MiB source-reader limit to the
+122,162,360-byte Node executable, then incorrectly extending CI's pnpm-setup
+environment option across installation. Neither is an application failure.
+The corrected private runner closes both errors without changing source policy.
+
+The complete corrected diagnostic passes setup, SDK generation/drift,
+typecheck, lint and build. Its web execution reports 113/115 passing files and
+3,411/3,413 passing cases; bodyless and provenance each fail once. SDK tests
+do not start. The test command takes 175.902 seconds and exits unsuccessfully;
+the 180-second package guard does not fire. Counts come from retained Vitest
+output, not retained full JSON or a successful guard validation. All four
+native prefix files pass here, which does not explain their hosted failures.
+
+All 82 evidence files and command-stream hashes independently match. Both
+containers stop with PID zero, no OOM and no forced containment; this is not
+per-control native cleanup proof. The 177-sample cgroup observation records
+CPU affinity 0–17, no quota/throttling, no OOM event and a 5,856,362,496-byte
+memory-current peak. It establishes no hosted x64 equivalence or causal fit.
+
+A separately reviewed fresh clone reruns only the two unchanged original
+controls with their 25/30-second bounds. Bodyless passes all 124 controls in
+1.618 seconds. Provenance again reports 111/112 passing controls; ordinal 33,
+the case-insensitive router-selection control, refuses `graph_identity`.
+On a case-sensitive filesystem, `src/Pages/page.tsx` is not a selected router
+but is still a new member of the complete source graph. The test incorrectly
+expects an unchanged graph; the production refusal remains correct. The
+original failed full-package bodyless result remains open despite its isolated
+pass. Both cloned/input source maps and all 59 installed subjects match before
+and after. Mixed diagnostic results grant neither qualification nor cleanup.
+
+Next correct the platform-specific test expectation and retain only a validated
+closed bodyless failure line at its existing wrapper boundary, without changing
+runtime behavior, their original control counts, clocks or concurrency. Any source
+correction still requires normal commits, both fresh independent review rounds,
+current validation and complete new hosted A/B with original-evidence audits.
+Manual keyboard/focus/reflow/contrast/VoiceOver remains maintainer-deferred
+and unexecuted.
+
+### P03-3 platform expectation and closed bodyless diagnostic correction (2026-11-02)
+
+The [c737 original-evidence diagnosis](#p03-3-c737-hosted-a-originals-and-complete-linux-diagnosis-2026-11-02)
+is followed by two bounded test corrections. Production admission, framework
+patches, route behavior, authorization, clocks, concurrency and CI population
+remain unchanged.
+
+The provenance control now requires `graph_identity` refusal for a newly added,
+unselected `src/Pages/page.tsx` on a case-sensitive filesystem. It then verifies
+a regenerated manifest containing that source and restores the original manifest
+bytes in `finally`. Its existing router-selection refusals and 112-control
+population stay intact. This corrects a test expectation, not production policy.
+
+The existing bodyless wrapper relays only the unchanged producer's complete
+closed failure line. Its receiver accepts at most 256 UTF-8 bytes, exact known
+stage/phase vocabulary and the bounded canonical native-credit count. Malformed,
+partial, extra, canary-bearing or arbitrary child output remains contained.
+A failed diagnostic sink cannot replace the original failed proof. The original
+assertions, 25-second child, 30-second outer test, 1 MiB capture and cleanup stay
+fixed; a diagnostic grants no success or physical-retirement authority.
+
+Three cases in the existing closed-boundary test cover dirty inputs, producer
+vocabulary parity and planted drift, and the extracted real wrapper's success,
+failed/signal/error and closed-sink paths. The first focused run reports
+47 passed and one failure: the VM's `Number` constructor differs from Vitest's
+host matcher constructor. Sharing the host constructor in that test sandbox
+corrects the harness without weakening assertions. The failed run is retained;
+it does not count as passing validation.
+
+A fresh current-source local capture completes ten stages. All 48 focused and
+two targeted wrapper tests pass. Guarded frontend testing passes 3,570 cases:
+3,416 web cases in 115 files and 154 SDK cases in nine files, with zero
+skips/todos. The unchanged matrix/watchdog source controls pass 6/6 and 5/5.
+Typecheck, lint, production build, two actual renderer integration cases and
+five corpus-consistency cases pass. All 20 command streams match their retained
+sizes and hashes. Before/after maps preserve all 424 framework, 23 supplementary
+and 1,982 backend inputs. Owner closeout SHA-256:
+`ebf063ec4405fed88514b3225101e2e8a8b1d2b59d2800a9c4114ef39c56d164`.
+
+A separate reviewed Linux ARM64 regression overlays only the exact corrected
+provenance script on the immutable c737 export. Its scope is that base plus
+one reviewed override, not the entire current tree. A real `/tmp` probe confirms
+case sensitivity; all 112 original controls, including ordinal 33, pass in
+24.850 seconds under the original 30-second/1 MiB bound. Independent raw TAP
+reconciliation confirms the exact ordinals, counters and zero skips/todos.
+All 2,799 base/clone/override inputs and 59 installed subjects match their
+before/after contracts. All 14 evidence files and command streams match their
+hashes. The container exits zero, PID zero, without OOM or forced containment;
+that is not per-control native cleanup credit. Owner closeout SHA-256:
+`8d95fc099064e046dd9f27828a94754ea996a50bde7cd103a945c927b92177a1`.
+
+Next commit these corrections normally and complete two new independent review
+rounds, fixing verified findings with normal commits. Then freeze and qualify
+new source with complete hosted A and B and original-evidence audits. These
+local results establish neither the prior hosted failures' cause nor hosted fit.
+The prior failed bodyless full-package result remains historical failure.
+Manual keyboard/focus/reflow/contrast/VoiceOver remains maintainer-deferred
+and unexecuted.

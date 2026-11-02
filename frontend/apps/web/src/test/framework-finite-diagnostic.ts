@@ -104,6 +104,82 @@ const stages: readonly string[] = [
 const has = (values: readonly string[], value: unknown): value is string =>
   typeof value === 'string' && values.includes(value);
 
+const bodylessCases = [
+  ...[204, 304].flatMap((status) =>
+    [
+      'empty-direct',
+      'empty-direct-early-gzip',
+      'empty-stream-early-gzip',
+      'empty-direct-early-known-zero',
+      'empty-direct-early-deflate',
+      'empty-stream-early-held-peer-close',
+    ].map((name) => `${status}-${name}`),
+  ),
+  'head-empty-direct-early',
+  'head-payload-stream-early',
+  ...[
+    'empty-direct',
+    'empty-direct-early-gzip',
+    'empty-stream',
+    'empty-stream-early-gzip',
+    'large-direct-gzip',
+    'large-stream-gzip',
+    'large-direct-deflate',
+    'large-stream-deflate',
+    'large-direct-identity',
+    'large-png',
+    'small-direct',
+  ].map((name) => `200-${name}`),
+  ...['flushHeaders', 'end-empty', 'writeHead', 'write', 'end-payload', 'write-then-end'].map(
+    (name) => `fence-${name}`,
+  ),
+] as const;
+const bodylessStages = [
+  'certificate',
+  'pair-comparison',
+  ...['http', 'https'].flatMap((transport) =>
+    bodylessCases.flatMap((name) =>
+      ['original', 'patched'].map((variant) => `${transport}-${name}-${variant}`),
+    ),
+  ),
+];
+const bodylessPhases = [
+  'setup',
+  'peer-end',
+  'handler-settlement',
+  'response-close',
+  'status',
+  'selection',
+  'wire',
+  'owner-sealed',
+  'encoder-closed',
+  'encoder-close-before-handler',
+  'late-allocation-refused',
+  'native-credit',
+  'tls',
+] as const;
+
+/** Relay only the producer's complete closed line; never confer proof or cleanup authority. */
+export function bodylessFailureLine(raw: unknown): string | null {
+  if (typeof raw !== 'string' || Buffer.byteLength(raw, 'utf8') > 256) return null;
+  const prefix = 'Framework bodyless proof failed: ';
+  if (!raw.startsWith(prefix) || !raw.endsWith('\n')) return null;
+  const [stage, phase, credits, ...extra] = raw.slice(prefix.length, -1).split(':');
+  if (extra.length !== 0) return null;
+  if (stage === 'installation') return phase === undefined ? raw : null;
+  if (!has(bodylessStages, stage) || !has(bodylessPhases, phase)) return null;
+  if (phase === 'native-credit') {
+    if (
+      typeof credits !== 'string' ||
+      !/^(?:0|[1-9][0-9]{0,2})$/.test(credits) ||
+      Number(credits) > 256
+    )
+      return null;
+    return raw;
+  }
+  return credits === undefined ? raw : null;
+}
+
 // Owner/proof-channel observations only; never actual runtime-child retirement.
 function readinessDiagnostic(value: unknown) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;

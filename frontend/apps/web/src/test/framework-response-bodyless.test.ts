@@ -1,13 +1,14 @@
 // @vitest-environment node
 // Runs the finite Node control without starting Next or a browser.
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, realpathSync, rmSync, writeSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
+import { bodylessFailureLine } from './framework-finite-diagnostic';
 import { closedFrameworkProofSync } from './framework-proof-closed-boundary';
 
 describe('qualified installed response bodyless and refusal controls', () => {
@@ -41,6 +42,16 @@ describe('qualified installed response bodyless and refusal controls', () => {
             timeout: 25_000,
             maxBuffer: 1024 * 1024,
           });
+          if (result.error !== undefined || result.signal !== null || result.status !== 0) {
+            const diagnostic = bodylessFailureLine(result.stderr);
+            if (diagnostic !== null) {
+              try {
+                writeSync(2, diagnostic);
+              } catch {
+                /* A diagnostic sink failure never changes the failed proof. */
+              }
+            }
+          }
           expect(result.error).toBeUndefined();
           expect(result.signal).toBeNull();
           expect(result.status).toBe(0);

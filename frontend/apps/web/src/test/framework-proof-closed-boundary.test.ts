@@ -20,6 +20,7 @@ import ts from 'typescript';
 import { afterEach, expect, it, vi } from 'vitest';
 
 import {
+  bodylessFailureLine,
   ownershipDiagnostic,
   routerCountDiagnostic,
   routerDiagnostic,
@@ -52,6 +53,284 @@ function refuses(action: () => unknown) {
   expect(String(error.stack)).not.toContain(canary);
   expect(JSON.stringify(Object.getOwnPropertyDescriptors(error))).not.toContain(canary);
 }
+
+it('relays only one complete closed bodyless failure line', () => {
+  const prefix = 'Framework bodyless proof failed: ';
+  const line = prefix + 'https-204-empty-stream-early-held-peer-close-patched:peer-end\n';
+  for (const clean of [
+    line,
+    prefix + 'installation\n',
+    prefix + 'certificate:setup\n',
+    prefix + 'pair-comparison:tls\n',
+    prefix + 'http-fence-write-then-end-original:native-credit:0\n',
+    prefix + 'https-200-large-stream-gzip-patched:native-credit:256\n',
+  ])
+    expect(bodylessFailureLine(clean)).toBe(clean);
+  for (const dirty of [
+    undefined,
+    null,
+    {},
+    [],
+    Buffer.from(line),
+    Object(line),
+    canary,
+    prefix + canary + ':setup\n',
+    prefix + 'certificate:' + canary + '\n',
+    prefix + 'ftp-204-empty-direct-patched:setup\n',
+    prefix + 'http-999-empty-direct-patched:setup\n',
+    prefix + 'http-204-empty-direct-foreign:setup\n',
+    prefix + 'installation:setup\n',
+    prefix + 'certificate\n',
+    prefix + 'certificate:setup:0\n',
+    line.slice(0, -1),
+    line.replace('\n', '\r\n'),
+    '\n' + line,
+    line + '\n',
+    line + line,
+    line + canary,
+    canary + '\n' + line,
+    line.replace(':peer-end', ':peer-end:' + canary),
+    prefix + 'certificate:setup' + '\0\n',
+    'x'.repeat(257),
+    'é'.repeat(129),
+    ...['', '-1', '257', '01', '+1', '1.5', 'Infinity', canary, '1:2'].map(
+      (credits) => prefix + 'http-fence-write-original:native-credit:' + credits + '\n',
+    ),
+    prefix + 'http-fence-write-original:native-credit\n',
+  ])
+    expect(bodylessFailureLine(dirty)).toBeNull();
+  let touched = false;
+  expect(
+    bodylessFailureLine({
+      toString() {
+        touched = true;
+        throw new Error(canary);
+      },
+    }),
+  ).toBeNull();
+  expect(touched).toBe(false);
+});
+
+it('keeps bodyless receiver vocabulary equal to the unchanged finite producer', () => {
+  const producer = readFileSync(
+    new URL('../../../../scripts/framework-response-bodyless.test.mjs', import.meta.url),
+    'utf8',
+  );
+  const receiver = readFileSync(
+    new URL('./framework-finite-diagnostic.ts', import.meta.url),
+    'utf8',
+  );
+  function initializer(text: string, name: string) {
+    const file = ts.createSourceFile('input.ts', text, ts.ScriptTarget.Latest, true);
+    const values: string[] = [];
+    function visit(node: ts.Node) {
+      if (
+        ts.isVariableDeclaration(node) &&
+        ts.isIdentifier(node.name) &&
+        node.name.text === name &&
+        node.initializer
+      )
+        values.push(
+          (ts.isAsExpression(node.initializer)
+            ? node.initializer.expression
+            : node.initializer
+          ).getText(file),
+        );
+      ts.forEachChild(node, visit);
+    }
+    visit(file);
+    expect(values).toHaveLength(1);
+    return values[0]!;
+  }
+  function parity(text: string) {
+    const normal = Array.from(runInNewContext(initializer(text, 'CASES')) as { name: string }[]);
+    const fence = Array.from(runInNewContext(initializer(text, 'FENCE')) as string[]);
+    const names = [...normal.map((row) => row.name), ...fence.map((name) => 'fence-' + name)];
+    const accepted = Array.from(
+      runInNewContext(initializer(receiver, 'bodylessCases')) as string[],
+    );
+    expect(normal).toHaveLength(25);
+    expect(fence).toHaveLength(6);
+    expect(accepted).toEqual(names);
+    const file = ts.createSourceFile('producer.mjs', text, ts.ScriptTarget.Latest, true);
+    const phases = new Set<string>();
+    const loops: Record<string, string[][]> = { transport: [], variant: [] };
+    function visit(node: ts.Node) {
+      const value =
+        ts.isVariableDeclaration(node) && node.name.getText(file) === 'failurePhase'
+          ? node.initializer
+          : ts.isBinaryExpression(node) &&
+              node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+              node.left.getText(file) === 'failurePhase'
+            ? node.right
+            : undefined;
+      if (value) {
+        expect(ts.isStringLiteral(value)).toBe(true);
+        if (!ts.isStringLiteral(value)) throw new Error('Bodyless phase vocabulary refused');
+        phases.add(value.text);
+      }
+      if (ts.isForOfStatement(node))
+        for (const name of ['transport', 'variant'])
+          if (node.initializer.getText(file) === 'const ' + name) {
+            expect(ts.isArrayLiteralExpression(node.expression)).toBe(true);
+            if (!ts.isArrayLiteralExpression(node.expression))
+              throw new Error('Bodyless loop vocabulary refused');
+            loops[name]!.push(
+              node.expression.elements.map((element) => {
+                if (!ts.isStringLiteral(element)) throw new Error('Bodyless loop value refused');
+                return element.text;
+              }),
+            );
+          }
+      ts.forEachChild(node, visit);
+    }
+    visit(file);
+    for (const [name, expected] of [
+      ['transport', ['http', 'https']],
+      ['variant', ['original', 'patched']],
+    ] as const) {
+      expect(loops[name]).toHaveLength(2);
+      for (const values of loops[name]!) expect(values).toEqual(expected);
+    }
+    const acceptedPhases = Array.from(
+      runInNewContext(initializer(receiver, 'bodylessPhases')) as string[],
+    );
+    expect(acceptedPhases).toHaveLength(13);
+    expect([...phases].sort()).toEqual([...acceptedPhases].sort());
+    const stages = Array.from(
+      runInNewContext(initializer(receiver, 'bodylessStages'), {
+        bodylessCases: accepted,
+      }) as string[],
+    );
+    expect(stages).toHaveLength(126);
+    expect(new Set(stages).size).toBe(126);
+    expect(stages).toEqual([
+      'certificate',
+      'pair-comparison',
+      ...['http', 'https'].flatMap((transport) =>
+        names.flatMap((name) =>
+          ['original', 'patched'].map((variant) => `${transport}-${name}-${variant}`),
+        ),
+      ),
+    ]);
+    for (const stage of stages)
+      for (const phase of acceptedPhases) {
+        const line = `Framework bodyless proof failed: ${stage}:${phase}${phase === 'native-credit' ? ':256' : ''}\n`;
+        expect(Buffer.byteLength(line)).toBeLessThanOrEqual(256);
+        expect(bodylessFailureLine(line)).toBe(line);
+      }
+  }
+  parity(producer);
+  expect(() =>
+    parity(producer.replace("{ name: '200-empty-direct' }", "{ name: 'foreign' }")),
+  ).toThrow();
+  expect(() =>
+    parity(producer.replace("failurePhase = 'peer-end'", "failurePhase = 'foreign'")),
+  ).toThrow();
+});
+
+it('keeps the actual bodyless wrapper assertions closed while relaying only validated failure bytes', () => {
+  const text = readFileSync(
+    new URL('./framework-response-bodyless.test.ts', import.meta.url),
+    'utf8',
+  );
+  const file = ts.createSourceFile('wrapper.ts', text, ts.ScriptTarget.Latest, true);
+  const actions: ts.ArrowFunction[] = [];
+  function visit(node: ts.Node) {
+    if (ts.isCallExpression(node) && node.expression.getText(file) === 'closedFrameworkProofSync') {
+      expect(node.arguments).toHaveLength(1);
+      const action = node.arguments[0]!;
+      expect(ts.isArrowFunction(action)).toBe(true);
+      if (ts.isArrowFunction(action)) actions.push(action);
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(file);
+  expect(actions).toHaveLength(1);
+  const action = actions[0]!
+    .getText(file)
+    .replaceAll(
+      'import.meta.url',
+      JSON.stringify('file:///frontend/apps/web/src/test/framework-response-bodyless.test.ts'),
+    );
+  const program = ts.transpileModule(`(${action})();`, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
+  }).outputText;
+  const line = 'Framework bodyless proof failed: https-fence-write-patched:native-credit:1\n';
+  const success = JSON.stringify({
+    kind: 'qualified-response-bodyless',
+    transports: 2,
+    variants: 2,
+    normalCases: 25,
+    fenceCases: 6,
+    total: 124,
+    stockRetained: 1,
+    patchedJoined: true,
+    originalPatchedWireEqual: true,
+    installedUnchanged: true,
+  });
+  for (const scenario of [
+    { stderr: line, status: 3, close: false, delivered: line },
+    { stderr: line, status: 0, close: false, delivered: line, spawnFault: true },
+    { stderr: line, status: 0, close: false, delivered: line, signal: 'SIGTERM' },
+    { stderr: canary, status: 3, close: false, delivered: '' },
+    { stderr: line + canary, status: 3, close: false, delivered: '' },
+    { stderr: line.slice(0, -1), status: 3, close: false, delivered: '' },
+    { stderr: line, status: 3, close: true, delivered: '' },
+    { stderr: line, status: 0, close: false, delivered: '' },
+    { stderr: '', status: 0, close: false, delivered: '' },
+  ]) {
+    const writes: string[] = [];
+    let cleanup = 0;
+    let options: unknown;
+    const run = () =>
+      runInNewContext(program, {
+        URL,
+        // The injected Vitest expect.any(Number) compares constructor identity.
+        Number,
+        fileURLToPath,
+        join,
+        expect,
+        bodylessFailureLine,
+        process: { execPath: process.execPath, env: { PATH: process.env.PATH } },
+        tmpdir: () => '/private-tmp',
+        mkdtempSync: () => '/private-wrapper',
+        realpathSync: (path: string) => path,
+        readFileSync: () => '{"name":"@learnstack/web"}',
+        rmSync: () => {
+          cleanup++;
+        },
+        spawnSync: (_command: unknown, _args: unknown, received: unknown) => {
+          options = received;
+          return {
+            error: 'spawnFault' in scenario ? new Error(canary) : undefined,
+            signal: 'signal' in scenario ? scenario.signal : null,
+            status: scenario.status,
+            stdout: success,
+            stderr: scenario.stderr,
+          };
+        },
+        writeSync: (fd: number, value: string) => {
+          expect(fd).toBe(2);
+          if (scenario.close) throw new Error(canary);
+          writes.push(value);
+          return Buffer.byteLength(value);
+        },
+      });
+    if (scenario.status === 0 && scenario.stderr === '') expect(run).not.toThrow();
+    else refuses(() => closedFrameworkProofSync(run));
+    expect(writes.join('')).toBe(scenario.delivered);
+    expect(writes.join('')).not.toContain(canary);
+    expect(cleanup).toBe(1);
+    expect(options).toMatchObject({
+      cwd: '/private-wrapper',
+      encoding: 'utf8',
+      timeout: 25_000,
+      maxBuffer: 1024 * 1024,
+      env: { PATH: process.env.PATH, NODE_ENV: 'production' },
+    });
+  }
+});
 
 it('keeps successful synchronous results unchanged and contains malformed output', () => {
   const value = Object.freeze({ ok: true });

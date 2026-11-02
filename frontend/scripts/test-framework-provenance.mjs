@@ -1111,7 +1111,23 @@ try {
           denied(() => verifyFrameworkBuild({ appRoot, frontendRoot }), 'route_layout');
         else {
           assert.equal(existsSync(lower), false);
-          verifyFrameworkBuild({ appRoot, frontendRoot });
+          if (name === 'src/Pages') {
+            // Not a selected router on this filesystem, but still part of the
+            // complete production source graph: the old manifest must refuse.
+            denied(() => verifyFrameworkBuild({ appRoot, frontendRoot }), 'graph_identity');
+            const manifestPath = join(appRoot, '.next/framework-build.json');
+            const previousManifest = readFileSync(manifestPath);
+            try {
+              const manifest = buildControlManifest();
+              assert.equal(
+                manifest.inputs.some((file) => file.path === 'app/src/Pages/page.tsx'),
+                true,
+              );
+              verifyFrameworkBuild({ appRoot, frontendRoot });
+            } finally {
+              writeFileSync(manifestPath, previousManifest);
+            }
+          } else verifyFrameworkBuild({ appRoot, frontendRoot });
         }
       } finally {
         rmSync(path, { recursive: true });
