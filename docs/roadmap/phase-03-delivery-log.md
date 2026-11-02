@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,112 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,146 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -289,6 +289,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 c737 hosted A originals and complete Linux diagnosis (2026-11-02)](#p03-3-c737-hosted-a-originals-and-complete-linux-diagnosis-2026-11-02) — 92 lines
   - [P03-3 platform expectation and closed bodyless diagnostic correction (2026-11-02)](#p03-3-platform-expectation-and-closed-bodyless-diagnostic-correction-2026-11-02) — 59 lines
   - [P03-3 platform and bodyless correction review round 1 (2026-11-02)](#p03-3-platform-and-bodyless-correction-review-round-1-2026-11-02) — 29 lines
+  - [P03-3 platform and bodyless correction R2 closeout and renewed qualification (2026-11-02)](#p03-3-platform-and-bodyless-correction-r2-closeout-and-renewed-qualification-2026-11-02) — 34 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -13944,3 +13945,37 @@ and 112-case targeted Linux proof retain their stated scopes; prior failed
 runs remain failed. Next complete a second new independent corrective round,
 then qualify complete new hosted A/B. Manual accessibility remains
 maintainer-deferred and unexecuted.
+
+### P03-3 platform and bodyless correction R2 closeout and renewed qualification (2026-11-02)
+
+Two new independent R2 reviewers inspect the complete c737 through
+`f2239b6abfe1d38574ce51351639237ffdf9c435` correction, including code commit
+`3bae0b6c158866f006c178f092e33a1448e44d53`, rather than only the R1 doc diff.
+Both approve with no verified actionable Blocker, Major, Minor or Suggestion.
+All four changed frontend files are read end to end with adjacent producer,
+proof/installation contracts, the three complete new delivery records and
+phase Status. The owner fully reads both reports and verifies their hashes.
+
+- Privacy/failure-boundary report: `f223-r2-boundary-review.md`, SHA-256
+  `0b980d2a38fd56b9d100f381e70725f39566bcd4e11ba76615eb2d2d808644b3`.
+- Platform/evidence/corpus report: `f223-r2-evidence-review.md`, SHA-256
+  `b3d533c0fb2c90dc27c2690a665423eef67f41e8c62d654704fea9187f7079e7`.
+
+Both independently reconcile the ten current validation stages, 20 streams,
+424 framework/23 supplementary/1,982 backend source hashes, focused/targeted
+48/2 and renderer/corpus 2/5. The evidence reviewer also checks the retained
+3,570-case guarded frontend total and independently parses the targeted Linux
+112-case raw TAP. Both verify its 14 evidence-file hashes and exact one-script
+override. The evidence reviewer statically reads the complete new source/proof
+freeze helper; that inspection is not execution of its publication gate.
+No source fix follows R2, and no tests run in either review.
+
+Commit this record, validate the exact final source/proof envelope, then push
+normally and dispatch one complete new A with the fixed OpenAPI base. Retain
+all original archives and audit actual cases, resource ownership, frontend,
+public-demo, OpenAPI and scoped scan evidence. Only a wholly qualified A permits
+Re-run all jobs B on identical source, tree, plan, toolchain and population.
+Any failed A preserves its evidence before another bounded correction. Local
+passes and these reviews establish no hosted cause or fit. Manual
+keyboard/focus/reflow/contrast/VoiceOver remains maintainer-deferred and
+unexecuted; P03-3 and complete hosted A/B remain open.
