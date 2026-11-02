@@ -13,6 +13,7 @@ test('copied transport source and observation controls pass every causal case', 
     const script = join(frontend, 'scripts/framework-transport-proof.test.mjs');
     const output = execFileSync(process.execPath, ['--test', script], {
       encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
       timeout: 10_000,
       maxBuffer: 65536,
       env: { PATH: process.env.PATH, NODE_ENV: 'production', NEXT_TELEMETRY_DISABLED: '1' },

@@ -97,6 +97,7 @@ it('joins the fixed reuse helper and rejects dirty or uncertain outcomes', () =>
       ['--test', join(frontend, 'scripts/framework-proof-reuse.test.mjs')],
       {
         encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
         timeout: 10_000,
         maxBuffer: 65536,
         env: { PATH: process.env.PATH, NODE_ENV: 'production', NEXT_TELEMETRY_DISABLED: '1' },

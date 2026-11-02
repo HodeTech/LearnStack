@@ -18,6 +18,7 @@ test(
         {
           cwd: frontend,
           encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'pipe'],
           timeout: 20_000,
           maxBuffer: 65_536,
           env: {

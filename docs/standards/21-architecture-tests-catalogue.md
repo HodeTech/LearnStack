@@ -6522,7 +6522,9 @@ Prior receipts do not qualify subsequent source changes.
   `framework-response-transport.test.ts`, `framework-response-overlap.test.ts`,
   `framework-router-matrix.test.ts`, `framework-runtime-ownership.test.ts`,
   `framework-runtime-workers.test.ts`, `framework-runtime-recovery.test.ts`,
-  `framework-proof-closed-boundary.test.ts` and the existing
+  `framework-runtime-watchdog-evidence.test.ts`,
+  `framework-proof-closed-boundary.test.ts`, `framework-proof-stdio.test.ts`
+  and the existing
   `backend/tests/LearnStack.Tests.Integration/TenancyIdentity/TenantBffSessionTests`
   partial class, including `TenantBffSessionTests.FrameworkOwnership.cs`.
   Parsed-copy and component controls do not replace initialized-router,

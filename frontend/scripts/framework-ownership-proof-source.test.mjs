@@ -74,11 +74,12 @@ test('the emitted recorders write actual finite JSONL records and bind the dynam
       rootPage: 'export default function Page() { return <main>Public</main>; }',
     };
     const matrix = instrumentFrameworkOwnershipMatrix(matrixInput);
-    assert.equal(
-      matrix.rootPage,
-      "export const dynamic = 'force-dynamic';\nexport const revalidate = 0;\n" +
-        matrixInput.rootPage,
+    assert.ok(
+      matrix.rootPage.includes(
+        "export const dynamic = 'force-dynamic';\nexport const revalidate = 0;",
+      ),
     );
+    assert.ok(matrix.rootPage.includes('framework.waitUntil(work);'));
     assert.equal(
       matrix.page.includes('force-dynamic'),
       false,

@@ -66,6 +66,10 @@ const eventNames = [
   'worker-entered',
   'worker-returned',
   'owner-receipt',
+  'render-work-entered',
+  'render-work-returned',
+  'requests-stopped',
+  'requests-stop-failed',
 ];
 const pause = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 const digest = (value) => createHash('sha256').update(value).digest('hex');
@@ -152,11 +156,17 @@ function validateFailureEvidence(evidence, group) {
     'build',
     'cleanup',
     'restart:build',
+    'worker-ordered-stop:hold-real-render',
     ...ownershipMatrixCases.flatMap((name) =>
       ['start', 'stop', 'direct-exit', 'worker-release'].map((phase) => name + ':' + phase),
     ),
   ];
   assert.ok(stages.includes(evidence.stage));
+  if (evidence.stage === 'worker-ordered-stop:hold-real-render') {
+    assert.equal(group, 'workers');
+    assert.equal(evidence.current?.case, 'worker-ordered-stop');
+    assert.equal(evidence.current?.mode, 'development');
+  }
   assert.equal(typeof evidence.retained, 'boolean');
   assert.equal(typeof evidence.cleanupConfirmed, 'boolean');
   assert.ok(Array.isArray(evidence.completedCases) && evidence.completedCases.length <= 17);
@@ -339,7 +349,7 @@ async function runPrivateMatrix(group) {
   }
   function releaseCleanup() {
     for (const fixture of fixtures)
-      for (const name of ['prepare', 'registration', 'shutdown', 'prehello', 'worker'])
+      for (const name of ['prepare', 'registration', 'shutdown', 'prehello', 'worker', 'render'])
         release(fixture, name);
   }
   async function cancel() {
@@ -707,6 +717,25 @@ async function runPrivateMatrix(group) {
     assert.deepEqual(identity, [entered.pid, family.pid, family.group]);
     assert.equal(settled, false);
     const held = records(value);
+    const recordHashes = () =>
+      held.map((record) => digest(readOwnershipObservation(record.path, 4096)));
+    const beforeHashes = recordHashes();
+    let renderRequest;
+    let watchdogRetention;
+    if (scenario === 'worker-ordered-stop') {
+      stage = scenario + ':hold-real-render';
+      writeFileSync(join(value.controls, 'render.arm'), '', { flag: 'wx', mode: 0o600 });
+      let renderSettled = false;
+      renderRequest = own(
+        running.get('/', undefined, { allowAborted: true }).finally(() => {
+          renderSettled = true;
+        }),
+      );
+      await until(() => has(value, 'render-work-entered'));
+      assert.equal(renderSettled, false, 'actual App Router render is held before stop');
+      assert.equal(has(value, 'render-work-returned'), false);
+      assert.equal(existsSync(join(value.controls, 'render.release')), false);
+    }
     if (scenario !== 'worker-positive') {
       stage = scenario + ':direct-exit';
       if (scenario === 'worker-ordered-stop') running.server.process.kill('SIGTERM');
@@ -728,7 +757,84 @@ async function runPrivateMatrix(group) {
           null,
           'live owner holds exact records while descendant remains',
         );
+      if (scenario === 'worker-ordered-stop') {
+        const watchdog = JSON.parse(
+          readOwnershipObservation(join(value.controls, 'worker-watchdog.json'), 1024),
+        );
+        const directExit = JSON.parse(
+          readOwnershipObservation(join(value.controls, 'runtime-exit.json'), 512),
+        );
+        exact(watchdog, ['version', 'pid', 'parentPid', 'requestStop', 'sample', 'milliseconds']);
+        exact(directExit, ['version', 'pid', 'parentPid', 'code', 'milliseconds']);
+        for (const observation of [watchdog, directExit]) {
+          assert.equal(observation.version, 1);
+          assert.equal(observation.pid, family.pid);
+          assert.equal(observation.parentPid, family.parentPid);
+          assert.ok(
+            Number.isSafeInteger(observation.milliseconds) &&
+              observation.milliseconds >= 0 &&
+              observation.milliseconds <= 120000,
+          );
+        }
+        assert.equal(
+          directExit.code,
+          1,
+          'actual Node runtime exit event is failed before worker release',
+        );
+        assert.equal(watchdog.requestStop, 'pending');
+        assert.ok(
+          Array.isArray(watchdog.sample) &&
+            watchdog.sample.length === 5 &&
+            watchdog.sample.every(
+              (count) => Number.isSafeInteger(count) && count >= 0 && count <= 256,
+            ),
+        );
+        assert.ok(
+          watchdog.sample[3] > 0,
+          'actual registered framework work remains at the real watchdog',
+        );
+        assert.equal(has(value, 'render-work-returned'), false);
+        assert.equal(has(value, 'requests-stopped'), false);
+        assert.equal(has(value, 'requests-stop-failed'), false);
+        assert.equal(existsSync(join(value.controls, 'render.release')), false);
+        requireOrderedEvents(value, [
+          'worker-entered',
+          'render-work-entered',
+          'stop-consumed',
+          'admission-stop',
+          'requests-stop',
+          'sessions-stop',
+          'watchdog',
+        ]);
+        const stoppedAt = events(value).find(
+          (event) => event.event === 'stop-consumed',
+        ).milliseconds;
+        assert.ok(watchdog.milliseconds - stoppedAt >= 4500);
+        assert.ok(directExit.milliseconds >= watchdog.milliseconds);
+        watchdogRetention = {
+          watchdog,
+          directExit,
+          beforeHashes,
+          afterWatchdogHashes: recordHashes(),
+          afterCompetitorHashes: null,
+          ownerLive: true,
+          runtimeAbsent: true,
+          workerLive: true,
+          groupLive: true,
+          competingModes: [],
+        };
+      }
       await competing(value);
+      if (scenario === 'worker-ordered-stop') {
+        assert.equal(absent(entered.pid), false);
+        assert.equal(absent(family.group, true), false);
+        assert.equal(running.server.process.exitCode, null);
+        assert.equal(running.server.process.signalCode, null);
+        assert.equal(running.server.broker.capture.retired(), false);
+        unchanged(held);
+        watchdogRetention.afterCompetitorHashes = recordHashes();
+        watchdogRetention.competingModes = ['production', 'development'];
+      }
     }
     stage = scenario + ':worker-release';
     release(value, 'worker');
@@ -737,6 +843,13 @@ async function runPrivateMatrix(group) {
       assert.equal(response.status, 200);
       assert.ok(response.body.includes('Owned static paths worker'));
     } else await Promise.allSettled([request]);
+    if (renderRequest) {
+      const interrupted = await renderRequest;
+      assert.ok(
+        interrupted.aborted || interrupted.status === 503,
+        'actual held render response is interrupted',
+      );
+    }
     await until(() => has(value, 'worker-returned') && absent(entered.pid));
     const returned = events(value).filter((event) => event.event === 'worker-returned');
     assert.equal(returned.length, 1);
@@ -774,13 +887,15 @@ async function runPrivateMatrix(group) {
       if (scenario === 'worker-exit-zero') assert.equal(receipt.code, 0);
       if (scenario === 'worker-exit-one') assert.equal(receipt.code, 1);
       if (scenario === 'worker-self-kill') assert.equal(receipt.signal, 'SIGKILL');
-      const expected =
-        scenario === 'worker-positive' || (scenario === 'worker-ordered-stop' && receipt.code === 0)
-          ? 0
-          : 1;
+      const expected = scenario === 'worker-positive' ? 0 : 1;
       outcome = await retire(value, expected);
     }
     if (scenario === 'worker-ordered-stop') {
+      assert.equal(ownerReceipt(value).code, 1);
+      assert.equal(ownerReceipt(value).signal, null);
+      assert.equal(ownerReceipt(value).fault, 'channel-fault');
+      assert.equal(has(value, 'render-work-returned'), false);
+      assert.equal(has(value, 'requests-stopped'), false);
       assert.equal(
         ownerReceipt(value).startupCancelled,
         false,
@@ -808,6 +923,7 @@ async function runPrivateMatrix(group) {
       workerIdentity: identity,
       actualLateWorkerWrite: true,
       observationUncertaintyRefused,
+      ...(scenario === 'worker-ordered-stop' ? { watchdogRetention } : {}),
     });
     return running.server.broker;
   }

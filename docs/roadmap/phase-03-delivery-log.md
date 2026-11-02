@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 5,832 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 5,920 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -241,7 +241,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0084 Step 2 implementation and integration checks (2026-11-01)](#adr-0084-step-2-implementation-and-integration-checks-2026-11-01) — 69 lines
   - [ADR-0084 Step 2 review round 1 and verified corrections (2026-11-01)](#adr-0084-step-2-review-round-1-and-verified-corrections-2026-11-01) — 70 lines
   - [ADR-0084 Step 2 review round 2 and proof-correlation closeout (2026-11-01)](#adr-0084-step-2-review-round-2-and-proof-correlation-closeout-2026-11-01) — 52 lines
-  - [ADR-0084 Step 3 local implementation and runtime controls (2026-11-02)](#adr-0084-step-3-local-implementation-and-runtime-controls-2026-11-02) — 126 lines
+  - [ADR-0084 Step 3 local implementation and runtime controls (2026-11-02)](#adr-0084-step-3-local-implementation-and-runtime-controls-2026-11-02) — 127 lines
+  - [ADR-0084 Step 3 review round 1 and verified partial corrections (2026-11-02)](#adr-0084-step-3-review-round-1-and-verified-partial-corrections-2026-11-02) — 87 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -11617,3 +11618,91 @@ Release build passes without warnings/errors, then both actual ownership bridge
 Facts pass (2/2, zero skips). The preceding 11-case BFF proof is recorded against
 its pre-format bytes; the normalization does not inherit a new exact-source run.
 Normal hooks remain mandatory for the subsequent commit.
+
+
+### ADR-0084 Step 3 review round 1 and verified partial corrections (2026-11-02)
+
+Three new independent reviewers inspect implementation `13570dc7` against
+`0cd5f159`: qualified patch/response paths, process lifetimes and diagnostic/source
+boundaries. Root reads all reports and verifies the findings. This record closes
+two corrections, not R1, Step 3 or hosted qualification. The additional
+initialized-router failure witness below remains open.
+
+**Qualified patch review.** The reviewer independently checks all 59 installed
+subjects and the complete 7,279-path distribution, reconstructs/reapplies all
+30 JavaScript transformations, recomposes all 29 source maps and compares both
+retained regenerations. All identities match. The 26 pure generated-pipe
+controls, map controls and two accepted/four refused drain shapes pass. This is
+independent source/control evidence, not another initialized-router execution or
+an assertion that every runtime branch ran.
+
+**Closed subprocess output.** Five new `execFileSync` call sites omit explicit
+stdio. Actual Node forwards their captured stderr before the exception wrapper
+can replace the error, including on zero exit. Root independently reproduces
+this with an inert canary without printing it. The five calls now explicitly
+pipe both channels, preserving their environments, deadlines, buffers and cleanup.
+The new permanent control evaluates all nine declared actual option objects:
+zero/nonzero children forward neither parent channel, while removing only stdio
+reproduces stderr forwarding. The original reviewer independently executes both
+controls with 248 assertions and 36 real inert children, reads all six file
+deltas and closes the Major. Root's focused eight cases, normal typecheck and
+scoped lint pass. The lint deprecation notice remains distinct from an ESLint
+warning or error.
+
+**Failed watchdog with a surviving worker.** The original ordered-worker case
+proves retention but permits a clean child exit. The separate native watchdog
+proof lacks a surviving initialized descendant. The strengthened existing case
+holds a real second App Router render and registers/awaits the same promise
+through the installed request-context facade. At the actual first-stop watchdog,
+read-only native observation requires pending request stop and positive registered
+work. A separate Node exit observation plus actual captured runtime PID absence
+corroborate code 1 while the same real static-path worker, group, owner and exact
+records remain live. Both replacement modes refuse; only then is the worker
+released. Final actual group retirement preserves child/owner failure.
+
+The candidate recheck catches an omitted finite `hold-real-render` failure stage
+before promotion. V2 limits it to the one workers/development case and tests both
+existing catch/deadline call sites. The same source control rejects V1 (4/5) and
+passes V2 (21/21); the independent reviewer closes this Minor. Root reads both
+complete deltas, verifies all nine before/after hashes, promotes them and updates
+the exact BFF-host source pin only after reviewing its two-line copied-observer
+condition change. The misleading unexecuted-overlap comment is corrected.
+Normal source controls pass **6/6**, focused evidence/genericity/privacy cases
+**84/84**, typecheck and scoped lint, without changing the proof deadlines.
+
+**Actual combined result.** The first genuine workers run passes in **65.802
+seconds**, with **400 unchanged frontend inputs**, five cases and 13 launches,
+zero stderr and an empty outer temporary root. The watchdog occurs 5,000 ms after
+the runtime's own stop observation; native waiting count is one and request stop
+is pending. The same worker/group/owner and all three exact record hashes remain
+through both refused replacement modes. After the late worker event and actual
+family join, child and owner remain code 1. The complete shared TypeScript
+validator accepts the entire raw receipt. The independent reviewer rechecks raw
+identity/events, source inventory, all nine candidate hashes and that validator
+result, then closes the original Major. The worker event is a late fixture write,
+not proof that Next emitted a framework output after direct exit. Module clock
+origins remain distinct; only runtime stop/watchdog timestamps are subtracted.
+
+**Additional R1 gate finding.** A clause-by-clause check of
+[Testing 06](../standards/06-testing.md#version-qualified-next-response-cleanup)
+finds that live initialized-router proof covers three healthy cases and native
+refusal after allocation; the required pre-selection rejection/abort, constructor
+and encoder faults, rejected end work and required-registration negatives have
+only component/source evidence. The patch reviewer independently maps the actual
+and extracted paths and confirms this Major qualification gap. No production
+fault is demonstrated. A separate source-qualified live fault fixture is being
+implemented while preserving the existing healthy clean-zero proof. It must
+observe actual Next end-work composition and retain construction uncertainty;
+component controls or a successful client response cannot close this gate.
+
+**Clean demo attempt and limits.** A fresh development clone of `13570dc7` runs
+the existing CI demo but fails setup with cleanup unconfirmed; its private root
+and lock remain retained. Installed frontend subjects verify and backend restore
+assets exist, but the first cause is not established. An isolated exact restore
+passes; a separate instrumented setup prefix reaches an intentional stop before
+ingress compilation and disposes cleanly. Those diagnostic prefixes do not
+qualify the failed demo. No speculative MSBuild flag, unknown-record deletion or
+cleanup success is introduced. The final corrected source still needs a fresh
+normal clean demo, full guarded tests and new independent R2, then final discovery
+and complete same-source hosted A followed by B with original ZIP verification.
+Manual accessibility remains maintainer-deferred and unexecuted.

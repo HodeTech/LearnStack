@@ -28,12 +28,14 @@ describe('actual initialized Next process ownership', () => {
   it.each([
     ['framework-ownership-proof-source.test.mjs', 1],
     ['framework-private-source.test.mjs', 3],
+    ['framework-worker-watchdog-source.test.mjs', 5],
   ] as const)('executes every closed control in %s', (name, count) =>
     closedFrameworkProofSync(() => {
       const frontend = fileURLToPath(new URL('../../../../', import.meta.url));
       const script = join(frontend, 'scripts', name);
       const output = execFileSync(process.execPath, ['--test', script], {
         encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
         timeout: 10_000,
         maxBuffer: 65536,
         env: environment,

@@ -72,6 +72,10 @@ const eventNames = [
   'worker-entered',
   'worker-returned',
   'owner-receipt',
+  'render-work-entered',
+  'render-work-returned',
+  'requests-stopped',
+  'requests-stop-failed',
 ];
 function object(value: unknown): Record<string, unknown> {
   assert.ok(value !== null && typeof value === 'object' && !Array.isArray(value));
@@ -165,6 +169,133 @@ function ordered(events: Record<string, unknown>[], required: readonly string[])
   }
 }
 
+function validateWorkerWatchdogEvidenceCore(value: unknown) {
+  const row = exact(value, [
+    'watchdogRetention',
+    'ownerReceipt',
+    'outcome',
+    'family',
+    'workerIdentity',
+    'events',
+  ]);
+  const family = exact(row.family, ['pid', 'group', 'parentPid', 'leaseNonce', 'incarnation']);
+  integer(family.pid, 2);
+  integer(family.parentPid, 2);
+  assert.equal(family.group, family.pid);
+  hash(family.leaseNonce, 32);
+  hash(family.incarnation, 32);
+  assert.ok(Array.isArray(row.workerIdentity) && row.workerIdentity.length === 3);
+  row.workerIdentity.forEach((pid) => integer(pid, 2));
+  assert.notEqual(row.workerIdentity[0], family.pid);
+  assert.equal(row.workerIdentity[1], family.pid);
+  assert.equal(row.workerIdentity[2], family.group);
+  const evidence = exact(row.watchdogRetention, [
+    'watchdog',
+    'directExit',
+    'beforeHashes',
+    'afterWatchdogHashes',
+    'afterCompetitorHashes',
+    'ownerLive',
+    'runtimeAbsent',
+    'workerLive',
+    'groupLive',
+    'competingModes',
+  ]);
+  for (const flag of ['ownerLive', 'runtimeAbsent', 'workerLive', 'groupLive'])
+    assert.equal(evidence[flag], true);
+  assert.deepEqual(evidence.competingModes, ['production', 'development']);
+  for (const key of ['beforeHashes', 'afterWatchdogHashes', 'afterCompetitorHashes']) {
+    const hashes = evidence[key];
+    assert.ok(Array.isArray(hashes) && hashes.length === 3);
+    hashes.forEach((item) => hash(item));
+    assert.deepEqual(hashes, evidence.beforeHashes);
+  }
+  const watchdog = exact(evidence.watchdog, [
+    'version',
+    'pid',
+    'parentPid',
+    'requestStop',
+    'sample',
+    'milliseconds',
+  ]);
+  const directExit = exact(evidence.directExit, [
+    'version',
+    'pid',
+    'parentPid',
+    'code',
+    'milliseconds',
+  ]);
+  for (const observation of [watchdog, directExit]) {
+    assert.equal(observation.version, 1);
+    assert.equal(observation.pid, family.pid);
+    assert.equal(observation.parentPid, family.parentPid);
+    integer(observation.milliseconds, 0, 120000);
+  }
+  assert.equal(watchdog.requestStop, 'pending');
+  assert.ok(Array.isArray(watchdog.sample) && watchdog.sample.length === 5);
+  watchdog.sample.forEach((count) => integer(count, 0, 256));
+  assert.ok(watchdog.sample[3] > 0);
+  assert.equal(directExit.code, 1);
+  assert.ok(Number(directExit.milliseconds) >= Number(watchdog.milliseconds));
+  const native = ownerReceipt(row.ownerReceipt);
+  assert.equal(native.code, 1);
+  assert.equal(native.signal, null);
+  assert.equal(native.fault, 'channel-fault');
+  for (const flag of ['handshakeValidated', 'listenerReady', 'requestedStop'])
+    assert.equal(native[flag], true);
+  assert.equal(native.startupCancelled, false);
+  assert.equal(native.parentLost, false);
+  assert.equal(stopOutcome(row.outcome, false).ownerCode, 1);
+  assert.ok(Array.isArray(row.events) && row.events.length <= 128);
+  const events = row.events.map((value: unknown) => {
+    const event = exact(value, ['event', 'case', 'pid', 'parentPid', 'milliseconds']);
+    assert.ok(typeof event.event === 'string' && eventNames.includes(event.event));
+    assert.equal(event.case, 'worker-ordered-stop');
+    integer(event.pid, 2);
+    integer(event.parentPid, 1);
+    integer(event.milliseconds, 0, 120000);
+    return event;
+  });
+  ordered(events, [
+    'worker-entered',
+    'render-work-entered',
+    'stop-consumed',
+    'admission-stop',
+    'requests-stop',
+    'sessions-stop',
+    'watchdog',
+    'worker-returned',
+  ]);
+  for (const event of events) {
+    assert.ok(
+      !['render-work-returned', 'requests-stopped', 'requests-stop-failed'].includes(
+        String(event.event),
+      ),
+    );
+    if (
+      [
+        'render-work-entered',
+        'stop-consumed',
+        'admission-stop',
+        'requests-stop',
+        'sessions-stop',
+        'watchdog',
+      ].includes(String(event.event))
+    ) {
+      assert.equal(event.pid, family.pid);
+      assert.equal(event.parentPid, family.parentPid);
+    }
+    if (String(event.event).startsWith('worker-')) assert.equal(event.pid, row.workerIdentity[0]);
+  }
+  const stopped = events.find((event) => event.event === 'stop-consumed')!;
+  assert.ok(Number(watchdog.milliseconds) - Number(stopped.milliseconds) >= 4500);
+}
+
+/** Finite observations only; these values never mint cleanup or process authority. */
+export function validateWorkerWatchdogEvidence(value: unknown) {
+  return closedFrameworkProofSync(() => validateWorkerWatchdogEvidenceCore(value));
+}
+
 /** Finite receipts are observations; no PID or receipt becomes cleanup authority here. */
 function validateFrameworkOwnershipGroupCore(value: unknown, group: Group) {
   const receipt = exact(value, [
@@ -191,6 +322,7 @@ function validateFrameworkOwnershipGroupCore(value: unknown, group: Group) {
               'actualLateWorkerWrite',
               'observationUncertaintyRefused',
               ...(scenario === 'worker-owner-death' ? ['recovery'] : []),
+              ...(scenario === 'worker-ordered-stop' ? ['watchdogRetention'] : []),
             ]
           : scenario === 'prepare-owner-death'
             ? ['changedRecordRefused', 'missingRecordRefused', 'exactReconciled', 'recordHashes']
@@ -211,7 +343,7 @@ function validateFrameworkOwnershipGroupCore(value: unknown, group: Group) {
     if (scenario.startsWith('prehello-')) prehelloOutcome(row.outcome, fatal);
     else {
       const outcome = stopOutcome(row.outcome, fatal);
-      if (!fatal && scenario !== 'worker-ordered-stop')
+      if (!fatal)
         assert.equal(
           outcome.ownerCode,
           scenario.startsWith('ready-') || scenario === 'worker-positive' ? 0 : 1,
@@ -308,6 +440,15 @@ function validateFrameworkOwnershipGroupCore(value: unknown, group: Group) {
       assert.equal(row.actualLateWorkerWrite, true);
       assert.equal(row.observationUncertaintyRefused, fatal);
       if (fatal) recovery(row.recovery);
+      if (scenario === 'worker-ordered-stop')
+        validateWorkerWatchdogEvidenceCore({
+          watchdogRetention: row.watchdogRetention,
+          ownerReceipt: row.ownerReceipt,
+          outcome: row.outcome,
+          family,
+          workerIdentity: row.workerIdentity,
+          events,
+        });
     }
     if (scenario === 'prepare-owner-death')
       recovery(

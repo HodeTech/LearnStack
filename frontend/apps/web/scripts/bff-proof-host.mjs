@@ -660,8 +660,8 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
     for (const name of ['tailwind.config.ts', 'postcss.config.cjs'])
       cpSync(join(source, name), join(app, name));
   }
-  if (uiMode && !external) {
-    // The observation exists only in this copied fixture, after the UI source copy.
+  if ((uiMode || ownershipCase === 'matrix') && !external) {
+    // The observation exists only in this copied fixture, after any UI source copy.
     const path = join(app, 'src/server/auth/request-runtime.ts');
     file(path, instrumentBffProofRequestRuntime(readFileSync(path, 'utf8')));
   }

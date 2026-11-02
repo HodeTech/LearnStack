@@ -1,4 +1,4 @@
-// PRIVATE design candidate: copied child only. Not wired or executed.
+// Copied-fixture overlap coordinator; never imported by the product runtime.
 import { constants, closeSync, lstatSync, openSync, realpathSync, writeSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 

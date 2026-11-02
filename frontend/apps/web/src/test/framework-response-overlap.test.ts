@@ -20,6 +20,7 @@ test('copied overlap ownership and observation controls pass every causal case',
       ],
       {
         encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
         timeout: 10_000,
         maxBuffer: 65536,
         env: { PATH: process.env.PATH, NODE_ENV: 'production', NEXT_TELEMETRY_DISABLED: '1' },
