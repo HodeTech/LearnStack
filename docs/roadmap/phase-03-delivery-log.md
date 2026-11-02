@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 7,875 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 7,932 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -285,6 +285,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 363b hosted A originals and isolated frontend diagnosis (2026-11-02)](#p03-3-363b-hosted-a-originals-and-isolated-frontend-diagnosis-2026-11-02) — 68 lines
   - [P03-3 363b isolated Linux controls and diagnostic precision (2026-11-02)](#p03-3-363b-isolated-linux-controls-and-diagnostic-precision-2026-11-02) — 84 lines
   - [P03-3 diagnostic precision R1 corrections and measured source work (2026-11-02)](#p03-3-diagnostic-precision-r1-corrections-and-measured-source-work-2026-11-02) — 92 lines
+  - [P03-3 diagnostic precision R2 closeout and renewed qualification (2026-11-02)](#p03-3-diagnostic-precision-r2-closeout-and-renewed-qualification-2026-11-02) — 57 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -13703,3 +13704,60 @@ independent R2 reviewers inspect the complete correction and proof boundaries.
 The earlier local failure and hosted A remain failed; no B starts before a fully
 qualified new A. Manual accessibility remains maintainer-deferred and unexecuted.
 No clock, concurrency, authority, topology or capacity decision changes.
+
+### P03-3 diagnostic precision R2 closeout and renewed qualification (2026-11-02)
+
+Two new independent R2 reviewers inspect the whole ten-file correction from
+`363b791f` through `6d033e1d`, not only R1's final fix. Both approve within scope
+with no verified Blocker, Major or Minor. The owner reads both complete reports
+and their private-gate follow-ups and verifies their digests. Source/privacy,
+actual observation wiring, independent receiver parity, partial TAP, Buffer/UTF-8,
+closed errors, successful source admission, deferred binding, mutation controls,
+actual evidence and corpus boundaries remain intact. No further canonical code
+correction is required; the normal corrective commit preserves its pre-hook tree,
+user settings hash and all five stash identities.
+
+Private main report identities:
+
+- `6d03-r2-source.md`, SHA-256
+  `b0aef4193cac140fffdbca026aaa72fd53d55acfad304bccc053bcb0decfbc34`.
+- `6d03-r2-evidence.md`, SHA-256
+  `169dbdb476d4a5a218dab4100b36f7dc83e19ef9764b8bae19cb736471391b2e`.
+
+Both reviewers independently match current source maps, all eighteen captured
+stream sizes/digests, focused JSON, actual renderer/corpus TRX and all sixteen
+private helper sample results. The nine stderr streams are empty. They recompute
+the private helper timings from originals, rather than trusting summary prose.
+The prior package deadline failure and unknown hosted cause remain explicit;
+the full-package temporary JSON retention limit and reused backend evidence
+are not silently promoted. Manual accessibility remains deferred and unexecuted.
+
+One optional private-gate hardening suggestion is implemented: the reviewed
+summary bytes are pinned, and timing arrays, medians, per-sample parse totals,
+completion identity and percentage changes are re-derived from all sixteen
+original samples. No application, test source, policy or local execution receipt
+changes. Both R2 follow-ups approve this bounded addition; their report digests
+are `e96f6aea6780a23cc782140189c5c1d5a01ce8c68fbc8d8ab98db67adfd939e6`
+and `7c82713a087e9c7da092ec526f812fbe6fcd66866314a8177c356e8443c33356`.
+The new helper digest is
+`91fde564f0b6aa1964a963b8a42b2f4446e9dd71189f996b398cf9c29d75a9e3`.
+The old helper stays intact. The owner and evidence reviewer independently run
+only its read-only prefix at `6d033e1d`: all 152 proof files, 424 framework inputs,
+23 supplementary paths and 1,982 backend files pass. All twelve earlier frozen
+source envelopes remain unchanged; no new envelope is published by these
+checks. Two owner in-memory timing/call-count counterfactuals refuse without
+changing any original file. The source reviewer independently checks every new
+arithmetic predicate without executing the helper.
+
+Both fresh correction review rounds close. A documentation-only normal commit
+records this closeout, after which the complete gate binds its final HEAD/tree
+to the unchanged qualified application sources and current retained receipts.
+The latest failed A is not retried as a subset. Push the final reviewed
+`development` source and dispatch one new complete A, with all 27 jobs, the
+unchanged 7,949-case population, current assignments and fixed OpenAPI base
+`e55aa5d7bfcba4ccc2357fa0c2276025e14f8d55`. Retain every available original
+archive and independently audit case/result/resource and frontend/public/OpenAPI
+proofs. Only a fully qualified A permits Re-run all jobs B on identical source,
+tree, plan, toolchain and population. Any failed A retains its original evidence
+before a new source correction. Local passes, these reviews and the pure-helper
+measurement establish no hosted cause or fit, and no manual evidence.
