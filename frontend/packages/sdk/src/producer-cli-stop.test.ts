@@ -3,6 +3,9 @@ import { expect, test } from 'vitest';
 
 type StopResult = {
   signalObserved: boolean;
+  signalReceived: boolean;
+  commandDispatchAttempted: boolean;
+  missingForwardingRefused: boolean;
   familyRetired: boolean;
   leasesRetired: boolean;
   sourcesUnchanged: boolean;
@@ -22,6 +25,9 @@ test.each(['SIGTERM', 'SIGINT'] as const)(
   async (signal) => {
     expect(await check(signal)).toEqual({
       signalObserved: true,
+      signalReceived: true,
+      commandDispatchAttempted: false,
+      missingForwardingRefused: true,
       familyRetired: true,
       leasesRetired: true,
       sourcesUnchanged: true,

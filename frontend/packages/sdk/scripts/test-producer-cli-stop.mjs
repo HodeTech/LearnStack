@@ -41,8 +41,7 @@ async function waitUntil(predicate, deadline) {
 }
 
 /** Stop the actual CLI while its output leases are held before the first child family. */
-export async function checkProducerCliStop(signal) {
-  assert.ok(['SIGTERM', 'SIGINT'].includes(signal));
+async function checkProducerCliStopCase(signal, forwarding, deadline) {
   const expected = canonicalGraph();
   const manager = resolveQualifiedPnpm({ frontendRoot });
   const root = mkdtempSync(
@@ -54,6 +53,8 @@ export async function checkProducerCliStop(signal) {
   const release = join(controls, 'release');
   const observed = join(controls, 'abort-observed');
   const exitCode = join(controls, 'exit-code');
+  const received = join(controls, 'signal-received');
+  const dispatchAttempt = join(controls, 'command-dispatch-attempt');
   let safeToRemove = false;
   let controller;
   let familyPromise;
@@ -103,8 +104,19 @@ export async function checkProducerCliStop(signal) {
       `    writeFileSync(${JSON.stringify(held)}, '1\\n', { mode: 0o600, flag: 'wx' });\n` +
       `    while (!existsSync(${JSON.stringify(trigger)})) await new Promise((resolve) => setTimeout(resolve, 10));\n` +
       `    process.kill(process.pid, ${JSON.stringify(signal)});\n` +
-      `    while (!existsSync(${JSON.stringify(release)})) await new Promise((resolve) => setTimeout(resolve, 10));`;
-    writeFileSync(copy.guardPath, replaceOnce(guard, anchor, barrier));
+      `    while (!existsSync(${JSON.stringify(release)})) await new Promise((resolve) => setTimeout(resolve, 10));\n` +
+      `    writeFileSync(${JSON.stringify(received)}, signal?.aborted ? 'aborted' : 'missing', { mode: 0o600, flag: 'wx' });`;
+    const dispatchAnchor =
+      '  await producerBoundary(signal);\n  try {\n    await runFrameworkProcessFamily';
+    const dispatchProbe =
+      `  await producerBoundary(signal);\n` +
+      `  writeFileSync(${JSON.stringify(dispatchAttempt)}, '1\\n', { mode: 0o600, flag: 'wx' });\n` +
+      `  throw new Error('Private command dispatch sentinel');\n` +
+      `  try {\n    await runFrameworkProcessFamily`;
+    writeFileSync(
+      copy.guardPath,
+      replaceOnce(replaceOnce(guard, anchor, barrier), dispatchAnchor, dispatchProbe),
+    );
 
     const cliSource = readFileSync(cli, 'utf8');
     const cliAnchor =
@@ -115,7 +127,14 @@ export async function checkProducerCliStop(signal) {
       `process.on('exit', (code) => probeWrite(${JSON.stringify(exitCode)}, String(code), { mode: 0o600, flag: 'wx' }));\n` +
       `const probeAbort = AbortController.prototype.abort;\n` +
       `AbortController.prototype.abort = function (...args) { const value = probeAbort.apply(this, args); if (probeExists(${JSON.stringify(held)}) && !probeExists(${JSON.stringify(observed)})) probeWrite(${JSON.stringify(observed)}, '1\\n', { mode: 0o600, flag: 'wx' }); return value; };\n`;
-    writeFileSync(cli, replaceOnce(cliSource, cliAnchor, observation + cliAnchor));
+    let instrumentedCli = replaceOnce(cliSource, cliAnchor, observation + cliAnchor);
+    if (!forwarding)
+      instrumentedCli = replaceOnce(
+        instrumentedCli,
+        '    await buildFramework({ ...options, signal: controller.signal });',
+        '    await buildFramework({ ...options });',
+      );
+    writeFileSync(cli, instrumentedCli);
     const privateGraph = frameworkInputGraph(copy);
     assert.equal(privateGraph.length, expected.length);
     assert.deepEqual(
@@ -126,7 +145,6 @@ export async function checkProducerCliStop(signal) {
     );
 
     controller = new AbortController();
-    const deadline = Date.now() + 60_000;
     familyPromise = runFrameworkProcessFamily(
       process.execPath,
       [cli, '--app-root', copy.appRoot, '--frontend-root', copy.frontendRoot],
@@ -199,8 +217,16 @@ export async function checkProducerCliStop(signal) {
     assertNoRetainedFrameworkOwners(root);
     assert.deepEqual(frameworkInputGraph(copy), privateGraph);
     assert.deepEqual(canonicalGraph(), expected);
+    const signalReceipt = existsSync(received) ? readFileSync(received, 'utf8') : undefined;
+    const signalReceived = signalReceipt === 'aborted';
+    const commandDispatchAttempted = existsSync(dispatchAttempt);
+    const forwardingCredited = signalReceived && !commandDispatchAttempted;
     safeToRemove = true;
     result = {
+      signalReceived,
+      signalReceipt,
+      commandDispatchAttempted,
+      forwardingCredited,
       signalObserved: true,
       familyRetired: true,
       leasesRetired: true,
@@ -229,4 +255,35 @@ export async function checkProducerCliStop(signal) {
     if (safeToRemove) rmSync(root, { recursive: true });
   }
   return { ...result, rootDisposed: !existsSync(root) };
+}
+
+/** Verify forwarding and reject the private missing-forwarding twin for each signal. */
+export async function checkProducerCliStop(signal) {
+  assert.ok(['SIGTERM', 'SIGINT'].includes(signal));
+  const deadline = Date.now() + 60_000;
+  const positive = await checkProducerCliStopCase(signal, true, deadline);
+  assert.ok(Date.now() < deadline, 'Shared probe deadline before the twin');
+  const missing = await checkProducerCliStopCase(signal, false, deadline);
+  assert.equal(positive.signalReceived, true, 'Producer received the aborted signal');
+  assert.equal(
+    positive.commandDispatchAttempted,
+    false,
+    'Boundary refused before dispatch attempt',
+  );
+  assert.equal(positive.forwardingCredited, true);
+  assert.equal(missing.signalReceipt, 'missing', 'Twin did not forward the signal');
+  assert.equal(missing.signalReceived, false);
+  assert.equal(missing.commandDispatchAttempted, true, 'Twin reached the dispatch attempt');
+  assert.equal(missing.forwardingCredited, false, 'Twin cannot receive forwarding credit');
+  assert.equal(missing.rootDisposed, true);
+  return {
+    signalReceived: positive.signalReceived,
+    commandDispatchAttempted: positive.commandDispatchAttempted,
+    missingForwardingRefused: true,
+    signalObserved: positive.signalObserved,
+    familyRetired: positive.familyRetired,
+    leasesRetired: positive.leasesRetired,
+    sourcesUnchanged: positive.sourcesUnchanged,
+    rootDisposed: positive.rootDisposed,
+  };
 }

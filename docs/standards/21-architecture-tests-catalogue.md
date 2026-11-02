@@ -6525,6 +6525,10 @@ Prior receipts do not qualify subsequent source changes.
   The standalone producer CLI preserves its signal latch before and between
   command families, including real leased preparation. Signal tests authenticate
   the actual producer and verify family retirement and all three lease releases.
+  An actual received-aborted signal and absence of a post-boundary command
+  dispatch attempt distinguish cancellation from an ordinary failure. A private
+  missing-forwarding twin reaches a pre-spawn sentinel and earns no cancellation
+  credit; its independently confirmed retirement permits fixture disposal.
   A leased `.next` directory alone does not prove a compiler started; failed or
   forced test shutdown cannot authorize recursive deletion of retained records.
 - **Source:** [ADR-0083](../decisions/0083-owned-next-response-compression-cleanup.md),

@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,863 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,926 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -268,6 +268,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0085 Step 2 review closeout and final-source qualification plan (2026-11-02)](#adr-0085-step-2-review-closeout-and-final-source-qualification-plan-2026-11-02) — 29 lines
   - [P03-3 a535 hosted A originals and failed qualification (2026-11-02)](#p03-3-a535-hosted-a-originals-and-failed-qualification-2026-11-02) — 49 lines
   - [P03-3 cold SDK output and producer cancellation corrections (2026-11-02)](#p03-3-cold-sdk-output-and-producer-cancellation-corrections-2026-11-02) — 80 lines
+  - [P03-3 corrective R1 findings and signal-attribution fix (2026-11-02)](#p03-3-corrective-r1-findings-and-signal-attribution-fix-2026-11-02) — 63 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -12674,3 +12675,66 @@ with retained/audited originals permits all-job B on the same final source. This
 is an implementation correction under ADR-0083/0084, with no new authority,
 runtime topology, timing allowance or Accepted ADR body change. Manual
 accessibility evidence remains maintainer-deferred and unexecuted.
+
+### P03-3 corrective R1 findings and signal-attribution fix (2026-11-02)
+
+The ownership correction is committed normally as
+`71d5e30db21cd4a59a4ba94ecd0ec69dd40f1617`, tree
+`e0d604a505e2cae4d226afed7de1507f43591eaa`. All 11 intended files and the pre-hook
+and committed trees agree; the unrelated VS Code file and five stash references
+remain unchanged. Two new independent post-commit R1 reviewers inspect the full
+source/documentation diff, production call chains and retained local evidence.
+Both reports are fully read by the implementation owner. Neither report is an
+R2, runtime qualification or attribution of the old hosted assertion.
+
+The lifetime review finds one verified Minor: an observed controller abort,
+generic exit 1 and released leases alone cannot distinguish forwarded
+cancellation from a later ordinary build failure. It finds no Blocker or Major.
+The evidence review finds no Blocker/Major/Minor and independently reparses the
+20 discovery diagnostics, original TRX and stream hashes. Its private-freeze
+suggestions concern regular-file verification, nested Git configuration and
+negative controls for the actual final helper revision.
+
+The two existing SIGTERM/SIGINT cases now each run the intact CLI and a private
+missing-forwarding twin. The actual producer records whether its received signal
+is aborted. A marker immediately after the real producer boundary records a
+command-dispatch attempt; a fixture sentinel prevents actual child spawning if
+that point is reached. The positive requires an aborted receipt and no attempt.
+The twin still observes abort/exit 1 and real lease/group retirement, but records
+missing forwarding and a dispatch attempt, so it earns no cancellation credit.
+Classification assertions follow independently confirmed physical cleanup; the
+intentional twin does not leave an uncertain fixture. Both variants share one
+60-second wait budget and retain the existing 90-second outer test limit and
+15-second failure-side cleanup observation. Synchronous setup/cleanup still
+prevents a strict wall-clock guarantee. No production deadline is enlarged.
+
+The private freeze helper now checks a regular, non-symlink exclusion file with
+`lstat`, exact bytes/mode/SHA-256 and inherited nested Git configuration. Its
+invalid-HEAD and optimized-Python negatives must bind the final reviewed helper
+bytes; earlier 307-line and 347-line checks remain version-specific. No envelope
+or new CI run is published before the new R2 source reviews.
+
+Final source-bound revalidation passes: four focused tests in 8.168 seconds and
+all 3,559 frontend tests in 181.010 seconds overall. Web and SDK package durations
+are 169.84 and 7.61 seconds; the unchanged 180-second allowance applies separately
+to each package. There are zero skips/todos and empty stderr. The final recursive
+cold-copy check passes in 6.215 seconds, with all 421 inputs and 92 extra files
+unchanged and actual family/owner retirement. The complete source-bound short
+gates pass with unchanged 421/18/1,982 maps: typecheck 4.208 seconds, lint 24.410
+seconds, production build 21.446 seconds and both renderer variants 32.121
+seconds, all with empty stderr. Backend bytes are unchanged, so the existing
+strict rebuild, fresh 20-command discovery and 604-case Architecture proof still
+match their exact backend input map; these are not newly executed backend runs.
+
+The final 354-line private freeze helper has SHA-256
+`aad7ec95a95df835e2395286bfbbd743db09d87df6adbe694bdcbadf7dfd3d06`.
+Both negative controls are executed against these bytes and refuse before
+publication; the existing envelope is unchanged and no new envelope is created.
+A normal R1 corrective commit and two new independent R2 reviewers follow.
+The two private R1 reports are `corrective-r1-lifetimes.md` (SHA-256
+`b9ba4a142bdddb66d7e681ee34d236b62016b333af40c4f0ddc21f813348e7db`)
+and `corrective-r1-evidence.md` (SHA-256
+`b30c74633cf8e58cee325ffeadf571b56f9e365994b2c7aa663da95767b0f6de`)
+under the ADR-0085 review directory. New independent R2 reviewers must inspect
+the committed fix and final helper. Complete same-source hosted A/B and manual
+accessibility retain their previously recorded open/deferred boundaries.
