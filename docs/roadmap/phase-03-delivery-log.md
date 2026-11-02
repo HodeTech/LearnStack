@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,146 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,257 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -290,6 +290,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 platform expectation and closed bodyless diagnostic correction (2026-11-02)](#p03-3-platform-expectation-and-closed-bodyless-diagnostic-correction-2026-11-02) — 59 lines
   - [P03-3 platform and bodyless correction review round 1 (2026-11-02)](#p03-3-platform-and-bodyless-correction-review-round-1-2026-11-02) — 29 lines
   - [P03-3 platform and bodyless correction R2 closeout and renewed qualification (2026-11-02)](#p03-3-platform-and-bodyless-correction-r2-closeout-and-renewed-qualification-2026-11-02) — 34 lines
+  - [P03-3 8c2c hosted A originals and exact-source CPU4 diagnosis (2026-11-03)](#p03-3-8c2c-hosted-a-originals-and-exact-source-cpu4-diagnosis-2026-11-03) — 80 lines
+  - [P03-3 finite VM refusal diagnostics and implementation validation (2026-11-03)](#p03-3-finite-vm-refusal-diagnostics-and-implementation-validation-2026-11-03) — 31 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -13979,3 +13981,114 @@ Any failed A preserves its evidence before another bounded correction. Local
 passes and these reviews establish no hosted cause or fit. Manual
 keyboard/focus/reflow/contrast/VoiceOver remains maintainer-deferred and
 unexecuted; P03-3 and complete hosted A/B remain open.
+
+### P03-3 8c2c hosted A originals and exact-source CPU4 diagnosis (2026-11-03)
+
+The complete [hosted A](https://github.com/HodeTech/LearnStack/actions/runs/41522193719)
+uses development `8c2c2e043dc24211f7df3f41df330fd3c3784974`, tree
+`8ca35ef22ec2ac85d1e99973b1048aca2d09b83c`, and fixed OpenAPI base
+`e55aa5d7bfcba4ccc2357fa0c2276025e14f8d55`. All 27 jobs terminate: 24 succeed;
+ordinary-11, frontend and the dependent integration aggregate fail. A remains
+unqualified; no B is dispatched.
+
+Fresh independent backend and public/frontend audits reconcile all 24 available
+original ZIPs, 41,334,799 bytes, 950 members and 141 exported producer files.
+API sizes/SHA-256, CRC, membership and exported bytes match. The sole missing
+archive is the failed integration aggregate. Independent assignment and exact
+journal/TRX reconciliation establish 7,622 Passed cases from 7,949 selected;
+327 ordinary-11 cases have no result. No observed case is Failed or Skipped.
+Nineteen complete producer receipts qualify. The backend aggregate exactly
+covers 4,476 cases; successful gates cannot qualify the failed workflow.
+
+Ordinary-11's 553-byte archive contains only its incomplete receipt, with
+`vm_evidence_missing`, 204.451 pre-owner seconds and no runtime/case/ownership
+evidence. Frozen source places this refusal before unit/workload launch. Its
+underlying cause remains unknown; historical evidence is not relabelled.
+The 19 successful runtime receipts report four CPUs; this is not hardware
+evidence for the failed ordinary owner or frontend job.
+
+The frontend retains six actual failure records across five files: three
+development readiness deadlines, one pure-router timeout, a distinct startup
+test-timeout record and a response-cleanup failure of unestablished exact cause.
+The later 180-second package guard follows these failures. Its 33 file rows
+are partial results, with no complete web/SDK union. The public proof completes
+all 27 report pairs and nine screenshots within hard budgets; LCP remains
+warning-only. OpenAPI and scoped scan evidence pass within their stated scope.
+Original screenshots are opaque; no manual accessibility pass follows.
+
+The owner fully reads both audit reports and their semantic records, verifies
+opaque inventories mechanically, independently replays their read-only checks,
+and reconciles originals, assignment, exact cases and all source/proof hashes.
+Root original-evidence closeout SHA-256:
+`5ffe6fcabf5b5f78c98d82b8a85e9f777997cb878ce6fef31a3f09701bf7ec70`.
+The failed CLI log capture is retained separately; the decoded connected-service
+original is the frontend log source, not that empty failed capture.
+
+A separately reviewed private experiment exports all 2,799 exact committed
+files, 93,889,531 bytes; every exported/worktree byte, Git blob and executable
+mode matches. Manifest SHA-256:
+`a70ee9da40e5fb4c0869237087b106b7f67619e9a498d298847ed90377902b53`.
+Fresh work/store volumes use qualified Node/pnpm/Next, actual CPU quota four
+and affinity 0–3, four Vitest workers and every original application deadline.
+No ambient-type candidate or admission cache is introduced. SDK generation,
+drift, typecheck, lint and production build pass. The actual test command exits
+one after 180.264 seconds at its original package guard.
+
+Independent and root reconciliation cover 87 evidence files, 32 host and 21
+child receipts, 106 streams, the exact source and 183/424/23/1,982 frozen
+proof/framework/supplementary/backend identities. All bindings remain stable.
+The complete 182-sample observer records 624.916 CPU-seconds over 180.265
+seconds, with no observed OOM. Both saved owned-container terminal snapshots
+have PID zero; the host containment timer does not fire. The application
+package guard still performs its original group stop. No cleanup credit or
+fresh live-process census is inferred from saved snapshots.
+
+The local partial output has 108 file rows, 107 passed/one failed and 3,407
+declared cases; seven web rows and all SDK test outcomes are unestablished.
+One startup failure carries a last-entered production/prehello-child-term
+snapshot with completed count 15. That count includes the current row and
+does not locate the fault. Local worker/recovery/router/response-cleanup file
+rows pass, unlike the hosted failures. ARM quota/affinity, aggregate counters
+and fixed setup order establish neither hosted equivalence nor cause or fit.
+The exact-source hold ends after independent/root integrity and finite-schema
+reconciliation; originals and unsuccessful results remain immutable.
+
+A separate read-only TypeScript API profile keeps positive/negative semantic
+and emitted-byte equivalence: SDK ambient restriction removes zero files;
+the web restriction removes four React-related declarations. Fixed-order/JIT
+timings establish no speedup, and neither configuration change is selected.
+Static source investigation identifies repeated walks within individual AST
+derivations as a measurement candidate, not a proven deadline fix. No clock,
+worker or admission-policy change follows. Complete final-source hosted A/B
+and maintainer-deferred, unexecuted manual accessibility remain open.
+
+### P03-3 finite VM refusal diagnostics and implementation validation (2026-11-03)
+
+The bounded correction changes only the fixed `systemd-detect-virt --vm`
+failure labels in the existing `Refusal.reason`/receipt `error` path:
+`vm_evidence_missing_os_error`, `_timeout`, `_output_bound`, `_exit` and `_shape`.
+The optional command classification defaults off; only that fixed probe opts
+in. Status refusal precedes shape refusal. Absolute pre/post deadline checks,
+the five-second command cap, exact accepted VM bytes, direct-child ownership,
+discarded stderr, no-retry behavior and receipt schema remain unchanged.
+Already-exhausted absolute time remains `deadline_exhausted`. No raw provider
+output, exception text, arbitrary status or argument enters the labels.
+
+Real fixed-path subprocess controls cover all five classes, the three accepted
+VM values, boundary/precedence/privacy cases and unchanged deadline/default
+behavior. Separate stubbed coordinator controls verify propagation, prelaunch
+no-unit/no-workload refusal, aggregate rejection and the unchanged native
+postlaunch stop path; those stubs are not actual hosted ownership evidence.
+
+Fresh local validation passes with zero skips: provisioning 23/23, native
+103/103, shard controls 86/86 and result controls 40/40. Actual wall times are
+86.269/23.105/6.142/4.007 seconds. The shard invocation uses meta's unchanged
+27-second TERM/three-second kill allocation. These results validate diagnostic
+behavior, not the historical refusal's cause or hosted qualification.
+
+Commit normally, complete two new independent corrective review rounds and
+fix verified findings with normal commits. Continue evidence-based frontend
+diagnosis without changing clocks, workers or admission authority. A later
+complete hosted A and B must use the same final source; no unsuccessful A is
+promoted by these local controls. Manual accessibility remains
+maintainer-deferred and unexecuted.
