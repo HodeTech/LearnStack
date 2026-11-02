@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,257 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,291 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -292,6 +292,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 platform and bodyless correction R2 closeout and renewed qualification (2026-11-02)](#p03-3-platform-and-bodyless-correction-r2-closeout-and-renewed-qualification-2026-11-02) — 34 lines
   - [P03-3 8c2c hosted A originals and exact-source CPU4 diagnosis (2026-11-03)](#p03-3-8c2c-hosted-a-originals-and-exact-source-cpu4-diagnosis-2026-11-03) — 80 lines
   - [P03-3 finite VM refusal diagnostics and implementation validation (2026-11-03)](#p03-3-finite-vm-refusal-diagnostics-and-implementation-validation-2026-11-03) — 31 lines
+  - [P03-3 finite VM diagnostic review round 1 (2026-11-03)](#p03-3-finite-vm-diagnostic-review-round-1-2026-11-03) — 34 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -14092,3 +14093,37 @@ diagnosis without changing clocks, workers or admission authority. A later
 complete hosted A and B must use the same final source; no unsuccessful A is
 promoted by these local controls. Manual accessibility remains
 maintainer-deferred and unexecuted.
+
+### P03-3 finite VM diagnostic review round 1 (2026-11-03)
+
+Two new independent reviewers inspect the complete five-file correction at
+`773daf5436c57c1d107bc28635fe34035cbe88c8` against 8c2c. Both approve with no
+verified actionable finding. They read all three changed Python files, both
+complete appended records and Status/index changes, with targeted actual
+coordinator, aggregate, CI and Accepted-contract context. The owner fully reads
+all reports/addenda and verifies their hashes.
+
+- Source/privacy/lifecycle review: `773d-r1-source-review.md`, SHA-256
+  `bdf4978b57fd83d658db11724c83d64c2e3740a9b70b7796bc444f09f01dc89c`.
+  Its initially truncated reading is not credited as a complete review. The
+  retained full-file completion, `773d-r1-source-read-completion.md`, SHA-256
+  `a3c13ef4b5c680ca179a121661bb1993967172a0cb74e8deb7410935494cf2ac`,
+  completes that obligation before this closeout.
+- Evidence/corpus review: `773d-r1-evidence-review.md`, SHA-256
+  `73ccbc607efb6e5d6bc2b6255ebc4f7d06e3cf39bac290b948dbb5cea6c74c1c`.
+  Its separately retained range-query recheck,
+  `773d-r1-evidence-range-recheck.md`, SHA-256
+  `52744404b3c9cf3b51877c061085dccefb5d712fd2646797f833960fe9484f9e`,
+  repeats the initial two queries with individual safe-excludes validation;
+  the original disclosed limitation and report remain immutable.
+
+The source review checks finite/default/deadline behavior and real versus
+stubbed controls. The evidence review independently reconciles all eight local
+validation streams/counts, original ZIP/member/export integrity, CPU4 retained
+files/streams, immutable source export and actual finite failure records. The
+owner independently verifies the eight current validation stream bindings.
+Saved invocation/timing records remain author-produced observations, not an
+independent new timing experiment. Neither reviewer runs tests or audit replays.
+No source fix follows R1. Commit this record normally, then complete a second
+new independent round. Failed A, absent B, incomplete frontend qualification
+and maintainer-deferred unexecuted manual accessibility retain their limits.
