@@ -12,6 +12,8 @@
 (replacement admission proofs implemented; both review rounds complete),
 [ADR-0056 Public Demo Browser and Lighthouse Enforcement](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md)
 (accepted 2026-10-11; browser/audit replacement proofs implemented),
+[ADR-0085 Public Demo CI Execution Window](../decisions/0085-public-demo-ci-execution-window.md)
+(Accepted 2026-11-02; outer-window controls and hosted qualification are separate),
 [ADR-0057 Transactional Event Production and Completion](../decisions/0057-transactional-event-production-and-completion.md)
 (producer lifecycle, payload and production-census proofs implemented),
 [ADR-0046 Durable Event Delivery and Recovery](../decisions/0046-durable-event-delivery-and-recovery.md)
@@ -6357,11 +6359,17 @@ C# architecture-test methods or a full WCAG/production-performance claim.
   These checkpoints do not attest ignored inputs or edits restored between them.
   Closed diagnostics retain failure origin and status ownership; intentional
   teardown signals do not become a cleanup failure's process status.
-- **Source:** [ADR-0056](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md#pacing-runtime-and-artifacts).
+  ADR-0085's extension requires an exact top-level 22-minute ceiling, actual
+  first-step 19-minute reservation before checkout, 180-second nominal difference
+  and wrong-bound/order controls, with other job ceilings unchanged.
+- **Source:** [ADR-0056](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md#pacing-runtime-and-artifacts),
+  [ADR-0085](../decisions/0085-public-demo-ci-execution-window.md).
 - **Scope:** the shared demo lifecycle and full-stack CI job.
 - **Type:** Node lifecycle/proof controls and real production navigation.
   **Kind:** behavioural.
 - **Status:** **Implemented** — named Node proof and planted controls above.
+  ADR-0085's additional outer-window controls are pending implementation and
+  both fresh review rounds; this existing status claims no new hosted fit.
 - **Phase:** 02d (P02d-7 Steps 1, 3 and 4).
 
 

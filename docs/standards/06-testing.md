@@ -15,6 +15,9 @@ The current CI execution windows derive from
 [ADR-0082](../decisions/0082-current-source-ci-execution-windows.md), which
 narrowly supersedes the predecessor window clauses in
 [ADR-0075](../decisions/0075-ordinary-ci-job-window.md).
+The public-demo outer-window exception derives from
+[ADR-0085](../decisions/0085-public-demo-ci-execution-window.md); its implementation
+and complete hosted qualification remain separate gates.
 Version-qualified framework cleanup and generated-output proofs derive from
 [ADR-0083](../decisions/0083-owned-next-response-compression-cleanup.md).
 UI localization controls derive from [ADR-0027](../decisions/0027-frontend-i18n.md)
@@ -238,8 +241,11 @@ retains collector provisioning and independent crash assertions.
 [ADR-0082](../decisions/0082-current-source-ci-execution-windows.md) gives verified
 Architecture producers a twenty-five-minute whole-job ceiling and verified
 ordinary Docker producers thirty minutes. Base/native remain twenty minutes,
-both aggregates five and meta five; all remaining jobs retain their existing
-ceilings. The 203-second reserve and all test-specific deadlines stay fixed.
+both aggregates five and meta five. [ADR-0085](../decisions/0085-public-demo-ci-execution-window.md)
+selects only the public-demo exception: a 22-minute job and 19-minute first-step
+work deadline, with its separate 180-second nominal reserve and internal
+720-second proof unchanged. All other jobs retain their existing ceilings.
+The backend 203-second reserve and all test-specific deadlines stay fixed.
 The closed `(mode, expected job, plan counts)` policy selects API, receipt and
 enclosing workload/project observation bounds: 1,500 Architecture, 1,800 ordinary,
 1,200 base/native seconds. Receipt partitions and global limit expansion confer

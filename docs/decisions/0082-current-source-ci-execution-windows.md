@@ -205,6 +205,22 @@ forged partitions and unchanged reserve/topology/operation limits. Configuration
 and synthetic controls prove policy enforcement; only complete fresh hosted
 A/B proves actual fit and natural lifecycle completion.
 
+## Amendments
+
+### Amendment 1 — Public-demo outer-window successor (2026-11-02)
+
+Accepted [ADR-0085](0085-public-demo-ci-execution-window.md) supersedes only
+the public-demo application of this record's all-remaining-job ceiling clause.
+Public-demo selects twenty-two job minutes and nineteen first-step work minutes.
+Architecture/ordinary, base/native and every other job remain unchanged, as do
+the demo's 180-second nominal reserve, internal 720-second proof, operation
+limits, population, serial isolation, admission and owned cleanup. The separate
+clock starts do not guarantee the full reserve remains at every instant. This
+record's body, date, acceptance and rationale stay historical. The
+[Phase 03 acceptance record](../roadmap/phase-03-delivery-log.md#adr-0085-maintainer-corrections-acceptance-and-step-1-2026-11-02)
+owns implementation/reviews and fresh complete final-source A/B; acceptance
+is neither executable delivery nor hosted fit.
+
 ## References
 
 - [ADR-0062](0062-native-crash-proof-ci-provisioning.md).

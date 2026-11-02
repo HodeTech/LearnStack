@@ -303,6 +303,21 @@ date, acceptance and rationale remain historical. Acceptance of ADR-0082 is not
 actual hosted fit; the [Phase 03 acceptance record](../roadmap/phase-03-delivery-log.md#adr-0082-maintainer-corrections-acceptance-and-step-1-2026-11-01)
 owns its dependent implementation/reviews and fresh A/B evidence.
 
+### Amendment 2 — Public-demo outer-window successor (2026-11-02)
+
+Accepted [ADR-0085](0085-public-demo-ci-execution-window.md) supersedes only
+the public-demo application of this record's retained other-job ceiling
+boundary, including Amendment 1's all-other-clocks restatement. Public-demo
+selects twenty-two job minutes and nineteen first-step work minutes; the
+180-second nominal reserve, internal 720-second proof, operation limits,
+population, serial isolation, admission and owned cleanup remain unchanged.
+Every unrelated job and this record's historical body, date and acceptance
+remain intact. The separate clock starts do not guarantee the full reserve
+remains at every instant. The
+[Phase 03 acceptance record](../roadmap/phase-03-delivery-log.md#adr-0085-maintainer-corrections-acceptance-and-step-1-2026-11-02)
+owns implementation/reviews and fresh complete final-source A/B; acceptance
+claims neither implementation nor hosted fit.
+
 ## References
 
 - [ADR-0063: Complete Bounded CI Test Shards](0063-complete-bounded-ci-test-shards.md).

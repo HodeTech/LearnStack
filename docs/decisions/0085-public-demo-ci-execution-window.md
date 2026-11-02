@@ -2,22 +2,28 @@
 
 ## Status
 
-Proposed
+Accepted
 
 **Date:** 2026-11-02
 **Deciders:** @cemil
-**On acceptance, bounded supersession:** ADR-0056's 20-minute public-demo CI job
+**Bounded supersession:** ADR-0056's 20-minute public-demo CI job
 ceiling, only the public-demo application of ADR-0075's other-workflow-job
 ceiling boundary, and only that application of ADR-0082's all-remaining-jobs
 clause. All three records remain Accepted; dated amendments disclose the
 specific change without rewriting their historical bodies.
-No executable clock or Accepted policy changes while this record is Proposed.
-The [three-step package](../roadmap/phase-03-delivery-log.md#adr-0085-proposed-public-demo-ci-window-package-2026-11-02) owns acceptance, implementation and qualification. The [proposal review closeout](../roadmap/phase-03-delivery-log.md#adr-0085-proposal-r2-closeout-and-approval-readiness-2026-11-02) records the corrected approval surface.
+The maintainer accepts the revised decision and three-step plan on 2026-11-02,
+after the review corrections in the
+[acceptance record](../roadmap/phase-03-delivery-log.md#adr-0085-maintainer-corrections-acceptance-and-step-1-2026-11-02).
+Acceptance selects the policy; executable clocks, implementation reviews and
+complete final-source hosted A/B remain separate gates. The
+[three-step package](../roadmap/phase-03-delivery-log.md#adr-0085-proposed-public-demo-ci-window-package-2026-11-02)
+is read with its append-only review and acceptance corrections.
 
 ## Decision Drivers
 
-- A complete current-source hosted A fails when the external absolute deadline
-  cancels the final of 27 required audits. Partial evidence cannot qualify.
+- The `public demo + lighthouse` job in the complete current-source hosted A
+  fails when the external absolute deadline cancels the final of 27 required
+  audits. Other jobs also fail; partial evidence cannot qualify the attempt.
 - The proof's 12-minute limit, four 61-second quiet intervals, serialized fresh
   workers, admission rules, report census and owned cleanup protect distinct
   contracts. The job must reserve time for teardown and evidence.
@@ -26,16 +32,18 @@ The [three-step package](../roadmap/phase-03-delivery-log.md#adr-0085-proposed-p
 
 ## Considered Options
 
-1. **22-minute job, 19-minute nominal work window** (proposed). Add two minutes
+1. **22-minute job, 19-minute nominal work window** (chosen). Add two minutes
    to each outer limit while preserving the three-minute reserve. This is bounded
    maintainer judgment, not a measured minimum or a fit guarantee.
-2. **Keep 20/17 and measure or optimize** (viable, not selected). The existing
-   limits remain defensible, but no safe optimization with demonstrated savings
-   has yet been established. Any optimization still needs its own proof.
+2. **Keep 20/17 and pursue sufficient optimization** (not selected). No safe
+   optimization with demonstrated savings has been established. The internal
+   proof limit is an upper bound, not a required duration; a shorter execution
+   or setup could fit, but the censored result proves no sufficient improvement.
+   Any optimization still needs its own proof.
 3. **Borrow reserve, remove quiet time, shrink the census, parallelize or reuse
    browsers** (not selected). These change cleanup, admission, isolation or proof
    contracts rather than only the outer window.
-4. **25-minute job with a matching work-window increase** (not selected). More
+4. **25-minute job with a 22-minute work window** (not selected). More
    headroom is uncalibrated by the censored result and costs more when a job hangs.
 
 ## Decision
@@ -52,9 +60,10 @@ contract remain unchanged.
 [Hosted A run 41385487207, attempt 1](https://github.com/HodeTech/LearnStack/actions/runs/41385487207)
 uses commit `d6281d7f1207acc1b07c20f893ee187f50ca8066` and tree
 `4880835d702d56fb41e0644440aae08371d2b327`. The retained public artifact contains
-26 matching JSON/HTML report pairs and nine screenshots. The final worker reports
-cancelled with its internal stage unknown; a hang and completion with more time
-are both unproved. The required complete report census and validations did not
+26 matching JSON/HTML report pairs and nine screenshots. All 26 completed pairs
+pass their recorded per-report hard budgets. The final audit was cancelled;
+its internal worker stage is unknown. A hang and completion with more time are
+both unproved. The required complete report census and validations did not
 finish. The receipt reports setup of 313.853 seconds, proof of 663.381 seconds
 and passing owned cleanup in 12.539 seconds. These observations are not a
 successful run or an independent host-wide cleanup proof.
@@ -64,10 +73,10 @@ The configured external deadline was 04:11:17 UTC; SIGINT near that time is
 inferred from the recorded deadline and unchanged timeout contract, rather than
 a separate signal-delivery observation. The command returned 124 at 04:11:29.
 The 17-minute absolute work limit could end the proof before its own 720-second
-limit. The unchanged reserve gives `1,200 - 180 = 1,020` work seconds today;
-the proposal gives `1,320 - 180 = 1,140`. The observed first-step-to-ready interval
-is about 355 seconds, leaving roughly 665 work seconds today or 785 under the
-proposal for a proof whose internal allowance is 720 seconds. Setup variation
+limit. The unchanged reserve gives `1,200 - 180 = 1,020` work seconds at 20/17;
+the selected window gives `1,320 - 180 = 1,140`. The observed first-step-to-ready
+interval is about 355 seconds, leaving roughly 665 work seconds at 20/17 or 785
+at 22/19 for a proof whose internal allowance is 720 seconds. Setup variation
 and the censored worker still prevent a fit claim. The whole-job and first-step
 clocks have different starts; the nominal reserve is not a guarantee of 180
 seconds remaining at every point.
@@ -95,20 +104,35 @@ silent increase.
 ### Neutral
 
 - Acceptance, implementation and reviews, and fresh hosted qualification are
-  separate gates. The independent clean-install issue is not resolved by time.
+  separate gates. The independent
+  [pnpm transport correction](../roadmap/phase-03-delivery-log.md#p03-3-pnpm-transport-r2-review-closeout-2026-11-02)
+  is not resolved by time.
 
 ## Implementation Notes
 
-After maintainer acceptance, change only the public-demo workflow ceiling and
-its first-step deadline, and update its actual-shell controls. Preserve the
-reserve, timeout ownership and failure behavior. The P03-3 delivery record owns
-the reviewed sequence and qualification; no executable change precedes approval.
+Step 1 accepts the decision and reconciles its dated ADR-0056/0075/0082
+disclosures, standards, index and Phase 03 records. Step 2 changes only the
+public-demo workflow ceiling and its first-step deadline, and updates its
+actual-shell controls. The same step reconciles the current prose carriers:
+[CONTRIBUTING](../../.github/CONTRIBUTING.md#branch-protection-settings-on-main)
+and the
+[local-test skill](../../.claude/skills/run-tests-locally/SKILL.md#public-demo-managed-browser-and-lighthouse).
+Keep their current-implementation descriptions aligned with the executable
+22/19 clocks; historical delivery logs retain their original values. Preserve
+the reserve, timeout ownership and failure behavior. The P03-3 delivery record
+owns the reviewed sequence and complete final-source A/B qualification. Each
+step has a normal commit and two fresh independent review rounds before the next.
 
 ## Architecture Tests
 
 The existing `Public_Demo_Preserves_Admission_And_Cleanup` controls exercise the
-actual workflow shell and lifecycle; extend those controls for the new outer
-window and unchanged reserve. They do not prove hosted fit. Complete same-final-
+actual workflow shell and lifecycle. Require the exact top-level job ceiling of
+22 minutes, the first-step 19-minute deadline (fixed date 1000 yields 2140), the
+180-second nominal difference and reservation before checkout. Wrong job/work
+bounds or step-order mutants must fail the same checks; every other job ceiling
+stays unchanged. Preserve expired/negative-remainder refusal before startup,
+INT plus 35-second kill grace, nonzero/forced failure, owned tail commands and
+artifact admission. These controls do not prove hosted fit. Complete same-final-
 source hosted A and B, with all required jobs and original evidence independently
 audited, remain mandatory.
 
@@ -117,5 +141,7 @@ audited, remain mandatory.
 - [ADR-0056](0056-public-demo-browser-and-lighthouse-enforcement.md).
 - [ADR-0075](0075-ordinary-ci-job-window.md).
 - [ADR-0082](0082-current-source-ci-execution-windows.md).
-- [Testing Standards](../standards/06-testing.md).
+- [Testing Standards](../standards/06-testing.md#complete-bounded-ci-assignments).
 - [Architecture Tests Catalogue](../standards/21-architecture-tests-catalogue.md#public_demo_preserves_admission_and_cleanup).
+- [Workflow](../../.github/workflows/ci.yml).
+- [Actual-shell controls](../../frontend/apps/web/src/test/public-demo-ci.test.ts).

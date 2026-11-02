@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,574 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,617 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -259,7 +259,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 qualified pnpm setup transport correction (2026-11-02)](#p03-3-qualified-pnpm-setup-transport-correction-2026-11-02) — 40 lines
   - [ADR-0085 proposal R2 closeout and approval readiness (2026-11-02)](#adr-0085-proposal-r2-closeout-and-approval-readiness-2026-11-02) — 26 lines
   - [P03-3 pnpm transport R1 closeout and runtime attribution (2026-11-02)](#p03-3-pnpm-transport-r1-closeout-and-runtime-attribution-2026-11-02) — 24 lines
-  - [P03-3 pnpm transport R2 review closeout (2026-11-02)](#p03-3-pnpm-transport-r2-review-closeout-2026-11-02) — 27 lines
+  - [P03-3 pnpm transport R2 review closeout (2026-11-02)](#p03-3-pnpm-transport-r2-review-closeout-2026-11-02) — 28 lines
+  - [ADR-0085 maintainer corrections, acceptance and Step 1 (2026-11-02)](#adr-0085-maintainer-corrections-acceptance-and-step-1-2026-11-02) — 42 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -12377,3 +12378,46 @@ Private R2 report identities:
 
 - `r2-scope.md`: `087828f3303b384a14d7ffe18042a14f156fed010e8d9caf7de845ad4a7debcd`.
 - `r2-evidence.md`: `156cb2658d9d7110dccc85124e4acd40537fdc8b0c58a20c04d0f04bcf862721`.
+
+
+### ADR-0085 maintainer corrections, acceptance and Step 1 (2026-11-02)
+
+The maintainer conditionally approves ADR-0085 and its three-step plan after the
+supplied reviews are addressed. The omitted current prose carriers are verified:
+CONTRIBUTING describes a 20-minute job and the local-test skill describes 17/20.
+They are added to Step 2 and ADR-0085's Implementation Notes. Their descriptions
+change with the executable clocks, not prematurely in this acceptance commit.
+Historical Phase 02b/02d delivery records and earlier Accepted ADR bodies stay
+unchanged. This corrects the preceding proposal's carrier inventory; its R2
+approval did not discover these two omissions and is not a claim of completeness.
+
+Before acceptance, the decision driver is narrowed to the public-demo job within
+the failed A, rather than implying that it caused all fifteen failed jobs. The
+context states that 26 completed report pairs pass their recorded per-report
+hard budgets; full census/final validation and the final worker outcome remain
+unproved. The 20/17 alternative now requires pursuing sufficient optimization,
+without treating the 720-second upper bound as a mandatory execution duration.
+The neutral statement names the independent pnpm transport correction, the final
+audit cancellation and unknown internal stage are distinct, and hard wrapping,
+the 25/22 alternative and direct source references are clarified.
+
+The exact shell obligations now appear in the ADR: top-level job 22, actual
+first-step work 19 (fixed date 1000 gives 2140), nominal difference 180, reservation
+before checkout, wrong-bound/order mutants and unchanged other job ceilings.
+Existing expiry, signal/grace, failure, tail and artifact controls remain. The
+three-step plan is retained: (1) acceptance/carriers and both fresh review rounds;
+(2) only the two executable clock lines, actual-shell controls, CONTRIBUTING and
+local-test skill reconciliation, followed by both fresh review rounds; (3) shared
+final-source full A then B and independent original-evidence qualification after
+all fixes/reviews close. Normal commits and verified-finding corrections apply
+to every step. No new permission question is needed for this approved package.
+
+ADR-0085 is Accepted on 2026-11-02. Its bounded disclosures are appended as
+ADR-0056 Amendment 3, ADR-0075 Amendment 2 and ADR-0082 Amendment 1, using the
+actual next numbers at application. All three remain Accepted with their
+historical bodies and metadata intact. Testing 06, Catalogue 21, the decision
+index and Phase 03 Status are reconciled. The existing public-demo catalogue
+status does not promote this new extension; its controls await Step 2 and its
+hosted proof awaits Step 3. Executable workflow clocks remain 20/17 in Step 1;
+acceptance is neither implementation nor evidence that 22/19 fits. Manual
+keyboard/focus/reflow/contrast/VoiceOver remains deferred and unexecuted.
