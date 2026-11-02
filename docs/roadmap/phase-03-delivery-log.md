@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,456 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,496 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -255,7 +255,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0084 Step 3 fresh R2 source-review closeout (2026-11-02)](#adr-0084-step-3-fresh-r2-source-review-closeout-2026-11-02) — 45 lines
   - [P03-3 d628 hosted A failure and bounded diagnostic (2026-11-02)](#p03-3-d628-hosted-a-failure-and-bounded-diagnostic-2026-11-02) — 42 lines
   - [ADR-0085 proposed public-demo CI window package (2026-11-02)](#adr-0085-proposed-public-demo-ci-window-package-2026-11-02) — 49 lines
-  - [ADR-0085 proposal R1 and verified carrier corrections (2026-11-02)](#adr-0085-proposal-r1-and-verified-carrier-corrections-2026-11-02) — 25 lines
+  - [ADR-0085 proposal R1 and verified carrier corrections (2026-11-02)](#adr-0085-proposal-r1-and-verified-carrier-corrections-2026-11-02) — 26 lines
+  - [P03-3 qualified pnpm setup transport correction (2026-11-02)](#p03-3-qualified-pnpm-setup-transport-correction-2026-11-02) — 39 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -12255,3 +12256,43 @@ substring assertion alone will not qualify the extension.
 The remaining three-step plan and all reserve/proof/population/cleanup constraints
 are unchanged. Current deadline code remains 20/17. The corrected proposal
 requires a fresh independent R2 before maintainer acceptance is requested.
+
+
+### P03-3 qualified pnpm setup transport correction (2026-11-02)
+
+The independent originals audit closes failed-A retention: all twelve ZIPs match
+API/index size and SHA-256, every member passes CRC, and eight sanitized producer
+exports byte-match their originals. Unmodified validators independently reproduce
+the exact backend 4,476 and separate native 31 Passed cases, natural ownership,
+resource fields and current A assignment. All 3,442 ordinary outcomes and the
+integration aggregate remain unavailable. OpenAPI originals bind the comparison
+base/head; the public original remains 26/27 and failed. This releases the failed
+source freeze for reviewed corrections, not for a B attempt or qualification.
+
+The transport correction scopes `npm_config_extend_node_path: "false"` to each
+of the three existing pinned pnpm setup actions. Their actual self-installer
+then generates a launcher without the unrelated manager NODE_PATH; nested pnpm
+calls use that same launcher. The authenticated pnpm files/version, Node/Next,
+package scripts, strict build environment, leases, clocks and counts remain
+unchanged. No ambient/root configuration or arbitrary NODE_PATH exception is
+introduced. The separately Proposed ADR-0085 is not implemented by this change.
+
+Root fully reads the actual-shim helper/capsule and pinned action source, verifies
+their frozen hashes, and runs the private causal pair. Default shim native build
+fails while the authenticated real CLI passes on equivalent fresh copies; all
+ten command families retire without timeout/signal or dropped output. The first
+clean-shim full typecheck remains code 2 due to missing root script modules in
+that frontend-only harness. The fresh complete-source repetition passes: 417
+frontend inputs plus 91 separately inventoried root source files, ordinary nested
+typecheck exit 0, zero stderr, real family joined and canonical source unchanged.
+All private roots are retained; no cleanup or Linux qualification is invented.
+
+Current focused checks pass: seven supply-chain controls, 103 native CI controls,
+83 combined shard/result controls, and 17 public-demo CI cases. Existing public-demo
+code is still 20/17 with the unchanged reserve. An extra whole-YAML Prettier check
+reports only two pre-existing comment-padding differences; repository hooks
+intentionally exclude YAML, and those unrelated lines are preserved. No formatter
+pass is claimed for that attempt. The three changed action blocks match its
+printer, and normal whitespace/commit checks apply. Fresh implementation reviews
+and complete new final-source hosted A/B remain necessary. Manual accessibility
+remains maintainer-deferred and unexecuted.
