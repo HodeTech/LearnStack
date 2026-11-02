@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,496 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,546 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -256,7 +256,9 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 d628 hosted A failure and bounded diagnostic (2026-11-02)](#p03-3-d628-hosted-a-failure-and-bounded-diagnostic-2026-11-02) — 42 lines
   - [ADR-0085 proposed public-demo CI window package (2026-11-02)](#adr-0085-proposed-public-demo-ci-window-package-2026-11-02) — 49 lines
   - [ADR-0085 proposal R1 and verified carrier corrections (2026-11-02)](#adr-0085-proposal-r1-and-verified-carrier-corrections-2026-11-02) — 26 lines
-  - [P03-3 qualified pnpm setup transport correction (2026-11-02)](#p03-3-qualified-pnpm-setup-transport-correction-2026-11-02) — 39 lines
+  - [P03-3 qualified pnpm setup transport correction (2026-11-02)](#p03-3-qualified-pnpm-setup-transport-correction-2026-11-02) — 40 lines
+  - [ADR-0085 proposal R2 closeout and approval readiness (2026-11-02)](#adr-0085-proposal-r2-closeout-and-approval-readiness-2026-11-02) — 26 lines
+  - [P03-3 pnpm transport R1 closeout and runtime attribution (2026-11-02)](#p03-3-pnpm-transport-r1-closeout-and-runtime-attribution-2026-11-02) — 23 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -12296,3 +12298,53 @@ pass is claimed for that attempt. The three changed action blocks match its
 printer, and normal whitespace/commit checks apply. Fresh implementation reviews
 and complete new final-source hosted A/B remain necessary. Manual accessibility
 remains maintainer-deferred and unexecuted.
+
+
+### ADR-0085 proposal R2 closeout and approval readiness (2026-11-02)
+
+Two new independent R2 reviewers read the corrected complete proposal at
+`7742784d`, including the authoritative append-only R1 carrier addition.
+Both verdicts pass for maintainer consideration, with no verified Blocker,
+Major or Minor. They independently check the three Accepted carrier clauses,
+the exact scope and approval boundary, observed/inferred timing, nominal reserve
+arithmetic, public evidence census and planned shell controls. The policy review
+also checks an isolated pinned documentation snapshot and real status parser;
+that historical snapshot's counts are not a new current-tree corpus result.
+The parent reads both complete reports and their explicit limits.
+
+The proposal and the three-step package, read with its R1 correction, are ready
+for the maintainer's explicit choice. No policy acceptance, executable clock
+change, completed audit 27, hosted fit or manual pass follows from review.
+The current public-demo clock remains 20/17; 22/19 is bounded judgment with two
+additional possible execution minutes per job. It preserves the 180-second
+nominal reserve, internal 720-second proof, pacing/isolation/population/cleanup
+and every other job. Fresh full final-source A then B and original-evidence
+validation still determine fit. The independent transport correction is separate.
+
+Private corrected-proposal R2 report identities:
+
+- `r2-policy.md`: `e26ab3338253bfc534d073034e5e5a0962ec18b63d56269f7c15b6e562a521ac`.
+- `r2-evidence.md`: `eabbd8f1f8c5f1c7e5e84d4697f346e15775456aef2866a00d6ef040bd857a3f`.
+
+### P03-3 pnpm transport R1 closeout and runtime attribution (2026-11-02)
+
+The nine-line action-scoped transport implementation is committed as `86d4938b`
+through normal hooks, with unchanged pre-hook tree and preserved editor/stash
+state. Two fresh independent R1 reviewers approve the narrow diff and its
+causal proof, with no verified implementation findings. Their read/hash checks
+cover actual generated shims, all qualified manager bytes, ten original command
+families, the separate complete-source repetition, all source inventories and
+output/result distinctions. The scope reviewer also inspects the pinned action's
+actual main/post bundle: these configurations parse run_install as empty and
+leave action caching false, so no post prune/cache-save path executes. This
+supplements installer-source review; it is not exhaustive vendor execution.
+
+Runtime-attribution clarification: the earlier diagnostic narrative's Node 24
+label is not an observed bootstrap-runtime fact. The pinned action declares
+node20; the actual failed hosted action runtime is unobserved in the retained
+evidence. Only the local Node 22.23.1 tuple and its recorded platform are proved.
+This clarification preserves the original receipts and their hashes and changes
+neither the causal launcher pair nor the qualified target/compiler contract.
+The failed hosted inner error category also remains unobserved. No local result
+substitutes for a complete new Linux hosted A/B. Fresh implementation R2 remains
+required; no clock change is authorized by this correction or its reviews.

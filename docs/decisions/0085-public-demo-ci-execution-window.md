@@ -12,7 +12,7 @@ ceiling boundary, and only that application of ADR-0082's all-remaining-jobs
 clause. All three records remain Accepted; dated amendments disclose the
 specific change without rewriting their historical bodies.
 No executable clock or Accepted policy changes while this record is Proposed.
-The [three-step package](../roadmap/phase-03-delivery-log.md#adr-0085-proposed-public-demo-ci-window-package-2026-11-02) owns acceptance, implementation and qualification.
+The [three-step package](../roadmap/phase-03-delivery-log.md#adr-0085-proposed-public-demo-ci-window-package-2026-11-02) owns acceptance, implementation and qualification. The [proposal review closeout](../roadmap/phase-03-delivery-log.md#adr-0085-proposal-r2-closeout-and-approval-readiness-2026-11-02) records the corrected approval surface.
 
 ## Decision Drivers
 
