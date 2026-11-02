@@ -1,8 +1,8 @@
 diff --git a/dist/compiled/compression/index.js b/dist/compiled/compression/index.js
-index 3c8f2b5aa833308abc71e3a246ce16b910b398d7..7f88161630b495ba7fcad5ceac67f2ac1cd8f1dd 100644
+index 3c8f2b5aa833308abc71e3a246ce16b910b398d7..482bb4a7516e6b64463f4cbcb951ba38861e7316 100644
 --- a/dist/compiled/compression/index.js
 +++ b/dist/compiled/compression/index.js
-@@ -19,7 +19,233 @@
+@@ -19,7 +19,245 @@
   * Copyright(c) 2014 Jonathan Ong
   * Copyright(c) 2014-2015 Douglas Christopher Wilson
   * MIT Licensed
@@ -53,8 +53,20 @@ index 3c8f2b5aa833308abc71e3a246ce16b910b398d7..7f88161630b495ba7fcad5ceac67f2ac
 +  function removeOwnedListeners() {
 +    try {
 +      response.removeListener('finish', onResponseTerminal);
++    } catch (error) {
++      recordCleanupFailure(error);
++    }
++    try {
 +      response.removeListener('close', onResponseTerminal);
++    } catch (error) {
++      recordCleanupFailure(error);
++    }
++    try {
 +      if (drainRegistered) response.removeListener('drain', drainListener);
++    } catch (error) {
++      recordCleanupFailure(error);
++    }
++    try {
 +      if (stream) stream.removeListener('error', onStreamError);
 +    } catch (error) {
 +      recordCleanupFailure(error);

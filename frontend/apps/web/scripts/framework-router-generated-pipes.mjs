@@ -536,3 +536,6 @@ export function routerPipeInventory(union) {
   };
   return frozen({ ...projected, sha256: sha(Buffer.from(JSON.stringify(projected))) });
 }
+
+// The copied fault observer reuses this exact graph-bound parser qualification.
+export { loadParser as loadRouterProofParser };

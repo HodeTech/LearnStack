@@ -1,4 +1,5 @@
 // @vitest-environment node
+import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { createServer, request } from 'node:http';
@@ -558,3 +559,91 @@ describe('actual response compression ownership', () => {
     }
   });
 });
+
+// Each failing native removal happens after removing its exact owned callback.
+// Later cleanup failures must not replace the first failure or prevent other removals.
+it.each([
+  ['finish', false],
+  ['close', false],
+  ['drain', false],
+  ['finish', true],
+  ['close', true],
+  ['drain', true],
+] as const)(
+  'retires remaining owned callbacks after %s removal throws (primary=%s)',
+  async (failedRemoval, withPrimary) => {
+    const wire = await openWire();
+    const responseRemove = wire.response.removeListener;
+    let restoreStream: (() => void) | undefined;
+    try {
+      const foreign = () => {};
+      for (const name of ['finish', 'close', 'drain']) wire.response.on(name, foreign);
+      const owner = createResponseCompressionOwner(wire.response);
+      const terminal = wire.response.listeners('finish').at(-1)!;
+      const stream = owner.createCompressor(() => createGzip());
+      const streamRemove = stream.removeListener;
+      restoreStream = () => {
+        stream.removeListener = streamRemove;
+      };
+      const ownedError = stream.listeners('error')[0]!;
+      stream.on('error', foreign);
+      const ownedDrain = owner.setResponseDrainListener(() => stream.resume());
+      wire.response.on('drain', ownedDrain);
+      const primary = new Error('Private removal primary');
+      const cleanup = new Error('Private first removal failure');
+      const later = new Error('Private later removal failure');
+      const attempts: string[] = [];
+      wire.response.removeListener = function (event, listener) {
+        const result = Reflect.apply(responseRemove, this, [event, listener]) as typeof this;
+        if (
+          event === 'finish' || event === 'close'
+            ? listener === terminal
+            : event === 'drain' && listener === ownedDrain
+        ) {
+          attempts.push(String(event));
+          if (event === failedRemoval) throw cleanup;
+        }
+        return result;
+      };
+      stream.removeListener = function (event, listener) {
+        const result = Reflect.apply(streamRemove, this, [event, listener]) as typeof this;
+        if (event === 'error' && listener === ownedError) {
+          attempts.push('error');
+          throw later;
+        }
+        return result;
+      };
+      const completion = joinResponseCompression(wire.response, async () => {
+        if (withPrimary) throw primary;
+        wire.response.end();
+      });
+      let observed: unknown;
+      try {
+        await completion;
+      } catch (error) {
+        observed = error;
+      }
+      assert.equal(observed, withPrimary ? primary : cleanup);
+      assert.equal(stream.closed, true);
+      assert.deepEqual(attempts, ['finish', 'close', 'drain', 'error']);
+      await assert.rejects(owner.join(), (error) => error === cleanup);
+      assert.equal(owner.failureState().hasCleanupFailure, true);
+      assert.equal(owner.failureState().cleanupFailure, cleanup);
+      assert.equal(owner.failureState().hasOperationFailure, withPrimary);
+      assert.equal(owner.failureState().operationFailure, withPrimary ? primary : undefined);
+      for (const name of ['finish', 'close']) {
+        assert.equal(wire.response.listeners(name).includes(terminal), false);
+        assert.equal(wire.response.listeners(name).includes(foreign), true);
+      }
+      assert.equal(wire.response.listeners('drain').includes(ownedDrain), false);
+      assert.equal(wire.response.listeners('drain').includes(foreign), true);
+      assert.equal(stream.listeners('error').includes(ownedError), false);
+      assert.equal(stream.listeners('error').includes(foreign), true);
+      await wire.responseClosed;
+    } finally {
+      wire.response.removeListener = responseRemove;
+      restoreStream?.();
+      await wire.dispose();
+    }
+  },
+);

@@ -30,6 +30,7 @@ import { instrumentFrameworkOwnershipMatrix } from './framework-ownership-matrix
 import { instrumentFrameworkOwnershipProof } from './framework-ownership-proof-source.mjs';
 import { createCopiedRuntimeHostBroker } from './framework-proof-host-broker.mjs';
 import { frameworkProofBuildArguments, prepareFrameworkProof } from './framework-proof-support.mjs';
+import { instrumentCopiedRouterFaults } from './framework-router-fault-source.mjs';
 import {
   copiedRouterMatrixRouteSource,
   instrumentCopiedRouterMatrix,
@@ -357,6 +358,7 @@ export async function prepareBffProof({
   ownershipCase,
   transportProof = false,
   routerMatrix = false,
+  routerFaults = false,
   overlapProof = false,
   clockBase = 1800000000000,
   external,
@@ -372,10 +374,15 @@ export async function prepareBffProof({
   assert.ok(!isolatedProtocol || !external, 'isolated protocol excludes external capabilities');
   assert.equal(typeof transportProof, 'boolean', 'closed transport fixture selection');
   assert.equal(typeof routerMatrix, 'boolean', 'closed router matrix fixture selection');
+  assert.equal(typeof routerFaults, 'boolean', 'closed router fault fixture selection');
+  if (routerFaults) assert.equal(transportProof, true, 'router faults require copied transport');
   assert.equal(typeof overlapProof, 'boolean', 'closed overlap fixture selection');
   if (routerMatrix) assert.equal(transportProof, true, 'router matrix requires copied transport');
   if (overlapProof) assert.equal(transportProof, true, 'overlap requires copied transport');
-  assert.ok(!(routerMatrix && overlapProof), 'copied proof variants are mutually exclusive');
+  assert.ok(
+    Number(routerMatrix) + Number(routerFaults) + Number(overlapProof) <= 1,
+    'copied proof variants are mutually exclusive',
+  );
   if (transportProof)
     assert.ok(
       uiMode &&
@@ -739,7 +746,7 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
     file(observer, copied.observer);
     file(join(app, 'scripts/framework-proof-overlap.mjs'), copied.coordinator);
   }
-  if (routerMatrix) {
+  if (routerMatrix || routerFaults) {
     file(
       join(app, 'src/app/(public)/en/courses/transport/route.ts'),
       copiedRouterMatrixRouteSource,
@@ -755,6 +762,30 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
     });
     file(runtimePath, copied.runtime);
     file(observerPath, copied.observer);
+    if (routerFaults) {
+      const requestPath = join(app, 'src/server/auth/request-runtime.ts');
+      const ledgerPath = join(app, 'scripts/framework-router-pipe-ledger.mjs');
+      const faults = instrumentCopiedRouterFaults({
+        runtime: copied.runtime,
+        observer: copied.observer,
+        owner: readFileSync(join(app, 'scripts/public-server.mjs'), 'utf8'),
+        ledger: readFileSync(ledgerPath, 'utf8'),
+        requestRuntime: readFileSync(requestPath, 'utf8'),
+      });
+      file(runtimePath, faults.runtime);
+      file(join(app, 'scripts/public-server.mjs'), faults.owner);
+      file(observerPath, faults.observer);
+      file(ledgerPath, faults.ledger);
+      file(requestPath, faults.requestRuntime);
+      file(join(app, 'src/app/(public)/en/courses/transport/route.ts'), faults.route);
+      for (const name of ['gate', 'runtime', 'join-points']) {
+        const moduleName = 'framework-router-fault-' + name + '.mjs';
+        file(
+          join(app, 'scripts', moduleName),
+          readFileSync(join(source, 'scripts', moduleName), 'utf8'),
+        );
+      }
+    }
   }
   if (ownershipCase !== undefined) {
     const inputs = {

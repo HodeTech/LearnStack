@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,071 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,294 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -245,7 +245,13 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0084 Step 3 review round 1 and verified partial corrections (2026-11-02)](#adr-0084-step-3-review-round-1-and-verified-partial-corrections-2026-11-02) — 88 lines
   - [ADR-0084 Step 3 owned .NET setup correction (2026-11-02)](#adr-0084-step-3-owned-net-setup-correction-2026-11-02) — 50 lines
   - [ADR-0084 Step 3 uncertain group-observation correction (2026-11-02)](#adr-0084-step-3-uncertain-group-observation-correction-2026-11-02) — 37 lines
-  - [ADR-0084 Step 3 fresh census and reviewed timing-plan revision (2026-11-02)](#adr-0084-step-3-fresh-census-and-reviewed-timing-plan-revision-2026-11-02) — 63 lines
+  - [ADR-0084 Step 3 fresh census and reviewed timing-plan revision (2026-11-02)](#adr-0084-step-3-fresh-census-and-reviewed-timing-plan-revision-2026-11-02) — 64 lines
+  - [ADR-0084 Step 3 initialized-router R1 source corrections (2026-11-02)](#adr-0084-step-3-initialized-router-r1-source-corrections-2026-11-02) — 47 lines
+  - [ADR-0084 Step 3 first initialized-router execution and diagnostic (2026-11-02)](#adr-0084-step-3-first-initialized-router-execution-and-diagnostic-2026-11-02) — 30 lines
+  - [ADR-0084 Step 3 generated-route path correction and second execution (2026-11-02)](#adr-0084-step-3-generated-route-path-correction-and-second-execution-2026-11-02) — 40 lines
+  - [ADR-0084 Step 3 native drain-point correction (2026-11-02)](#adr-0084-step-3-native-drain-point-correction-2026-11-02) — 34 lines
+  - [ADR-0084 Step 3 initialized-router R1 qualification corrections (2026-11-02)](#adr-0084-step-3-initialized-router-r1-qualification-corrections-2026-11-02) — 50 lines
+  - [ADR-0084 Step 3 R1 corrective validation closeout (2026-11-02)](#adr-0084-step-3-r1-corrective-validation-closeout-2026-11-02) — 21 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -11860,3 +11866,226 @@ It must be frozen with final program source for two complete new A/B attempts;
 no old layout qualifies the revision. Live initialized-router qualification,
 complete Step 3 R1/new R2 and final hosted surfaces remain open. Manual
 accessibility remains maintainer-deferred and unexecuted.
+
+
+### ADR-0084 Step 3 initialized-router R1 source corrections (2026-11-02)
+
+The separate copied initialized-router fault fixture defines eight fixed stream
+cases and three distinct registration observations. It retains the existing
+healthy App Router proof. Source/encoder faults, the actual Next end-work
+aggregate, cleanup failures and constructor uncertainty have separate identity
+and order requirements; parser controls do not qualify a loaded router.
+
+Independent R1 finds two Majors and one Minor in the private proposal. First,
+an exception after native removal of the first owned listener skips subsequent
+removals. The production compression owner now attempts all four exact removals
+independently, retaining the first cleanup error and primary-error precedence.
+Six actual HTTP/zlib callbacks fail against the preceding owner and pass against
+the corrected owner; foreign callbacks survive and actual encoder close remains
+required. No broad listener removal or synthetic terminal event is introduced.
+
+Second, the deliberately pending constructor case bypasses ordinary observer
+closure, allowing a sticky proof failure to escape its expected nonzero exit.
+The existing watchdog callback now requires synchronous terminal qualification:
+healthy sticky states, exact pending work, native descriptors and hashes of the
+actual loaded installed/pipe sources. It does not settle work, change a deadline
+or supply cleanup credit. The finite host requires its terminal witness before
+watchdog evidence. The new wrapper also joins the exact two-callback privacy
+census. Independent focused R1 approves these source/component corrections after
+46 controls, 21 terminal-refusal mutants, five host-evidence mutants and both
+wrapper-boundary omission mutants. This is not a new R2 or initialized proof.
+
+Two private runs of the unchanged generator against the same locked original
+distribution produce byte-identical patch/census outputs. All 59 subjects remain
+qualified: 30 JavaScript files and 29 maps. Only the compression JavaScript bytes
+change; the other 29 JavaScript files and all maps remain identical. The reviewed
+owner/patch/census set is promoted together. Managed lock preparation and frozen
+installation pass; the lock delta contains only six substitutions of the new
+patch identity. Full installed-distribution verification passes without manual
+store edits. No dependency version, role, authority, timer or process topology
+changes.
+
+Normal workspace typecheck and lint pass, with existing tool deprecation notices
+separate from ESLint errors. Root's 95 focused application cases, 46 source/native
+controls and ten map/end-work cases pass with no skips/todos or stderr. All 22
+changed source files pass the configured formatter check. These results precede
+the genuine initialized-router execution and do not claim its outcome. That
+execution, complete current-source frontend checks, R1 closeout/new R2, clean
+hosted demo and complete same-source A/B remain open. Manual accessibility is
+maintainer-deferred and unexecuted.
+
+
+### ADR-0084 Step 3 first initialized-router execution and diagnostic (2026-11-02)
+
+The first normal two-test wrapper returns RED in 14.081 seconds: the live case
+fails after 10.887 seconds with the closed `Framework proof refused` error;
+the component carrier passes its 46 controls. There is no outer timeout or
+signal. All 415 program inputs and installed identities remain unchanged.
+Bounded stdout/stderr, the complete Vitest report and the source envelope are
+retained. No temporary candidate survives the before/after observation; no
+attributed inner capsule is available. Neither root absence nor elapsed time
+establishes an internal phase, cleanup or initialized-router qualification.
+
+A separate private driver-only diagnostic retains existing compile/build/start
+marks and bounded own-error data before unchanged fixture disposal. It returns
+RED in 11.527 seconds, with the same 415 inputs and installed distribution.
+The start mark follows the actual guarded producer's zero result and current
+SDK checks. Its exact refusal is the existing listener-readiness shape guard:
+a non-listener proof message arrives while the owner is live. The originating
+message kind/runtime fault is not yet observed. A virtual check of the route
+literal against the actual TypeScript configuration has no diagnostics; no
+route-type fix is justified. These observations do not retrospectively identify
+the first normal run's hidden cause or qualify any of its eight cases.
+
+The private diagnostic's recorded root is absent after existing disposal.
+No family/record/physical-join receipt survives, and none is inferred. Readiness
+acceptance, deadlines, private-error boundaries and cleanup rules stay unchanged.
+The originating startup failure requires a narrower observation before any
+corrective edit or new normal invocation. All earlier RED evidence remains
+separate. Manual accessibility remains deferred and unexecuted.
+
+
+### ADR-0084 Step 3 generated-route path correction and second execution (2026-11-02)
+
+A second separately bounded private diagnostic records the original setup
+`ERR_ASSERTION` in `deriveFaultJoinPoints`' filename predicate, after the admitted
+installed/generated union returns and before Inspector setup or native Next
+preparation. It returns RED in 11.563 seconds with all 415 inputs unchanged.
+Its exact offending path is unobserved. A retainer namespace collision loses
+host message/family observations; the distinct child PID's original-error
+capsules survive and agree. Lost observations supply no cleanup evidence.
+
+The extra generated-path alphabet excludes literal square brackets, contrary
+to the admitted producer's current dynamic-route names. A narrow correction
+adds exactly `[` and `]`; the installed alphabet, normalized segments, realpath,
+URL, size/hash, stable read, parser and join/result checks remain intact.
+One actual-helper filesystem control uses all 27 qualified installed subjects
+plus hash-bound minified parser fixtures under dynamic, catch-all and optional
+catch-all names, including a bracketed zero-entry file. It also refuses invalid
+paths, wrong URL/size/hash and changed disk bytes. This constructed generated
+input is a parser/filesystem control, not a genuine build manifest.
+
+Independent focused R1 reproduces 29/30 against the original helper, 30/30 with
+the correction and 29/30 with the path guard omitted. Refusal-shape assertions
+prevent a later URL mismatch from hiding an omitted guard. The reviewed
+three-file correction changes only that alphabet, the control and its wrapper
+count. Root's 47 component controls, normal workspace typecheck/lint and configured
+three-file formatting pass. Existing 10-second component limits stay fixed.
+
+The second normal two-test invocation still returns RED in 15.248 seconds:
+the live test fails after 11.327 seconds while its 47-control carrier passes.
+All 415 inputs and installed identities remain unchanged; no timeout or signal
+occurs. No temporary candidate survives to supply an attributed inner capsule.
+This does not invalidate the independently demonstrated filename mismatch,
+but it establishes no initialized-router pass or exact next cause. Both normal
+REDs and preceding diagnostics remain separate. The next bounded private
+observation retains the actual admitted generated inventory/JavaScript before
+disposal so further analysis can use real emitted bytes offline. Readiness,
+source admission, cleanup and time budgets are unchanged. Manual accessibility
+remains maintainer-deferred and unexecuted.
+
+
+### ADR-0084 Step 3 native drain-point correction (2026-11-02)
+
+The next private diagnostic retains the actual admitted union before disposal:
+27 installed subjects and 44 generated JavaScript files. Root independently
+verifies every generated size/hash/URL/entry tuple against the captured producer
+manifest. JavaScript totals 1,425,329 bytes; manifest/union records add 114,800.
+The 12.020-second diagnostic remains RED with all 415 canonical inputs unchanged.
+Derivation and Inspector setup now complete and actual `app.prepare` fulfils;
+observer confirmation refuses. Its individual sticky/predicate branch is not
+recorded. The first received message is a shutdown observation. Live family and
+three reservation observations confer no retirement or cleanup credit.
+
+Offline native Inspector compilation of the exact installed bytes reproduces
+a separate concrete defect: the chosen `return listener` resolves at the excluded
+endpoint of its half-open AST range. The immediately preceding assignment
+resolves inside its own range. Neither subject is imported or executed by this
+control. The helper now selects only the unique `drainListener = listener`
+expression inside the same function, after its existing registration guards.
+The copied callback records the exact argument identity; real assignment,
+return and native registration proceed unchanged. No range, sticky failure,
+source identity or confirmation rule is relaxed.
+
+Independent focused R1 reproduces 30/31 with the original selector and 31/31
+with the correction. A separate native control verifies the old excluded endpoint,
+the new assignment and the other nine unchanged points. Root reads the complete
+three-file proposal and focused report, then promotes exactly the selector,
+permanent compile-only control and wrapper count. The 48 component cases, normal
+workspace typecheck/lint and three-file formatting pass with zero stderr and
+unchanged limits. Feasibility is not initialized-router qualification or proof
+of the precise preceding live refusal branch. A new normal invocation remains
+necessary; earlier REDs stay retained. Manual accessibility is deferred and
+unexecuted.
+
+
+### ADR-0084 Step 3 initialized-router R1 qualification corrections (2026-11-02)
+
+The third normal invocation remains RED: one live failure and 48 passing component
+controls in 27.809 seconds. A subsequent private observation reaches readiness
+and identifies the actual owner-install frame's `ReferenceError`: the unused
+self-name of the compression owner's IIFE is not a lexical binding at that
+frame. This does not identify the hidden cause of an earlier normal run.
+
+The corrected observer captures the actual `compress` middleware closure and
+its request/response at the qualified router callsite. Owner installation uses
+that captured path; duplicate registration re-enters the same middleware with
+the same request/response. It requires the exact duplicate error, no callback,
+unchanged owner/listeners and no allocation. No factory is reconstructed for
+initialized-router proof. Nine separate synthetic coordinator controls exercise
+missing/duplicate/foreign captures, callback/error/listener mutation and allocation;
+they are component evidence, not execution of Next's middleware.
+
+Independent R1 also reproduces a legal cross-file prefix rejected by the host:
+the actual writer appends trace, attestation and then pipe commit. The host now
+reads in reverse producer order, validates every row, permits at most one pending
+attestation during a live observation, and returns only committed evidence.
+Terminal checks still require eight matching commits and attestations. Thirteen
+actual-producer/parser controls cover that interleave and dirty twins; pending
+evidence supplies no case or retirement credit.
+
+A private candidate reaches all eight cases and then fails an incorrect fixture
+disposition assertion. Its 19.726-second RED is retained. Accepted ADR-0083/0084
+permit private filesystem disposal after independently proved family retirement;
+the native failure must survive. The copied owner now records the actual awaited
+runner result before its existing graceful policy. The host binds that exclusive,
+bounded private record to the captured owner PID and lease nonce. Native code 1
+and channel fault, outer unforced code 1, actual family absence and all three
+released reservations are checked separately. Complete observations are read
+before normal fixture disposal; root absence precedes `privateCleanup:true`.
+`constructionUnconfirmedAtExit` names the final child's unresolved construction;
+it does not claim that its encoder, handler or owner join completed. Independent
+focused R1 approves this implementation without changing shared cleanup authority.
+
+The fourth normal two-test wrapper passes in **24.234 seconds**, including the
+actual eight-case fixture in **18.918 seconds** and the 61-control carrier.
+All 416 source inputs and the installed distribution remain unchanged; there
+are zero skips, todos, stderr bytes, timeouts or signals. Earlier REDs remain
+separate. The added nine coordinator controls subsequently pass their bounded
+component run. The measured router group joins the existing stable first test
+partition; BaseSequencer order within partitions, four-worker limit and all
+execution deadlines remain unchanged. Complete current-source frontend checks,
+R1 fix commit, fresh independent R2 and full same-source hosted A/B remain open.
+Manual accessibility remains maintainer-deferred and unexecuted.
+
+
+### ADR-0084 Step 3 R1 corrective validation closeout (2026-11-02)
+
+The complete normal guarded frontend run passes **3,549/3,549** cases:
+3,401 web cases in 115 files and 148 SDK cases in six files. The unchanged
+180-second guard completes in **172.429 seconds**, with zero skips, todos or
+stderr. All 417 framework inputs and 14 additional setup/runner guards remain
+unchanged. This includes the genuine initialized-router fault fixture, all
+70 nested router component controls, current privacy/genericity boundaries,
+bodyless and conditional transport, held independent owners, real startup,
+worker/watchdog and recovery scenarios. Nested controls are not additional
+Vitest cases. The complete output and source envelope are retained privately.
+
+The reviewed corrections close the known Step 3 R1 findings within their
+respective source/qualification scopes. The final constructor remains a failed
+native runtime outcome; physical family and filesystem retirement do not turn
+its resource join into success. Normal formatting, workspace typecheck/lint and
+whole-corpus documentation checks also pass before the corrective commit. A
+fresh independent Step 3 R2 remains mandatory. The catalogue rule stays
+Registered, clean-runner demo and complete same-final-source hosted A/B remain
+open, and manual accessibility remains maintainer-deferred and unexecuted.

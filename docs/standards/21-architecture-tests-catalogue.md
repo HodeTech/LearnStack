@@ -6524,7 +6524,8 @@ Prior receipts do not qualify subsequent source changes.
   `framework-proof-relay.test.ts`, `demo-runtime-owner.test.ts`,
   `bff-watchdog-observation.test.ts`, `framework-response-bodyless.test.ts`,
   `framework-response-transport.test.ts`, `framework-response-overlap.test.ts`,
-  `framework-router-matrix.test.ts`, `framework-runtime-ownership.test.ts`,
+  `framework-router-matrix.test.ts`, `framework-router-faults.test.ts`,
+  `framework-runtime-ownership.test.ts`,
   `framework-runtime-workers.test.ts`, `framework-runtime-recovery.test.ts`,
   `framework-runtime-watchdog-evidence.test.ts`,
   `framework-proof-closed-boundary.test.ts`, `framework-proof-stdio.test.ts`

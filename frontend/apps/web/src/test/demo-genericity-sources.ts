@@ -812,7 +812,7 @@ export function productionDemoSources(
           [path, 'd217cc042e967a01a245ed4d1915a068baa697498d4e2cf397032b195ec432eb'],
           [
             'frontend/apps/web/scripts/bff-proof-host.mjs',
-            'fbe1e154dad0048477c9209c7a749d0fcff3ebde2d0a4f53c5b79de006c936f2',
+            '378f07f30a41ae5662658bd4de045ee240e9552ad163839fd789dfbe628d39f5',
           ],
         ] as const
       ).some(([target, expected]) => {

@@ -785,6 +785,10 @@ describe('P02d-7 exact demo identity boundary', () => {
         'export const helper = true;',
       ],
       [
+        'frontend/apps/web/scripts/framework-router-fault-source.mjs',
+        'export const helper = true;',
+      ],
+      [
         'frontend/apps/web/scripts/framework-overlap-proof-source.mjs',
         'export const helper = true;',
       ],

@@ -12,6 +12,7 @@ const names = [
   'framework-runtime-ownership.test.ts',
   'framework-runtime-workers.test.ts',
   'framework-runtime-recovery.test.ts',
+  'framework-router-faults.test.ts',
 ];
 
 // These inert public API records exercise sorting only; no project or worker starts.
@@ -31,7 +32,7 @@ function context(results = new Map<string, { duration: number; failed: boolean }
   } as unknown as Vitest;
 }
 
-it('starts exactly the three app ownership groups without dropping or replacing specifications', async () => {
+it('starts exactly the four app ownership groups without dropping or replacing specifications', async () => {
   const priority = names.map(specification);
   const unrelated = specification('ordinary.test.ts');
   const outside = {
@@ -44,9 +45,9 @@ it('starts exactly the three app ownership groups without dropping or replacing 
   const baseline = await new BaseSequencer(ctx).sort(files);
   assert.equal(baseline[0], outside, 'the default would start unrelated work first');
   const actual = await new FrameworkOwnershipSequencer(ctx).sort(files);
-  assert.deepEqual(new Set(actual.slice(0, 3)), new Set(priority));
+  assert.deepEqual(new Set(actual.slice(0, 4)), new Set(priority));
   assert.deepEqual(
-    actual.slice(3),
+    actual.slice(4),
     baseline.filter((file) => file === outside || file === unrelated),
   );
   assert.equal(actual.length, files.length);

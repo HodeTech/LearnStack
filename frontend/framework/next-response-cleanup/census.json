@@ -55,7 +55,7 @@
       },
       {
         "path": "framework/next-response-cleanup/owner.mjs",
-        "sha256": "dd5f50c29f2c9c9e55c48e6139001d5c52b7fad428020548252369f987bf07fe"
+        "sha256": "6017e5400caf81ada606a2b07425f69a6dd32805497f703dbdcf9603caa9bb34"
       },
       {
         "path": "framework/next-response-cleanup/originals.json",
@@ -69,8 +69,8 @@
   },
   "patch": {
     "path": "patches/next@15.5.28.patch",
-    "sha256": "863166d4c37584d4112495c1ebee265ba7c99807199ea2976a22c4959742ce37",
-    "pnpmHash": "mdq6v4ts4lq3nrsmjs3bqq45q4"
+    "sha256": "1f5fbb89ec974a24d4ff0626af48ac27a1c83c6d9869e4c6de9a1f01a8efb929",
+    "pnpmHash": "wwmqwwxkk5ianj7dk35rus6nja"
   },
   "files": [
     {
@@ -79,8 +79,8 @@
       "originalSha256": "1f7514e04e72e4b518fbeca4996c2d77868ae531f9d399b253c5f7bb8e9f52cb",
       "originalBytes": 308356,
       "path": "dist/compiled/compression/index.js",
-      "sha256": "5fb07f8cd19160b8a785515cbfb6f96fdda3b775168c8e23ec867628880a55ae",
-      "bytes": 315653,
+      "sha256": "81a30fbb3960fff889075ad4fa10d5bf47027bd592f2214c23a5d1b461b65113",
+      "bytes": 315872,
       "mapPath": null
     },
     {
@@ -673,32 +673,32 @@
       "edits": [
         {
           "start": 2796,
-          "end": 9789,
+          "end": 10008,
           "text": ""
         },
         {
-          "start": 10397,
-          "end": 10446,
+          "start": 10616,
+          "end": 10665,
           "text": ""
         },
         {
-          "start": 10533,
-          "end": 10631,
+          "start": 10752,
+          "end": 10850,
           "text": ""
         },
         {
-          "start": 11236,
-          "end": 11302,
+          "start": 11455,
+          "end": 11521,
           "text": "l.createGzip(e)"
         },
         {
-          "start": 11303,
-          "end": 11372,
+          "start": 11522,
+          "end": 11591,
           "text": "l.createDeflate(e)"
         },
         {
-          "start": 11605,
-          "end": 11698,
+          "start": 11824,
+          "end": 11917,
           "text": "function onResponseDrain(){x.resume()}"
         }
       ]

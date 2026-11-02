@@ -50,8 +50,20 @@ export function createResponseCompressionOwner(response) {
   function removeOwnedListeners() {
     try {
       response.removeListener('finish', onResponseTerminal);
+    } catch (error) {
+      recordCleanupFailure(error);
+    }
+    try {
       response.removeListener('close', onResponseTerminal);
+    } catch (error) {
+      recordCleanupFailure(error);
+    }
+    try {
       if (drainRegistered) response.removeListener('drain', drainListener);
+    } catch (error) {
+      recordCleanupFailure(error);
+    }
+    try {
       if (stream) stream.removeListener('error', onStreamError);
     } catch (error) {
       recordCleanupFailure(error);
