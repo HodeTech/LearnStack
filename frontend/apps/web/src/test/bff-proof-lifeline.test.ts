@@ -3,7 +3,9 @@ import { spawn, type ChildProcess, type ChildProcessWithoutNullStreams } from 'n
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { runInNewContext } from 'node:vm';
 
+import ts from 'typescript';
 import { expect, it } from 'vitest';
 
 import { createHeldChildControl } from './held-child-control';
@@ -232,6 +234,76 @@ it('fails the actual helper child when its ready watcher terminates', async () =
   });
 }, 15_000);
 
+it('keeps group permission refusal uncertain until the actual absence observation', async () => {
+  const source = readFileSync(new URL('./bff-proof-lifeline.test.ts', import.meta.url), 'utf8');
+  const file = ts.createSourceFile(
+    'bff-proof-lifeline.test.ts',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const groups: ts.VariableDeclaration[] = [];
+  const deadlines: ts.FunctionDeclaration[] = [];
+  function visit(node: ts.Node) {
+    if (ts.isVariableDeclaration(node) && node.name.getText(file) === 'groupAlive')
+      groups.push(node);
+    if (ts.isFunctionDeclaration(node) && node.name?.text === 'until') deadlines.push(node);
+    ts.forEachChild(node, visit);
+  }
+  visit(file);
+  expect(groups).toHaveLength(1);
+  expect(deadlines).toHaveLength(1);
+  const group = groups[0]?.initializer;
+  if (!group || !ts.isArrowFunction(group)) throw new Error('Lifeline observation source refused');
+  const program = ts.transpileModule(
+    `(() => {
+    let childPid = 42;
+    let childGroupRetired = false;
+    const groupAlive = ${group.getText(file)};
+    ${deadlines[0]!.getText(file)}
+    return { groupAlive, until, retired: () => childGroupRetired };
+  })()`,
+    { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None } },
+  ).outputText;
+  let result = 'EPERM';
+  const calls: Array<[number, number]> = [];
+  const makeControl = () =>
+    runInNewContext(program, {
+      setTimeout,
+      process: {
+        kill(pid: number, signal: number) {
+          calls.push([pid, signal]);
+          if (result !== 'present')
+            throw Object.assign(new Error('probe refusal'), { code: result });
+        },
+      },
+    }) as {
+      groupAlive(): boolean;
+      until(predicate: () => boolean, milliseconds: number): Promise<void>;
+      retired(): boolean;
+    };
+  const control = makeControl();
+  expect(control.groupAlive()).toBe(true);
+  expect(control.retired()).toBe(false);
+  result = 'ESRCH';
+  expect(control.groupAlive()).toBe(false);
+  expect(control.retired()).toBe(true);
+  const count = calls.length;
+  expect(control.groupAlive()).toBe(false);
+  expect(calls).toHaveLength(count);
+  result = 'EIO';
+  expect(() => makeControl().groupAlive()).toThrow('probe refusal');
+  result = 'EPERM';
+  const uncertain = makeControl();
+  await expect(uncertain.until(() => !uncertain.groupAlive(), 40)).rejects.toThrow(
+    'Owned lifeline observation deadline',
+  );
+  expect(uncertain.retired()).toBe(false);
+  expect(calls.length).toBeGreaterThan(count);
+  expect(calls.every(([pid, signal]) => pid === -42 && signal === 0)).toBe(true);
+});
+
 it('stops a blocked child group on owner SIGKILL without touching a separate owned group', async () => {
   expect(process.platform).not.toBe('win32');
   const owner = createFixtureOwner();
@@ -256,6 +328,7 @@ it('stops a blocked child group on owner SIGKILL without touching a separate own
       process.kill(-childPid, 0);
       return true;
     } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'EPERM') return true;
       if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
       childGroupRetired = true;
       return false;

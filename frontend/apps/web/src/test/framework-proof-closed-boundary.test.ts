@@ -148,6 +148,7 @@ it('keeps every closed Step 3 wrapper callback inside the synchronous boundary',
     ['framework-runtime-workers.test.ts', 1],
     ['framework-runtime-recovery.test.ts', 1],
     ['framework-external-provider-ca.test.ts', 1],
+    ['demo-dotnet-owner.test.ts', 1],
   ] as const) {
     const text = readFileSync(join(directory, name), 'utf8');
     const file = ts.createSourceFile(name, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);

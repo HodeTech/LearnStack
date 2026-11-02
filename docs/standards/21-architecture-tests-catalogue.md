@@ -5986,8 +5986,9 @@ surviving descendants and retired handles live in `fixture-cleanup.test.ts`.
 `bff-proof-lifeline.test.ts` exercises the actual detached BFF helper's invalid
 parent, natural completion, fork/worker inheritance, watcher failure and owner
 SIGKILL controls, including a synchronously blocked leader, its same-group child
-and a separate unaffected group. Parent-loss protection requires a live leader
-and live, runnable watcher; watcher-failure notification also requires the
+and a separate unaffected group. Its group-observation controls retain EPERM
+as pending uncertainty and require ESRCH within the existing observation bound.
+Parent-loss protection requires a live leader and live, runnable watcher; watcher-failure notification also requires the
 leader's event loop. Combined watcher loss and blocked-leader owner loss remain
 outside this control. Polling supplies no hard deadline, dead-leader or separately
 detached-descendant guarantee, Windows group control or killed-owner root cleanup.
@@ -6293,6 +6294,9 @@ and the always-running `public demo + lighthouse` job through `make demo`.
 `src/test/public-demo.test.ts` and `src/test/demo-lifecycle.test.ts` execute
 planted failing and clean controls in the required frontend job. Actual browser
 mutants, TLS refusals and a real Lighthouse timeout also run in the full proof.
+`src/test/demo-dotnet-owner.test.ts` runs real process-owner controls, including
+an unavailable private release gate; actual group retirement remains required.
+Its inert workers do not establish MSBuild behaviour.
 `src/test/demo-source.test.ts` uses disposable Git repositories for clean/mutated
 source checkpoints; `src/test/public-demo-diagnostics.test.ts` covers closed
 failure attribution with real children and provider canaries.

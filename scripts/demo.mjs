@@ -264,7 +264,7 @@ export async function startDemo(mode) {
       cwd: join(repositoryRoot, 'frontend'),
       timeout: 180000,
     });
-    await run('dotnet', ['restore', 'LearnStack.slnx'], 'Backend restore', {
+    await run('dotnet', ['restore', 'LearnStack.slnx', '--disable-build-servers'], 'Backend restore', {
       cwd: backendRoot,
       timeout: 180000,
     });
@@ -280,6 +280,7 @@ export async function startDemo(mode) {
         'Release',
         '--no-restore',
         '--nologo',
+        '--disable-build-servers',
       ],
       'Seeder build',
       { cwd: backendRoot },

@@ -195,6 +195,7 @@ type Result = {
     label: string;
     confined: boolean;
     prerequisitesPreserved: boolean;
+    buildControls: boolean;
     dockerContext: string | null;
     dockerHome: string | null;
     timeout?: number;
@@ -270,6 +271,7 @@ DemoProcesses.prototype.run = async function(command, args, options = {}) {
     'NODE_EXTRA_CA_CERTS', 'SSL_CERT_FILE', 'SSL_CERT_DIR',
     'NUGET_PACKAGES', 'NUGET_HTTP_CACHE_PATH', 'COREPACK_HOME', 'PNPM_HOME', 'XDG_CACHE_HOME',
     'NPM_CONFIG_CACHE', 'npm_config_cache', 'NPM_CONFIG_STORE_DIR', 'npm_config_store_dir',
+    'DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER', 'MSBUILDDISABLENODEREUSE',
     ...(startup || migration || command === 'docker' ? ['USERPROFILE', 'XDG_CONFIG_HOME', 'XDG_RUNTIME_DIR', 'DOCKER_CONFIG', 'DOCKER_CONTEXT', 'DOCKER_HOST', 'DOCKER_TLS_VERIFY', 'DOCKER_CERT_PATH', 'DOCKER_DEFAULT_PLATFORM', 'DOCKER_API_VERSION'] : []),
     ...(startup || migration ? ['LEARNSTACK_COMPOSE_PROJECT', 'LEARNSTACK_COMPOSE_ENV_FILE', 'LEARNSTACK_COMPOSE_MODE'] : []),
     ...(migration ? ['ConnectionStrings__Migration', 'Identity__AuthorityId', 'Authentication__Tenant__Issuer'] : []),
@@ -281,6 +283,7 @@ DemoProcesses.prototype.run = async function(command, args, options = {}) {
     && env.Authentication__Tenant__Issuer === ${JSON.stringify(f.values.Authentication__Tenant__Issuer)}
     && env.Deployment__Mode === 'Development');
   f.commands.push({ command, args, label: options.label, timeout: options.timeout,
+    buildControls: command !== 'dotnet' || (env.DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER === '1' && env.MSBUILDDISABLENODEREUSE === '1'),
     dockerContext: env.DOCKER_CONTEXT ?? null,
     dockerHome: env.HOME ?? null,
     prerequisitesPreserved: (command === 'docker' ? ['DOCKER_CONFIG', 'DOCKER_CONTEXT']
@@ -500,6 +503,7 @@ if (JSON.stringify(args) === JSON.stringify(['compose', 'version'])) {
     `#!${process.execPath}
 import { record, values } from '../scripts/boundary-observer.mjs';
 const args = process.argv.slice(2);
+if (process.env.DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER !== '1' || process.env.MSBUILDDISABLENODEREUSE !== '1') process.exit(19);
 if (args.length === 1 && args[0].endsWith('/LearnStack.Tools.IdentityAuthorityInstaller.dll')) {
   record('authority-install', 'Migration', process.env.Identity__AuthorityId === values.Identity__AuthorityId
     && process.env.Authentication__Tenant__Issuer === values.Authentication__Tenant__Issuer);
@@ -507,10 +511,10 @@ if (args.length === 1 && args[0].endsWith('/LearnStack.Tools.IdentityAuthorityIn
 }
 if (process.cwd() !== ${JSON.stringify(join(f.root, 'backend'))}) process.exit(19);
 if (JSON.stringify(args) === JSON.stringify(['tool', 'restore'])) record('migration-tools');
-else if (JSON.stringify(args) === JSON.stringify(['build', 'src/LearnStack.Api', '--configuration', 'Release', '--nologo'])) record('migration-build');
-else if (JSON.stringify(args) === JSON.stringify(['build', 'src/LearnStack.Tools.IdentityAuthorityInstaller', '--configuration', 'Release', '--nologo'])) record('authority-build');
+else if (JSON.stringify(args) === JSON.stringify(['build', 'src/LearnStack.Api', '--configuration', 'Release', '--nologo', '--disable-build-servers'])) record('migration-build');
+else if (JSON.stringify(args) === JSON.stringify(['build', 'src/LearnStack.Tools.IdentityAuthorityInstaller', '--configuration', 'Release', '--nologo', '--disable-build-servers'])) record('authority-build');
 else if (args[0] === 'ef' && args[1] === 'database' && args[2] === 'update') record('migration-ef', 'Migration', !args.includes('--connection') && !args.some(arg => arg.includes('Password=')));
-else if (JSON.stringify(args) === JSON.stringify(['build', 'src/LearnStack.Tools.Seeder', '--configuration', 'Release', '--nologo'])) record('seeder-build');
+else if (JSON.stringify(args) === JSON.stringify(['build', 'src/LearnStack.Tools.Seeder', '--configuration', 'Release', '--nologo', '--disable-build-servers'])) record('seeder-build');
 else if (args.length === 1 && args[0] === ${JSON.stringify(join(f.root, 'backend/src/LearnStack.Tools.Seeder/bin/Release/net10.0/LearnStack.Tools.Seeder.dll'))}) {
   record('appseed', 'Default');
   process.stdout.write('seed-result: {"version":2,"freshTenantIds":[],"qualifiedOriginTenantIds":[]}\\n');
@@ -548,6 +552,8 @@ export async function reconcileDevelopmentRealm({ selected, signal, seedIdentity
     DOCKER_HOST: 'unix:///fixture/docker.sock',
     DOCKER_CONFIG: dockerConfiguration,
     UNRELATED_PRIVATE_VALUE: randomBytes(20).toString('hex'),
+    DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER: '0',
+    MSBUILDDISABLENODEREUSE: '0',
   };
   const sensitiveValues = [
     ...f.canaries,
@@ -1148,6 +1154,8 @@ DemoProcesses.prototype.dispose = async function() {
       NUGET_PACKAGES: join(f.root, 'nuget-cache'),
       DOCKER_CONFIG: join(f.root, 'docker-config'),
       DOCKER_CONTEXT: 'owned-fixture-context',
+      DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER: '0',
+      MSBUILDDISABLENODEREUSE: '0',
     });
     const result = execute(f, 'demo');
     expect(result.failure).toBe('renderer boundary');
@@ -1167,6 +1175,23 @@ DemoProcesses.prototype.dispose = async function() {
     expect(result.selectedDescription!.project).toMatch(/^learnstack-demo-[a-f0-9]+$/);
     expect(result.commands.every((command) => command.confined)).toBe(true);
     expect(result.commands.every((command) => command.prerequisitesPreserved)).toBe(true);
+    expect(result.commands.every((command) => command.buildControls)).toBe(true);
+    expect(result.commands.find(({ label }) => label === 'Backend restore')).toMatchObject({
+      command: 'dotnet',
+      args: ['restore', 'LearnStack.slnx', '--disable-build-servers'],
+    });
+    expect(result.commands.find(({ label }) => label === 'Seeder build')).toMatchObject({
+      command: 'dotnet',
+      args: [
+        'build',
+        'src/LearnStack.Tools.Seeder',
+        '--configuration',
+        'Release',
+        '--no-restore',
+        '--nologo',
+        '--disable-build-servers',
+      ],
+    });
     expect(result.commands.find(({ label }) => label === 'Required docker')).toMatchObject({
       command: 'docker',
       args: ['compose', 'version'],

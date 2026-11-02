@@ -74,7 +74,7 @@ export async function seedDevelopment({ selected, signal, adoptAdministrationOri
       label: 'Selected migrations', timeout: 300000,
     });
     await waitCompose(selected, processes, signal);
-    await run('dotnet', ['build', 'src/LearnStack.Tools.Seeder', '--configuration', 'Release', '--nologo'], {
+    await run('dotnet', ['build', 'src/LearnStack.Tools.Seeder', '--configuration', 'Release', '--nologo', '--disable-build-servers'], {
       cwd: backendRoot, env: publicSeederEnvironment(), label: 'Release Seeder build', timeout: 180000,
     });
     const seedOutput = await run('dotnet', [seederDll], {

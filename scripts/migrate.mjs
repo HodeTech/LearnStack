@@ -84,9 +84,9 @@ export function migrate(projects, environment = process.env, root = process.cwd(
   const backend = join(root, 'backend');
   for (const [args, quiet] of [
     [['tool', 'restore'], true],
-    [['build', 'src/LearnStack.Api', '--configuration', 'Release', '--nologo'], false],
+    [['build', 'src/LearnStack.Api', '--configuration', 'Release', '--nologo', '--disable-build-servers'], false],
     ...(configuration.Identity__AuthorityId
-      ? [[['build', 'src/LearnStack.Tools.IdentityAuthorityInstaller', '--configuration', 'Release', '--nologo'], false]] : []),
+      ? [[['build', 'src/LearnStack.Tools.IdentityAuthorityInstaller', '--configuration', 'Release', '--nologo', '--disable-build-servers'], false]] : []),
   ]) {
     const status = run(args, backend, prerequisites, quiet);
     if (status !== 0) return status;

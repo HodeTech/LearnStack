@@ -136,11 +136,22 @@ it.each([false, true])(
   (additional) => {
     expect(projects.length).toBeGreaterThan(0);
     const files = fixture(additional);
-    const { result, calls } = files.run();
+    const { result, calls } = files.run({
+      DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER: '0',
+      MSBUILDDISABLENODEREUSE: '0',
+      MSBUILDUNSELECTED: 'private-unselected',
+    });
     expect(result.status, result.stderr).toBe(0);
     expect(calls.map((call) => call.args)).toEqual([
       ['tool', 'restore'],
-      ['build', 'src/LearnStack.Api', '--configuration', 'Release', '--nologo'],
+      [
+        'build',
+        'src/LearnStack.Api',
+        '--configuration',
+        'Release',
+        '--nologo',
+        '--disable-build-servers',
+      ],
       ...ordered(files.chains).map((project) => [
         'ef',
         'database',
@@ -156,6 +167,10 @@ it.each([false, true])(
     ]);
     for (const call of calls) {
       expect(call.cwd).toBe(join(files.root, 'backend'));
+      expect(call.environment.DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER).toBe('1');
+      expect(call.environment.MSBUILDDISABLENODEREUSE).toBe('1');
+      expect(call.environment.MSBUILDUNSELECTED).toBeUndefined();
+      if (call.args[0] === 'build') expect(call.args).toContain('--disable-build-servers');
       expect(call.connection).toBe(
         call.args[0] === 'ef' ? 'Host=localhost;Username=learnstack_migration' : undefined,
       );
@@ -253,6 +268,9 @@ it.each(['ambient', 'file'] as const)(
       'backend/src/LearnStack.Tools.IdentityAuthorityInstaller/bin/Release/net10.0/LearnStack.Tools.IdentityAuthorityInstaller.dll',
     ]);
     for (const call of calls) {
+      expect(call.environment.DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER).toBe('1');
+      expect(call.environment.MSBUILDDISABLENODEREUSE).toBe('1');
+      if (call.args[0] === 'build') expect(call.args).toContain('--disable-build-servers');
       expect(call.environment.KEYCLOAK_ADMIN_PASSWORD).toBeUndefined();
       expect(call.environment.ConnectionStrings__Default).toBeUndefined();
       expect(call.environment.UNRELATED_PRIVATE_VALUE).toBeUndefined();

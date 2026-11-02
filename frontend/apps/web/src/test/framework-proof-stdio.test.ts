@@ -19,6 +19,7 @@ const sources = [
   ['framework-external-provider-ca.test.ts', 1],
   ['ingress-upgrade-evidence.test.ts', 1],
   ['framework-router-matrix.test.ts', 2],
+  ['demo-dotnet-owner.test.ts', 1],
 ] as const;
 
 function optionsFromWrappers(): ExecFileSyncOptionsWithStringEncoding[] {
@@ -145,7 +146,7 @@ function probe(options: ExecFileSyncOptionsWithStringEncoding, exit: number): Ou
 
 it('captures both actual parent channels on successful and failed subprocesses at every declared site', () => {
   const options = optionsFromWrappers();
-  expect(options.length).toBe(9);
+  expect(options.length).toBe(10);
   for (const option of options) {
     expect(probe(option, 0)).toEqual({
       stdoutBytes: 0,
@@ -166,7 +167,7 @@ it('captures both actual parent channels on successful and failed subprocesses a
 
 it('detects Node stderr forwarding when each actual wrapper omits stdio', () => {
   const options = optionsFromWrappers();
-  expect(options.length).toBe(9);
+  expect(options.length).toBe(10);
   for (const option of options) {
     const unsafe = { ...option };
     delete unsafe.stdio;

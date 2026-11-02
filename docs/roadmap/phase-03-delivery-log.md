@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 5,920 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,007 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -242,7 +242,9 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0084 Step 2 review round 1 and verified corrections (2026-11-01)](#adr-0084-step-2-review-round-1-and-verified-corrections-2026-11-01) — 70 lines
   - [ADR-0084 Step 2 review round 2 and proof-correlation closeout (2026-11-01)](#adr-0084-step-2-review-round-2-and-proof-correlation-closeout-2026-11-01) — 52 lines
   - [ADR-0084 Step 3 local implementation and runtime controls (2026-11-02)](#adr-0084-step-3-local-implementation-and-runtime-controls-2026-11-02) — 127 lines
-  - [ADR-0084 Step 3 review round 1 and verified partial corrections (2026-11-02)](#adr-0084-step-3-review-round-1-and-verified-partial-corrections-2026-11-02) — 87 lines
+  - [ADR-0084 Step 3 review round 1 and verified partial corrections (2026-11-02)](#adr-0084-step-3-review-round-1-and-verified-partial-corrections-2026-11-02) — 88 lines
+  - [ADR-0084 Step 3 owned .NET setup correction (2026-11-02)](#adr-0084-step-3-owned-net-setup-correction-2026-11-02) — 50 lines
+  - [ADR-0084 Step 3 uncertain group-observation correction (2026-11-02)](#adr-0084-step-3-uncertain-group-observation-correction-2026-11-02) — 36 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -11706,3 +11708,90 @@ cleanup success is introduced. The final corrected source still needs a fresh
 normal clean demo, full guarded tests and new independent R2, then final discovery
 and complete same-source hosted A followed by B with original ZIP verification.
 Manual accessibility remains maintainer-deferred and unexecuted.
+
+
+### ADR-0084 Step 3 owned .NET setup correction (2026-11-02)
+
+A second normal clean demo at `645caa24` fails setup after 16.141 seconds.
+An external, read-only process observer records the restore leader exiting while
+its actual same-group MSBuild workers remain. A subsequent read-only check of
+17 retained workers confirms `MSBuild.dll`, `/nodemode:1` and `/nodeReuse:true`.
+The existing process owner correctly refuses cleanup; its failed root and lock
+remain retained. This establishes the second attempt's cause, not the first
+attempt's unobserved cause. Neither diagnostic observation supplies cleanup
+or signaling authority.
+
+The existing credential-free setup environment now fixes both build-server and
+node-reuse controls, independent of conflicting ambient values. Owned demo
+restore/Seeder builds, migration API/authority builds and standalone seed builds
+also use the documented `--disable-build-servers`; EF metadata inherits the fixed
+environment without changing its existing arguments. Selected credentials,
+authority, process ownership, cleanup guards and deadlines remain unchanged.
+A fresh 49-project actual restore with the exact proposed controls passes in
+1.753 seconds: leader exit zero, actual group absent and cleanup resolved. This
+is a narrow diagnostic, not a complete demo pass. Its retained executed command
+includes the flag; a separately recorded correction identifies an omitted flag
+in the original summary label without rewriting the execution evidence.
+
+Independent focused R1 approves the bounded production correction but finds
+that the new inert test worker can outlive a failed release gate indefinitely.
+The corrected fixture independently bounds worker and leader readiness lifetimes;
+a fifth control withholds an unavailable gate, observes leader exit/live group
+and pending owner, then requires actual group retirement and disposal. Expiry
+itself supplies no cleanup credit. The independent recheck passes five controls
+and closes this Major; abrupt runner-loss and failed readiness are not separately
+fault-injected. No production timer or signal policy changes. The guarded carrier
+runs those controls and joins the existing exact callback/stdio censuses.
+
+Root's preceding 251 focused cases pass, then the first normal typecheck catches
+a missing literal test environment field in the new carrier. After correction,
+all five Node cases and nine current carrier/privacy cases pass; normal workspace
+typecheck and scoped lint pass. The expected Next lint deprecation remains
+separate from an ESLint warning or error. The first full guarded run executes 3,391 web cases: 3,390 pass and one existing
+parent-loss control fails on an `EPERM` process-group observation. All 401
+framework inputs, the 12 correction files and both guard inputs remain unchanged.
+The 163.737-second run is not a deadline failure or a passing full suite; SDK
+tests are not reached. Its failure is retained and investigated separately.
+
+This correction leaves the live initialized-router failure witness, complete R1
+closeout, new independent R2, final clean demo and same-source hosted A/B open.
+No private root is deleted from inferred process absence, no global build server
+is stopped, and no user stack/configuration/trust is changed. Manual accessibility
+remains maintainer-deferred and unexecuted.
+
+
+### ADR-0084 Step 3 uncertain group-observation correction (2026-11-02)
+
+The preceding full frontend RED reports `EPERM` from the existing parent-loss
+control's signal-zero group probe. Twelve instrumented copies of the exact owned
+case pass without reproducing EPERM; those repeats establish no cause for the
+original failure. A separate bounded owned host probe deliberately holds a
+same-UID child unreaped in its own group: state `Z` coincides with EPERM; after
+the private parent gate permits `waitpid`, the actual group returns ESRCH. Only
+signal zero observes that group. This proves constructed host behaviour, not
+that the original RED had the same cause. Its original failure remains retained.
+
+The test now preserves EPERM as uncertain/still present within the existing
+five-second observation bound. Only ESRCH marks the group retired, while other
+errors still propagate. Persistent EPERM reaches the deadline and fails; no
+signal authority, production watcher, cleanup rule or timeout changes. The new
+permanent control parses the actual `groupAlive` and `until` implementations and
+checks pending EPERM, later sticky ESRCH, unrelated error propagation and deadline
+failure. A false-absence mutant refuses. Independent focused R1 verifies the
+exact diff, reconstructed candidate and all four outcomes without a heavy run,
+then approves this bounded correction.
+
+Root's actual six-case file, normal workspace typecheck and scoped lint pass.
+Normal lint removes one blank import-group line; the complete non-whitespace
+source remains identical and the final full run binds the normalized bytes.
+The fresh normal guarded frontend run passes **3,540/3,540** cases
+(3,392 web across 114 files plus 148 SDK across six), zero skips/todos and
+zero stderr, in **165.209 seconds**. All 401 framework inputs, the 12 setup
+correction files and both runner inputs remain unchanged. The existing
+180-second guard and worker limits are unchanged. The earlier full RED remains
+a separate result; this green run does not identify its historical kernel cause.
+
+These are focused R1 corrections, not a new R2 or complete Step 3 closeout.
+The separate initialized-router failure proof, final clean demo and complete
+same-source hosted A/B remain required. Manual accessibility is still deferred
+and unexecuted.
