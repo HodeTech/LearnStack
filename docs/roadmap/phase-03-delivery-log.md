@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,007 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,071 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -244,7 +244,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0084 Step 3 local implementation and runtime controls (2026-11-02)](#adr-0084-step-3-local-implementation-and-runtime-controls-2026-11-02) — 127 lines
   - [ADR-0084 Step 3 review round 1 and verified partial corrections (2026-11-02)](#adr-0084-step-3-review-round-1-and-verified-partial-corrections-2026-11-02) — 88 lines
   - [ADR-0084 Step 3 owned .NET setup correction (2026-11-02)](#adr-0084-step-3-owned-net-setup-correction-2026-11-02) — 50 lines
-  - [ADR-0084 Step 3 uncertain group-observation correction (2026-11-02)](#adr-0084-step-3-uncertain-group-observation-correction-2026-11-02) — 36 lines
+  - [ADR-0084 Step 3 uncertain group-observation correction (2026-11-02)](#adr-0084-step-3-uncertain-group-observation-correction-2026-11-02) — 37 lines
+  - [ADR-0084 Step 3 fresh census and reviewed timing-plan revision (2026-11-02)](#adr-0084-step-3-fresh-census-and-reviewed-timing-plan-revision-2026-11-02) — 63 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -11795,3 +11796,67 @@ These are focused R1 corrections, not a new R2 or complete Step 3 closeout.
 The separate initialized-router failure proof, final clean demo and complete
 same-source hosted A/B remain required. Manual accessibility is still deferred
 and unexecuted.
+
+
+### ADR-0084 Step 3 fresh census and reviewed timing-plan revision (2026-11-02)
+
+Normal hooks commit the preceding 16-path setup/observation correction as
+`5e717aca`; its pre-hook tree equals the committed tree and all 16 file hashes
+remain unchanged. User settings and all five pre-existing stashes are preserved.
+A fresh clean development clone runs the normal CI demo at that commit. Restore
+and the actual Seeder build pass, then the existing port preflight refuses
+occupied TCP 3478 after 25.546 seconds. Read-only host/container metadata identifies
+the existing `learnstack-dev` Coturn service. No action is taken on that service.
+The demo's own disposal removes its private environment and lock; tracked source
+identity stays clean and unchanged. This is an environment refusal, not a full
+nine-page/27-audit demo pass. The normal mandatory demo job on a clean hosted VM
+still owns that complete evidence; no port override, service stop or guard bypass
+substitutes for it.
+
+A fresh complete Release build passes without warnings/errors in 28.426 seconds,
+then all five corpus cases pass. Twenty actual xUnit discovery commands succeed;
+all diagnostic case IDs/selectors match their console populations. The census is
+**7,949 cases**: base 3,872, Architecture 604, ordinary 3,442 and native 31. It is
+a discovery result, not 7,949 passing executions. All 1,982 backend inputs remain
+unchanged. Against the preceding 7,944-case manifest, only the two EOF Facts and
+three business-observation Facts are added; no prior row is removed or changed.
+The private retainer hits a dictionary-subtraction TypeError after all 22 build,
+corpus and discovery commands succeed. An independent offline finalizer reparses
+the retained original diagnostics/consoles and verifies source and population
+unions without rerunning or inventing execution data.
+
+**Separate timing revision.** This uses
+[ADR-0063's reviewed-plan mechanism](../decisions/0063-complete-bounded-ci-test-shards.md#versioned-plan-and-independence),
+not ADR-0082's window-only change. Only 19 existing advisory method weights rise,
+with eight truthful historical source rows. Their original ZIP lengths, SHA-256,
+CRC, current/historical complete case-ID sets and all-Passed JSONL/TRX durations
+are independently verified; decimal sums reproduce every ceiling-millisecond
+value. The source is seventh A `41256696539`, attempt 1 at `e0b1880e`, which remains
+unqualified. One contributing owner failed an unrelated case; its note preserves
+that failure, and only individually complete Passed groups supply measurements.
+
+The inclusion filter (at least 20 seconds and 25 percent above the retained
+estimate) is an explicit bounded review choice, not a runtime policy or proof
+that smaller differences are harmless. The same proposed costs evaluated on
+both old and revised assignments reduce modeled maximum/range in both layouts;
+these sums omit fixture startup/contention and do not predict hosted wall time.
+The change moves 3,646 cases in A and 3,064 in B. Counts, algorithm, salt, default,
+fixture list, VM cap, deadlines and reserve remain unchanged. All five new methods
+retain the 60-second estimate; the 175-class fixture census is exact.
+
+Independent focused R1 approves this distinct plan revision after recomputing
+all 19 groups from eight original archives, both complete unions, actual layout
+co-membership, same-cost comparisons and argument bounds. Maximum new filters are
+22,232/31,688 bytes for A/B, below 32,768; representative concrete argv also stay
+within 65,536, with actual hosted invocation checks still mandatory. Normal
+offline plan/result/native controls pass **83/83**, **40/40** and **103/103** with
+the revised JSON unchanged. Planted failed/skipped producer data are negative
+controls, not actual skipped tests or successful hosted owners.
+
+The plan SHA-256 changes from
+`8f3da281ac9b5d57448725b871f2716809b748effc3a99c06c62563623676da3`
+to `20b520c892c4224f07522eebfff6a3df98c88de2aadbc5d9416db2e9366d8efc`.
+It must be frozen with final program source for two complete new A/B attempts;
+no old layout qualifies the revision. Live initialized-router qualification,
+complete Step 3 R1/new R2 and final hosted surfaces remain open. Manual
+accessibility remains maintainer-deferred and unexecuted.
