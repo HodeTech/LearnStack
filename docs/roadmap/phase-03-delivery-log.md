@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,634 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,651 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -261,7 +261,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 pnpm transport R1 closeout and runtime attribution (2026-11-02)](#p03-3-pnpm-transport-r1-closeout-and-runtime-attribution-2026-11-02) — 24 lines
   - [P03-3 pnpm transport R2 review closeout (2026-11-02)](#p03-3-pnpm-transport-r2-review-closeout-2026-11-02) — 28 lines
   - [ADR-0085 maintainer corrections, acceptance and Step 1 (2026-11-02)](#adr-0085-maintainer-corrections-acceptance-and-step-1-2026-11-02) — 43 lines
-  - [ADR-0085 Step 1 R1 and decision-index correction (2026-11-02)](#adr-0085-step-1-r1-and-decision-index-correction-2026-11-02) — 16 lines
+  - [ADR-0085 Step 1 R1 and decision-index correction (2026-11-02)](#adr-0085-step-1-r1-and-decision-index-correction-2026-11-02) — 17 lines
+  - [ADR-0085 Step 1 review closeout (2026-11-02)](#adr-0085-step-1-review-closeout-2026-11-02) — 16 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -12439,3 +12440,20 @@ current guide bytes are unchanged, as planned for Step 2. Acceptance checks pass
 ADR-status controls; the real lifecycle parser reads ADR-0085 as Accepted.
 These are source/document checks, not implementation or hosted qualification.
 A new independent R2 follows this correction before clock implementation.
+
+
+### ADR-0085 Step 1 review closeout (2026-11-02)
+
+Two new independent R2 reviewers inspect the whole corrected acceptance package
+at `0dc0f7e0`, not only the R1 formatting fix. Both approve with no verified
+Blocker, Major or Minor; the parent reads both complete reports. Policy/corpus
+and contracts/evidence/testability checks preserve the historical ADR bodies,
+current-versus-planned carriers, exact future shell controls and separate hosted
+qualification. R1's index row is now inside the Active table. Step 1 and both
+fresh review rounds close; Step 2 can implement the approved 22/19 clocks and
+synchronize its two current guides. Manual evidence stays deferred/unexecuted.
+
+Private R2 report identities:
+
+- `step1-r2-policy.md`: `71f35ec1ed33de3d349caf10a70872f1b03751b710a0af254398cdd5e9ae6ed3`.
+- `step1-r2-contracts.md`: `109ff85c1ac481bdba1547681a77b8b7df27f1cf8ad249a066ef54e9112ba47f`.
