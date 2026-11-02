@@ -6522,6 +6522,12 @@ Prior receipts do not qualify subsequent source changes.
   counts. Owner-loss recovery requires unchanged records and complete family
   evidence. Cold SDK typechecking produces no unowned incremental output; the
   real compiler dirty twin retains that output and reaches `output_unowned`.
+  The actual recursive cold typecheck/lint prefix leaves only its permitted
+  routes stub before the build guard accepts. Web lint disables both ESLint
+  caching and Next telemetry writes; a private cache-enabled twin reaches the
+  real `output_unowned` refusal with its bytes preserved. Target exit receipts,
+  actual family retirement, all three lease releases and unchanged source
+  inputs precede fixture disposal.
   The standalone producer CLI preserves its signal latch before and between
   command families, including real leased preparation. Signal tests authenticate
   the actual producer and verify family retirement and all three lease releases.
@@ -6549,7 +6555,8 @@ Prior receipts do not qualify subsequent source changes.
   `framework-runtime-watchdog-evidence.test.ts`,
   `framework-proof-closed-boundary.test.ts`, `framework-proof-stdio.test.ts`
   and SDK controls
-  `frontend/packages/sdk/src/cold-typecheck-output.test.ts` and
+  `frontend/packages/sdk/src/cold-typecheck-output.test.ts`,
+  `frontend/packages/sdk/src/cold-lint-output.test.ts` and
   `frontend/packages/sdk/src/producer-cli-stop.test.ts`, plus the existing
   `backend/tests/LearnStack.Tests.Integration/TenancyIdentity/TenantBffSessionTests`
   partial class, including `TenantBffSessionTests.FrameworkOwnership.cs`, and

@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,964 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 7,076 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -270,6 +270,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 cold SDK output and producer cancellation corrections (2026-11-02)](#p03-3-cold-sdk-output-and-producer-cancellation-corrections-2026-11-02) — 80 lines
   - [P03-3 corrective R1 findings and signal-attribution fix (2026-11-02)](#p03-3-corrective-r1-findings-and-signal-attribution-fix-2026-11-02) — 63 lines
   - [P03-3 corrective R2 source review closeout and renewed qualification (2026-11-02)](#p03-3-corrective-r2-source-review-closeout-and-renewed-qualification-2026-11-02) — 38 lines
+  - [P03-3 28ff hosted A originals and cold lint diagnosis (2026-11-02)](#p03-3-28ff-hosted-a-originals-and-cold-lint-diagnosis-2026-11-02) — 58 lines
+  - [P03-3 cold lint output correction and local validation (2026-11-02)](#p03-3-cold-lint-output-correction-and-local-validation-2026-11-02) — 54 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -12777,3 +12779,115 @@ These two rounds close corrective source review only. Complete same-source
 hosted A/B and joint ADR-0083/0084/0085 qualification remain open; the existing
 catalogue rule remains Registered. Manual keyboard/focus/reflow/contrast/VoiceOver
 evidence remains maintainer-deferred and unexecuted for PR review.
+
+### P03-3 28ff hosted A originals and cold lint diagnosis (2026-11-02)
+
+The new complete [hosted A](https://github.com/HodeTech/LearnStack/actions/runs/41424083051),
+attempt 1, runs source/workflow
+`28ff416cb2d4a62381a86306634760fd1e380874`, tree
+`c5421f436607f116543033e049dd02b077b49a90`, against the unchanged OpenAPI base
+`e55aa5d7bfcba4ccc2357fa0c2276025e14f8d55`. All 27 jobs finish: 26 succeed;
+frontend Build fails after passing Typecheck and Lint. Frontend tests and native
+ingress proof do not run. No B is dispatched. This failed workflow cannot
+qualify A/B or the PR.
+
+All 25 available original ZIPs are retained. Two independent auditors verify
+API identity, size, SHA-256 and CRC. The 20 backend exports match the original
+members byte for byte. All 7,949 selected cases have matching completed and TRX
+results and pass: 3,872 base, 604 Architecture, 3,442 ordinary and 31 native.
+Both canonical aggregates and all 20 natural workload/cleanup receipts pass;
+the 13 Docker owners report absence. Null Docker peak/startup values remain
+unknown; observations do not prove a host-wide capacity limit or a causal
+bottleneck. The unchanged actual case-manifest digest remains
+`b2754c2ff43b392a7b25514ddc7d4716c4175628cc4714fde4edc194add1b37c`.
+
+The public original ZIP has SHA-256
+`5a3eb60e257d3a07b97b4b93b964ce83d8b3f402b150682e05a7ac85c435dccb`.
+Its 27 JSON/HTML pairs pass their hard budgets and nine PNG screenshots exist.
+All nine LCP medians retain advisory warnings. Setup/proof/owned cleanup are
+294.247 / 652.388 / 11.841 seconds; proof stays below 720 seconds and the job
+within 22/19. Four quiet intervals are code-enforced, not independently timed
+by the receipt. Screenshots are not independently visually reviewed. OpenAPI
+and leakwatch pass within their recorded scope. Neither these bounded passes
+nor automated accessibility scores supply full-workflow or manual WCAG proof.
+
+The owner fully reads both complete independent reports, finite evidence and
+audit scripts before releasing the source freeze. Private report names are
+`28ff-originals-backend-audit.md` and `28ff-public-and-cold-audit.md`. Their
+archive checks preserve the original evidence; they do not repair the failed
+frontend result.
+
+A fresh qualified private copy reproduces actual recursive typecheck and lint
+succeeding, followed by build refusal before the Next banner. Lint creates both
+an ESLint cache and Next telemetry configuration without a build-output owner.
+The actual clean guard, under a proper producer lease, refuses `output_unowned`,
+preserves the cache bytes and retires all three records. Disabling only ESLint
+caching still leaves the telemetry file and build failure. A single-file private
+variant that also forces telemetry off passes typecheck, lint and the real
+production build; its generated manifest verifies. The 421 framework inputs and
+94 supplemental files remain unchanged, apart from the declared private lint
+variant. All actual command families retire. Dependencies are linked from the
+qualified installed store on Darwin, not freshly installed on hosted Linux.
+The earlier incomplete harness without SDK/UI ESLint configurations remains a
+failed experiment, not application evidence.
+
+This demonstrates a cold lint ownership defect consistent with the failed
+frontend job. The hosted inner exception is not observed; no causal attribution
+is claimed. The correction must preserve unowned-output refusal, complete its
+normal implementation commit and two fresh independent review rounds, then run
+new complete final-source A/B with retained and independently audited originals.
+No deadline, output-adoption authority or Accepted decision changes.
+
+### P03-3 cold lint output correction and local validation (2026-11-02)
+
+The web lint wrapper now passes `--no-cache` and forces
+`NEXT_TELEMETRY_DISABLED=1` in its actual child environment. Subject discovery,
+staged `--fix`, zero-warning policy and other arguments stay unchanged. No
+output is adopted, deleted or declared owned to accommodate lint. This is a
+correction under the existing ADR-0083/0084 ownership contract; no runtime,
+permission, dependency tuple or time allowance changes.
+
+Two permanent SDK cases run actual recursive typecheck and lint in fresh private
+qualified source copies. The positive requires only the permitted routes stub
+and acceptance by the real build guard. The cache-enabled private twin removes
+only `--no-cache`, retains forced telemetry suppression and requires a real
+`output_unowned` refusal with unchanged cache bytes. It intentionally sends no
+telemetry. Private finite environments, the actual selected pnpm manager,
+exclusive bounded stream capture and real target exit receipts prevent wrapper
+completion from substituting for target success. Both actual command families,
+all three producer lease records, source hashes and negative owner inspection
+must pass before fixture disposal. Uncertainty retains the root. The existing
+60-second shared command deadline, 90-second case limit and separate 180-second
+package allowance are unchanged.
+
+The focused cases pass 2/2 in 77.229 seconds. Full guarded frontend validation
+passes 3,561 cases with zero skips/todos: 3,407 web cases in 115 files and 154 SDK
+cases in nine files. Wall time is 253.141 seconds; the separate package durations
+are 172.07 and 77.20 seconds, each below 180. Recursive typecheck, lint, production
+build and both real renderer pipe-failure variants pass in 4.468, 32.817, 21.695
+and 32.486 seconds. All recorded wrapper stderr streams are empty. Before/after
+every credited command, the complete 423-input frontend graph, 20 supplemental
+files and 1,982 backend files agree. Supplemental membership now includes both
+SDK/UI ESLint configurations, which are outside the framework input graph.
+
+The first corpus command uses the wrong class filter and discovers zero cases.
+Its nonempty-count assertion fails; neither command exit zero nor the empty TRX
+is counted as a pass. That original receipt stays retained. The corrected actual
+`CorpusConsistencyTests` command passes 5/5 in 1.513 seconds with unchanged source
+maps and empty stderr. A separate qualified receipt list preserves the six
+successful original commands and this real corrective run. No red artifact is
+rewritten as success.
+
+Backend sources are byte-identical to the existing strict Release rebuild,
+20-command actual discovery and 604-case Architecture proof. Those earlier runs
+are not re-executed or presented as validation of the changed frontend graph.
+The current renderer and corpus checks bind both graphs. The new freeze must
+bind these current receipts, not relabel the old 421-input frontend evidence.
+
+The related Standard 07 and existing Registered catalogue rule now name cold
+lint output and its positive/dirty-twin tests. After a normal corrective commit,
+two new independent R1 reviewers inspect the source, evidence and freeze helper;
+verified fixes are committed before two new R2 reviewers. Only then can a new
+final-source freeze and complete hosted A/B qualify the combined work. Manual
+accessibility remains maintainer-deferred and unexecuted. The hosted frontend
+inner failure remains unattributed.

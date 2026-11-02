@@ -578,6 +578,12 @@ acceptance does not establish an installed patch or implemented verifier.
   are trusted source/install/build drift controls, not signatures against an
   actor who can replace the verifier, source, manifest and outputs together.
   Arbitrary external co-writers violate the immutable/owned-output premise.
+- The cold CI typecheck/lint prefix must leave no unowned framework output.
+  SDK typechecking disables incremental output; the web lint wrapper disables
+  ESLint caching and forces Next telemetry off in its actual child environment.
+  These read-only tools do not acquire or fabricate a build-output owner.
+  Actual cold-prefix controls verify the remaining routes stub against the real
+  build guard; a cache-writing twin must refuse without deleting its output.
 - Copied public/admission/ingress/BFF fixtures carry the same verifier and clean
   producer. Their manifests bind their actual post-instrumentation inputs and
   resolved dependencies, not another checkout's identity. Rebuild config/source
