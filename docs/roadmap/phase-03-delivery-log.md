@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,734 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,863 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -266,6 +266,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0085 Step 2 implementation and local validation (2026-11-02)](#adr-0085-step-2-implementation-and-local-validation-2026-11-02) — 32 lines
   - [ADR-0085 Step 2 R1 review closeout (2026-11-02)](#adr-0085-step-2-r1-review-closeout-2026-11-02) — 21 lines
   - [ADR-0085 Step 2 review closeout and final-source qualification plan (2026-11-02)](#adr-0085-step-2-review-closeout-and-final-source-qualification-plan-2026-11-02) — 29 lines
+  - [P03-3 a535 hosted A originals and failed qualification (2026-11-02)](#p03-3-a535-hosted-a-originals-and-failed-qualification-2026-11-02) — 49 lines
+  - [P03-3 cold SDK output and producer cancellation corrections (2026-11-02)](#p03-3-cold-sdk-output-and-producer-cancellation-corrections-2026-11-02) — 80 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -12543,3 +12545,132 @@ Re-run all jobs B on identical source/tree/plan/toolchain/population. A failed A
 retains all available originals before further source correction; it supplies no
 B. Acceptance, local passes and source reviews prove no fit. Manual evidence
 remains maintainer-deferred and unexecuted for PR review.
+
+### P03-3 a535 hosted A originals and failed qualification (2026-11-02)
+
+The new complete [hosted A](https://github.com/HodeTech/LearnStack/actions/runs/41403672853),
+attempt 1, runs source/workflow `a5359def4b22f60da8408e6434005d3b301a9773`,
+tree `8d6f180122f043ffb99c8bbe5b019867ab9fee2a`, against OpenAPI base
+`e55aa5d7bfcba4ccc2357fa0c2276025e14f8d55`. All 27 jobs finish: 24 succeed;
+frontend Typecheck, ordinary-9 and the integration aggregate fail. No B is
+dispatched. The source freeze is released only after original failure evidence
+is retained; this A supplies no final-source or whole-run qualification.
+
+The unchanged retainer preserves all 24 available original ZIPs under private
+`artifacts/p033-step10/hosted/41403672853/attempt-1/`. Independent backend and
+public/OpenAPI audits check their API identity, size, SHA-256 and CRC; all 20
+backend proof exports match the originals byte for byte. No integration aggregate
+ZIP exists. The canonical validator accepts the backend aggregate's 4,476 cases
+(3,872 base and 604 Architecture), native and the other eleven ordinary receipts.
+It rejects ordinary-9 and the integration execution union. All 7,949 selected
+cases have results: 7,948 pass and one fails, with none missing or censored.
+
+Ordinary-9 has 271 selected/results, 270 passed and one failed:
+`Renderer_control_pipe_failure_cleans_up_the_owned_build(brokenOutput: False)`.
+Its recorded duration is 2.0664381 seconds. The sanitized original TRX has no
+assertion message/location; the finite job log supplies no assertion detail.
+The exact failed assertion and hosted cause remain unknown. This is not a
+whole-job deadline failure: the owner step ends about 297 seconds before its
+execution cutoff. Its forced-cleanup/cleanup-ownership receipt does not establish
+normal workload completion; `dockerAbsent: false` is not Docker absence proof.
+Resource samples exclude the Docker daemon; null Docker peak/startup measures
+remain unknown and establish no OOM or causal bottleneck.
+
+The public-demo job succeeds within the implemented 22/19-minute windows:
+27 matching JSON/HTML report pairs pass hard budgets and nine screenshots exist.
+Independent checks recompute all report digests, gzip totals and recorded scores.
+All nine LCP medians remain advisory warnings. Receipt setup/proof/owned cleanup
+are 294.823 / 654.200 / 10.665 seconds; proof is below its unchanged 720-second
+bound. Code requires four quiet intervals, but the receipt does not independently
+timestamp their durations. Screenshots are not independently visually reviewed;
+automated scores supply no manual/VoiceOver or full WCAG pass. OpenAPI comparison
+and leakwatch pass within their recorded scope. Success on these surfaces does
+not overcome the failed workflow, prove future window fit or establish host-wide
+cleanup.
+
+The two private independent reports are `a535-originals-backend-audit.md` and
+`a535-public-openapi-audit.md` in the ADR-0085 diagnosis directory. The public
+original ZIP SHA-256 is
+`19fea9c9bcf115d5b5fa1cf5e929f80395bb15df41ab0a83a168da0c5cd7589b`.
+The actual case manifest remains
+`b2754c2ff43b392a7b25514ddc7d4716c4175628cc4714fde4edc194add1b37c`.
+
+### P03-3 cold SDK output and producer cancellation corrections (2026-11-02)
+
+Two separate bounded reproductions identify ownership defects while the exact
+hosted failures remain unattributed. Neither reproduction is a replay of the
+hosted assertion or a complete native compiler-active cancellation proof.
+
+1. A fresh private SDK `tsc --noEmit` inherits incremental compilation and writes
+   unowned `dist/tsconfig.tsbuildinfo`. The actual native output guard correctly
+   refuses `output_unowned` and preserves the file. Changing only private SDK
+   `incremental` to false produces no output and passes the same guard. Both real
+   compiler families retire and all three producer leases release. The earlier
+   failed diagnostic without the copied OpenAPI contract remains a failure;
+   only the corrected experiment supplies positive evidence. Dependencies are
+   linked from the installed qualified store on Darwin, rather than freshly
+   installed on hosted Linux. The permanent SDK configuration now disables
+   incremental output for read-only typechecking; output adoption/deletion is
+   not relaxed.
+2. A private barrier holds the actual standalone producer after leased output
+   acquisition and before its first command family. Original cancellation
+   retires the process group but leaves all three lease records and no normal
+   exit witness. The corrected CLI's persistent SIGTERM/SIGINT AbortController
+   forwards the existing producer signal; the held probe observes cancellation,
+   exit 1, actual family retirement and all three records absent. The copied
+   instrumentation observes the real CLI and lease paths. The original/fixed
+   diagnostic roots remain retained. A leased `.next` directory does not prove
+   the Next compiler started. The C# pipe-failure test now says so and preserves
+   nonempty roots after uncertain or forced shutdown instead of recursively
+   erasing their ownership evidence.
+
+Permanent SDK tests exercise the actual cold compiler and guard in positive and
+incremental dirty-twin configurations, and real leased pre-family CLI handling
+for SIGTERM and SIGINT. Their isolated roots are removed only after the tested
+family/lease retirement conditions; uncertainty retains evidence. The first CLI
+test run fails because its private PATH omits system shell tools. Adding only
+fixed `/usr/bin:/bin` to the private shim PATH makes all four focused cases pass;
+the earlier red run remains retained, rather than counted as success.
+
+Recursive workspace typecheck and lint pass. The full guarded frontend command
+passes all 3,559 tests: 3,407 web tests in 115 files and 152 SDK tests in eight
+files. Command wall time is 177.571 seconds; package durations are 169.37 seconds
+and 4.43 seconds. The existing per-package 180-second/4-worker limits are
+unchanged. The recursive typecheck/lint and full frontend commands record empty
+stderr; the complete frontend command's 421 framework inputs and 18 extra
+sources are unchanged. Actual compiler tests inherit their own streams and do
+not claim separately captured empty compiler output.
+
+The strict CI-mode Release rebuild passes in 32.342 seconds with zero warnings
+or errors under local .NET 10.0.302. All 20 fresh actual discovery commands pass
+against the current 1,982 backend files; the 7,949 identities and manifest digest
+above are unchanged. Discovery proves population, not case execution. The full
+non-skippable Architecture suite passes 604/604 in 2,135.283 seconds, with empty
+stderr and unchanged backend sources. Both real renderer pipe-failure variants
+pass in 34.363 seconds.
+
+A subsequent short-gate pass binds the complete frontend graph, all 18 extra
+inputs and the backend map before/after every command: recursive typecheck
+4.462 seconds, lint 6.144 seconds, production build 21.710 seconds and both
+renderer variants 34.530 seconds, all passing with empty stderr. Format
+verification succeeds without changes. Its diagnostic rerun identifies two
+workspace duplicate-source warnings for the existing analyzer release Markdown
+files; this is not an empty-stderr format claim or a warning in the strict
+Release build.
+
+An additional fresh private copy runs the whole recursive `pnpm -r typecheck`
+through the retained verified clean pnpm shim, rather than only the web command.
+It passes in 6.183 seconds, with empty stderr, actual family retirement and no
+retained active owners. All 421 framework inputs and 92 copied extra files
+(91 root scripts plus the OpenAPI contract) remain unchanged. The copy links the
+qualified installed dependencies on Darwin; it is not a cold hosted install.
+The first private helper is refused by a syntax error before target execution;
+its source and reproduced parser failure remain retained. The corrected helper's
+actual command supplies the positive evidence.
+
+A normal corrective commit and two new independent review rounds remain required
+before the next source freeze. Then dispatch a new complete A; only a qualified A
+with retained/audited originals permits all-job B on the same final source. This
+is an implementation correction under ADR-0083/0084, with no new authority,
+runtime topology, timing allowance or Accepted ADR body change. Manual
+accessibility evidence remains maintainer-deferred and unexecuted.

@@ -521,6 +521,16 @@ acceptance does not establish an installed patch or implemented verifier.
   invocations migrate to it. Verify qualified package/toolchain before generation,
   begin with no reusable executable output/cache from an earlier build, and
   verify package and source/config identity again after the real build exits.
+- SDK `tsc --noEmit` uses `incremental: false`: read-only typechecking must not
+  create an unowned `dist/tsconfig.tsbuildinfo` before native production. The
+  managed native producer remains the SDK output writer. A cold compiler
+  counterfactual with incremental output must still meet the ordinary
+  `output_unowned` refusal; do not delete or adopt that output to make a build pass.
+- The standalone producer CLI latches SIGTERM/SIGINT before option parsing and
+  forwards its persistent AbortSignal through the complete producer lifetime,
+  including leased preparation and gaps between command families. Started
+  families still join actual retirement before lease release. Cancellation is
+  failure, and uncertain ownership records survive test cleanup.
 - The producer writes `.next/framework-build.json` last, outside its own digest
   subject set. It binds the guard/
   generator/census and patch identity, actual producer tuple, complete relevant

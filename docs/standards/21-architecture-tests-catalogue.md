@@ -6520,7 +6520,13 @@ Prior receipts do not qualify subsequent source changes.
   Copied profile/relay and input-graph controls preserve actual child attribution,
   including the distinct public-admission commands, completion barrier and reply
   counts. Owner-loss recovery requires unchanged records and complete family
-  evidence.
+  evidence. Cold SDK typechecking produces no unowned incremental output; the
+  real compiler dirty twin retains that output and reaches `output_unowned`.
+  The standalone producer CLI preserves its signal latch before and between
+  command families, including real leased preparation. Signal tests authenticate
+  the actual producer and verify family retirement and all three lease releases.
+  A leased `.next` directory alone does not prove a compiler started; failed or
+  forced test shutdown cannot authorize recursive deletion of retained records.
 - **Source:** [ADR-0083](../decisions/0083-owned-next-response-compression-cleanup.md),
   [ADR-0084](../decisions/0084-owned-frontend-runtime-process-families.md)
   and [Standard 07](07-frontend-architecture.md#version-qualified-next-response-cleanup).
@@ -6538,9 +6544,12 @@ Prior receipts do not qualify subsequent source changes.
   `framework-runtime-workers.test.ts`, `framework-runtime-recovery.test.ts`,
   `framework-runtime-watchdog-evidence.test.ts`,
   `framework-proof-closed-boundary.test.ts`, `framework-proof-stdio.test.ts`
-  and the existing
+  and SDK controls
+  `frontend/packages/sdk/src/cold-typecheck-output.test.ts` and
+  `frontend/packages/sdk/src/producer-cli-stop.test.ts`, plus the existing
   `backend/tests/LearnStack.Tests.Integration/TenancyIdentity/TenantBffSessionTests`
-  partial class, including `TenantBffSessionTests.FrameworkOwnership.cs`.
+  partial class, including `TenantBffSessionTests.FrameworkOwnership.cs`, and
+  `backend/tests/LearnStack.Tests.Integration/Database/PublicServerRenderingTests.cs`.
   Parsed-copy and component controls do not replace initialized-router,
   supported-loader, native/browser or source-bound hosted qualification.
 - **Status:** **Registered** — the complete runtime/held-owner and qualification

@@ -23,13 +23,20 @@ function argumentsFromCLI(values) {
   return options;
 }
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const controller = new AbortController();
+  const stop = () => controller.abort();
+  process.on('SIGTERM', stop);
+  process.on('SIGINT', stop);
   try {
     const options = argumentsFromCLI(process.argv.slice(2));
     if (options.mode === 'development')
       throw new Error('Development ownership belongs to the native launcher');
-    await buildFramework(options);
+    await buildFramework({ ...options, signal: controller.signal });
   } catch {
     console.error('Framework clean build refused or failed');
     process.exitCode = 1;
+  } finally {
+    process.removeListener('SIGTERM', stop);
+    process.removeListener('SIGINT', stop);
   }
 }
