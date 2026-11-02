@@ -256,8 +256,10 @@ This is hosted setup handling, not a workstation prerequisite or a guarantee of
 total setup duration. The actual workflow-shell controls live in
 `frontend/apps/web/src/test/public-demo-ci.test.ts`.
 
-The workflow's outer setup/proof allowance ends at minute 17 from its first
-step, reserving three minutes within the same 20-minute job ceiling. The native
+The workflow's [ADR-0085 outer setup/proof allowance](../../../docs/decisions/0085-public-demo-ci-execution-window.md)
+ends at minute 19 from its first step, reserving three nominal minutes within
+the same 22-minute job ceiling. The separate clock starts make this a nominal
+reserve, not a guaranteed tail at every instant. The native
 proof and cleanup retain their separate 12-minute and 30-second caps. Sandbox
 cleanup and workflow-receipt commands receive TERM after 15 seconds and KILL
 after five more; artifact upload retains its one-minute step limit. The nominal

@@ -694,12 +694,12 @@ jobs:
   public-demo:
     name: public demo + lighthouse
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 22
     steps:
       # Start before checkout. Reserve three minutes: 35s owner stop grace,
       # 20s sandbox cleanup, 20s receipt, 60s upload and 45s runner/post margin.
       - name: Reserve demo cleanup and artifact time
-        run: echo "PUBLIC_DEMO_DEADLINE=$(( $(date +%s) + 17 * 60 ))" >> "$GITHUB_ENV"
+        run: echo "PUBLIC_DEMO_DEADLINE=$(( $(date +%s) + 19 * 60 ))" >> "$GITHUB_ENV"
 
       - name: Checkout
         timeout-minutes: 2

@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,651 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,683 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -262,7 +262,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 pnpm transport R2 review closeout (2026-11-02)](#p03-3-pnpm-transport-r2-review-closeout-2026-11-02) — 28 lines
   - [ADR-0085 maintainer corrections, acceptance and Step 1 (2026-11-02)](#adr-0085-maintainer-corrections-acceptance-and-step-1-2026-11-02) — 43 lines
   - [ADR-0085 Step 1 R1 and decision-index correction (2026-11-02)](#adr-0085-step-1-r1-and-decision-index-correction-2026-11-02) — 17 lines
-  - [ADR-0085 Step 1 review closeout (2026-11-02)](#adr-0085-step-1-review-closeout-2026-11-02) — 16 lines
+  - [ADR-0085 Step 1 review closeout (2026-11-02)](#adr-0085-step-1-review-closeout-2026-11-02) — 17 lines
+  - [ADR-0085 Step 2 implementation and local validation (2026-11-02)](#adr-0085-step-2-implementation-and-local-validation-2026-11-02) — 31 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -12457,3 +12458,35 @@ Private R2 report identities:
 
 - `step1-r2-policy.md`: `71f35ec1ed33de3d349caf10a70872f1b03751b710a0af254398cdd5e9ae6ed3`.
 - `step1-r2-contracts.md`: `109ff85c1ac481bdba1547681a77b8b7df27f1cf8ad249a066ef54e9112ba47f`.
+
+
+### ADR-0085 Step 2 implementation and local validation (2026-11-02)
+
+After Step 1 and both review rounds close, the executable workflow changes only
+the public-demo job ceiling from 20 to 22 minutes and first-step work deadline
+from 17 to 19. CONTRIBUTING and the local-test skill change in the same commit,
+linking ADR-0085 and retaining the nominal-versus-guaranteed reserve distinction.
+The internal 720-second proof, four quiet windows, 27 audits, serial isolation,
+admission/cleanup, all other whole-job ceilings and every operation cap stay fixed.
+
+The real shell control asserts the single exact job-level ceiling, executes the
+actual first-step command with date 1000 to obtain 2140, and checks the 180-second
+nominal difference before checkout. Five counterfactuals refuse old/masked or
+oversized job ceilings, old/oversized work deadlines and checkout before
+reservation. A separate exact inventory preserves every other job ceiling, with
+an ordinary-ceiling counterexample. Existing expired/negative-remainder,
+INT/35-second grace, 0/1/124/137 tail outcomes and artifact allowlist controls remain.
+
+All 23 focused shell cases pass. Normal workspace typecheck and lint pass with
+zero stderr. The unchanged guarded full frontend command passes 3,555 cases:
+3,407 web cases in 115 files plus 148 SDK cases in six files, zero skips/todos,
+176.183 seconds overall and zero stderr. Its 417 framework inputs and 17 additional
+source hashes match before/after. Existing package guard remains 180 seconds and
+maxWorkers remains four. No new timing policy or suppressed case is introduced.
+Seven supply-chain, 103 native CI and 83 combined shard/result controls also pass;
+the combined controls take 5.555 seconds within their unchanged 27+3 allocation.
+
+These local results establish implementation controls, not Linux hosted fit or
+a complete public proof. Fresh R1 and new R2 precede the shared final-source A/B;
+failed d628 remains failed and supplies no B. Manual accessibility stays deferred
+and unexecuted. Original failed controls and hosted archives remain preserved.

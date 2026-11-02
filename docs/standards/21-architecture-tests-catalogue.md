@@ -6368,8 +6368,8 @@ C# architecture-test methods or a full WCAG/production-performance claim.
 - **Type:** Node lifecycle/proof controls and real production navigation.
   **Kind:** behavioural.
 - **Status:** **Implemented** — named Node proof and planted controls above.
-  ADR-0085's additional outer-window controls are pending implementation and
-  both fresh review rounds; this existing status claims no new hosted fit.
+  ADR-0085's additional outer-window controls await both fresh review rounds
+  and complete hosted qualification; this existing status claims no new fit.
 - **Phase:** 02d (P02d-7 Steps 1, 3 and 4).
 
 

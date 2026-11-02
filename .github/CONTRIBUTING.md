@@ -127,10 +127,12 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
 - **Allow deletions**: off.
 
 The ordinary fast checks retain their approximately three-minute target.
-ADR-0056's full-stack job deliberately includes real limiter-window waits: its
-20-minute job ceiling includes setup/build, a 12-minute serial proof and separate
-30-second cleanup. Timing ceilings are not performance targets. A failing or
-slow check is investigated rather than skipped on `main`.
+The full-stack job deliberately includes real limiter-window waits. Its
+[ADR-0085 window](../docs/decisions/0085-public-demo-ci-execution-window.md) is
+22 job minutes with a 19-minute first-step work deadline and a 180-second nominal
+reserve. The internal 12-minute serial proof and separate 30-second cleanup stay
+fixed. Timing ceilings are not performance targets or a hosted-fit guarantee.
+A failing or slow check is investigated rather than skipped on `main`.
 
 ## Commit messages
 
