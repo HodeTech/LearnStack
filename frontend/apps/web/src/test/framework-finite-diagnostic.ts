@@ -33,6 +33,8 @@ const reasons = [
   'framework-other',
   'runtime-other',
 ] as const;
+const readinessReasons = ['deadline', 'closed', 'error', 'shape'] as const;
+const ownerSignals = ['none', 'SIGINT', 'SIGTERM', 'SIGKILL', 'other'] as const;
 const scripts = [
   'framework-router-fault.test.mjs',
   'framework-router-fault-gate.test.mjs',
@@ -55,6 +57,32 @@ const stages: readonly string[] = [
 const has = (values: readonly string[], value: unknown): value is string =>
   typeof value === 'string' && values.includes(value);
 
+// Owner/proof-channel observations only; never actual runtime-child retirement.
+function readinessDiagnostic(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  if (Object.keys(row).sort().join(',') !== 'elapsedMilliseconds,ownerExitCode,ownerSignal,reason')
+    return null;
+  const { reason, elapsedMilliseconds, ownerExitCode, ownerSignal } = row;
+  if (
+    !has(readinessReasons, reason) ||
+    typeof elapsedMilliseconds !== 'number' ||
+    !Number.isSafeInteger(elapsedMilliseconds) ||
+    elapsedMilliseconds < 0 ||
+    elapsedMilliseconds > 120000 ||
+    !(
+      ownerExitCode === null ||
+      (typeof ownerExitCode === 'number' &&
+        Number.isSafeInteger(ownerExitCode) &&
+        ownerExitCode >= 0 &&
+        ownerExitCode <= 255)
+    ) ||
+    !has(ownerSignals, ownerSignal)
+  )
+    return null;
+  return { reason, elapsedMilliseconds, ownerExitCode, ownerSignal };
+}
+
 /** Parse only the parent matrix's already-validated finite projection. */
 export function ownershipDiagnostic(raw: unknown, group: string) {
   try {
@@ -64,7 +92,7 @@ export function ownershipDiagnostic(raw: unknown, group: string) {
     const row = value as Record<string, unknown>;
     if (
       Object.keys(row).sort().join(',') !==
-      'admissionReason,cleanupConfirmed,currentCase,group,retained,stage'
+      'admissionReason,cleanupConfirmed,currentCase,group,readiness,retained,stage'
     )
       return null;
     if (
@@ -77,6 +105,9 @@ export function ownershipDiagnostic(raw: unknown, group: string) {
       typeof row.retained !== 'boolean'
     )
       return null;
+    const readiness = row.readiness === null ? null : readinessDiagnostic(row.readiness);
+    if (row.readiness !== null && readiness === null) return null;
+    if ((row.admissionReason === null) !== (readiness === null)) return null;
     if (row.currentCase === null && row.admissionReason !== null) return null;
     if (
       row.stage === 'worker-ordered-stop:hold-real-render' &&
@@ -90,6 +121,7 @@ export function ownershipDiagnostic(raw: unknown, group: string) {
       stage: row.stage,
       currentCase: row.currentCase,
       admissionReason: row.admissionReason,
+      readiness,
       cleanupConfirmed: row.cleanupConfirmed,
       retained: row.retained,
     };

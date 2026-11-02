@@ -65,6 +65,7 @@ it('projects only closed ownership failure evidence and rejects dirty or oversiz
     stage: 'worker-ordered-stop:hold-real-render',
     currentCase: 'worker-ordered-stop',
     admissionReason: 'owner_busy',
+    readiness: { reason: 'closed', elapsedMilliseconds: 10, ownerExitCode: 1, ownerSignal: 'none' },
     cleanupConfirmed: false,
     retained: true,
   };
@@ -86,6 +87,60 @@ it('projects only closed ownership failure evidence and rejects dirty or oversiz
     expect(ownershipDiagnostic(JSON.stringify(dirty), 'workers')).toBeNull();
   expect(ownershipDiagnostic(canary, 'workers')).toBeNull();
   expect(ownershipDiagnostic(JSON.stringify(clean), 'startup')).toBeNull();
+  const zero = {
+    ...clean,
+    readiness: { ...clean.readiness, elapsedMilliseconds: 0, ownerExitCode: 0 },
+  };
+  expect(ownershipDiagnostic(JSON.stringify(zero), 'workers')).toMatchObject(zero);
+  const pending = { ...clean, admissionReason: null, readiness: null };
+  expect(ownershipDiagnostic(JSON.stringify(pending), 'workers')).toMatchObject(pending);
+  const absent = { ...pending, stage: 'build', currentCase: null };
+  expect(ownershipDiagnostic(JSON.stringify(absent), 'workers')).toMatchObject(absent);
+  for (const reason of ['deadline', 'closed', 'error', 'shape'])
+    for (const ownerSignal of ['none', 'SIGINT', 'SIGTERM', 'SIGKILL', 'other']) {
+      const observed = {
+        ...clean,
+        admissionReason: 'unobserved',
+        readiness: {
+          reason,
+          elapsedMilliseconds: 120000,
+          ownerExitCode: null,
+          ownerSignal,
+        },
+      };
+      expect(ownershipDiagnostic(JSON.stringify(observed), 'workers')).toMatchObject(observed);
+    }
+  for (const readiness of [
+    null,
+    {},
+    [],
+    { ...clean.readiness, extra: canary },
+    { ...clean.readiness, reason: canary },
+    { ...clean.readiness, ownerSignal: canary },
+    ...[-1, 120001, 1.5, null, '1'].map((elapsedMilliseconds) => ({
+      ...clean.readiness,
+      elapsedMilliseconds,
+    })),
+    ...[-1, 256, 1.5, '1'].map((ownerExitCode) => ({ ...clean.readiness, ownerExitCode })),
+  ])
+    expect(ownershipDiagnostic(JSON.stringify({ ...clean, readiness }), 'workers')).toBeNull();
+  for (const key of Object.keys(clean.readiness)) {
+    const readiness: Record<string, unknown> = { ...clean.readiness };
+    delete readiness[key];
+    expect(ownershipDiagnostic(JSON.stringify({ ...clean, readiness }), 'workers')).toBeNull();
+  }
+  expect(
+    ownershipDiagnostic(JSON.stringify({ ...clean, admissionReason: null }), 'workers'),
+  ).toBeNull();
+  expect(
+    ownershipDiagnostic(JSON.stringify({ ...clean, readiness: undefined }), 'workers'),
+  ).toBeNull();
+  const opaque = Object.defineProperty({}, 'readiness', {
+    get() {
+      throw new Error(canary);
+    },
+  });
+  expect(ownershipDiagnostic(opaque, 'workers')).toBeNull();
 });
 
 it('projects router process classifications without exporting caught payloads', () => {
@@ -220,6 +275,56 @@ it('keeps receiver cases, stages and admission reasons equal to matrix authority
     runInNewContext(initializer(source, 'ownershipMatrixCases')) as string[],
   );
   const receiverCases = Array.from(runInNewContext(initializer(receiver, 'cases')) as string[]);
+  const support = readFileSync(
+    new URL('../../scripts/bff-proof-support.mjs', import.meta.url),
+    'utf8',
+  );
+  function listenerVocabulary(text: string) {
+    const file = ts.createSourceFile(
+      'support.mjs',
+      text,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.JS,
+    );
+    const listener = file.statements.filter(
+      (node): node is ts.FunctionDeclaration =>
+        ts.isFunctionDeclaration(node) && node.name?.text === 'waitForBffProofListener',
+    );
+    expect(listener).toHaveLength(1);
+    const mintedReasons: string[] = [],
+      mintedSignals: string[] = [];
+    let signalFields = 0;
+    function signals(node: ts.Node) {
+      if (ts.isStringLiteral(node)) mintedSignals.push(node.text);
+      ts.forEachChild(node, signals);
+    }
+    function visit(node: ts.Node) {
+      if (ts.isCallExpression(node) && node.expression.getText(file) === 'refusal') {
+        const reason = node.arguments[0];
+        expect(reason && ts.isStringLiteral(reason)).toBe(true);
+        if (reason && ts.isStringLiteral(reason)) mintedReasons.push(reason.text);
+      }
+      if (ts.isPropertyAssignment(node) && node.name.getText(file) === 'signal') {
+        signalFields++;
+        signals(node.initializer);
+      }
+      ts.forEachChild(node, visit);
+    }
+    visit(listener[0]!);
+    expect(signalFields).toBe(1);
+    expect([...new Set(mintedReasons)].sort()).toEqual(
+      Array.from(runInNewContext(initializer(matrix, 'readinessReasons')) as string[]).sort(),
+    );
+    expect([...new Set(mintedSignals)].sort()).toEqual(
+      Array.from(runInNewContext(initializer(matrix, 'ownerSignals')) as string[]).sort(),
+    );
+  }
+  listenerVocabulary(support);
+  expect(() =>
+    listenerVocabulary(support.replace("refusal('deadline',", "refusal('foreign',")),
+  ).toThrow();
+  expect(() => listenerVocabulary(support.replace("? 'none'", "? 'foreign'"))).toThrow();
   const matrixReasons = Array.from(
     runInNewContext(initializer(matrix, 'admissionReasons')) as string[],
   );
@@ -236,6 +341,13 @@ it('keeps receiver cases, stages and admission reasons equal to matrix authority
     [receiverCases, matrixCases],
     [receiverReasons, matrixReasons],
     [receiverStages, matrixStages],
+    ...['readinessReasons', 'ownerSignals'].map(
+      (name) =>
+        [
+          Array.from(runInNewContext(initializer(receiver, name)) as string[]),
+          Array.from(runInNewContext(initializer(matrix, name)) as string[]),
+        ] as const,
+    ),
   ] as const) {
     expect(actual).toEqual(expected);
     expect(actual.slice(1)).not.toEqual(expected);
@@ -261,6 +373,36 @@ it('keeps the validated matrix projection before the single bounded stdout write
     const parent = functions.filter((node) => node.name?.text === 'runFrameworkOwnershipMatrix');
     expect(project).toHaveLength(1);
     expect(parent).toHaveLength(1);
+    const privateMatrix = functions.filter((node) => node.name?.text === 'runPrivateMatrix');
+    expect(privateMatrix).toHaveLength(1);
+    const readinessCallbacks: ts.ArrowFunction[] = [];
+    function visit(node: ts.Node) {
+      if (ts.isCallExpression(node) && node.expression.getText(file) === 'running.ready.catch') {
+        expect(node.arguments).toHaveLength(1);
+        const callback = node.arguments[0]!;
+        expect(ts.isArrowFunction(callback)).toBe(true);
+        if (ts.isArrowFunction(callback)) readinessCallbacks.push(callback);
+      }
+      ts.forEachChild(node, visit);
+    }
+    visit(privateMatrix[0]!);
+    expect(readinessCallbacks).toHaveLength(1);
+    const observation = readinessCallbacks[0]!.body;
+    expect(ts.isBlock(observation)).toBe(true);
+    if (!ts.isBlock(observation)) throw new Error('Readiness observation refused');
+    expect(observation.statements).toHaveLength(2);
+    expect(observation.statements[0]!.getText(file)).toBe(
+      'const observed = listenerFailureObservation(error);',
+    );
+    const accepted = observation.statements[1]!;
+    expect(ts.isIfStatement(accepted)).toBe(true);
+    if (!ts.isIfStatement(accepted) || !ts.isBlock(accepted.thenStatement))
+      throw new Error('Readiness observation refused');
+    expect(accepted.expression.getText(file)).toBe('observed !== null');
+    expect(accepted.thenStatement.statements.map((node) => node.getText(file))).toEqual([
+      'current.admissionReason = observed.admissionReason;',
+      'current.readiness = observed.readiness;',
+    ]);
     const body = project[0]!.body!;
     expect(body.statements).toHaveLength(2);
     expect(body.statements[0]!.getText(file)).toBe('validateFailureEvidence(evidence, group);');
@@ -280,7 +422,15 @@ it('keeps the validated matrix projection before the single bounded stdout write
       result.expression.properties.map((prop) =>
         ts.isPropertyAssignment(prop) ? prop.name.getText(file) : 'invalid',
       ),
-    ).toEqual(['group', 'stage', 'currentCase', 'admissionReason', 'cleanupConfirmed', 'retained']);
+    ).toEqual([
+      'group',
+      'stage',
+      'currentCase',
+      'admissionReason',
+      'readiness',
+      'cleanupConfirmed',
+      'retained',
+    ]);
     const textParent = parent[0]!.getText(file);
     expect(textParent.split('projectFailureEvidence(evidence, group)')).toHaveLength(2);
     expect(textParent.split("writeSync(1, JSON.stringify(projected) + '\\n')")).toHaveLength(2);
@@ -289,6 +439,11 @@ it('keeps the validated matrix projection before the single bounded stdout write
     );
   }
   census(source);
+  for (const [before, after] of [
+    ['const observed = listenerFailureObservation(error);', 'const observed = null;'],
+    ['current.readiness = observed.readiness;', 'void observed.readiness;'],
+  ] as const)
+    expect(() => census(source.replace(before, after))).toThrow();
   expect(() =>
     census(source.replace('  validateFailureEvidence(evidence, group);', '  void evidence;')),
   ).toThrow();
@@ -302,8 +457,9 @@ it('keeps the validated matrix projection before the single bounded stdout write
   ).toThrow();
 });
 
-// Each run uses the copied and transpiled actual wrapper with two test-only
-// substitutions: the fixed inert driver and one finite inner-result observation.
+// Each run copies/transpiles the actual wrapper with an inert driver and a finite
+// inner-result observation. Only the closed-sink copy additionally closes stderr
+// after the child result, immediately before the actual diagnostic emitter.
 it('keeps actual wrapper failures generic while emitting finite observations', async () => {
   const actual = await vi.importActual<typeof ChildProcess>('node:child_process');
   const root = mkdtempSync(join(tmpdir(), 'learnstack-finite-wrapper-'));
@@ -325,9 +481,6 @@ it('keeps actual wrapper failures generic while emitting finite observations', a
     expect(original.split(observationAnchor)).toHaveLength(2);
     const observation =
       "    process.stdout.write(JSON.stringify({ status: result.status, signal: result.signal, spawnFault: result.error !== undefined }) + '\\n');\n";
-    const source = original
-      .replace(driver, 'scripts/finite-diagnostic-control.mjs')
-      .replace(observationAnchor, observation + observationAnchor);
     const transpile = (text: string) =>
       ts.transpileModule(text, {
         compilerOptions: {
@@ -335,13 +488,29 @@ it('keeps actual wrapper failures generic while emitting finite observations', a
           target: ts.ScriptTarget.ES2022,
         },
       }).outputText;
-    // Rewrite emitted relative specifiers solely so the private .mjs copies resolve.
-    const wrapper = transpile(source)
-      .replace("'./framework-proof-closed-boundary'", "'./framework-proof-closed-boundary.mjs'")
-      .replace("'./framework-finite-diagnostic'", "'./framework-finite-diagnostic.mjs'");
-    expect(wrapper).toContain("'./framework-proof-closed-boundary.mjs'");
-    expect(wrapper).toContain("'./framework-finite-diagnostic.mjs'");
-    writeFileSync(join(testDir, 'framework-runtime-ownership.mjs'), wrapper);
+    for (const close of [false, true]) {
+      const source =
+        (close ? "import { closeSync as finiteCloseSync } from 'node:fs';\n" : '') +
+        original
+          .replace(driver, 'scripts/finite-diagnostic-control.mjs')
+          .replace(
+            observationAnchor,
+            observation + (close ? '    finiteCloseSync(2);\n' : '') + observationAnchor,
+          );
+      // Rewrite emitted relative specifiers solely so the private .mjs copies resolve.
+      const wrapper = transpile(source)
+        .replace("'./framework-proof-closed-boundary'", "'./framework-proof-closed-boundary.mjs'")
+        .replace("'./framework-finite-diagnostic'", "'./framework-finite-diagnostic.mjs'");
+      expect(wrapper).toContain("'./framework-proof-closed-boundary.mjs'");
+      expect(wrapper).toContain("'./framework-finite-diagnostic.mjs'");
+      writeFileSync(
+        join(
+          testDir,
+          close ? 'framework-runtime-ownership-closed.mjs' : 'framework-runtime-ownership.mjs',
+        ),
+        wrapper,
+      );
+    }
     for (const name of ['framework-proof-closed-boundary', 'framework-finite-diagnostic'])
       writeFileSync(
         join(testDir, name + '.mjs'),
@@ -352,6 +521,12 @@ it('keeps actual wrapper failures generic while emitting finite observations', a
       stage: 'worker-ordered-stop:hold-real-render',
       currentCase: 'worker-ordered-stop',
       admissionReason: 'owner_busy',
+      readiness: {
+        reason: 'closed',
+        elapsedMilliseconds: 10,
+        ownerExitCode: 1,
+        ownerSignal: 'none',
+      },
       cleanupConfirmed: false,
       retained: true,
     };
@@ -376,9 +551,13 @@ it('keeps actual wrapper failures generic while emitting finite observations', a
         script,
         `process.stdout.write(${JSON.stringify(scenario.stdout)});process.stderr.write(${JSON.stringify(canary)});process.exitCode=3;`,
       );
-      const probe = `import {closeSync} from 'node:fs';
-        import {runFrameworkOwnershipGroup} from ${JSON.stringify(pathToFileURL(join(testDir, 'framework-runtime-ownership.mjs')).href)};
-        ${scenario.close ? 'closeSync(2);' : ''}
+      const wrapperPath = join(
+        testDir,
+        scenario.close
+          ? 'framework-runtime-ownership-closed.mjs'
+          : 'framework-runtime-ownership.mjs',
+      );
+      const probe = `import {runFrameworkOwnershipGroup} from ${JSON.stringify(pathToFileURL(wrapperPath).href)};
         try {runFrameworkOwnershipGroup('workers');process.stdout.write('unexpected-success');}
         catch(e) {process.stdout.write(e instanceof Error && e.message==='Framework proof refused' && e.cause===undefined ? 'generic-failure' : 'unexpected-error');}`;
       const result = actual.spawnSync(process.execPath, ['--input-type=module', '-e', probe], {

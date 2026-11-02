@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 7,364 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 7,517 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -278,6 +278,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 finite frontend diagnostics and measured parser correction (2026-11-02)](#p03-3-finite-frontend-diagnostics-and-measured-parser-correction-2026-11-02) — 72 lines
   - [P03-3 finite diagnostics R1 review closeout (2026-11-02)](#p03-3-finite-diagnostics-r1-review-closeout-2026-11-02) — 38 lines
   - [P03-3 finite diagnostics R2 closeout and renewed source qualification (2026-11-02)](#p03-3-finite-diagnostics-r2-closeout-and-renewed-source-qualification-2026-11-02) — 41 lines
+  - [P03-3 c9b hosted A originals and bounded correction diagnosis (2026-11-02)](#p03-3-c9b-hosted-a-originals-and-bounded-correction-diagnosis-2026-11-02) — 88 lines
+  - [P03-3 c9b correction implementation and local validation (2026-11-02)](#p03-3-c9b-correction-implementation-and-local-validation-2026-11-02) — 65 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -13185,3 +13187,156 @@ open. The failed 667c A, its four unknown inner causes and historical local
 experiments remain distinct from the next run. Manual accessibility remains
 maintainer-deferred and unexecuted. No new clock, authority, concurrency, capacity
 or production-readiness claim is selected by this closeout.
+
+### P03-3 c9b hosted A originals and bounded correction diagnosis (2026-11-02)
+
+The next complete [hosted A](https://github.com/HodeTech/LearnStack/actions/runs/41453543519)
+uses source `c9b97aab0d1e8ae8e2dade9004775dc16abf2d98`, tree
+`7d142298fa8dc3b2b1af3fff806fb89328864ae4` and the unchanged fixed OpenAPI base.
+All 27 jobs terminate: 24 succeed; frontend Test, Architecture owner 0 and the
+backend aggregate fail. Frontend typecheck/lint/build pass; native ingress is
+skipped after Test. No B is started. This A qualifies neither P03-3 nor the
+combined framework/window work.
+
+All 24 available original ZIPs are retained with their API identities, sizes,
+SHA-256 values and CRCs verified. All twenty producer exports are present. The
+backend aggregate original is absent; it is not reconstructed or counted as a
+successful receipt. Two independent audits reconcile every original, manifest,
+assignment, owner result and declared resource observation before source changes.
+
+Of 7,949 selected backend cases, 7,948 have unique Passed journal completions.
+Nineteen complete owners supply 7,880 Passed TRX results. Architecture owner 0 has
+69 selected cases, 68 Passed journal completions, no final TRX and one missing
+completion: the background-job capacity mutation Fact. This is not an observed
+failed case or proof that this Fact alone consumes the owner's time. Its receipt
+reports `deadline_exhausted`, incomplete execution and confirmed cleanup, with
+`forcedCleanup: false`; no execution duration is supplied. Pre-owner/setup/
+cleanup observations are 244.373 / 0.164 / 0.139 seconds. Its 1,305-second API
+wall does not exceed the 1,500-second job ceiling. The backend aggregate refuses
+the failed/incomplete producer. Integration's actual aggregate covers 3,473
+cases across fourteen producers and succeeds. All twenty cleanup receipts
+complete without forced cleanup; nineteen workloads complete. Thirteen Docker
+absence observations are positive and seven are inapplicable. Missing Docker
+peak/startup observations stay unknown; no capacity cause is inferred.
+
+The public original ZIP, SHA-256
+`55992f10172060fae7ff3edd4b0a82d09ae5c9ceee037072478c553b7ed48fa0`,
+contains all 27 JSON/HTML audit pairs and nine screenshots. Hard budgets pass;
+all nine LCP medians retain advisory warnings. Setup/proof/cleanup are
+309.942 / 657.517 / 10.760 seconds. The separate 720-second proof, 30-second
+cleanup and 22/19 outer windows pass. Four 61-second quiet intervals remain
+source-configured, without independent timing evidence. Screenshots are not
+independently visually reviewed. OpenAPI's raw source bytes match Git; its
+comparison artifact is reserialized and semantically equal. Zero leakwatch
+findings establish only the declared scanning scope, not universal secrecy.
+
+The owner fully reads both complete main reports, finite evidence files and
+scripts. The backend's original opaque per-member detail is retained unchanged;
+955 member hashes/CRCs and its exact semantic equivalence to the consolidated
+main evidence are independently machine-verified. The opaque detail is not
+claimed as fully read prose. All 1,982 backend input blobs match the frozen
+source. Main report identities are:
+
+- `c9b-originals-backend-audit.md`, SHA-256
+  `4d0921d839fa195773a39bde781dc2a321b450ce04c0024a813348be357824fd`.
+- `c9b-public-frontend-audit.md`, SHA-256
+  `6c8006e23ee987a865d2b54f694a93be5e9055dab2025574b003d2d2d8af80c3`.
+
+Six actual frontend failed-case events precede the later 180-second package
+cancellation. Four existing ownership/router failures remain inner-cause
+unknown. Their finite observations identify three failures before accepted
+listener readiness and a ten-second router source-control timeout, without
+establishing the listener failure's particular reason or runtime-child outcome.
+An inert copied-wrapper unit and the all-copy cleanup case also fail. There is
+no complete hosted web union or SDK result. A later outer cancellation cannot
+explain these earlier events or authorize cleanup.
+
+A private inert reproduction uses Node 22.23.1 on Linux ARM64 with no network,
+Next, listener, package manager or credential mounts. Closing stderr before
+spawning the inner target aborts the outer Node process with SIGABRT. Six other
+scenarios and a control that closes stderr after the actual child result pass.
+This proves a portable test-setup defect on the measured platform; it is not
+attribution of the hosted x64 failure or runtime-family evidence. The corrected
+seven-scenario probe passes on the same immutable image, without forced cleanup,
+with unchanged canonical inputs and actual stopped-container/removal checks.
+An initial corrected probe refuses at a private input-census preflight before
+any container launch; it is preserved and not counted as a passing probe.
+
+Routine corrections now keep that closed-sink test at the actual emitter and
+preserve the branded listener's finite reason/status rather than discard it.
+A separate fresh-per-evaluation IL traversal candidate retains every capacity
+mutation and all owner/signature/opcode predicates. Matched single-case local
+measurements pass in 159.002 seconds before and 149.550 after, approximately
+5.94 percent less wall time. This one Darwin comparison, using SDK 10.0.302
+rather than hosted 10.0.403, proves no hosted cause, statistical speedup or
+whole-shard fit. The strict candidate build reports zero warnings/errors.
+Full current-source verification and both new independent review rounds must
+close before another full A; only qualified A permits same-source all-job B.
+All existing clocks, reserve, population and concurrency remain unchanged.
+Manual keyboard/focus/reflow/contrast/VoiceOver remains maintainer-deferred and
+unexecuted.
+
+### P03-3 c9b correction implementation and local validation (2026-11-02)
+
+The inert copied-wrapper test now closes stderr after observing the real inner
+child result, immediately before the actual diagnostic emitter. It retains all
+seven scenarios, status/closed-error/canary assertions, conservative retained
+roots and existing case/process bounds. Closing a descriptor before Node's
+spawn setup is no longer substituted for testing a closed diagnostic sink.
+
+The matrix reads the existing listener-failure WeakMap brand once and copies
+only its four closed readiness reasons, bounded elapsed time and primitive
+outer-owner/proof-channel exit/signal observation. Exact capsule validation
+precedes projection; the receiver independently validates the nested finite
+shape and admission/readiness consistency. Changing/throwing getters, omitted
+fields, dirty finite vocabularies and assignment/projection mutants refuse.
+This observes the outer owner, not actual runtime-child retirement. The closed
+error, cleanup/retention authority, runtime protocol and all clocks stay intact.
+
+The capacity detector obtains fresh owned bodies once per evaluation and
+collects every method operand and exact start-state field use in one local walk.
+The existing full predicates retain owner attribution, signatures, opcodes,
+order and multiplicity. The schedule-callback helper accepts the same local
+view, retaining a fresh fallback for standalone mutation callers. Order checks
+use the same bodies grouped locally. No shared cache, longer scan lifetime,
+mutation removal, population restriction or authority change is introduced.
+
+Current guarded frontend validation passes 3,566 cases, zero skips/todos:
+3,412 web cases in 115 files and 154 SDK cases in nine files. Package durations
+are 175.93 / 79.20 seconds; complete command wall time is 259.124 seconds.
+Watchdog source controls pass 5/5; the three-file focused suite passes 44/44.
+Typecheck, lint and production build pass in 4.441 / 32.328 / 22.608 seconds.
+Both actual renderer pipe-failure variants pass in 33.529 seconds; the separate
+nonempty corpus check passes five cases in 1.414 seconds. Every captured stderr
+stream is empty. All 424 frontend inputs, twenty supplemental files and 1,982
+backend files match before/after every credited stage.
+
+The strict Release build passes with zero warnings/errors in 32.938 seconds.
+The changed C# file passes format verification in 17.757 seconds; two existing
+duplicate-workspace-document warnings belong to that format command, not the
+strict build. Twenty real discovery commands retain all 7,949 case identities,
+the unchanged manifest and both assignment digests. No shard/count change is
+selected. The complete current Architecture run passes 604/604 cases in
+2,113.458 seconds with no failure, error or nonexecuted result. Its original TRX
+includes the positive capacity rule, the capacity mutation Fact and the existing
+instruction-index mutation companion. Its SHA-256 is
+`4994a9fd50b9c0febc8317df0da20454d66c96f7118b328dba81a83184d9b636`.
+Current backend inputs still match the strict build and every discovery stage.
+The local SDK remains 10.0.302; hosted 10.0.403 is a separate qualification.
+
+The corrected private Linux ARM64 inert probe passes all seven scenarios on
+Node 22.23.1 in 0.581 seconds, without forced cleanup or OOM. Actual stopped
+container state and exact owned-container removal precede disposal credit;
+canonical source inputs remain unchanged. This is not Next, runtime-family,
+provider/browser or hosted x64 evidence. The single local capacity comparison's
+159.002 / 149.550 seconds remains a bounded observation, not statistical or
+whole-shard improvement. Earlier failed/censored hosted evidence is retained.
+
+Standard 07 and the Registered cleanup rule describe the finite readiness and
+closed-sink boundary without promoting runtime qualification. After the normal
+implementation commit, two new independent R1 reviewers inspect the complete
+diff, adjacent contracts, actual results and current source/proof gate. Verified
+fixes precede two new independent R2 reviewers. Only later complete same-source
+hosted A/B and independently audited originals can qualify the combined work.
+Manual accessibility remains maintainer-deferred and unexecuted. No clock,
+permission, concurrency, capacity or other policy change is selected.

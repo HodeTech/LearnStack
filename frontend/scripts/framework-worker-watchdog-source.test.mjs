@@ -107,6 +107,10 @@ async function withFailureValidator(source, run) {
     'exact',
     'eventNames',
     'admissionReasons',
+    'readinessReasons',
+    'ownerSignals',
+    'validateReadinessObservation',
+    'listenerFailureObservation',
     'validateEvents',
     'validateOwnerReceipt',
     'validateCompletedCase',
@@ -128,6 +132,29 @@ async function withFailureValidator(source, run) {
     }
   }
   assert.equal(names.size, 0, 'all actual validator dependencies selected exactly once');
+  const support = ts.createSourceFile(
+    'support.mjs',
+    readFileSync(join(frontend, 'apps/web/scripts/bff-proof-support.mjs'), 'utf8'),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.JS,
+  );
+  assert.equal(support.parseDiagnostics.length, 0);
+  const brands = new Set(['listenerFailures', 'bffListenerFailureDetail']);
+  for (const statement of support.statements) {
+    const name = ts.isFunctionDeclaration(statement)
+      ? statement.name?.text
+      : ts.isVariableStatement(statement) &&
+          statement.declarationList.declarations.length === 1 &&
+          ts.isIdentifier(statement.declarationList.declarations[0].name)
+        ? statement.declarationList.declarations[0].name.text
+        : undefined;
+    if (brands.has(name)) {
+      brands.delete(name);
+      selected.push(statement.getText(support));
+    }
+  }
+  assert.equal(brands.size, 0, 'actual WeakMap brand and accessor selected');
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'learnstack-worker-failure-control-')));
   try {
     const path = join(root, 'validator.mjs');
@@ -137,11 +164,11 @@ async function withFailureValidator(source, run) {
         JSON.stringify(ownershipMatrixCases) +
         ';\n' +
         selected.join('\n') +
-        '\nexport {validateFailureEvidence, projectFailureEvidence};\n',
+        '\nexport {validateFailureEvidence, projectFailureEvidence, listenerFailureObservation, listenerFailures};\n',
       { flag: 'wx', mode: 0o600 },
     );
     const module = await import(pathToFileURL(path).href);
-    await run(module.validateFailureEvidence, module.projectFailureEvidence);
+    await run(module.validateFailureEvidence, module.projectFailureEvidence, module);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -156,6 +183,7 @@ function failureCapsule() {
       events: [],
       ownerReceipt: null,
       admissionReason: null,
+      readiness: null,
     },
     completedCases: [],
     retained: true,
@@ -207,7 +235,7 @@ test('failure and deadline paths share the actual closed held-render validator; 
   }
   visit(entry);
   assert.deepEqual(paths, ['deadline', 'failure']);
-  await withFailureValidator(source, (validate, project) => {
+  await withFailureValidator(source, (validate, project, observations) => {
     for (const path of paths)
       assert.doesNotThrow(
         () => validate(failureCapsule(), 'workers'),
@@ -228,10 +256,133 @@ test('failure and deadline paths share the actual closed held-render validator; 
       stage: 'worker-ordered-stop:hold-real-render',
       currentCase: 'worker-ordered-stop',
       admissionReason: null,
+      readiness: null,
       retained: true,
       cleanupConfirmed: false,
     });
     assert.doesNotMatch(JSON.stringify(project(clean, 'workers')), /pid|8765|1234/i);
+    const branded = Object.freeze({
+      reason: 'deadline',
+      elapsedMilliseconds: 20000,
+      exitCode: null,
+      signal: 'none',
+      frameworkReason: 'unobserved',
+    });
+    const error = new Error('PRIVATE-CANARY');
+    observations.listenerFailures.set(error, branded); // Private extractor-only brand fixture.
+    const observed = observations.listenerFailureObservation(error);
+    assert.deepEqual(observed, {
+      admissionReason: 'unobserved',
+      readiness: {
+        reason: 'deadline',
+        elapsedMilliseconds: 20000,
+        ownerExitCode: null,
+        ownerSignal: 'none',
+      },
+    });
+    assert.ok(Object.isFrozen(observed) && Object.isFrozen(observed.readiness));
+    Object.assign(clean.current, observed);
+    assert.deepEqual(project(clean, 'workers').readiness, observed.readiness);
+    assert.doesNotMatch(JSON.stringify(project(clean, 'workers')), /PRIVATE-CANARY|exitCode|pid/);
+    for (const reason of ['deadline', 'closed', 'error', 'shape'])
+      for (const signal of ['none', 'SIGINT', 'SIGTERM', 'SIGKILL', 'other']) {
+        observations.listenerFailures.set(error, {
+          ...branded,
+          reason,
+          signal,
+          elapsedMilliseconds: 120000,
+          exitCode: 255,
+        });
+        assert.deepEqual(observations.listenerFailureObservation(error).readiness, {
+          reason,
+          elapsedMilliseconds: 120000,
+          ownerExitCode: 255,
+          ownerSignal: signal,
+        });
+      }
+    let unbrandedReads = 0;
+    const forged = {};
+    for (const key of Object.keys(branded))
+      Object.defineProperty(forged, key, {
+        get() {
+          unbrandedReads++;
+          throw new Error('PRIVATE-CANARY');
+        },
+      });
+    assert.equal(observations.listenerFailureObservation(forged), null);
+    assert.equal(unbrandedReads, 0, 'arbitrary error fields cannot establish a brand');
+    for (const key of Object.keys(branded)) {
+      const reads = new Map();
+      const changing = {};
+      for (const field of Object.keys(branded))
+        Object.defineProperty(changing, field, {
+          enumerable: true,
+          get() {
+            const count = (reads.get(field) ?? 0) + 1;
+            reads.set(field, count);
+            return count === 1 ? branded[field] : 'PRIVATE-CANARY';
+          },
+        });
+      observations.listenerFailures.set(error, changing);
+      assert.deepEqual(observations.listenerFailureObservation(error), observed);
+      assert.ok([...reads.values()].every((count) => count === 1));
+      observations.listenerFailures.set(
+        error,
+        Object.defineProperty({ ...branded }, key, {
+          get() {
+            throw new Error('PRIVATE-CANARY');
+          },
+        }),
+      );
+      assert.equal(observations.listenerFailureObservation(error), null);
+      const missing = { ...branded };
+      delete missing[key];
+      observations.listenerFailures.set(error, missing);
+      assert.equal(observations.listenerFailureObservation(error), null);
+    }
+    for (const dirty of [
+      { ...branded, extra: 'PRIVATE-CANARY' },
+      { ...branded, reason: 'PRIVATE-CANARY' },
+      { ...branded, signal: 'PRIVATE-CANARY' },
+      { ...branded, frameworkReason: 'PRIVATE-CANARY' },
+      ...[-1, 120001, 1.5, NaN, Infinity, Object(3)].map((elapsedMilliseconds) => ({
+        ...branded,
+        elapsedMilliseconds,
+      })),
+      ...[-1, 256, 1.5, NaN, Infinity, Object(3)].map((exitCode) => ({ ...branded, exitCode })),
+    ]) {
+      observations.listenerFailures.set(error, dirty);
+      assert.equal(observations.listenerFailureObservation(error), null);
+    }
+    for (const readiness of [
+      null,
+      {},
+      [],
+      { ...observed.readiness, extra: 'PRIVATE-CANARY' },
+      { ...observed.readiness, reason: 'PRIVATE-CANARY' },
+      { ...observed.readiness, ownerSignal: 'PRIVATE-CANARY' },
+      ...[-1, 120001, 1.5, null, '1'].map((elapsedMilliseconds) => ({
+        ...observed.readiness,
+        elapsedMilliseconds,
+      })),
+      ...[-1, 256, 1.5, '1'].map((ownerExitCode) => ({ ...observed.readiness, ownerExitCode })),
+    ]) {
+      const dirty = structuredClone(clean);
+      dirty.current.readiness = readiness;
+      assert.throws(() => project(dirty, 'workers'));
+    }
+    for (const key of Object.keys(observed.readiness)) {
+      const dirty = structuredClone(clean);
+      delete dirty.current.readiness[key];
+      assert.throws(() => project(dirty, 'workers'));
+    }
+    const omitted = structuredClone(clean);
+    delete omitted.current.readiness;
+    assert.throws(() => project(omitted, 'workers'));
+    const mismatched = structuredClone(clean);
+    mismatched.current.admissionReason = null;
+    assert.throws(() => project(mismatched, 'workers'));
+
     for (const mutate of [
       (v) => {
         v.extra = 'PRIVATE-CANARY';

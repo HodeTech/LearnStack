@@ -788,11 +788,14 @@ families separately; no two-second runtime SIGKILL fallback or cached-PGID rescu
 supplies cleanup. BFF lifeline/parent-watch controls obey the same boundary.
 
 Copied ownership proof failures project only the validated finite group, stage,
-case, admission reason and cleanup/retention observations. Router source-control
-failures expose only their fixed script/counter, primitive process classification
-and bounded elapsed time. Raw child output, causes, process identities and record
-nonces stay private; the proof still throws its existing closed error. These
-observations grant no cleanup, ownership or successful-result authority.
+case, admission reason and cleanup/retention observations. A branded listener
+failure adds its closed readiness reason, bounded elapsed time and primitive
+owner/proof-channel exit/signal observation. This observes the outer owner, not
+the actual runtime child's retirement. Router source-control failures expose
+only their fixed script/counter, primitive process classification and bounded
+elapsed time. Raw child output, causes, process identities and record nonces stay
+private; the proof still throws its existing closed error. These observations
+grant no cleanup, ownership or successful-result authority.
 
 ## Routing
 

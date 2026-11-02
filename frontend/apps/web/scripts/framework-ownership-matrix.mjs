@@ -40,6 +40,8 @@ const admissionReasons = [
   'framework-other',
   'runtime-other',
 ];
+const readinessReasons = ['deadline', 'closed', 'error', 'shape'];
+const ownerSignals = ['none', 'SIGINT', 'SIGTERM', 'SIGKILL', 'other'];
 const eventNames = [
   'native-imported',
   'prepare-entered',
@@ -149,6 +151,44 @@ function validateCompletedCase(value) {
     );
   }
 }
+function validateReadinessObservation(value) {
+  assert.ok(value && typeof value === 'object' && !Array.isArray(value));
+  exact(value, ['reason', 'elapsedMilliseconds', 'ownerExitCode', 'ownerSignal']);
+  assert.ok(readinessReasons.includes(value.reason));
+  assert.ok(
+    Number.isSafeInteger(value.elapsedMilliseconds) &&
+      value.elapsedMilliseconds >= 0 &&
+      value.elapsedMilliseconds <= 120000,
+  );
+  assert.ok(
+    value.ownerExitCode === null ||
+      (Number.isSafeInteger(value.ownerExitCode) &&
+        value.ownerExitCode >= 0 &&
+        value.ownerExitCode <= 255),
+  );
+  assert.ok(ownerSignals.includes(value.ownerSignal));
+}
+// The existing WeakMap brand supplies observations of the owner/proof channel,
+// not a runtime-child receipt or cleanup capability. Read each field once.
+function listenerFailureObservation(error) {
+  try {
+    const detail = bffListenerFailureDetail(error);
+    if (detail === null) return null;
+    exact(detail, ['reason', 'elapsedMilliseconds', 'exitCode', 'signal', 'frameworkReason']);
+    const { reason, elapsedMilliseconds, exitCode, signal, frameworkReason } = detail;
+    const readiness = {
+      reason,
+      elapsedMilliseconds,
+      ownerExitCode: exitCode,
+      ownerSignal: signal,
+    };
+    validateReadinessObservation(readiness);
+    assert.ok(admissionReasons.includes(frameworkReason));
+    return Object.freeze({ admissionReason: frameworkReason, readiness: Object.freeze(readiness) });
+  } catch {
+    return null; // Diagnostic failure cannot alter the already failed readiness promise.
+  }
+}
 function validateFailureEvidence(evidence, group) {
   exact(evidence, ['group', 'stage', 'current', 'completedCases', 'retained', 'cleanupConfirmed']);
   assert.equal(evidence.group, group);
@@ -172,7 +212,14 @@ function validateFailureEvidence(evidence, group) {
   assert.ok(Array.isArray(evidence.completedCases) && evidence.completedCases.length <= 17);
   for (const value of evidence.completedCases) validateCompletedCase(value);
   if (evidence.current !== null) {
-    exact(evidence.current, ['case', 'mode', 'events', 'ownerReceipt', 'admissionReason']);
+    exact(evidence.current, [
+      'case',
+      'mode',
+      'events',
+      'ownerReceipt',
+      'admissionReason',
+      'readiness',
+    ]);
     assert.ok(ownershipMatrixCases.includes(evidence.current.case));
     assert.ok(['production', 'development'].includes(evidence.current.mode));
     validateEvents(evidence.current.events, evidence.current.case);
@@ -181,6 +228,9 @@ function validateFailureEvidence(evidence, group) {
       evidence.current.admissionReason === null ||
         admissionReasons.includes(evidence.current.admissionReason),
     );
+    assert.equal(evidence.current.admissionReason === null, evidence.current.readiness === null);
+    if (evidence.current.readiness !== null)
+      validateReadinessObservation(evidence.current.readiness);
   }
 }
 // Project only after the existing full bounded receipt validator has accepted it.
@@ -191,6 +241,7 @@ function projectFailureEvidence(evidence, group) {
     stage: evidence.stage,
     currentCase: evidence.current?.case ?? null,
     admissionReason: evidence.current?.admissionReason ?? null,
+    readiness: evidence.current?.readiness ?? null,
     cleanupConfirmed: evidence.cleanupConfirmed,
     retained: evidence.retained,
   };
@@ -488,6 +539,7 @@ async function runPrivateMatrix(group) {
           events: events(current),
           ownerReceipt: ownerReceipt(current),
           admissionReason: current.current.admissionReason,
+          readiness: current.current.readiness,
         };
     } catch {
       /* Malformed observations are never emitted as evidence. */
@@ -502,11 +554,14 @@ async function runPrivateMatrix(group) {
     const running = value.prepared.launch(mode);
     scope.track(running.server);
     own(running.ready);
-    const current = { mode, scenario, running, admissionReason: null };
+    const current = { mode, scenario, running, admissionReason: null, readiness: null };
     value.current = current;
     void running.ready.catch((error) => {
-      const reason = bffListenerFailureDetail(error)?.frameworkReason;
-      if (admissionReasons.includes(reason)) current.admissionReason = reason;
+      const observed = listenerFailureObservation(error);
+      if (observed !== null) {
+        current.admissionReason = observed.admissionReason;
+        current.readiness = observed.readiness;
+      }
     });
     stage = scenario + ':start';
     return running;
