@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 7,285 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 7,323 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -276,6 +276,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 cold lint R2 closeout and new final-source qualification (2026-11-02)](#p03-3-cold-lint-r2-closeout-and-new-final-source-qualification-2026-11-02) — 43 lines
   - [P03-3 667c hosted A originals and frontend failure boundary (2026-11-02)](#p03-3-667c-hosted-a-originals-and-frontend-failure-boundary-2026-11-02) — 57 lines
   - [P03-3 finite frontend diagnostics and measured parser correction (2026-11-02)](#p03-3-finite-frontend-diagnostics-and-measured-parser-correction-2026-11-02) — 72 lines
+  - [P03-3 finite diagnostics R1 review closeout (2026-11-02)](#p03-3-finite-diagnostics-r1-review-closeout-2026-11-02) — 38 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -13104,3 +13105,41 @@ combined work. All four earlier hosted inner causes remain unknown. Manual
 keyboard/focus/reflow/contrast/VoiceOver remains maintainer-deferred and
 unexecuted. No new policy, clock, permission or worker-concurrency change is
 selected.
+
+### P03-3 finite diagnostics R1 review closeout (2026-11-02)
+
+The normal twelve-file implementation commit is
+`8300009675d9bdc531fbc651faac0ec12283b4d7`, tree
+`ada106686929fc562e6325f5f86edb2392a2eaf5`. Normal hooks pass and its pre-hook
+and committed trees agree. The unrelated VS Code digest and all five stash
+identities are preserved. Two new independent R1 reviewers read the complete
+source/documentation diff and adjacent contracts. The implementation owner fully
+reads both immutable reports. Neither verifies an actionable Blocker, Major,
+Minor or Suggestion; this round requires no code correction.
+
+- Lifetime/code report: `finite-diag-r1-lifetimes.md`, SHA-256
+  `5eef01a5d09d27d661bf95e4e58562a982c407152d96648b6a54281bbc8e1e8b`.
+  It traces finite output/revalidation, closed-error preservation, actual scope/
+  family/lease retention, inert-child limits and qualified parser callees. It
+  independently matches the current helper and parser byte hashes to the retained
+  full scalar-equivalence observation; no test execution is claimed.
+- Evidence/documentation report: `finite-diag-r1-evidence.md`, SHA-256
+  `92397d6d6fa5b7f3f8ed52394b839dd9aa1c1a447213d550b5d496a50892909c`.
+  It reconciles current streams, command identities, source maps, JSON/TRX,
+  historical failures and bounded performance claims. Its hosted conclusions
+  rely on the two original-archive reports, not a third independent ZIP audit.
+
+Both the owner and evidence reviewer fully read the new private source-freeze
+helper, SHA-256
+`fe4a21673aa8c65f61b75cbbc2f5d66da1de87595600bd4b1405419d80b8b376`.
+Each independently executes only its read-only prefix on the reviewed commit.
+All 119 proof files, 424 frontend inputs, 20 supplemental inputs, 1,982 backend
+inputs, qualified distribution, 7,949-case manifest and both distinct 20-owner
+assignments pass. No envelope is published. Invalid-HEAD and optimized-execution
+controls refuse and all ten older envelopes remain unchanged.
+
+This documentation-only closeout precedes two new independent R2 reviewers.
+Source review does not supply complete same-source hosted A/B, explain the four
+prior hosted inner failures or promote the Registered rule. Manual accessibility
+remains maintainer-deferred and unexecuted. No clock, permission, concurrency or
+other policy changes.
