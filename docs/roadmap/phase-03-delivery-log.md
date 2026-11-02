@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 7,323 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 7,364 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -277,6 +277,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 667c hosted A originals and frontend failure boundary (2026-11-02)](#p03-3-667c-hosted-a-originals-and-frontend-failure-boundary-2026-11-02) — 57 lines
   - [P03-3 finite frontend diagnostics and measured parser correction (2026-11-02)](#p03-3-finite-frontend-diagnostics-and-measured-parser-correction-2026-11-02) — 72 lines
   - [P03-3 finite diagnostics R1 review closeout (2026-11-02)](#p03-3-finite-diagnostics-r1-review-closeout-2026-11-02) — 38 lines
+  - [P03-3 finite diagnostics R2 closeout and renewed source qualification (2026-11-02)](#p03-3-finite-diagnostics-r2-closeout-and-renewed-source-qualification-2026-11-02) — 41 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -13143,3 +13144,44 @@ Source review does not supply complete same-source hosted A/B, explain the four
 prior hosted inner failures or promote the Registered rule. Manual accessibility
 remains maintainer-deferred and unexecuted. No clock, permission, concurrency or
 other policy changes.
+
+### P03-3 finite diagnostics R2 closeout and renewed source qualification (2026-11-02)
+
+Two new independent R2 reviewers inspect the cumulative correction through
+`00ef336e5bf6abca40770810219db56976831115`, tree
+`f29c34fcdde53fc96870e648ad993d5eb31fd74c`. Neither participated in R1. The
+normal two-file R1 closeout preserves its pre-hook tree, unrelated VS Code digest
+and five stash identities. The owner fully reads both complete immutable reports
+and the lifetime report's citation companion. Neither reviewer verifies an
+actionable Blocker, Major, Minor or Suggestion; no source correction is required.
+
+- Lifetime/source report: `finite-diag-r2-lifetimes.md`, SHA-256
+  `01aff30dd718e0369dcaed2b4f3d09cec637867ab9e06629e822be3c7aeb31e0`.
+  Its separate citation companion, SHA-256
+  `b85a352015453f30830bc713f19127512c721791b1d6c039b49066d05b2297ad`,
+  corrects two references without changing findings or reasoning. The review
+  independently traces failed-output privacy, closed-error preservation, scope/
+  family/lease retention and qualified parser ancestry dependencies. Its retained
+  scalar comparison is historical evidence, not a new parser-harness execution.
+- Evidence/documentation report: `finite-diag-r2-evidence.md`, SHA-256
+  `64e86e423954d54408a937db093bfab19b92414178e46e02ed2b218810374526`.
+  It fully reads the unchanged 421-line freeze helper and unexecuted normal-push/
+  single-dispatch helper, reconciles current receipts and independently runs only
+  the read-only freeze prefix. All 119 proof files, 424 frontend inputs, 20 extra
+  inputs, 1,982 backend inputs, distribution, manifest and assignments pass.
+  It independently matches the ten older envelope hashes to the retained negative
+  controls. No envelope, remote action or independent ZIP re-audit is claimed.
+
+Both rounds close this corrective source review. After this documentation-only
+commit, run the exact reviewed freeze helper on the resulting full HEAD, push
+development normally and issue one new complete A against the fixed OpenAPI
+base. Retain all available original archives and independently audit the backend
+population, actual owner/resource receipts, frontend, public demo, OpenAPI and
+leakwatch surfaces before changing source. Only a fully qualified complete A
+permits all-job B on the identical source/tree/plan/toolchain and population.
+
+The Registered catalogue rule and combined ADR-0083/0084/0085 qualification remain
+open. The failed 667c A, its four unknown inner causes and historical local
+experiments remain distinct from the next run. Manual accessibility remains
+maintainer-deferred and unexecuted. No new clock, authority, concurrency, capacity
+or production-readiness claim is selected by this closeout.
