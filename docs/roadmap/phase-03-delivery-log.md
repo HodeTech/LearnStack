@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,291 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,326 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -293,6 +293,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 8c2c hosted A originals and exact-source CPU4 diagnosis (2026-11-03)](#p03-3-8c2c-hosted-a-originals-and-exact-source-cpu4-diagnosis-2026-11-03) — 80 lines
   - [P03-3 finite VM refusal diagnostics and implementation validation (2026-11-03)](#p03-3-finite-vm-refusal-diagnostics-and-implementation-validation-2026-11-03) — 31 lines
   - [P03-3 finite VM diagnostic review round 1 (2026-11-03)](#p03-3-finite-vm-diagnostic-review-round-1-2026-11-03) — 34 lines
+  - [P03-3 finite VM diagnostic R2 closeout and continued frontend diagnosis (2026-11-03)](#p03-3-finite-vm-diagnostic-r2-closeout-and-continued-frontend-diagnosis-2026-11-03) — 35 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -14127,3 +14128,38 @@ independent new timing experiment. Neither reviewer runs tests or audit replays.
 No source fix follows R1. Commit this record normally, then complete a second
 new independent round. Failed A, absent B, incomplete frontend qualification
 and maintainer-deferred unexecuted manual accessibility retain their limits.
+
+### P03-3 finite VM diagnostic R2 closeout and continued frontend diagnosis (2026-11-03)
+
+Two new independent R2 reviewers inspect the complete 8c2c through
+`89e0c72ce5e6f8fc7818be6dc8581a37c2984d3b` correction, including code commit
+`773daf5436c57c1d107bc28635fe34035cbe88c8` and R1 closeout. Both approve
+with no verified actionable finding. Full reads cover all three changed Python
+files, all three appended records and Status/index changes, with actual
+coordinator/aggregate and applicable CI contract context. The owner fully reads
+all reports/addenda, verifies their hashes and checks current source identities.
+
+- Source/lifecycle/privacy review: `89e0-r2-source-review.md`, SHA-256
+  `d83a624136d124f2cfb24abf68d0f926d51ed8f7cc839495aca53157311e1396`.
+  Its retained evidence addendum, `89e0-r2-source-evidence-addendum.md`, SHA-256
+  `d732b88f2fc97e7c42bebb72c268edd268e40a768ae06f9919ce0ae2067e1feb`,
+  checks all four R1 report bindings and eight validation stream identities;
+  it does not claim to read those stream contents or recount the tests.
+- Evidence/corpus review: `89e0-r2-evidence-review.md`, SHA-256
+  `c83b87bcac4865a979c99e0991dfaaed912b3ac3dfcfae276d467a7ec03b60a0`.
+  It independently reads the eight actual validation streams and confirms
+  23/103/86/40 terminal OK counts, no skips and the saved 6.142-second shard
+  wall observation. It also reconciles CPU4 retained files/streams, the exact
+  immutable source export, original report/inventory bindings and full
+  relevant semantic records. It does not repeat the original ZIP/CRC/case
+  reconstruction already closed separately. No reviewer executes tests or
+  audit replays; no source fix follows R2.
+
+This closes both fresh corrective rounds for finite VM diagnostics, not P03-3.
+The 7,622/7,949 case accounting belongs to the backend assignment, separately
+from the six delivered frontend failures. Failed A, absent B and incomplete
+frontend qualification remain unchanged. Continue narrowly observed frontend
+phase diagnosis with original clocks, workers and fresh admission; do not
+select an optimization or larger budget from partial timing alone. Complete
+same-final-source hosted A/B and original-evidence audits remain mandatory.
+Manual accessibility remains maintainer-deferred and unexecuted.
