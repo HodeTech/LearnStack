@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 7,566 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 7,631 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -281,6 +281,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 c9b hosted A originals and bounded correction diagnosis (2026-11-02)](#p03-3-c9b-hosted-a-originals-and-bounded-correction-diagnosis-2026-11-02) — 88 lines
   - [P03-3 c9b correction implementation and local validation (2026-11-02)](#p03-3-c9b-correction-implementation-and-local-validation-2026-11-02) — 65 lines
   - [P03-3 c9b correction R1 review closeout (2026-11-02)](#p03-3-c9b-correction-r1-review-closeout-2026-11-02) — 49 lines
+  - [P03-3 c9b correction R2 closeout and renewed qualification (2026-11-02)](#p03-3-c9b-correction-r2-closeout-and-renewed-qualification-2026-11-02) — 65 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -13390,3 +13391,68 @@ The Registered cleanup rule and complete same-source hosted A/B remain open.
 No earlier unknown hosted cause, manual accessibility pass or production
 readiness is inferred. Manual evidence remains maintainer-deferred and
 unexecuted. No clock, authority, concurrency, capacity or population changes.
+
+### P03-3 c9b correction R2 closeout and renewed qualification (2026-11-02)
+
+Two new independent R2 reviewers inspect the cumulative correction through
+`ff8901a81dd9936786425488f8550e92707191c9`, tree
+`33c88a6abfe220d82f971dd285a0b7b0e65aea8d`. Neither participated in R1.
+The normal two-document R1 closeout preserves its pre-hook tree, unrelated
+VS Code digest and five stash identities. The owner fully reads both complete
+immutable reports and their separately written format-evidence addenda.
+No actionable code defect is verified. One Minor evidence-description finding
+is independently confirmed by both reviewers and corrected below.
+
+- Lifetime/security/semantics report: `c9b-fix-r2-lifetimes.md`, SHA-256
+  `b02b807552599969369f08ace838029aafc806de3f2205403cbb992664470651`.
+  Its immutable format addendum, SHA-256
+  `7acee8326ed9cea05e13918fc4d8966f95b33b71215516ebedec2847fbf6980f`,
+  revises only the initial no-findings verdict. The independent source review,
+  exact current hashes, eight-stage streams and actual 2/5/604 TRX checks remain.
+  The report distinguishes the original scan/index oracle from capacity-local
+  lists, actual outer-owner observations from runtime-child retirement, and
+  inert controls from Next/runtime qualification. No test rerun or new private
+  gate execution is claimed by this reviewer.
+- Evidence/backend/corpus report: `c9b-fix-r2-evidence.md`, SHA-256
+  `625761a29e30b36d0a694452139077748f6c2ab13c33853258f1589836dd5d47`.
+  Its immutable format addendum, SHA-256
+  `aeb3df4235800e3182e75b4c515be18327528a2bf2dbb70e89a933593c2d0b5e`,
+  independently confirms the same Minor finding without rewriting its report.
+  The original 604 TRX results have unique test/execution identities. The exact
+  read-only source/proof prefix passes 106 proof files, all current 424/20/1,982
+  input maps, distribution, manifest and both layouts on the reviewed HEAD.
+  Eleven older envelope hashes remain unchanged. No publication, dispatch,
+  suite rerun or new historical ZIP audit is claimed.
+
+**Format-evidence clarification.** The current format command's 123-byte
+retained log reports a generic workspace-loading warning; it does not retain
+individual diagnostics or establish their count or cause. The earlier statement
+of "two existing duplicate-workspace-document warnings" is withdrawn for this
+command. The retained command metadata still proves exit zero for
+`dotnet format --verify-no-changes` in 17.757 seconds. The separate strict
+Release build retains zero compiler warnings/errors. The original format-log
+SHA-256 is
+`239c224f01960886368326d9ef5ebdcce071dcd0996d157bef6a963fc1eaa49c`.
+This append-only clarification changes no code, proof bytes or actual outcome;
+no additional build, format or test execution is needed for the prose correction.
+
+Both fresh rounds and the verified narrow clarification close this correction's
+source review. After this documentation-only commit and verification of the
+landed clarification, execute the exact reviewed source/proof helper on the
+resulting full HEAD, publish its exclusive private envelope, push development
+normally and issue one new complete A against the unchanged fixed OpenAPI base.
+Retain all available original archives and independently audit backend cases,
+actual ownership/resource receipts, frontend, public demo, OpenAPI and leakwatch
+before changing source. Only a completely qualified A permits an all-job B on
+the identical source/tree/plan/toolchain/population. A failed or censored result
+must remain a failure; no original aggregate or case completion is fabricated.
+
+The source/proof helper remains SHA-256
+`d7aeeca947ebced1dd9172b03a178f1c6a56eee74cbe8cddf77969981338af54`.
+Its dispatch companion remains reviewed but unexecuted. The Registered cleanup
+rule and combined framework/window qualification still await complete hosted
+A/B; the failed c9b A and unknown inner causes remain historical evidence.
+Full-package Vitest JSON retention limits, local/hosted SDK differences and
+isolated/full-run timing distinctions remain explicit. Manual accessibility
+remains maintainer-deferred and unexecuted. No clock, authority, concurrency,
+capacity, population or production-readiness change is selected.
