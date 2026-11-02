@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,083 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,112 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -288,6 +288,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 diagnostic precision R2 closeout and renewed qualification (2026-11-02)](#p03-3-diagnostic-precision-r2-closeout-and-renewed-qualification-2026-11-02) — 57 lines
   - [P03-3 c737 hosted A originals and complete Linux diagnosis (2026-11-02)](#p03-3-c737-hosted-a-originals-and-complete-linux-diagnosis-2026-11-02) — 92 lines
   - [P03-3 platform expectation and closed bodyless diagnostic correction (2026-11-02)](#p03-3-platform-expectation-and-closed-bodyless-diagnostic-correction-2026-11-02) — 59 lines
+  - [P03-3 platform and bodyless correction review round 1 (2026-11-02)](#p03-3-platform-and-bodyless-correction-review-round-1-2026-11-02) — 29 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -13914,3 +13915,32 @@ local results establish neither the prior hosted failures' cause nor hosted fit.
 The prior failed bodyless full-package result remains historical failure.
 Manual keyboard/focus/reflow/contrast/VoiceOver remains maintainer-deferred
 and unexecuted.
+
+### P03-3 platform and bodyless correction review round 1 (2026-11-02)
+
+Two new independent reviewers inspect commit
+`3bae0b6c158866f006c178f092e33a1448e44d53` against c737. Both approve the
+bounded correction with no verified actionable Blocker, Major, Minor or
+Suggestion. All four changed frontend files are read end to end, with the
+unchanged producer, proof boundary, installation/graph contracts, changed
+roadmap text and applicable standards. The owner fully reads all reports,
+checks their hashes and independently reconciles the claimed evidence.
+
+- Privacy/error-boundary report: `3bae-r1-privacy-review.md`, SHA-256
+  `828dd476fac9cf966aac361d8c1b0bb1686bb8f356e56ecf8aaf8e92e10eb4b7`.
+- Platform/evidence report: `3bae-r1-platform-review.md`, SHA-256
+  `83f54d80c3bbbbd41da9da160807b6f39732a84d2880d01918b53634091fa53c`.
+  Its initial partial reading is not credited as a complete review. The same
+  reviewer finishes the required full-file scope in the retained addendum,
+  `3bae-r1-platform-review-addendum.md`, SHA-256
+  `b71f1534d346b01a0833bd2a499d7c9666818e4fb9ea7cc58ba1389e7a8bce48`.
+
+The reviewers independently check all 20 local command streams, finite
+48/48 focused and 2/2 targeted results and source correspondence; the privacy
+review also checks all 14 targeted Linux evidence hashes and the exact
+one-script override. Neither executes tests or claims a new whole-suite run.
+No source fix follows this round. The existing 3,570-case local validation
+and 112-case targeted Linux proof retain their stated scopes; prior failed
+runs remain failed. Next complete a second new independent corrective round,
+then qualify complete new hosted A/B. Manual accessibility remains
+maintainer-deferred and unexecuted.
