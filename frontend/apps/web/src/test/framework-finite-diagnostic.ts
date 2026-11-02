@@ -174,7 +174,9 @@ export function ownershipDiagnostic(raw: unknown, group: string) {
     if (row.currentCase === null && row.admissionReason !== null) return null;
     if (
       row.stage === 'worker-ordered-stop:hold-real-render' &&
-      (group !== 'workers' || row.currentCase !== 'worker-ordered-stop')
+      (group !== 'workers' ||
+        row.currentCase !== 'worker-ordered-stop' ||
+        row.currentMode !== 'development')
     )
       return null;
     return {

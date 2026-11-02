@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 7,783 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 7,875 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -284,6 +284,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 c9b correction R2 closeout and renewed qualification (2026-11-02)](#p03-3-c9b-correction-r2-closeout-and-renewed-qualification-2026-11-02) — 65 lines
   - [P03-3 363b hosted A originals and isolated frontend diagnosis (2026-11-02)](#p03-3-363b-hosted-a-originals-and-isolated-frontend-diagnosis-2026-11-02) — 68 lines
   - [P03-3 363b isolated Linux controls and diagnostic precision (2026-11-02)](#p03-3-363b-isolated-linux-controls-and-diagnostic-precision-2026-11-02) — 84 lines
+  - [P03-3 diagnostic precision R1 corrections and measured source work (2026-11-02)](#p03-3-diagnostic-precision-r1-corrections-and-measured-source-work-2026-11-02) — 92 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -13610,3 +13611,95 @@ same source/tree/plan/toolchain/population. The earlier A remains failed and its
 causes unknown. Manual accessibility remains maintainer-deferred and unexecuted.
 No policy, clock, permission, runtime topology, capacity or worker-concurrency
 change is selected.
+
+### P03-3 diagnostic precision R1 corrections and measured source work (2026-11-02)
+
+The eight-file diagnostic implementation is committed normally as `7eb05c1f`.
+Two fresh independent R1 reviewers inspect source/privacy/lifetimes and retained
+evidence/corpus/the complete private gate. Both report no Blocker or Major.
+Their two verified Minor corrections are addressed; the owner reads the reports
+and corrective follow-ups in full. These are R1 reviews, not fresh R2 or hosted
+qualification.
+
+- The receiver now requires development mode for
+  `worker-ordered-stop:hold-real-render`, matching the full producer validator.
+  Production on that held-render stage is an explicit negative; the general
+  two-mode positive uses an unrestricted schema stage. This is finite-schema
+  coverage, not a claim that every accepted diagnostic tuple is an executed case.
+- The preceding isolated-controls record's phrase "fails 29/31" is inaccurate
+  or ambiguous. The first pure router probe reports exactly 29 passed and two
+  failed out of 31, with zero cancelled/skipped/todo. Its two missing private
+  fixture failures remain failed evidence. The later supplemented 31/31 pass
+  is separate; neither the historical record nor its originals are rewritten.
+
+A fresh receiver-correction validation passes source controls 5/5 and focused
+45/45, then fails the unchanged 180-second frontend package guard at 180.785
+seconds. All input maps remain unchanged. Retained stdout has complete passing
+summaries for 75 of 115 known web files, totaling 2,224 cases; no full execution
+union exists. The three ownership groups pass, with startup/workers/recovery
+file durations 118.011/78.030/60.275 seconds. Forty missing summaries prove
+neither start nor failure. Their prior reported test-body time totals 0.688
+seconds, excluding imports/transforms/setup/teardown. The 75 common files show
+654.136 to 688.642 summed concurrent seconds, not elapsed package time. This
+broad variation does not locate a runtime cause or justify relaxing the guard.
+The failed run and all original streams remain retained.
+
+An independent read-only source review identifies avoidable copied-source
+parser work. A sealed private experiment uses the actual full helper and real
+qualified builders: original, parent links disabled, observer edits prepared
+before installed parsing, and their combination. Sixteen fresh serial local
+subprocesses, four per variant in balanced forward/reverse order, all pass
+under the original ten-second child boundary. Every source/sealed-file check
+agrees before and after each sample; all stderr is empty. Both positive paths
+retain all 27 subjects and identical runtime/observer/pipe output hashes and
+frozen records. Two original observer negatives plus two runtime negatives
+retain their actual assertion predicates. In this probe only, the two observer
+negatives stop parsing 27 subjects each: total calls are 108/108/54/54.
+
+Measured helper-span medians are 3,011.376/2,266.878/1,581.611/1,202.682 ms.
+These are four local observations per alternative, not a statistical speedup,
+initialized Next proof, whole-package saving or hosted-cause/fit attribution.
+The independently recomputed private summary SHA-256 is
+`454965d0a3c7981bd59fd91a4227985eaad1bf9bc85481f085e3e30bb9df234a`.
+The private measurement harness's failure-retention review corrections precede
+all samples; its unexecuted predecessors remain retained.
+
+The canonical helper adopts both bounded changes. Its downward-only installed
+locator omits unused AST parent links; no AST escapes, and generated/semantic
+binders that use parents stay unchanged. Private observer edits occur before
+installed parsing, then the complete qualified inventory is bound through the
+same final unique SPEC replacement and generated-observer admission. Successful
+path/hash/size/tuple/parser/join/parameter/key checks remain. The canonical
+counterpart differs from the measured combined algorithm only by removal of
+private instrumentation/import adaptation, a private function name, comment and
+formatting. Both existing real-identity negative assertions remain; getter-sentry
+variants additionally prove those refusals precede installed-source admission.
+All six Node cases remain, with no cache, omitted subject or precomputed verdict.
+
+Nine fresh current-source stages pass. Matrix source controls pass 6/6 in
+1.603 seconds, watchdog source controls 5/5 in 0.770 and focused cases 45/45 in
+4.678. The guarded full frontend passes 3,567 cases with zero skips/todos:
+3,413 web cases in 115 files and 154 SDK cases in nine. Web/SDK package durations
+are 173.85/82.83 seconds; command wall time is 260.733 seconds. These are not
+interchangeable clocks. Typecheck/lint/production build pass in
+4.959/35.538/23.669 seconds. Both real renderer variants pass in 33.683 seconds;
+five nonempty corpus cases pass in 1.538. All nine captured stderr streams are
+empty; 424 framework, 23 supplemental and 1,982 backend inputs match before and
+after every command. The owner independently checks each stream hash, actual
+focused JSON and both nonempty TRX. Full-package temporary JSON retention
+limits remain; source-bound backend 604-case evidence is reused, not rerun.
+
+The first current inert probe stops before scenarios because the owner updates
+the outer source hash but misses its private script's inner hash pin. Its zero-row
+exit-1 container and evidence remain retained, with no forced shutdown. A separate
+pin-corrected probe passes all seven scenarios plus summary, with actual stopped
+state, no force/OOM and exact owned-container removal. This is not a canonical
+runtime defect or initialized Next/hosted qualification.
+
+R1's source correction and private comparison controls are reviewed within scope.
+The new current-source gate binds all nine stages, separate inert evidence and
+all 16 original comparison samples. After the normal corrective commit, two new
+independent R2 reviewers inspect the complete correction and proof boundaries.
+The earlier local failure and hosted A remain failed; no B starts before a fully
+qualified new A. Manual accessibility remains maintainer-deferred and unexecuted.
+No clock, concurrency, authority, topology or capacity decision changes.

@@ -41,6 +41,26 @@ const bff = instrumentCopiedBffRuntime(source, {
 const transport = instrumentCopiedTransport({ source: bff, identity });
 const error = /Exact copied router-matrix anchor/;
 
+function refusesObserverBeforePipeAdmission(observer) {
+  assert.throws(
+    () => instrumentCopiedRouterMatrix({ runtime: transport.runtime, observer, identity }),
+    error,
+  );
+  let reads = 0;
+  const sentry = Object.freeze({
+    ...identity,
+    get frontendRoot() {
+      reads++;
+      throw new Error('Unexpected installed-source admission');
+    },
+  });
+  assert.throws(
+    () => instrumentCopiedRouterMatrix({ runtime: transport.runtime, observer, identity: sentry }),
+    error,
+  );
+  assert.equal(reads, 0);
+}
+
 test('current BFF and transport copies generate one source-bound router matrix', () => {
   const matrix = instrumentCopiedRouterMatrix({
     runtime: transport.runtime,
@@ -116,32 +136,20 @@ test('duplicated copied runtime anchor refuses before source generation', () => 
 });
 
 test('missing filtered selection anchor refuses the private transform', () => {
-  assert.throws(
-    () =>
-      instrumentCopiedRouterMatrix({
-        runtime: transport.runtime,
-        observer: transport.observer.replace(
-          "        active.noCompression = true;\n        event('none', reason);",
-          '        active.noCompression = false;',
-        ),
-        identity,
-      }),
-    /Exact copied router-matrix anchor/,
+  refusesObserverBeforePipeAdmission(
+    transport.observer.replace(
+      "        active.noCompression = true;\n        event('none', reason);",
+      '        active.noCompression = false;',
+    ),
   );
 });
 
 test('missing actual handler seam refuses preseed generation', () => {
-  assert.throws(
-    () =>
-      instrumentCopiedRouterMatrix({
-        runtime: transport.runtime,
-        observer: transport.observer.replace(
-          '        const selected = active?.response === response;\n        let result;',
-          '        const selected = false;',
-        ),
-        identity,
-      }),
-    /Exact copied router-matrix anchor/,
+  refusesObserverBeforePipeAdmission(
+    transport.observer.replace(
+      '        const selected = active?.response === response;\n        let result;',
+      '        const selected = false;',
+    ),
   );
 });
 

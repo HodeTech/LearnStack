@@ -127,10 +127,16 @@ it('projects only closed ownership failure evidence and rejects dirty or oversiz
       ).toBeNull();
   }
   for (const currentMode of ['production', 'development']) {
-    const row = { ...clean, currentMode };
+    const row = {
+      ...clean,
+      stage: 'worker-exit-zero:start',
+      currentCase: 'worker-exit-zero',
+      currentMode,
+    };
     expect(ownershipDiagnostic(JSON.stringify(row), 'workers')).toMatchObject(row);
   }
   for (const dirty of [
+    { ...clean, currentMode: 'production' },
     { ...clean, currentMode: null },
     { ...absent, currentMode: 'production' },
     { ...absent, rootHttpStatus: 200 },

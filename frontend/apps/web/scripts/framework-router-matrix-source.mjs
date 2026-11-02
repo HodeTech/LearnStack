@@ -94,7 +94,7 @@ export function deriveRouterPipeSpec(identity) {
         record.path,
         bytes.toString('utf8'),
         ts.ScriptTarget.Latest,
-        true,
+        false,
         ts.ScriptKind.JS,
       );
       assert.equal(file.parseDiagnostics.length, 0);
@@ -236,16 +236,13 @@ function instrumentRuntime(source) {
   return runtime;
 }
 
-function instrumentObserver(source, pipes) {
+// Apply fixed observer edits first; bind the qualified inventory afterward.
+function prepareObserver(source) {
   const match = /^const SPEC = (\{[^\n]*\});$/m.exec(source);
   assert.ok(match, 'Exact injected transport spec');
   const base = JSON.parse(match[1]);
   assert.equal(base.version, 1);
-  let observer = replaceOnce(
-    source,
-    match[0],
-    'const SPEC = ' + JSON.stringify({ ...base, pipes }) + ';',
-  );
+  let observer = source;
   observer = replaceOnce(
     observer,
     "      if (request.method === 'GET' && request.url === '/studio') {",
@@ -440,7 +437,8 @@ function instrumentObserver(source, pipes) {
     '        inspector.disconnect();\n        closeSync(descriptor);',
     '        inspector.disconnect();\n        if (filterDescriptor !== undefined) closeSync(filterDescriptor);\n        if (pipeDescriptor !== undefined) closeSync(pipeDescriptor);\n        closeSync(descriptor);',
   );
-  return observer;
+  return (pipes) =>
+    replaceOnce(observer, match[0], 'const SPEC = ' + JSON.stringify({ ...base, pipes }) + ';');
 }
 
 /** Apply only after the existing transport transform to an isolated copied fixture. */
@@ -448,10 +446,11 @@ export function instrumentCopiedRouterMatrix({ runtime, observer, identity }) {
   assert.equal(typeof runtime, 'string');
   assert.equal(typeof observer, 'string');
   const copiedRuntime = instrumentRuntime(runtime);
+  const bindObserver = prepareObserver(observer);
   const pipes = deriveRouterPipeSpec(identity);
   return Object.freeze({
     runtime: copiedRuntime,
-    observer: instrumentGeneratedRouterObserver(instrumentObserver(observer, pipes), identity),
+    observer: instrumentGeneratedRouterObserver(bindObserver(pipes), identity),
     pipes,
   });
 }
