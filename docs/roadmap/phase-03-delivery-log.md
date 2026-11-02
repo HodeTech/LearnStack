@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,926 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,964 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -269,6 +269,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 a535 hosted A originals and failed qualification (2026-11-02)](#p03-3-a535-hosted-a-originals-and-failed-qualification-2026-11-02) — 49 lines
   - [P03-3 cold SDK output and producer cancellation corrections (2026-11-02)](#p03-3-cold-sdk-output-and-producer-cancellation-corrections-2026-11-02) — 80 lines
   - [P03-3 corrective R1 findings and signal-attribution fix (2026-11-02)](#p03-3-corrective-r1-findings-and-signal-attribution-fix-2026-11-02) — 63 lines
+  - [P03-3 corrective R2 source review closeout and renewed qualification (2026-11-02)](#p03-3-corrective-r2-source-review-closeout-and-renewed-qualification-2026-11-02) — 38 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -12738,3 +12739,41 @@ and `corrective-r1-evidence.md` (SHA-256
 under the ADR-0085 review directory. New independent R2 reviewers must inspect
 the committed fix and final helper. Complete same-source hosted A/B and manual
 accessibility retain their previously recorded open/deferred boundaries.
+
+### P03-3 corrective R2 source review closeout and renewed qualification (2026-11-02)
+
+Two new independent R2 reviewers approve the cumulative correction from
+`a5359def4b22f60da8408e6434005d3b301a9773` through core `71d5e30d` and the normal
+R1 fix `8ffe6fccdd935a7e7c55aa808ce617ac2a339f5e`, tree
+`597304108d9da5343d2ad61b6e56dadf91810b66`. The R1 commit preserves the intended
+five-file pre-hook tree, unrelated VS Code file and five stash references. Both
+complete R2 reports are fully read by the implementation owner; neither finds a
+verified Blocker, Major, Minor or actionable Suggestion.
+
+- Lifetime report: `corrective-r2-lifetimes.md`, SHA-256
+  `9de7df5b3951a954f233e65f5848366afad42ead4be1e3a0f8cb610e9b8b929c`.
+  It traces the real signal/boundary, family, lease and fixture chain and verifies
+  the positive/dirty-twin distinction independently of actual retirement.
+- Evidence report: `corrective-r2-evidence.md`, SHA-256
+  `e0094376c02adc879013ac94007c3f2d3d2875b62d3d6f6c789a6f41bb1907e3`.
+  It independently reconstructs all 20 discovery/consoles, parses original TRX,
+  hashes streams and compares the current 421/18/1,982 source maps. It executes
+  the exact final helper prefix before exclusive publication on `8ffe6fcc`;
+  every read-only check passes and that target envelope stays absent. This is
+  not complete helper execution or a published final-source freeze.
+
+The final helper remains the reviewed 354-line revision with SHA-256
+`aad7ec95a95df835e2395286bfbbd743db09d87df6adbe694bdcbadf7dfd3d06`.
+Its complete execution follows this documentation-only closeout commit, using
+that exact final HEAD. Freeze the current program, qualified tuple, actual
+7,949-case manifest and both unchanged plan assignments; push development
+normally and dispatch one new complete A against the fixed OpenAPI base. Retain
+and independently audit every original archive and required surface. Only a
+qualifying complete A permits all-job B on identical source/tree/plan/toolchain
+and population. A failed attempt must retain/audit its originals before source
+changes. No old failed A or local pass supplies either qualification.
+
+These two rounds close corrective source review only. Complete same-source
+hosted A/B and joint ADR-0083/0084/0085 qualification remain open; the existing
+catalogue rule remains Registered. Manual keyboard/focus/reflow/contrast/VoiceOver
+evidence remains maintainer-deferred and unexecuted for PR review.
