@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,683 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,704 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -263,7 +263,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0085 maintainer corrections, acceptance and Step 1 (2026-11-02)](#adr-0085-maintainer-corrections-acceptance-and-step-1-2026-11-02) — 43 lines
   - [ADR-0085 Step 1 R1 and decision-index correction (2026-11-02)](#adr-0085-step-1-r1-and-decision-index-correction-2026-11-02) — 17 lines
   - [ADR-0085 Step 1 review closeout (2026-11-02)](#adr-0085-step-1-review-closeout-2026-11-02) — 17 lines
-  - [ADR-0085 Step 2 implementation and local validation (2026-11-02)](#adr-0085-step-2-implementation-and-local-validation-2026-11-02) — 31 lines
+  - [ADR-0085 Step 2 implementation and local validation (2026-11-02)](#adr-0085-step-2-implementation-and-local-validation-2026-11-02) — 32 lines
+  - [ADR-0085 Step 2 R1 review closeout (2026-11-02)](#adr-0085-step-2-r1-review-closeout-2026-11-02) — 20 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -12490,3 +12491,24 @@ These local results establish implementation controls, not Linux hosted fit or
 a complete public proof. Fresh R1 and new R2 precede the shared final-source A/B;
 failed d628 remains failed and supplies no B. Manual accessibility stays deferred
 and unexecuted. Original failed controls and hosted archives remain preserved.
+
+
+### ADR-0085 Step 2 R1 review closeout (2026-11-02)
+
+Two fresh independent R1 reviewers inspect the complete seven-file implementation
+at `bcd716dc`. Both approve within scope with no verified Blocker, Major or Minor;
+the parent reads their complete reports. Scope/correctness and evidence/test-quality
+checks cover real shell execution, exact and counterfactual bounds/order, unchanged
+inner proof/tails/other jobs and both synchronized current guides. The evidence
+review independently verifies all recorded stream hashes, 417 current framework
+inputs and 17 extra source hashes, and reads the updated private read-only freeze
+helper against its predecessor without executing it. No finding requires a source
+change. These approvals establish neither hosted fit nor manual evidence.
+
+Private R1 report identities:
+
+- `step2-r1-scope.md`: `5b20e02b0032913f81e0276ac1b81b8d4cf6f4a21937157ee71041571312f6ae`.
+- `step2-r1-evidence.md`: `0c887bc459441700eaf0badfc82674a8bbdcedb6e20d65bf6c8e5bff005436a1`.
+
+New independent R2 reviewers inspect the complete implementation before the
+shared final-source hosted A/B. Manual accessibility remains deferred/unexecuted.
