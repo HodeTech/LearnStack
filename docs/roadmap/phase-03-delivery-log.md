@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 7,156 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 7,285 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -274,6 +274,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 cold lint output correction and local validation (2026-11-02)](#p03-3-cold-lint-output-correction-and-local-validation-2026-11-02) — 54 lines
   - [P03-3 cold lint R1 review closeout (2026-11-02)](#p03-3-cold-lint-r1-review-closeout-2026-11-02) — 37 lines
   - [P03-3 cold lint R2 closeout and new final-source qualification (2026-11-02)](#p03-3-cold-lint-r2-closeout-and-new-final-source-qualification-2026-11-02) — 43 lines
+  - [P03-3 667c hosted A originals and frontend failure boundary (2026-11-02)](#p03-3-667c-hosted-a-originals-and-frontend-failure-boundary-2026-11-02) — 57 lines
+  - [P03-3 finite frontend diagnostics and measured parser correction (2026-11-02)](#p03-3-finite-frontend-diagnostics-and-measured-parser-correction-2026-11-02) — 72 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -12973,3 +12975,132 @@ combined ADR-0083/0084/0085 qualification and catalogue promotion remain open;
 manual accessibility remains maintainer-deferred and unexecuted. The prior
 hosted frontend inner cause remains unknown. This closes no additional policy,
 capacity, WCAG or production-readiness claim.
+
+### P03-3 667c hosted A originals and frontend failure boundary (2026-11-02)
+
+The complete [hosted A](https://github.com/HodeTech/LearnStack/actions/runs/41436626525),
+attempt 1, runs source/workflow
+`667c00bdc42f1db0e9000f8126ce0d6c8fe4dce0`, tree
+`fa0c966859368a41784218e0ebd495a78a531ea4`, against the unchanged OpenAPI base
+`e55aa5d7bfcba4ccc2357fa0c2276025e14f8d55`. All 27 jobs finish: 26 succeed;
+frontend Test fails after Typecheck, Lint and Build pass. Native ingress and its
+failed-fixture cleanup steps are skipped. No B is dispatched; this failed
+workflow supplies no complete A/B or PR qualification.
+
+All 25 available original ZIPs are retained. Two independent auditors check API
+identity, byte size, SHA-256 and CRC; the 20 backend exports equal their original
+members. Both canonical aggregates pass. All 7,949 selected/completed/TRX cases
+pass without missing, duplicate or skipped cases: 3,872 base, 604 Architecture,
+3,442 ordinary and 31 native. All 20 natural workload/cleanup receipts pass and
+all 13 Docker owners report absence. Null Docker peak/startup observations remain
+unknown; neither host capacity nor a failure cause is inferred. The actual case
+manifest and both assignments remain unchanged.
+
+The public original ZIP has SHA-256
+`01c30c508073a0869b48d6e323b720d552f296f68ad0caa13fd4843d3937ecfa`.
+Its exact 65-member inventory includes 27 matching JSON/HTML audit pairs and nine
+PNG screenshots. All hard budgets pass; all nine LCP medians retain advisory
+warnings. Setup/proof/cleanup are 299.258 / 655.559 / 10.687 seconds; the separate
+720-second proof, 30-second cleanup and 22/19 outer windows pass. Four 61-second
+quiet intervals are code-enforced, without independent timestamps. Screenshots
+are not independently visually reviewed. OpenAPI raw source bytes match Git;
+the comparison artifact is reserialized and semantically equal, not byte-equal.
+The zero-result leakwatch report establishes only its declared scanning scope.
+Automated accessibility supplies no manual or full WCAG evidence.
+
+The implementation owner fully reads both complete reports, finite evidence
+files and audit scripts before releasing the source freeze:
+
+- `667-originals-backend-audit.md`, SHA-256
+  `1eb308cad49ea4470c879ebea65407d06f898bb91e835c1275b2cb230e3e9cfc`.
+- `667-public-frontend-audit.md`, SHA-256
+  `25e9e732fd177b0414db78208127b15d39b3661c7d6f79157ed5161630fe40b4`.
+
+The separately retained original frontend job log is 68,681 bytes, SHA-256
+`50ff313a136fbd0ed00e02cb793f9adc70767883212192e95c5cab8976d27307`.
+Four actual failed-case events precede the package's 180-second outer deadline:
+workers at 69,511 ms, source/native router controls at 10,040 ms, startup at
+95,021 ms and recovery at 120,992 ms. The initialized-router fault case itself
+passes in 75,431 ms. The four closed errors do not reveal their inner causes.
+The later package cancellation therefore cannot explain those earlier failures;
+a longer outer clock alone is not a demonstrated correction. No complete hosted
+frontend union or SDK run is claimed. Package-group termination also proves no
+separately detached runtime family's retirement or survival.
+
+Two independent read-only diagnoses distinguish these boundaries and confirm
+that ADR-0082 explicitly retains the 180-second package allowance. That allowance,
+all case clocks, suite assignment and runtime authority remain unchanged. The
+next correction adds finite failure observations and measures a narrow parser
+change; neither constitutes attribution of the four hosted inner failures.
+
+### P03-3 finite frontend diagnostics and measured parser correction (2026-11-02)
+
+The copied ownership matrix validates its complete existing bounded failure
+capsule, then projects only group, stage, case, admission reason and cleanup/
+retention observations. Its previous PID-bearing failure forwarding stays
+private. The test wrapper accepts only that bounded projection before preserving
+its existing closed error and retention behavior. The six router-control
+children expose only fixed script/counter names, primitive finite process
+classification and bounded elapsed time. No child stdout/stderr, cause, path,
+PID, nonce or arbitrary caught field enters these diagnostics or the reporter.
+Property reads are snapshotted once before validation; throwing/changing getters
+cannot substitute later unvalidated payloads.
+
+Five permanent cases cover schema/privacy controls, finite-set parity, actual
+validator/projection ordering and copied/transpiled wrapper children. Seven inert
+child scenarios require their real target status and closed-error result, with
+bounded streams and conservative retained roots on uncertainty. They do not
+supply Next runtime-family retirement proof. Existing watchdog tests exercise
+clean PID-bearing capsules and dirty shapes without exposing identities. The
+six router controls retain their 31/10/4/3/13/9 counts, ten-second child and
+25-second combined bounds. The 150/160-second ownership/outer case bounds and
+180-second package allowance remain unchanged.
+
+A private CPU profile identifies parser work as a local optimization candidate;
+overlapping samples are not additive or a prediction of savings. Six matched
+ABBAAB private samples run the unchanged 31 controls in fresh qualified copies.
+Original durations are 3.311, 3.335 and 3.364 seconds; variants are 2.961, 2.959
+and 2.960. Each target passes all controls and its actual process family retires.
+The median improves approximately 11.3 percent on this linked-dependency Darwin
+measurement; it establishes no hosted cause or whole-suite fit.
+
+The only parser change disables unused parent-link construction in
+`deriveFaultJoinPoints`; all source reads, descriptor/hash/containment checks,
+qualified TypeScript loading and the separate boundary parser remain unchanged.
+A separately executed private comparison deep-compares every returned frozen
+scalar field for all 27 installed copies and three generated dynamic paths,
+including an empty-entry file. Both variants retain dirty descriptor/parser,
+same-length changed-byte and symlink refusals. No cache, new persistent state,
+worker-concurrency change or admission shortcut is selected. The qualified
+TypeScript version remains 5.6.3; these observations do not generalize to an
+arbitrary parser release.
+
+Final guarded validation passes 3,566 cases with zero skips/todos: 3,412 web cases
+in 115 files and 154 SDK cases in nine files. Package durations are 174.32 and
+83.30 seconds; total command wall time is 261.487 seconds. This is not a measured
+whole-suite improvement over the 256.655-second pre-parser baseline. The narrow
+31-control comparison is the only performance claim. Watchdog source controls
+pass 5/5; the focused diagnostic/closed-error/reporter suite passes 44/44 in three
+files. Typecheck, lint, production build and both real renderer pipe-failure
+variants pass in 4.301, 34.014, 23.372 and 33.955 seconds. All these captured
+stderr streams are empty. The complete 424-input frontend graph, 20 supplemental
+files and 1,982 backend files agree before/after every credited command.
+
+The actual `CorpusConsistencyTests` run passes five nonempty cases. Earlier
+strict backend rebuild/discovery and 604-case Architecture results remain
+byte-bound to the unchanged backend sources; they are not relabeled as new
+frontend validation. Current renderer and corpus receipts bind both graphs.
+The first diagnostic lint attempt's five import-order warnings remain a failed
+receipt; corrected imports and the final getter-safe implementation pass fresh
+validation. Historical receipts are neither overwritten nor counted as final.
+
+Standard 07 and the existing Registered cleanup catalogue rule now describe the
+finite diagnostic boundary without promoting qualification status. After the
+normal implementation commit, two new independent R1 reviewers examine code,
+privacy, actual lifetime evidence and the new source-freeze helper. Verified
+fixes precede two new independent R2 reviewers. Only a later complete same-source
+hosted A/B with retained and independently audited originals can qualify the
+combined work. All four earlier hosted inner causes remain unknown. Manual
+keyboard/focus/reflow/contrast/VoiceOver remains maintainer-deferred and
+unexecuted. No new policy, clock, permission or worker-concurrency change is
+selected.

@@ -111,6 +111,7 @@ async function withFailureValidator(source, run) {
     'validateOwnerReceipt',
     'validateCompletedCase',
     'validateFailureEvidence',
+    'projectFailureEvidence',
   ]);
   const selected = [];
   for (const statement of file.statements) {
@@ -136,11 +137,11 @@ async function withFailureValidator(source, run) {
         JSON.stringify(ownershipMatrixCases) +
         ';\n' +
         selected.join('\n') +
-        '\nexport {validateFailureEvidence};\n',
+        '\nexport {validateFailureEvidence, projectFailureEvidence};\n',
       { flag: 'wx', mode: 0o600 },
     );
     const module = await import(pathToFileURL(path).href);
-    await run(module.validateFailureEvidence);
+    await run(module.validateFailureEvidence, module.projectFailureEvidence);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -206,12 +207,56 @@ test('failure and deadline paths share the actual closed held-render validator; 
   }
   visit(entry);
   assert.deepEqual(paths, ['deadline', 'failure']);
-  await withFailureValidator(source, (validate) => {
+  await withFailureValidator(source, (validate, project) => {
     for (const path of paths)
       assert.doesNotThrow(
         () => validate(failureCapsule(), 'workers'),
         path + ' finite capsule remains writable',
       );
+    const clean = failureCapsule();
+    clean.current.events = [
+      {
+        event: 'native-imported',
+        case: 'worker-ordered-stop',
+        pid: 8765,
+        parentPid: 1234,
+        milliseconds: 5,
+      },
+    ];
+    assert.deepEqual(project(clean, 'workers'), {
+      group: 'workers',
+      stage: 'worker-ordered-stop:hold-real-render',
+      currentCase: 'worker-ordered-stop',
+      admissionReason: null,
+      retained: true,
+      cleanupConfirmed: false,
+    });
+    assert.doesNotMatch(JSON.stringify(project(clean, 'workers')), /pid|8765|1234/i);
+    for (const mutate of [
+      (v) => {
+        v.extra = 'PRIVATE-CANARY';
+      },
+      (v) => {
+        v.current.events[0].extra = 'PRIVATE-CANARY';
+      },
+      (v) => {
+        v.current.admissionReason = 'PRIVATE-CANARY';
+      },
+      (v) => {
+        v.stage = 'PRIVATE-CANARY';
+      },
+      (v) => {
+        v.current.case = 'PRIVATE-CANARY';
+      },
+      (v) => {
+        v.completedCases = Array(18).fill({});
+      },
+    ]) {
+      const dirty = structuredClone(clean);
+      mutate(dirty);
+      assert.throws(() => project(dirty, 'workers'));
+    }
+    assert.throws(() => project(clean, 'startup'));
   });
   const entryLine = "    'worker-ordered-stop:hold-real-render',\n";
   assert.equal(source.split(entryLine).length, 2);

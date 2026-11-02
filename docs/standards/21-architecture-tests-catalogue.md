@@ -6537,6 +6537,12 @@ Prior receipts do not qualify subsequent source changes.
   credit; its independently confirmed retirement permits fixture disposal.
   A leased `.next` directory alone does not prove a compiler started; failed or
   forced test shutdown cannot authorize recursive deletion of retained records.
+  Failure diagnostics project the existing fully validated ownership capsule
+  before exposing only finite stage/case/reason and cleanup observations. Router
+  source controls expose fixed names and bounded primitive classifications,
+  without raw caught payloads. Closed-error and reporter canary controls preserve
+  that boundary, including actual copied-wrapper children and dirty schemas.
+  Diagnostic completion never establishes fixture-family retirement.
 - **Source:** [ADR-0083](../decisions/0083-owned-next-response-compression-cleanup.md),
   [ADR-0084](../decisions/0084-owned-frontend-runtime-process-families.md)
   and [Standard 07](07-frontend-architecture.md#version-qualified-next-response-cleanup).

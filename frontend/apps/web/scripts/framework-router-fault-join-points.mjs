@@ -106,7 +106,7 @@ export function deriveFaultJoinPoints(identity, files, parserSpec) {
       file.path,
       bytes.toString('utf8'),
       ts.ScriptTarget.Latest,
-      true,
+      false,
       ts.ScriptKind.JS,
     );
     assert.equal(parsed.parseDiagnostics.length, 0);

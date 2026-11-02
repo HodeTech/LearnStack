@@ -111,7 +111,7 @@ describe('frontend outcome guard', () => {
       ];
       reporter.onTestCaseResult({ result: () => ({ state: 'passed' }) });
       for (let index = 0; index < 132; index++) reporter.onTestCaseResult({
-        result: () => ({ state: 'failed', errors: Array.from({ length: 65 }, () => ({ name: 'AssertionError', message: canary, stack: canary, actual: canary, expected: canary })) }),
+        result: () => ({ state: 'failed', errors: Array.from({ length: 65 }, () => ({ name: 'AssertionError', message: canary, stack: canary, actual: canary, expected: canary, diagnostic: { injected: canary } })) }),
         diagnostic: () => ({ duration: Infinity }), location: { line: -1 },
         id: canary, name: names[index - 126] ?? canary,
         module: { relativeModuleId: '../' + canary + '.test.ts' },
@@ -145,6 +145,17 @@ describe('frontend outcome guard', () => {
     expect(rows).toHaveLength(129);
     expect(rows[128]).toEqual({ schema: 1, kind: 'frontend-test-failures-truncated' });
     for (const row of rows.slice(0, 128)) {
+      expect(Object.keys(row).sort()).toEqual([
+        'case',
+        'caseId',
+        'categories',
+        'durationMs',
+        'errorsTruncated',
+        'file',
+        'kind',
+        'line',
+        'schema',
+      ]);
       expect(row.file).toBe('unavailable');
       expect(row.line).toBeNull();
       expect(row.durationMs).toBeNull();

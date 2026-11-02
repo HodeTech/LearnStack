@@ -183,6 +183,18 @@ function validateFailureEvidence(evidence, group) {
     );
   }
 }
+// Project only after the existing full bounded receipt validator has accepted it.
+function projectFailureEvidence(evidence, group) {
+  validateFailureEvidence(evidence, group);
+  return {
+    group: evidence.group,
+    stage: evidence.stage,
+    currentCase: evidence.current?.case ?? null,
+    admissionReason: evidence.current?.admissionReason ?? null,
+    cleanupConfirmed: evidence.cleanupConfirmed,
+    retained: evidence.retained,
+  };
+}
 function absent(pid, group = false) {
   try {
     process.kill(group ? -pid : pid, 0);
@@ -285,10 +297,9 @@ export async function runFrameworkOwnershipMatrix(group, privateEntry = false) {
     if (closed.code !== 0 || closed.signal !== null) {
       if (stdout) {
         const evidence = JSON.parse(stdout);
-        validateFailureEvidence(evidence, group);
-        process.stderr.write(
-          'Framework ownership matrix evidence: ' + JSON.stringify(evidence) + '\n',
-        );
+        // Events and owner receipts remain private, including process identities.
+        const projected = projectFailureEvidence(evidence, group);
+        writeSync(1, JSON.stringify(projected) + '\n');
       }
       // Only finite driver diagnostics leave the inner scope; no copied raw child output.
       for (const line of stderr.trim().split('\n'))

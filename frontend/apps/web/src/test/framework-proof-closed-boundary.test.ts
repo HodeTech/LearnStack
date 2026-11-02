@@ -1,13 +1,29 @@
 // @vitest-environment node
 import { execFileSync, spawnSync } from 'node:child_process';
 import type * as ChildProcess from 'node:child_process';
-import { existsSync, readFileSync, rmdirSync, unlinkSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  rmdirSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { runInNewContext } from 'node:vm';
 
 import ts from 'typescript';
 import { afterEach, expect, it, vi } from 'vitest';
 
+import {
+  ownershipDiagnostic,
+  routerCountDiagnostic,
+  routerDiagnostic,
+} from './framework-finite-diagnostic';
 import { closedFrameworkProofSync } from './framework-proof-closed-boundary';
 import {
   runFrameworkOwnershipGroup,
@@ -42,6 +58,367 @@ it('keeps successful synchronous results unchanged and contains malformed output
   expect(closedFrameworkProofSync(() => value)).toBe(value);
   refuses(() => closedFrameworkProofSync(() => JSON.parse(canary)));
 });
+
+it('projects only closed ownership failure evidence and rejects dirty or oversized input', () => {
+  const clean = {
+    group: 'workers',
+    stage: 'worker-ordered-stop:hold-real-render',
+    currentCase: 'worker-ordered-stop',
+    admissionReason: 'owner_busy',
+    cleanupConfirmed: false,
+    retained: true,
+  };
+  expect(ownershipDiagnostic(JSON.stringify(clean), 'workers')).toEqual({
+    schema: 1,
+    kind: 'framework-ownership-failure',
+    ...clean,
+  });
+  for (const dirty of [
+    { ...clean, extra: canary },
+    { ...clean, stage: canary },
+    { ...clean, currentCase: canary },
+    { ...clean, admissionReason: canary },
+    { ...clean, retained: canary },
+    { ...clean, group: canary },
+    { ...clean, currentCase: null },
+    { ...clean, oversized: canary.repeat(200) },
+  ])
+    expect(ownershipDiagnostic(JSON.stringify(dirty), 'workers')).toBeNull();
+  expect(ownershipDiagnostic(canary, 'workers')).toBeNull();
+  expect(ownershipDiagnostic(JSON.stringify(clean), 'startup')).toBeNull();
+});
+
+it('projects router process classifications without exporting caught payloads', () => {
+  const script = 'framework-router-fault.test.mjs';
+  const bad = {
+    code: 'ETIMEDOUT',
+    status: null,
+    signal: 'SIGTERM',
+    stdout: canary,
+    stderr: canary,
+    message: canary,
+    stack: canary,
+    extra: canary,
+  };
+  const observed = routerDiagnostic(script, bad, 10040);
+  expect(observed).toEqual({
+    schema: 1,
+    kind: 'framework-router-control-failure',
+    script,
+    class: 'timeout',
+    status: null,
+    signal: 'SIGTERM',
+    elapsedMs: 10040,
+  });
+  expect(JSON.stringify(observed)).not.toContain(canary);
+  expect(routerDiagnostic(canary, bad, 1)).toBeNull();
+  expect(routerDiagnostic(script, { status: 3, message: canary }, 4)?.class).toBe('status');
+  expect(routerDiagnostic(script, { signal: 'SIGKILL', message: canary }, 4)?.class).toBe('signal');
+  expect(routerCountDiagnostic(script, 'tests', 25)).toMatchObject({
+    class: 'count-mismatch',
+    counter: 'tests',
+    elapsedMs: 25,
+  });
+  expect(routerCountDiagnostic(script, canary, 25)).toBeNull();
+  expect(routerCountDiagnostic(canary, 'tests', 25)).toBeNull();
+  expect(JSON.stringify(routerCountDiagnostic(script, 'pass', Infinity))).not.toContain(canary);
+  expect(routerDiagnostic(script, { code: 'ENOENT' }, 1)?.class).toBe('spawn');
+  expect(routerDiagnostic(script, { code: canary }, Infinity)).toMatchObject({
+    class: 'unknown',
+    status: null,
+    signal: null,
+    elapsedMs: null,
+  });
+  const reads = { status: 0, signal: 0, code: 0 };
+  const changing = {
+    get status() {
+      return ++reads.status === 1 ? 3 : canary;
+    },
+    get signal() {
+      return ++reads.signal === 1 ? 'SIGTERM' : canary;
+    },
+    get code() {
+      return ++reads.code === 1 ? 'ETIMEDOUT' : canary;
+    },
+  };
+  const snapshot = routerDiagnostic(script, changing, 4);
+  expect(reads).toEqual({ status: 1, signal: 1, code: 1 });
+  expect(snapshot).toMatchObject({ class: 'timeout', status: 3, signal: 'SIGTERM' });
+  expect(JSON.stringify(snapshot)).not.toContain(canary);
+  for (const status of [Object(3), NaN, Infinity, -1, 256, 1.5, Number.MAX_SAFE_INTEGER])
+    expect(routerDiagnostic(script, { status }, 4)).toMatchObject({
+      class: 'unknown',
+      status: null,
+    });
+  for (const field of ['status', 'signal', 'code'])
+    expect(
+      routerDiagnostic(
+        script,
+        Object.defineProperty({}, field, {
+          get() {
+            throw new Error(canary);
+          },
+        }),
+        1,
+      ),
+    ).toBeNull();
+  expect(
+    routerDiagnostic(
+      script,
+      Object.defineProperty({}, 'code', {
+        get() {
+          throw new Error(canary);
+        },
+      }),
+      1,
+    ),
+  ).toBeNull();
+});
+
+// The receiver intentionally revalidates. Its finite set must track the actual validator.
+it('keeps receiver cases, stages and admission reasons equal to matrix authority', () => {
+  const matrix = readFileSync(
+    new URL('../../scripts/framework-ownership-matrix.mjs', import.meta.url),
+    'utf8',
+  );
+  const source = readFileSync(
+    new URL('../../scripts/framework-ownership-matrix-source.mjs', import.meta.url),
+    'utf8',
+  );
+  const receiver = readFileSync(
+    new URL('./framework-finite-diagnostic.ts', import.meta.url),
+    'utf8',
+  );
+  function initializer(text: string, name: string): string {
+    const file = ts.createSourceFile(
+      'input.ts',
+      text,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TS,
+    );
+    const found: string[] = [];
+    function visit(node: ts.Node) {
+      if (
+        ts.isVariableDeclaration(node) &&
+        ts.isIdentifier(node.name) &&
+        node.name.text === name &&
+        node.initializer
+      ) {
+        const value = ts.isAsExpression(node.initializer)
+          ? node.initializer.expression
+          : node.initializer;
+        found.push(value.getText(file));
+      }
+      ts.forEachChild(node, visit);
+    }
+    visit(file);
+    expect(found).toHaveLength(1);
+    return found[0]!;
+  }
+  const matrixCases = Array.from(
+    runInNewContext(initializer(source, 'ownershipMatrixCases')) as string[],
+  );
+  const receiverCases = Array.from(runInNewContext(initializer(receiver, 'cases')) as string[]);
+  const matrixReasons = Array.from(
+    runInNewContext(initializer(matrix, 'admissionReasons')) as string[],
+  );
+  const receiverReasons = Array.from(runInNewContext(initializer(receiver, 'reasons')) as string[]);
+  const matrixStages = Array.from(
+    runInNewContext(initializer(matrix, 'stages'), {
+      ownershipMatrixCases: matrixCases,
+    }) as string[],
+  );
+  const receiverStages = Array.from(
+    runInNewContext(initializer(receiver, 'stages'), { cases: receiverCases }) as string[],
+  );
+  for (const [actual, expected] of [
+    [receiverCases, matrixCases],
+    [receiverReasons, matrixReasons],
+    [receiverStages, matrixStages],
+  ] as const) {
+    expect(actual).toEqual(expected);
+    expect(actual.slice(1)).not.toEqual(expected);
+    expect([...actual, canary]).not.toEqual(expected);
+  }
+});
+
+it('keeps the validated matrix projection before the single bounded stdout write', () => {
+  const source = readFileSync(
+    new URL('../../scripts/framework-ownership-matrix.mjs', import.meta.url),
+    'utf8',
+  );
+  function census(text: string) {
+    const file = ts.createSourceFile(
+      'matrix.mjs',
+      text,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.JS,
+    );
+    const functions = file.statements.filter(ts.isFunctionDeclaration);
+    const project = functions.filter((node) => node.name?.text === 'projectFailureEvidence');
+    const parent = functions.filter((node) => node.name?.text === 'runFrameworkOwnershipMatrix');
+    expect(project).toHaveLength(1);
+    expect(parent).toHaveLength(1);
+    const body = project[0]!.body!;
+    expect(body.statements).toHaveLength(2);
+    expect(body.statements[0]!.getText(file)).toBe('validateFailureEvidence(evidence, group);');
+    const result = body.statements[1]!;
+    expect(
+      ts.isReturnStatement(result) &&
+        result.expression &&
+        ts.isObjectLiteralExpression(result.expression),
+    ).toBe(true);
+    if (
+      !ts.isReturnStatement(result) ||
+      !result.expression ||
+      !ts.isObjectLiteralExpression(result.expression)
+    )
+      throw new Error('Projection refused');
+    expect(
+      result.expression.properties.map((prop) =>
+        ts.isPropertyAssignment(prop) ? prop.name.getText(file) : 'invalid',
+      ),
+    ).toEqual(['group', 'stage', 'currentCase', 'admissionReason', 'cleanupConfirmed', 'retained']);
+    const textParent = parent[0]!.getText(file);
+    expect(textParent.split('projectFailureEvidence(evidence, group)')).toHaveLength(2);
+    expect(textParent.split("writeSync(1, JSON.stringify(projected) + '\\n')")).toHaveLength(2);
+    expect(textParent.indexOf('projectFailureEvidence(evidence, group)')).toBeLessThan(
+      textParent.indexOf('writeSync(1, JSON.stringify(projected)'),
+    );
+  }
+  census(source);
+  expect(() =>
+    census(source.replace('  validateFailureEvidence(evidence, group);', '  void evidence;')),
+  ).toThrow();
+  expect(() =>
+    census(
+      source.replace(
+        '    retained: evidence.retained,',
+        '    retained: evidence.retained, leaked: evidence.current,',
+      ),
+    ),
+  ).toThrow();
+});
+
+// Each run uses the copied and transpiled actual wrapper with two test-only
+// substitutions: the fixed inert driver and one finite inner-result observation.
+it('keeps actual wrapper failures generic while emitting finite observations', async () => {
+  const actual = await vi.importActual<typeof ChildProcess>('node:child_process');
+  const root = mkdtempSync(join(tmpdir(), 'learnstack-finite-wrapper-'));
+  let safeToRemove = false;
+  try {
+    const app = join(root, 'frontend/apps/web');
+    const testDir = join(app, 'src/test');
+    const script = join(app, 'scripts/finite-diagnostic-control.mjs');
+    mkdirSync(testDir, { recursive: true });
+    mkdirSync(join(app, 'scripts'), { recursive: true });
+    const original = readFileSync(
+      new URL('./framework-runtime-ownership.ts', import.meta.url),
+      'utf8',
+    );
+    const driver = 'scripts/verify-framework-runtime-ownership.mjs';
+    expect(original.split(driver)).toHaveLength(2);
+    const observationAnchor =
+      '    if (result.error !== undefined || result.signal !== null || result.status !== 0)';
+    expect(original.split(observationAnchor)).toHaveLength(2);
+    const observation =
+      "    process.stdout.write(JSON.stringify({ status: result.status, signal: result.signal, spawnFault: result.error !== undefined }) + '\\n');\n";
+    const source = original
+      .replace(driver, 'scripts/finite-diagnostic-control.mjs')
+      .replace(observationAnchor, observation + observationAnchor);
+    const transpile = (text: string) =>
+      ts.transpileModule(text, {
+        compilerOptions: {
+          module: ts.ModuleKind.ESNext,
+          target: ts.ScriptTarget.ES2022,
+        },
+      }).outputText;
+    // Rewrite emitted relative specifiers solely so the private .mjs copies resolve.
+    const wrapper = transpile(source)
+      .replace("'./framework-proof-closed-boundary'", "'./framework-proof-closed-boundary.mjs'")
+      .replace("'./framework-finite-diagnostic'", "'./framework-finite-diagnostic.mjs'");
+    expect(wrapper).toContain("'./framework-proof-closed-boundary.mjs'");
+    expect(wrapper).toContain("'./framework-finite-diagnostic.mjs'");
+    writeFileSync(join(testDir, 'framework-runtime-ownership.mjs'), wrapper);
+    for (const name of ['framework-proof-closed-boundary', 'framework-finite-diagnostic'])
+      writeFileSync(
+        join(testDir, name + '.mjs'),
+        transpile(readFileSync(new URL('./' + name + '.ts', import.meta.url), 'utf8')),
+      );
+    const clean = {
+      group: 'workers',
+      stage: 'worker-ordered-stop:hold-real-render',
+      currentCase: 'worker-ordered-stop',
+      admissionReason: 'owner_busy',
+      cleanupConfirmed: false,
+      retained: true,
+    };
+    const scenarios = [
+      { stdout: JSON.stringify(clean), diagnostic: true, close: false },
+      { stdout: canary, diagnostic: false, close: false },
+      { stdout: JSON.stringify({ ...clean, extra: canary }), diagnostic: false, close: false },
+      {
+        stdout: JSON.stringify({ ...clean, extra: canary.repeat(200) }),
+        diagnostic: false,
+        close: false,
+      },
+      { stdout: JSON.stringify({ ...clean, group: 'startup' }), diagnostic: false, close: false },
+      { stdout: '', diagnostic: false, close: false },
+      { stdout: JSON.stringify(clean), diagnostic: false, close: true },
+    ];
+    for (const scenario of scenarios) {
+      // The inert program writes only these bounded bytes and cannot fork or queue work.
+      expect(Buffer.byteLength(scenario.stdout, 'utf8')).toBeLessThan(16_384);
+      expect(Buffer.byteLength(canary, 'utf8')).toBeLessThan(16_384);
+      writeFileSync(
+        script,
+        `process.stdout.write(${JSON.stringify(scenario.stdout)});process.stderr.write(${JSON.stringify(canary)});process.exitCode=3;`,
+      );
+      const probe = `import {closeSync} from 'node:fs';
+        import {runFrameworkOwnershipGroup} from ${JSON.stringify(pathToFileURL(join(testDir, 'framework-runtime-ownership.mjs')).href)};
+        ${scenario.close ? 'closeSync(2);' : ''}
+        try {runFrameworkOwnershipGroup('workers');process.stdout.write('unexpected-success');}
+        catch(e) {process.stdout.write(e instanceof Error && e.message==='Framework proof refused' && e.cause===undefined ? 'generic-failure' : 'unexpected-error');}`;
+      const result = actual.spawnSync(process.execPath, ['--input-type=module', '-e', probe], {
+        encoding: 'utf8',
+        timeout: 10_000,
+        maxBuffer: 16_384,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: {
+          PATH: process.env.PATH,
+          NODE_ENV: 'production',
+          NODE_TLS_REJECT_UNAUTHORIZED: '1',
+          NEXT_TELEMETRY_DISABLED: '1',
+        },
+      });
+      expect(result.error).toBeUndefined();
+      expect(result.status).toBe(0);
+      expect(result.signal).toBeNull();
+      expect(result.stdout).not.toContain(canary);
+      const outerRows = result.stdout.trim().split('\n');
+      expect(outerRows).toHaveLength(2);
+      expect(JSON.parse(outerRows[0]!)).toEqual({ status: 3, signal: null, spawnFault: false });
+      expect(outerRows[1]).toBe('generic-failure');
+      expect(result.stderr).not.toContain(canary);
+      const entries = result.stderr.trim().split('\n').filter(Boolean);
+      expect(entries).toHaveLength(scenario.diagnostic ? 1 : 0);
+      if (scenario.diagnostic) {
+        expect(entries[0]).toMatch(/^Frontend proof diagnostic: /);
+        expect(JSON.parse(entries[0]!.slice('Frontend proof diagnostic: '.length))).toEqual({
+          schema: 1,
+          kind: 'framework-ownership-failure',
+          ...clean,
+        });
+      }
+    }
+    // All seven nonforking inner children and outer probes were positively joined.
+    safeToRemove = true;
+  } finally {
+    if (safeToRemove) rmSync(root, { recursive: true, force: true });
+  }
+}, 30_000);
 
 it('contains actual ownership schema refusals and retained-evidence parsing', () => {
   const receipt = {

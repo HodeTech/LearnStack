@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 import { expect, test } from 'vitest';
 
+import { emitRouterCountDiagnostic, emitRouterDiagnostic } from './framework-finite-diagnostic';
 import { closedFrameworkProofSync } from './framework-proof-closed-boundary';
 
 const frontend = fileURLToPath(new URL('../../../../', import.meta.url));
@@ -219,17 +220,20 @@ test(
         ['framework-router-fault-prefix.test.mjs', 13],
         ['framework-router-registration-capture.test.mjs', 9],
       ] as const) {
-        const output = execFileSync(
-          process.execPath,
-          ['--test', join(frontend, 'scripts', script)],
-          {
+        const started = performance.now();
+        let output: string;
+        try {
+          output = execFileSync(process.execPath, ['--test', join(frontend, 'scripts', script)], {
             encoding: 'utf8',
             timeout: 10_000,
             maxBuffer: 65536,
             env: { PATH: process.env.PATH, NODE_ENV: 'production' },
             stdio: ['ignore', 'pipe', 'pipe'],
-          },
-        );
+          });
+        } catch (error) {
+          emitRouterDiagnostic(script, error, performance.now() - started);
+          throw error;
+        }
         for (const [key, value] of [
           ['tests', count],
           ['pass', count],
@@ -237,8 +241,14 @@ test(
           ['cancelled', 0],
           ['skipped', 0],
           ['todo', 0],
-        ] as const)
-          expect(output).toMatch(new RegExp('^# ' + key + ' ' + value + '$', 'm'));
+        ] as const) {
+          try {
+            expect(output).toMatch(new RegExp('^# ' + key + ' ' + value + '$', 'm'));
+          } catch (error) {
+            emitRouterCountDiagnostic(script, key, performance.now() - started);
+            throw error;
+          }
+        }
       }
     }),
   25_000,

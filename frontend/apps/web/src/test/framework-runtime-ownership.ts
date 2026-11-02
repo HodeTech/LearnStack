@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { emitOwnershipDiagnostic } from './framework-finite-diagnostic';
 import { closedFrameworkProofSync } from './framework-proof-closed-boundary';
 
 type Group = 'startup' | 'workers' | 'recovery';
@@ -507,6 +508,8 @@ function runFrameworkOwnershipGroupCore(group: Group) {
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
+    if (result.error !== undefined || result.signal !== null || result.status !== 0)
+      emitOwnershipDiagnostic(result.stdout, group);
     assert.ok(result.error === undefined, 'actual ownership driver completed within bound');
     assert.equal(result.signal, null);
     assert.equal(result.status, 0, 'actual ownership group succeeded');

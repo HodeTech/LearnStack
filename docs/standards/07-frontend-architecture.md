@@ -787,6 +787,13 @@ Missing handles, changed records or unknown retirement retain roots. Runtime
 families separately; no two-second runtime SIGKILL fallback or cached-PGID rescue
 supplies cleanup. BFF lifeline/parent-watch controls obey the same boundary.
 
+Copied ownership proof failures project only the validated finite group, stage,
+case, admission reason and cleanup/retention observations. Router source-control
+failures expose only their fixed script/counter, primitive process classification
+and bounded elapsed time. Raw child output, causes, process identities and record
+nonces stay private; the proof still throws its existing closed error. These
+observations grant no cleanup, ownership or successful-result authority.
+
 ## Routing
 
 - File-based App Router.
