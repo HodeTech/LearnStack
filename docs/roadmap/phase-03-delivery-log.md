@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,430 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,456 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -254,7 +254,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0084 Step 3 R1 corrective validation closeout (2026-11-02)](#adr-0084-step-3-r1-corrective-validation-closeout-2026-11-02) — 22 lines
   - [ADR-0084 Step 3 fresh R2 source-review closeout (2026-11-02)](#adr-0084-step-3-fresh-r2-source-review-closeout-2026-11-02) — 45 lines
   - [P03-3 d628 hosted A failure and bounded diagnostic (2026-11-02)](#p03-3-d628-hosted-a-failure-and-bounded-diagnostic-2026-11-02) — 42 lines
-  - [ADR-0085 proposed public-demo CI window package (2026-11-02)](#adr-0085-proposed-public-demo-ci-window-package-2026-11-02) — 48 lines
+  - [ADR-0085 proposed public-demo CI window package (2026-11-02)](#adr-0085-proposed-public-demo-ci-window-package-2026-11-02) — 49 lines
+  - [ADR-0085 proposal R1 and verified carrier corrections (2026-11-02)](#adr-0085-proposal-r1-and-verified-carrier-corrections-2026-11-02) — 25 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -12228,3 +12229,29 @@ nonzero/forced failure, sandbox/receipt status and artifact allowlist. Existing
 720-second/four-quiet-window/27-pair/serial/cleanup controls stay mandatory;
 source controls prove no hosted fit. No clock change precedes approval, and
 local passes or approval alone cannot promote qualification or manual evidence.
+
+
+### ADR-0085 proposal R1 and verified carrier corrections (2026-11-02)
+
+Two fresh independent R1 reviewers inspect the complete Proposed package and its
+policy/evidence/testability boundaries. The policy reviewer finds a missing
+acceptance carrier: ADR-0075 explicitly retains every other workflow job's
+ceiling. ADR-0085 now narrowly supersedes only its public-demo application as
+well as the already named ADR-0056/0082 clauses. At acceptance, Step 1 must append
+a dated disclosure to all three records using their then-next available amendment
+numbers, preserving their original bodies and every unrelated boundary. This
+adds ADR-0075 to the preceding package's acceptance inventory; no amendment
+number or executable policy is reserved or changed now.
+
+The evidence reviewer independently matches the job counts, public ZIP identity,
+all 26 report-pair digests, screenshots, receipt durations and real baseline
+shell controls. One Minor is corrected: 04:11:17 is the recorded absolute
+deadline; SIGINT near that time is inferred from the unchanged timeout contract,
+not a separately timestamped delivery event. The actual first-step start and
+exit-124 time remain distinct observations. The test plan must assert the exact
+top-level job ceiling, with wrong-bound/order mutants; the existing loose
+substring assertion alone will not qualify the extension.
+
+The remaining three-step plan and all reserve/proof/population/cleanup constraints
+are unchanged. Current deadline code remains 20/17. The corrected proposal
+requires a fresh independent R2 before maintainer acceptance is requested.

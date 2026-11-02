@@ -6,9 +6,10 @@ Proposed
 
 **Date:** 2026-11-02
 **Deciders:** @cemil
-**On acceptance, bounded supersession:** ADR-0056's 20-minute public-demo CI job ceiling and
-only the public-demo application of ADR-0082's clause retaining all remaining
-jobs' ceilings. Both records remain Accepted; dated amendments disclose the
+**On acceptance, bounded supersession:** ADR-0056's 20-minute public-demo CI job
+ceiling, only the public-demo application of ADR-0075's other-workflow-job
+ceiling boundary, and only that application of ADR-0082's all-remaining-jobs
+clause. All three records remain Accepted; dated amendments disclose the
 specific change without rewriting their historical bodies.
 No executable clock or Accepted policy changes while this record is Proposed.
 The [three-step package](../roadmap/phase-03-delivery-log.md#adr-0085-proposed-public-demo-ci-window-package-2026-11-02) owns acceptance, implementation and qualification.
@@ -59,7 +60,9 @@ and passing owned cleanup in 12.539 seconds. These observations are not a
 successful run or an independent host-wide cleanup proof.
 
 The first-step deadline started at 03:54:17 UTC; the demo was ready at 04:00:12.
-The external timeout sent SIGINT at about 04:11:17 and returned 124 at 04:11:29.
+The configured external deadline was 04:11:17 UTC; SIGINT near that time is
+inferred from the recorded deadline and unchanged timeout contract, rather than
+a separate signal-delivery observation. The command returned 124 at 04:11:29.
 The 17-minute absolute work limit could end the proof before its own 720-second
 limit. The unchanged reserve gives `1,200 - 180 = 1,020` work seconds today;
 the proposal gives `1,320 - 180 = 1,140`. The observed first-step-to-ready interval
@@ -112,6 +115,7 @@ audited, remain mandatory.
 ## References
 
 - [ADR-0056](0056-public-demo-browser-and-lighthouse-enforcement.md).
+- [ADR-0075](0075-ordinary-ci-job-window.md).
 - [ADR-0082](0082-current-source-ci-execution-windows.md).
 - [Testing Standards](../standards/06-testing.md).
 - [Architecture Tests Catalogue](../standards/21-architecture-tests-catalogue.md#public_demo_preserves_admission_and_cleanup).
