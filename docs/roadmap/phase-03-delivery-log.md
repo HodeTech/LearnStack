@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 7,517 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 7,566 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -280,6 +280,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 finite diagnostics R2 closeout and renewed source qualification (2026-11-02)](#p03-3-finite-diagnostics-r2-closeout-and-renewed-source-qualification-2026-11-02) — 41 lines
   - [P03-3 c9b hosted A originals and bounded correction diagnosis (2026-11-02)](#p03-3-c9b-hosted-a-originals-and-bounded-correction-diagnosis-2026-11-02) — 88 lines
   - [P03-3 c9b correction implementation and local validation (2026-11-02)](#p03-3-c9b-correction-implementation-and-local-validation-2026-11-02) — 65 lines
+  - [P03-3 c9b correction R1 review closeout (2026-11-02)](#p03-3-c9b-correction-r1-review-closeout-2026-11-02) — 49 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -13340,3 +13341,52 @@ fixes precede two new independent R2 reviewers. Only later complete same-source
 hosted A/B and independently audited originals can qualify the combined work.
 Manual accessibility remains maintainer-deferred and unexecuted. No clock,
 permission, concurrency, capacity or other policy change is selected.
+
+### P03-3 c9b correction R1 review closeout (2026-11-02)
+
+The normal nine-file implementation commit is
+`c5929484113c9b52c22dae64b1808ba3c354cfad`, tree
+`4eff714b88097d2951d791359cf550f2b27e3a34`. Normal hooks pass, the pre-hook
+and committed trees agree, and the unrelated VS Code digest and five stash
+identities are preserved. Two new independent R1 reviewers read the complete
+diff and relevant one-hop contracts. The owner fully reads both immutable
+reports. Neither verifies an actionable finding; no source correction is needed.
+
+- Lifetime/security/code report: `c9b-fix-r1-lifetimes.md`, SHA-256
+  `66fb543cca8c72c0588da2671eadcc6b70c0d7f9ffd353d26dd923ec23718695`.
+  It traces the actual WeakMap, frozen observation, complete capsule, projection,
+  receiver and closed emitter; distinguishes outer owner from runtime child;
+  and compares fresh body/site ownership, local lookups, standalone fallback and
+  retained mutation/oracle paths. It independently verifies current source and
+  stream hashes, discovery diagnostics and original 604-case TRX. No suite,
+  benchmark, runtime or historical ZIP re-audit is claimed by this reviewer.
+- Evidence/backend/corpus report: `c9b-fix-r1-evidence.md`, SHA-256
+  `9773e3b99d936b022cb739f2aeac5263452c4027dff35b2f5dca789b22d363f9`.
+  It reconciles commands, counts, all sixteen current frontend streams, actual
+  TRXs, strict build reuse, source maps, bounded Linux/timing evidence and
+  historical original-audit claims. It independently reads both private source/
+  proof and dispatch helpers; no publication or dispatch is executed.
+
+The owner and evidence reviewer each execute only the exact read-only prefix
+of the current 431-line source/proof helper, SHA-256
+`d7aeeca947ebced1dd9172b03a178f1c6a56eee74cbe8cddf77969981338af54`.
+Both pass all 106 proof files, 424 frontend inputs, twenty supplemental inputs,
+1,982 backend inputs, qualified distribution, 7,949-case manifest and both
+assignments on the reviewed commit. No envelope is published. Current invalid
+HEAD and optimized-execution controls refuse without changing eleven older
+envelopes. The single-case comparison remains isolated: the same capacity
+mutation Fact takes 243.493 seconds inside the full Architecture run, distinct
+from its 149.550-second isolated result. Neither establishes hosted shard fit.
+
+The full frontend runner checks actual per-package Vitest JSON and discovered
+file coverage, then deletes its temporary JSON directory. Independent review
+therefore reconciles retained guarded stdout and the unchanged runner contract,
+not retained full-package JSON originals. The focused 44-case JSON and original
+renderer, corpus and 604-case Architecture TRXs remain separately retained;
+none is relabeled as a full frontend package report.
+
+This documentation-only closeout precedes two new independent R2 reviewers.
+The Registered cleanup rule and complete same-source hosted A/B remain open.
+No earlier unknown hosted cause, manual accessibility pass or production
+readiness is inferred. Manual evidence remains maintainer-deferred and
+unexecuted. No clock, authority, concurrency, capacity or population changes.
