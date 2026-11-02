@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,704 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,734 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -264,7 +264,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0085 Step 1 R1 and decision-index correction (2026-11-02)](#adr-0085-step-1-r1-and-decision-index-correction-2026-11-02) — 17 lines
   - [ADR-0085 Step 1 review closeout (2026-11-02)](#adr-0085-step-1-review-closeout-2026-11-02) — 17 lines
   - [ADR-0085 Step 2 implementation and local validation (2026-11-02)](#adr-0085-step-2-implementation-and-local-validation-2026-11-02) — 32 lines
-  - [ADR-0085 Step 2 R1 review closeout (2026-11-02)](#adr-0085-step-2-r1-review-closeout-2026-11-02) — 20 lines
+  - [ADR-0085 Step 2 R1 review closeout (2026-11-02)](#adr-0085-step-2-r1-review-closeout-2026-11-02) — 21 lines
+  - [ADR-0085 Step 2 review closeout and final-source qualification plan (2026-11-02)](#adr-0085-step-2-review-closeout-and-final-source-qualification-plan-2026-11-02) — 29 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -12512,3 +12513,33 @@ Private R1 report identities:
 
 New independent R2 reviewers inspect the complete implementation before the
 shared final-source hosted A/B. Manual accessibility remains deferred/unexecuted.
+
+
+### ADR-0085 Step 2 review closeout and final-source qualification plan (2026-11-02)
+
+Two new independent R2 reviewers inspect the complete implementation through
+`e1bc18a9`. Both approve within scope with no verified Blocker, Major or Minor;
+the parent reads both complete reports. They independently inspect the exact
+workflow/shell/mutant contracts, both operational guides and evidence boundaries.
+The evidence reviewer checks every stream size/hash, the current 417 framework
+inputs and 17 extras, and the recorded 23 focused, 3,555 guarded frontend and
+7/103/83 offline results. The private read-only freeze helper is reviewed in full
+against its predecessor without execution. No further source fix is required.
+Step 2 and both fresh review rounds close; the existing catalogue entry records
+the implemented outer-window controls without granting hosted-fit credit.
+
+Private R2 report identities:
+
+- `step2-r2-scope.md`: `bedccd202dc0b4fa30fe033d1f8bb486f8da82e2b34a0adad680797c1cd1d1e1`.
+- `step2-r2-evidence.md`: `14fcce453da78856c12d8580023adb1e1cbf261ac3fe72374e3a3a3269042295`.
+
+Step 3 now freezes the new final commit/tree, qualified toolchain, 417-input
+frontend graph plus 17 additional sources, unchanged 1,982 backend inputs,
+actual 7,949-case manifest and both current plan assignments. Push only the
+reviewed development source and dispatch complete A. Preserve and independently
+audit all original archives, case/result/resource identities and required
+frontend/OpenAPI/public-demo surfaces. Only a complete qualifying A permits a
+Re-run all jobs B on identical source/tree/plan/toolchain/population. A failed A
+retains all available originals before further source correction; it supplies no
+B. Acceptance, local passes and source reviews prove no fit. Manual evidence
+remains maintainer-deferred and unexecuted for PR review.
