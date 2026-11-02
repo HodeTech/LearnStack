@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,546 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 6,574 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -258,7 +258,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0085 proposal R1 and verified carrier corrections (2026-11-02)](#adr-0085-proposal-r1-and-verified-carrier-corrections-2026-11-02) — 26 lines
   - [P03-3 qualified pnpm setup transport correction (2026-11-02)](#p03-3-qualified-pnpm-setup-transport-correction-2026-11-02) — 40 lines
   - [ADR-0085 proposal R2 closeout and approval readiness (2026-11-02)](#adr-0085-proposal-r2-closeout-and-approval-readiness-2026-11-02) — 26 lines
-  - [P03-3 pnpm transport R1 closeout and runtime attribution (2026-11-02)](#p03-3-pnpm-transport-r1-closeout-and-runtime-attribution-2026-11-02) — 23 lines
+  - [P03-3 pnpm transport R1 closeout and runtime attribution (2026-11-02)](#p03-3-pnpm-transport-r1-closeout-and-runtime-attribution-2026-11-02) — 24 lines
+  - [P03-3 pnpm transport R2 review closeout (2026-11-02)](#p03-3-pnpm-transport-r2-review-closeout-2026-11-02) — 27 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -12348,3 +12349,31 @@ neither the causal launcher pair nor the qualified target/compiler contract.
 The failed hosted inner error category also remains unobserved. No local result
 substitutes for a complete new Linux hosted A/B. Fresh implementation R2 remains
 required; no clock change is authorized by this correction or its reviews.
+
+
+### P03-3 pnpm transport R2 review closeout (2026-11-02)
+
+Two new independent R2 reviewers inspect the complete narrow transport correction
+and its evidence through `16f5d19e`. Both approve within scope, with no verified
+Blocker, Major or Minor; the parent reads both complete reports. Their independent
+checks cover the actual action main/post paths, all ten original command receipts
+and stream hashes, generated launcher and qualified manager bytes, 417 frontend
+inputs, 14 additional guards and 91 tracked root sources. They verify the distinct
+first incomplete-copy exit 2 and complete-source nested typecheck exit 0, actual
+family retirement receipts and the explicit local-versus-hosted evidence boundary.
+No implementation finding requires a further source change.
+
+The three action-scoped settings are the complete executable change. The strict
+environment guard, package scripts, qualified tuple, leases, clocks and proof
+population remain unchanged. Existing focused checks are seven supply-chain,
+103 native, 83 shard/result and 17 public-demo CI cases; these are retained results,
+not a fresh hosted execution. The bootstrap runtime and inner hosted failure
+remain unobserved. Both implementation review rounds now close, while complete
+new final-source Linux A/B and original-evidence qualification stay open. ADR-0085
+remains Proposed with current public-demo clocks at 20/17 pending the maintainer's
+explicit decision. Manual accessibility remains deferred and unexecuted.
+
+Private R2 report identities:
+
+- `r2-scope.md`: `087828f3303b384a14d7ffe18042a14f156fed010e8d9caf7de845ad4a7debcd`.
+- `r2-evidence.md`: `156cb2658d9d7110dccc85124e4acd40537fdc8b0c58a20c04d0f04bcf862721`.
