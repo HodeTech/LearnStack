@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,259 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,344 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -328,6 +328,9 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0090 proposal review closeout and approval readiness (2026-11-03)](#adr-0090-proposal-review-closeout-and-approval-readiness-2026-11-03) — 16 lines
   - [ADR-0090 maintainer review and acceptance (2026-11-03)](#adr-0090-maintainer-review-and-acceptance-2026-11-03) — 24 lines
   - [P03-3 ADR-0090 validation and PR CI handoff (2026-11-03)](#p03-3-adr-0090-validation-and-pr-ci-handoff-2026-11-03) — 38 lines
+  - [P03-3 native image-provenance timeout and ADR-0091 proposal (2026-11-03)](#p03-3-native-image-provenance-timeout-and-adr-0091-proposal-2026-11-03) — 37 lines
+  - [P03-3 ADR-0090 hosted result and native-only remaining gate (2026-11-03)](#p03-3-adr-0090-hosted-result-and-native-only-remaining-gate-2026-11-03) — 29 lines
+  - [ADR-0091 proposal review closeout and approval readiness (2026-11-03)](#adr-0091-proposal-review-closeout-and-approval-readiness-2026-11-03) — 19 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -15130,3 +15133,88 @@ manual workflow is dispatched. Current hosted outcomes belong in the PR proof
 record so a later observational commit does not move the qualified source.
 No failed predecessor receives credit. Manual accessibility remains deferred
 and unexecuted; the maintainer owns final review and merge.
+
+### P03-3 native image-provenance timeout and ADR-0091 proposal (2026-11-03)
+
+PR run `41656897245`, attempt 1, head `b53ad494`, merge source `0472446e`,
+tree `6b5f2502565e84cdbde2c7bcf1303d61fe16af5a`, base `e55aa5d7`, refuses
+native execution before owner/test launch. The closed reason is
+`unexpected_crash_artifact_docker_overlay_dump_probe_refused_image_metadata_unavailable_info_command_timeout`.
+The receipt has no owned completion or VM memory samples; cleanup is zero and
+pre-owner age is 243.147 seconds. Execute spans approximately 22.919 seconds,
+including prevalidation. Neither the candidate format nor image membership is
+proved. Decoded job log: 50,125 bytes, SHA-256
+`46814c0bcecdb998bbbc51dbef79fb14101957d66326f0fdca7452048e2a2c65`.
+This is not original-ZIP qualification or proof of the earlier generic refusal's
+cause. The more specific error path already existed; the diagnostic refinement
+does not itself explain the difference between hosts/attempts.
+
+The fixed image info command times out, but its five-second cap and remaining
+shared twenty-second inventory deadline are not separately recorded. No minimum,
+underlying host/Docker defect or whole-job exhaustion is established. The current
+frontend Vitest step passes after ADR-0090; other jobs are still completing when
+this record is prepared. Native refusal prevents complete A regardless of those
+outcomes. Candidate/metadata failure is never changed into a clean result.
+
+[Proposed ADR-0091](../decisions/0091-native-inventory-phase-allocations.md)
+selects only native preflight inventory 20→60 seconds and scoped image-provenance
+read commands 5→10. Final inventory stays twenty, reserve 203 and native job
+twenty minutes. One absolute parent deadline still clips the complete phase and
+every command; their maxima are not reservations. Same roots, exact positive
+image provenance, complete rescan, drift/refusal/privacy and actual ownership
+assertions remain. No extra runtime authority, cache, runner or diagnostic
+pipeline is selected. These are judged allocations, not a repair/minimum/fit.
+
+Acceptance/carriers, the closed phase selection and existing control extensions,
+then both fresh reviews and complete final-source normal PR A/B/archive proof
+remain separate. No executable allocation changes before explicit approval.
+The ready PR remains available for product review, without merge approval or
+qualification credit. Manual accessibility stays deferred and unexecuted.
+
+### P03-3 ADR-0090 hosted result and native-only remaining gate (2026-11-03)
+
+Run `41656897245`, attempt 1, completes 27 jobs on the preceding exact source
+binding: 25 succeed; only native and the required integration aggregate fail.
+Frontend completes typecheck, lint, build, full guarded tests and its production
+ingress/failure-cleanup controls. The full guard passes all 3,575 reported cases:
+web 3,421 across 112 discovered files in 550.53 seconds and SDK 154 across nine
+in 177.02 seconds, zero skips/todos. This proves the current SDK controls finish
+on this attempt, not future budget fit. The 180-second SDK aggregate remains;
+reported Vitest duration is not the whole aggregate interval. Decoded frontend
+job log: 85,283 bytes, SHA-256
+`ec16360248a5fb44c70f45e395b8b0ac9b2ec5c7cffd27e8905b9c664678711b`.
+Public-demo, meta, base, all six Architecture and all twelve ordinary producers
+also pass. No backend case-union or original-ZIP audit is claimed for this failed
+whole attempt. Terminal job/run metadata are retained.
+
+Native's image-provenance info-command timeout remains prelaunch; the candidate
+is unproved. Successful siblings cannot qualify its missing test population.
+B is not started. PR #40 stays ready for product review, unmerged and explicitly
+unqualified; its mutable proof record owns current hosted state.
+
+The first independent ADR-0091 proposal review approves without findings. Its
+carrier follow-through adds the direct complete-shard owner beside the native
+owner, including inherited operation-cap language. The terminal 25/27 outcome
+and SDK reported duration are added to the Proposed drivers without changing
+selected 60/10 allocations or the retained final twenty/reserve 203/job 1,200.
+The separate second proposal review remains independent. No executable native
+allocation changes, source-result cache, runner or diagnostic project is added.
+
+### ADR-0091 proposal review closeout and approval readiness (2026-11-03)
+
+Both fresh independent proposal rounds approve without findings. R1 also
+confirms the bounded carrier/terminal-evidence refinements; R2 independently
+reads retained terminal metadata and relevant decoded native/frontend evidence.
+They verify closed preflight selection, selected find-cap propagation, scoped
+metadata caps, preserved final ledger/positive provenance and status honesty.
+The observed timeout does not distinguish command cap from parent deadline or
+prove a minimum/underlying defect. SDK's reported 177.02-second pass under its
+unchanged aggregate is explicitly no future-fit claim.
+
+ADR-0091 stays Proposed; native executable allocations remain 20/5 seconds.
+Document guards pass, no native code or timer is changed and no duplicate CI is
+started. The proposal is committed locally on development for maintainer review;
+one later synchronization follows explicit acceptance and implementation checks.
+PR #40 remains ready for product review, unmerged and explicitly unqualified.
+No CI/local heavy workload is active. Failed attempts receive no credit and
+manual accessibility remains deferred/unexecuted.

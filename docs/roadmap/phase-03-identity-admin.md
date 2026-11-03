@@ -14,6 +14,9 @@
 > owns parallel product review and current complete same-source hosted A/B/archive
 > qualification. Its proof record distinguishes local, hosted and manual evidence.
 > SDK aggregate and native scan policy remain unchanged.
+> [Proposed ADR-0091](../decisions/0091-native-inventory-phase-allocations.md)
+> awaits approval for separate native preflight/image-query allocations; final
+> scan, reserve and whole-job settings remain unchanged.
 > Failed/cancelled runs receive no qualification credit.
 > [Manual keyboard/focus/reflow/contrast/VoiceOver evidence](phase-03-delivery-log.md#p03-3-maintainer-approved-manual-deferral-and-step-10-continuation-2026-10-30)
 > remains maintainer-deferred and unexecuted for PR review.
