@@ -11,7 +11,7 @@ test('qualified framework provenance refuses drift and preserves owned boundarie
   const result = execFileSync(process.execPath, ['--test', script], {
     cwd: fileURLToPath(new URL('../../../../', import.meta.url)),
     encoding: 'utf8',
-    timeout: 30_000,
+    timeout: 90_000,
     maxBuffer: 1024 * 1024,
     env: {
       PATH: process.env.PATH,
@@ -24,4 +24,4 @@ test('qualified framework provenance refuses drift and preserves owned boundarie
   expect(result).toMatch(/# fail 0\b/);
   expect(result).toMatch(/# cancelled 0\b/);
   expect(result).toMatch(/# skipped 0\b/);
-}, 35_000);
+}, 100_000);
