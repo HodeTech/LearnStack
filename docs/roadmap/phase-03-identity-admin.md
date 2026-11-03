@@ -7,17 +7,13 @@
 > Steps 1–9 and Step 10's source corrections. Accepted ADR-0078–0091 govern the
 > native entry, administration, seed, framework ownership and CI changes; the
 > decision register below links their decisions and proof obligations.
-> ADR-0090's settings and the native failure-class diagnostic are implemented;
-> full local verification and both fresh review rounds pass. The
-> [delivery handoff](phase-03-delivery-log.md#p03-3-adr-0090-validation-and-pr-ci-handoff-2026-11-03)
-> records their source. [PR #40](https://github.com/HodeTech/LearnStack/pull/40)
-> owns parallel product review and current complete same-source hosted A/B/archive
-> qualification. Its proof record distinguishes local, hosted and manual evidence.
-> The SDK aggregate remains unchanged.
-> [ADR-0091 acceptance](phase-03-delivery-log.md#adr-0091-maintainer-review-and-acceptance-2026-11-03)
-> authorizes separate native preflight/image-query allocations; implementation
-> and complete hosted qualification remain separate. Final total/reserve/job
-> stay unchanged; metadata sublimits change in both phases.
+> ADR-0091's native inventory implementation and both fresh review rounds are
+> complete; the full 106-control local launcher suite passes. The
+> [delivery handoff](phase-03-delivery-log.md#p03-3-adr-0091-validation-and-pr-ci-handoff-2026-11-03)
+> records the exact source and corrected review finding.
+> [PR #40](https://github.com/HodeTech/LearnStack/pull/40) owns parallel product
+> review and current complete same-source hosted A/B/archive qualification.
+> Its proof record distinguishes local, hosted and manual evidence.
 > Failed/cancelled runs receive no qualification credit.
 > [Manual keyboard/focus/reflow/contrast/VoiceOver evidence](phase-03-delivery-log.md#p03-3-maintainer-approved-manual-deferral-and-step-10-continuation-2026-10-30)
 > remains maintainer-deferred and unexecuted for PR review.

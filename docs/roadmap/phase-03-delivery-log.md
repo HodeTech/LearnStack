@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,392 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,427 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -333,6 +333,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0091 proposal review closeout and approval readiness (2026-11-03)](#adr-0091-proposal-review-closeout-and-approval-readiness-2026-11-03) — 19 lines
   - [ADR-0091 maintainer review and acceptance (2026-11-03)](#adr-0091-maintainer-review-and-acceptance-2026-11-03) — 28 lines
   - [ADR-0091 implementation first review and Status correction (2026-11-03)](#adr-0091-implementation-first-review-and-status-correction-2026-11-03) — 20 lines
+  - [P03-3 ADR-0091 validation and PR CI handoff (2026-11-03)](#p03-3-adr-0091-validation-and-pr-ci-handoff-2026-11-03) — 35 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -15268,3 +15269,38 @@ to the retained SDK aggregate. No executable change or repeated suite is needed.
 A fresh independent second review follows this correction; complete final-source
 PR A/B/archive qualification remains open, with no merge or manual-accessibility
 credit inferred.
+
+### P03-3 ADR-0091 validation and PR CI handoff (2026-11-03)
+
+Acceptance `1d6bc1da` incorporates the maintainer's clarifications before code.
+Implementation `dc1b11d1`, tree `6179917d4e973fc5dd9c18ba5c55b2ebf194b430`,
+adds exact preflight/final selection, propagates phase to both finds and applies
+ten seconds at all six image-metadata sites in both phases. Other commands and
+the format probe retain five; final total twenty, tail 143, reserve 203 and
+native whole-job 1,200 remain. Positive provenance/full rescan/readback and
+failure/privacy/ownership requirements are unchanged.
+
+Four focused controls pass in 4.596 seconds. Full committed-source copied-owner
+validation passes 106/106 in 26.607 seconds with unchanged HEAD/source hashes.
+Controlled clocks exercise both complete metadata paths under phase and earlier
+outer deadlines, including final commands clipped below ten. Actual copied
+execute calls prove prelaunch versus cleanup selection, both find caps, all
+repeated metadata caps and failure before unit launch. Invalid selector shapes
+and exact production call census are checked; existing artifact/drift/private
+counterfactuals remain. This is no hosted VM ownership or fit claim.
+
+R1 finds no executable issue and one verified Minor stale Phase Status sentence;
+`74bd0f9f` corrects it. A fresh independent R2 approves the corrected range
+without findings and confirms tested execution bytes unchanged. Unchanged
+application/frontend suites are not redundantly rerun locally. Their current
+hosted predecessor passed, but that failed whole source earns no qualification
+credit for the final source.
+
+This observational handoff precedes one development push to the existing ready
+PR #40. Bind its normal complete A then whole-run B and existing original-archive
+reconciliation to the final head, actual merge source/tree and exact base.
+Retain A before rerunning all jobs; no partial/native-only rerun or parallel
+manual workflow qualifies. Keep source frozen during valid A/B. Current hosted
+outcomes remain in the mutable PR proof record rather than moving the qualified
+source with later status commits. No merge; manual accessibility stays deferred
+and unexecuted.
