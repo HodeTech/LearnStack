@@ -183,6 +183,18 @@ loader exemption or additional timeout is introduced. The Decision and selected
 values are unchanged. The acceptance/implementation delivery records own checks
 and complete qualification; this amendment supplies no hosted evidence.
 
+### Amendment 2 — Provenance timer successor (2026-11-03)
+
+[ADR-0089](0089-provenance-control-timer-settings.md) narrowly supersedes this
+record's retained unlisted settings only for the existing provenance wrapper:
+a ninety-second Node termination-signal threshold and one-hundred-second
+Vitest failure setting. This record's four selected settings and historical
+Decision remain unchanged. Both pnpm discovery probes retain fifteen-second
+signal settings. Neither synchronous setting guarantees return, preemption or
+physical cleanup. The Phase 03 Status block owns implementation and complete
+same-source qualification; an explicitly authorized draft PR supplies no
+qualification or merge approval.
+
 ## References
 
 - [ADR-0087](0087-native-frontend-proof-windows.md),

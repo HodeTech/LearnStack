@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,047 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,073 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -321,6 +321,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 provenance wrapper timeout and ADR-0089 proposal (2026-11-03)](#p03-3-provenance-wrapper-timeout-and-adr-0089-proposal-2026-11-03) — 35 lines
   - [ADR-0089 first proposal review and parallel-review clarification (2026-11-03)](#adr-0089-first-proposal-review-and-parallel-review-clarification-2026-11-03) — 12 lines
   - [ADR-0089 proposal review closeout and approval readiness (2026-11-03)](#adr-0089-proposal-review-closeout-and-approval-readiness-2026-11-03) — 16 lines
+  - [ADR-0089 maintainer review, acceptance and parallel PR plan (2026-11-03)](#adr-0089-maintainer-review-acceptance-and-parallel-pr-plan-2026-11-03) — 26 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -14911,3 +14912,29 @@ The prepared draft PR states the known failing wrapper and unqualified status;
 publication before full qualification still requires the maintainer's express
 authorization. New timer settings also require acceptance. Manual accessibility
 remains deferred/unexecuted; no failed predecessor run receives passing credit.
+
+### ADR-0089 maintainer review, acceptance and parallel PR plan (2026-11-03)
+
+The maintainer accepts ADR-0089 after considering both supplied reviews and
+explicitly authorizes a draft PR for parallel product review and CI. Clarifications
+label the two unrelated populations: 112 discovered web test files and 112
+provenance `node:test` cases. The wrapper checks five complete TAP summary lines,
+not 112 independent wrapper assertions. Both sequential pnpm probes explicitly
+retain fifteen-second signal settings. The preceding attempt/correction is
+linked; no hosted cause or minimum is inferred.
+
+Acceptance adds ADR-0088's dated successor disclosure, the decision index and
+Testing 06's derivation/table entries for 90/100 seconds and unchanged 15-second
+probes. The existing catalogue rule and Phase 03 Status remain the proof owners.
+The suggested literal-pin test is unnecessary for a two-literal settings change:
+the existing real 112-case wrapper and full guard remain decisive, and source
+review will verify exact selected values without adding a mirrored test.
+
+The execution order is acceptance/carriers, the two selected literals, existing
+checks and the committed-source full guard, then both fresh implementation
+review rounds and a draft PR against main. Its normal full PR workflow supplies
+A then whole-run B on one final head/merge-source/tree/base binding, reconciled
+by the existing original-archive validator. Do not start a duplicate manual
+qualification workflow. The draft must state pending qualification; publication
+is neither completion nor merge approval. The maintainer owns merge. Manual
+keyboard/focus/reflow/contrast/VoiceOver remains deferred and unexecuted.

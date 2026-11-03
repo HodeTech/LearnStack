@@ -704,7 +704,8 @@ controls prove refusal.
 
 ### Frontend guarded execution
 
-**Derives from:** [ADR-0088](../decisions/0088-frontend-ci-completion-windows.md),
+**Derives from:** [ADR-0089](../decisions/0089-provenance-control-timer-settings.md),
+[ADR-0088](../decisions/0088-frontend-ci-completion-windows.md),
 [ADR-0087](../decisions/0087-native-frontend-proof-windows.md),
 [ADR-0086 evidence erratum](../decisions/0086-native-web-test-package-window.md#amendment-1--frontend-evidence-scope-correction-2026-11-03).
 
@@ -725,6 +726,9 @@ separate narrower checks. Backend case-ID discovery/reconciliation is unchanged.
 | Per-runtime event observation schema | inclusive 0–120,000 ms from that process's start |
 | Closed 31-control router Node subprocess signal threshold | 20 s; five siblings retain 10 s |
 | Its combined synchronous Vitest failure threshold | 90 s |
+| Provenance 112-case Node subprocess signal threshold | 90 s |
+| Its synchronous Vitest failure threshold | 100 s |
+| Two sequential pnpm discovery probe signal thresholds | 15 s each |
 | Frontend CI job cancellation allowance | 25 min |
 
 `execFileSync`/`spawnSync` timeout settings request a signal and may keep waiting

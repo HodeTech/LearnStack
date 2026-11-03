@@ -2,30 +2,31 @@
 
 ## Status
 
-Proposed
+Accepted
 
 **Date:** 2026-11-03
-**Deciders:** @cemil (approval pending)
-**Bounded supersession on acceptance:** only ADR-0088's retained unlisted
+**Deciders:** @cemil
+**Bounded supersession:** only ADR-0088's retained unlisted
 settings as applied to the provenance wrapper's 30-second signal setting and
 35-second Vitest setting. ADR-0088's four selected settings remain unchanged.
 Earlier records retain their existing successor links through ADR-0088; this
-record changes no other inherited clause. No executable setting changes before
-maintainer approval.
+record changes no other inherited clause. Accepted after maintainer review on
+2026-11-03; implementation and complete hosted qualification remain separate.
 
 ## Decision Drivers
 
-- Hosted A `41638792928` on `c944b453` again reports only the provenance
-  wrapper's thirty-second timeout. All 112 web files finish: 111 pass and one
-  fails, with 3,420 passed cases and one failure in 681.27 seconds. The
+- Hosted A `41638792928` on `c944b453`, after the preceding
+  [ADR-0088 attempt and fixture correction](../roadmap/phase-03-delivery-log.md#p03-3-provenance-publication-review-closeout-and-ci-handoff-2026-11-03),
+  again reports only the provenance wrapper's thirty-second timeout. All 112
+  discovered web test files finish: 111 pass and one fails, with 3,420 passed cases and one failure in 681.27 seconds. The
   900-second package does not expire. Public-demo succeeds; the cancelled
   whole run does not qualify.
 - The independently reproduced JSON marker race is fixed and tested before
   this attempt. The subsequent timeout remains unattributed; neither log
   exposes the inner command's progress. Another speculative correctness fix
   or source-result cache has no evidence basis.
-- The wrapper encloses setup and 112 serial controls. Setup qualifies/copies
-  59 installed subjects; real gates retain fresh verification. Qualified pnpm
+- The wrapper encloses setup and 112 serial provenance `node:test` cases.
+  Setup qualifies/copies 59 installed subjects; real gates retain fresh verification. Qualified pnpm
   discovery also performs two sequential external probes with fifteen-second
   signal settings. These components provide no complete-suite timing bound.
 - The same current executable source passes the complete local guard; its
@@ -34,7 +35,7 @@ maintainer approval.
 
 ## Considered Options
 
-1. **One paired provenance timer update** (chosen proposal).
+1. **One paired provenance timer update** (chosen).
    Add finite signal/failure allowance inside the existing package/job owners.
 2. **Keep 30/35 and continue diagnosis** (viable, not selected).
    Preserve the fixture correction. More targeted evidence may reveal a cause,
@@ -46,7 +47,7 @@ maintainer approval.
 
 ## Decision
 
-LearnStack selects only these settings on acceptance, as maintainer-judged
+LearnStack selects only these settings, as maintainer-judged
 headroom rather than measured minima or a claimed repair of the hosted cause.
 
 | Provenance wrapper setting | Current | Selected |
@@ -55,8 +56,11 @@ headroom rather than measured minima or a claimed repair of the hosted cause.
 | Its Vitest failure setting | 35 s | 100 s |
 
 Both live in `frontend/apps/web/src/test/framework-provenance.test.ts`. The
-command, environment, working directory, buffer allowance and all 112 TAP
-completion/refusal assertions remain. No other timer is globally replaced.
+command, environment, working directory and buffer allowance remain. The
+wrapper retains its complete TAP summary assertions: `# tests 112`,
+`# pass 112`, `# fail 0`, `# cancelled 0` and `# skipped 0`. These cover the
+112 provenance `node:test` cases, separately from the 112 discovered web test
+files and their Vitest cases. No other timer is globally replaced.
 
 The Node setting requests termination and can keep waiting for child exit;
 Vitest cannot preempt the synchronous callback. The ten-second numeric gap is
@@ -68,8 +72,9 @@ inner watchdog or stronger physical-cleanup promise is selected.
 ADR-0088's web 900 seconds, closed 31-control Node 20 seconds, combined router
 case 90 seconds and frontend job 25 minutes remain. SDK 180 seconds, five
 router Node siblings ten seconds, two workers, matrix/group/event/runtime
-settings, backend/demo jobs and all cleanup reserves remain unchanged. The
-unrelated combined router case is not this provenance wrapper.
+settings, backend/demo jobs and all cleanup reserves remain unchanged. Both
+sequential pnpm discovery probes retain their fifteen-second signal settings.
+The unrelated combined router case is not this provenance wrapper.
 
 ## Context
 
@@ -132,7 +137,8 @@ receive no credit.
 
 ## Architecture Tests
 
-Use existing controls: the provenance wrapper still requires exactly 112 tests
+Use existing controls: the provenance wrapper still requires exactly 112
+provenance `node:test` cases
 and passes with zero failures, cancellation or skips; the generic guard requires
 all discovered web/SDK files and all reported cases passed, with zero skips/todos.
 The two selected source settings and all unlisted settings remain reviewable
