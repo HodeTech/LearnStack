@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,436 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,461 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -297,6 +297,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 fresh verified fixture copies and byte-equivalent patch hashing (2026-11-03)](#p03-3-fresh-verified-fixture-copies-and-byte-equivalent-patch-hashing-2026-11-03) — 66 lines
   - [P03-3 matrix preparation correction R1 and MVP delivery focus (2026-11-03)](#p03-3-matrix-preparation-correction-r1-and-mvp-delivery-focus-2026-11-03) — 26 lines
   - [P03-3 matrix preparation correction R2 and final CI handoff (2026-11-03)](#p03-3-matrix-preparation-correction-r2-and-final-ci-handoff-2026-11-03) — 18 lines
+  - [P03-3 hosted frontend timeout and bounded file concurrency (2026-11-03)](#p03-3-hosted-frontend-timeout-and-bounded-file-concurrency-2026-11-03) — 25 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -14276,3 +14277,28 @@ its original receipts. No separate private Linux runner, benchmark or optional
 investigation is added. Failed historical evidence remains failed; there is no
 hosted pass or PR-readiness claim yet. Manual accessibility stays deferred and
 unexecuted. A verified delivery-blocking failure reopens only its necessary scope.
+
+### P03-3 hosted frontend timeout and bounded file concurrency (2026-11-03)
+
+The complete A dispatch on `fcbfa35d`, run `41579933958`, fails its frontend Vitest
+step. Five finite failure records precede the later 180-second package guard:
+workers reaches its development readiness deadline; startup and recovery reach
+unobserved HTTP-root completion; a router control reaches its ten-second bound;
+and response cleanup reports another failure. These observations establish no
+complete web/SDK union and do not prove a single underlying cause. The remaining
+run is cancelled after the verified failure to avoid consuming an already
+unqualifiable full run. The original job log, finite records and cancellation
+metadata are retained; the failed/cancelled A receives no qualification credit.
+
+The narrow correction lowers the existing Vitest file-worker cap from four to
+three to reduce competing heavyweight fixture work. This is a scheduling change,
+not a confirmed cause or fit result. It preserves every test, the four priority
+specifications, their internal concurrency witnesses and all original operation,
+case, package and job clocks. No permission, runtime topology or Accepted policy
+changes. Targeted runner/discovery and sequencer controls pass 33/33 in two files
+with zero skips/todos. Full qualification is delegated to the existing hosted CI
+chain; no new private benchmark or diagnostic runner is introduced.
+
+The small committed correction receives the existing two fresh review rounds,
+then a new complete source-bound A/B. Only actual blocking findings justify more
+work. Manual accessibility remains deferred and unexecuted.
