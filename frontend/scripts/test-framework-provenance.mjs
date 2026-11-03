@@ -172,7 +172,7 @@ function removeRuntimeEntries() {
     unlinkSync(join(appRoot, 'scripts', name));
 }
 function inertRuntimeSource(marker, imported = '') {
-  return `import {writeFileSync} from 'node:fs'; import {createServer} from 'node:http';
+  return `import {writeFileSync,renameSync} from 'node:fs'; import {createServer} from 'node:http';
 ${imported || "const value = 'admitted';"}
 export async function startPublicRuntime(control) {
   let server; let listening; let stopped;
@@ -191,7 +191,9 @@ export async function startPublicRuntime(control) {
     server.listen(0,'127.0.0.1',() => {
       if (!control.stopRequested()) {
         if (!control.listenerReady(server)) return reject(new Error('Inert listener refused'));
-        writeFileSync(${JSON.stringify(marker)}, JSON.stringify({pid:process.pid,parentPid:process.ppid,port:server.address().port,value}));
+        const pending = ${JSON.stringify(marker + '.pending')};
+        writeFileSync(pending, JSON.stringify({pid:process.pid,parentPid:process.ppid,port:server.address().port,value}), {flag:'wx',mode:0o600});
+        renameSync(pending, ${JSON.stringify(marker)});
       }
       resolve();
     });
@@ -199,6 +201,27 @@ export async function startPublicRuntime(control) {
   await listening;
 }
 `;
+}
+// Force the real marker writer to expose its empty staging file. Publishing the
+// final path at that point must fail, even if the parent never wins the race.
+function markerPublicationControlSource(marker) {
+  return `import fs from 'node:fs'; import assert from 'node:assert/strict';
+import {syncBuiltinESMExports} from 'node:module';
+const value = 'admitted';
+const marker = ${JSON.stringify(marker)};
+const originalWrite = fs.writeFileSync;
+fs.writeFileSync = (path,data,options) => {
+  if (path !== marker && path !== marker + '.pending') return originalWrite(path,data,options);
+  try {
+    originalWrite(path,'',options);
+    assert.equal(fs.existsSync(marker),false,'final marker is hidden until complete JSON publication');
+    return originalWrite(path,data);
+  } finally {
+    fs.writeFileSync = originalWrite;
+    syncBuiltinESMExports();
+  }
+};
+syncBuiltinESMExports();`;
 }
 function ownerEnvironment(extra = {}) {
   return { PATH: process.env.PATH, NODE_ENV: 'production', NEXT_TELEMETRY_DISABLED: '1', ...extra };
@@ -1977,7 +2000,10 @@ try {
         : undefined;
       const marker = join(root, `private-runtime-${mode}`);
       copyRuntimeEntries();
-      put(join(appRoot, 'scripts/public-server-runtime.mjs'), inertRuntimeSource(marker));
+      put(
+        join(appRoot, 'scripts/public-server-runtime.mjs'),
+        inertRuntimeSource(marker, markerPublicationControlSource(marker)),
+      );
       buildControlManifest();
       buildControlDevelopmentManifest();
       const lease = acquireFrameworkLease({ appRoot, frontendRoot, kind: mode });

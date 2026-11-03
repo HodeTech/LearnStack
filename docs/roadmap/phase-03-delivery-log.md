@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,919 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,956 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -316,6 +316,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0088 maintainer corrections and acceptance (2026-11-03)](#adr-0088-maintainer-corrections-and-acceptance-2026-11-03) — 24 lines
   - [ADR-0088 existing stdio control binding correction (2026-11-03)](#adr-0088-existing-stdio-control-binding-correction-2026-11-03) — 11 lines
   - [ADR-0088 implementation review closeout and final-source CI handoff (2026-11-03)](#adr-0088-implementation-review-closeout-and-final-source-ci-handoff-2026-11-03) — 33 lines
+  - [P03-3 provenance marker publication correction (2026-11-03)](#p03-3-provenance-marker-publication-correction-2026-11-03) — 37 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -14778,3 +14779,40 @@ receipts, case reconciliation and OpenAPI base binding own qualification; failed
 historical runs are not reused. No new benchmark, runner, cache or diagnostic
 project is selected. Manual accessibility remains deferred and unexecuted for
 PR review. Only verified delivery blockers justify further source changes.
+
+### P03-3 provenance marker publication correction (2026-11-03)
+
+Complete hosted A `41632997308`, attempt 1, source `43da50f5`, tree
+`2ba70806ab9afcc99f3e87f7d10da7ce7b26eefd`, completes all 112 web file markers:
+111 passed and one failed; 3,420 cases pass and one fails in 655.46 seconds.
+The 900-second package guard does not expire. The sole failed wrapper is
+`framework-provenance.test.ts`: its existing thirty-second inner command
+expires without recoverable child progress. The required failure prevents
+qualification; the remaining run is cancelled. Terminal metadata counts
+27 jobs: six success, three failure and eighteen cancelled. The original
+frontend log is 132,061 bytes, SHA-256
+`7af8991ca4b11684580a80d0b3bd1bb5ee9d1a6ed10d2bffd04fb06c6f0c0fa8`.
+No whole-run success or prior timeout cause is inferred from partial output.
+
+One unchanged targeted reproduction finishes in 25.302 seconds with 108 passed
+and control 109 failed: development private-runtime observation parses an empty
+marker. The retained file later contains complete valid JSON. Source tracing
+confirms the fixture sends readiness then writes directly to the final path;
+existence can therefore become visible before JSON bytes are complete. This
+is a reproduced publication race, not proof of the earlier hosted timeout cause.
+
+The inert runtime fixture now writes an exclusive private sibling and atomically
+renames complete JSON to the final marker. Both private-runtime and owner readers
+receive complete publication. Existing production/development controls force
+an empty staging write and assert the final marker stays absent until complete;
+the test-only filesystem hook restores the original binding in finally. This
+changes no product authority, verifier freshness checks, owner identities,
+physical retirement evidence, installed bytes, clocks or control population.
+
+The corrected existing inner command passes all 112 controls in 21.545 seconds
+under the unchanged thirty-second setting. Typecheck and lint pass. The wrapper
+stays at thirty seconds and Vitest at thirty-five; ADR-0088's selected settings
+and all other runtime/CI policy remain intact. The next committed-source full
+guard, both fresh review rounds and new same-source hosted A/B/archive proof
+remain required. No new budget decision, cache or blind unchanged-source rerun
+is selected. Manual accessibility remains deferred and unexecuted.
