@@ -146,6 +146,21 @@ literals. Existing source, metadata, identity, refusal and actual-family tests
 remain decisive. Signal invocation, a partial TAP stream and CLI exit alone
 cannot qualify missing outcomes or physical cleanup.
 
+## Amendments
+
+### Amendment 1 — SDK cold-prefix settings successor (2026-11-03)
+
+[ADR-0090](0090-sdk-cold-prefix-proof-settings.md) narrowly supersedes this
+record's retained unlisted SDK cold-prefix pair: its shared stop request is
+ninety seconds and both existing cases' Vitest setting is one hundred seconds.
+The SDK aggregate remains 180 seconds and reserves no inner maxima. This
+record's provenance 90/100 settings and historical Decision remain unchanged.
+The uncached control still requires `accepted`; the cache-enabled counterfactual
+requires `output_unowned`. Actual ownership/cleanup assertions and complete
+final-source A/B/archive qualification remain required. The Phase 03 Status
+and PR proof record own implementation and qualification; acceptance supplies
+neither a causal repair claim nor merge permission.
+
 ## References
 
 - [ADR-0088](0088-frontend-ci-completion-windows.md).

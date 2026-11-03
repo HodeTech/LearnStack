@@ -132,13 +132,13 @@ records hosted qualification. Phase 11 owns production qualification.
 | 0087 | [Native Frontend Proof Windows](0087-native-frontend-proof-windows.md) | Accepted 2026-11-03 after maintainer review corrections: selected 600/180/210/220-second test orchestration windows; runtime-event 120-second observations and all unlisted bounds remain. Evidence is discovered files plus Vitest-reported cases; qualification stays in the [Phase 03 Status](../roadmap/phase-03-identity-admin.md). [ADR-0088 successor](0087-native-frontend-proof-windows.md#amendment-1--frontend-completion-window-successor-2026-11-03). |
 | 0088 | [Frontend CI Completion Windows](0088-frontend-ci-completion-windows.md) | Accepted 2026-11-03 after maintainer review: selected 900/20/90-second timer settings and frontend CI 25 minutes; synchronous signal/failure thresholds grant no hard inner completion or cleanup guarantee. The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns implementation and qualification. |
 | 0089 | [Provenance Control Timer Settings](0089-provenance-control-timer-settings.md) | Accepted 2026-11-03 after maintainer review: only the provenance wrapper’s 90-second Node signal / 100-second Vitest failure settings; its 112 node:test cases and all surrounding settings remain. The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns implementation and qualification. |
+| 0090 | [SDK Cold Prefix Proof Settings](0090-sdk-cold-prefix-proof-settings.md) | Accepted 2026-11-03 after maintainer review: only the cold-prefix shared stop request 90 seconds and both cases’ Vitest setting 100 seconds; SDK aggregate 180 seconds and distinct accepted/output_unowned controls remain. The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns implementation and qualification. |
 
 ## Proposed ADRs
 
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
-| 0090 | [SDK Cold Prefix Proof Settings](0090-sdk-cold-prefix-proof-settings.md) | Only the existing cold typecheck/lint stop request 60→90 seconds and shared Vitest setting 90→100; SDK 180-second aggregate and native scan policy unchanged | P03-3 qualification; explicit approval before settings change |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
 the P02d-2 package on 2026-10-02. Their rows are now in Active ADRs; ADR-0049 remains

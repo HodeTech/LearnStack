@@ -2,15 +2,18 @@
 
 ## Status
 
-Proposed
+Accepted
 
 **Date:** 2026-11-03
-**Deciders:** @cemil (approval pending)
-**Bounded supersession on acceptance:** ADR-0089's retained unlisted settings
+**Deciders:** @cemil
+**Bounded supersession:** ADR-0089's retained unlisted settings
 only for the SDK cold typecheck/lint prefix's sixty-second stop request and
 its two ninety-second Vitest cases. The SDK aggregate remains 180 seconds;
 ADR-0089's provenance settings and all other inherited settings remain.
-No executable timer changes before maintainer approval.
+ADR-0088 retained this pair; its successor ADR-0089 preserved it while changing
+only provenance. This record narrows that retained SDK pair without changing
+either predecessor's historical Decision. Accepted after maintainer review on
+2026-11-03; implementation and hosted qualification remain separate.
 
 ## Decision Drivers
 
@@ -33,7 +36,7 @@ No executable timer changes before maintainer approval.
 
 ## Considered Options
 
-1. **One paired cold-prefix allowance** (chosen proposal).
+1. **One paired cold-prefix allowance** (chosen).
    Keep the real commands, private source, positive/cache counterfactual and
    all source/ownership/output assertions with more orchestration allowance.
 2. **Keep the current settings and continue diagnosis** (viable, not selected).
@@ -47,13 +50,18 @@ No executable timer changes before maintainer approval.
 
 ## Decision
 
-On acceptance, LearnStack changes only these two settings as maintainer-judged
+LearnStack changes only these two settings as maintainer-judged
 headroom, not measured minima or a claimed root-cause repair.
 
 | Owner | Current | Selected |
 |---|---:|---:|
 | `checkColdLintOutput` shared typecheck/lint stop-request timer | 60 s | 90 s |
 | Both existing `cold-lint-output.test.ts` Vitest cases | 90 s | 100 s |
+
+SDK retains its 180-second aggregate. Two controls can together approach that
+window before setup, joins and other work; 180 seconds reserves none of their
+individual maxima. This choice therefore supplies no complete-package fit
+claim.
 
 The first literal lives in
 `frontend/packages/sdk/scripts/test-cold-lint-output.mjs`; the second is the
@@ -68,10 +76,7 @@ private root. Existing actual-family observation and uncertain-ownership
 retention remain. Vitest's failure setting grants no physical cleanup credit;
 the ten-second numeric gap is not a reserved join/cleanup interval.
 
-SDK retains its 180-second aggregate. Two controls can together approach that
-window before setup, joins and other work; 180 seconds reserves none of their
-individual maxima. This choice therefore supplies no complete-package fit
-claim. Web remains 900 seconds, frontend CI twenty-five minutes, provenance
+Web remains 900 seconds, frontend CI twenty-five minutes, provenance
 90/100 seconds, both pnpm probes fifteen seconds, two web file workers and all
 matrix/router/event/product settings remain. Native scan twenty seconds,
 base/native twenty-minute jobs, backend reserve 203 seconds and public-demo
@@ -117,7 +122,12 @@ is authorized by this record.
    successor disclosure, preserving its body. Reconcile the existing
    [Testing 06 table](../standards/06-testing.md#frontend-guarded-execution),
    [catalogue rule](../standards/21-architecture-tests-catalogue.md#no_architecture_test_is_skippable)
-   and Phase 03 pointers. Earlier successors navigate through ADR-0089.
+   and Phase 03 pointers. Add canonical rows
+   `SDK cold typecheck/lint stop-request timer | 90 s` and
+   `Its asynchronous Vitest failure threshold | 100 s`. Link the direct
+   [cold-prefix behaviour owner](../standards/21-architecture-tests-catalogue.md#next_response_cleanup_is_installed_and_owned)
+   alongside the general reporting rule. Earlier successors navigate through
+   ADR-0089.
 2. Change only the two selected literals. Keep actual commands, strict capture,
    source/extra-input hashes, no-cache positive/cached refusal, output/lease
    assertions, physical family joins and uncertain-root retention unchanged.
@@ -130,8 +140,10 @@ is authorized by this record.
 ## Architecture Tests
 
 Use the two existing real cold-prefix controls, including the enabled-cache
-counterfactual. Each still requires commands succeeded, expected cache and build
-refusal, unchanged sources, actual families/leases retired and root disposed.
+counterfactual. Both require commands succeeded, expected cache, unchanged
+sources, actual families/leases retired and root disposed. The uncached positive
+control requires guard `accepted`; the cache-enabled counterfactual requires
+`output_unowned` refusal. These are distinct proof obligations.
 A timer or CLI exit alone supplies none of these assertions. The generic guard
 still requires all discovered SDK/web files and all reported cases Passed with
 zero skips/todos. Add no mirrored literal-only test or new architecture rule.
@@ -141,4 +153,6 @@ zero skips/todos. Add no mirrored literal-only test or new architecture rule.
 - [ADR-0089](0089-provenance-control-timer-settings.md).
 - [Frontend process families](0084-owned-frontend-runtime-process-families.md).
 - [Testing 06](../standards/06-testing.md#frontend-guarded-execution).
+- [Catalogue reporting rule](../standards/21-architecture-tests-catalogue.md#no_architecture_test_is_skippable)
+  and [direct cold-prefix owner](../standards/21-architecture-tests-catalogue.md#next_response_cleanup_is_installed_and_owned).
 - [Phase 03](../roadmap/phase-03-identity-admin.md).

@@ -959,7 +959,7 @@ otherwise).
   `frontend-runner.test.ts` prove skip/todo, missing-script/report and omission
   refusals; CLI success alone cannot close the rule. Frontend completeness is
   equality of discovered/reported files and consistency/pass of reported cases;
-  there is no generic independent expected-scenario-ID census. ADR-0088/0089's
+  there is no generic independent expected-scenario-ID census. ADR-0088–0090's
   selected test settings follow [Testing 06](06-testing.md#frontend-guarded-execution).
   Controlled timers prove stop invocation/refusal, not retirement of every
   independently detached family. Acceptance alone establishes no executable or

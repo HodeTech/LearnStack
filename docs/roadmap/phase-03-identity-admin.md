@@ -4,7 +4,7 @@
 > P03-1 ([PR #38](https://github.com/HodeTech/LearnStack/pull/38)) and
 > P03-2 ([PR #39](https://github.com/HodeTech/LearnStack/pull/39)) are merged.
 > P03-3 implementation and both independent review rounds are complete for
-> Steps 1–9 and Step 10's source corrections. Accepted ADR-0078–0089 govern the
+> Steps 1–9 and Step 10's source corrections. Accepted ADR-0078–0090 govern the
 > native entry, administration, seed, framework ownership and CI changes; the
 > decision register below links their decisions and proof obligations.
 > ADR-0089's two settings are implemented and both fresh reviews and the full
@@ -12,8 +12,9 @@
 > records their source. [Draft PR #40](https://github.com/HodeTech/LearnStack/pull/40)
 > owns parallel product review and current complete same-source hosted A/B/archive
 > qualification. Its proof record distinguishes local, hosted and manual evidence.
-> [Proposed ADR-0090](../decisions/0090-sdk-cold-prefix-proof-settings.md) awaits
-> approval for the separately retained SDK cold-prefix pair; native scan policy
+> [ADR-0090 acceptance](phase-03-delivery-log.md#adr-0090-maintainer-review-and-acceptance-2026-11-03)
+> authorizes only the SDK cold-prefix pair; its implementation/local checks and
+> complete final-source hosted qualification remain separate. Native scan policy
 > remains unchanged.
 > Failed/cancelled runs receive no qualification credit.
 > [Manual keyboard/focus/reflow/contrast/VoiceOver evidence](phase-03-delivery-log.md#p03-3-maintainer-approved-manual-deferral-and-step-10-continuation-2026-10-30)

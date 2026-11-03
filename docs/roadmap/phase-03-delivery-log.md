@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,197 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,221 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -326,6 +326,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 PR 40 web pass, SDK cold-prefix failure and ADR-0090 proposal (2026-11-03)](#p03-3-pr-40-web-pass-sdk-cold-prefix-failure-and-adr-0090-proposal-2026-11-03) — 44 lines
   - [PR 40 first A terminal result and SDK proposal review (2026-11-03)](#pr-40-first-a-terminal-result-and-sdk-proposal-review-2026-11-03) — 27 lines
   - [ADR-0090 proposal review closeout and approval readiness (2026-11-03)](#adr-0090-proposal-review-closeout-and-approval-readiness-2026-11-03) — 16 lines
+  - [ADR-0090 maintainer review and acceptance (2026-11-03)](#adr-0090-maintainer-review-and-acceptance-2026-11-03) — 24 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -15066,3 +15067,27 @@ the first A's 24/27 result and incomplete qualification. No CI or local heavy
 workload remains active. One later combined push avoids launching a known
 incomplete duplicate workflow while this SDK decision is pending. Manual
 accessibility stays deferred and unexecuted; failed evidence receives no credit.
+
+### ADR-0090 maintainer review and acceptance (2026-11-03)
+
+The maintainer accepts ADR-0090 after the supplied reviews and authorizes PR/CI
+continuation. The verified wording error is corrected before acceptance: the
+uncached positive requires guard `accepted`; the enabled-cache counterfactual
+requires `output_unowned`. Both preserve actual command/source/output/family/
+lease/root assertions. The direct catalogue owner is linked alongside generic
+report accounting. Exact canonical table rows and the 0088→0089→0090 retained
+SDK-pair chain are explicit. Aggregate non-reservation is stated beside the
+Decision table; no 180-second fit or causal repair is claimed.
+
+Acceptance indexes ADR-0090, adds ADR-0089's dated successor disclosure without
+body rewrite, and reconciles Testing 06, the existing reporting catalogue rule
+and Phase pointers. The review's ignored-build-output observation establishes
+no owned cleanup action, so no generated output or lease is deleted. Executable
+settings change only in the following implementation commit. The separate
+reviewed native classifier changes no scan/time/acceptance policy.
+
+Implement the two SDK literals, run existing full stable-source checks and both
+fresh review rounds, then synchronize the final source once to draft PR #40.
+Use the normal PR workflow for fresh full A then whole-run B and original-archive
+reconciliation. Do not dispatch a duplicate manual workflow or merge. Failed
+predecessors earn no credit; manual accessibility remains deferred/unexecuted.

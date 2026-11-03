@@ -704,7 +704,8 @@ controls prove refusal.
 
 ### Frontend guarded execution
 
-**Derives from:** [ADR-0089](../decisions/0089-provenance-control-timer-settings.md),
+**Derives from:** [ADR-0090](../decisions/0090-sdk-cold-prefix-proof-settings.md),
+[ADR-0089](../decisions/0089-provenance-control-timer-settings.md),
 [ADR-0088](../decisions/0088-frontend-ci-completion-windows.md),
 [ADR-0087](../decisions/0087-native-frontend-proof-windows.md),
 [ADR-0086 evidence erratum](../decisions/0086-native-web-test-package-window.md#amendment-1--frontend-evidence-scope-correction-2026-11-03).
@@ -720,6 +721,8 @@ separate narrower checks. Backend case-ID discovery/reconciliation is unchanged.
 |---|---:|
 | Canonical `apps/web` aggregate, two file workers | 900 s |
 | SDK and other package aggregates | 180 s |
+| SDK cold typecheck/lint stop-request timer | 90 s |
+| Its asynchronous Vitest failure threshold | 100 s |
 | Selected ownership matrix outer and private group timers | 180 s each, distinct starts |
 | `runFrameworkOwnershipGroupCore` subprocess | 210 s |
 | Startup/workers/recovery Vitest cases | 220 s |
@@ -738,6 +741,13 @@ preempt a blocked synchronous callback. Its setting is a failure threshold;
 reserved interval or completion. The separate asynchronous package runner and
 workflow job retain outer expiry/cancellation ownership, without granting
 physical-cleanup credit. No hard inner watchdog is implied.
+
+The SDK cold-prefix stop request begins after private preparation; Vitest counts
+the whole case. Two stop settings total 180 seconds and two case thresholds total
+200 before preparation, joins and other work. The SDK aggregate reserves none
+of these maxima. The uncached guard must accept; the cache-enabled counterfactual
+must refuse `output_unowned`, with the same source/ownership/cleanup assertions
+([direct control owner](21-architecture-tests-catalogue.md#next_response_cleanup_is_installed_and_owned)).
 
 All unlisted settings remain, including other Node controls, initialized-router
 proofs, separate initial/router 120-second drivers, provider startup and runtime
