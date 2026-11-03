@@ -3,8 +3,16 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync, realpathSync, rmSync, mkdtempSync } from 'node:fs';
-import { createServer as createHttpServer, request as httpRequest } from 'node:http';
-import { createServer as createHttpsServer, request as httpsRequest } from 'node:https';
+import {
+  Agent as HttpAgent,
+  createServer as createHttpServer,
+  request as httpRequest,
+} from 'node:http';
+import {
+  Agent as HttpsAgent,
+  createServer as createHttpsServer,
+  request as httpsRequest,
+} from 'node:https';
 import { createRequire, Module } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -209,8 +217,11 @@ async function oneCase({ transport, variant, config, cert, key, fence = false })
   assert.equal(typeof pipeToNodeResponse, 'function');
   const transportApi =
     transport === 'https'
-      ? { createServer: createHttpsServer, request: httpsRequest }
-      : { createServer: createHttpServer, request: httpRequest };
+      ? { Agent: HttpsAgent, createServer: createHttpsServer, request: httpsRequest }
+      : { Agent: HttpAgent, createServer: createHttpServer, request: httpRequest };
+  // A bodyless peer can end before the handler. Healthy comparisons retain its
+  // connection; only explicit peer-close controls may interrupt that work.
+  const agent = config.peerClose ? false : new transportApi.Agent({ keepAlive: true });
   const server = transportApi.createServer(
     transport === 'https' ? { cert, key } : {},
     (request, res) => {
@@ -325,7 +336,7 @@ async function oneCase({ transport, variant, config, cert, key, fence = false })
         port: server.address().port,
         method: fence ? 'GET' : (config.method ?? 'GET'),
         path: '/',
-        agent: false,
+        agent,
         ...(transport === 'https' ? { servername: 'localhost', ca: cert } : {}),
         headers: { 'Accept-Encoding': fence ? 'gzip' : (config.accept ?? 'gzip') },
       },
@@ -377,6 +388,11 @@ async function oneCase({ transport, variant, config, cert, key, fence = false })
       () => row.events.some((item) => item.kind === 'response-close'),
       'actual response close',
     );
+    if (!config.peerClose) {
+      const finishAt = row.events.findIndex((item) => item.kind === 'response-finish');
+      const closeAt = row.events.findIndex((item) => item.kind === 'response-close');
+      assert.ok(finishAt >= 0 && closeAt > finishAt, 'healthy peer stays through response finish');
+    }
     if (variant === 'original' && config.peerClose) {
       await delay(30);
       assert.equal(handlerState, 'pending', 'stock held pipe remains dirty');
@@ -469,6 +485,7 @@ async function oneCase({ transport, variant, config, cert, key, fence = false })
   } finally {
     // Diagnostic disposal is never a positive resource/handler assertion.
     end.resolve();
+    if (agent) agent.destroy();
     peer?.destroy();
     client?.destroy();
     response?.destroy();
