@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,427 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,519 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -334,6 +334,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0091 maintainer review and acceptance (2026-11-03)](#adr-0091-maintainer-review-and-acceptance-2026-11-03) — 28 lines
   - [ADR-0091 implementation first review and Status correction (2026-11-03)](#adr-0091-implementation-first-review-and-status-correction-2026-11-03) — 20 lines
   - [P03-3 ADR-0091 validation and PR CI handoff (2026-11-03)](#p03-3-adr-0091-validation-and-pr-ci-handoff-2026-11-03) — 35 lines
+  - [P03-3 ADR-0091 hosted outcomes and SDK completion proposal (2026-11-04)](#p03-3-adr-0091-hosted-outcomes-and-sdk-completion-proposal-2026-11-04) — 71 lines
+  - [ADR-0092 proposal review closeout and approval readiness (2026-11-04)](#adr-0092-proposal-review-closeout-and-approval-readiness-2026-11-04) — 21 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -15304,3 +15306,95 @@ manual workflow qualifies. Keep source frozen during valid A/B. Current hosted
 outcomes remain in the mutable PR proof record rather than moving the qualified
 source with later status commits. No merge; manual accessibility stays deferred
 and unexecuted.
+
+### P03-3 ADR-0091 hosted outcomes and SDK completion proposal (2026-11-04)
+
+The maintainer-approved ADR-0091 implementation is delivered on development head
+`ac8f4aae33d58d6c0598e0e23d8b0ebe553aa06d`. PR run `41709127582` uses actual
+merge source `32f7e7e0bb63605ac65fbccb5fe2eaaf4e8f601e`, shared source tree
+`f7321b399ffb19b25167b5fefa4287bf4ebdcfb7` and base
+`e55aa5d7bfcba4ccc2357fa0c2276025e14f8d55`. No executable or policy change is
+made between the three complete all-job attempts. PR #40 stays ready for
+parallel product review, unmerged and explicitly unqualified.
+
+Attempts 1 and 2 each finish 24/27. First-attempt native and public-demo pass;
+web completes 112 files and 3,421 cases. SDK reports one closed generic cold-lint
+failure at 93,308 ms, then its package guard expires at 180 seconds. A separate
+ordinary-7 entry-pagination case fails, and its aggregate fails. Attempt 2 passes
+the entire frontend job and all 3,575 reported cases, zero skips/todos: web
+3,421/112 files, SDK 154/nine files; SDK's reported Vitest interval is 145.05
+seconds. Native, public-demo and ordinary-7 also pass. Instead, ordinary-5 refuses
+before launch with `vm_evidence_missing_shape`; ordinary-11 fails at public
+admission `browser 429 / browser-discovery`, and their required aggregate fails.
+The VM output and browser root cause are not established. Neither refusal is
+reclassified or relaxed; passing other jobs supplies no qualification credit.
+
+One further full hosted allocation on the same source passes those two sections.
+Its frontend nevertheless repeats the SDK cold-lint failure at 93,343 ms and
+the 180-second package expiry after all 112 web files / 3,421 cases pass.
+The reported web interval is 682.67 seconds. The remaining job outcomes are
+still pending when this proposal is prepared; this is not a complete A pass.
+The same generic family failure and durations are consistent with, but do not
+independently prove, the ninety-second stop request, command stage or cause.
+No actual completion maximum or sufficient new setting follows from them.
+
+Root retains bounded decoded logs and the two failed-section original ZIPs for
+diagnosis, including API size/SHA-256/CRC checks. This is not the canonical full
+successful-attempt archive audit, and it grants no qualification credit. No
+duplicate archive-audit project is started. Exact unchanged local controls pass:
+entry pagination 1/1 in 75.499 seconds, public admission 1/1 in 55.666 seconds,
+and SDK 154/154 in 77.94 seconds. Local success does not close hosted failures.
+All three native jobs and the public-demo jobs pass. ADR-0091's 106 local
+controls/two implementation reviews remain separate from whole-run proof.
+
+[ADR-0092](../decisions/0092-sdk-completion-and-frontend-job-windows.md) proposes
+one coordinated four-setting choice: canonical SDK aggregate 180→360 seconds,
+its shared sequential cold-prefix stop request 90→150, both cases' asynchronous
+Vitest threshold 100→160, and frontend job 25→30 minutes. Web 900, other packages
+180, actual commands/counterfactuals, concurrency, every ownership/privacy
+assertion and all other application/backend/demo policy remain. These are judged
+allowances, not measured minima, physical cleanup credit or a causal repair.
+No runtime setting is changed while this proposal is awaiting approval.
+
+The existing Step 10 continuation has three bounded stages:
+
+1. **Acceptance/carriers.** After explicit approval, disclose the bounded
+   successor in ADR-0088/0090/0091 without rewriting their bodies or reserving
+   amendment numbers. Reconcile Testing 06's SDK/other rows, pair, frontend job
+   and budget arithmetic; both Catalogue 21 reporting/cold-prefix owners;
+   CONTRIBUTING and run-tests-locally pointers; index and Phase 03 Status. Add
+   no architecture rule or status promotion.
+2. **Implementation/proof.** Select canonical SDK 360 in the existing runner,
+   preserve web 900/other 180 and all discovery/symlink refusal. Update only the
+   selected helper/case/workflow values and the two existing behavioral test
+   carriers, including public-demo-ci's exact frontend-job expectation. Run
+   relevant controls, the complete committed stable-source frontend guard and
+   two fresh independent implementation reviews. No blanket literal replacement,
+   skipped case, source-result reuse, new cache/runner or proof shortcut.
+3. **Existing PR qualification.** Synchronize once after approval/implementation;
+   bind a fresh complete A to exact head/merge-source/tree/base. Retain/verify
+   all A originals before whole-run B; verify B originals with the same canonical
+   retainer. Failed predecessors and combined partial populations never qualify.
+   Do not start another blind retry of the current failed source. Keep PR review
+   parallel and never merge. Manual accessibility remains deferred/unexecuted.
+
+### ADR-0092 proposal review closeout and approval readiness (2026-11-04)
+
+Two fresh independent static proposal rounds approve without Blocker/Major/Minor
+findings. Root reads both complete reports and verifies their SHA-256 values.
+Both compare the exact current runner/helper/case/workflow and dependent
+behavioral test carriers, predecessor navigation, canonical SDK selection,
+nominal arithmetic, actual retirement limitations and bounded retained evidence.
+Neither review executes tests/CI or claims a cause, sufficient threshold or
+hosted qualification. The reviewed ADR SHA-256 is
+`16ea09c270f50e726015830cfa1a2df65da65cfd09ee42a835038f57a2658bf1`.
+
+Fragment/roadmap/index guards pass. ADR-0092 stays Proposed, with unchanged
+executable 180/90/100-second SDK settings and frontend 25-minute job. Commit
+the reviewable proposal locally on development; do not push a documentation-only
+CI retry or apply policy before the maintainer's explicit decision. PR #40 stays
+ready for product review, unmerged and unqualified. Current third-attempt
+Architecture work may finish independently, but the known SDK failure already
+prevents complete qualification; it is not a B attempt or a combined-result pass.
+The next authorized executable synchronization follows acceptance, local proof
+and two fresh implementation reviews. No additional blind retry is started.

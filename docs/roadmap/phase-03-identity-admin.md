@@ -1,6 +1,6 @@
 # Phase 03: Identity Domain, Authorization, and Admin Foundation
 
-> **Status (2026-11-03).** P03-0, P03-1 and P03-2 are complete.
+> **Status (2026-11-04).** P03-0, P03-1 and P03-2 are complete.
 > P03-1 ([PR #38](https://github.com/HodeTech/LearnStack/pull/38)) and
 > P03-2 ([PR #39](https://github.com/HodeTech/LearnStack/pull/39)) are merged.
 > P03-3 implementation and both independent review rounds are complete for
@@ -11,6 +11,9 @@
 > complete; the full 106-control local launcher suite passes. The
 > [delivery handoff](phase-03-delivery-log.md#p03-3-adr-0091-validation-and-pr-ci-handoff-2026-11-03)
 > records the exact source and corrected review finding.
+> [ADR-0092](../decisions/0092-sdk-completion-and-frontend-job-windows.md) proposes
+> coordinated SDK/package/job allowance after repeated SDK failure and aggregate
+> expiry. It awaits explicit approval; executable settings remain unchanged.
 > [PR #40](https://github.com/HodeTech/LearnStack/pull/40) owns parallel product
 > review and current complete same-source hosted A/B/archive qualification.
 > Its proof record distinguishes local, hosted and manual evidence.
