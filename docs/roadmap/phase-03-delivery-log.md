@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,833 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,851 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -312,6 +312,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0087 implementation review closeout and final-source CI handoff (2026-11-03)](#adr-0087-implementation-review-closeout-and-final-source-ci-handoff-2026-11-03) — 29 lines
   - [P03-3 ADR-0087 hosted failure and ADR-0088 proposal (2026-11-03)](#p03-3-adr-0087-hosted-failure-and-adr-0088-proposal-2026-11-03) — 42 lines
   - [ADR-0088 first review and hosted count correction (2026-11-03)](#adr-0088-first-review-and-hosted-count-correction-2026-11-03) — 12 lines
+  - [ADR-0088 second review corrections and approval readiness (2026-11-03)](#adr-0088-second-review-corrections-and-approval-readiness-2026-11-03) — 18 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -14688,3 +14689,21 @@ The first fresh source review approves the one-file healthy-peer fixture
 correction with no findings. The independent proposal/contracts review approves
 ADR-0088 with the one minor count correction above. No executable clock changes;
 ADR-0088 remains Proposed pending the maintainer's explicit decision.
+
+### ADR-0088 second review corrections and approval readiness (2026-11-03)
+
+The second fresh source review approves the healthy-peer fixture correction
+without findings. The independent second proposal review verifies the R1
+append-only job recount and finds one minor wording error in Proposed ADR-0088:
+600 to 900 seconds adds five minutes, not three. The Proposed consequence text
+is corrected; the decision table and 1,080/420-second arithmetic were already
+correct. There is no changed selected value or executable clock.
+
+Both review rounds, the corrected proposal and the existing targeted fixture
+checks are complete. The normal source clock remains 600/10/25 seconds and
+frontend job twenty minutes. New 900/20/90 seconds and twenty-five job minutes
+require explicit maintainer approval before acceptance or implementation.
+No CI is running; no failed/cancelled evidence qualifies the package. After
+approval the three-step implementation/qualification package above proceeds
+without a new feature, runner, cache or diagnostic project. Manual accessibility
+remains deferred and unexecuted.

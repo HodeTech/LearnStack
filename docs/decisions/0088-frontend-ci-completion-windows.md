@@ -108,7 +108,7 @@ Further failure grants no automatic timer increase or blind retry.
 ### Negative
 
 - A stalled Node control can take ten more seconds; its combined wrapper gains
-  65 seconds, web gains three minutes and the job five minutes per attempt.
+  65 seconds, web gains five minutes and the job five minutes per attempt.
 - Workflow feedback also depends on concurrency/queueing. Sufficiency remains
   unproved until complete final-source hosted execution succeeds.
 
