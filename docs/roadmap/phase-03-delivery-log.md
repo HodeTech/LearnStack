@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,461 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,482 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -298,6 +298,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 matrix preparation correction R1 and MVP delivery focus (2026-11-03)](#p03-3-matrix-preparation-correction-r1-and-mvp-delivery-focus-2026-11-03) — 26 lines
   - [P03-3 matrix preparation correction R2 and final CI handoff (2026-11-03)](#p03-3-matrix-preparation-correction-r2-and-final-ci-handoff-2026-11-03) — 18 lines
   - [P03-3 hosted frontend timeout and bounded file concurrency (2026-11-03)](#p03-3-hosted-frontend-timeout-and-bounded-file-concurrency-2026-11-03) — 25 lines
+  - [P03-3 bounded worker review closeout and MVP handoff (2026-11-03)](#p03-3-bounded-worker-review-closeout-and-mvp-handoff-2026-11-03) — 21 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -14302,3 +14303,24 @@ chain; no new private benchmark or diagnostic runner is introduced.
 The small committed correction receives the existing two fresh review rounds,
 then a new complete source-bound A/B. Only actual blocking findings justify more
 work. Manual accessibility remains deferred and unexecuted.
+
+### P03-3 bounded worker review closeout and MVP handoff (2026-11-03)
+
+The correction commits as `e85ea848`. Two fresh independent R1 agents and two
+fresh independent R2 agents approve the bounded configuration and evidence diff
+with no actionable findings. Their behavior and contract reviews preserve all
+cases, internal concurrency witnesses, priority ordering and existing clocks.
+No additional implementation or diagnostic work is selected.
+
+The targeted runner/sequencer result remains 33/33. The earlier complete local
+frontend result remains source-specific; this configuration has not yet earned
+hosted qualification. A new complete A followed by complete B on the same final
+source, and the existing original-archive reconciliation, remain the release
+checks. The prior failed/cancelled A earns no credit. Manual accessibility is
+maintainer-deferred and unexecuted.
+
+The Phase 03 Status block is condensed to current packet state and links; the
+append-only delivery history and decision register retain the detailed record.
+This follows the maintainer's MVP direction: no new private benchmark, source
+freezer, speculative optimization or redundant historical audit. Only verified
+delivery-blocking findings justify further corrective work before the PR.
