@@ -258,6 +258,29 @@ Actual SDK/console/loaded-adapter hashes, disjoint phase intervals, first-result
 gaps and scoped resource observations accompany every successful execution.
 Uninstrumented fixture/container measurements remain unknown.
 
+**Native inventory allocations — derives from
+[ADR-0091](../decisions/0091-native-inventory-phase-allocations.md).**
+The verified native owner selects the initial phase before owned-test launch;
+cleanup selects the final default. Exact private phase strings are `preflight`
+and `final`; unknown shapes refuse. No environment/receipt/CLI selects a duration.
+
+| Inventory owner | Allocation / sublimit |
+|---|---:|
+| Native preflight file/image inventory | 60 s |
+| Native final file/image inventory | 20 s total |
+| `image_layer_snapshot` read-only commands, both phases and all rechecks | 10 s each |
+| Other commands, including the file-format probe | existing bounds; default 5 s |
+
+Each phase keeps one absolute shared deadline clipped by the execution/cleanup
+owner; every command is also clipped by its sublimit. Final metadata uses ten
+seconds per command within twenty seconds total. Neither sums of inner maxima
+nor actual retirement are reserved. Preflight consumes execution allowance, with
+`SCAN_SECONDS=20` still in the unchanged 203-second reserve ledger. Positive
+current image provenance, exact proved-directory pruning, complete rescan and
+fresh consistency checks remain mandatory. No filename/format, partial query or
+unreadable/changed/timed-out evidence supplies a clean inventory. Actual final
+fit remains the phase's source-bound hosted qualification obligation.
+
 Use **Re-run all jobs**, not failed-job or single-job reruns. All producer
 siblings must belong to the current run attempt. Before rerunning, retain the
 completed attempt's original producer packages, aggregate receipts and workflow

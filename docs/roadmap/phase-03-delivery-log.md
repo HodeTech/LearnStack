@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,344 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,372 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -331,6 +331,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 native image-provenance timeout and ADR-0091 proposal (2026-11-03)](#p03-3-native-image-provenance-timeout-and-adr-0091-proposal-2026-11-03) — 37 lines
   - [P03-3 ADR-0090 hosted result and native-only remaining gate (2026-11-03)](#p03-3-adr-0090-hosted-result-and-native-only-remaining-gate-2026-11-03) — 29 lines
   - [ADR-0091 proposal review closeout and approval readiness (2026-11-03)](#adr-0091-proposal-review-closeout-and-approval-readiness-2026-11-03) — 19 lines
+  - [ADR-0091 maintainer review and acceptance (2026-11-03)](#adr-0091-maintainer-review-and-acceptance-2026-11-03) — 28 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -15218,3 +15219,31 @@ one later synchronization follows explicit acceptance and implementation checks.
 PR #40 remains ready for product review, unmerged and explicitly unqualified.
 No CI/local heavy workload is active. Failed attempts receive no credit and
 manual accessibility remains deferred/unexecuted.
+
+### ADR-0091 maintainer review and acceptance (2026-11-03)
+
+The maintainer accepts ADR-0091 after the supplied reviews and authorizes full
+PR/CI continuation. Before acceptance, clarify that the ten-second metadata
+sublimit applies in both preflight and final inventory, including every repeated
+inventory/canonical recheck. Only final's twenty-second total remains unchanged.
+Name the inherited source accurately: the existing native COMMAND_SECONDS=5
+default, unrelated to frontend provenance timers. The exact private interfaces
+select phase='preflight' or default 'final'; other types/values refuse with the
+closed crash_scan_phase_invalid label before commands. Meta's passing outcome
+is also explicit in the driver; no missing-native qualification is inferred.
+
+Acceptance adds ADR-0090's dated successor disclosure and reconciles the index,
+Testing 06's canonical phase/query table, Infrastructure 20 pointer, both native
+and complete-shard catalogue owners and Phase Status. Existing architecture
+rule statuses are not promoted. Source/metadata privacy, actual positive image
+provenance, exact pruning/full rescan and current failure/ownership requirements
+remain. No code changes precede this acceptance commit.
+
+Implementation follows in the existing launcher and copied-owner controls:
+exercise both actual execute call sites, phase-selected find caps, metadata ten
+in both phases, shared parent clipping over repeated reads, invalid selection
+and unchanged final reserve. Run relevant controls and two fresh implementation
+reviews, then one normal PR synchronization for complete final-source A then
+whole-run B and existing original-archive reconciliation. Unchanged application/
+frontend suites need no redundant local rerun. No merge or duplicate manual CI;
+manual accessibility stays deferred and unexecuted.

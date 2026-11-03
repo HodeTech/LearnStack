@@ -2,16 +2,19 @@
 
 ## Status
 
-Proposed
+Accepted
 
 **Date:** 2026-11-03
-**Deciders:** @cemil (approval pending)
-**Bounded supersession on acceptance:** ADR-0090's retained native scan setting
-only before owned-test launch, and the inherited fixed image-provenance command
-allocation. Native final inventory remains twenty seconds; the native job,
-203-second reserve, all test deadlines and ADR-0090's SDK settings remain.
-Earlier successor navigation reaches this record through ADR-0090. No executable
-allocation changes before maintainer approval.
+**Deciders:** @cemil
+**Bounded supersession:** ADR-0090's retained native scan setting
+only before owned-test launch, and the existing `COMMAND_SECONDS=5` default
+applied to `image_layer_snapshot`'s read-only commands. This is native image
+provenance, distinct from the frontend provenance wrapper. The new metadata
+sublimit applies in both phases; final inventory retains twenty seconds total.
+The native job, 203-second reserve, test deadlines and ADR-0090's SDK settings
+remain. Earlier successor navigation reaches this record through ADR-0090.
+Accepted after maintainer review on 2026-11-03; implementation and complete
+hosted qualification remain separate.
 
 ## Decision Drivers
 
@@ -29,14 +32,14 @@ allocation changes before maintainer approval.
   the shared default five-second sublimit. Partial provenance cannot qualify.
 - The earlier run's generic inventory refusal does not establish the same cause.
   Current A completes 25/27 jobs successfully: only native and its required
-  integration aggregate fail. Frontend, public-demo and all nineteen non-native
+  integration aggregate fail. Frontend, public-demo, meta and all nineteen non-native
   producers pass. SDK's reported Vitest duration is 177.02 seconds; its aggregate
   remains 180 seconds. That observed pass guarantees no future fit. Other jobs
   do not qualify the missing native producer.
 
 ## Considered Options
 
-1. **Separate preflight allowance and scoped image-query allowance** (chosen proposal).
+1. **Separate preflight allowance and scoped image-query allowance** (chosen).
    Preserve complete scans and positive provenance while retaining final-inventory
    allocation and the cleanup reserve.
 2. **Retain 20/5 and investigate further** (viable, not selected).
@@ -51,26 +54,32 @@ allocation changes before maintainer approval.
 
 ## Decision
 
-On acceptance, LearnStack selects only these source-owned allocations as
+LearnStack selects only these source-owned allocations as
 maintainer-judged headroom, not measured minima or a causal repair.
 
 | Native inventory owner | Current | Selected |
 |---|---:|---:|
 | Preflight file/image inventory, before owned-test launch | 20 s | 60 s |
-| Fixed read-only commands inside `image_layer_snapshot` | 5 s | 10 s |
+| Fixed read-only commands inside `image_layer_snapshot`, both phases | 5 s | 10 s |
 | Final file/image inventory, within cleanup | 20 s | 20 s |
 
 Both phases keep one absolute shared phase deadline, clipped by the existing
 execution/cleanup deadline. Each command is additionally clipped by its own
-sublimit. Ten seconds per command reserves no sum of commands within sixty or
-twenty seconds. Native retains 1,200 seconds whole-job and the 203-second reserve;
+sublimit. The ten-second metadata sublimit applies in preflight and final
+inventory, including repeated `inventory()` calls and all rechecks. Only the
+final phase's total remains twenty seconds; its metadata sublimit changes too.
+Ten seconds per command reserves no sum of commands within sixty or twenty
+seconds. Native retains 1,200 seconds whole-job and the 203-second reserve;
 preflight consumes execution/setup allowance rather than borrowing that reserve.
 More preparation can leave less time for the actual tests. No fit is guaranteed.
 
 A new closed internal preflight selection is used only at the existing verified
-native `execute` call before `started=True` and `launch_unit`. Final inventory
-uses the twenty-second default. The selection is not an environment, receipt,
-CLI or arbitrary-duration override. `find_crash_candidate` inherits that selected
+native `execute` call before `started=True` and `launch_unit`. The private
+interface is `crash_scan(deadline, *, phase='final')`, with the exact string set
+`{'preflight', 'final'}`. `crash_scan_seconds(phase)` rejects other types/values
+with `Refusal('crash_scan_phase_invalid')`; the default final phase selects
+twenty seconds. The selection is not an environment, receipt, CLI or
+arbitrary-duration override. `find_crash_candidate` inherits that selected
 phase allocation; the metadata sublimit applies only to existing commands in
 `image_layer_snapshot` (info/list/inspect, canonical/stat and their rechecks).
 Other commands retain their existing bounds, including the file-format probe.
@@ -132,10 +141,13 @@ reconciliation. Neither partial passes nor failed predecessors earn credit.
    and Phase 03 records, including their inherited operation-cap language.
    Add no architecture rule or status promotion.
 2. In `scripts/ci-native-tests.py`, introduce fixed preflight/metadata constants
-   and a closed internal preflight selector. Keep `SCAN_SECONDS=20` and the tail/
-   reserve arithmetic unchanged. Only the initial native call selects preflight;
-   cleanup retains its default. Apply the selected find allocation and explicit
-   metadata cap without changing argv, evidence or refusal handling.
+   and the closed phase interfaces above. `find_crash_candidate` also accepts
+   keyword-only `phase='final'` and resolves it through `crash_scan_seconds`.
+   Keep `SCAN_SECONDS=20` and the tail/reserve arithmetic unchanged. Only the
+   initial native call supplies `phase='preflight'`; cleanup retains its default.
+   Propagate that phase to both finds. Apply the ten-second metadata cap to all
+   six lexical command sites in both phases without changing argv, evidence or
+   refusal handling. The file-format probe retains its five-second default.
 3. Extend existing `scripts/test-ci-native-tests.py` controls for both phase
    selections, parent clipping, metadata sublimits, preserved final ledger and
    exact call-site census. Retain malformed/changed/writable-candidate, full-rescan,
@@ -148,8 +160,12 @@ reconciliation. Neither partial passes nor failed predecessors earn credit.
 
 Existing copied-owner controls must prove only the pre-launch native path selects
 sixty seconds; final inventory remains twenty and reserve remains 203. Unknown
-selector shapes refuse. Metadata commands select ten seconds but parent deadlines
-can stop them sooner. Timeout/OS/nonzero/oversized output remain refused, and no
+selector shapes refuse before commands. From both actual `execute` call sites,
+prove that preflight/final select sixty/twenty seconds, both finds inherit the
+phase, and metadata commands select ten seconds in both phases. Controlled
+monotonic time must show parent clipping across repeated inventory/recheck calls,
+including a final-phase command receiving less than ten seconds when its shared
+twenty-second budget is nearly spent. Timeout/OS/nonzero/oversized output remain refused, and no
 candidate or partial scan supplies success. Prove unchanged roots, no symlink
 following, exact image pruning, complete second scan and drift refusal. Local
 controls supply no hosted ownership, native-case completion or fit claim.

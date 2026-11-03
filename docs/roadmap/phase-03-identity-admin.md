@@ -4,7 +4,7 @@
 > P03-1 ([PR #38](https://github.com/HodeTech/LearnStack/pull/38)) and
 > P03-2 ([PR #39](https://github.com/HodeTech/LearnStack/pull/39)) are merged.
 > P03-3 implementation and both independent review rounds are complete for
-> Steps 1–9 and Step 10's source corrections. Accepted ADR-0078–0090 govern the
+> Steps 1–9 and Step 10's source corrections. Accepted ADR-0078–0091 govern the
 > native entry, administration, seed, framework ownership and CI changes; the
 > decision register below links their decisions and proof obligations.
 > ADR-0090's settings and the native failure-class diagnostic are implemented;
@@ -14,9 +14,10 @@
 > owns parallel product review and current complete same-source hosted A/B/archive
 > qualification. Its proof record distinguishes local, hosted and manual evidence.
 > SDK aggregate and native scan policy remain unchanged.
-> [Proposed ADR-0091](../decisions/0091-native-inventory-phase-allocations.md)
-> awaits approval for separate native preflight/image-query allocations; final
-> scan, reserve and whole-job settings remain unchanged.
+> [ADR-0091 acceptance](phase-03-delivery-log.md#adr-0091-maintainer-review-and-acceptance-2026-11-03)
+> authorizes separate native preflight/image-query allocations; implementation
+> and complete hosted qualification remain separate. Final total/reserve/job
+> stay unchanged; metadata sublimits change in both phases.
 > Failed/cancelled runs receive no qualification credit.
 > [Manual keyboard/focus/reflow/contrast/VoiceOver evidence](phase-03-delivery-log.md#p03-3-maintainer-approved-manual-deferral-and-step-10-continuation-2026-10-30)
 > remains maintainer-deferred and unexecuted for PR review.

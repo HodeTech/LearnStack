@@ -6825,8 +6825,12 @@ and fixture definitions make the implemented controls non-vacuous.
   child environment/resource/collector prerequisites, absent dump artifacts and
   finally/exit markers distinguish fatal from normal exit with a dirty gate control.
   ADR-0062 confines CI collector setup to the named exclusive hosted-VM owner,
-  fixed literal write/readback and no restoration. Complete disjoint Docker
-  partitions, owned process completion and fail-closed aggregate evidence retain
+  fixed literal write/readback and no restoration. Native inventory phase/query
+  allocations follow [Testing 06](06-testing.md#complete-bounded-ci-assignments)
+  under [ADR-0091](../decisions/0091-native-inventory-phase-allocations.md), with
+  complete positive image provenance, final reserve and all refusal/ownership
+  checks retained. Acceptance alone supplies no implementation or hosted credit.
+  Complete disjoint Docker partitions, owned process completion and fail-closed aggregate evidence retain
   all cases and the existing required check. Offline copied-owner controls verify
   the actual fixed seams without changing local host policy; hosted qualification
   remains a separate obligation in the owning CI record.
@@ -7026,13 +7030,15 @@ and fixture definitions make the implemented controls non-vacuous.
   malformed, missing, duplicate or identity-invalid evidence.
   The ADR-0082 extension binds Architecture 1,500-second and ordinary
   1,800-second whole-job/enclosing observation bounds to exact verified mode,
-  expected job and plan count. Base/native retain 1,200 seconds; operation caps
-  and the 203-second reserve stay fixed. Individual observations allow the
+  expected job and plan count. Base/native retain 1,200 seconds and the reserve
+  stays 203. Operation caps remain except ADR-0091's native inventory allocations
+  in [Testing 06](06-testing.md#complete-bounded-ci-assignments). Individual observations allow the
   inclusive bound; disjoint receipt intervals sum strictly below it. Forged
   modes/partitions cannot select a longer window.
 - **Source:** [ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md),
   [ADR-0075](../decisions/0075-ordinary-ci-job-window.md),
-  [ADR-0082](../decisions/0082-current-source-ci-execution-windows.md).
+  [ADR-0082](../decisions/0082-current-source-ci-execution-windows.md),
+  [ADR-0091](../decisions/0091-native-inventory-phase-allocations.md).
 - **Type:** actual Python plan/owner subprocess controls and workflow/API/hosted
   result proofs. **Kind:** structural + behavioural.
 - **Status:** **Implemented** — `scripts/ci-test-shards.py`,

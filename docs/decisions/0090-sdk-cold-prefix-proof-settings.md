@@ -148,6 +148,21 @@ A timer or CLI exit alone supplies none of these assertions. The generic guard
 still requires all discovered SDK/web files and all reported cases Passed with
 zero skips/todos. Add no mirrored literal-only test or new architecture rule.
 
+## Amendments
+
+### Amendment 1 — Native inventory allocation successor (2026-11-03)
+
+[ADR-0091](0091-native-inventory-phase-allocations.md) narrowly supersedes this
+record's retained twenty-second native inventory allocation only before test
+launch: that phase receives sixty seconds. Existing native image-provenance
+metadata commands receive ten seconds in both preflight and final inventory;
+the final phase retains twenty seconds total. The existing five-second command
+default remains for other commands. Native job 1,200 seconds, reserve 203, test
+bounds, this record's SDK pair/aggregate and all other policy remain unchanged.
+This record's Decision stays historical. Full positive provenance, complete
+rescans, failure/ownership/cleanup assertions and final-source A/B/archive proof
+remain required; acceptance supplies no repair, fit or merge claim.
+
 ## References
 
 - [ADR-0089](0089-provenance-control-timer-settings.md).
