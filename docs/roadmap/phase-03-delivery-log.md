@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,779 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,821 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -310,6 +310,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0087 bounded proposal review closeout (2026-11-03)](#adr-0087-bounded-proposal-review-closeout-2026-11-03) — 14 lines
   - [ADR-0087 maintainer review corrections and acceptance (2026-11-03)](#adr-0087-maintainer-review-corrections-and-acceptance-2026-11-03) — 35 lines
   - [ADR-0087 implementation review closeout and final-source CI handoff (2026-11-03)](#adr-0087-implementation-review-closeout-and-final-source-ci-handoff-2026-11-03) — 29 lines
+  - [P03-3 ADR-0087 hosted failure and ADR-0088 proposal (2026-11-03)](#p03-3-adr-0087-hosted-failure-and-adr-0088-proposal-2026-11-03) — 42 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -14632,3 +14633,45 @@ complete hosted A, then a whole-run B on the same source. The existing original
 archive/receipt/case reconciler owns qualification. Failed/cancelled historical
 runs receive no credit. Manual accessibility remains maintainer-deferred and
 unexecuted for PR review. No new product work or policy increase is selected.
+
+### P03-3 ADR-0087 hosted failure and ADR-0088 proposal (2026-11-03)
+
+Complete A `41621718722`, attempt 1, source `cfa58aad`, tree
+`17b00857ff31756a937facf37c236d300a9df43e`, fails frontend. The 600-second
+package guard expires with five of 112 discovered files lacking completion
+markers. Two failures are reported: the 31-control router Node child crosses
+its ten-second boundary after 31 per-control success lines; and the original
+HTTPS 304 empty-stream early-gzip handler does not settle at its existing
+observation bound. The combined native spec reports eight cases/one failure
+in 492.879 seconds. No failure is reported for its three matrix group cases,
+but partial package output earns no complete qualification. Remaining work is
+cancelled. Final jobs: nine success, frontend failure, sixteen cancellation
+outcomes and two failed required aggregates.
+
+Original frontend log: 127,664 bytes, SHA-256
+`b7f4d2d2f3dc70e6ac1e44f1bd1dd2a2bfb088a48428010615553219ea9a32b1`.
+The five uncompleted markers are the proof-runtime observation, response maps,
+development diagnostics counter, development diagnostics and provenance specs.
+No remaining duration or scenario outcome is inferred from those missing markers.
+
+One unchanged local Node reproduction passes 31/31 in 2.778 seconds; the
+unchanged bodyless producer passes 124/124. These do not erase hosted failures.
+A separate focused ordering reproduction proves ordinary bodyless peer auto-close
+can precede response finish and retain the stock handler; patched cleanup joins
+its actual encoder before the handler. That trace does not attribute the exact
+hosted ordering. The healthy-peer fixture now owns keepalive agents, preserves
+explicit peer-close controls and asserts healthy finish-before-close. Commit
+`5f68c440` retains all 124 controls, exact wire/header comparisons and strict
+patched ownership. Direct controls, 17 focused tests and lint pass. No Node
+resource defect or sufficient redundant-work correction is verified.
+
+[Proposed ADR-0088](../decisions/0088-frontend-ci-completion-windows.md) packages
+the remaining window choice: canonical web 900 seconds, only the 31-control
+Node script 20, its combined case 90, frontend CI 25 minutes. SDK, siblings,
+workers, matrix/event/runtime/backend/demo bounds and reserves remain.
+The three steps are acceptance/carriers; four selected clocks/existing controls;
+then complete local/review/same-source hosted A/B/archive qualification and PR.
+These values are judged headroom, not a measured minimum or guarantee. No clock
+changes before explicit maintainer approval; the independent fixture correction
+proceeds under Accepted response policy. No blind same-source retry, new runner,
+parser cache, benchmark or diagnostic pipeline is introduced.

@@ -8,7 +8,10 @@
 > native entry, administration, seed, framework ownership and CI changes; the
 > decision register below links their decisions and proof obligations.
 > [ADR-0087 implementation, the complete local guard and both review rounds](phase-03-delivery-log.md#adr-0087-implementation-review-closeout-and-final-source-ci-handoff-2026-11-03)
-> are complete after maintainer review corrections. Complete same-source hosted
+> are complete after maintainer review corrections. Its hosted A still fails;
+> [the fixture correction and Proposed ADR-0088](phase-03-delivery-log.md#p03-3-adr-0087-hosted-failure-and-adr-0088-proposal-2026-11-03)
+> separate the verified peer-lifetime issue from the remaining window decision.
+> ADR-0088 awaits approval before clocks change. Complete same-source hosted
 > A/B and original-archive qualification remain open before the P03-3 PR.
 > Failed/cancelled runs receive no qualification credit.
 > [Manual keyboard/focus/reflow/contrast/VoiceOver evidence](phase-03-delivery-log.md#p03-3-maintainer-approved-manual-deferral-and-step-10-continuation-2026-10-30)
@@ -20,7 +23,7 @@
 > | P03-0 | Entry preparation | Complete — [reconciliation](phase-03-delivery-log.md#entry-preparation-2026-10-25) |
 > | P03-1 | Identity authority and membership foundation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-1-merge-and-closeout-2026-10-27) |
 > | P03-2 | Live membership and authorization | Complete and merged — [closeout](phase-03-delivery-log.md#p03-2-merge-and-closeout-2026-10-28) |
-> | P03-3 | Protected Studio and membership administration | Local implementation/reviews complete; hosted qualification pending — [handoff](phase-03-delivery-log.md#adr-0087-implementation-review-closeout-and-final-source-ci-handoff-2026-11-03) |
+> | P03-3 | Protected Studio and membership administration | Hosted qualification pending — [fixture correction and window proposal](phase-03-delivery-log.md#p03-3-adr-0087-hosted-failure-and-adr-0088-proposal-2026-11-03) |
 > | P03-4 | Invitations and bounded delivery | Not started |
 > | P03-5 | Custom fields and privacy classification | Not started |
 > | P03-6 | Provider event ingress and audit mirror | Not started |
