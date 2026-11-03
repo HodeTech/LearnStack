@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,886 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,919 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -315,6 +315,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0088 second review corrections and approval readiness (2026-11-03)](#adr-0088-second-review-corrections-and-approval-readiness-2026-11-03) — 18 lines
   - [ADR-0088 maintainer corrections and acceptance (2026-11-03)](#adr-0088-maintainer-corrections-and-acceptance-2026-11-03) — 24 lines
   - [ADR-0088 existing stdio control binding correction (2026-11-03)](#adr-0088-existing-stdio-control-binding-correction-2026-11-03) — 11 lines
+  - [ADR-0088 implementation review closeout and final-source CI handoff (2026-11-03)](#adr-0088-implementation-review-closeout-and-final-source-ci-handoff-2026-11-03) — 33 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -14744,3 +14745,36 @@ all twelve actual subprocess sites and both capture/refusal controls remain.
 ADR-0088 Amendment 1 names this dependent carrier without changing its Decision,
 selected clocks, production bindings or caller census. The failed run is retained
 as a failure and receives no passing qualification credit.
+
+### ADR-0088 implementation review closeout and final-source CI handoff (2026-11-03)
+
+Acceptance `b19d9ab9` closes both maintainer findings before code. Implementation
+`ce53fde6`, tree `00cb8fa5dd2819c242d5e6b2cd2dc3fbe375643a`, applies only the
+selected web 900-second expiry, one Node 20-second signal threshold, combined
+Vitest 90-second failure setting and frontend twenty-five-minute job. The
+whole-job expectation includes frontend twenty-five and preserves every other
+job/mutant. The existing boundary test evaluates actual thresholds for all six
+scripts and a foreign name; the stdio VM binding keeps all twelve sites.
+No hard synchronous preemption or physical completion guarantee is introduced.
+
+Corrected focused controls pass 79/79 across five files; typecheck, lint and
+build pass. The complete guarded web/SDK run on committed executable source
+passes 3,575 reported cases with zero skips/todos and empty stderr: web 3,421
+in 112 discovered files (301.25 seconds), SDK 154 in nine (80.68 seconds).
+Total guarded wall time is 385.720 seconds; tracked source hashes are unchanged.
+This is discovered-file and reported-case evidence, not an independent generic
+scenario-ID census or hosted fit. The independent healthy-peer fixture fix is
+included in this run; all 124 bodyless controls remain.
+
+Two fresh independent rounds each review source and contracts/evidence. All
+four reviewers approve with no actionable findings. They preserve unlisted
+clocks, case/stdio populations, refusal/late-success and actual ownership, and
+verify that the dated predecessor disclosures leave historical bodies intact.
+The initial failed focused run remains recorded without passing credit.
+
+This docs-only handoff precedes a normal development push and complete hosted
+A followed by whole-run B on the same final source. Existing original archives,
+receipts, case reconciliation and OpenAPI base binding own qualification; failed
+historical runs are not reused. No new benchmark, runner, cache or diagnostic
+project is selected. Manual accessibility remains deferred and unexecuted for
+PR review. Only verified delivery blockers justify further source changes.

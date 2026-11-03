@@ -4,14 +4,11 @@
 > P03-1 ([PR #38](https://github.com/HodeTech/LearnStack/pull/38)) and
 > P03-2 ([PR #39](https://github.com/HodeTech/LearnStack/pull/39)) are merged.
 > P03-3 implementation and both independent review rounds are complete for
-> Steps 1–9 and Step 10's source corrections. Accepted ADR-0078–0085 govern the
+> Steps 1–9 and Step 10's source corrections. Accepted ADR-0078–0088 govern the
 > native entry, administration, seed, framework ownership and CI changes; the
 > decision register below links their decisions and proof obligations.
-> [ADR-0087 implementation, the complete local guard and both review rounds](phase-03-delivery-log.md#adr-0087-implementation-review-closeout-and-final-source-ci-handoff-2026-11-03)
-> are complete after maintainer review corrections. Its hosted A still fails;
-> [the fixture correction and Accepted ADR-0088](phase-03-delivery-log.md#p03-3-adr-0087-hosted-failure-and-adr-0088-proposal-2026-11-03)
-> separate the verified peer-lifetime issue from the remaining window decision.
-> [Maintainer corrections and acceptance](phase-03-delivery-log.md#adr-0088-maintainer-corrections-and-acceptance-2026-11-03) precede implementation. Complete same-source hosted
+> [ADR-0088 implementation, complete local guard and both review rounds](phase-03-delivery-log.md#adr-0088-implementation-review-closeout-and-final-source-ci-handoff-2026-11-03)
+> are complete after maintainer review corrections. Complete same-source hosted
 > A/B and original-archive qualification remain open before the P03-3 PR.
 > Failed/cancelled runs receive no qualification credit.
 > [Manual keyboard/focus/reflow/contrast/VoiceOver evidence](phase-03-delivery-log.md#p03-3-maintainer-approved-manual-deferral-and-step-10-continuation-2026-10-30)
@@ -23,7 +20,7 @@
 > | P03-0 | Entry preparation | Complete — [reconciliation](phase-03-delivery-log.md#entry-preparation-2026-10-25) |
 > | P03-1 | Identity authority and membership foundation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-1-merge-and-closeout-2026-10-27) |
 > | P03-2 | Live membership and authorization | Complete and merged — [closeout](phase-03-delivery-log.md#p03-2-merge-and-closeout-2026-10-28) |
-> | P03-3 | Protected Studio and membership administration | Hosted qualification pending — [fixture correction and accepted window implementation](phase-03-delivery-log.md#p03-3-adr-0087-hosted-failure-and-adr-0088-proposal-2026-11-03) |
+> | P03-3 | Protected Studio and membership administration | Hosted qualification pending — [current-source handoff](phase-03-delivery-log.md#adr-0088-implementation-review-closeout-and-final-source-ci-handoff-2026-11-03) |
 > | P03-4 | Invitations and bounded delivery | Not started |
 > | P03-5 | Custom fields and privacy classification | Not started |
 > | P03-6 | Provider event ingress and audit mirror | Not started |

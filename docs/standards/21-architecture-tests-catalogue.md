@@ -991,8 +991,9 @@ otherwise).
   ADR-0086 runner extension is implemented and passes controlled-timer, real
   discovery/refusal and complete guarded frontend tests. ADR-0087’s selected
   orchestration-window extension passes these existing controls and the complete
-  guard; the [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns current hosted
-  qualification.
+  guard. ADR-0088's completion-setting extension passes the existing controls
+  and complete guard too; the [Phase 03 Status](../roadmap/phase-03-identity-admin.md)
+  owns current hosted qualification.
 - **Phase:** 02a (Packet 10).
 
 #### `The_Catalogue_Counts_Its_Own_Rules`
