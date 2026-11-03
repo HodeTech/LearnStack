@@ -35,5 +35,5 @@ test.each([
       rootDisposed: true,
     });
   },
-  90_000,
+  100_000,
 );

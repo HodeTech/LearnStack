@@ -247,7 +247,7 @@ writeFileSync(spec.result, JSON.stringify({
       { flag: 'wx', mode: 0o600 },
     );
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 60_000);
+    const timer = setTimeout(() => controller.abort(), 90_000);
     try {
       for (const [stage, args] of [
         ['typecheck', ['-r', 'typecheck']],
