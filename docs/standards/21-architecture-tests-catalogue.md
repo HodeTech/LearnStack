@@ -983,7 +983,11 @@ otherwise).
   [ADR-0086](../decisions/0086-native-web-test-package-window.md).
 - **Type:** xUnit + a source scan with comments and literals stripped, plus a `.trx`
   assertion in CI. **Kind:** structural.
-- **Status:** **Implemented** — `CorpusConsistencyTests.cs`, Packet 10.
+- **Status:** **Implemented** — `CorpusConsistencyTests.cs`, Packet 10. The
+  ADR-0086 runner extension is implemented and passes controlled-timer, real
+  discovery/refusal and complete guarded frontend tests; the
+  [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns current hosted
+  qualification.
 - **Phase:** 02a (Packet 10).
 
 #### `The_Catalogue_Counts_Its_Own_Rules`

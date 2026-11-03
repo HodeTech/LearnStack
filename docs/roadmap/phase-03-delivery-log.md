@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,577 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,598 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -303,6 +303,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0086 bounded proposal review closeout (2026-11-03)](#adr-0086-bounded-proposal-review-closeout-2026-11-03) — 12 lines
   - [ADR-0086 acceptance and bounded implementation (2026-11-03)](#adr-0086-acceptance-and-bounded-implementation-2026-11-03) — 15 lines
   - [ADR-0086 implementation and local validation handoff (2026-11-03)](#adr-0086-implementation-and-local-validation-handoff-2026-11-03) — 33 lines
+  - [ADR-0086 review closeout and final-source CI handoff (2026-11-03)](#adr-0086-review-closeout-and-final-source-ci-handoff-2026-11-03) — 21 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -14423,3 +14424,24 @@ is resolved, original user settings and all five prior stash IDs are verified
 unchanged, and the failed hook's own redundant recovery entry is retired. The
 formatted source is committed before a fresh complete guarded test; the earlier
 command is not represented as final-source qualification.
+
+### ADR-0086 review closeout and final-source CI handoff (2026-11-03)
+
+Implementation `476bafc8` closes two fresh independent source/contract review
+rounds, two reviewers per round, with no actionable findings. No corrective
+source change is needed after those reviews. Typecheck, lint and build pass;
+focused runner/sequencer controls pass 38/38.
+
+The fresh guarded command on the committed, formatted source passes 3,575/3,575
+cases across two packages in 379.635 seconds: web 3,421 across 115 files
+(299.12-second Vitest wall), SDK 154 across nine files (77.01 seconds). Actual
+reports reconcile every discovered file and case with zero skips/todos. The
+three changed source-file hashes remain unchanged throughout this run. The
+earlier command affected by hook formatting is not substituted for this proof.
+
+The final handoff commits only documentation after the qualified implementation.
+A normal development push followed by one complete A dispatch and one complete
+B rerun on the same final source uses the existing workflow and original-archive
+reconciler. No extra private benchmark, source freezer or parallel forensic
+review is selected. Hosted fit and P03-3 PR qualification remain open until that
+complete evidence passes. Manual accessibility remains deferred/unexecuted.
