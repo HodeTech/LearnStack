@@ -2645,7 +2645,7 @@ def find_crash_candidate(roots, deadline, image_layers=()):
         predicate = ['(', '-type', 'd', '(', *paths, ')', '-prune', ')', '-o', '(', *predicate, ')']
     argv = [SUDO, '-n', FIND, *roots, '-xdev', *predicate]
     require(sum(len(os.fsencode(arg)) + 1 for arg in argv) <= 128 * 1024, 'crash_prune_bound')
-    return command(argv, deadline, 'crash_inventory_unreadable', cap=SCAN_SECONDS)
+    return command(argv, deadline, 'crash_inventory_unreadable', cap=SCAN_SECONDS, classify=True)
 
 
 def crash_scan(deadline):

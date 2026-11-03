@@ -481,6 +481,20 @@ except launcher.Refusal as failure:
                 self.assertEqual(subprocess.DEVNULL, run.call_args.kwargs['stderr'])
                 self.assertEqual(subprocess.PIPE, run.call_args.kwargs['stdout'])
                 self.assertFalse(run.call_args.kwargs['check'])
+                # The real scan call site preserves these failure classes without
+                # widening traversal, its allocation or private-output handling.
+                with mock.patch.object(self.owner.subprocess, 'run', **options) as scan, \
+                     mock.patch.object(self.owner, 'MAX_BYTES', 8), \
+                     mock.patch.object(self.owner, 'remaining', return_value=5) as scan_remaining:
+                    self.refuses('crash_inventory_unreadable_' + kind,
+                                 self.owner.find_crash_candidate, ['/fixed'], 123)
+                scan_remaining.assert_called_once_with(123, self.owner.SCAN_SECONDS)
+                self.assertEqual([self.owner.SUDO, '-n', self.owner.FIND, '/fixed', '-xdev'],
+                                 scan.call_args.args[0][:5])
+                self.assertNotIn('-L', scan.call_args.args[0])
+                self.assertEqual(5, scan.call_args.kwargs['timeout'])
+                self.assertEqual(subprocess.DEVNULL, scan.call_args.kwargs['stderr'])
+                self.assertEqual(subprocess.PIPE, scan.call_args.kwargs['stdout'])
         with mock.patch.object(self.owner.subprocess, 'run') as run:
             self.refuses('deadline_exhausted', self.owner.command, argv, time.monotonic() - 1,
                          reason, classify=True)
