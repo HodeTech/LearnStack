@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,221 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,259 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -327,6 +327,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [PR 40 first A terminal result and SDK proposal review (2026-11-03)](#pr-40-first-a-terminal-result-and-sdk-proposal-review-2026-11-03) — 27 lines
   - [ADR-0090 proposal review closeout and approval readiness (2026-11-03)](#adr-0090-proposal-review-closeout-and-approval-readiness-2026-11-03) — 16 lines
   - [ADR-0090 maintainer review and acceptance (2026-11-03)](#adr-0090-maintainer-review-and-acceptance-2026-11-03) — 24 lines
+  - [P03-3 ADR-0090 validation and PR CI handoff (2026-11-03)](#p03-3-adr-0090-validation-and-pr-ci-handoff-2026-11-03) — 38 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -15091,3 +15092,41 @@ fresh review rounds, then synchronize the final source once to draft PR #40.
 Use the normal PR workflow for fresh full A then whole-run B and original-archive
 reconciliation. Do not dispatch a duplicate manual workflow or merge. Failed
 predecessors earn no credit; manual accessibility remains deferred/unexecuted.
+
+### P03-3 ADR-0090 validation and PR CI handoff (2026-11-03)
+
+Acceptance commit `df2f3284` incorporates the maintainer's review corrections.
+Implementation `f4fd3484`, tree `d8fe629ae5369ae12a92df5c6b7db2e423f89242`,
+changes only the SDK cold-prefix stop request to ninety seconds and shared
+Vitest setting to one hundred. Actual sequential commands, uncached `accepted`
+and cached `output_unowned` controls, source/output checks, family/lease/root
+assertions and SDK aggregate 180 seconds remain.
+
+Typecheck and lint pass. The complete committed-source guard passes 3,575
+reported cases with zero skips/todos: web 3,421 across 112 discovered files in
+302.97 seconds, SDK 154 across nine files in 80.30 seconds. Total guarded wall
+time is 386.776 seconds; HEAD and observed source hashes stay unchanged, stderr
+is empty. Both actual cold-prefix counterfactuals pass within this full run.
+No independent generic expected-scenario census or hosted fit is inferred.
+Two fresh independent implementation review rounds approve without findings,
+including the distinct guard outcomes, direct catalogue owner, canonical table,
+retained-pair chain, unchanged outer settings and actual ownership assertions.
+
+The previously reviewed native classifier `4347f81e` remains unchanged and
+separate: 103 existing controls and two implementation reviews pass. It changes
+only the failure class exposed at the existing scan call, with no scan/time/
+acceptance relaxation and no claimed native root-cause repair.
+
+The maintainer now requests the full PR and CI in parallel. After this local
+handoff, synchronize the accumulated source once to PR #40 and make it ready
+for product review while clearly retaining incomplete hosted qualification.
+PR readiness grants no merge permission or qualification credit. This
+observational commit precedes the final source freeze; its execution sources
+are unchanged from the validated implementation.
+
+Use the normal full PR A then whole-run B and existing original-archive
+reconciler, bound to exact final head/merge-source/tree/base. No duplicate
+manual workflow is dispatched. Current hosted outcomes belong in the PR proof
+record so a later observational commit does not move the qualified source.
+No failed predecessor receives credit. Manual accessibility remains deferred
+and unexecuted; the maintainer owns final review and merge.

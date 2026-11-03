@@ -7,15 +7,13 @@
 > Steps 1–9 and Step 10's source corrections. Accepted ADR-0078–0090 govern the
 > native entry, administration, seed, framework ownership and CI changes; the
 > decision register below links their decisions and proof obligations.
-> ADR-0089's two settings are implemented and both fresh reviews and the full
-> local guard pass; the [delivery handoff](phase-03-delivery-log.md#p03-3-adr-0089-validation-and-draft-pr-handoff-2026-11-03)
-> records their source. [Draft PR #40](https://github.com/HodeTech/LearnStack/pull/40)
+> ADR-0090's settings and the native failure-class diagnostic are implemented;
+> full local verification and both fresh review rounds pass. The
+> [delivery handoff](phase-03-delivery-log.md#p03-3-adr-0090-validation-and-pr-ci-handoff-2026-11-03)
+> records their source. [PR #40](https://github.com/HodeTech/LearnStack/pull/40)
 > owns parallel product review and current complete same-source hosted A/B/archive
 > qualification. Its proof record distinguishes local, hosted and manual evidence.
-> [ADR-0090 acceptance](phase-03-delivery-log.md#adr-0090-maintainer-review-and-acceptance-2026-11-03)
-> authorizes only the SDK cold-prefix pair; its implementation/local checks and
-> complete final-source hosted qualification remain separate. Native scan policy
-> remains unchanged.
+> SDK aggregate and native scan policy remain unchanged.
 > Failed/cancelled runs receive no qualification credit.
 > [Manual keyboard/focus/reflow/contrast/VoiceOver evidence](phase-03-delivery-log.md#p03-3-maintainer-approved-manual-deferral-and-step-10-continuation-2026-10-30)
 > remains maintainer-deferred and unexecuted for PR review.
@@ -26,7 +24,7 @@
 > | P03-0 | Entry preparation | Complete — [reconciliation](phase-03-delivery-log.md#entry-preparation-2026-10-25) |
 > | P03-1 | Identity authority and membership foundation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-1-merge-and-closeout-2026-10-27) |
 > | P03-2 | Live membership and authorization | Complete and merged — [closeout](phase-03-delivery-log.md#p03-2-merge-and-closeout-2026-10-28) |
-> | P03-3 | Protected Studio and membership administration | Implemented, in [draft PR #40](https://github.com/HodeTech/LearnStack/pull/40) review; current qualification tracked there |
+> | P03-3 | Protected Studio and membership administration | Implemented, in [PR #40](https://github.com/HodeTech/LearnStack/pull/40) review; current qualification tracked there |
 > | P03-4 | Invitations and bounded delivery | Not started |
 > | P03-5 | Custom fields and privacy classification | Not started |
 > | P03-6 | Provider event ingress and audit mirror | Not started |
