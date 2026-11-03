@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,750 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,779 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -309,6 +309,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 native proof orchestration exhaustion and ADR-0087 proposal (2026-11-03)](#p03-3-native-proof-orchestration-exhaustion-and-adr-0087-proposal-2026-11-03) — 33 lines
   - [ADR-0087 bounded proposal review closeout (2026-11-03)](#adr-0087-bounded-proposal-review-closeout-2026-11-03) — 14 lines
   - [ADR-0087 maintainer review corrections and acceptance (2026-11-03)](#adr-0087-maintainer-review-corrections-and-acceptance-2026-11-03) — 35 lines
+  - [ADR-0087 implementation review closeout and final-source CI handoff (2026-11-03)](#adr-0087-implementation-review-closeout-and-final-source-ci-handoff-2026-11-03) — 29 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -14602,3 +14603,32 @@ changes only selected test-window constants and their existing controls, then
 uses a committed-source full run, two fresh review rounds and existing complete
 hosted A/B/archive qualification before the P03-3 PR. No independent frontend
 scenario registry, new diagnostic pipeline or speculative benchmark is added.
+
+### ADR-0087 implementation review closeout and final-source CI handoff (2026-11-03)
+
+Acceptance `5696e000` applies the maintainer's review corrections. Executable
+commit `4fdcf083`, tree `9733115df5eda9ac1daf4419b66cd0e2a6d082e5`, changes
+only the eight selected source/control files: web 600 seconds, both matrix
+group clocks 180, group subprocess 210 and three Vitest cases 220. Independent
+120-second runtime-event schemas and all unlisted limits stay unchanged.
+
+The existing deadline callback control passes, followed by typecheck, lint and
+build. A complete guarded run on the committed executable source passes all
+3,575 reported cases: web 3,421 across 112 discovered files and SDK 154 across
+nine. Vitest reports 321.49 and 84.67 seconds respectively; total guarded wall
+time is 410.155 seconds, with zero skips/todos, empty stderr and unchanged
+tracked source hashes. These are discovered-file and reported-case results,
+not an independent generic scenario-ID census or hosted qualification.
+
+Two fresh independent review rounds each inspect source/cancellation and
+contracts/evidence. Round 1 verifies one minor navigation omission: the
+ADR-0086 index row needs its successor link. Commit `ddbb5773` appends that
+link while retaining the original summary. Both round-2 reviewers independently
+approve the corrected source/carriers with no actionable findings. No extra
+benchmark, source optimization or historical artifact re-audit is introduced.
+
+This documentation-only handoff precedes one normal development push and a new
+complete hosted A, then a whole-run B on the same source. The existing original
+archive/receipt/case reconciler owns qualification. Failed/cancelled historical
+runs receive no credit. Manual accessibility remains maintainer-deferred and
+unexecuted for PR review. No new product work or policy increase is selected.
