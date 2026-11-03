@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,392 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,418 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -295,6 +295,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 finite VM diagnostic review round 1 (2026-11-03)](#p03-3-finite-vm-diagnostic-review-round-1-2026-11-03) — 34 lines
   - [P03-3 finite VM diagnostic R2 closeout and continued frontend diagnosis (2026-11-03)](#p03-3-finite-vm-diagnostic-r2-closeout-and-continued-frontend-diagnosis-2026-11-03) — 35 lines
   - [P03-3 fresh verified fixture copies and byte-equivalent patch hashing (2026-11-03)](#p03-3-fresh-verified-fixture-copies-and-byte-equivalent-patch-hashing-2026-11-03) — 66 lines
+  - [P03-3 matrix preparation correction R1 and MVP delivery focus (2026-11-03)](#p03-3-matrix-preparation-correction-r1-and-mvp-delivery-focus-2026-11-03) — 26 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -14230,3 +14231,29 @@ corrected-source Linux/quota-four validation and complete same-final-source host
 A/B with original-evidence reconciliation. Local success is no hosted fit claim.
 Manual keyboard/focus/reflow/contrast/VoiceOver evidence remains maintainer-deferred
 and **unexecuted**. P03-3 remains open in the phase Status block.
+
+### P03-3 matrix preparation correction R1 and MVP delivery focus (2026-11-03)
+
+Two new independent R1 reviewers inspect the complete nine-file committed range
+`9257fa2b..672d62b6`, with source/security/lifetime and evidence/contracts/test-quality
+lenses. Both approve with zero actionable findings. Root reads both final reports
+and verifies their identities. The source report is 15,084 bytes, SHA-256
+`b64a90ffe121445c8c5f716c88ee20d85892faa245e04dc9eaf99d0a75fffdd9`;
+the evidence report is 3,718 bytes, SHA-256
+`42945640dd52ca561887af0f5111f8c8eabf5b6232bc16a1daf8276c62e86347`.
+No additional source fix or test replay follows from this round. The reports state
+their read and retained-evidence limits; neither claims hosted qualification.
+
+The maintainer directs focus on MVP delivery and removal of excessive diagnostic
+and verification overhead. The separate proposed corrected-source private
+Linux/quota-four pipeline is therefore not pursued; its plan remains unexecuted,
+with no qualification credit. Required Linux behavior is tested by the existing
+hosted CI chain, whose actual evidence must still qualify. No benchmark, new
+private runner or optional optimization investigation is added. Only verified
+issues that prevent correct delivery justify further source work. This changes
+the execution plan, not the Accepted clocks, proof assertions or final A/B gates.
+
+Close the existing process with two new R2 reviewers over the cumulative committed
+correction, then proceed directly to complete same-final-source hosted A/B and
+original-evidence reconciliation. P03-3 and PR readiness remain open until those
+results are known. Manual accessibility remains maintainer-deferred, unexecuted.
