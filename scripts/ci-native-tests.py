@@ -54,9 +54,11 @@ JOIN_SECONDS = 15
 PROCESS_JOIN_SECONDS = 3
 DOCKER_SECONDS = 45
 SCAN_SECONDS = 20
+PREFLIGHT_SCAN_SECONDS = 60
 EXPORT_SECONDS = 20
 MARGIN_SECONDS = 20
 COMMAND_SECONDS = 5
+IMAGE_METADATA_COMMAND_SECONDS = 10
 STARTUP_SECONDS = 30
 POLL_SECONDS = 0.1
 UNIT_POLL_SECONDS = 0.5
@@ -2556,12 +2558,12 @@ def image_layer_snapshot(candidate, deadline):
         nonlocal stage
         info = command([*docker, 'info', '--format',
                         '{"driver":{{json .Driver}},"root":{{json .DockerRootDir}}}'],
-                       deadline, 'image_metadata_unavailable_info_command', classify=True)
+                       deadline, 'image_metadata_unavailable_info_command', cap=IMAGE_METADATA_COMMAND_SECONDS, classify=True)
         stage = 'info_parse'
         require(json.loads(info) == {'driver': 'overlay2', 'root': '/var/lib/docker'},
                 'image_metadata_unavailable_info_shape')
         raw = command([*docker, 'image', 'ls', '--all', '--quiet', '--no-trunc'],
-                      deadline, 'image_metadata_unavailable_image_list_command', classify=True)
+                      deadline, 'image_metadata_unavailable_image_list_command', cap=IMAGE_METADATA_COMMAND_SECONDS, classify=True)
         require(len(raw) <= 256 * 72, 'image_metadata_unavailable_image_list_bound')
         stage = 'image_list_parse'
         ids = raw.decode('ascii').splitlines()
@@ -2572,7 +2574,7 @@ def image_layer_snapshot(candidate, deadline):
             return (), ()
         raw = command([*docker, 'image', 'inspect', '--format',
                        '{"id":{{json .Id}},"driver":{{json .GraphDriver}}}', *ids],
-                      deadline, 'image_metadata_unavailable_image_inspect_command', classify=True)
+                      deadline, 'image_metadata_unavailable_image_inspect_command', cap=IMAGE_METADATA_COMMAND_SECONDS, classify=True)
         require(len(raw) <= 512 * 1024, 'image_metadata_unavailable_image_inspect_bound')
         stage = 'image_inspect_parse'
         records = [json.loads(line) for line in raw.splitlines()]
@@ -2601,7 +2603,7 @@ def image_layer_snapshot(candidate, deadline):
         require(candidate.startswith('/var/lib/docker/overlay2/') and len(candidate) <= 4096,
                 'image_metadata_unavailable_candidate_shape')
         raw = command([SUDO, '-n', REALPATH, '-e', '--', *before[1], candidate],
-                      deadline, 'image_metadata_unavailable_canonical_command', classify=True)
+                      deadline, 'image_metadata_unavailable_canonical_command', cap=IMAGE_METADATA_COMMAND_SECONDS, classify=True)
         require(len(raw) <= 512 * 1024, 'image_metadata_unavailable_canonical_bound')
         stage = 'canonical_parse'
         canonical = raw.decode('utf-8').splitlines()
@@ -2611,12 +2613,12 @@ def image_layer_snapshot(candidate, deadline):
         layers = sorted(set(canonical[:-1]))
         stage = 'layer_stat_parse'
         kinds = command([SUDO, '-n', STAT, '--format=%F', '--', *layers],
-                        deadline, 'image_metadata_unavailable_layer_stat_command', classify=True).decode('ascii').splitlines()
+                        deadline, 'image_metadata_unavailable_layer_stat_command', cap=IMAGE_METADATA_COMMAND_SECONDS, classify=True).decode('ascii').splitlines()
         require(kinds == ['directory'] * len(layers), 'image_metadata_unavailable_layer_kind')
         require(any(canonical[-1].startswith(path + '/') for path in layers), 'image_metadata_no_match')
         require(inventory() == before, 'image_metadata_unavailable_inventory_changed')
         require(command([SUDO, '-n', REALPATH, '-e', '--', *before[1], candidate],
-                        deadline, 'image_metadata_unavailable_canonical_recheck_command', classify=True) == raw,
+                        deadline, 'image_metadata_unavailable_canonical_recheck_command', cap=IMAGE_METADATA_COMMAND_SECONDS, classify=True) == raw,
                 'image_metadata_unavailable_canonical_changed')
         return before, tuple(canonical)
     except Refusal:
@@ -2627,7 +2629,13 @@ def image_layer_snapshot(candidate, deadline):
         raise Refusal('image_metadata_unavailable_' + stage) from None
 
 
-def find_crash_candidate(roots, deadline, image_layers=()):
+def crash_scan_seconds(phase):
+    require(type(phase) is str and phase in ('preflight', 'final'), 'crash_scan_phase_invalid')
+    return PREFLIGHT_SCAN_SECONDS if phase == 'preflight' else SCAN_SECONDS
+
+
+def find_crash_candidate(roots, deadline, image_layers=(), *, phase='final'):
+    seconds = crash_scan_seconds(phase)
     # Exact metadata-proved diff directories only; never overlay parents or a
     # writable container layer. Keep default no-symlink-follow and -xdev.
     require(len(image_layers) <= 512 and all(re.fullmatch(
@@ -2645,11 +2653,12 @@ def find_crash_candidate(roots, deadline, image_layers=()):
         predicate = ['(', '-type', 'd', '(', *paths, ')', '-prune', ')', '-o', '(', *predicate, ')']
     argv = [SUDO, '-n', FIND, *roots, '-xdev', *predicate]
     require(sum(len(os.fsencode(arg)) + 1 for arg in argv) <= 128 * 1024, 'crash_prune_bound')
-    return command(argv, deadline, 'crash_inventory_unreadable', cap=SCAN_SECONDS, classify=True)
+    return command(argv, deadline, 'crash_inventory_unreadable', cap=seconds, classify=True)
 
 
-def crash_scan(deadline):
-    end = min(deadline, time.monotonic() + SCAN_SECONDS)
+def crash_scan(deadline, *, phase='final'):
+    seconds = crash_scan_seconds(phase)
+    end = min(deadline, time.monotonic() + seconds)
     locations = [(str(ROOT), 'workspace'), (os.environ['RUNNER_TEMP'], 'runner_temp')]
     locations.extend(zip(HOST_CRASH_ROOTS, ('apport', 'systemd', 'docker', 'tmp', 'var_tmp')))
     roots = [path for path, _ in locations if Path(path).exists()]
@@ -2659,7 +2668,7 @@ def crash_scan(deadline):
         ('containerd', 'containerd'), ('containers', 'containers'), ('volumes', 'volumes')))
     # Read-only, fixed predicates. Container scratch proofs remain in the native
     # tests; this additionally inspects actual host file-collector destinations.
-    value = find_crash_candidate(roots, end)
+    value = find_crash_candidate(roots, end, phase=phase)
     image_count, provenance = 0, ''
     if value:
         candidate = os.fsdecode(value[:-1]) if value.endswith(b'\0') and value.count(b'\0') == 1 else ''
@@ -2672,7 +2681,7 @@ def crash_scan(deadline):
                 # The first hit alone never supplies a clean scan. Search all
                 # original roots again, excluding only proved read-only images.
                 layers = tuple(sorted(set(before[1][:-1])))
-                value = find_crash_candidate(roots, end, layers)
+                value = find_crash_candidate(roots, end, layers, phase=phase)
                 try:
                     require(image_layer_snapshot(candidate, end) == before, 'crash_image_metadata_changed')
                 except Refusal:
@@ -2851,7 +2860,7 @@ def execute(mode):
             # even read-only sudo or the transient unit's privilege. Provisioning
             # independently repeats qualification, drift and write/readback checks.
             prevalidate_native(provisioner, execution)
-            receipt['crashInventoryBefore'] = crash_scan(execution)
+            receipt['crashInventoryBefore'] = crash_scan(execution, phase='preflight')
         elif mode in SHARD_JOBS:
             receipt['runtime'] = qualify_shard_vm(mode, execution)
         require(not command([SYSTEMCTL, 'list-units', '--all', '--plain', '--no-legend', unit],

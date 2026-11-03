@@ -5,6 +5,7 @@ Only fixed proc/executable constants change in the byte-verified copy. Fixture
 executables are real subprocesses, including exit, stdout and setsid behavior.
 These controls do not qualify a hosted systemd/cgroup implementation or CI fit.
 """
+import ast
 from collections import Counter
 import contextlib
 import errno
@@ -2932,6 +2933,132 @@ except launcher.Refusal as failure:
                          self.owner.crash_scan, time.monotonic() + 2)
             self.configure(crash='')
             self.owner.crash_scan(time.monotonic() + 2)
+
+    def configure_inventory_candidate(self):
+        layer = '/var/lib/docker/overlay2/' + 'b' * 64 + '/diff'
+        parent = '/var/lib/docker/overlay2/' + 'c' * 64 + '/diff'
+        link = '/var/lib/docker/overlay2/l/' + 'D' * 26
+        image = 'sha256:' + 'a' * 64
+        record = {'id': image, 'driver': {'Name': 'overlay2', 'Data': {'UpperDir': layer, 'LowerDir': link}}}
+        self.configure(image_info=json.dumps({'driver': 'overlay2', 'root': '/var/lib/docker'}),
+                       image_ids=image + '\n', image_inspect=json.dumps(record) + '\n',
+                       realpaths={link: parent}, crash=layer + '/PRIVATE-CANARY.dump\0',
+                       crash_after_prune='')
+
+    def test_inventory_phases_clip_all_repeated_metadata_reads_to_one_parent(self):
+        self.configure_inventory_candidate()
+        temporary = self.root / 'runner-temp'
+        temporary.mkdir()
+        actual_command, actual_run = self.owner.command, subprocess.run
+        for phase, outer, cost in (('preflight', 1000, 0.9), ('final', 1000, 0.9),
+                                   ('preflight', 112, 0.45), ('final', 112, 0.45)):
+            with self.subTest(phase=phase, outer=outer):
+                clock, observed = [100.0], []
+                allocation = 60 if phase == 'preflight' else 20
+                end = min(outer, 100 + allocation)
+                def command(argv, deadline, reason, **options):
+                    observed.append((reason, deadline, options.get('cap', 5), clock[0]))
+                    result = actual_command(argv, deadline, reason, **options)
+                    clock[0] += 0.5 if reason == 'crash_inventory_unreadable' else cost
+                    return result
+                with mock.patch.dict(os.environ, {'RUNNER_TEMP': str(temporary)}), \
+                     mock.patch.object(self.owner.time, 'monotonic', side_effect=lambda: clock[0]), \
+                     mock.patch.object(self.owner, 'command', side_effect=command), \
+                     mock.patch.object(self.owner.subprocess, 'run', wraps=actual_run) as run:
+                    self.assertEqual({'verifiedImageDirectories': 2}, self.owner.crash_scan(outer, phase=phase))
+                self.assertEqual(20, len(observed))
+                self.assertEqual(len(observed), len(run.call_args_list))
+                for (reason, deadline, cap, began), call in zip(observed, run.call_args_list):
+                    self.assertEqual(end, deadline)
+                    self.assertEqual(allocation if reason == 'crash_inventory_unreadable' else 10, cap)
+                    self.assertAlmostEqual(min(cap, end - began), call.kwargs['timeout'])
+                    self.assertEqual(subprocess.DEVNULL, call.kwargs['stderr'])
+                counts = Counter(reason for reason, *_ in observed)
+                self.assertEqual(2, counts['crash_inventory_unreadable'])
+                self.assertEqual(4, counts['image_metadata_unavailable_info_command'])
+                self.assertEqual(18, sum(n for reason, n in counts.items() if reason.startswith('image_metadata_')))
+                if phase == 'final' or outer == 112:
+                    self.assertTrue(any(call.kwargs['timeout'] < 10 for call in run.call_args_list))
+                self.assertLess(clock[0], end)
+
+    def test_inventory_phase_selection_refuses_unknown_shapes_and_preserves_final_ledger(self):
+        class ForgedPhase(str):
+            pass
+        for phase in (None, True, 0, 1, [], {}, b'preflight', '', 'Final', 'setup', ForgedPhase('preflight')):
+            with self.subTest(shape=type(phase).__name__), mock.patch.object(self.owner, 'command') as command:
+                self.refuses('crash_scan_phase_invalid', self.owner.crash_scan, 1000, phase=phase)
+                self.refuses('crash_scan_phase_invalid', self.owner.find_crash_candidate,
+                             ['/fixed'], 1000, phase=phase)
+                command.assert_not_called()
+        self.assertEqual((20, 5, 143, 203, 1200), (self.owner.SCAN_SECONDS, self.owner.COMMAND_SECONDS,
+                         self.owner.TAIL_SECONDS, self.owner.RESERVE_SECONDS, self.owner.JOB_SECONDS))
+
+    def test_native_execute_selects_preflight_before_launch_and_final_in_cleanup(self):
+        self.configure_inventory_candidate()
+        temporary = self.root / 'runner-temp'
+        temporary.mkdir()
+        (self.bin / 'cgroup/cgroup.controllers').touch()
+        # The copied owner imports this inert sibling, but never invokes a
+        # provisioner or launches a real unit in these deliberately failed acts.
+        self.copy.with_name('ci-native-provisioning.py').write_text('# Inert control module.\n')
+        actual_scan, actual_command = self.owner.crash_scan, self.owner.command
+        for early in (True, False):
+            with self.subTest(preflight_refused=early):
+                suffix = 'early' if early else 'launch'
+                private, output = self.root / ('private-' + suffix), self.root / ('output-' + suffix)
+                execution, cleanup = time.monotonic() + 10, time.monotonic() + 20
+                events, reads, active = [], [], [None]
+                def scan(deadline, **options):
+                    phase = options.get('phase', 'final')
+                    events.append((phase, deadline))
+                    if early:
+                        raise self.owner.Refusal('crash_inventory_unreadable_timeout')
+                    active[0] = phase
+                    try:
+                        return actual_scan(deadline, **options)
+                    finally:
+                        active[0] = None
+                def command(argv, deadline, reason, **options):
+                    reads.append((active[0], reason, options.get('cap', 5)))
+                    return actual_command(argv, deadline, reason, **options)
+                def launch(*args):
+                    self.assertEqual([('preflight', execution)], events)
+                    raise self.owner.Refusal('unit_launch_failed')
+                with contextlib.ExitStack() as stack:
+                    for name, value in (('identity', {}), ('locations', ('owned.service', private, output)),
+                                        ('deadlines', (execution, cleanup)), ('lower_core', None),
+                                        ('docker_census', {}), ('prevalidate_native', None), ('docker_complete', False)):
+                        stack.enter_context(mock.patch.object(self.owner, name, return_value=value))
+                    stack.enter_context(mock.patch.dict(os.environ, {'RUNNER_TEMP': str(temporary)}))
+                    stack.enter_context(mock.patch.object(self.owner, 'crash_scan', side_effect=scan))
+                    stack.enter_context(mock.patch.object(self.owner, 'command', side_effect=command))
+                    launched = stack.enter_context(mock.patch.object(self.owner, 'launch_unit', side_effect=launch))
+                    stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+                    self.assertEqual(1, self.owner.execute('native-shard'))
+                expected = [('preflight', execution)] + ([] if early else [('final', cleanup)])
+                self.assertEqual(expected, events)
+                result = self.owner.read_json(output / 'result.json')
+                self.assertFalse(result['success'])
+                self.assertFalse(result['ownershipComplete'])
+                self.assertEqual('crash_inventory_unreadable_timeout' if early else 'unit_launch_failed', result['error'])
+                if early:
+                    launched.assert_not_called()
+                    self.assertEqual([], reads)
+                else:
+                    for phase, allocation in (('preflight', 60), ('final', 20)):
+                        self.assertEqual([allocation, allocation],
+                                         [cap for owner, reason, cap in reads
+                                          if owner == phase and reason == 'crash_inventory_unreadable'])
+                        self.assertEqual([10] * 18, [cap for owner, reason, cap in reads
+                                                   if owner == phase and reason.startswith('image_metadata_')])
+        tree = ast.parse(SOURCE.read_text())
+        calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)
+                 and isinstance(node.func, ast.Name) and node.func.id == 'crash_scan']
+        self.assertEqual(2, len(calls))
+        calls.sort(key=lambda node: node.lineno)
+        self.assertEqual(['execution', 'cleanup'], [node.args[0].id for node in calls])
+        self.assertEqual([('phase', 'preflight')], [(item.arg, item.value.value) for item in calls[0].keywords])
+        self.assertEqual([], calls[1].keywords)
 
     def test_image_provenance_prunes_only_verified_directories_after_complete_rerun(self):
         layer = '/var/lib/docker/overlay2/' + 'b' * 64 + '/diff'
