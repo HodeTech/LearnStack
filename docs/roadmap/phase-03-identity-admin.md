@@ -12,6 +12,9 @@
 > records their source. [Draft PR #40](https://github.com/HodeTech/LearnStack/pull/40)
 > owns parallel product review and current complete same-source hosted A/B/archive
 > qualification. Its proof record distinguishes local, hosted and manual evidence.
+> [Proposed ADR-0090](../decisions/0090-sdk-cold-prefix-proof-settings.md) awaits
+> approval for the separately retained SDK cold-prefix pair; native scan policy
+> remains unchanged.
 > Failed/cancelled runs receive no qualification credit.
 > [Manual keyboard/focus/reflow/contrast/VoiceOver evidence](phase-03-delivery-log.md#p03-3-maintainer-approved-manual-deferral-and-step-10-continuation-2026-10-30)
 > remains maintainer-deferred and unexecuted for PR review.

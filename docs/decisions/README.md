@@ -138,6 +138,7 @@ records hosted qualification. Phase 11 owns production qualification.
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
+| 0090 | [SDK Cold Prefix Proof Settings](0090-sdk-cold-prefix-proof-settings.md) | Only the existing cold typecheck/lint stop request 60→90 seconds and shared Vitest setting 90→100; SDK 180-second aggregate and native scan policy unchanged | P03-3 qualification; explicit approval before settings change |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
 the P02d-2 package on 2026-10-02. Their rows are now in Active ADRs; ADR-0049 remains

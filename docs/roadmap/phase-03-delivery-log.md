@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,110 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,197 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -323,6 +323,9 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0089 proposal review closeout and approval readiness (2026-11-03)](#adr-0089-proposal-review-closeout-and-approval-readiness-2026-11-03) — 16 lines
   - [ADR-0089 maintainer review, acceptance and parallel PR plan (2026-11-03)](#adr-0089-maintainer-review-acceptance-and-parallel-pr-plan-2026-11-03) — 26 lines
   - [P03-3 ADR-0089 validation and draft PR handoff (2026-11-03)](#p03-3-adr-0089-validation-and-draft-pr-handoff-2026-11-03) — 37 lines
+  - [P03-3 PR 40 web pass, SDK cold-prefix failure and ADR-0090 proposal (2026-11-03)](#p03-3-pr-40-web-pass-sdk-cold-prefix-failure-and-adr-0090-proposal-2026-11-03) — 44 lines
+  - [PR 40 first A terminal result and SDK proposal review (2026-11-03)](#pr-40-first-a-terminal-result-and-sdk-proposal-review-2026-11-03) — 27 lines
+  - [ADR-0090 proposal review closeout and approval readiness (2026-11-03)](#adr-0090-proposal-review-closeout-and-approval-readiness-2026-11-03) — 16 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -14976,3 +14979,90 @@ Do not dispatch a parallel manual run or accept failed/cancelled predecessors.
 Current hosted qualification is recorded in the PR's mutable proof section so
 an observational document commit does not invalidate the qualified final source.
 The draft stays unmerged; the maintainer owns review and merge.
+
+### P03-3 PR 40 web pass, SDK cold-prefix failure and ADR-0090 proposal (2026-11-03)
+
+PR run `41647864236`, attempt 1 (A), head `9135e6b3`, merge source `5eeccd12`,
+tree `9999e31aaa75420d6c920b39aaad8fc79fa35a4e`, base `e55aa5d7`, completes
+all 112 discovered web files and all 3,421 reported web cases in 709.21 seconds.
+The actual provenance wrapper passes with Accepted ADR-0089's 90/100 settings.
+The SDK finishes nine discovered files in 126.67 seconds: eight files pass,
+one fails, 152 cases pass and two fail. Both are the existing cold-lint controls
+at 63,386/62,178 ms, reporting the generic process-family refusal. Its 180-second
+aggregate does not expire. Public-demo and meta pass. Whole A cannot qualify;
+other backend jobs are still completing when this record is prepared.
+
+Decoded frontend job log: 90,300 bytes, SHA-256
+`888f02c3bd3d6dad3bddb510c60a2ccb8282a8826fe5220e7d9248ce1277a7d6`.
+This is retained decoded log evidence, not an original-ZIP reconciliation claim.
+The two cold-lint controls share a sixty-second stop-request timer around the
+actual sequential workspace typecheck/lint commands; each has a ninety-second
+Vitest setting. Durations near that timer are consistent with stop request but
+do not prove its cause, stage, unfinished tail or required minimum. No product
+correctness defect or verifier-freshness shortcut is established.
+
+Separately, native job `125958388099` refuses before test-owner launch with
+`crash_inventory_unreadable`. Its approximately 22.6-second execute interval
+includes prevalidation and does not prove timeout. Decoded native log: 50,041
+bytes, SHA-256 `75f53267f1bba71c88848e6693b7fd5a111775aaf458ba238577198ac0a76cbd`.
+A source review verifies the existing helper folds timeout, OS, nonzero exit
+and output-bound failures together. Commit `4347f81e` opts only this call into
+its existing closed classifier. The same scan roots, no-symlink-follow/`-xdev`,
+image pruning, twenty-second allocation, private I/O and fail-closed acceptance
+remain. All 103 existing controls pass in 21.965 seconds; two fresh independent
+implementation rounds approve without findings. This is diagnosis, not repair
+of the unproved hosted cause, and changes no timer or policy.
+
+[Proposed ADR-0090](../decisions/0090-sdk-cold-prefix-proof-settings.md) selects
+only the SDK cold-prefix stop request 60→90 seconds and shared Vitest setting
+90→100. SDK aggregate 180 seconds, web 900 seconds, frontend CI twenty-five
+minutes and all other test/product/native settings remain. It acknowledges
+that two inner maxima plus other work are not reserved by the aggregate.
+Acceptance/carriers, two literals/existing controls, then full stable local
+verification, both fresh reviews and complete same-source PR A/B/archive
+qualification remain separate. No executable timer change occurs before approval.
+The draft PR stays available for product review; merge remains the maintainer's.
+Manual accessibility remains deferred and unexecuted.
+
+### PR 40 first A terminal result and SDK proposal review (2026-11-03)
+
+Run `41647864236`, attempt 1, completes with 24 successful and three failed
+jobs on the previously recorded head/merge-source/tree/base binding. Base,
+all six Architecture and all twelve ordinary producers pass. Native refuses
+before owner/test launch; frontend fails only the two SDK cold-lint cases;
+the integration aggregate consequently fails. Public-demo, meta and the
+remaining jobs pass. This is no complete A; B is not started and no original-ZIP
+qualification is claimed. Terminal run/job metadata and the two decoded job
+logs are retained. Direct CLI job-log acquisition is unavailable; that does
+not invalidate the already retained decoded logs or supply archive evidence.
+
+Both fresh native-classification implementation reviews approve with no
+findings, including the real call-site propagation of all four fixed failure
+classes and unchanged scan/stop/privacy/refusal policy. No native timer changes.
+The first fresh ADR-0090 proposal review approves its bounded SDK pair for
+maintainer consideration; it explicitly checks that two ninety-second stop
+settings and two one-hundred-second failure settings are not reserved by the
+unchanged 180-second package owner. The second independent review is separate.
+
+To avoid a known-incomplete duplicate full workflow while SDK policy remains
+undecided, the reviewed native diagnostic and proposal are committed locally
+on development before one later combined PR synchronization. The published
+draft remains available on its disclosed failed source. This publication order
+changes no approval or proof requirement: SDK settings stay at sixty/ninety
+seconds until explicit acceptance; final-source complete A/B remains open.
+
+### ADR-0090 proposal review closeout and approval readiness (2026-11-03)
+
+Two fresh independent proposal rounds approve without actionable findings.
+Both check the real two literals, actual prefix commands, preserved source/
+output/ownership assertions, explicit aggregate-budget interaction and absence
+of a cause/minimum/fit claim. The existing SDK sources remain sixty/ninety
+seconds; ADR-0090 is Proposed. Acceptance and implementation require the
+maintainer's explicit decision. The separate native diagnostic is fully tested
+and reviewed, with its scan policy unchanged.
+
+Document checks pass. PR #40 remains draft, unmerged and accurately discloses
+the first A's 24/27 result and incomplete qualification. No CI or local heavy
+workload remains active. One later combined push avoids launching a known
+incomplete duplicate workflow while this SDK decision is pending. Manual
+accessibility stays deferred and unexecuted; failed evidence receives no credit.
