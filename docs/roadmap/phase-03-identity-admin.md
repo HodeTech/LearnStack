@@ -4,13 +4,11 @@
 > P03-1 ([PR #38](https://github.com/HodeTech/LearnStack/pull/38)) and
 > P03-2 ([PR #39](https://github.com/HodeTech/LearnStack/pull/39)) are merged.
 > P03-3 implementation and both independent review rounds are complete for
-> Steps 1–9; Step 10's latest fixture correction is being verified. Accepted
-> ADR-0078–0088 govern the
+> Steps 1–9 and Step 10's source corrections. Accepted ADR-0078–0088 govern the
 > native entry, administration, seed, framework ownership and CI changes; the
 > decision register below links their decisions and proof obligations.
-> [The provenance marker publication correction](phase-03-delivery-log.md#p03-3-provenance-marker-publication-correction-2026-11-03)
-> addresses a reproduced fixture race after the latest hosted failure. Current
-> source verification and complete same-source hosted A/B/archive qualification
+> [The latest provenance correction, full local guard and both review rounds](phase-03-delivery-log.md#p03-3-provenance-publication-review-closeout-and-ci-handoff-2026-11-03)
+> are complete. Complete same-source hosted A/B and original-archive qualification
 > remain open before the P03-3 PR.
 > Failed/cancelled runs receive no qualification credit.
 > [Manual keyboard/focus/reflow/contrast/VoiceOver evidence](phase-03-delivery-log.md#p03-3-maintainer-approved-manual-deferral-and-step-10-continuation-2026-10-30)
@@ -22,7 +20,7 @@
 > | P03-0 | Entry preparation | Complete — [reconciliation](phase-03-delivery-log.md#entry-preparation-2026-10-25) |
 > | P03-1 | Identity authority and membership foundation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-1-merge-and-closeout-2026-10-27) |
 > | P03-2 | Live membership and authorization | Complete and merged — [closeout](phase-03-delivery-log.md#p03-2-merge-and-closeout-2026-10-28) |
-> | P03-3 | Protected Studio and membership administration | Hosted qualification pending — [provenance correction](phase-03-delivery-log.md#p03-3-provenance-marker-publication-correction-2026-11-03) |
+> | P03-3 | Protected Studio and membership administration | Hosted qualification pending — [current-source handoff](phase-03-delivery-log.md#p03-3-provenance-publication-review-closeout-and-ci-handoff-2026-11-03) |
 > | P03-4 | Invitations and bounded delivery | Not started |
 > | P03-5 | Custom fields and privacy classification | Not started |
 > | P03-6 | Provider event ingress and audit mirror | Not started |

@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,956 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,984 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -317,6 +317,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0088 existing stdio control binding correction (2026-11-03)](#adr-0088-existing-stdio-control-binding-correction-2026-11-03) — 11 lines
   - [ADR-0088 implementation review closeout and final-source CI handoff (2026-11-03)](#adr-0088-implementation-review-closeout-and-final-source-ci-handoff-2026-11-03) — 33 lines
   - [P03-3 provenance marker publication correction (2026-11-03)](#p03-3-provenance-marker-publication-correction-2026-11-03) — 37 lines
+  - [P03-3 provenance publication review closeout and CI handoff (2026-11-03)](#p03-3-provenance-publication-review-closeout-and-ci-handoff-2026-11-03) — 28 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -14816,3 +14817,31 @@ and all other runtime/CI policy remain intact. The next committed-source full
 guard, both fresh review rounds and new same-source hosted A/B/archive proof
 remain required. No new budget decision, cache or blind unchanged-source rerun
 is selected. Manual accessibility remains deferred and unexecuted.
+
+### P03-3 provenance publication review closeout and CI handoff (2026-11-03)
+
+Commit `419b703a`, tree `5dc66d7133452be9ccf21f6d454ee02517e5704e`, fixes only
+the inert runtime marker's atomic publication and adds the forced empty-staging
+regression inside the existing production/development controls. The 112-control
+population, thirty-second subprocess setting, thirty-five-second Vitest setting
+and all Accepted ADR-0088 settings remain unchanged.
+
+The direct provenance run passes 112/112 in 21.545 seconds; typecheck and lint
+pass. The full committed-source guard now passes 3,575 reported cases with zero
+skips/todos, empty stderr and stable tracked source hashes: web 3,421 across
+112 files (328.99 seconds) and SDK 154 across nine (77.04 seconds). Total guarded
+wall time is 410.021 seconds. No independent generic scenario-ID census is
+claimed. The real provenance wrapper passes in this full run too.
+
+Two fresh independent rounds each inspect source and evidence/contracts. All
+four reviewers approve with no actionable findings, including child-only hook
+confinement, restored filesystem binding, actual PID/listener/metadata/freshness
+and retirement assertions. They preserve the distinction between the reproduced
+JSON race and the earlier hosted timeout whose cause remains unproved.
+
+This docs-only handoff precedes the normal development push and new complete
+hosted A followed by whole-run B on the same source and existing original-archive
+reconciliation. Neither failed predecessor run receives credit. No new timer,
+ADR, cache, runner, benchmark or diagnostic pipeline is introduced; only the
+verified fixture bug changes source. Manual accessibility remains deferred and
+unexecuted for PR review.
