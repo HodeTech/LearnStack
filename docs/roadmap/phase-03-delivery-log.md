@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,668 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,715 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -306,6 +306,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0086 review closeout and final-source CI handoff (2026-11-03)](#adr-0086-review-closeout-and-final-source-ci-handoff-2026-11-03) — 21 lines
   - [P03-3 current CI failure and bounded native-group correction (2026-11-03)](#p03-3-current-ci-failure-and-bounded-native-group-correction-2026-11-03) — 45 lines
   - [P03-3 native-group correction review closeout and CI handoff (2026-11-03)](#p03-3-native-group-correction-review-closeout-and-ci-handoff-2026-11-03) — 25 lines
+  - [P03-3 native proof orchestration exhaustion and ADR-0087 proposal (2026-11-03)](#p03-3-native-proof-orchestration-exhaustion-and-adr-0087-proposal-2026-11-03) — 33 lines
+  - [ADR-0087 bounded proposal review closeout (2026-11-03)](#adr-0087-bounded-proposal-review-closeout-2026-11-03) — 14 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -14517,3 +14519,50 @@ reused as qualification. No deadline, parser/admission cache, additional test
 project, private benchmark or parallel historical artifact audit is introduced.
 Only verified delivery blockers justify further changes. Manual accessibility
 remains maintainer-deferred/unexecuted for PR review.
+
+### P03-3 native proof orchestration exhaustion and ADR-0087 proposal (2026-11-03)
+
+Complete hosted A `41594645147` on `c32fe391`, tree
+`154edab71f413c4e443d786d65dbb2220e61f9eb`, fails frontend qualification. The
+corrected cancellation-owner path now forwards finite group evidence: startup
+reaches `prehello-term` after twelve cases at its 120-second group boundary;
+workers reaches `worker-self-kill` competitor observation after three cases at
+its group boundary. Cleanup remains unconfirmed/retained in those failed
+observations. The whole web package later exhausts 360 seconds. The remaining
+run is cancelled and all failed/partial outcomes remain unqualified.
+
+The preceding source's 3,575 local guarded cases and four implementation reviews
+are valid local evidence, not hosted fit. No further parser optimization, cache,
+private benchmark or speculative source change is selected. Repository metadata
+confirms a public repository and `ubuntu-latest`; GitHub's current documented
+public standard is four vCPU/16 GB, not measured utilization. No repository
+self-hosted runner is configured; the hosted-runner listing is unavailable with
+the current API context (404), which does not prove no larger runner exists.
+No paid tier is selected or provisioned.
+
+[ADR-0087](../decisions/0087-native-frontend-proof-windows.md) proposes one bounded
+test-window package: web 600 seconds; closed matrix groups 180; group subprocess
+wrappers 210; startup/workers/recovery cases 220. Existing thirty/ten-second
+wrapper gaps remain. All SDK/other package, source-control, initialized-router,
+runtime request/readiness/shutdown, CI job, VM-count and cleanup constraints
+remain. These are judged headroom, not measured minima or a guarantee of fit.
+
+Three steps are acceptance/carriers; selected constants and existing controls;
+then complete local/review/final-source A/B/archive qualification and PR. The
+new policy remains Proposed and no executable bound changes before the
+maintainer's explicit approval, as previously requested. Manual accessibility
+stays deferred/unexecuted. No CI is running while this decision is pending.
+
+### ADR-0087 bounded proposal review closeout (2026-11-03)
+
+Two fresh independent proposal rounds approve the selected test-window table,
+source owners and current carrier changes with no actionable findings. They
+check current constants one hop out, preserve the thirty/ten-second wrapper
+gaps and separate starts, and distinguish judged headroom from minimum/fit
+evidence. Runtime limits, case/Node populations, cleanup and complete source-
+bound qualification remain. No source edit, workload or new diagnostic is run
+for document review.
+
+The proposal is ready for the maintainer's explicit decision. No selected
+executable constant changes while ADR-0087 remains Proposed. Whole-tree
+fragment, roadmap-structure and delivery-index checks pass; no CI is active.
