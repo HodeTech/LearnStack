@@ -1,20 +1,105 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import vm from 'node:vm';
 
-import { instrumentCopiedBffRuntime } from './bff-proof-host.mjs';
+import { instrumentCopiedBffRuntime, prepareBffProof } from './bff-proof-host.mjs';
 import { instrumentCopiedAdmissionRuntime } from './framework-proof-admission-source.mjs';
 import { instrumentCopiedIngressRuntime } from './framework-proof-ingress-source.mjs';
 import { prepareFrameworkProof } from './framework-proof-support.mjs';
 
 const sourceApp = realpathSync(new URL('../', import.meta.url));
+function matrixOptions(marker) {
+  return {
+    ownershipCase: 'matrix',
+    uiMode: false,
+    isolatedProtocol: true,
+    fakeIssuer: 'https://identity.example.test/realms/learnstack',
+    fakeLogout: 'https://identity.example.test/logout',
+    sites: [{ host: 'institution.example.test:3000', displayName: 'Institution', locale: 'en' }],
+    marker,
+    clockBase: 1800000000000,
+  };
+}
+function credentials(source, clientSecret) {
+  const declarations = source.match(/^ {4}const credentials = (.+);$/gm);
+  assert.equal(declarations?.length, 1);
+  const expression = declarations[0].slice('    const credentials = '.length, -1);
+  return vm.runInNewContext(`(${expression})()`, { bff: { clientSecret }, now: 0 });
+}
 function temp() {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'learnstack-proof-source-')));
   return { root, remove: () => rmSync(root, { recursive: true, force: true }) };
 }
+
+test('matrix source stays identical while credentials retain distinct private fixture bindings', () => {
+  const source = readFileSync(join(sourceApp, 'scripts/public-server-runtime.mjs'), 'utf8');
+  const markers = ['first-private-marker', 'second-private-marker'];
+  const copies = markers.map((marker) => instrumentCopiedBffRuntime(source, matrixOptions(marker)));
+  assert.equal(copies[0], copies[1]);
+  for (const marker of markers) {
+    assert.equal(copies[0].includes(marker), false);
+    const actual = credentials(copies[0], marker);
+    for (const field of ['accessToken', 'refreshToken', 'idToken'])
+      assert.equal(actual[field], marker);
+  }
+  assert.notEqual(credentials(copies[0], markers[1]).accessToken, markers[0]);
+});
+
+test('matrix credential selection refuses other profiles and preserves ordinary literal credentials', () => {
+  const source = readFileSync(join(sourceApp, 'scripts/public-server-runtime.mjs'), 'utf8');
+  for (const override of [
+    { isolatedProtocol: false },
+    { uiMode: true },
+    { external: {} },
+    { mutation: 'shutdown' },
+  ])
+    assert.throws(
+      () => instrumentCopiedBffRuntime(source, { ...matrixOptions('marker'), ...override }),
+      /Matrix credentials require the isolated ownership fixture/,
+    );
+  const ordinary = ['first-marker', 'second-marker'].map((marker) =>
+    instrumentCopiedBffRuntime(source, { ...matrixOptions(marker), ownershipCase: undefined }),
+  );
+  assert.notEqual(ordinary[0], ordinary[1]);
+  assert.equal(credentials(ordinary[0], 'unrelated-secret').accessToken, 'first-marker');
+});
+
+test('forged matrix templates and ordinary template requests refuse before creating resources', async () => {
+  const f = temp();
+  try {
+    const root = join(f.root, 'refused');
+    const owner = {
+      assertActive() {
+        assert.fail('Unadmitted template reached the owner');
+      },
+    };
+    const options = {
+      ...matrixOptions('marker'),
+      root,
+      owner,
+      frameworkTemplate: Object.freeze({ app: sourceApp }),
+    };
+    await assert.rejects(prepareBffProof(options), /Matrix template must share its owner/);
+    await assert.rejects(
+      prepareBffProof({ ...options, ownershipCase: undefined }),
+      /Only isolated matrix fixtures copy templates/,
+    );
+    assert.equal(existsSync(root), false);
+  } finally {
+    f.remove();
+  }
+});
 
 for (const profile of ['none', 'ingress', 'admission', 'bff'])
   test(`copied ${profile} profile is literal and syntactically sealed before generation`, () => {

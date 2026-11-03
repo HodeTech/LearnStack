@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,326 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,392 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -294,6 +294,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 finite VM refusal diagnostics and implementation validation (2026-11-03)](#p03-3-finite-vm-refusal-diagnostics-and-implementation-validation-2026-11-03) — 31 lines
   - [P03-3 finite VM diagnostic review round 1 (2026-11-03)](#p03-3-finite-vm-diagnostic-review-round-1-2026-11-03) — 34 lines
   - [P03-3 finite VM diagnostic R2 closeout and continued frontend diagnosis (2026-11-03)](#p03-3-finite-vm-diagnostic-r2-closeout-and-continued-frontend-diagnosis-2026-11-03) — 35 lines
+  - [P03-3 fresh verified fixture copies and byte-equivalent patch hashing (2026-11-03)](#p03-3-fresh-verified-fixture-copies-and-byte-equivalent-patch-hashing-2026-11-03) — 66 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -14163,3 +14164,69 @@ phase diagnosis with original clocks, workers and fresh admission; do not
 select an optimization or larger budget from partial timing alone. Complete
 same-final-source hosted A/B and original-evidence audits remain mandatory.
 Manual accessibility remains maintainer-deferred and unexecuted.
+
+### P03-3 fresh verified fixture copies and byte-equivalent patch hashing (2026-11-03)
+
+The failed 8c2c A and exact-source quota-four observations remain failed. A private
+historical-source counterfactual changes only web `maxWorkers: 4` to `2`, uses a
+fresh install and retains every original clock. Its evidence delivery succeeds,
+but the web package reaches its 180-second guard: 34 reported passing file rows,
+1,844 declared cases, 81 unreported web files and no SDK test execution. These are
+partial file-level observations, not a complete assertion union or zero-skip
+proof. All four priority native files report passing rows. The experiment selects
+no worker policy and proves no hosted cause or fit; canonical workers remain four.
+
+The scoped correction uses the existing qualified-copy boundary from
+[Frontend Architecture](../standards/07-frontend-architecture.md#version-qualified-next-response-cleanup).
+Matrix-only fake credentials read the fixture's existing validated
+`bff.clientSecret`; each fixture still has a separate random private marker.
+Ordinary fixture output retains its literal binding. The normal startup fixture
+keeps its actual clean producer. Before any runtime launch, a separate snapshot
+copies that intact artifact and is never launched or rebuilt. Five pre-HELLO
+fixtures freshly authenticate and copy that snapshot into separate app/native/SDK
+outputs. All six actual copy dispositions must match. Opaque metadata confines
+templates to genuine, same-owner, never-launched matrix fixtures; it caches no
+source, digest or admission. Source/target leases and complete graph checks remain.
+An invalid source throws; only a valid source with different target inputs falls
+back to actual production. Explicit recovery rebuild still invokes the producer.
+Foreign-owner and previously launched templates refuse before allocating a fixture.
+
+A main-process V8 profile over the original 112 provenance controls completes
+without source changes. It is diagnostic, not a thirty-second qualification or
+causal benchmark. Sampled function/conversion time identifies repeated processing
+of the 49,316,480-byte patch as a material lead; sampling, child waits and profiling
+overhead prevent an additive savings claim. The authenticated patch is valid UTF-8
+and contains no CR. The equivalent byte path feeds such fresh buffers directly to
+the unchanged pnpm MD5/base32 calculation. String inputs, malformed UTF-8 and every
+CR retain the original decode/CRLF-normalization behavior. Fresh reads, raw SHA-256,
+lock/census identities and all 59 installed subjects remain; no hash cache is added.
+The existing normalization control compares 277 byte samples with the unchanged
+string path, checks nonmutation and retains independent MD5/base32 known values.
+
+Three new copied-source controls take their Node population from nine to twelve;
+the wrapper checks the new exact count. Existing 112 provenance controls, all 17
+startup scenarios and the complete 3,570-case Vitest population remain. The BFF
+observation instrumenter's function is byte-identical; full diff/import-edge
+review updates its complete host-source pin. Exact normalized-byte authentication
+and changed/missing/hidden-import negatives remain. No new runtime topology,
+authority, clock or dependency-policy decision is selected.
+
+Validation retains the failed lint regex control, two stale-source-pin failures
+and the subsequent original thirty-second provenance timeout. Each receives a
+concrete source correction; none is rerun unchanged into a pass. The final ten-stage
+local chain passes genericity (61), provenance (112, with the original thirty-second
+subprocess bound), copied-source (12), reuse controls (4), SDK generation/drift,
+typecheck, lint, build and guarded tests. Provenance stage wall is 20.823 seconds,
+including the post-command source check. Web passes 3,416 cases in 115 files;
+SDK passes 154 in nine files, with zero skips/todos. Vitest reports 152.64 and
+74.94 seconds; overall test-stage wall is 231.294 seconds including its source
+check. These observations are not a paired speedup measurement. All twenty
+streams, complete file unions and source snapshots reconcile independently;
+424 frontend, 183 proof, 23 extra and 1,982 backend inputs stay fixed during the
+chain. A fresh final installation check verifies all 59 subjects.
+
+The implementation still needs two new independent corrective review rounds,
+corrected-source Linux/quota-four validation and complete same-final-source hosted
+A/B with original-evidence reconciliation. Local success is no hosted fit claim.
+Manual keyboard/focus/reflow/contrast/VoiceOver evidence remains maintainer-deferred
+and **unexecuted**. P03-3 remains open in the phase Status block.

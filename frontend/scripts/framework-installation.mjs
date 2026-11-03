@@ -1,4 +1,5 @@
 // Builtins only: this module runs before application, SDK or framework code.
+import { isUtf8 } from 'node:buffer';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import {
@@ -293,7 +294,13 @@ function assertNode(tuple) {
 // pnpm 9.12.3's patch identity is base32(MD5(normalized UTF-8)). SHA-256
 // independently authenticates the carrier; the MD5 value is only a lock key.
 export function pnpmPatchHash(text) {
-  const bytes = createHash('md5').update(text.replaceAll('\r\n', '\n')).digest();
+  // Valid UTF-8 without CR survives decode/normalize/re-encode byte-for-byte.
+  // Keep malformed UTF-8 and every CR on the original normalization path.
+  const normalized =
+    Buffer.isBuffer(text) && isUtf8(text) && !text.includes(13)
+      ? text
+      : (Buffer.isBuffer(text) ? text.toString('utf8') : text).replaceAll('\r\n', '\n');
+  const bytes = createHash('md5').update(normalized).digest();
   const alphabet = 'abcdefghijklmnopqrstuvwxyz234567';
   let buffer = 0;
   let bits = 0;
@@ -388,7 +395,7 @@ export function verifyFrameworkInstallation({
   )
     refuse('package_declaration');
   const patch = regularBytes(canonicalPath(frontendRoot, census.patch.path));
-  const patchHash = pnpmPatchHash(patch.toString('utf8'));
+  const patchHash = pnpmPatchHash(patch);
   const declared = lockPatch(
     regularBytes(join(frontendRoot, 'pnpm-lock.yaml'), 8 * 1024 * 1024).toString('utf8'),
     expectedPatch,

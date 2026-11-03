@@ -29,7 +29,11 @@ import { instrumentCopiedOverlap } from './framework-overlap-proof-source.mjs';
 import { instrumentFrameworkOwnershipMatrix } from './framework-ownership-matrix-source.mjs';
 import { instrumentFrameworkOwnershipProof } from './framework-ownership-proof-source.mjs';
 import { createCopiedRuntimeHostBroker } from './framework-proof-host-broker.mjs';
-import { frameworkProofBuildArguments, prepareFrameworkProof } from './framework-proof-support.mjs';
+import {
+  frameworkProofBuildArguments,
+  prepareFrameworkProof,
+  reuseFrameworkProof,
+} from './framework-proof-support.mjs';
 import { instrumentCopiedRouterFaults } from './framework-router-fault-source.mjs';
 import {
   copiedRouterMatrixRouteSource,
@@ -41,6 +45,8 @@ import {
 } from './framework-transport-proof-source.mjs';
 import { verifyFrameworkInstallation } from '../../../scripts/framework-installation.mjs';
 const source = fileURLToPath(new URL('../', import.meta.url));
+// Identity/lifetime metadata only. Every copy still authenticates both complete graphs.
+const matrixBuilds = new WeakMap();
 function file(path, value) {
   mkdirSync(join(path, '..'), { recursive: true });
   writeFileSync(path, value);
@@ -156,9 +162,19 @@ export function instrumentCopiedBffRuntime(
     sites,
     marker,
     clockBase,
+    ownershipCase,
   },
 ) {
   let launcher = sourceText;
+  const matrix = ownershipCase === 'matrix';
+  if (matrix)
+    assert.ok(
+      isolatedProtocol && !uiMode && !external && !mutation,
+      'Matrix credentials require the isolated ownership fixture',
+    );
+  // The existing private configuration retains each fixture's distinct marker.
+  // Keep it out of copied matrix source so equivalent inputs can share a verified build.
+  const token = matrix ? 'bff.clientSecret' : `'${marker}'`;
   const heldNativeStop = ['held-native-stop', 'watchdog-observation'].includes(mutation);
   assert.ok(!heldNativeStop || (uiMode && !external), 'Held native stop requires copied BFF UI');
   if (mutation === 'diagnostics')
@@ -206,7 +222,7 @@ export function instrumentCopiedBffRuntime(
       await (await import('next/dist/trace/index.js')).flushAllTraces();
       control.proof.emit({ kind: 'snapshot', now, refreshes, accounts, administrations: {...administrations} });
     } });
-    const credentials = () => ({ accessToken: '${marker}', refreshToken: '${marker}', idToken: '${marker}', identity: { issuer: ${JSON.stringify(fakeIssuer)}, subject: 'owned-subject', actorId: '019a154b-0000-7000-8000-000000000011', tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null, displayLabel: 'Fixture account' }, accessExpiresAt: now + 900000, refreshExpiresAt: now + 3600000 });
+    const credentials = () => ({ accessToken: ${token}, refreshToken: ${token}, idToken: ${token}, identity: { issuer: ${JSON.stringify(fakeIssuer)}, subject: 'owned-subject', actorId: '019a154b-0000-7000-8000-000000000011', tenantId: '10000000-0000-4000-8000-000000000001', organizationId: null, displayLabel: 'Fixture account' }, accessExpiresAt: now + 900000, refreshExpiresAt: now + 3600000 });
     const member = {membershipId: '019a154b-0000-7000-8000-000000000012', userId: '019a154b-0000-7000-8000-000000000011', organizationId: null, status: 'Active', displayName: 'Fixture member', preferredLocale: null, roleIds: ['019a154b-0000-7000-8000-000000000013'], version: '0'};
     const role = {roleId: '019a154b-0000-7000-8000-000000000013', builtInKey: 'TenantAdmin', capabilityScope: 'Tenant', version: '0', grants: [{scope: 'Tenant', key: 'identity.membership.admin'}], adoptedReleaseVersion: 1, adoptedReleaseFingerprint: 'a'.repeat(64)};
     const ownProfile = {displayName: 'Fixture member', preferredLocale: ${disabledOwnPreference ? "'fr'" : 'null'}, version: '0'};
@@ -363,6 +379,7 @@ export async function prepareBffProof({
   clockBase = 1800000000000,
   external,
   isolatedProtocol = false,
+  frameworkTemplate,
   fakeIssuer = 'https://identity.example.test/realms/learnstack',
   fakeLogout = fakeIssuer + '/protocol/openid-connect/logout',
   mark = () => {},
@@ -402,6 +419,16 @@ export async function prepareBffProof({
     if (ownershipCase !== 'matrix')
       assert.equal(devMode, ownershipCase === 'worker-positive', 'ownership mode');
   }
+  function templateApp() {
+    if (frameworkTemplate === undefined) return undefined;
+    assert.equal(ownershipCase, 'matrix', 'Only isolated matrix fixtures copy templates');
+    const template = matrixBuilds.get(frameworkTemplate);
+    assert.ok(template && template.owner === owner, 'Matrix template must share its owner');
+    owner.assertActive();
+    assert.equal(template.launched(), false, 'Matrix template must never have launched');
+    return template.app;
+  }
+  templateApp(); // Refuse forged/cross-owner/started templates before creating any resource.
   const app = join(root, 'frontend/apps/web');
   let listenerPort = 3000;
   const scanners = [];
@@ -709,6 +736,7 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
         sites,
         marker,
         clockBase,
+        ownershipCase,
       },
     ),
   );
@@ -918,8 +946,11 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
     }
     assert.equal(buildResult.code, 0, 'owned Next build');
   }
-  await buildFixture();
-  // The guarded producer compiled the actual resolved copied SDK/native graph.
+  const template = templateApp();
+  // An invalid source throws; only a valid source with different target inputs falls back.
+  const reused = template !== undefined && reuseFrameworkProof({ app, templateApp: template });
+  if (!reused) await buildFixture();
+  // Fresh production and verified copies bind the actual isolated SDK/native graph.
   if (isolatedProtocol) {
     const require = createRequire(join(app, 'package.json'));
     const sdkRoot = join(root, 'frontend/packages/sdk');
@@ -938,7 +969,8 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
   if (devMode)
     assert.ok(buildTrace.length > 0, 'separate build leaves a nonempty real collector control');
   let launched = false;
-  return Object.freeze({
+  const prepared = Object.freeze({
+    preparation: reused ? 'verified-copy' : 'compiled',
     ...(ownershipCase === 'matrix' ? { rebuild: buildFixture } : {}),
     launch(mode) {
       owner.assertActive();
@@ -1017,6 +1049,9 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
       return { ...view, ready };
     },
   });
+  if (ownershipCase === 'matrix')
+    matrixBuilds.set(prepared, { owner, app, launched: () => launched });
+  return prepared;
 }
 
 export async function startBffProof(options) {

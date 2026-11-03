@@ -15,7 +15,7 @@ test.each([
   ['apps/web/scripts/test-framework-proof-relay.mjs', 18],
   ['scripts/framework-proof-host-broker.test.mjs', 7],
   ['apps/web/scripts/test-production-runtime-owner-stop.mjs', 6],
-  ['apps/web/scripts/test-framework-proof-source.mjs', 9],
+  ['apps/web/scripts/test-framework-proof-source.mjs', 12],
 ] as const)(
   'copied proof runner %s passes every closed-schema control',
   (script, count) => {

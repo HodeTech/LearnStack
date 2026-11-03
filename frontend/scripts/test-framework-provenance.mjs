@@ -510,6 +510,41 @@ try {
   await test('pnpm identity normalizes CRLF but SHA-256 is a distinct carrier identity', () => {
     assert.equal(pnpmPatchHash('a\r\nb\r\n'), pnpmPatchHash('a\nb\n'));
     assert.notEqual(hash('a\r\nb\r\n'), hash('a\nb\n'));
+    assert.equal(pnpmPatchHash(Buffer.alloc(0)), '2qoyzwmpaczaj2mabgmoz6ccpy');
+    assert.equal(pnpmPatchHash(Buffer.from('a\r\nb\r\n')), '3wgguok3lxjwyvwsgj2qfd2snq');
+    const inputs = [
+      ...Array.from({ length: 256 }, (_, byte) => Buffer.from([byte])),
+      ...[
+        '',
+        '\n',
+        '\r',
+        '\r\n',
+        '\r\r\n',
+        '\n\r\n',
+        'é😀\0',
+        '\ufeff',
+        'é\r\n😀\r',
+        '\ud800',
+        '\udc00',
+      ].map((text) => Buffer.from(text, 'utf8')),
+      ...[
+        [0xc3],
+        [0xe2, 0x82],
+        [0xf0, 0x9f, 0x92],
+        [0xc0, 0xaf],
+        [0xed, 0xa0, 0x80],
+        [0x80, 0xbf, 0xff, 0xfe],
+        [0xf4, 0x8f, 0xbf, 0xbf],
+        [0xf4, 0x90, 0x80, 0x80],
+        [0xc3, 0xa9, 13, 10, 0xe2, 0x82],
+        [0xc3, 13, 10, 0xa9],
+      ].map((bytes) => Buffer.from(bytes)),
+    ];
+    for (const input of inputs) {
+      const before = Buffer.from(input);
+      assert.equal(pnpmPatchHash(input), pnpmPatchHash(input.toString('utf8')));
+      assert.ok(input.equals(before), 'Patch hashing must not mutate its bytes');
+    }
   });
   await test('the actual frontend Node declaration must exist and exactly match the tuple', () => {
     const path = join(frontendRoot, '.nvmrc');

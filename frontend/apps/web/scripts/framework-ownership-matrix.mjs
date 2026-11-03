@@ -523,7 +523,8 @@ async function runPrivateMatrix(group) {
       await pause(10);
     }
   }
-  async function fixture(name) {
+  let startupTemplate;
+  async function fixture(name, frameworkTemplate) {
     const path = join(root, 'cases', name);
     mkdirSync(path, { recursive: true, mode: 0o700 });
     const controls = join(path, 'ownership-control');
@@ -541,9 +542,30 @@ async function runPrivateMatrix(group) {
       privateValues: [secret, marker],
       ownershipCase: 'matrix',
       isolatedProtocol: true,
+      frameworkTemplate,
     });
+    if (frameworkTemplate !== undefined)
+      assert.equal(value.prepared.preparation, 'verified-copy', 'Complete matrix graphs match');
     preserveManifest(value);
     return value;
+  }
+  async function refuseTemplate(frameworkTemplate, owner, message) {
+    const path = join(root, 'refused-template');
+    const secret = randomBytes(32).toString('base64url');
+    await assert.rejects(
+      prepareBffProof({
+        owner,
+        root: path,
+        secret,
+        marker: secret,
+        privateValues: [secret],
+        ownershipCase: 'matrix',
+        isolatedProtocol: true,
+        frameworkTemplate,
+      }),
+      message,
+    );
+    assert.equal(existsSync(path), false, 'Template refusal allocates no fixture');
   }
   function preserveManifest(value) {
     const bytes = readOwnershipObservation(
@@ -797,7 +819,8 @@ async function runPrivateMatrix(group) {
     row(value, outcome);
   }
   async function prehello(scenario) {
-    const value = await fixture(scenario);
+    assert.ok(startupTemplate, 'Startup has its own unlaunched qualified snapshot');
+    const value = await fixture(scenario, startupTemplate);
     const running = launch(value, 'production', scenario);
     await until(() => has(value, 'prehello-entered'));
     const held = records(value);
@@ -1134,7 +1157,21 @@ async function runPrivateMatrix(group) {
   try {
     const value = await fixture('normal');
     if (group === 'startup') {
+      // Capture before development mutates the normal fixture's output. This
+      // separate scope-owned snapshot is never launched or rebuilt.
+      const snapshot = await fixture('startup-template', value.prepared);
+      startupTemplate = snapshot.prepared;
+      await refuseTemplate(
+        startupTemplate,
+        {
+          assertActive() {
+            assert.fail('Foreign template reached its owner');
+          },
+        },
+        /Matrix template must share its owner/,
+      );
       await ready(value, 'production', 'ready-term');
+      await refuseTemplate(value.prepared, scope.owner, /Matrix template must never have launched/);
       await ready(value, 'production', 'ready-int');
       await heldPrepare(value, 'production', 'prepare-term');
       await heldPrepare(value, 'production', 'prepare-int');
