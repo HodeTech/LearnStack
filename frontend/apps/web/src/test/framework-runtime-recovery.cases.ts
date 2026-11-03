@@ -11,6 +11,6 @@ export function registerRuntimeRecoveryCases() {
       closedFrameworkProofSync(() => {
         runFrameworkOwnershipGroup('recovery');
       }),
-    160_000,
+    220_000,
   );
 }

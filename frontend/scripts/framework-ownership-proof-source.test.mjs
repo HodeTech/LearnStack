@@ -37,7 +37,7 @@ test('the emitted recorders write actual finite JSONL records and bind the dynam
   assert.ok(deadline?.initializer && ts.isCallExpression(deadline.initializer));
   assert.equal(
     Number(deadline.initializer.arguments[1].getText(parsed).replaceAll('_', '')),
-    120000,
+    180000,
   );
   const callback = deadline.initializer.arguments[0].getText(parsed);
   const signals = [];

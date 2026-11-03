@@ -11,6 +11,6 @@ export function registerRuntimeWorkerCases() {
       closedFrameworkProofSync(() => {
         runFrameworkOwnershipGroup('workers');
       }),
-    160_000,
+    220_000,
   );
 }

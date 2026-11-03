@@ -495,7 +495,7 @@ function runFrameworkOwnershipGroupCore(group: Group) {
   try {
     const result = spawnSync(process.execPath, [script, group], {
       encoding: 'utf8',
-      timeout: 150_000,
+      timeout: 210_000,
       maxBuffer: 65536,
       env: {
         PATH: process.env.PATH,

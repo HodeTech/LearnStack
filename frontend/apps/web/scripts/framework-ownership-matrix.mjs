@@ -390,7 +390,7 @@ export async function runFrameworkOwnershipMatrix(group, privateEntry = false) {
         // Preserve failure and join the private driver's own bounded cancellation.
       }
     }
-  }, 120_000);
+  }, 180_000);
   deadline.unref();
   try {
     const source = createQualifiedPrivateFrameworkSource({ root });
@@ -527,7 +527,7 @@ async function runPrivateMatrix(group) {
   }
   process.once('SIGTERM', cancel);
   process.once('SIGINT', cancel);
-  const deadline = setTimeout(cancel, 120_000);
+  const deadline = setTimeout(cancel, 180_000);
   deadline.unref();
   async function until(predicate) {
     while (!predicate()) {

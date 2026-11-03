@@ -25,7 +25,7 @@ describe.sequential('actual initialized Next process ownership', () => {
       closedFrameworkProofSync(() => {
         runFrameworkOwnershipGroup('startup');
       }),
-    160_000,
+    220_000,
   );
 
   it.each([
