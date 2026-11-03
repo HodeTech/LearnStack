@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,821 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,833 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -311,6 +311,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0087 maintainer review corrections and acceptance (2026-11-03)](#adr-0087-maintainer-review-corrections-and-acceptance-2026-11-03) — 35 lines
   - [ADR-0087 implementation review closeout and final-source CI handoff (2026-11-03)](#adr-0087-implementation-review-closeout-and-final-source-ci-handoff-2026-11-03) — 29 lines
   - [P03-3 ADR-0087 hosted failure and ADR-0088 proposal (2026-11-03)](#p03-3-adr-0087-hosted-failure-and-adr-0088-proposal-2026-11-03) — 42 lines
+  - [ADR-0088 first review and hosted count correction (2026-11-03)](#adr-0088-first-review-and-hosted-count-correction-2026-11-03) — 12 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -14675,3 +14676,15 @@ These values are judged headroom, not a measured minimum or guarantee. No clock
 changes before explicit maintainer approval; the independent fixture correction
 proceeds under Accepted response policy. No blind same-source retry, new runner,
 parser cache, benchmark or diagnostic pipeline is introduced.
+
+### ADR-0088 first review and hosted count correction (2026-11-03)
+
+The preceding proposal entry incorrectly says sixteen cancellation outcomes.
+The retained terminal job metadata independently recounts 27 jobs: nine success,
+three failure (frontend and the two required aggregates) and fifteen cancelled.
+This additive correction preserves the historical entry; none qualifies the run.
+
+The first fresh source review approves the one-file healthy-peer fixture
+correction with no findings. The independent proposal/contracts review approves
+ADR-0088 with the one minor count correction above. No executable clock changes;
+ADR-0088 remains Proposed pending the maintainer's explicit decision.
