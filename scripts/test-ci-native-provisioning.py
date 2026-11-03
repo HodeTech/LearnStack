@@ -10,7 +10,7 @@ import tempfile
 import unittest
 
 SOURCE = Path(__file__).with_name('ci-native-provisioning.py')
-SOURCE_SHA256 = 'b5023f9cc293b19524663c608eeef35425ffb637f3d66c787db3bd344f7046e1'
+SOURCE_SHA256 = '682efe054e7540d4a2bc85c55a1bf84672cce273a5441725d298363ab4b0544b'
 FIXED_PATHS = {
     'CORE_PATTERN': '/proc/sys/kernel/core_pattern', 'OS_RELEASE': '/etc/os-release',
     'CGROUP_INIT': '/proc/1/cgroup', 'CGROUP_SELF': '/proc/self/cgroup',
@@ -390,6 +390,8 @@ print(json.dumps(result))
             ({'cpus': 'unknown'}, 'unsupported_cpu_count'),
             ({'cpus': '9' * 5000}, 'unsupported_cpu_count'),
             ({'container': 'docker', 'container_status': 0}, 'container_detected'),
+            ({'vm': 'amazon', 'container': 'docker', 'container_status': 0}, 'container_detected'),
+            ({'vm': 'amazon', 'cpus': '1'}, 'unsupported_cpu_count'),
             ({'container_status': 2}, 'container_detected'),
             ({'vm': 'none', 'vm_status': 1}, 'vm_evidence_missing_exit'),
             ({'vm': 'docker'}, 'vm_evidence_missing_shape'),
@@ -399,8 +401,8 @@ print(json.dumps(result))
             with self.subTest(config=config):
                 self.assert_refused(self.fixture.run(config), reason)
 
-    def test_vm_probe_retains_all_three_exact_success_values(self):
-        for vm in ('microsoft', 'kvm', 'qemu'):
+    def test_vm_probe_retains_all_supported_exact_success_values(self):
+        for vm in ('microsoft', 'kvm', 'qemu', 'amazon'):
             with self.subTest(vm=vm), tempfile.TemporaryDirectory() as root:
                 fixture = Fixture(root)
                 result = fixture.run({'vm': vm})
@@ -411,6 +413,7 @@ print(json.dumps(result))
 
     def test_vm_status_shape_and_output_bound_are_distinct_without_disclosure(self):
         invalid = (b'', b'microsoft', b'microsoft\nextra', b'microsoft\r\n', b'kvm\n\n',
+                   b'amazon', b'amazon\r\n', b'amazon\nextra', b'Amazon\n', b'none\n',
                    b'PRIVATE-VM-STDOUT-CANARY\n', b'\xff\x00', b'x' * 16384)
         cases = [({'vm_output_hex': value.hex()}, 'vm_evidence_missing_shape')
                  for value in invalid]

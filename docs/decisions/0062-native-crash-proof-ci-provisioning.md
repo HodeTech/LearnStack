@@ -355,6 +355,28 @@ rationale remain historical. The [Phase 03 acceptance record](../roadmap/phase-0
 owns implementation/review order; complete final-source A/B proof is a separate
 requirement, not a consequence of acceptance.
 
+### Amendment 4 — Standard hosted multi-cloud VM signatures (2026-11-04)
+
+The existing standard hosted-VM contract covers GitHub's documented eligible
+Linux AWS/Azure pool; it does not require one cloud vendor. The fixed positive
+VM probe and receipt verifier also recognize the documented exact `amazon`
+signature for EC2 Nitro/KVM. This is implementation compatibility within the
+existing decision, not a new runner, topology, collector writer or privilege.
+
+Both gates still require their complete context/identity, Ubuntu 24.04 x64,
+more than one CPU, no container indicators, successful VM detection and exact
+closed metadata. Native still independently verifies collector setup/readback;
+ordinary/non-Docker authority remains distinct. Unknown, malformed and container
+values remain refused. Runtime facts, not a receipt's claim, authorize setup;
+full source-bound A/B and original-archive qualification remain required.
+
+The maintainer delegates this necessary closure fix on 2026-11-04. Prior
+`vm_evidence_missing_shape` records omit raw values and do not prove which
+hypervisor they observed. No historical attribution, physical-host guarantee or
+passing qualification follows from this compatibility change. This Decision
+stays unchanged. Sources: [GitHub's cloud-host contract](https://docs.github.com/en/actions/concepts/runners/github-hosted-runners#cloud-hosts-used-by-github-hosted-runners)
+and [systemd's VM identifiers](https://www.freedesktop.org/software/systemd/man/250/systemd-detect-virt.html).
+
 ## References
 
 - [ADR-0060](0060-fatal-hangfire-startup-and-unsafe-unwind.md#diagnostics-dumps-and-durable-consequences).

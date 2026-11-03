@@ -7,15 +7,11 @@
 > Steps 1–9 and Step 10's source corrections. Accepted ADR-0078–0092 govern the
 > native entry, administration, seed, framework ownership and CI changes; the
 > decision register below links their decisions and proof obligations.
-> ADR-0091's native inventory implementation and both fresh review rounds are
-> complete; the full 106-control local launcher suite passes. The
-> [delivery handoff](phase-03-delivery-log.md#p03-3-adr-0091-validation-and-pr-ci-handoff-2026-11-03)
-> records the exact source and corrected review finding.
-> [ADR-0092](../decisions/0092-sdk-completion-and-frontend-job-windows.md) is implemented
-> under maintainer closure delegation. The committed-source full frontend guard
-> passes 3,577/3,577; both fresh implementation reviews approve. Its
-> [validation handoff](phase-03-delivery-log.md#p03-3-adr-0092-validation-and-final-source-ci-handoff-2026-11-04)
-> records execution identity and preserved proof boundaries.
+> ADR-0091's native inventory and [ADR-0092](../decisions/0092-sdk-completion-and-frontend-job-windows.md)
+> SDK settings are implemented. Full frontend 3,577/3,577, typecheck/lint and
+> both fresh reviews pass. The [VM compatibility handoff](phase-03-delivery-log.md#p03-3-hosted-vm-compatibility-validation-and-corrective-ci-handoff-2026-11-04)
+> records the narrow standard-host signature correction, passing 23/41/106
+> offline controls and two fresh reviews.
 > [PR #40](https://github.com/HodeTech/LearnStack/pull/40) owns parallel product
 > review and current complete same-source hosted A/B/archive qualification.
 > Its proof record distinguishes local, hosted and manual evidence.

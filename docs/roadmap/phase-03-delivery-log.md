@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,581 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,652 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -338,6 +338,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0092 proposal review closeout and approval readiness (2026-11-04)](#adr-0092-proposal-review-closeout-and-approval-readiness-2026-11-04) — 21 lines
   - [ADR-0092 delegated acceptance and implementation start (2026-11-04)](#adr-0092-delegated-acceptance-and-implementation-start-2026-11-04) — 24 lines
   - [P03-3 ADR-0092 validation and final-source CI handoff (2026-11-04)](#p03-3-adr-0092-validation-and-final-source-ci-handoff-2026-11-04) — 38 lines
+  - [P03-3 standard hosted VM compatibility correction (2026-11-04)](#p03-3-standard-hosted-vm-compatibility-correction-2026-11-04) — 32 lines
+  - [P03-3 hosted VM compatibility validation and corrective CI handoff (2026-11-04)](#p03-3-hosted-vm-compatibility-validation-and-corrective-ci-handoff-2026-11-04) — 39 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -15462,3 +15464,74 @@ Freeze source through valid A/B; the mutable PR proof record owns subsequent
 hosted outcomes rather than moving the qualified head with status commits.
 Resolve actual remaining closure blockers under the maintainer's delegation,
 with evidence and preserved proof requirements.
+
+### P03-3 standard hosted VM compatibility correction (2026-11-04)
+
+The normal ADR-0092 PR run 41725264272 starts on head 1d40d945, actual merge
+58c47dd7, tree 1175fb4c and base e55aa5d7. Ordinary-0 and ordinary-6 both refuse
+before test launch with vm_evidence_missing_shape. The prior source also had
+one such refusal. The raw VM values are deliberately not retained, so these
+records do not identify their cloud or establish a causal repair.
+
+Primary-source review confirms a real compatibility gap independent of that
+unknown attribution: GitHub documents standard eligible Linux jobs allocated
+to AWS or Azure without changing labels; systemd documents amazon as EC2 Nitro
+using KVM. Existing code's three-value probe/receipt lists reject that legitimate
+positive VM signature. Under the maintainer's explicit closure delegation,
+recognize only this additional exact signature in both independent gates.
+This fits ADR-0062's existing positive exclusive standard-VM contract; no new
+architecture decision, runner/topology, privilege or timer is selected. Append
+its dated clarification and canonical Testing 06 navigation without changing
+its historical Decision. See the [GitHub contract](https://docs.github.com/en/actions/concepts/runners/github-hosted-runners#cloud-hosts-used-by-github-hosted-runners)
+and [systemd identifiers](https://www.freedesktop.org/software/systemd/man/250/systemd-detect-virt.html).
+
+Retain actual runtime/context/identity checks, no container markers, more than
+one CPU, Ubuntu 24.04 x64, Docker authority distinction and native collector
+readback. Producer controls exercise the real fixed probe with all supported
+values, exact malformed/unknown refusal, and Amazon combined with disallowed
+CPU/container evidence. Consumer controls verify complete receipts for base,
+Architecture, ordinary and native, mixed-vendor full unions and malformed
+metadata refusal. Local models provide no actual AWS-host qualification. Run
+relevant existing offline controls and two fresh implementation reviews before
+one corrective PR synchronization; fresh complete A/B/original proof remains.
+Unchanged frontend suites need no redundant local repeat. Manual accessibility
+remains deferred/unexecuted, and merge remains with the maintainer.
+
+### P03-3 hosted VM compatibility validation and corrective CI handoff (2026-11-04)
+
+The actual producer adds only exact successful amazon-newline VM evidence;
+the independent receipt verifier adds normalized amazon. All earlier context,
+checkout/image/CPU/container, Docker baseline, collector readback, scope, timer,
+case/TRX and cleanup checks remain. Producer SHA-256 is
+682efe054e7540d4a2bc85c55a1bf84672cce273a5441725d298363ab4b0544b.
+
+The first full provisioning run exposes one dependent old source-pin mismatch
+(22 pass, one fail). After R1 reviews the changed owner, update only its fixed
+reviewed-byte literal; the byte-restoration and planted mutation controls remain.
+R1's initial static review missed that dependent literal, and its appended
+correction acknowledges the omission and verifies the exact replacement.
+A fresh R2 independently approves the complete corrected patch. Root reads
+and SHA-verifies both full reports. No executable bytes change afterward.
+
+Final relevant suites all pass with unchanged checked execution hashes:
+provisioning 23/23 in 89.253 seconds, aggregate/receipt controls 41/41 in 4.393,
+and launcher controls 106/106 in 25.724. Actual copied-owner and full synthetic
+receipt/TRX union controls cover all supported values and four owner kinds,
+mixed providers, malformed metadata, and Amazon combined with forbidden
+CPU/container evidence. These models do not qualify an actual AWS host.
+
+The predecessor source 1d40d945's frontend job now passes on hosted CI: web
+3,423/112 files in 466.41 seconds, SDK 154/nine files in 142.13, full guard
+3,577 with zero skips/todos, then successful native ingress/cleanup controls.
+Its two known prelaunch VM refusals keep the whole run unqualified. Unchanged
+frontend execution needs no redundant local repeat after this Python-only fix;
+the new normal full PR workflow repeats it on the final corrected source.
+
+Commit this narrow compatibility correction under the existing ADR-0062
+contract and maintainer delegation, then synchronize PR #40 once. Existing PR
+concurrency may supersede the already failed predecessor; cancellation grants
+no cleanup/qualification credit. Freeze the corrected final source through
+fresh complete A, canonical original-archive verification, whole-run B and its
+original verification. No duplicate manual workflow, combined partial result
+or merge. Mutable PR evidence owns subsequent observations. Manual accessibility
+remains deferred and unexecuted.

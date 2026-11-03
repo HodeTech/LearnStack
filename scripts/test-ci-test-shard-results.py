@@ -1126,6 +1126,39 @@ class AggregateControls(unittest.TestCase):
             (native / 'native-refusals.jsonl').write_text('{"error":"refused"}\n'); self.rehash(native)
             self.refuses('native_evidence_incomplete', RESULTS.validate_outputs, paths, self.context(), self.plan, 'integration')
 
+    def test_documented_vm_signatures_keep_exact_receipt_validation_for_every_owner_kind(self):
+        for scope, owners in (('backend', ('base', 'architecture-0')),
+                              ('integration', ('ordinary-0', 'native'))):
+            with self.subTest(scope=scope), tempfile.TemporaryDirectory() as temporary:
+                paths = self.outputs(temporary, scope)
+                context = self.context()
+                assignment = PLAN.assign(self.fixture.manifest(), self.plan, context['runAttempt'])
+                for owner in owners:
+                    path = paths[owner]
+                    filename = 'provisioning.json' if owner == 'native' else 'result.json'
+                    value = RESULTS.read_json(path / filename)
+                    image = value if owner == 'native' else value['runtime']
+
+                    def record(signature):
+                        image['virtualization'] = signature
+                        self.write(path, filename, value)
+                        if owner == 'native':
+                            self.rehash(path)
+
+                    for signature in ('microsoft', 'kvm', 'qemu', 'amazon'):
+                        with self.subTest(owner=owner, signature=signature):
+                            record(signature)
+                            _, _, actual = RESULTS.verify_receipt(path, context, owner, self.plan, assignment)
+                            self.assertEqual(signature, actual['image']['virtualization'])
+                    for signature in ('amazon\n', 'Amazon', 'none', 'docker', 'unknown', 1, None):
+                        with self.subTest(owner=owner, invalid=signature):
+                            record(signature)
+                            self.refuses('image_evidence_invalid', RESULTS.verify_receipt,
+                                         path, context, owner, self.plan, assignment)
+                    record('amazon')
+                # A mixed AWS/Azure worker set still requires the full actual case/TRX union.
+                self.assertTrue(RESULTS.validate_outputs(paths, context, self.plan, scope)['success'])
+
     def test_toolchain_gate_and_resource_evidence_cannot_be_replaced_by_worker_hash_consensus(self):
         for mode in ('adapter', 'gates', 'resource', 'sdk', 'image'):
             with tempfile.TemporaryDirectory() as temporary:

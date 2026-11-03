@@ -238,6 +238,9 @@ Base/Architecture use only the approved non-root child and owned systemd/cgroup
 boundary on exclusive Ubuntu 24.04 VMs: no Docker census/disposal, collector
 access or crash inventory. Ordinary retains Docker ownership; native alone
 retains collector provisioning and independent crash assertions.
+The existing positive-VM predicate recognizes GitHub's documented standard
+AWS/Azure pool as clarified by [ADR-0062 Amendment 4](../decisions/0062-native-crash-proof-ci-provisioning.md#amendment-4--standard-hosted-multi-cloud-vm-signatures-2026-11-04);
+container/identity/topology and authority checks remain mandatory.
 [ADR-0082](../decisions/0082-current-source-ci-execution-windows.md) gives verified
 Architecture producers a twenty-five-minute whole-job ceiling and verified
 ordinary Docker producers thirty minutes. Base/native remain twenty minutes,

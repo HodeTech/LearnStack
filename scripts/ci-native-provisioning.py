@@ -203,7 +203,8 @@ def qualify_runtime(budget, workspace, *, docker=True):
     # Only this fixed probe emits finite failure classes, never provider bytes.
     status, value = budget.command([VIRT, '--vm'], 'vm_evidence_missing', classify=True)
     require(status == 0, 'vm_evidence_missing_exit')
-    require(value in (b'microsoft\n', b'kvm\n', b'qemu\n'), 'vm_evidence_missing_shape')
+    require(value in (b'microsoft\n', b'kvm\n', b'qemu\n', b'amazon\n'),
+            'vm_evidence_missing_shape')
     vm = value.decode('ascii').strip()
     if docker:
         status, value = budget.command(

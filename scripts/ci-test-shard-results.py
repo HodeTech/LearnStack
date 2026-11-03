@@ -581,7 +581,8 @@ def verify_receipt(output, context, owner, plan, assignment):
             and type(image.get('cpus')) is int and image['cpus'] > 1
             and isinstance(image.get('kernelRelease'), str)
             and re.fullmatch(r'[A-Za-z0-9._+-]{1,128}', image['kernelRelease'])
-            and image.get('virtualization') in ('microsoft', 'kvm', 'qemu'), 'image_evidence_invalid')
+            and image.get('virtualization') in ('microsoft', 'kvm', 'qemu', 'amazon'),
+            'image_evidence_invalid')
     hashes = result.get('artifacts')
     require(isinstance(hashes, dict) and expected_files <= set(hashes)
             and hashes == OWNER.export_hashes(output), 'artifact_hash_mismatch')
