@@ -2,14 +2,15 @@
 
 ## Status
 
-Proposed
+Accepted
 
 **Date:** 2026-11-03
 **Deciders:** @cemil
-**Bounded supersession on acceptance:** ADR-0082's unchanged test-specific
+**Bounded supersession:** ADR-0082's unchanged test-specific
 bounds only for the web package's aggregate 180-second guard. ADR-0082 remains
 Accepted for every other execution, observation and qualification boundary.
-No executable deadline changes before maintainer approval.
+The maintainer approves the decision and three-step plan on 2026-11-03.
+Acceptance precedes executable delivery and complete hosted qualification.
 
 ## Decision Drivers
 

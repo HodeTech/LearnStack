@@ -221,6 +221,18 @@ record's body, date, acceptance and rationale stay historical. The
 owns implementation/reviews and fresh complete final-source A/B; acceptance
 is neither executable delivery nor hosted fit.
 
+### Amendment 2 — Native web package-window successor (2026-11-03)
+
+Accepted [ADR-0086](0086-native-web-test-package-window.md) supersedes only
+this record's unchanged test-specific-bound clause for the web package's
+aggregate guard: the validated web path selects 360 seconds with two file
+workers; SDK/other packages retain 180 seconds. All individual test/process,
+HTTP/readiness and shutdown bounds, case/file discovery, internal concurrency,
+cleanup, job windows, VM cap and complete same-source A/B remain unchanged.
+This record's body and original rationale remain historical. The
+[acceptance record](../roadmap/phase-03-delivery-log.md#adr-0086-acceptance-and-bounded-implementation-2026-11-03)
+separates decision, implementation and actual qualification.
+
 ## References
 
 - [ADR-0062](0062-native-crash-proof-ci-provisioning.md).

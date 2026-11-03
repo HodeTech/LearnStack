@@ -188,6 +188,11 @@ pnpm lint                # workspace lint, including next lint
 ```
 
 
+[ADR-0086](../../../docs/decisions/0086-native-web-test-package-window.md)
+selects 360 seconds for the validated web package with two file workers;
+SDK/other packages retain 180 seconds. Individual proof/request/shutdown bounds
+and complete coverage remain unchanged.
+
 The root frontend runner reads actual Vitest reports, compares discovered files,
 and refuses missing scripts, unreadable/empty reports, failures, skipped or todo
 cases. Use `pnpm --filter @learnstack/web test <path>` only for focused development;

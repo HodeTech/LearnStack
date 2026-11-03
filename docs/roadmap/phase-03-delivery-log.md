@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,529 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,544 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -301,6 +301,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 bounded worker review closeout and MVP handoff (2026-11-03)](#p03-3-bounded-worker-review-closeout-and-mvp-handoff-2026-11-03) — 21 lines
   - [P03-3 frontend envelope exhaustion and ADR-0086 proposal (2026-11-03)](#p03-3-frontend-envelope-exhaustion-and-adr-0086-proposal-2026-11-03) — 35 lines
   - [ADR-0086 bounded proposal review closeout (2026-11-03)](#adr-0086-bounded-proposal-review-closeout-2026-11-03) — 12 lines
+  - [ADR-0086 acceptance and bounded implementation (2026-11-03)](#adr-0086-acceptance-and-bounded-implementation-2026-11-03) — 15 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -14373,3 +14374,18 @@ No new diagnostic or test workload is commissioned for document review.
 Whole-tree fragment, roadmap-structure and delivery-index checks pass. The
 three-step proposal is ready for the maintainer's explicit decision; it does not
 accept ADR-0086, change an executable deadline or qualify a hosted run.
+
+### ADR-0086 acceptance and bounded implementation (2026-11-03)
+
+The maintainer explicitly accepts ADR-0086 and its three-step plan, authorizing
+implementation and CI/PR closeout. Step 1 records acceptance, the dated ADR-0082
+successor disclosure, decision index, Testing 06, Catalogue 21, current test
+guides and Phase 03 Status. The historical ADR-0082 body stays unchanged.
+
+Step 2 implements only canonical web-path aggregate selection (360 seconds),
+two web file workers and existing runner-control extensions. SDK/other packages
+retain 180 seconds and every individual proof/HTTP/readiness/shutdown bound
+remains. Step 3 runs the complete local union, bounded fresh implementation
+reviews, existing final-source hosted A/B and original-archive reconciliation,
+then prepares the P03-3 PR. No extra benchmark, source freezer or speculative
+optimization is commissioned. Acceptance is not executable or hosted proof.

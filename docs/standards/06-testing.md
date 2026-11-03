@@ -700,7 +700,13 @@ If a test gets slow, fix the test before the suite.
   outcomes, rejecting failures, skipped/todo cases, missing scripts/reports and
   omitted discovered files. Symlinked workspace packages and test sources fail
 explicitly rather than disappearing from discovery. Real clean/planted runner
-controls prove refusal.
+controls prove refusal. [ADR-0086](../decisions/0086-native-web-test-package-window.md)
+sets the canonical `apps/web` aggregate window to 360 seconds with two test-file
+workers; SDK/other packages retain 180 seconds. Individual test/process,
+HTTP/readiness and shutdown bounds, internal concurrency and owned cleanup
+remain unchanged. This aggregate mixes native proofs with unit tests and is not
+the pure-unit speed target above. Selection follows validated canonical paths,
+never manifest names or environment overrides.
 
 ## Live Classroom Testing
 

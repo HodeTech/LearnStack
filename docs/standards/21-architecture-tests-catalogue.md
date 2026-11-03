@@ -957,7 +957,11 @@ otherwise).
   reads nonempty Vitest JSON outcomes, refusing failures, skipped/todo cases,
   missing scripts/reports and omitted discovered files. Real clean/planted runs in
   `frontend-runner.test.ts` prove skip/todo, missing-script/report and omission
-  refusals; CLI success alone cannot close the rule.
+  refusals; CLI success alone cannot close the rule. ADR-0086 adds canonical
+  web-only 360-second aggregate selection with two file workers; SDK/other
+  packages retain 180 seconds. Controlled-timer and wrong-identity tests extend
+  the existing runner controls; acceptance alone does not implement this
+  extension or establish complete hosted qualification.
 - **Why it matters:** "architecture tests are non-skippable" is a policy the corpus states
   in three places and nothing enforced. Adding `Skip = "…"` is one edit, the suite goes
   green, and it reports the same number of passing files as before — which is precisely
@@ -975,7 +979,8 @@ otherwise).
   exempted this rule's own file, so the companion's fixtures were not read as code — and
   the exemption made the four corpus guards the only tests in the assembly that one edit
   could switch off. Stripping literals removed the reason for it.
-- **Source:** [06-testing.md § Architecture tests](06-testing.md).
+- **Source:** [06-testing.md § Architecture tests](06-testing.md),
+  [ADR-0086](../decisions/0086-native-web-test-package-window.md).
 - **Type:** xUnit + a source scan with comments and literals stripped, plus a `.trx`
   assertion in CI. **Kind:** structural.
 - **Status:** **Implemented** — `CorpusConsistencyTests.cs`, Packet 10.
