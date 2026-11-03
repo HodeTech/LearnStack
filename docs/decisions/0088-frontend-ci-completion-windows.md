@@ -168,6 +168,21 @@ runtime boundaries, timeout failure, late-success refusal, report-file equality
 and zero skip/todo checks. Qualification requires complete outcomes, not merely
 31 success lines or a zero CLI exit.
 
+## Amendments
+
+### Amendment 1 — Existing stdio control fixture binding (2026-11-03)
+
+The closed Node timeout expression now references the existing literal `script`
+loop value. The existing `framework-proof-stdio.test.ts` VM evaluates that real
+options object; its fixture must bind the selected literal script too. The first
+focused run exposed two reference errors at this dependent control, rather than
+a product or ownership failure. Include this one test-fixture binding alongside
+the named implementation carriers. All twelve subprocess sites, both stdio
+controls and literal channel assertions remain; no production binding, caller,
+loader exemption or additional timeout is introduced. The Decision and selected
+values are unchanged. The acceptance/implementation delivery records own checks
+and complete qualification; this amendment supplies no hosted evidence.
+
 ## References
 
 - [ADR-0087](0087-native-frontend-proof-windows.md),

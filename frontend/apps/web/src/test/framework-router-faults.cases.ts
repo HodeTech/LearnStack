@@ -233,7 +233,8 @@ export function registerRouterFaultCases() {
           try {
             output = execFileSync(process.execPath, ['--test', join(frontend, 'scripts', script)], {
               encoding: 'utf8',
-              timeout: 10_000,
+              // This requests a signal; synchronous return can wait for actual child exit.
+              timeout: script === 'framework-router-fault.test.mjs' ? 20_000 : 10_000,
               maxBuffer: 65536,
               env: { PATH: process.env.PATH, NODE_ENV: 'production' },
               stdio: ['ignore', 'pipe', 'pipe'],
@@ -259,6 +260,6 @@ export function registerRouterFaultCases() {
           }
         }
       }),
-    25_000,
+    90_000,
   );
 }

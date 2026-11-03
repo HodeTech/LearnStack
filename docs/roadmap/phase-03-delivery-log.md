@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,875 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,886 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -314,6 +314,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0088 first review and hosted count correction (2026-11-03)](#adr-0088-first-review-and-hosted-count-correction-2026-11-03) — 12 lines
   - [ADR-0088 second review corrections and approval readiness (2026-11-03)](#adr-0088-second-review-corrections-and-approval-readiness-2026-11-03) — 18 lines
   - [ADR-0088 maintainer corrections and acceptance (2026-11-03)](#adr-0088-maintainer-corrections-and-acceptance-2026-11-03) — 24 lines
+  - [ADR-0088 existing stdio control binding correction (2026-11-03)](#adr-0088-existing-stdio-control-binding-correction-2026-11-03) — 11 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -14732,3 +14733,14 @@ remain 900/20/90 seconds and frontend twenty-five minutes. Implementation then
 uses existing controls, a committed-source full guard, two fresh review rounds
 and whole same-source hosted A/B/archive qualification before PR review.
 Manual accessibility remains maintainer-deferred and unexecuted.
+
+### ADR-0088 existing stdio control binding correction (2026-11-03)
+
+The first focused implementation run reports 77 passed and two failed controls.
+Both failures are the existing stdio control's VM evaluating the real router
+options: its new closed timeout expression references `script`, which the old
+fixture did not bind. The fixture now binds that literal test-owned script;
+all twelve actual subprocess sites and both capture/refusal controls remain.
+ADR-0088 Amendment 1 names this dependent carrier without changing its Decision,
+selected clocks, production bindings or caller census. The failed run is retained
+as a failure and receives no passing qualification credit.

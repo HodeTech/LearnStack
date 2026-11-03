@@ -34,7 +34,7 @@ function report() {
 /** Actual runner controls for ADR-0053 G38(d), with separate test-owned workspaces. */
 describe('frontend outcome guard', () => {
   it.each([
-    ['apps/web', 'unrelated-name', 600_000],
+    ['apps/web', 'unrelated-name', 900_000],
     ['packages/sdk', '@learnstack/web', 180_000],
     ['packages/probe', '@learnstack/web', 180_000],
     ['apps/web-other', '@learnstack/web', 180_000],

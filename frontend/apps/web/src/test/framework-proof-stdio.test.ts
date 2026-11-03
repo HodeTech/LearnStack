@@ -82,6 +82,7 @@ function optionsFromWrappers(): ExecFileSyncOptionsWithStringEncoding[] {
             process,
             environment,
             frontend: directory,
+            script: 'framework-router-fault.test.mjs',
           }) as ExecFileSyncOptionsWithStringEncoding,
         );
       }

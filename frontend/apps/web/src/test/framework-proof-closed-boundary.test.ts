@@ -840,7 +840,38 @@ it('keeps receiver cases, stages and admission reasons equal to matrix authority
       ts.ScriptKind.TS,
     );
     const entries: Array<readonly [string, number]> = [];
+    let signalThreshold: ts.Expression | undefined;
+    let caseThreshold: ts.Expression | undefined;
     function visit(node: ts.Node) {
+      if (ts.isCallExpression(node) && node.expression.getText(file) === 'execFileSync') {
+        const args = node.arguments[1];
+        if (
+          args &&
+          ts.isArrayLiteralExpression(args) &&
+          args.elements[0]?.getText(file) === "'--test'"
+        ) {
+          const options = node.arguments[2];
+          if (!options || !ts.isObjectLiteralExpression(options))
+            throw new Error('Router control options refused');
+          const setting = options.properties.find(
+            (property) =>
+              ts.isPropertyAssignment(property) && property.name.getText(file) === 'timeout',
+          );
+          if (!setting || !ts.isPropertyAssignment(setting) || signalThreshold)
+            throw new Error('Router control signal threshold refused');
+          signalThreshold = setting.initializer;
+        }
+      }
+      if (ts.isCallExpression(node) && node.expression.getText(file) === 'test') {
+        const title = node.arguments[0];
+        if (
+          title &&
+          ts.isStringLiteral(title) &&
+          title.text ===
+            'closed router fault source, native factory and finite-evidence controls pass'
+        )
+          caseThreshold = node.arguments[2];
+      }
       if (ts.isForOfStatement(node) && node.initializer.getText(file) === 'const [script, count]') {
         const expression = ts.isAsExpression(node.expression)
           ? node.expression.expression
@@ -862,6 +893,14 @@ it('keeps receiver cases, stages and admission reasons equal to matrix authority
     }
     visit(file);
     expect(entries).toHaveLength(6);
+    expect(signalThreshold).toBeDefined();
+    expect(caseThreshold).toBeDefined();
+    const setting = signalThreshold!.getText(file);
+    for (const [script] of [...entries, ['foreign-script.mjs', 0] as const])
+      expect(runInNewContext(setting, { script })).toBe(
+        script === 'framework-router-fault.test.mjs' ? 20_000 : 10_000,
+      );
+    expect(runInNewContext(caseThreshold!.getText(file))).toBe(90_000);
     return Object.fromEntries(entries);
   }
   const receiverCaps = runInNewContext('(' + initializer(receiver, 'scriptCaps') + ')');

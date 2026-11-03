@@ -174,7 +174,7 @@ it('preserves every other whole-job ceiling', () => {
     'backend-native': 20,
     backend: 5,
     'backend-integration': 5,
-    frontend: 20,
+    frontend: 25,
     'openapi-diff': 15,
     'public-demo': 22,
     meta: 5,
