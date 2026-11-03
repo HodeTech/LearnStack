@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,639 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,668 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -304,7 +304,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0086 acceptance and bounded implementation (2026-11-03)](#adr-0086-acceptance-and-bounded-implementation-2026-11-03) — 15 lines
   - [ADR-0086 implementation and local validation handoff (2026-11-03)](#adr-0086-implementation-and-local-validation-handoff-2026-11-03) — 33 lines
   - [ADR-0086 review closeout and final-source CI handoff (2026-11-03)](#adr-0086-review-closeout-and-final-source-ci-handoff-2026-11-03) — 21 lines
-  - [P03-3 current CI failure and bounded native-group correction (2026-11-03)](#p03-3-current-ci-failure-and-bounded-native-group-correction-2026-11-03) — 41 lines
+  - [P03-3 current CI failure and bounded native-group correction (2026-11-03)](#p03-3-current-ci-failure-and-bounded-native-group-correction-2026-11-03) — 45 lines
+  - [P03-3 native-group correction review closeout and CI handoff (2026-11-03)](#p03-3-native-group-correction-review-closeout-and-ci-handoff-2026-11-03) — 25 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -14491,3 +14492,28 @@ this correction within Accepted ADR-0086.
 The corrected typecheck/lint/build chain and all owned frontend formatting
 checks pass. The implementation is committed before the new full guarded run
 so formatting hooks cannot change its source during qualification.
+
+### P03-3 native-group correction review closeout and CI handoff (2026-11-03)
+
+The bounded correction commits as `b156483d`. Two fresh independent source and
+coverage reviewers approve R1, and two new independent reviewers approve R2,
+with no actionable findings. They verify unchanged case bodies/counts and
+bounds, explicit once-only registration, preserved callback/stdio guards, the
+private cancellation-owner join and late-success refusal. No subsequent source
+correction is needed. Focused controls pass 56/56 and the existing one-case
+Node deadline/source control passes. Typecheck, lint, build and formatting pass.
+
+The complete guarded command on the committed source passes 3,575/3,575 in
+373.045 seconds: web 3,421 across 112 files (292.53-second Vitest wall), SDK 154
+across nine files (77.07 seconds). The combined ownership spec runs all eight
+cases in 204.168 seconds; no case bound is extended. Reports reconcile every
+discovered file/case with zero skips/todos. All eleven changed live source-file
+hashes and the three removed entrypoints remain unchanged throughout.
+
+The following documentation-only handoff precedes one normal development push
+and new complete same-source hosted A/B. The existing archive reconciler owns
+original receipt/ZIP/case reconciliation. The prior failed/cancelled run is not
+reused as qualification. No deadline, parser/admission cache, additional test
+project, private benchmark or parallel historical artifact audit is introduced.
+Only verified delivery blockers justify further changes. Manual accessibility
+remains maintainer-deferred/unexecuted for PR review.
