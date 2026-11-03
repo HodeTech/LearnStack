@@ -209,9 +209,13 @@ export async function runTestWorkspaces(
   try {
     for (const [index, pkg] of packages.entries()) {
       const reportPath = join(directory, `${index}.json`);
-      // ADR-0088: discovery supplies the path; manifest names select no budget.
+      // ADR-0092: discovery supplies the path; manifest names select no budget.
       const deadlineMs =
-        pkg.path === join(root, "apps", "web") ? 900_000 : 180_000;
+        pkg.path === join(root, "apps", "web")
+          ? 900_000
+          : pkg.path === join(root, "packages", "sdk")
+            ? 360_000
+            : 180_000;
       await executeTests(pkg.path, reportPath, output, deadlineMs);
       // Bound reads before parsing; missing/unreadable reports remain a hard failure.
       if ((await stat(reportPath)).size > 64 * 1024 * 1024)

@@ -35,9 +35,11 @@ function report() {
 describe('frontend outcome guard', () => {
   it.each([
     ['apps/web', 'unrelated-name', 900_000],
-    ['packages/sdk', '@learnstack/web', 180_000],
+    ['packages/sdk', '@learnstack/web', 360_000],
     ['packages/probe', '@learnstack/web', 180_000],
     ['apps/web-other', '@learnstack/web', 180_000],
+    ['packages/sdk-other', '@learnstack/sdk', 180_000],
+    ['apps/sdk', '@learnstack/sdk', 180_000],
   ] as const)(
     'enforces the exact aggregate window for %s independently of manifest name',
     async (path, name, milliseconds) => {
