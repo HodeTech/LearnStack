@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,482 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,529 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -299,6 +299,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 matrix preparation correction R2 and final CI handoff (2026-11-03)](#p03-3-matrix-preparation-correction-r2-and-final-ci-handoff-2026-11-03) — 18 lines
   - [P03-3 hosted frontend timeout and bounded file concurrency (2026-11-03)](#p03-3-hosted-frontend-timeout-and-bounded-file-concurrency-2026-11-03) — 25 lines
   - [P03-3 bounded worker review closeout and MVP handoff (2026-11-03)](#p03-3-bounded-worker-review-closeout-and-mvp-handoff-2026-11-03) — 21 lines
+  - [P03-3 frontend envelope exhaustion and ADR-0086 proposal (2026-11-03)](#p03-3-frontend-envelope-exhaustion-and-adr-0086-proposal-2026-11-03) — 35 lines
+  - [ADR-0086 bounded proposal review closeout (2026-11-03)](#adr-0086-bounded-proposal-review-closeout-2026-11-03) — 12 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -14324,3 +14326,50 @@ append-only delivery history and decision register retain the detailed record.
 This follows the maintainer's MVP direction: no new private benchmark, source
 freezer, speculative optimization or redundant historical audit. Only verified
 delivery-blocking findings justify further corrective work before the PR.
+
+### P03-3 frontend envelope exhaustion and ADR-0086 proposal (2026-11-03)
+
+The corrected source `9480a48c`, tree `0b4da4796a69054ccee44156e5f0fb0a41c86e82`,
+receives complete hosted A dispatch `41582358323`. Its frontend job fails: the
+startup and recovery groups reach HTTP-root observations without a status; the
+router source control reaches its ten-second bound. Aggregate package exhaustion
+follows. The remaining run is cancelled after the verified frontend failure.
+Neither it nor the earlier `fcbfa35d` run qualifies the packet. The original job
+log is retained at 94,748 bytes, SHA-256
+`f150be70f432dc0566ccda2ef53839a06fc7b9fa5e157340dd8491e5715b6dd9`; finite
+failure records remain separate from the original. No cancelled sibling or
+partial result receives passing credit.
+
+Two subsequent ordinary local guarded package runs use three and two file
+workers respectively. Both exhaust the unchanged 180-second aggregate window.
+All four priority native proof files pass before each later package cancellation;
+no complete web report, zero-skip union or SDK completion is claimed. An initial
+relative-path edit fails before the three-worker command; it is recorded as the
+unchanged three-worker run, never as two-worker evidence. The later two-worker
+experiment is restored to the committed three-worker configuration. No clock
+change or new implementation policy has been applied.
+
+[ADR-0086](../decisions/0086-native-web-test-package-window.md) proposes a bounded
+web-only 360-second aggregate window with two workers. SDK/other packages retain
+180 seconds; all individual test, HTTP/readiness and shutdown bounds, discovery,
+internal concurrency and existing CI topology remain. The three implementation
+steps are acceptance/carriers, closed window selection plus existing controls,
+and complete local/review/final-source A/B qualification. The value is headroom,
+not a measured minimum or a guarantee that hosted inner controls will pass.
+
+This is the maintainer's one upfront decision before deadline implementation,
+as requested for new ADRs. No further private performance experiment, larger
+runner, speculative fixture optimization or repeated full CI dispatch is
+selected while it is Proposed. Manual accessibility remains deferred/unexecuted.
+
+### ADR-0086 bounded proposal review closeout (2026-11-03)
+
+Two fresh independent proposal rounds approve the bounded decision/carrier
+scope with no concrete findings. Both check the existing runner and controls
+one hop out, keep judged headroom separate from causal/fit proof, and confirm
+that runtime clocks and the committed three-worker configuration are unchanged.
+No new diagnostic or test workload is commissioned for document review.
+
+Whole-tree fragment, roadmap-structure and delivery-index checks pass. The
+three-step proposal is ready for the maintainer's explicit decision; it does not
+accept ADR-0086, change an executable deadline or qualify a hosted run.

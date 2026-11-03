@@ -134,6 +134,7 @@ records hosted qualification. Phase 11 owns production qualification.
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
+| 0086 | [Native Web Test Package Window](0086-native-web-test-package-window.md) | Web-only 360-second package guard and two file workers; inner bounds and complete proof retained | P03-3 final CI, before executable deadline changes |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
 the P02d-2 package on 2026-10-02. Their rows are now in Active ADRs; ADR-0049 remains
