@@ -21,9 +21,8 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: 'jsdom',
-    // Native Next proofs build owned copies while lint controls initialize real
-    // TypeScript/ESLint graphs. Bound competing file workers instead of making
-    // unrelated five-second controls depend on the workstation's CPU count.
+    // The four costly native groups share one sequential spec. A second file
+    // worker remains available to ordinary work; inner proof concurrency stays.
     maxWorkers: 2,
     sequence: { sequencer: FrameworkOwnershipSequencer },
     // Off, and the suite depends on it being off. Both test files import

@@ -4,12 +4,83 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { runInNewContext } from 'node:vm';
+import ts from 'typescript';
 
 import { assertNoCanonicalOwnershipReaders } from '../apps/web/scripts/framework-ownership-matrix-scope.mjs';
 import { instrumentFrameworkOwnershipMatrix } from '../apps/web/scripts/framework-ownership-matrix-source.mjs';
 import { instrumentFrameworkOwnershipProof } from '../apps/web/scripts/framework-ownership-proof-source.mjs';
 
 test('the emitted recorders write actual finite JSONL records and bind the dynamic matrix root', () => {
+  // Execute the real deadline callback with inert handles: no actual work is retired.
+  const source = readFileSync(
+    new URL('../apps/web/scripts/framework-ownership-matrix.mjs', import.meta.url),
+    'utf8',
+  );
+  const parsed = ts.createSourceFile(
+    'matrix.mjs',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.JS,
+  );
+  const outer = parsed.statements.find(
+    (statement) =>
+      ts.isFunctionDeclaration(statement) && statement.name?.text === 'runFrameworkOwnershipMatrix',
+  );
+  assert.ok(outer?.body);
+  const deadline = outer.body.statements
+    .flatMap((statement) =>
+      ts.isVariableStatement(statement) ? [...statement.declarationList.declarations] : [],
+    )
+    .find((declaration) => declaration.name.getText(parsed) === 'deadline');
+  assert.ok(deadline?.initializer && ts.isCallExpression(deadline.initializer));
+  assert.equal(
+    Number(deadline.initializer.arguments[1].getText(parsed).replaceAll('_', '')),
+    120000,
+  );
+  const callback = deadline.initializer.arguments[0].getText(parsed);
+  const signals = [];
+  const child = {
+    exitCode: null,
+    signalCode: null,
+    killed: false,
+    kill(signal) {
+      this.killed = true;
+      signals.push(signal);
+      return true;
+    },
+  };
+  const context = {
+    child,
+    timedOut: false,
+    stage: 'workers',
+    process: { stderr: { write() {} } },
+    owner: {
+      cancel() {
+        throw new Error('Cleanup owner must not be escalated');
+      },
+    },
+  };
+  runInNewContext('(' + callback + ')()', context);
+  runInNewContext('(' + callback + ')()', context);
+  assert.equal(context.timedOut, true);
+  assert.deepEqual(signals, ['SIGTERM']);
+  assert.equal(child.exitCode, null, 'deadline request grants no physical cleanup credit');
+  const attempt = outer.body.statements.find(ts.isTryStatement);
+  const statements = attempt.tryBlock.statements;
+  const disposed = statements.findIndex(
+    (statement) => statement.getText(parsed) === 'await owner.dispose();',
+  );
+  assert.ok(disposed >= 0);
+  const finalCheck = statements[disposed + 1].getText(parsed);
+  assert.match(finalCheck, /^assert\.equal\(timedOut, false,/);
+  assert.throws(
+    () => runInNewContext(finalCheck, { assert, timedOut: true }),
+    /Expired ownership matrix/,
+  );
+  runInNewContext(finalCheck, { assert, timedOut: false });
+
   const root = mkdtempSync(join(tmpdir(), 'learnstack-ownership-recorder-'));
   const app = join(root, 'frontend/apps/web');
   const records = join(root, 'ownership-control/events.jsonl');

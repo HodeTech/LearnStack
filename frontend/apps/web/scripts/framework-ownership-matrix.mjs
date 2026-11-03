@@ -376,9 +376,20 @@ export async function runFrameworkOwnershipMatrix(group, privateEntry = false) {
   const owner = createFixtureOwner();
   owner.install();
   let stage = 'qualification';
+  let child;
+  let timedOut = false;
   const deadline = setTimeout(() => {
+    timedOut = true;
     process.stderr.write('Framework ownership matrix deadline: ' + stage + '\n');
-    void owner.cancel();
+    // The private driver owns runtime cleanup and the existing failure receipt.
+    // Generic fixture cancellation would kill that cleanup owner after two seconds.
+    if (child?.exitCode === null && child.signalCode === null && !child.killed) {
+      try {
+        child.kill('SIGTERM');
+      } catch {
+        // Preserve failure and join the private driver's own bounded cancellation.
+      }
+    }
   }, 120_000);
   deadline.unref();
   try {
@@ -389,7 +400,7 @@ export async function runFrameworkOwnershipMatrix(group, privateEntry = false) {
       { flag: 'wx', mode: 0o600 },
     );
     stage = group;
-    const child = owner.ownChild(
+    child = owner.ownChild(
       spawn(process.execPath, [source.driverPath, group, '--qualified-private'], {
         cwd: root,
         env: fixtureEnvironment({ root, privateValues: {} }),
@@ -440,6 +451,7 @@ export async function runFrameworkOwnershipMatrix(group, privateEntry = false) {
     assert.equal(existsSync(root), receipt.disposition !== 'removed');
     assertNoCanonicalOwnershipReaders(canonicalFrontend, capturedLeases(receipt));
     await owner.dispose();
+    assert.equal(timedOut, false, 'Expired ownership matrix cannot succeed after cleanup');
     clearTimeout(deadline);
     process.stdout.write(
       JSON.stringify({ ...receipt, sourceInputSha256: source.inputSha256 }) + '\n',

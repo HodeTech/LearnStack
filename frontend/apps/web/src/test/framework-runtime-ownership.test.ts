@@ -6,7 +6,10 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { closedFrameworkProofSync } from './framework-proof-closed-boundary';
+import { registerRouterFaultCases } from './framework-router-faults.cases';
 import { runFrameworkOwnershipGroup } from './framework-runtime-ownership';
+import { registerRuntimeRecoveryCases } from './framework-runtime-recovery.cases';
+import { registerRuntimeWorkerCases } from './framework-runtime-workers.cases';
 
 const environment: NodeJS.ProcessEnv = {
   PATH: process.env.PATH,
@@ -15,7 +18,7 @@ const environment: NodeJS.ProcessEnv = {
   NEXT_TELEMETRY_DISABLED: '1',
 };
 
-describe('actual initialized Next process ownership', () => {
+describe.sequential('actual initialized Next process ownership', () => {
   it(
     'consumes real startup stops and retains unauthenticated pre-HELLO evidence',
     () =>
@@ -51,4 +54,7 @@ describe('actual initialized Next process ownership', () => {
         expect(output).toMatch(new RegExp(`^# ${field} ${expected}$`, 'm'));
     }),
   );
+  registerRuntimeWorkerCases();
+  registerRuntimeRecoveryCases();
+  registerRouterFaultCases();
 });

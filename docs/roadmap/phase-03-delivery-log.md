@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,598 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,639 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -304,6 +304,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0086 acceptance and bounded implementation (2026-11-03)](#adr-0086-acceptance-and-bounded-implementation-2026-11-03) — 15 lines
   - [ADR-0086 implementation and local validation handoff (2026-11-03)](#adr-0086-implementation-and-local-validation-handoff-2026-11-03) — 33 lines
   - [ADR-0086 review closeout and final-source CI handoff (2026-11-03)](#adr-0086-review-closeout-and-final-source-ci-handoff-2026-11-03) — 21 lines
+  - [P03-3 current CI failure and bounded native-group correction (2026-11-03)](#p03-3-current-ci-failure-and-bounded-native-group-correction-2026-11-03) — 41 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -14445,3 +14446,48 @@ B rerun on the same final source uses the existing workflow and original-archive
 reconciler. No extra private benchmark, source freezer or parallel forensic
 review is selected. Hosted fit and P03-3 PR qualification remain open until that
 complete evidence passes. Manual accessibility remains deferred/unexecuted.
+
+### P03-3 current CI failure and bounded native-group correction (2026-11-03)
+
+The complete source-bound A `41589515354` on `71555792` fails its frontend job
+under the approved web 360-second aggregate window and two file workers. The
+router source/control script exhausts its ten-second subprocess bound with no
+completed control observed; this does not uniquely locate initialization versus
+an unfinished first control. Startup reaches development `prepare-term` after
+nine completed cases, with a post-retirement assertion failure and confirmed
+cleanup; its last-entered operation does not identify the exact assertion.
+Workers and recovery fail around 122 seconds without a finite group receipt.
+The package later exhausts its aggregate window. Remaining jobs are cancelled;
+no failed/cancelled or partial population qualifies the packet.
+
+The original frontend log is retained at 102,006 bytes, SHA-256
+`8f6f341039e09f8ab0b9c299afd106a11b8acfdee6f9b8f5c174f305b13e979f`.
+Bounded source reviews identify a concrete driver defect: the outer 120-second
+timer invokes generic fixture cancellation, whose two-second escalation can
+kill the private cleanup owner before its existing cleanup/evidence join ends.
+The correction requests the private child's existing SIGTERM cancellation and
+uses the existing close/receipt path. A latched expiry checked after cleanup
+refuses a late successful exit. The 120/150/160-second bounds remain unchanged.
+An inert-handle control executes the actual timer callback and verifies one
+request, no generic cancellation/physical cleanup credit, and late-success
+refusal; the existing Node source-control count remains one.
+
+The same eight native wrapper cases are registered explicitly once under one
+sequential ownership spec. Workers/recovery/router-faults bodies move to
+non-discovered same-directory `.cases.ts` helpers. Existing callback, stdio,
+Node control and case bounds remain; source guards pin registrations and helper
+paths. Sequencer and canonical catalogue references follow the new entrypoint.
+This sequences only these four groups; other native specs may still use the
+second worker. It adds no job, runtime topology, AST/admission cache or parser
+optimization, and changes no permission, case count or executable clock.
+
+The deadline source control and 56 focused runner/sequencer/boundary/stdio cases
+pass, with zero pending/todo. Typecheck passes; one import-order lint finding is
+corrected before the fresh check chain. Full committed-source validation, both
+fresh review rounds and a new complete A/B remain required. Manual accessibility
+remains deferred/unexecuted. No additional maintainer decision is required for
+this correction within Accepted ADR-0086.
+
+The corrected typecheck/lint/build chain and all owned frontend formatting
+checks pass. The implementation is committed before the new full guarded run
+so formatting hooks cannot change its source during qualification.

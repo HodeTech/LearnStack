@@ -828,7 +828,7 @@ it('keeps receiver cases, stages and admission reasons equal to matrix authority
     runInNewContext('(' + initializer(matrix, 'completedCaseMaximum') + ')'),
   );
   const routerWrapper = readFileSync(
-    new URL('./framework-router-faults.test.ts', import.meta.url),
+    new URL('./framework-router-faults.cases.ts', import.meta.url),
     'utf8',
   );
   function routerCaps(text: string) {
@@ -1265,20 +1265,68 @@ it('keeps every closed Step 3 wrapper callback inside the synchronous boundary',
     ['framework-response-transport.test.ts', 2],
     ['framework-response-overlap.test.ts', 2],
     ['framework-router-matrix.test.ts', 2],
-    ['framework-router-faults.test.ts', 2],
+    ['framework-router-faults.cases.ts', 2],
     ['framework-response-bodyless.test.ts', 1],
     ['framework-runtime-ownership.test.ts', 2],
-    ['framework-runtime-workers.test.ts', 1],
-    ['framework-runtime-recovery.test.ts', 1],
+    ['framework-runtime-workers.cases.ts', 1],
+    ['framework-runtime-recovery.cases.ts', 1],
     ['framework-external-provider-ca.test.ts', 1],
     ['demo-dotnet-owner.test.ts', 1],
   ] as const) {
     assertClosedCallbacks(name, readFileSync(join(directory, name), 'utf8'), expected);
   }
+  const source = readFileSync(join(directory, 'framework-runtime-ownership.test.ts'), 'utf8');
+  const file = ts.createSourceFile(
+    'ownership.ts',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const suites = file.statements.flatMap((statement) =>
+    ts.isExpressionStatement(statement) &&
+    ts.isCallExpression(statement.expression) &&
+    statement.expression.expression.getText(file) === 'describe.sequential'
+      ? [statement.expression]
+      : [],
+  );
+  expect(suites).toHaveLength(1);
+  const callback = suites[0]?.arguments[1];
+  if (!callback || !ts.isArrowFunction(callback) || !ts.isBlock(callback.body))
+    throw new Error('Sequential ownership registration refused');
+  const expected = [
+    ['registerRuntimeWorkerCases', './framework-runtime-workers.cases'],
+    ['registerRuntimeRecoveryCases', './framework-runtime-recovery.cases'],
+    ['registerRouterFaultCases', './framework-router-faults.cases'],
+  ];
+  const calls = callback.body.statements.flatMap((statement) =>
+    ts.isExpressionStatement(statement) &&
+    ts.isCallExpression(statement.expression) &&
+    statement.expression.expression.getText(file).startsWith('register')
+      ? [statement.expression]
+      : [],
+  );
+  expect(calls.map((call) => call.expression.getText(file))).toEqual(
+    expected.map(([name]) => name),
+  );
+  expect(calls.every((call) => call.arguments.length === 0)).toBe(true);
+  const imports = file.statements.flatMap((statement) => {
+    if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier))
+      return [];
+    const bindings = statement.importClause?.namedBindings;
+    if (!bindings || !ts.isNamedImports(bindings)) return [];
+    return bindings.elements
+      .filter((binding) => binding.name.text.startsWith('register'))
+      .map((binding) => {
+        expect(binding.propertyName).toBeUndefined();
+        return [binding.name.text, (statement.moduleSpecifier as ts.StringLiteral).text];
+      });
+  });
+  expect(imports.sort()).toEqual([...expected].sort());
 });
 
 it('refuses omission of either router fault callback boundary', () => {
-  const name = 'framework-router-faults.test.ts';
+  const name = 'framework-router-faults.cases.ts';
   const text = readFileSync(join(fileURLToPath(new URL('./', import.meta.url)), name), 'utf8');
   assertClosedCallbacks(name, text, 2);
   const file = ts.createSourceFile(name, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);

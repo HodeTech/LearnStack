@@ -19,7 +19,7 @@ const sources = [
   ['framework-external-provider-ca.test.ts', 1],
   ['ingress-upgrade-evidence.test.ts', 1],
   ['framework-router-matrix.test.ts', 2],
-  ['framework-router-faults.test.ts', 2],
+  ['framework-router-faults.cases.ts', 2],
   ['demo-dotnet-owner.test.ts', 1],
 ] as const;
 
