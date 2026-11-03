@@ -959,7 +959,7 @@ otherwise).
   `frontend-runner.test.ts` prove skip/todo, missing-script/report and omission
   refusals; CLI success alone cannot close the rule. Frontend completeness is
   equality of discovered/reported files and consistency/pass of reported cases;
-  there is no generic independent expected-scenario-ID census. ADR-0088–0090's
+  there is no generic independent expected-scenario-ID census. ADR-0088–0092's
   selected test settings follow [Testing 06](06-testing.md#frontend-guarded-execution).
   Controlled timers prove stop invocation/refusal, not retirement of every
   independently detached family. Acceptance alone establishes no executable or
@@ -6535,7 +6535,10 @@ Prior receipts do not qualify subsequent source changes.
   Copied profile/relay and input-graph controls preserve actual child attribution,
   including the distinct public-admission commands, completion barrier and reply
   counts. Owner-loss recovery requires unchanged records and complete family
-  evidence. Cold SDK typechecking produces no unowned incremental output; the
+  evidence. SDK aggregate/cold-prefix/frontend job settings follow
+  [ADR-0092](../decisions/0092-sdk-completion-and-frontend-job-windows.md) and
+  [Testing 06](06-testing.md#frontend-guarded-execution).
+  Cold SDK typechecking produces no unowned incremental output; the
   real compiler dirty twin retains that output and reaches `output_unowned`.
   The actual recursive cold typecheck/lint prefix leaves only its permitted
   routes stub before the build guard accepts. Web lint disables both ESLint

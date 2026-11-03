@@ -163,6 +163,17 @@ This record's Decision stays historical. Full positive provenance, complete
 rescans, failure/ownership/cleanup assertions and final-source A/B/archive proof
 remain required; acceptance supplies no repair, fit or merge claim.
 
+### Amendment 2 — Coordinated SDK completion successor (2026-11-04)
+
+[ADR-0092](0092-sdk-completion-and-frontend-job-windows.md) selects canonical
+SDK aggregate 360 seconds, shared cold-prefix stop request 150 seconds, both
+case thresholds 160 seconds and frontend CI thirty minutes.
+This narrowly supersedes the SDK pair and retained aggregate/job settings.
+The uncached accepted and cache-enabled output_unowned proof obligations remain.
+No stop, exit or arithmetic remainder establishes physical retirement or fit.
+Full same-source A/B and original-archive proof remain mandatory; this record
+remains Accepted outside the bounded successor.
+
 ## References
 
 - [ADR-0089](0089-provenance-control-timer-settings.md).

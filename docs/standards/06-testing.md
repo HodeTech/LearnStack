@@ -727,7 +727,8 @@ controls prove refusal.
 
 ### Frontend guarded execution
 
-**Derives from:** [ADR-0090](../decisions/0090-sdk-cold-prefix-proof-settings.md),
+**Derives from:** [ADR-0092](../decisions/0092-sdk-completion-and-frontend-job-windows.md),
+[ADR-0090](../decisions/0090-sdk-cold-prefix-proof-settings.md),
 [ADR-0089](../decisions/0089-provenance-control-timer-settings.md),
 [ADR-0088](../decisions/0088-frontend-ci-completion-windows.md),
 [ADR-0087](../decisions/0087-native-frontend-proof-windows.md),
@@ -743,9 +744,10 @@ separate narrower checks. Backend case-ID discovery/reconciliation is unchanged.
 | Test owner | Timer / observation setting |
 |---|---:|
 | Canonical `apps/web` aggregate, two file workers | 900 s |
-| SDK and other package aggregates | 180 s |
-| SDK cold typecheck/lint stop-request timer | 90 s |
-| Its asynchronous Vitest failure threshold | 100 s |
+| Canonical `packages/sdk` aggregate | 360 s |
+| Other package aggregates | 180 s |
+| SDK cold typecheck/lint stop-request timer | 150 s |
+| Its asynchronous Vitest failure threshold | 160 s |
 | Selected ownership matrix outer and private group timers | 180 s each, distinct starts |
 | `runFrameworkOwnershipGroupCore` subprocess | 210 s |
 | Startup/workers/recovery Vitest cases | 220 s |
@@ -755,7 +757,7 @@ separate narrower checks. Backend case-ID discovery/reconciliation is unchanged.
 | Provenance 112-case Node subprocess signal threshold | 90 s |
 | Its synchronous Vitest failure threshold | 100 s |
 | Two sequential pnpm discovery probe signal thresholds | 15 s each |
-| Frontend CI job cancellation allowance | 25 min |
+| Frontend CI job cancellation allowance | 30 min |
 
 `execFileSync`/`spawnSync` timeout settings request a signal and may keep waiting
 for child exit; they are not synchronous return-time maxima. Vitest cannot
@@ -766,9 +768,11 @@ workflow job retain outer expiry/cancellation ownership, without granting
 physical-cleanup credit. No hard inner watchdog is implied.
 
 The SDK cold-prefix stop request begins after private preparation; Vitest counts
-the whole case. Two stop settings total 180 seconds and two case thresholds total
-200 before preparation, joins and other work. The SDK aggregate reserves none
-of these maxima. The uncached guard must accept; the cache-enabled counterfactual
+the whole case. Two stop settings total 300 seconds and two case thresholds total
+320 before preparation, joins and other work. The SDK aggregate of 360 seconds
+reserves neither sum nor a forty-second cleanup interval. With today's two tested
+packages, 900 + 360 = 1,260 leaves 540 nominal seconds inside the 1,800-second
+frontend job for setup/build/other proofs; neither sum guarantees fit. The uncached guard must accept; the cache-enabled counterfactual
 must refuse `output_unowned`, with the same source/ownership/cleanup assertions
 ([direct control owner](21-architecture-tests-catalogue.md#next_response_cleanup_is_installed_and_owned)).
 

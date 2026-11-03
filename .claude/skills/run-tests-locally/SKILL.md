@@ -189,7 +189,8 @@ pnpm lint                # workspace lint, including next lint
 
 
 Use the canonical [frontend test windows and evidence scope](../../../docs/standards/06-testing.md#frontend-guarded-execution)
-from ADR-0087. The guard reconciles discovered files and Vitest-reported cases;
+from ADR-0092 and its predecessors. The guard reconciles discovered files and
+Vitest-reported cases;
 it is not an independent scenario-ID census. Package stop invocation does not
 prove retirement of every detached native family.
 

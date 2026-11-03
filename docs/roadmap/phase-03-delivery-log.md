@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,519 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,543 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -336,6 +336,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 ADR-0091 validation and PR CI handoff (2026-11-03)](#p03-3-adr-0091-validation-and-pr-ci-handoff-2026-11-03) — 35 lines
   - [P03-3 ADR-0091 hosted outcomes and SDK completion proposal (2026-11-04)](#p03-3-adr-0091-hosted-outcomes-and-sdk-completion-proposal-2026-11-04) — 71 lines
   - [ADR-0092 proposal review closeout and approval readiness (2026-11-04)](#adr-0092-proposal-review-closeout-and-approval-readiness-2026-11-04) — 21 lines
+  - [ADR-0092 delegated acceptance and implementation start (2026-11-04)](#adr-0092-delegated-acceptance-and-implementation-start-2026-11-04) — 24 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -15398,3 +15399,27 @@ Architecture work may finish independently, but the known SDK failure already
 prevents complete qualification; it is not a B attempt or a combined-result pass.
 The next authorized executable synchronization follows acceptance, local proof
 and two fresh implementation reviews. No additional blind retry is started.
+
+### ADR-0092 delegated acceptance and implementation start (2026-11-04)
+
+The maintainer explicitly directs the agent to resolve whichever remaining
+P03-3 decisions are needed and finish, superseding the earlier repeated
+pre-approval holds for this closure. Accept ADR-0092's reviewed four-setting
+choice under that delegation. No additional user decision is required for this
+implementation or necessary evidence-based closure choices. Maintainer PR review
+and merge ownership, full proof requirements and truthful manual deferral remain.
+
+The prior unchanged-source run 41709127582 attempt 3 is now terminal: 26/27
+succeed; frontend alone fails after all 3,421 web cases pass, with repeated SDK
+cold-lint failure then package expiry. Both backend aggregates, native and
+public-demo succeed. This finalizes the earlier pending snapshot; no failed
+attempt qualifies and no further unchanged-source blind retry is started.
+
+Acceptance adds bounded dated navigation in ADR-0088/0090/0091 and reconciles
+Testing 06, both catalogue owners, contributor/test-guide pointers, index and
+Phase Status. Their historical Decisions remain. The acceptance commit precedes
+the exact SDK identity/150/160/360/frontend30 implementation, existing behavioral
+controls, stable committed-source full frontend guard and two fresh implementation
+reviews. One normal PR synchronization then starts fresh complete A; retain and
+verify A originals before whole-run B on the same source. Never merge or turn
+unexecuted manual accessibility into a pass.

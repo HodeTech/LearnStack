@@ -2,15 +2,18 @@
 
 ## Status
 
-Proposed
+Accepted
 
 **Date:** 2026-11-04
-**Deciders:** @cemil (approval pending)
-**Bounded supersession on acceptance:** ADR-0090's SDK 90/100-second pair and
+**Deciders:** @cemil
+**Bounded supersession:** ADR-0090's SDK 90/100-second pair and
 retained 180-second aggregate, as preserved by ADR-0091; ADR-0088's frontend
 25-minute job ceiling, inherited through those successors. All three records
-remain Accepted outside this scope. No executable setting changes before
-approval; acceptance, implementation and full hosted qualification are separate.
+remain Accepted outside this scope. Accepted on 2026-11-04 under the maintainer's
+explicit delegation to resolve the remaining P03-3 closure decisions and finish.
+Implementation and full hosted qualification remain separate; merge stays with
+the maintainer. The delegation removes repeated approval holds for necessary
+closure choices, without granting credit to failed or unexecuted proof.
 
 ## Decision Drivers
 

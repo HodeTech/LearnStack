@@ -195,6 +195,17 @@ physical cleanup. The Phase 03 Status block owns implementation and complete
 same-source qualification; an explicitly authorized draft PR supplies no
 qualification or merge approval.
 
+### Amendment 3 — Coordinated SDK completion successor (2026-11-04)
+
+[ADR-0092](0092-sdk-completion-and-frontend-job-windows.md) selects canonical
+SDK aggregate 360 seconds, shared cold-prefix stop request 150 seconds, both
+case thresholds 160 seconds and frontend CI thirty minutes.
+This narrowly supersedes the retained SDK aggregate and frontend job ceiling.
+The provenance/router settings and historical Decision remain.
+No stop, exit or arithmetic remainder establishes physical retirement or fit.
+Full same-source A/B and original-archive proof remain mandatory; this record
+remains Accepted outside the bounded successor.
+
 ## References
 
 - [ADR-0087](0087-native-frontend-proof-windows.md),

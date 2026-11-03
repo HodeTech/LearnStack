@@ -4,16 +4,16 @@
 > P03-1 ([PR #38](https://github.com/HodeTech/LearnStack/pull/38)) and
 > P03-2 ([PR #39](https://github.com/HodeTech/LearnStack/pull/39)) are merged.
 > P03-3 implementation and both independent review rounds are complete for
-> Steps 1–9 and Step 10's source corrections. Accepted ADR-0078–0091 govern the
+> Steps 1–9 and Step 10's source corrections. Accepted ADR-0078–0092 govern the
 > native entry, administration, seed, framework ownership and CI changes; the
 > decision register below links their decisions and proof obligations.
 > ADR-0091's native inventory implementation and both fresh review rounds are
 > complete; the full 106-control local launcher suite passes. The
 > [delivery handoff](phase-03-delivery-log.md#p03-3-adr-0091-validation-and-pr-ci-handoff-2026-11-03)
 > records the exact source and corrected review finding.
-> [ADR-0092](../decisions/0092-sdk-completion-and-frontend-job-windows.md) proposes
-> coordinated SDK/package/job allowance after repeated SDK failure and aggregate
-> expiry. It awaits explicit approval; executable settings remain unchanged.
+> [ADR-0092](../decisions/0092-sdk-completion-and-frontend-job-windows.md) is Accepted
+> under maintainer closure delegation. Its coordinated SDK/package/job settings
+> proceed to implementation, fresh reviews and complete qualification.
 > [PR #40](https://github.com/HodeTech/LearnStack/pull/40) owns parallel product
 > review and current complete same-source hosted A/B/archive qualification.
 > Its proof record distinguishes local, hosted and manual evidence.

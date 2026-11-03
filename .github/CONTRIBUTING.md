@@ -88,7 +88,8 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
     workspace test runner and native production/cleanup controls.
     Package/proof windows and the discovered-file/reported-case evidence scope
     follow [Testing 06](../docs/standards/06-testing.md#frontend-guarded-execution)
-    and ADR-0087. A package stop is not complete detached-family retirement. Backend
+    and [ADR-0092](../docs/decisions/0092-sdk-completion-and-frontend-job-windows.md).
+    A package stop is not complete detached-family retirement. Backend
     integration also builds a disposable Next app against the real API/PostgreSQL;
     Node 22.23.1/pnpm, frozen frontend dependencies and OpenSSL are required by
     both that job and the frontend native-ingress proof.
