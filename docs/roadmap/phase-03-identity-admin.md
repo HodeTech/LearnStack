@@ -13,7 +13,7 @@
 > records their source. [PR #40](https://github.com/HodeTech/LearnStack/pull/40)
 > owns parallel product review and current complete same-source hosted A/B/archive
 > qualification. Its proof record distinguishes local, hosted and manual evidence.
-> SDK aggregate and native scan policy remain unchanged.
+> The SDK aggregate remains unchanged.
 > [ADR-0091 acceptance](phase-03-delivery-log.md#adr-0091-maintainer-review-and-acceptance-2026-11-03)
 > authorizes separate native preflight/image-query allocations; implementation
 > and complete hosted qualification remain separate. Final total/reserve/job

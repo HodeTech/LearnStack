@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,372 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,392 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -332,6 +332,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 ADR-0090 hosted result and native-only remaining gate (2026-11-03)](#p03-3-adr-0090-hosted-result-and-native-only-remaining-gate-2026-11-03) — 29 lines
   - [ADR-0091 proposal review closeout and approval readiness (2026-11-03)](#adr-0091-proposal-review-closeout-and-approval-readiness-2026-11-03) — 19 lines
   - [ADR-0091 maintainer review and acceptance (2026-11-03)](#adr-0091-maintainer-review-and-acceptance-2026-11-03) — 28 lines
+  - [ADR-0091 implementation first review and Status correction (2026-11-03)](#adr-0091-implementation-first-review-and-status-correction-2026-11-03) — 20 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -15247,3 +15248,23 @@ reviews, then one normal PR synchronization for complete final-source A then
 whole-run B and existing original-archive reconciliation. Unchanged application/
 frontend suites need no redundant local rerun. No merge or duplicate manual CI;
 manual accessibility stays deferred and unexecuted.
+
+### ADR-0091 implementation first review and Status correction (2026-11-03)
+
+Commit `dc1b11d1` implements the closed preflight/final selector, propagated find
+allocations and ten-second metadata sublimit in both phases. Four targeted
+controls pass in 4.596 seconds. The complete copied-owner suite passes 106/106
+in 26.607 seconds on that committed source, with unchanged HEAD/source hashes.
+New controls exercise actual execute prelaunch/cleanup calls, all repeated
+metadata reads, shared-parent clipping, rejected selector shapes and preserved
+final ledger; existing malformed/changed/writable/private-output tests remain.
+These are local controls, not native hosted qualification.
+
+The first fresh implementation review approves the executable scope without
+Blocker/Major findings and verifies both final-phase sublimit and total. Its one
+Minor is confirmed: current Phase Status still says native scan policy remains
+unchanged after ADR-0091 changes preflight/query allocations. Narrow that sentence
+to the retained SDK aggregate. No executable change or repeated suite is needed.
+A fresh independent second review follows this correction; complete final-source
+PR A/B/archive qualification remains open, with no merge or manual-accessibility
+credit inferred.
