@@ -33,6 +33,129 @@ function report() {
 
 /** Actual runner controls for ADR-0053 G38(d), with separate test-owned workspaces. */
 describe('frontend outcome guard', () => {
+  it.each([
+    ['apps/web', 'unrelated-name', 360_000],
+    ['packages/sdk', '@learnstack/web', 180_000],
+    ['packages/probe', '@learnstack/web', 180_000],
+    ['apps/web-other', '@learnstack/web', 180_000],
+  ] as const)(
+    'enforces the exact aggregate window for %s independently of manifest name',
+    async (path, name, milliseconds) => {
+      const root = await mkdtemp(join(tmpdir(), 'learnstack-frontend-window-'));
+      try {
+        const pkg = join(root, path);
+        await mkdir(pkg, { recursive: true });
+        await writeFile(
+          join(root, 'pnpm-workspace.yaml'),
+          `packages:\n  - '${path.split('/')[0]}/*'\n`,
+        );
+        await writeFile(
+          join(pkg, 'package.json'),
+          JSON.stringify({ name, scripts: { test: 'unused' } }),
+        );
+        await writeFile(join(pkg, 'probe.test.ts'), 'test source discovered by the actual runner');
+        const runnerModuleUrl = new URL(
+          '../../../../../scripts/run-frontend-tests.mjs',
+          import.meta.url,
+        ).href;
+        const result = spawnSync(
+          process.execPath,
+          [
+            '--input-type=module',
+            '-e',
+            `
+        import assert from 'node:assert/strict';
+        import childProcess from 'node:child_process';
+        import { EventEmitter } from 'node:events';
+        import { realpath } from 'node:fs/promises';
+        import { syncBuiltinESMExports } from 'node:module';
+        const canonicalPackage = await realpath(${JSON.stringify(pkg)});
+        const child = new EventEmitter();
+        child.pid = 41234;
+        child.stdout = new EventEmitter();
+        child.stderr = new EventEmitter();
+        let announce;
+        const spawned = new Promise(resolve => { announce = resolve; });
+        let launches = 0;
+        childProcess.spawn = (command, args) => {
+          assert.equal(command, 'pnpm');
+          assert.equal(args[1], canonicalPackage);
+          launches++;
+          queueMicrotask(announce);
+          return child;
+        };
+        syncBuiltinESMExports();
+        let timer;
+        globalThis.setTimeout = (callback, delay) => {
+          assert.equal(timer, undefined);
+          timer = { callback, delay, cleared: false };
+          return timer;
+        };
+        globalThis.clearTimeout = value => {
+          assert.equal(value, timer);
+          timer.cleared = true;
+        };
+        const kills = [];
+        process.kill = (pid, signal) => {
+          kills.push([pid, signal]);
+          queueMicrotask(() => child.emit('close', 137));
+          return true;
+        };
+        const { runTestWorkspaces } = await import(${JSON.stringify(runnerModuleUrl)});
+        let settled = false;
+        const outcome = runTestWorkspaces(${JSON.stringify(root)}, () => {}).then(
+          () => { throw new Error('Expired package must not succeed'); },
+          error => error,
+        ).finally(() => { settled = true; });
+        await Promise.race([spawned, outcome.then(error => { throw error; })]);
+        assert.equal(timer.delay, ${milliseconds});
+        let elapsed = ${milliseconds - 1};
+        if (elapsed >= timer.delay) timer.callback();
+        await Promise.resolve();
+        assert.equal(settled, false);
+        assert.equal(kills.length, 0);
+        elapsed++;
+        if (elapsed >= timer.delay) timer.callback();
+        const error = await outcome;
+        assert.equal(error.message, 'Frontend test package exceeded its deadline');
+        assert.equal(launches, 1);
+        assert.deepEqual(kills, [[process.platform === 'win32' ? child.pid : -child.pid, 'SIGKILL']]);
+        assert.equal(timer.cleared, true);
+        console.log(JSON.stringify({ milliseconds: timer.delay, launches, kills: kills.length }));
+      `,
+          ],
+          { encoding: 'utf8', timeout: 5000, maxBuffer: 16384 },
+        );
+        expect(result.error).toBeUndefined();
+        expect(result.status).toBe(0);
+        expect(result.signal).toBeNull();
+        expect(result.stderr).toBe('');
+        expect(JSON.parse(result.stdout)).toEqual({ milliseconds, launches: 1, kills: 1 });
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it('refuses an external symlinked apps group before granting a web window', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'learnstack-group-symlink-'));
+    try {
+      await mkdir(join(root, 'external/web'), { recursive: true });
+      await writeFile(join(root, 'pnpm-workspace.yaml'), "packages:\n  - 'apps/*'\n");
+      await writeFile(
+        join(root, 'external/web/package.json'),
+        JSON.stringify({ name: '@learnstack/web', scripts: { test: 'unused' } }),
+      );
+      await writeFile(join(root, 'external/web/probe.test.ts'), 'discovered source');
+      await symlink(join(root, 'external'), join(root, 'apps'), 'dir');
+      await expect(runTestWorkspaces(root, () => {})).rejects.toThrow(
+        'Symlinked workspace package group is unsupported: apps',
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('reports bounded categories for actual failed cases without exporting their payloads', async () => {
     const root = await mkdtemp(join(tmpdir(), 'learnstack-frontend-failure-control-'));
     try {

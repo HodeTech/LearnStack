@@ -24,7 +24,7 @@ export default defineConfig({
     // Native Next proofs build owned copies while lint controls initialize real
     // TypeScript/ESLint graphs. Bound competing file workers instead of making
     // unrelated five-second controls depend on the workstation's CPU count.
-    maxWorkers: 3,
+    maxWorkers: 2,
     sequence: { sequencer: FrameworkOwnershipSequencer },
     // Off, and the suite depends on it being off. Both test files import
     // describe/it/expect/afterEach from 'vitest' explicitly, so the

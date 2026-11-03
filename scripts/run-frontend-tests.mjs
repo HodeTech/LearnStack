@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import {
+  lstat,
   mkdtemp,
   readFile,
   readdir,
@@ -57,7 +58,12 @@ export async function discoverTestPackages(workspaceRoot) {
   const packages = [];
   let manifests = 0;
   for (const group of groups) {
-    for (const entry of await readdir(join(root, group), {
+    const directory = join(root, group);
+    if ((await lstat(directory)).isSymbolicLink())
+      throw new Error(
+        `Symlinked workspace package group is unsupported: ${group}`,
+      );
+    for (const entry of await readdir(directory, {
       withFileTypes: true,
     })) {
       if (entry.isSymbolicLink())
@@ -141,7 +147,7 @@ export function validateTestReport(report) {
   return executed;
 }
 
-function executeTests(path, reportPath, output) {
+function executeTests(path, reportPath, output, deadlineMs) {
   return new Promise((accept, reject) => {
     // The group belongs to this runner; timeout cleanup never targets a user's process.
     const child = spawn(
@@ -174,7 +180,7 @@ function executeTests(path, reportPath, output) {
       } catch (error) {
         if (error.code !== "ESRCH") reject(error);
       }
-    }, 180_000);
+    }, deadlineMs);
     child.once("error", (error) => {
       clearTimeout(timer);
       reject(error);
@@ -194,7 +200,8 @@ export async function runTestWorkspaces(
   workspaceRoot,
   output = (chunk) => process.stdout.write(chunk),
 ) {
-  const packages = await discoverTestPackages(resolve(workspaceRoot));
+  const root = await realpath(resolve(workspaceRoot));
+  const packages = await discoverTestPackages(root);
   const directory = await mkdtemp(
     join(tmpdir(), "learnstack-frontend-results-"),
   );
@@ -202,7 +209,10 @@ export async function runTestWorkspaces(
   try {
     for (const [index, pkg] of packages.entries()) {
       const reportPath = join(directory, `${index}.json`);
-      await executeTests(pkg.path, reportPath, output);
+      // ADR-0086: discovery supplies the path; manifest names select no budget.
+      const deadlineMs =
+        pkg.path === join(root, "apps", "web") ? 360_000 : 180_000;
+      await executeTests(pkg.path, reportPath, output, deadlineMs);
       // Bound reads before parsing; missing/unreadable reports remain a hard failure.
       if ((await stat(reportPath)).size > 64 * 1024 * 1024)
         throw new Error("Frontend test report exceeds its read bound");

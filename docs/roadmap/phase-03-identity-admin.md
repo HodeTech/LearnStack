@@ -10,7 +10,7 @@
 > [The latest source correction closes both review rounds](phase-03-delivery-log.md#p03-3-bounded-worker-review-closeout-and-mvp-handoff-2026-11-03).
 > [Hosted and local package exhaustion](phase-03-delivery-log.md#p03-3-frontend-envelope-exhaustion-and-adr-0086-proposal-2026-11-03)
 > leads to Accepted [ADR-0086](../decisions/0086-native-web-test-package-window.md);
-> [bounded implementation](phase-03-delivery-log.md#adr-0086-acceptance-and-bounded-implementation-2026-11-03) proceeds. Complete same-source hosted
+> [bounded implementation](phase-03-delivery-log.md#adr-0086-implementation-and-local-validation-handoff-2026-11-03) is under validation. Complete same-source hosted
 > A/B and original-archive qualification remain open before the P03-3 PR.
 > Failed/cancelled runs receive no qualification credit.
 > [Manual keyboard/focus/reflow/contrast/VoiceOver evidence](phase-03-delivery-log.md#p03-3-maintainer-approved-manual-deferral-and-step-10-continuation-2026-10-30)
@@ -22,7 +22,7 @@
 > | P03-0 | Entry preparation | Complete — [reconciliation](phase-03-delivery-log.md#entry-preparation-2026-10-25) |
 > | P03-1 | Identity authority and membership foundation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-1-merge-and-closeout-2026-10-27) |
 > | P03-2 | Live membership and authorization | Complete and merged — [closeout](phase-03-delivery-log.md#p03-2-merge-and-closeout-2026-10-28) |
-> | P03-3 | Protected Studio and membership administration | Implementation in progress — [bounded implementation](phase-03-delivery-log.md#adr-0086-acceptance-and-bounded-implementation-2026-11-03) |
+> | P03-3 | Protected Studio and membership administration | Implementation in progress — [bounded implementation](phase-03-delivery-log.md#adr-0086-implementation-and-local-validation-handoff-2026-11-03) |
 > | P03-4 | Invitations and bounded delivery | Not started |
 > | P03-5 | Custom fields and privacy classification | Not started |
 > | P03-6 | Provider event ingress and audit mirror | Not started |

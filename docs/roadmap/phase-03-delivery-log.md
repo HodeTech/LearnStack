@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,544 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,577 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -302,6 +302,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 frontend envelope exhaustion and ADR-0086 proposal (2026-11-03)](#p03-3-frontend-envelope-exhaustion-and-adr-0086-proposal-2026-11-03) — 35 lines
   - [ADR-0086 bounded proposal review closeout (2026-11-03)](#adr-0086-bounded-proposal-review-closeout-2026-11-03) — 12 lines
   - [ADR-0086 acceptance and bounded implementation (2026-11-03)](#adr-0086-acceptance-and-bounded-implementation-2026-11-03) — 15 lines
+  - [ADR-0086 implementation and local validation handoff (2026-11-03)](#adr-0086-implementation-and-local-validation-handoff-2026-11-03) — 33 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -14389,3 +14390,36 @@ remains. Step 3 runs the complete local union, bounded fresh implementation
 reviews, existing final-source hosted A/B and original-archive reconciliation,
 then prepares the P03-3 PR. No extra benchmark, source freezer or speculative
 optimization is commissioned. Acceptance is not executable or hosted proof.
+
+### ADR-0086 implementation and local validation handoff (2026-11-03)
+
+Step 1 accepts the decision in `31d552a9`. Step 2 adds the canonical-path-selected
+web 360-second aggregate guard and two web file workers; all other packages
+retain 180 seconds. Manifest names select no budget. Discovery now also refuses
+a symlinked workspace group before it can masquerade as the canonical web path.
+The existing outcome/discovery checks and owned timeout cleanup are preserved.
+
+Four isolated controlled-timer cases exercise the actual runner through web,
+SDK and lookalike package paths: exact expiry refuses and issues the existing
+owned-process stop, while one millisecond earlier does not. These controls use
+a child-process double and are not claims of physical process retirement. The
+previous real clean/planted outcome and native-retirement controls remain. A
+real symlinked-group refusal adds the fifth case. Canonical temporary paths are
+normalized before comparison on macOS. The focused two-file run passes 38/38,
+zero pending/todo. Typecheck, lint and build pass after correcting a test-local
+reserved-variable name. The complete guarded web/SDK run is underway; no full
+union or hosted qualification is claimed at this handoff.
+
+The committed narrow source and acceptance carriers receive fresh independent
+implementation review rounds while full local validation finishes. Only actual
+blocking findings expand work; final source then uses the existing complete CI
+A/B and archive reconciler. Manual accessibility stays deferred/unexecuted.
+
+The first complete guarded test command passes all reported cases in 379.603
+seconds across both packages. Its surrounding source-stability check refuses
+qualification because the concurrent commit hook reformats the new test file;
+that commit attempt fails during WIP restoration. Only the owned test conflict
+is resolved, original user settings and all five prior stash IDs are verified
+unchanged, and the failed hook's own redundant recovery entry is retired. The
+formatted source is committed before a fresh complete guarded test; the earlier
+command is not represented as final-source qualification.
