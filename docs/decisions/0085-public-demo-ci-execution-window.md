@@ -136,6 +136,20 @@ artifact admission. These controls do not prove hosted fit. Complete same-final-
 source hosted A and B, with all required jobs and original evidence independently
 audited, remain mandatory.
 
+## Amendments
+
+### Amendment 1 — Frontend completion-window successor (2026-11-03)
+
+Accepted [ADR-0088](0088-frontend-ci-completion-windows.md) supersedes
+only the frontend application of its retained other-job boundary.
+The selected settings are web 900 seconds, the closed 31-control Node signal
+threshold 20 seconds, its combined Vitest failure threshold 90 seconds and
+frontend CI 25 minutes. All unlisted settings, runtime ownership, populations,
+physical cleanup and complete qualification remain. Synchronous timeout signals
+and Vitest settings are not guaranteed return-time limits; canonical
+[Testing 06](../standards/06-testing.md#frontend-guarded-execution) records their
+semantics. This body remains historical; acceptance proves no hosted fit.
+
 ## References
 
 - [ADR-0056](0056-public-demo-browser-and-lighthouse-enforcement.md).

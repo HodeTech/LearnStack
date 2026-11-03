@@ -704,7 +704,8 @@ controls prove refusal.
 
 ### Frontend guarded execution
 
-**Derives from:** [ADR-0087](../decisions/0087-native-frontend-proof-windows.md),
+**Derives from:** [ADR-0088](../decisions/0088-frontend-ci-completion-windows.md),
+[ADR-0087](../decisions/0087-native-frontend-proof-windows.md),
 [ADR-0086 evidence erratum](../decisions/0086-native-web-test-package-window.md#amendment-1--frontend-evidence-scope-correction-2026-11-03).
 
 The frontend guard reconciles discovered test-file paths with reported files.
@@ -714,21 +715,32 @@ enumerate expected scenario IDs or detect a case conditionally never registered
 inside a reported file. Native registration/callback source controls provide
 separate narrower checks. Backend case-ID discovery/reconciliation is unchanged.
 
-| Test owner | Bound |
+| Test owner | Timer / observation setting |
 |---|---:|
-| Canonical `apps/web` aggregate, two file workers | 600 s |
+| Canonical `apps/web` aggregate, two file workers | 900 s |
 | SDK and other package aggregates | 180 s |
 | Selected ownership matrix outer and private group timers | 180 s each, distinct starts |
 | `runFrameworkOwnershipGroupCore` subprocess | 210 s |
 | Startup/workers/recovery Vitest cases | 220 s |
 | Per-runtime event observation schema | inclusive 0–120,000 ms from that process's start |
+| Closed 31-control router Node subprocess signal threshold | 20 s; five siblings retain 10 s |
+| Its combined synchronous Vitest failure threshold | 90 s |
+| Frontend CI job cancellation allowance | 25 min |
 
-All unlisted bounds remain, including Node source controls, initialized-router
-proofs, separate initial/router 120-second drivers, provider startup, runtime
-HTTP/readiness/shutdown and the twenty-minute frontend CI job. The three group
-maxima alone can use 540 seconds before router/source controls and wrapper
-work; 600 seconds is not a reservation of every nested maximum or hosted-fit
-claim. Selection follows canonical paths, not manifest names/environment.
+`execFileSync`/`spawnSync` timeout settings request a signal and may keep waiting
+for child exit; they are not synchronous return-time maxima. Vitest cannot
+preempt a blocked synchronous callback. Its setting is a failure threshold;
+20 + 5 × 10 + 20 explains the combined allowance without guaranteeing a
+reserved interval or completion. The separate asynchronous package runner and
+workflow job retain outer expiry/cancellation ownership, without granting
+physical-cleanup credit. No hard inner watchdog is implied.
+
+All unlisted settings remain, including other Node controls, initialized-router
+proofs, separate initial/router 120-second drivers, provider startup and runtime
+HTTP/readiness/shutdown. Three 180-second group settings sum to 540 before
+router/source controls and wrapper work; 900 seconds is not a reservation of
+every nested maximum or a hosted-fit claim. Canonical paths select the package
+setting, not manifest names/environment.
 
 Package expiry invokes its existing owned-process-group SIGKILL and fails.
 Neither this invocation nor its child-process-double control proves retirement

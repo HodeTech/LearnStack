@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,851 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,875 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -313,6 +313,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 ADR-0087 hosted failure and ADR-0088 proposal (2026-11-03)](#p03-3-adr-0087-hosted-failure-and-adr-0088-proposal-2026-11-03) — 42 lines
   - [ADR-0088 first review and hosted count correction (2026-11-03)](#adr-0088-first-review-and-hosted-count-correction-2026-11-03) — 12 lines
   - [ADR-0088 second review corrections and approval readiness (2026-11-03)](#adr-0088-second-review-corrections-and-approval-readiness-2026-11-03) — 18 lines
+  - [ADR-0088 maintainer corrections and acceptance (2026-11-03)](#adr-0088-maintainer-corrections-and-acceptance-2026-11-03) — 24 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -14707,3 +14708,27 @@ No CI is running; no failed/cancelled evidence qualifies the package. After
 approval the three-step implementation/qualification package above proceeds
 without a new feature, runner, cache or diagnostic project. Manual accessibility
 remains deferred and unexecuted.
+
+### ADR-0088 maintainer corrections and acceptance (2026-11-03)
+
+The maintainer authorizes acceptance and implementation after review corrections.
+The missing executable carrier is verified: `public-demo-ci.test.ts` pins the
+full whole-job map, including frontend twenty. Step 2 explicitly includes its
+frontend expectation of twenty-five while retaining every other ceiling/mutant.
+The existing closed-boundary control also checks the one Node exception.
+
+The inner timing finding is accepted as a documentation correction, not a new
+watchdog design. `execFileSync` timeout requests a signal but can wait beyond
+it for child exit; Vitest cannot preempt its synchronous callback. The 20/10
+settings are signal thresholds and 90 a Vitest failure setting; 70 + 20 explains
+the allowance without guaranteeing return or a reserved observation interval.
+Independent package/job expiry remains, without all-detached retirement credit.
+No inference is made that this behavior caused the earlier hosted timeout.
+
+ADR-0088 is Accepted. Dated successor disclosures in ADR-0075/0082/0083/0084/
+0085/0086/0087 preserve their historical bodies; the decision index, canonical
+Testing 06, Catalogue 21 and Phase 03 Status are reconciled. The approved values
+remain 900/20/90 seconds and frontend twenty-five minutes. Implementation then
+uses existing controls, a committed-source full guard, two fresh review rounds
+and whole same-source hosted A/B/archive qualification before PR review.
+Manual accessibility remains maintainer-deferred and unexecuted.

@@ -166,6 +166,18 @@ actual cleanup requirements remain as specified there. This body's original
 values, acceptance and rationale stay historical. Acceptance is not hosted fit.
 
 
+### Amendment 3 — Frontend completion-window successor (2026-11-03)
+
+Accepted [ADR-0088](0088-frontend-ci-completion-windows.md) supersedes
+only the selected web, Node/combined-case and frontend-job settings.
+The selected settings are web 900 seconds, the closed 31-control Node signal
+threshold 20 seconds, its combined Vitest failure threshold 90 seconds and
+frontend CI 25 minutes. All unlisted settings, runtime ownership, populations,
+physical cleanup and complete qualification remain. Synchronous timeout signals
+and Vitest settings are not guaranteed return-time limits; canonical
+[Testing 06](../standards/06-testing.md#frontend-guarded-execution) records their
+semantics. This body remains historical; acceptance proves no hosted fit.
+
 ## References
 
 - [ADR-0082](0082-current-source-ci-execution-windows.md).

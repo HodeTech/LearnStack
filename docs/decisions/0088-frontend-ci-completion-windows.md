@@ -2,16 +2,16 @@
 
 ## Status
 
-Proposed
+Accepted
 
 **Date:** 2026-11-03
-**Deciders:** @cemil (approval pending)
-**Bounded supersession on acceptance:** ADR-0087's web aggregate, retained
+**Deciders:** @cemil
+**Bounded supersession:** ADR-0087's web aggregate, retained
 Node-control and combined-source-control bounds, and twenty-minute frontend
 job; the same retained frontend/test-window clauses in ADR-0086/0083/0084;
 and only the frontend application of ADR-0075/0082/0085's other-job boundaries.
-Those records remain Accepted elsewhere. No executable clock changes before
-maintainer approval. The independent healthy-peer fixture correction is not
+Those records remain Accepted elsewhere. The maintainer authorizes acceptance
+and implementation after the review corrections recorded on 2026-11-03. The independent healthy-peer fixture correction is not
 this policy and proceeds under the existing response-cleanup contract.
 
 ## Decision Drivers
@@ -31,7 +31,7 @@ this policy and proceeds under the existing response-cleanup contract.
 
 ## Considered Options
 
-1. **One closed frontend completion-window update** (chosen proposal).
+1. **One closed frontend completion-window update** (chosen).
    Add finite orchestration headroom while retaining product runtime policy.
 2. **Keep the current clocks and optimize more source** (not selected).
    No verified redundant-work correction explains the Node deadline or provides
@@ -44,22 +44,32 @@ this policy and proceeds under the existing response-cleanup contract.
 
 ## Decision
 
-LearnStack selects the following closed orchestration bounds on acceptance.
+LearnStack selects the following closed orchestration timer settings.
 They are maintainer-judged headroom, not measured minima or hosted-fit evidence.
 Every unlisted bound, test, assertion and completion requirement remains.
 
-| Owner | Current | Selected |
+| Owner / setting | Predecessor | Selected |
 |---|---:|---:|
 | Discovered canonical `apps/web` package | 600 s | 900 s |
-| `framework-router-fault.test.mjs` in its existing six-control caller | 10 s | 20 s |
-| That combined router source-control Vitest case | 25 s | 90 s |
+| `framework-router-fault.test.mjs` timeout signal threshold in its six-control caller | 10 s | 20 s |
+| That combined router source-control Vitest failure threshold | 25 s | 90 s |
 | `frontend` CI whole job | 20 min | 25 min |
 
 The Node exception is selected only from the existing closed literal script
 list in `framework-router-faults.cases.ts`. Other Node controls stay at ten
-seconds. The combined case allows its one twenty-second and five ten-second
-subprocess maxima plus twenty seconds of observation headroom; this is not
-physical-cleanup credit. Its initialized-router sibling stays at 150/160 seconds.
+seconds. These `execFileSync` timeout settings request a termination signal;
+the synchronous call can keep waiting until the child exits. They are not
+return-time maxima. Vitest cannot interrupt the synchronous callback; its
+90-second setting is a failure threshold, not an independent preemptive limit.
+The 20 + 5 × 10 + 20 = 90 arithmetic explains the selected allowance only; it
+reserves no guaranteed completion or observation interval. Its initialized-router
+sibling stays at 150/160 seconds.
+
+The independent package-runner timer still requests process-group SIGKILL and
+refuses expiry; the workflow job applies its own cancellation allowance. These
+outer owners can stop/report work despite a blocked Vitest callback, but neither
+signal invocation proves physical retirement of detached families. No independent
+hard inner watchdog or stronger cleanup mechanism is selected by this decision.
 
 SDK/other packages stay at 180 seconds; file workers stay at two. Selected
 matrix groups and wrappers stay at 180/210/220 seconds. The independent
@@ -91,7 +101,7 @@ attempt: 197 seconds precede the step. This is not the package-owner start or a
 future setup guarantee. The test step lasts 601 seconds. Five uncompleted-file
 markers censor their remaining durations; they establish no necessary minimum.
 
-Selected package maxima are 900 + 180 = 1,080 seconds. A 1,500-second job leaves
+Selected package timer settings sum to 900 + 180 = 1,080 seconds. A 1,500-second job leaves
 420 nominal seconds for all other steps, the same arithmetic gap as the previous
 600 + 180 inside 1,200. No guaranteed reserve or total nested-maxima reservation
 follows. Setup variability, inner failures and scheduling still determine fit.
@@ -107,8 +117,9 @@ Further failure grants no automatic timer increase or blind retry.
 
 ### Negative
 
-- A stalled Node control can take ten more seconds; its combined wrapper gains
-  65 seconds, web gains five minutes and the job five minutes per attempt.
+- The Node signal threshold is ten seconds later; the combined Vitest failure
+  setting is 65 seconds later. Web expiry and job cancellation allowances each
+  gain five minutes. Actual synchronous return may outlast the inner settings.
 - Workflow feedback also depends on concurrency/queueing. Sufficiency remains
   unproved until complete final-source hosted execution succeeds.
 
@@ -123,7 +134,7 @@ Further failure grants no automatic timer increase or blind retry.
 
 ## Implementation Notes
 
-1. On approval, accept/index this record and append dated successor disclosures
+1. Acceptance indexes this record and appends dated successor disclosures
    to ADR-0075/0082/0083/0084/0085/0086/0087 without changing historical bodies.
    Reconcile canonical [Testing 06](../standards/06-testing.md#frontend-guarded-execution),
    [Catalogue 21](../standards/21-architecture-tests-catalogue.md#no_architecture_test_is_skippable),
@@ -131,8 +142,12 @@ Further failure grants no automatic timer increase or blind retry.
 2. Change only `scripts/run-frontend-tests.mjs`, its controlled-timer expectation
    in `frontend-runner.test.ts`, the one closed script selection and combined
    case timeout in `framework-router-faults.cases.ts`, and only the frontend
-   whole-job ceiling in `.github/workflows/ci.yml`. Extend existing controls for
-   exact canonical identity, Node exception and unchanged sibling bounds.
+   whole-job ceiling in `.github/workflows/ci.yml`. Include
+   `frontend/apps/web/src/test/public-demo-ci.test.ts`: change only its frontend
+   expectation to 25, retaining the full map and mutants for other job ceilings.
+   Extend `framework-proof-closed-boundary.test.ts`'s existing control for the
+   closed Node exception and unchanged siblings; keep the same rule/case count.
+   Preserve exact canonical identity and the existing timeout/refusal controls.
    No other 10/25/600/1200 literal is globally replaced.
 3. Run relevant checks and commit before the full guarded source-stability run.
    Complete both fresh review rounds, then new whole A/B on one source using
@@ -144,7 +159,10 @@ Further failure grants no automatic timer increase or blind retry.
 Extend existing controls without deleting cases: canonical web selects exactly
 900 seconds, SDK/lookalikes 180; only the literal 31-control script selects 20
 seconds and its combined case 90, all five sibling scripts remain ten. The
-frontend job alone selects 25 minutes. Preserve the full eight-case native spec,
+frontend job alone selects 25 minutes; `public-demo-ci.test.ts` pins that
+expectation alongside every unchanged job ceiling and its wrong-bound mutant.
+Threshold controls do not claim preemption of synchronous work or physical
+completion by the inner deadline. Preserve the full eight-case native spec,
 all Node counts, runtime-event 120-second schemas, independent driver and
 runtime boundaries, timeout failure, late-success refusal, report-file equality
 and zero skip/todo checks. Qualification requires complete outcomes, not merely

@@ -959,7 +959,7 @@ otherwise).
   `frontend-runner.test.ts` prove skip/todo, missing-script/report and omission
   refusals; CLI success alone cannot close the rule. Frontend completeness is
   equality of discovered/reported files and consistency/pass of reported cases;
-  there is no generic independent expected-scenario-ID census. ADR-0087's
+  there is no generic independent expected-scenario-ID census. ADR-0088's
   selected test windows follow [Testing 06](06-testing.md#frontend-guarded-execution).
   Controlled timers prove stop invocation/refusal, not retirement of every
   independently detached family. Acceptance alone establishes no executable or
@@ -983,7 +983,8 @@ otherwise).
   could switch off. Stripping literals removed the reason for it.
 - **Source:** [06-testing.md § Architecture tests](06-testing.md),
   [ADR-0086](../decisions/0086-native-web-test-package-window.md),
-  [ADR-0087](../decisions/0087-native-frontend-proof-windows.md).
+  [ADR-0087](../decisions/0087-native-frontend-proof-windows.md),
+  [ADR-0088](../decisions/0088-frontend-ci-completion-windows.md).
 - **Type:** xUnit + a source scan with comments and literals stripped, plus a `.trx`
   assertion in CI. **Kind:** structural.
 - **Status:** **Implemented** — `CorpusConsistencyTests.cs`, Packet 10. The

@@ -318,6 +318,18 @@ remains at every instant. The
 owns implementation/reviews and fresh complete final-source A/B; acceptance
 claims neither implementation nor hosted fit.
 
+### Amendment 3 — Frontend completion-window successor (2026-11-03)
+
+Accepted [ADR-0088](0088-frontend-ci-completion-windows.md) supersedes
+only the frontend application of this record's retained other-job boundary.
+The selected settings are web 900 seconds, the closed 31-control Node signal
+threshold 20 seconds, its combined Vitest failure threshold 90 seconds and
+frontend CI 25 minutes. All unlisted settings, runtime ownership, populations,
+physical cleanup and complete qualification remain. Synchronous timeout signals
+and Vitest settings are not guaranteed return-time limits; canonical
+[Testing 06](../standards/06-testing.md#frontend-guarded-execution) records their
+semantics. This body remains historical; acceptance proves no hosted fit.
+
 ## References
 
 - [ADR-0063: Complete Bounded CI Test Shards](0063-complete-bounded-ci-test-shards.md).
