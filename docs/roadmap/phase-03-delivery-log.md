@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,543 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,581 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -337,6 +337,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 ADR-0091 hosted outcomes and SDK completion proposal (2026-11-04)](#p03-3-adr-0091-hosted-outcomes-and-sdk-completion-proposal-2026-11-04) — 71 lines
   - [ADR-0092 proposal review closeout and approval readiness (2026-11-04)](#adr-0092-proposal-review-closeout-and-approval-readiness-2026-11-04) — 21 lines
   - [ADR-0092 delegated acceptance and implementation start (2026-11-04)](#adr-0092-delegated-acceptance-and-implementation-start-2026-11-04) — 24 lines
+  - [P03-3 ADR-0092 validation and final-source CI handoff (2026-11-04)](#p03-3-adr-0092-validation-and-final-source-ci-handoff-2026-11-04) — 38 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -15423,3 +15424,41 @@ controls, stable committed-source full frontend guard and two fresh implementati
 reviews. One normal PR synchronization then starts fresh complete A; retain and
 verify A originals before whole-run B on the same source. Never merge or turn
 unexecuted manual accessibility into a pass.
+
+### P03-3 ADR-0092 validation and final-source CI handoff (2026-11-04)
+
+The maintainer's closure delegation is recorded in acceptance `4a745e39`.
+Implementation `8df51247437df2bdce127c6d780b0543c2454005`, tree
+`67a88a2df8e26e5ceef5592ba9213f269a5f52c8`, changes exactly the four selected
+settings and two existing behavioral control files. Only actual discovered
+canonical packages/sdk receives 360 seconds; web retains 900 and other packages
+180. SDK stop request/case thresholds are 150/160 and frontend job thirty minutes.
+Name/path lookalikes, symlink/report/coverage refusals, actual cold commands,
+separate accepted/output_unowned controls and all physical ownership assertions
+remain. No product, backend, native, public-demo or concurrency change occurs.
+
+The focused runner/workflow controls pass 60/60. On that committed execution
+source, typecheck passes in 4.838 seconds, lint in 33.484, and the complete guard
+passes 3,577/3,577 in 374.361 seconds, with zero skips/todos and empty stderr.
+Web reports 112 files / 3,423 cases in 295.55 seconds; SDK nine files / 154 cases
+in 75.32. The two added web cases exercise actual runner discovery/expiry for
+SDK name/path lookalikes. Checked execution hashes and HEAD remain unchanged
+through each complete run. No local pass establishes hosted fit or the cause of
+the prior failure; a process stop grants no detached-family retirement credit.
+
+Two fresh independent implementation reviews approve without verified findings;
+root reads and hash-verifies both reports. Root also joins the new Active ADR
+index row to its table, a documentation-only whitespace correction included in
+the second review. No executable bytes change after the full guard. Existing
+rule statuses are not promoted and manual accessibility remains deferred and
+unexecuted. The previous hosted source's 26/27 result remains failed history.
+
+This final observational handoff precedes one normal development push to the
+existing ready PR #40. Bind fresh complete A to exact final head, executed merge
+source/tree and base; verify all original A archives using the existing canonical
+retainer before rerunning every job for B on the same source. Verify B originals
+too. No combined partial result, duplicate manual workflow or automatic merge.
+Freeze source through valid A/B; the mutable PR proof record owns subsequent
+hosted outcomes rather than moving the qualified head with status commits.
+Resolve actual remaining closure blockers under the maintainer's delegation,
+with evidence and preserved proof requirements.
