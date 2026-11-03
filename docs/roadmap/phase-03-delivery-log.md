@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,073 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,110 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -322,6 +322,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0089 first proposal review and parallel-review clarification (2026-11-03)](#adr-0089-first-proposal-review-and-parallel-review-clarification-2026-11-03) — 12 lines
   - [ADR-0089 proposal review closeout and approval readiness (2026-11-03)](#adr-0089-proposal-review-closeout-and-approval-readiness-2026-11-03) — 16 lines
   - [ADR-0089 maintainer review, acceptance and parallel PR plan (2026-11-03)](#adr-0089-maintainer-review-acceptance-and-parallel-pr-plan-2026-11-03) — 26 lines
+  - [P03-3 ADR-0089 validation and draft PR handoff (2026-11-03)](#p03-3-adr-0089-validation-and-draft-pr-handoff-2026-11-03) — 37 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -14938,3 +14939,40 @@ by the existing original-archive validator. Do not start a duplicate manual
 qualification workflow. The draft must state pending qualification; publication
 is neither completion nor merge approval. The maintainer owns merge. Manual
 keyboard/focus/reflow/contrast/VoiceOver remains deferred and unexecuted.
+
+### P03-3 ADR-0089 validation and draft PR handoff (2026-11-03)
+
+Acceptance commit `e830a1e7` incorporates the maintainer's review clarifications;
+implementation commit `100fddb8`, tree `371917968534c261f4472398ce96833b266138aa`,
+changes only the provenance wrapper's two selected settings to 90/100 seconds.
+The command, five complete TAP assertions, 112 provenance Node cases, both
+fifteen-second pnpm probes and every enclosing/unlisted setting remain.
+
+Typecheck and lint pass. The full committed-source guard passes 3,575 reported
+cases with zero skips/todos and empty stderr: web 3,421 across 112 discovered
+files in 293.82 seconds, SDK 154 across nine files in 87.15 seconds. Total guarded
+wall time is 384.282 seconds; the source hashes and HEAD stay unchanged. This
+includes the actual provenance wrapper and its complete 112-case result, not
+merely a timer double or a partial TAP stream. It supplies no hosted-fit claim
+or independent expected-scenario census.
+
+Two fresh independent implementation review rounds approve the exact source,
+acceptance carriers, one-hop trust/freshness/ownership controls and evidence
+limits with no actionable findings. The original marker publication regression
+and physical-family refusal/retirement checks remain unchanged. No additional
+literal-only test, benchmark, cache, runner or diagnostic pipeline is added.
+
+The maintainer-authorized [draft PR #40](https://github.com/HodeTech/LearnStack/pull/40)
+is open from development to main. Its body marks incomplete hosted qualification,
+records the local proof and keeps manual keyboard/focus/reflow/contrast/VoiceOver
+deferred and unexecuted. The GitHub connector's creation permission is unavailable;
+the existing authorized CLI creates the same draft without changing scope.
+This observational handoff and PR pointers precede the final source freeze;
+the normal PR synchronize workflow cancels the stale initial source if active.
+
+Use that final PR head, its actual synthetic merge source/tree and exact base for
+complete A then whole-run B and the existing original-archive reconciliation.
+Do not dispatch a parallel manual run or accept failed/cancelled predecessors.
+Current hosted qualification is recorded in the PR's mutable proof section so
+an observational document commit does not invalidate the qualified final source.
+The draft stays unmerged; the maintainer owns review and merge.
