@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,031 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,047 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -320,6 +320,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 provenance publication review closeout and CI handoff (2026-11-03)](#p03-3-provenance-publication-review-closeout-and-ci-handoff-2026-11-03) — 28 lines
   - [P03-3 provenance wrapper timeout and ADR-0089 proposal (2026-11-03)](#p03-3-provenance-wrapper-timeout-and-adr-0089-proposal-2026-11-03) — 35 lines
   - [ADR-0089 first proposal review and parallel-review clarification (2026-11-03)](#adr-0089-first-proposal-review-and-parallel-review-clarification-2026-11-03) — 12 lines
+  - [ADR-0089 proposal review closeout and approval readiness (2026-11-03)](#adr-0089-proposal-review-closeout-and-approval-readiness-2026-11-03) — 16 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -14894,3 +14895,19 @@ draft uses that existing full PR workflow, avoiding a second parallel manual
 qualification run. This is an optional publication-order instruction from the
 maintainer, not an automatic exception, extra runner or changed proof population.
 The selected 90/100 settings are unchanged and remain unimplemented.
+
+### ADR-0089 proposal review closeout and approval readiness (2026-11-03)
+
+Two fresh independent proposal rounds approve the selected 90-second signal /
+100-second Vitest pair, single implementation file and all unchanged surrounding
+settings without actionable findings. The first reviewer also verifies the
+optional PR-workflow clarification against the existing pull-request validator.
+Exact head, merge-source, tree and base remain bound; no extra proof workload or
+publication permission is inferred. This does not accept the decision.
+
+Document checks pass. ADR-0089 remains Proposed; the actual provenance caller
+stays at thirty/thirty-five seconds. No CI or local heavy workload is active.
+The prepared draft PR states the known failing wrapper and unqualified status;
+publication before full qualification still requires the maintainer's express
+authorization. New timer settings also require acceptance. Manual accessibility
+remains deferred/unexecuted; no failed predecessor run receives passing credit.
