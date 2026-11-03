@@ -129,13 +129,13 @@ records hosted qualification. Phase 11 owns production qualification.
 | 0084 | [Owned Frontend Runtime Process Families](0084-owned-frontend-runtime-process-families.md) | Accepted 2026-11-01 after conditional maintainer review corrections: one launch owner/private runtime child, irreversible startup stop, distinct runtime result and actual-family retirement. ADR-0083 remains Accepted outside that boundary; implementation and proof stay in the [Phase 03 Status](../roadmap/phase-03-identity-admin.md). |
 | 0085 | [Public Demo CI Execution Window](0085-public-demo-ci-execution-window.md) | Accepted 2026-11-02 after maintainer review corrections: public-demo only, 22-minute job / 19-minute first-step work deadline; 180-second nominal reserve, internal 12-minute proof and all other contracts stay fixed. Implementation/reviews and complete final-source hosted A/B remain separate; the [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns delivery state. |
 | 0086 | [Native Web Test Package Window](0086-native-web-test-package-window.md) | Accepted 2026-11-03: canonical web-only 360-second aggregate guard and two file workers; SDK/other packages retain 180 seconds. Inner bounds, complete coverage and final-source A/B remain unchanged. The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns delivery and proof state. |
+| 0087 | [Native Frontend Proof Windows](0087-native-frontend-proof-windows.md) | Accepted 2026-11-03 after maintainer review corrections: selected 600/180/210/220-second test orchestration windows; runtime-event 120-second observations and all unlisted bounds remain. Evidence is discovered files plus Vitest-reported cases; qualification stays in the [Phase 03 Status](../roadmap/phase-03-identity-admin.md). |
 
 ## Proposed ADRs
 
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
-| 0087 | [Native Frontend Proof Windows](0087-native-frontend-proof-windows.md) | Web/group/wrapper test windows only; runtime limits and complete proof preserved | P03-3 final CI, before executable changes |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
 the P02d-2 package on 2026-10-02. Their rows are now in Active ADRs; ADR-0049 remains

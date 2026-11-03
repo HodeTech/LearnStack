@@ -2,14 +2,18 @@
 
 ## Status
 
-Proposed
+Accepted
 
 **Date:** 2026-11-03
 **Deciders:** @cemil
-**Bounded supersession on acceptance:** ADR-0086's web aggregate window and
-unchanged selected test bounds, plus ADR-0082/0083/0084's preserved-test-window
-clauses only for the proof orchestration windows named below. All four records
-remain Accepted elsewhere. No executable clock changes before approval.
+**Bounded supersession:** ADR-0086 § Decision's web aggregate window and
+unchanged test/process bounds only for the selected orchestration rows below;
+ADR-0082 § Decision's test-specific-bounds clause; ADR-0083 § Consequences / Neutral's
+preserved test-deadlines clause; and ADR-0084 § Implementation Notes, step 3's
+preserved proof-deadlines clause, only for those same selected rows. These
+records remain Accepted elsewhere. ADR-0082 § Context's distinct 120-second
+provider-startup bound is unchanged. The maintainer authorizes acceptance and
+implementation after the review corrections recorded on 2026-11-03.
 
 ## Decision Drivers
 
@@ -57,8 +61,12 @@ physical cleanup condition changes. Every unlisted bound remains unchanged.
 | Initialized-router subprocess / case and combined source-control case | 150 / 160 / 25 s | unchanged |
 | Frontend CI job | 20 min | 20 min |
 
-Only the closed startup/workers/recovery matrix path receives the group change;
-the separate initial ownership control retains its 120-second boundary.
+Only `runFrameworkOwnershipMatrix`'s outer timer and `runPrivateMatrix`'s
+private cancellation timer in `framework-ownership-matrix.mjs` change from
+120 to 180 seconds. The separate `runInitialOwnershipControl` timer in
+`verify-framework-runtime-ownership.mjs` and the driver timer in
+`verify-framework-router-matrix.mjs` both retain 120 seconds. Provider startup's
+separate 120-second bound also remains. Do not globally replace 120-second values.
 The current two file workers and sequential eight-case registration remain.
 The web path selects its aggregate window; manifest names and environment
 variables select none. Expiry still fails, cleanup grants no synthetic credit,
@@ -78,6 +86,31 @@ not guaranteed physical cleanup time. Outer/private group clocks keep their
 different starts. No expired group may turn successful because cleanup later
 finishes. The private driver keeps its actual cancellation/receipt ownership.
 
+### Independent observation and accounting boundaries
+
+The matrix `validateEvents` guard and the TypeScript
+`validateFrameworkOwnershipGroupCore` receipt validator retain the inclusive
+`0..120,000 ms` runtime-event limit. It is measured from that runtime process's
+own start, not the group start, and is selected here as a separate retained
+observation bound. A 180-second multi-runtime group does not give one runtime
+180 seconds of accepted event history. This policy does not attribute the
+last hosted failure to that observation limit.
+
+Frontend evidence means equality of discovered source test files and reported
+files, plus nonempty, internally consistent, all-passed **Vitest-reported**
+case results. The generic runner does not independently enumerate expected
+scenario IDs and cannot detect a case conditionally never registered inside
+an otherwise reported file. Existing native registration/callback guards
+supply their own narrower source checks; they are not a generic scenario census.
+Backend case-ID discovery and archive reconciliation are unchanged.
+
+Package expiry invokes SIGKILL on the runner-owned process group. That action
+and the controlled-timer child-process double do not prove physical retirement
+of every independently detached native descendant, release of every output
+reservation, or deletion of private roots. Actual native-family retirement
+uses its separate handles, receipts and absence checks. This does not imply
+that every package timeout leaks a process; uncertain cleanup receives no credit.
+
 This changes test orchestration, not API request, native readiness, response,
 session or shutdown policy. The runtime's five-second shutdown observer,
 existing HTTP/body and twenty-second readiness limits, uncertain-work retention,
@@ -88,7 +121,11 @@ cleanup reserves remain. No runner or billing tier changes.
 The web package can use four more minutes within the existing twenty-minute
 job ceiling. With the SDK's separate 180 seconds, these package maxima total
 780 seconds and leave 420 seconds inside that ceiling for other steps; no fit
-or guaranteed reserve follows from that arithmetic. Queueing and sibling jobs
+or guaranteed reserve follows from that arithmetic. Three sequential groups
+near 180 seconds alone use roughly 540 seconds before router/source controls
+and wrapper overhead. The web aggregate can therefore expire at 600 seconds
+even when every inner control stays within its own bound. The aggregate is not
+a reservation of all nested maxima. Queueing and sibling jobs
 still determine workflow feedback. Complete final-source A/B and original
 archive/case reconciliation remain required. Further exhaustion authorizes no
 automatic increase, skipped population or blind retry.
@@ -117,10 +154,14 @@ automatic increase, skipped population or blind retry.
    without rewriting their bodies. Move this row to Active; reconcile Phase 03,
    Testing 06, Catalogue 21, CONTRIBUTING and `run-tests-locally`. Current guides
    should link the canonical Testing 06 bounds rather than copy all values.
-2. Change only the selected constants in `scripts/run-frontend-tests.mjs`,
-   `framework-ownership-matrix.mjs`, `framework-runtime-ownership.ts`, the root
-   ownership spec and workers/recovery `.cases.ts` helpers. Update the existing
-   frontend-runner controlled-timer cases and one-case deadline source control.
+2. Change the canonical web constant in `scripts/run-frontend-tests.mjs`, both
+   selected 120-second timers (outer and private) in `framework-ownership-matrix.mjs`,
+   `runFrameworkOwnershipGroupCore`'s subprocess timeout, and only the startup,
+   workers and recovery case bounds in their root/helper files. Keep
+   `framework-router-faults.cases.ts` unchanged, including 150/160/25-second
+   bounds. Keep both runtime-event schema limits and the two separate initial/
+   router driver timers at 120 seconds. Update the existing frontend-runner
+   controlled-timer cases and one-case deadline source control.
    Preserve every existing refusal, Node count and callback/stdio guard.
 3. Run relevant checks; commit before the complete guarded source-stability run.
    Two fresh review rounds and the complete local union precede final-source
@@ -133,8 +174,11 @@ Extend existing controls, not the rule count. Canonical web selects exactly
 600 seconds; SDK/lookalikes remain 180. The real matrix callback retains its
 private cancellation-owner path and late-success refusal at 180 seconds.
 Source/stdio/callback controls preserve all cases and independent runtime
-limits. Complete discovered web/SDK outcomes must all pass with zero skips or
-todos. Existing registered limits outside this table remain unchanged.
+limits. All discovered web/SDK test files must be reported, and every reported
+case must be internally accounted for and passed with zero skips/todos. No
+independent expected-scenario-ID set is claimed. The retained runtime-event
+schema bounds remain 120,000 ms even under 180-second groups. Existing
+registered limits outside this table remain unchanged.
 
 ## References
 
@@ -142,7 +186,7 @@ todos. Existing registered limits outside this table remain unchanged.
   [ADR-0083](0083-owned-next-response-compression-cleanup.md),
   [ADR-0084](0084-owned-frontend-runtime-process-families.md),
   [ADR-0086](0086-native-web-test-package-window.md).
-- [Testing 06](../standards/06-testing.md#flaky-tests).
+- [Testing 06](../standards/06-testing.md#frontend-guarded-execution).
 - [Catalogue 21](../standards/21-architecture-tests-catalogue.md#no_architecture_test_is_skippable).
 - [GitHub runner specifications](https://docs.github.com/en/actions/how-tos/write-workflows/choose-where-workflows-run/choose-the-runner-for-a-job).
 - [Phase 03](../roadmap/phase-03-identity-admin.md).

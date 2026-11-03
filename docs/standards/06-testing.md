@@ -700,13 +700,43 @@ If a test gets slow, fix the test before the suite.
   outcomes, rejecting failures, skipped/todo cases, missing scripts/reports and
   omitted discovered files. Symlinked workspace packages and test sources fail
 explicitly rather than disappearing from discovery. Real clean/planted runner
-controls prove refusal. [ADR-0086](../decisions/0086-native-web-test-package-window.md)
-sets the canonical `apps/web` aggregate window to 360 seconds with two test-file
-workers; SDK/other packages retain 180 seconds. Individual test/process,
-HTTP/readiness and shutdown bounds, internal concurrency and owned cleanup
-remain unchanged. This aggregate mixes native proofs with unit tests and is not
-the pure-unit speed target above. Selection follows validated canonical paths,
-never manifest names or environment overrides.
+controls prove refusal.
+
+### Frontend guarded execution
+
+**Derives from:** [ADR-0087](../decisions/0087-native-frontend-proof-windows.md),
+[ADR-0086 evidence erratum](../decisions/0086-native-web-test-package-window.md#amendment-1--frontend-evidence-scope-correction-2026-11-03).
+
+The frontend guard reconciles discovered test-file paths with reported files.
+It verifies nonempty, internally consistent Vitest counters and all reported
+cases Passed, with zero skipped/todo outcomes. It does not independently
+enumerate expected scenario IDs or detect a case conditionally never registered
+inside a reported file. Native registration/callback source controls provide
+separate narrower checks. Backend case-ID discovery/reconciliation is unchanged.
+
+| Test owner | Bound |
+|---|---:|
+| Canonical `apps/web` aggregate, two file workers | 600 s |
+| SDK and other package aggregates | 180 s |
+| Selected ownership matrix outer and private group timers | 180 s each, distinct starts |
+| `runFrameworkOwnershipGroupCore` subprocess | 210 s |
+| Startup/workers/recovery Vitest cases | 220 s |
+| Per-runtime event observation schema | inclusive 0–120,000 ms from that process's start |
+
+All unlisted bounds remain, including Node source controls, initialized-router
+proofs, separate initial/router 120-second drivers, provider startup, runtime
+HTTP/readiness/shutdown and the twenty-minute frontend CI job. The three group
+maxima alone can use 540 seconds before router/source controls and wrapper
+work; 600 seconds is not a reservation of every nested maximum or hosted-fit
+claim. Selection follows canonical paths, not manifest names/environment.
+
+Package expiry invokes its existing owned-process-group SIGKILL and fails.
+Neither this invocation nor its child-process-double control proves retirement
+of independently detached native families, reservation release or root deletion.
+Actual native family handles/receipts/absence checks remain separate; uncertain
+physical cleanup receives no credit. This is not a claim that every timeout
+leaks. These aggregate native-proof runs are distinct from the pure-unit speed
+target above.
 
 ## Live Classroom Testing
 

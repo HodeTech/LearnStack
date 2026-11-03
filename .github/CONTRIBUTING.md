@@ -86,9 +86,9 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
       subsequent heads still require all seven passing checks.
   - P02d-5 keeps the existing check names. The frontend job uses the guarded
     workspace test runner and native production/cleanup controls.
-    [ADR-0086](../docs/decisions/0086-native-web-test-package-window.md) selects
-    360 seconds for the canonical web package with two file workers; SDK/other
-    packages retain 180 seconds, with individual proof bounds unchanged. Backend
+    Package/proof windows and the discovered-file/reported-case evidence scope
+    follow [Testing 06](../docs/standards/06-testing.md#frontend-guarded-execution)
+    and ADR-0087. A package stop is not complete detached-family retirement. Backend
     integration also builds a disposable Next app against the real API/PostgreSQL;
     Node 22.23.1/pnpm, frozen frontend dependencies and OpenSSL are required by
     both that job and the frontend native-ingress proof.

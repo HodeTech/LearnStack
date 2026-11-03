@@ -549,3 +549,11 @@ complete the current correction. No existing accepted paragraph or Amendment 1
 text is replaced. The Decision, Status, Date, Deciders, rationale, alternatives,
 consequences and current runtime/proof policies remain unchanged. This adds no
 new protocol, product authority or runtime implementation claim.
+
+### Amendment 3 — Selected proof orchestration windows (2026-11-03)
+
+Accepted [ADR-0087](0087-native-frontend-proof-windows.md) supersedes only
+§ Implementation Notes, step 3's preserved proof-deadline clause for its named
+frontend test orchestration rows. Runtime result/cancellation policy, actual
+family ownership, first-stop shutdown observer, publication fences, unlisted
+bounds and complete qualification remain. This body remains historical.

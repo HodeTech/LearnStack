@@ -233,6 +233,15 @@ This record's body and original rationale remain historical. The
 [acceptance record](../roadmap/phase-03-delivery-log.md#adr-0086-acceptance-and-bounded-implementation-2026-11-03)
 separates decision, implementation and actual qualification.
 
+### Amendment 3 — Selected proof orchestration windows (2026-11-03)
+
+Accepted [ADR-0087](0087-native-frontend-proof-windows.md) supersedes only
+§ Decision's preserved test-specific-bounds clause for its named frontend
+proof orchestration rows. ADR-0086's web aggregate becomes 600 seconds; closed
+matrix groups/wrappers/cases become 180/210/220 seconds. § Context's separate
+120-second provider-startup bound is unchanged, as are backend job/resource/
+reserve policy and all unlisted bounds. This body remains historical.
+
 ## References
 
 - [ADR-0062](0062-native-crash-proof-ci-provisioning.md).

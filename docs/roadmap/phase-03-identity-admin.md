@@ -12,7 +12,7 @@
 > leads to Accepted [ADR-0086](../decisions/0086-native-web-test-package-window.md);
 > [The window implementation closes local checks and reviews](phase-03-delivery-log.md#adr-0086-review-closeout-and-final-source-ci-handoff-2026-11-03).
 > [The native-group correction closes local checks and reviews](phase-03-delivery-log.md#p03-3-native-group-correction-review-closeout-and-ci-handoff-2026-11-03).
-> [Its hosted A exhausts proof windows](phase-03-delivery-log.md#p03-3-native-proof-orchestration-exhaustion-and-adr-0087-proposal-2026-11-03); Proposed [ADR-0087](../decisions/0087-native-frontend-proof-windows.md) awaits maintainer approval. Complete same-source hosted
+> [Its hosted A exhausts proof windows](phase-03-delivery-log.md#p03-3-native-proof-orchestration-exhaustion-and-adr-0087-proposal-2026-11-03); Accepted [ADR-0087](../decisions/0087-native-frontend-proof-windows.md) proceeds after [review corrections](phase-03-delivery-log.md#adr-0087-maintainer-review-corrections-and-acceptance-2026-11-03). Complete same-source hosted
 > A/B and original-archive qualification remain open before the P03-3 PR.
 > Failed/cancelled runs receive no qualification credit.
 > [Manual keyboard/focus/reflow/contrast/VoiceOver evidence](phase-03-delivery-log.md#p03-3-maintainer-approved-manual-deferral-and-step-10-continuation-2026-10-30)
@@ -24,7 +24,7 @@
 > | P03-0 | Entry preparation | Complete — [reconciliation](phase-03-delivery-log.md#entry-preparation-2026-10-25) |
 > | P03-1 | Identity authority and membership foundation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-1-merge-and-closeout-2026-10-27) |
 > | P03-2 | Live membership and authorization | Complete and merged — [closeout](phase-03-delivery-log.md#p03-2-merge-and-closeout-2026-10-28) |
-> | P03-3 | Protected Studio and membership administration | Implementation in progress — [proof-window decision](phase-03-delivery-log.md#p03-3-native-proof-orchestration-exhaustion-and-adr-0087-proposal-2026-11-03) |
+> | P03-3 | Protected Studio and membership administration | Implementation in progress — [accepted proof-window implementation](phase-03-delivery-log.md#adr-0087-maintainer-review-corrections-and-acceptance-2026-11-03) |
 > | P03-4 | Invitations and bounded delivery | Not started |
 > | P03-5 | Custom fields and privacy classification | Not started |
 > | P03-6 | Provider event ingress and audit mirror | Not started |

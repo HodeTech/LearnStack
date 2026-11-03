@@ -42,6 +42,15 @@ Acceptance precedes executable delivery and complete hosted qualification.
 
 ## Decision
 
+> **Erratum — 2026-11-03 (ADR-0041).** The paragraph below overstates the
+> runner with “complete file/case discovery.” It independently discovers test
+> files and validates all Vitest-reported cases, not an expected scenario-ID
+> set. Conditional non-registration is not generically detected. Shown by
+> `discoverTestPackages`, `validateTestReport` and the executed-file comparison
+> in `scripts/run-frontend-tests.mjs`. The Decision's implemented mechanism is
+> unchanged. Current authority: [Testing 06](../standards/06-testing.md#frontend-guarded-execution).
+> Recorded in [Amendment 1](#amendment-1--frontend-evidence-scope-correction-2026-11-03).
+
 LearnStack gives the validated `frontend/apps/web` test package a 360-second
 aggregate execution window and limits its parallel test-file workers to two.
 Every other package, including the SDK, retains 180 seconds. Selection uses
@@ -119,6 +128,43 @@ symlinked paths cannot obtain the web window. Expiry still fails and uses the
 existing owned-process cleanup. All previous real discovery and refusal cases
 remain. A complete guarded local web/SDK union and complete hosted A/B must pass;
 partial native successes do not qualify the package.
+
+## Amendments
+
+### Amendment 1 — Frontend evidence scope correction (2026-11-03)
+
+The original Decision's “complete file/case discovery” wording was false as a
+claim of independent source-level scenario discovery. The existing runner
+compares discovered file paths with report files; `validateTestReport` checks
+reported counters and case outcomes. The omission control removes a file, not
+a conditionally unregistered scenario. The adjacent ADR-0041 inline erratum
+preserves the original body and changes no execution mechanism or Decision.
+Other discovery shorthand in this record denotes those same discovered files
+and reported cases, not a generic independent scenario-ID census.
+
+The Architecture Tests' existing owned-process cleanup wording denotes its
+stop invocation: package SIGKILL targets its process group, while independently
+detached native families require separate retirement evidence. The controlled
+timer double proves invocation/refusal, not every family's physical retirement,
+reservation release or private-root deletion. This clarification claims neither
+universal leakage nor universal physical cleanup on timeout.
+
+Carriers reconciled: this inline erratum/amendment; ADR-0087's Decision/Context/
+Architecture Tests; Testing 06's frontend guarded execution; Catalogue 21's
+frontend clause; current contributor/test guides; and an append-only Phase 03
+review correction. Historical delivery records remain intact; backend case-ID
+reconciliation is unaffected.
+
+### Amendment 2 — Selected proof-window successor (2026-11-03)
+
+Accepted [ADR-0087](0087-native-frontend-proof-windows.md) supersedes this
+record's 360-second web aggregate with 600 seconds and its unchanged-test-bound
+clause only for the closed matrix 180-second groups, 210-second group subprocess
+and three 220-second wrapper cases. SDK/other packages, runtime-event 120-second
+observation limits, runtime/Node/router/CI limits, report/file accounting and
+actual cleanup requirements remain as specified there. This body's original
+values, acceptance and rationale stay historical. Acceptance is not hosted fit.
+
 
 ## References
 

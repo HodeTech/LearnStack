@@ -267,3 +267,11 @@ The acceptance package reconciles Standards 07/06, Catalogue 21's existing
 Registered rule, glossary, decision index and Phase 03 Status/delivery record,
 and appends corresponding ADR-0070 navigation. Acceptance supplies no runtime
 implementation, executed control or complete same-final-source hosted A/B.
+
+### Amendment 2 — Selected proof orchestration windows (2026-11-03)
+
+Accepted [ADR-0087](0087-native-frontend-proof-windows.md) supersedes only
+§ Consequences / Neutral's preserved-test-deadlines clause for its selected
+frontend proof orchestration windows. Response/compression ownership, operation/
+body deadlines, physical cleanup requirements, exact tuple and security-release
+policy remain. This body and its original rationale remain historical.

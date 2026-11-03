@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,715 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,750 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -308,6 +308,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 native-group correction review closeout and CI handoff (2026-11-03)](#p03-3-native-group-correction-review-closeout-and-ci-handoff-2026-11-03) — 25 lines
   - [P03-3 native proof orchestration exhaustion and ADR-0087 proposal (2026-11-03)](#p03-3-native-proof-orchestration-exhaustion-and-adr-0087-proposal-2026-11-03) — 33 lines
   - [ADR-0087 bounded proposal review closeout (2026-11-03)](#adr-0087-bounded-proposal-review-closeout-2026-11-03) — 14 lines
+  - [ADR-0087 maintainer review corrections and acceptance (2026-11-03)](#adr-0087-maintainer-review-corrections-and-acceptance-2026-11-03) — 35 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -14566,3 +14567,38 @@ for document review.
 The proposal is ready for the maintainer's explicit decision. No selected
 executable constant changes while ADR-0087 remains Proposed. Whole-tree
 fragment, roadmap-structure and delivery-index checks pass; no CI is active.
+
+### ADR-0087 maintainer review corrections and acceptance (2026-11-03)
+
+The maintainer conditionally authorizes acceptance and implementation after
+review corrections. Source inspection confirms the frontend runner discovers
+files, compares report files and validates reported Vitest counters/results;
+it does not independently enumerate expected scenario IDs. Existing behavior
+is retained. ADR-0086 receives the ADR-0041 default inline erratum and its own
+dated correction amendment; no historical Decision text is rewritten.
+
+For earlier frontend-only records in this log, including the ADR-0086 and
+native-group review closeouts, “every discovered file/case” or “complete case
+union” shorthand means all discovered files and all Vitest-reported cases, not
+an independent scenario-ID census. Task-specific preserved totals and native
+registration/callback checks remain useful narrower evidence. Backend case-ID
+unions and archive reconciliation are not changed. Historical records remain
+intact; this additive correction qualifies their frontend assurance wording.
+
+The two 120,000 ms event-schema checks are intentionally retained independent
+process-relative observation bounds. They do not expand to 180 seconds when
+the multi-runtime group expands. No last hosted failure is attributed to those
+schema limits. ADR-0087 names both changing matrix timers and the unchanged
+initial/router driver and provider-startup timers; router-faults helpers are
+explicitly excluded. Package SIGKILL/double controls establish stop invocation,
+not complete detached-family retirement/reservation/root cleanup. Three groups
+can consume 540 seconds before the other work; 600 is not every nested maximum.
+
+ADR-0087 is Accepted under that authority. Dated successor disclosures name
+the exact predecessor clauses in ADR-0082/0083/0084/0086; the provider HTTP
+startup bound and all other runtime limits remain. Index, canonical Testing 06,
+Catalogue 21, current guides and Phase 03 Status are reconciled. The implementation
+changes only selected test-window constants and their existing controls, then
+uses a committed-source full run, two fresh review rounds and existing complete
+hosted A/B/archive qualification before the P03-3 PR. No independent frontend
+scenario registry, new diagnostic pipeline or speculative benchmark is added.
