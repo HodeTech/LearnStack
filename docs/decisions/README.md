@@ -137,6 +137,7 @@ records hosted qualification. Phase 11 owns production qualification.
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
+| 0089 | [Provenance Control Timer Settings](0089-provenance-control-timer-settings.md) | Only the existing 112-control wrapper: 90-second signal and 100-second Vitest settings; enclosing package/job unchanged | P03-3 qualification, explicit approval before settings change |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
 the P02d-2 package on 2026-10-02. Their rows are now in Active ADRs; ADR-0049 remains

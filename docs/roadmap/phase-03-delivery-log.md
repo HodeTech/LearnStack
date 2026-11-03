@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 8,984 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,019 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -318,6 +318,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [ADR-0088 implementation review closeout and final-source CI handoff (2026-11-03)](#adr-0088-implementation-review-closeout-and-final-source-ci-handoff-2026-11-03) — 33 lines
   - [P03-3 provenance marker publication correction (2026-11-03)](#p03-3-provenance-marker-publication-correction-2026-11-03) — 37 lines
   - [P03-3 provenance publication review closeout and CI handoff (2026-11-03)](#p03-3-provenance-publication-review-closeout-and-ci-handoff-2026-11-03) — 28 lines
+  - [P03-3 provenance wrapper timeout and ADR-0089 proposal (2026-11-03)](#p03-3-provenance-wrapper-timeout-and-adr-0089-proposal-2026-11-03) — 35 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -14845,3 +14846,38 @@ reconciliation. Neither failed predecessor run receives credit. No new timer,
 ADR, cache, runner, benchmark or diagnostic pipeline is introduced; only the
 verified fixture bug changes source. Manual accessibility remains deferred and
 unexecuted for PR review.
+
+### P03-3 provenance wrapper timeout and ADR-0089 proposal (2026-11-03)
+
+Hosted A `41638792928`, attempt 1, source `c944b453`, tree
+`d322d3014d141234ef825a3499d774bb3732a992`, completes every web file marker:
+111 files pass and only the provenance wrapper fails; 3,420 cases pass and one
+fails in 681.27 seconds. Its inner thirty-second command reports ETIMEDOUT
+at 30,021 ms without recoverable child progress. The 900-second package guard
+does not expire and no marker-JSON failure is reported. Public-demo succeeds.
+The remaining run is cancelled; terminal metadata counts 27 jobs: seven success,
+three failure (frontend and required aggregates), seventeen cancelled. No full
+A/B qualification is claimed. Original frontend log: 132,965 bytes, SHA-256
+`f5251c499e63c17d0f8c75fe45f250f9f47631c7d9d11ce4d5e0c92e33b7fbc9`.
+
+The current `419b703a` executable source includes the separately verified marker
+publication correction. Its complete guarded local result remains 3,575 passes
+in 410.021 seconds; the provenance wrapper is 23.519 seconds within that run.
+All four fresh correction reviews approve. These results do not attribute the
+hosted timeout, rule out an unseen stall or measure the unfinished hosted tail.
+No additional correctness fix or cache is justified by the available evidence.
+
+[Proposed ADR-0089](../decisions/0089-provenance-control-timer-settings.md) selects
+only the provenance caller's signal setting 30→90 seconds and Vitest setting
+35→100. The actual 112 controls and all package/job/other test/runtime settings
+remain. The three steps are acceptance/carriers; the two literals and existing
+controls; then stable local verification, fresh reviews and complete same-source
+hosted A/B/original-archive qualification. This is judged allowance, not a claimed
+causal repair or minimum. No timer changes before explicit maintainer approval.
+
+The normal PR boundary remains after qualification. The maintainer may explicitly
+authorize an unqualified draft PR to begin product review in parallel; it must
+state the failing CI and pending qualification and grants no merge permission.
+The local PR draft is prepared but remains unpublished. Manual accessibility
+remains deferred and unexecuted. No new benchmark, runner or diagnostic pipeline
+is part of the proposal.
