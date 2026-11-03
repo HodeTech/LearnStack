@@ -124,8 +124,11 @@ receive no credit.
    and complete both fresh implementation review rounds. Run complete A then
    whole-run B on one final source and use the existing original-archive
    reconciler. PR normally follows qualification; the maintainer may explicitly
-   authorize an unqualified draft for parallel product review. That grants no
-   qualification, merge permission or exemption from the remaining checks.
+   authorize an unqualified draft for parallel product review. In that case use
+   its normal full PR workflow for A/B, with the existing pull-request archive
+   validator and exact head/merge-source/tree/base bindings, rather than starting
+   a parallel manual qualification run. That grants no qualification, merge
+   permission or exemption from the remaining checks.
 
 ## Architecture Tests
 
