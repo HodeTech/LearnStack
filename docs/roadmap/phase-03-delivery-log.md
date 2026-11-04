@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,727 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,768 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -340,7 +340,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 ADR-0092 validation and final-source CI handoff (2026-11-04)](#p03-3-adr-0092-validation-and-final-source-ci-handoff-2026-11-04) — 38 lines
   - [P03-3 standard hosted VM compatibility correction (2026-11-04)](#p03-3-standard-hosted-vm-compatibility-correction-2026-11-04) — 32 lines
   - [P03-3 hosted VM compatibility validation and corrective CI handoff (2026-11-04)](#p03-3-hosted-vm-compatibility-validation-and-corrective-ci-handoff-2026-11-04) — 39 lines
-  - [P03-3 PR 40 review reconciliation and recovery corrections (2026-11-04)](#p03-3-pr-40-review-reconciliation-and-recovery-corrections-2026-11-04) — 75 lines
+  - [P03-3 PR 40 review reconciliation and recovery corrections (2026-11-04)](#p03-3-pr-40-review-reconciliation-and-recovery-corrections-2026-11-04) — 76 lines
+  - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 40 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -15611,3 +15612,44 @@ are preserved outside this correction commit. Synchronize the existing
 its mutable proof record owns new complete same-source A/B and canonical
 original-archive verification. Do not merge or combine attempts. Manual keyboard,
 focus, reflow, contrast and VoiceOver remain maintainer-deferred and unexecuted.
+
+
+### P03-3 warm-provider visitor-window pacing correction (2026-11-04)
+
+The correction head `ecfc56de` executes in full PR attempt A
+[41803770511](https://github.com/HodeTech/LearnStack/actions/runs/41803770511)
+on merge source `b08d46be`, tree `51675696`, base `e55aa5d7`. It completes
+24/27 jobs: frontend, SDK, native and the backend aggregate pass; ordinary-0
+fails its real warm-provider Fact, the required integration aggregate fails,
+and public-demo refuses cleanup. All 27 original demo JSON/HTML report pairs
+have matching digests and pass their mandatory budgets; cleanup is separately
+unconfirmed and this attempt grants no qualification. Retain all 24 published
+original archives with API size/SHA-256 and ZIP CRC checks. The initial private
+acquisition stops after 14; a bounded missing-ID continuation rechecks immutable
+metadata and completes retention without asserting successful qualification.
+
+The warm-provider Fact reproduces locally: the deliberate profile retry expects
+303 but receives the actual visitor limiter's 429. Current-actor UI-preference
+recovery legitimately adds a request to the long page/replacement journey.
+Move its existing real visitor-window wait immediately before the unchanged
+unknown-profile write/retry helper. The same window, one-second margin,
+identity, provider and all assertions remain; no quota, timeout, production
+code, clock reset or bypass changes. The first 503, independently committed
+profile, same-key/body replay, 303 destination, unchanged version and separate
+MUST write/receipt audits remain mandatory.
+
+The complete real warm-provider Fact then passes 1/1, zero skipped, in
+296.648 seconds with both native hosts, actual provider refresh/logout,
+application-role data and persisted audit checks. Its Release test build passes.
+Both independent narrow reviews approve without verified findings; root reads
+both reports and verifies their bytes. R1 SHA-256 is
+`dc3582d80f749dc97405dd038964d9413f57012beadd90263a4c4af8ee4c23a9`;
+R2 is `778d7380f85fcecd3f3bca07aef0a25161c4715c448048fad56cae5fc80b95ed`.
+This result does not explain or repair the separate public-demo cleanup refusal.
+
+Synchronize the existing unmerged PR with this test-only ordering correction
+and its delivery record. New complete same-source hosted A/B and original
+archive verification remain required; prior successful or failed sources grant
+no replacement credit. The mutable PR proof record owns those observations.
+Preserve all seven pre-existing tracked modifications. Manual keyboard, focus,
+reflow, contrast and VoiceOver checks remain deferred and unexecuted.

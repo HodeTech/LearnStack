@@ -419,10 +419,12 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
                 await AssertDifferentProviderAccountCannotReplaceLiveDestinationAsync(provider, native, api, identity,
                     otherAccount, passwords.GetValueOrDefault(otherAccount.Username) ?? KeycloakFixture.DemoPassword,
                     cookies, extended, database);
-                await AssertUnknownNativeProfileWriteAsync(database, native, api, identity, cookies, extended);
-                // Page reads and replacement/profile checks are one bounded
-                // journey; start switch/logout/clamp in the next real window.
+                // Page reads and replacement checks consume the real visitor
+                // budget. Profile recovery also reads the actor's UI preference;
+                // begin its deliberate retry and switch/logout/clamp in the
+                // next real window without widening or bypassing the quota.
                 await NextAnonymousWindowAsync(anonymousWindow);
+                await AssertUnknownNativeProfileWriteAsync(database, native, api, identity, cookies, extended);
                 var oldScopeCookie = cookies.Header;
                 var beforeSwitchAudit = await AuditCountsAsync(database);
                 var branch = tenant.DefaultOrganization.OrganizationId.Value;
