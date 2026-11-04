@@ -45,7 +45,11 @@ public sealed class InvitationPolicyReader(TenancyDbContext db, IUnitOfWork unit
             row.Id == id && row.TenantId == context.TenantId && row.OrganizationId == null
             && row.Key == TenantSettingKeys.InvitationLifetimeName, cancellationToken));
     }
-    async Task<Result<InvitationMessageContext>> IInvitationMessageContextReader.ReadAsync(CancellationToken cancellationToken)
+    Task<Result<InvitationMessageContext>> IInvitationMessageContextReader.ReadAsync(CancellationToken cancellationToken) =>
+        ReadMessageContextAsync(null, cancellationToken);
+    Task<Result<InvitationMessageContext>> IInvitationMessageContextReader.ReadEntryAsync(string admittedHost, CancellationToken cancellationToken) =>
+        ReadMessageContextAsync(admittedHost, cancellationToken);
+    private async Task<Result<InvitationMessageContext>> ReadMessageContextAsync(string? admittedHost, CancellationToken cancellationToken)
     {
         Admit(false);
         var result = await ReadSafeAsync(async () =>
@@ -55,12 +59,16 @@ public sealed class InvitationPolicyReader(TenancyDbContext db, IUnitOfWork unit
                 && (row.Status == TenantStatus.Trial || row.Status == TenantStatus.Active), cancellationToken);
             if (tenant is null) return null;
             var host = await db.PlatformHostMappings.AsNoTracking().Where(row => row.TenantId == context.TenantId && row.IsActive
+                && (admittedHost == null || row.Host == admittedHost)
                 && (row.OrganizationId == context.OrganizationId || row.OrganizationId == null))
                 .OrderByDescending(row => row.OrganizationId != null).ThenBy(row => row.Host).Select(row => row.Host).FirstOrDefaultAsync(cancellationToken);
             var locale = tenant.Locales.Where(row => row.IsEnabled && (row.Locale == "en" || row.Locale == "tr"))
                 .OrderByDescending(row => row.IsDefault).ThenBy(row => row.Sort).Select(row => row.Locale).FirstOrDefault();
+            var organization = context.OrganizationId is { } org ? await db.Organizations.AsNoTracking()
+                .Where(row => row.TenantId == context.TenantId && row.Id == org && row.DeletedAt == null && row.DeletedBy == null)
+                .Select(row => row.DisplayName).SingleOrDefaultAsync(cancellationToken) : null;
             return host is null || locale is null || EffectiveHost.Normalize(host) != host ? null
-                : new InvitationMessageContext(host, locale, tenant.DisplayName);
+                : new InvitationMessageContext(host, locale, tenant.DisplayName, organization);
         });
         return result is null ? Result<InvitationMessageContext>.Fail(new Error(LocalizedMessage.Of("lockey_not_found"))) : Result.Ok(result);
     }

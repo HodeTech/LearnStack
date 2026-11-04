@@ -68,7 +68,14 @@ public sealed partial class TransactionExecutionCoordinator(
         try
         {
             if (openingOwner) collector.RefreshTrackedSources();
-            scope = await unitOfWork.BeginTransactionAsync(mode, cancellationToken);
+            if (authorization?.CurrentInvitationWitness is { } invitation)
+            {
+                if (!openingOwner || invitation.Mode != mode || invitation.Invocation.Policy.RequestType != operationType
+                    || !ReferenceEquals(invitation.Invocation.Operation, operation) || unitOfWork is not IInvitationEntryUnitOfWork entry)
+                    throw new InvalidOperationException("Invitation execution requires its exact fresh owner.");
+                scope = await entry.BeginInvitationEntryTransactionAsync(invitation, tenantContext, cancellationToken);
+            }
+            else scope = await unitOfWork.BeginTransactionAsync(mode, cancellationToken);
         }
         catch
         {
@@ -167,6 +174,11 @@ public sealed partial class TransactionExecutionCoordinator(
             {
                 preparedOwner.RequireLive(unitOfWork, tenantContext);
                 collector.RefreshTrackedSources();
+            }
+            else if (authorization?.CurrentInvitationWitness is { } invitation)
+            {
+                if (!scope.IsOwner || unitOfWork is not IInvitationEntryUnitOfWork entry || !entry.IsInvitationEntryOwner(invitation))
+                    throw new InvalidOperationException("Invitation execution lost its owner.");
             }
             else if (!tenantContext.IsResolved && provisioning is not null)
             {

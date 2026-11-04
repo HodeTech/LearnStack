@@ -78,6 +78,23 @@ public sealed class TenantResolverMiddleware(
             return;
         }
 
+        if (InvitationEntryOperation.ForPath(context.Request.Path) is not null)
+        {
+            var previousEntryContext = accessor.Current;
+            try
+            {
+                var offer = await context.RequestServices.GetRequiredService<InvitationEntrySource>().PrepareAsync(context);
+                if (offer.IsFailure) { await OperationClassificationMiddleware.RefuseAsync(context, offer.Error); return; }
+                var resolved = TenantContextFactory.CreateForInvitationOffer(
+                    classification.TenantId!.Value, classification.OrganizationId, offer.Value,
+                    Activity.Current?.Id ?? context.TraceIdentifier);
+                if (resolved.IsFailure) { await OperationClassificationMiddleware.RefuseAsync(context, resolved.Error); return; }
+                accessor.Current = resolved.Value;
+                await next(context);
+            }
+            finally { accessor.Current = previousEntryContext; }
+            return;
+        }
         var identity = context.Features.Get<TenantCredentialFeature>()?.Identity;
         if (context.Features.Get<NativeSessionSourceFeature>() is not null)
         {

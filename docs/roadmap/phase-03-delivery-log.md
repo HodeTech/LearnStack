@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 703 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 773 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -361,6 +361,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 4 administration and producer review handoff (2026-11-04)](#p03-4-step-4-administration-and-producer-review-handoff-2026-11-04) — 68 lines
   - [P03-4 Step 4 first review correction (2026-11-04)](#p03-4-step-4-first-review-correction-2026-11-04) — 23 lines
   - [P03-4 Step 4 second review closeout and Step 5 start (2026-11-04)](#p03-4-step-4-second-review-closeout-and-step-5-start-2026-11-04) — 28 lines
+  - [P03-4 Step 5 recipient admission and atomic acceptance review handoff (2026-11-05)](#p03-4-step-5-recipient-admission-and-atomic-acceptance-review-handoff-2026-11-05) — 70 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -16459,3 +16460,73 @@ Step 6 owns Studio/native/provider journeys; Step 7 owns complete final-source
 suites, native process/cleanup/race proof, hosted A/B and original archives.
 The earlier architecture receipt limits and unexecuted manual evidence remain
 explicit; review approval does not complete those later steps.
+
+### P03-4 Step 5 recipient admission and atomic acceptance review handoff (2026-11-05)
+
+Step 5 implements the three exact recipient requests, private stock-validated
+credential capture, fresh fixed-endpoint UserInfo and operation-bound nonmember
+scope. The preliminary app-role ReadOnly lookup fully closes before the scoped
+owner. Actual server privacy qualification precedes sensitive SQL binds. The
+single-use witness binds the current request/invocation, native proof, real host,
+actor, offer and physical owner/mode/generation. Eleven logical setters use the
+existing four physical context writers; no new migration, function or login role
+is added. General protected, public and account authority remains separate.
+
+Entry bodies contain ID/code only; Pending acceptance uses canonical strong
+If-Match. A dated ADR-0093 transport clarification preserves its historical body
+and metadata. Accepted preflight selects the exact Off original-result request
+before old/malformed/repeated preconditions, provider work or mutation intents.
+Normal lifecycle and frozen-origin availability still apply. Pending email,
+inviter, Role pin, expiry and version conditions do not block that own-result
+read, which never substitutes a successor Membership or publishes a session.
+
+Acceptance takes both sorted User fences before the strongest actual Tenant
+mode, then Role, Invitation and current Membership locks. Fresh post-wait global,
+delegation, lifecycle, pin, target and database-expiry checks precede the actual
+transition. One tracker reset preserves both roots for central plural MUST and
+one COMMIT. Active members retain their full graph; Suspended conflicts; Revoked
+history permits a fresh successor. A shared mutable-graph guard also closes the
+new write port after validation. Its real late-write probe preserves the original
+Queued/version-one outcome and two central audit rows.
+
+The controller consumes an immutable prepared request, without a reachable
+preliminary persistence graph. Infrastructure/OpenAPI paths resolve no invitation
+source eagerly. Exact central response-privacy classification covers the three
+entry paths. The served schema and strict SDK add no ordinary BFF operation.
+
+| Validation | Observed scope |
+|---|---|
+| Full Unit after graph-seal correction | 3,589 passed; zero failed/skipped |
+| Full Contract | 10 passed; actual served refresh and SDK generation also pass |
+| Full guarded SDK | 189 passed across 11 exact discovered files; zero failed/skipped/todo; typecheck, lint and native emit pass |
+| Actual recipient HTTP/PostgreSQL | All 39 exact subjects have passing latest outcomes: 38 in the final combined receipt and one corrected pooling fixture separately; no single all-green combined run is claimed |
+| Affected Architecture | All 119 exact subjects have passing latest outcomes: 117 plus two corrected methods; bounded subset, not full Architecture qualification |
+| Controlled UserInfo adapter | 41 passing subjects included in Unit; not real Keycloak verification qualification |
+
+C# formatting and verification pass. The measured compiled architecture count is
+340; whole-packet Registered obligations retain their status. The interrupted
+unfiltered architecture diagnostic and earlier failed/corrected receipts remain
+history, not passing full-source evidence. Corrections retain exact nonempty
+caller/owner sets and missing/alias/opcode negatives, without broad exemptions.
+
+HTTP proof includes nine wait races, actual expiry, both User fences and strongest
+mode/same-person cases, unchanged-member subject-only audit, both MUST failures,
+strict input/source/branch controls, privacy refusal before sensitive SQL,
+owner/witness/join/mode refusal and postrequest closure. Pool reuse explicitly
+enables the fixture's owned two-connector source, asserts equal physical backend
+PID, and checks clean GUCs/ReadOnly state through a fresh owner. The failed owner
+remains permanently poisoned; fresh-scope success alone is not pool-reuse proof.
+
+Global Closing cases use the existing isolated owner-only corruption fixture;
+they prove defensive rereads, not a P03-10 production closure writer. A deferred
+server COMMIT refusal proves atomic rollback. Separate successful COMMIT followed
+by synthetic HTTP observation loss proves explicit original-result convergence;
+it is not a driver COMMIT-ack fault claim. ADR-0079's protected-receipt outcome
+limits remain unchanged.
+
+The implementation now enters two fresh independent review rounds. Step 6 owns
+Studio/native/verification/browser/manual experience, including the minimal admin
+acceptance-disposition projection needed to explain already-member outcomes to
+both parties. Step 7 owns complete final-source suites, actual provider/native
+process proof, hosted A/B and original archives. No manual or production-provider
+qualification is inferred from these bounded receipts.

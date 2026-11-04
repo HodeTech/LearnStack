@@ -49,7 +49,7 @@ namespace LearnStack.Infrastructure.Persistence;
 /// </remarks>
 public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOperationReadScopeView,
     IPreContextSelfDiscoveryUnitOfWork, IFixedSeedPrerequisiteUnitOfWork, IUnitOfWorkWriteGuard,
-    IUnitOfWorkContextEnrollment
+    IUnitOfWorkContextEnrollment, IInvitationEntryUnitOfWork
 {
     private readonly NpgsqlDataSource _dataSource;
 
@@ -168,8 +168,11 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
         ObjectDisposedException.ThrowIf(_disposed || _idempotencyEnding, this);
         RequireWriteAllowed();
 
-        if (_selfDiscoveryWitness is not null)
-            throw new InvalidOperationException("A transaction cannot join a self-discovery label owner.");
+        if (_selfDiscoveryWitness is not null || _invitationWitness is not null)
+        {
+            MarkRollbackOnly();
+            throw new InvalidOperationException("A transaction cannot join a captured entry owner.");
+        }
 
         if (!globalIdentity && IsGlobalIdentityTransaction)
         {
@@ -392,13 +395,20 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
         SetTenantContextCoreAsync(context, readWitness, tenantWideRead: true, cancellationToken);
 
     private async Task SetTenantContextCoreAsync(ITenantContext context, OperationReadWitness? readWitness,
-        bool tenantWideRead, CancellationToken cancellationToken)
+        bool tenantWideRead, CancellationToken cancellationToken, InvitationEntryScopeWitness? invitationWitness = null)
     {
         JobApplicationSourceOwner.RefuseExternalEntry();
         ObjectDisposedException.ThrowIf(_disposed, this);
         RequireWriteAllowed();
         ArgumentNullException.ThrowIfNull(context);
 
+        if (_invitationWitness is not null || (context.Origin == TenantContextOrigin.HostAndInvitationOffer) != (invitationWitness is not null)
+            || invitationWitness is not null && (_depth != 1 || _tenantContextIssued || tenantWideRead
+                || !invitationWitness.IsActive || !ReferenceEquals(invitationWitness.Invocation.Context, context)))
+        {
+            MarkRollbackOnly();
+            throw new InvalidOperationException("Invitation context requires its exact unused witness.");
+        }
         if (IsGlobalIdentityTransaction || _selfDiscoveryWitness is not null)
         {
             MarkRollbackOnly();
@@ -493,6 +503,10 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
             ? normalizedOrganization.Value.ToString()
             : string.Empty;
 
+        if (invitationWitness is not null && (!invitationWitness.TryBindTo(this, _transaction, _generation, _mode!.Value)
+            || invitationWitness.Offer.TenantId != tenantId || invitationWitness.Offer.OrganizationId != organizationId))
+            RefuseOperationReadScope();
+
         if (tenantWideRead && (tenantId is not { } actualTenant
             || !MatchesReadWitness(context, readWitness!, actualTenant, organizationId)
             || !readWitness!.TryBindTo(this, _transaction, _generation)))
@@ -535,6 +549,11 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
         // After the round trip, never before: the flag means the announcement actually
         // reached PostgreSQL, so a setter that threw leaves the transaction unmarked and
         // the guard refuses the commands that would have run under it.
+        if (invitationWitness is not null)
+        {
+            if (!invitationWitness.IsBoundTo(this, _transaction, _generation)) RefuseOperationReadScope();
+            _invitationWitness = invitationWitness;
+        }
         _tenantContextIssued = true;
         _tenantContextAnnouncement = tenantId is { } announcedTenant
             ? new TenantContextAnnouncement(_generation, announcedTenant, organizationId)
@@ -555,7 +574,7 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
         ObjectDisposedException.ThrowIf(_disposed, this);
         RequireWriteAllowed();
 
-        if (_tenantWideRead || _readScopeFaulted) RefuseOperationReadScope();
+        if (_tenantWideRead || _readScopeFaulted || _invitationWitness is not null || _selfDiscoveryWitness is not null) RefuseOperationReadScope();
 
         if (IsGlobalIdentityTransaction)
         {
@@ -650,6 +669,11 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
     private bool ValidateOperationReadScope(bool requireCurrentFrame = true)
     {
         if (!ValidateFixedSeedRead()) return false;
+        if (_invitationWitness is { } invitation && (_transaction is null || _depth != 1 || _mode != invitation.Mode
+            || !invitation.IsBoundTo(this, _transaction, _generation)))
+        {
+            _rollbackOnly = true; _tenantContextIssued = false; _tenantContextAnnouncement = null; return false;
+        }
         if (_selfDiscoveryWitness is { } own && !own.IsBoundTo(this))
         {
             _rollbackOnly = true;
@@ -709,6 +733,7 @@ public sealed partial class NpgsqlUnitOfWork : IGlobalIdentityUnitOfWork, IOpera
         _globalIdentityLocked = false;
         _globalIdentitySealed = false;
         _selfDiscoveryWitness = null;
+        _invitationWitness = null;
     }
 
     private static readonly Action<ILogger, string, Exception?> LogResolvedWithoutTenant =

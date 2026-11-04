@@ -128,6 +128,7 @@ public sealed partial class PersistenceConventionTests
             dirty.Should().NotBe(invitations);
             InvitationAdministrationEnrollmentIsGuarded(dirty).Should().BeFalse("invitation administration retains the same ordinary writable owner");
         }
+        AssertInvitationEntryEnrollment();
         var navigation = File.ReadAllText(Path.Combine(SourceScan.SourceRoot,
             "Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/Persistence/OwnTenantNavigationReader.cs"));
         NavigationEnrollmentIsGuarded(navigation).Should().BeTrue();
@@ -219,6 +220,7 @@ public sealed partial class PersistenceConventionTests
                 ReceiptEnrollment + "::Admit",
                 AdministrationReadEnrollment + "::Admit",
                 "LearnStack.Modules.Identity.Infrastructure.Invitations.InvitationAdministrationStore::Admit",
+                "LearnStack.Modules.Identity.Infrastructure.Invitations.InvitationAcceptanceReadStore::Admit",
                 "LearnStack.Modules.Identity.Infrastructure.Persistence.RoleReadStore::ReadAsync",
                 "LearnStack.Modules.Identity.Infrastructure.Persistence.RoleReadStore::ReadManyAsync",
                 "LearnStack.Modules.Identity.Infrastructure.Persistence.MembershipAdmissionReader::ReadCurrentAsync",

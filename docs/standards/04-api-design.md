@@ -412,7 +412,7 @@ or native proxy. All paths below carry `/api/v1`.
 | GET `/tenancy/settings/invitation-policy` | `GetTenantInvitationPolicyQuery`; own-current-tenant policy only, orgless context, Off; absent/default or stored version precondition |
 | PUT `/tenancy/settings/invitation-policy` | `SetTenantInvitationLifetimeCommand`; Tenant `tenancy.setting.write`, orgless scope, fixed key `identity.invitation.ttl_days`, 1–30 days; conditional creation or canonical If-Match, protected keyed receipt and MUST update |
 | POST `/identity/invitation-entry/inspections` | `InspectInvitationQuery`; body ID/code, exact host/source/subject/offer entry, fresh current verified recipient; Off, physically ReadOnly and no-store |
-| POST `/identity/invitation-entry/acceptances` | `AcceptInvitationCommand`; body ID/code/observed version, fresh recipient proof and locked authority; natural offer/actor convergence; Membership/result/version receipt |
+| POST `/identity/invitation-entry/acceptances` | `AcceptInvitationCommand`; body ID/code only, canonical strong If-Match for Pending, fresh recipient proof and locked authority; natural offer/actor convergence; Membership/result/version receipt |
 | POST `/identity/invitation-entry/results` | `GetOwnInvitationResultQuery`; body ID/code, consumed digest, same Active actor and original current Active Membership; Off, physically ReadOnly; no new grant or email/inviter/Role/expiry revalidation |
 
 Administrative writes never return raw codes or links. Create/revoke/reissue use
@@ -442,9 +442,13 @@ pin requires withdrawal and a new offer. Reissue preserves the original inviter.
 Entry bodies are strict UTF-8 JSON, at most 8 KiB, with no unknown/duplicate
 fields or actor/tenant/org authority selectors. Inspection and result use POST
 to keep credentials out of URL paths/queries; their consumers remain ReadOnly.
-Acceptance rejects Idempotency-Key and introduces no tenantless replay namespace.
-A preflight Accepted offer dispatches the exact result read before mutation
-intents. A Pending command losing the race returns recoverable 409 with truthful
+All three entry bodies carry only Invitation ID and code. Observed acceptance
+version has one carrier: canonical strong If-Match, not a duplicate body field.
+Inspection/result reject conditional headers. Acceptance rejects Idempotency-Key
+and introduces no tenantless replay namespace. A preflight Accepted offer
+dispatches the exact result read before mutation intents or Pending-only If-Match
+validation; an obsolete original precondition does not block committed-result
+recovery. A Pending command losing the race returns recoverable 409 with truthful
 failed-attempt evidence; a fresh result read reconciles the committed outcome.
 Unknown COMMIT remains indeterminate until authoritative reconciliation.
 

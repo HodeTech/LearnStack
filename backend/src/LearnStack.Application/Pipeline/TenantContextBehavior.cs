@@ -51,7 +51,7 @@ namespace LearnStack.Application.Pipeline;
 /// </para>
 /// </remarks>
 public sealed class TenantContextBehavior<TRequest, TResponse>(
-    ITenantContext tenantContext)
+    ITenantContext tenantContext, LearnStack.SharedKernel.Permissions.IOperationPolicyCatalog? policies = null)
     : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull
     where TResponse : IResultBase
@@ -151,13 +151,16 @@ public sealed class TenantContextBehavior<TRequest, TResponse>(
     /// admitted or every integration-event consumer stops running, because
     /// <c>EventTenantContext</c> resolves with exactly that origin.
     /// </remarks>
-    private static bool PermittedUnder(TenantContextOrigin? origin) => origin switch
+    private bool PermittedUnder(TenantContextOrigin? origin) => origin switch
     {
         TenantContextOrigin.HostOnly => IsPublicSurface,
         TenantContextOrigin.HostAndClaim => true,
         TenantContextOrigin.ClaimAndMembership => true,
         TenantContextOrigin.Ambient => true,
         TenantContextOrigin.HostAndNativeSessionScope => !IsPublicSurface,
+        TenantContextOrigin.HostAndInvitationOffer => !IsPublicSurface && policies is not null
+            && policies.TryGet(typeof(TRequest), out var policy)
+            && policy.Kind == LearnStack.SharedKernel.Permissions.OperationPolicyKind.InvitationEntry,
 
         // null — an implementation that states no origin — and any member added later
         // without deciding its ceiling. Fail-closed, which is the whole reason this is

@@ -16,7 +16,7 @@ using Xunit;
 namespace LearnStack.Tests.Architecture;
 
 /// <summary>
-/// The one sanctioned cross-aggregate write, and the count that keeps it at one.
+/// The two named cross-aggregate writers and their exact aggregate sets.
 /// </summary>
 /// <remarks>
 /// <see href="../../../docs/decisions/0042-tenant-provisioning-cross-aggregate-transaction.md">ADR-0042</see>
@@ -51,7 +51,7 @@ public sealed class AggregateWriteTests
         // that cannot fire is worse than one at Registered, because the catalogue then
         // claims coverage it does not have.
         AssertTenancyAdministrationRoots();
-        AssertOnlyTenantProvisioningWritesAcrossAggregates(ProductionAssemblies()
+        AssertNamedCrossAggregateWriters(ProductionAssemblies()
             .Select(Assembly.Load)
             .SelectMany(assembly => assembly.GetTypes()));
     }
@@ -140,6 +140,14 @@ public sealed class AggregateWriteTests
         ReadMethods.Remove(read).Should().BeTrue();
         try { TakesDomainObject(directory, identityDomains).Should().BeTrue("removing this exact read-method entry must expose its typed key"); }
         finally { ReadMethods.Add(read); }
+        TakesDomainObject(typeof(IInvitationAcceptanceReadStore), identityDomains).Should().BeFalse();
+        foreach (var name in new[] { "ReadOfferAsync", "ReadResultAsync", "LockInvitationAsync", "ReadFinalAsync" })
+        {
+            var method = typeof(IInvitationAcceptanceReadStore).GetMethod(name)!;
+            ReadMethods.Remove(method).Should().BeTrue();
+            try { TakesDomainObject(typeof(IInvitationAcceptanceReadStore), identityDomains).Should().BeTrue(); }
+            finally { ReadMethods.Add(method); }
+        }
         TakesDomainObject(typeof(IWrappedKeyReader), domains).Should().BeTrue("an unenumerated key-only port must not escape; Fix: enumerate genuine read methods explicitly");
         foreach (var writer in new[] { typeof(IDirectWriter), typeof(IBulkWriter), typeof(IArrayWriter), typeof(IByRefWriter), typeof(IMixedWriter), typeof(IInheritedWriter), typeof(IIdOnlyWriteProbe), typeof(IValueReturningKeyWriter) })
         {
@@ -190,11 +198,11 @@ public sealed class AggregateWriteTests
                 "integration handlers count distinct roots through every constructor port; "
                 + "Fix: retain fused, separate and inherited contracts in the production census");
 
-        Action sameNameOffender = () => AssertOnlyTenantProvisioningWritesAcrossAggregates(
-            [TenantProvisioningHandler, typeof(ProvisionTenantCommandHandler)]);
+        Action sameNameOffender = () => AssertNamedCrossAggregateWriters(
+            [TenantProvisioningHandler, typeof(AcceptInvitationCommandHandler), typeof(ProvisionTenantCommandHandler)]);
         sameNameOffender.Should().Throw<Xunit.Sdk.XunitException>(
             "the provisioning exception belongs to one exact type, not every handler with its name; Fix: compare Type identities before applying the exception");
-        AssertOnlyTenantProvisioningWritesAcrossAggregates([TenantProvisioningHandler]);
+        AssertNamedCrossAggregateWriters([TenantProvisioningHandler, typeof(AcceptInvitationCommandHandler)]);
     }
 
     private static void AssertTenancyAdministrationRoots()
@@ -226,13 +234,15 @@ public sealed class AggregateWriteTests
         }
     }
 
-    private static void AssertOnlyTenantProvisioningWritesAcrossAggregates(IEnumerable<Type> types) =>
-        CrossAggregateWriters(types).Should().Equal(
-            [TenantProvisioningHandler],
-            "a handler that can write two aggregate roots writes across an aggregate "
-            + "boundary in one transaction, which ADR-0042 sanctions for exactly one "
-            + "operation. Fix: split integration effects into one-root subscriptions; "
-            + "any new cross-aggregate exception needs its own decision record");
+    private static void AssertNamedCrossAggregateWriters(IEnumerable<Type> types)
+    {
+        CrossAggregateWriters(types).Should().BeEquivalentTo(
+            [TenantProvisioningHandler, typeof(AcceptInvitationCommandHandler)],
+            "ADR-0042 and ADR-0093 enumerate exactly these two actual handlers; extra names cannot borrow either exception");
+        AggregatesWrittenBy(typeof(AcceptInvitationCommandHandler).GetConstructors().Single())
+            .Should().BeEquivalentTo([typeof(Invitation), typeof(Membership)],
+                "acceptance must expose both actual write roots through countable constructor ports");
+    }
 
     private static IEnumerable<Type> CrossAggregateWriters(IEnumerable<Type> types) => types
         .Where(type => type is { IsAbstract: false, IsInterface: false })
@@ -298,6 +308,10 @@ public sealed class AggregateWriteTests
         typeof(LearnStack.Modules.Identity.Application.Abstractions.ISeedStateReader).GetMethod("ReadRoleAsync")!,
         typeof(LearnStack.Modules.Identity.Application.Abstractions.ISeedStateReader).GetMethod("ReadMembershipAsync")!,
         typeof(IInvitationPolicyReader).GetMethod(nameof(IInvitationPolicyReader.ReadReceiptAsync))!,
+        typeof(IInvitationAcceptanceReadStore).GetMethod(nameof(IInvitationAcceptanceReadStore.ReadOfferAsync))!,
+        typeof(IInvitationAcceptanceReadStore).GetMethod(nameof(IInvitationAcceptanceReadStore.ReadResultAsync))!,
+        typeof(IInvitationAcceptanceReadStore).GetMethod(nameof(IInvitationAcceptanceReadStore.LockInvitationAsync))!,
+        typeof(IInvitationAcceptanceReadStore).GetMethod(nameof(IInvitationAcceptanceReadStore.ReadFinalAsync))!,
     ];
 
     private interface IIdOnlyWriteProbe { Task DeleteAsync(CourseId id); }

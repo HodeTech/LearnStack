@@ -30,6 +30,9 @@ public sealed class OperationAuthorizationCoordinator(
     public OperationReadWitness? CurrentReadWitness => _current.Value is { Closed: false, Decision: { } decision }
         && decision.Outcome == ProtectedOperationOutcome.Allowed && decision.IsActive ? decision.ReadWitness : null;
 
+    public LearnStack.SharedKernel.Identity.InvitationEntryScopeWitness? CurrentInvitationWitness =>
+        CurrentDecision is { InvitationWitness: { IsActive: true } witness } ? witness : null;
+
     public ProtectedOperationDecision? CurrentDecision => _current.Value is { Closed: false, Decision: { IsActive: true } decision }
         ? decision : null;
 
@@ -82,6 +85,17 @@ public sealed class OperationAuthorizationCoordinator(
                     || !policy.AllowedSources.Contains(captured[0].SourceKind))
                     sourceFailure = Forbidden;
                 else trusted = captured[0];
+                break;
+            case OperationPolicyKind.InvitationEntry:
+                if (!context.IsResolved || context.Origin != TenantContextOrigin.HostAndInvitationOffer
+                    || context.HostScope is not { } offerHost || offerHost.TenantId != context.TenantId
+                    || offerHost.OrganizationId is { } offerOrganization && offerOrganization != context.OrganizationId)
+                { sourceFailure = TenantContextFactory.Refused; break; }
+                var invitees = _candidateSources.Select(source => source.ForValidatedScope(context.TenantId, context.OrganizationId))
+                    .Where(value => value is not null).Cast<AuthorizationCandidate>().Take(2).ToArray();
+                if (invitees.Length != 1 || !Matches(invitees[0]) || invitees[0].SourceKind != AuthorizationSourceKind.Http)
+                    sourceFailure = TenantContextFactory.Refused;
+                else candidate = invitees[0];
                 break;
             case OperationPolicyKind.AccountRead:
             case OperationPolicyKind.NativeSessionAdmission:

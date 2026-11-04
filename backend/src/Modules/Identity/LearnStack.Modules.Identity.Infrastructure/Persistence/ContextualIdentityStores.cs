@@ -111,10 +111,15 @@ public sealed class ContextualIdentityStorageControl(IdentityDbContext db, IUnit
         }
     }
 
-    public async Task SaveAsync(CancellationToken cancellationToken)
+    internal void RequireMutableGraph()
     {
         if (unit is IUnitOfWorkWriteGuard writeGuard) writeGuard.RequireWriteAllowed();
         if (_validated) throw new InvalidOperationException("An Identity graph cannot change after validation.");
+    }
+
+    public async Task SaveAsync(CancellationToken cancellationToken)
+    {
+        RequireMutableGraph();
         // The common owner must roll back this complete aggregate act on every
         // failure. A private EF subtransaction supplies no recoverable boundary
         // and gives a new Role a child xmin, defeating the exact first-act proof.

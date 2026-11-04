@@ -3,6 +3,7 @@ using LearnStack.Infrastructure.Audit;
 using LearnStack.Modules.Education.Application.Contracts.PublicReads;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Application.Contracts.Entry;
+using LearnStack.Modules.Identity.Application.Contracts.Invitations;
 using LearnStack.Modules.Identity.Domain;
 using LearnStack.Modules.Tenancy.Application.Contracts.Account;
 using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
@@ -132,6 +133,15 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         new("LearnStack.Api.Identity.NativeSessionAdmissionController", "Admit", "POST", "identity/session-scope/admissions", null,
             "AdmitNativeSessionScope", typeof(LearnStack.Modules.Identity.Application.Contracts.Entry.AdmitNativeSessionScopeCommand), "LearnStackOperation:identity.membership.admit_session_scope",
             typeof(LearnStack.Modules.Identity.Application.Contracts.Entry.NativeSessionScopeAdmission), 200, null, new(OperationClass.Must, OperationType.SecurityEvent, "identity.membership.admit_session_scope", typeof(LearnStack.Modules.Identity.Domain.Membership))),
+        new("LearnStack.Api.Identity.InvitationEntryController", "Inspect", "POST", "identity/invitation-entry", "inspections",
+            "InspectInvitation", typeof(InspectInvitationQuery), "LearnStackOperation:identity.invitation.inspect",
+            typeof(LearnStack.Api.Identity.InvitationInspectionResponse), 200, null, new()),
+        new("LearnStack.Api.Identity.InvitationEntryController", "Accept", "POST", "identity/invitation-entry", "acceptances",
+            "AcceptInvitation", typeof(AcceptInvitationCommand), "LearnStackOperation:identity.invitation.accept",
+            typeof(LearnStack.Api.Identity.InvitationAcceptanceResponse), 200, null, new(OperationClass.Must, OperationType.SecurityEvent, "identity.invitation.accept", typeof(Invitation))),
+        new("LearnStack.Api.Identity.InvitationEntryController", "Result", "POST", "identity/invitation-entry", "results",
+            "GetOwnInvitationResult", typeof(GetOwnInvitationResultQuery), "LearnStackOperation:identity.invitation.read_own_result",
+            typeof(LearnStack.Api.Identity.InvitationAcceptanceResponse), 200, null, new()),
         new("LearnStack.Api.Identity.InvitationsController", "List", "GET", "identity/invitations", null,
             "ListInvitations", typeof(LearnStack.Modules.Identity.Application.Contracts.Invitations.ListInvitationsQuery), "LearnStackOperation:identity.invitation.list",
             typeof(LearnStack.Api.Identity.InvitationPage), 200, null, new(OperationClass.Must, OperationType.ReadSensitive, "identity.invitation.list", typeof(LearnStack.Modules.Identity.Domain.Invitation))),
@@ -326,7 +336,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         var map = Types(modules).ToDictionary(Key, StringComparer.Ordinal);
         var account = map.Values.Single(type => type.FullName == Account);
         var handlers = HandlerRoots(map).ToArray();
-        handlers.Should().HaveCount(29, "all finite HTTP requests have real production handlers; the seven invitation operations and three policy operations share two additional handler classes");
+        handlers.Should().HaveCount(32, "all finite HTTP requests have real production handlers; the seven invitation operations and three policy operations share two additional handler classes");
         Violations(modules, facts).Should().BeEmpty();
         AssertPolicyMetadataControls(modules, facts);
         AssertControllerMetadataControls(modules, facts);
@@ -448,7 +458,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         Violations(modules, facts).Should().BeEmpty("all planted production capabilities have been removed");
 
         // Each mutation targets this actual root; invoke the same production
-        // predicate without rescanning all 29 independent handler classes for every probe.
+        // predicate without rescanning all 32 independent handler classes for every probe.
         // Full union checks still bracket the complete mutation sequence.
         IEnumerable<string> CurrentRootOffenders() => activeRoot == account
             ? HttpBypasses(account, map) : NestedDispatchOffenders([activeRoot], map);
@@ -498,8 +508,9 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                     errors.Add("HTTP ceiling permits only the existing /api/v1 major: " + type.FullName);
                 foreach (var offender in AuthorizationOffenders(type, action, map, authorizationPredicate)) errors.Add(offender);
                 foreach (var offender in AttachedFilterOffenders(type, action, map)) errors.Add(offender);
-                if (!(entry.ProtectedOperation is null
-                    ? PublicSurfaceTests.Dispatches(type, action.Name, entry.Request.FullName)
+                if (!(type.FullName == "LearnStack.Api.Identity.InvitationEntryController"
+                    ? InvitationEntryHandoff(type, action, entry)
+                    : entry.ProtectedOperation is null ? PublicSurfaceTests.Dispatches(type, action.Name, entry.Request.FullName)
                     : ProtectedHandoff(type, action, entry)))
                     errors.Add("Construct exactly " + entry.Request.FullName + " at its single validated pipeline dispatch: " + type.FullName + "." + action.Name);
             }
@@ -513,14 +524,15 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         foreach (var request in requests)
         {
             var declaration = Endpoints.First(endpoint => endpoint.Request == request).Audit;
+            var declarations = request == typeof(AcceptInvitationCommand)
+                ? new[] { declaration, new AuditDeclaration(OperationClass.Must, OperationType.SecurityEvent, "identity.membership.admit_invitation", typeof(Membership)) }
+                : [declaration];
             if (!catalogue.TryGet(request, out var registration)
                 || (declaration.Class is null
                     ? !registration.WritesNoRow || registration.Entries.Count != 0
-                    : registration.WritesNoRow || registration.Entries.Count != 1
-                        || registration.Entries[0].OperationClass != declaration.Class
-                        || registration.Entries[0].OperationType != declaration.Type
-                        || registration.Entries[0].Operation != declaration.Operation
-                        || registration.Entries[0].EntityType != declaration.Entity))
+                    : registration.WritesNoRow || registration.Entries.Count != declarations.Length
+                        || declarations.Any(expected => registration.Entries.Count(actual => actual.OperationClass == expected.Class
+                            && actual.OperationType == expected.Type && actual.Operation == expected.Operation && actual.EntityType == expected.Entity) != 1)))
                 errors.Add("HTTP request must retain its exact audit declaration: " + request.FullName);
             if (request.IsDefined(typeof(PublicSurfaceAttribute), false)
                 != Endpoints.Any(endpoint => endpoint.Request == request && endpoint.Policy is null))

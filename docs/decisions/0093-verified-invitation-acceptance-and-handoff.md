@@ -532,3 +532,30 @@ local fixture, old P03-3 follow-up or maintainer merge is substituted for it.
   [Audit](../standards/18-audit-coverage.md), [Catalogue](../standards/21-architecture-tests-catalogue.md)
 - [MailKit 4.18.2](https://www.nuget.org/packages/MailKit/4.18.2),
   [MimeKit 4.18.2](https://www.nuget.org/packages/MimeKit/4.18.2)
+
+
+## Amendments
+
+### 2026-11-04 — Acceptance version transport clarification
+
+The finite-transport paragraph combines “body-held code/version” with required
+canonical If-Match. It does not name a duplicate-version reconciliation rule.
+For the Step 5 API and Step 6 native forms, observed acceptance version has one
+carrier: canonical strong **If-Match**. All three entry JSON bodies contain only
+Invitation ID and code; a duplicate body version is not admitted. Inspection and
+result reject conditional headers. This concretizes the already-required strong
+precondition rather than claiming a false-at-entry runtime defect.
+
+Pending acceptance validates that header and returns 400 for missing/malformed
+required preconditions or 409 for a stale canonical version. Predispatch Accepted
+still selects the exact own-result read before Pending-only preconditions,
+provider work or mutation intents; an obsolete original tag cannot block that
+reconciliation. Generic Idempotency-Key remains refused.
+
+[Standard 04](../standards/04-api-design.md#verified-invitation-transport) owns the
+current wire contract. Its implementation carriers are the finite API
+`InvitationEntryHttpInput` and `InvitationEntryController`, the served OpenAPI
+snapshot and SDK entry operations, and the native confirmation forms as their
+owning steps land. The phase Status block owns delivery and qualification.
+The historical body is preserved. The Decision, authority, lifecycle, lock,
+audit, provider and execution-limit choices are unchanged.

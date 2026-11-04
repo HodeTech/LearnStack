@@ -45,7 +45,8 @@ internal sealed class NativeSessionSourceMiddleware(RequestDelegate next)
             || !hosts.IsTrustedHop(context) || !string.Equals(hosts.For(context), host.Host, StringComparison.Ordinal)
             || !policy.Matches(context.Request.Headers[NativeSessionSourcePolicy.SecretHeader], clock.UtcNow))
         {
-            Refuse(context, StatusCodes.Status401Unauthorized);
+            Refuse(context, InvitationEntryOperation.ForPath(context.Request.Path) is null
+                ? StatusCodes.Status401Unauthorized : StatusCodes.Status404NotFound);
             return;
         }
         if (host.Class == HostClass.Platform)
@@ -60,11 +61,12 @@ internal sealed class NativeSessionSourceMiddleware(RequestDelegate next)
         }
 
         var operation = GlobalSelfOperation.ForPath(context.Request.Path);
+        var invitation = InvitationEntryOperation.ForPath(context.Request.Path);
         var hasTenant = context.Request.Headers.ContainsKey(NativeSessionSourcePolicy.TenantHeader);
         var hasOrganization = context.Request.Headers.ContainsKey(NativeSessionSourcePolicy.OrganizationHeader);
         TenantId? tenant = null;
         OrganizationId? organization = null;
-        if (operation is not null)
+        if (operation is not null || invitation is not null)
         {
             if (hasTenant || hasOrganization)
             {
@@ -97,7 +99,7 @@ internal sealed class NativeSessionSourceMiddleware(RequestDelegate next)
         }
 
         context.Features.Set(new NativeSessionSourceFeature(context, host, subject, decision, provenance,
-            tenant, organization, operation, hosts, policy, clock));
+            tenant, organization, operation, hosts, policy, clock, invitation));
         await next(context);
     }
 

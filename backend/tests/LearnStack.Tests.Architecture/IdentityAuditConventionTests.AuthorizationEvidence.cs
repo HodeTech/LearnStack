@@ -32,6 +32,10 @@ public sealed partial class IdentityAuditConventionTests
     private const string TenancyStorageScope = "LearnStack.Modules.Tenancy.Infrastructure.Persistence.TenancyAdministrationStorageScope";
     private const string InvitationAuthorization = "LearnStack.Modules.Identity.Application.Invitations.InvitationAdministrationAuthorization";
     private const string InvitationPolicyAuthorization = "LearnStack.Modules.Tenancy.Application.Settings.InvitationPolicyHandlers";
+    private const string InvitationEntrySource = "LearnStack.Api.Authentication.InvitationEntrySource";
+    private const string InvitationEntryAuthorization = "LearnStack.Modules.Identity.Application.Invitations.InvitationEntryAuthorization";
+    private const string InvitationEntryReadStore = "LearnStack.Modules.Identity.Infrastructure.Invitations.InvitationAcceptanceReadStore";
+    private const string InvitationEntryWriteStore = "LearnStack.Modules.Identity.Infrastructure.Invitations.InvitationWriteStore";
     private const string StateCapture = "LearnStack.Infrastructure.Audit.AuditStateCapture";
     private const string FrameBindings = "System.Collections.Generic.Dictionary`2<System.Int32,LearnStack.SharedKernel.Permissions.OperationInvocation>";
     private const string OrdinaryAuditOwner = "LearnStack.Application.Audit.AuditExecutionCoordinator";
@@ -44,11 +48,15 @@ public sealed partial class IdentityAuditConventionTests
     private const string FixedCompletionSource = "LearnStack.Tools.Seeder.FixedSeedCompletionSource";
     private const string SeedStageReader = "LearnStack.Modules.Identity.Infrastructure.Persistence.SeedIdentityStageReader";
     // These reads borrow the current invocation; they mint no decision or audit
-    // evidence. Keep the two fixed purposes and complete-writer guards explicit,
+    // evidence. Keep the fixed purposes and complete-writer guards explicit,
     // including the one generated local lifetime check, rather than admitting a namespace.
     private static readonly (string Owner, string Method, int Count)[] CurrentInvocationBorrowers =
     [
         (CentralEvidence, "Snapshot", 1),
+        (InvitationEntrySource, "IsEvidenceCurrent", 1),
+        (InvitationEntryAuthorization, "For", 1),
+        (InvitationEntryReadStore, "Admit", 1),
+        (InvitationEntryWriteStore, "UpdateAsync", 1),
         (InvitationAuthorization, "AdmitAsync", 1),
         (InvitationAuthorization, "Matches", 1),
         (InvitationPolicyAuthorization, "OwnAsync", 1),
@@ -87,6 +95,10 @@ public sealed partial class IdentityAuditConventionTests
 
     private static readonly (string Owner, string Method, int Count)[] CurrentDecisionBorrowers =
     [
+        (InvitationEntryAuthorization, "For", 1),
+        (InvitationEntryReadStore, "Admit", 1),
+        (InvitationEntryReadStore, "ReadAsync", 1),
+        (InvitationEntryWriteStore, "UpdateAsync", 1),
         (InvitationAuthorization, "Matches", 1),
         (InvitationPolicyAuthorization, "OwnAsync", 1),
         (ReadAuthorization, "Matches", 1),
@@ -162,12 +174,18 @@ public sealed partial class IdentityAuditConventionTests
             var borrowed = EvidenceCalls(census.Body(owner, method), InvocationContext, "get_CurrentDecision").Single();
             EvidenceDirty(census, EvidenceProvenanceOffenders, () => EvidenceReplace(borrowed, OpCodes.Nop, null));
         }
-        var commitDecision = EvidenceCalls(census.Body("LearnStack.Application.Persistence.TransactionExecutionCoordinator", "ExecuteFrameAsync"),
-            PolicyOwner, "get_CurrentDecision").Single();
-        commitDecision.OpCode.Should().Be(OpCodes.Call, "the common owner reads its concrete null-checked coordinator");
-        EvidenceDirty(census, EvidenceProvenanceOffenders, () => EvidenceReplace(commitDecision, OpCodes.Nop, null));
-        foreach (var opcode in new[] { OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
-            EvidenceDirty(census, EvidenceProvenanceOffenders, () => EvidenceReplace(commitDecision, opcode, commitDecision.Operand));
+        foreach (var (owner, method) in new[]
+        {
+            ("LearnStack.Application.Persistence.TransactionExecutionCoordinator", "ExecuteFrameAsync"),
+            (PolicyOwner, "get_CurrentInvitationWitness"),
+        })
+        {
+            var decisionRead = EvidenceCalls(census.Body(owner, method), PolicyOwner, "get_CurrentDecision").Single();
+            decisionRead.OpCode.Should().Be(OpCodes.Call, "the common owner and its exact witness projection read the concrete coordinator");
+            EvidenceDirty(census, EvidenceProvenanceOffenders, () => EvidenceReplace(decisionRead, OpCodes.Nop, null));
+            foreach (var opcode in new[] { OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
+                EvidenceDirty(census, EvidenceProvenanceOffenders, () => EvidenceReplace(decisionRead, opcode, decisionRead.Operand));
+        }
         var guardedPreparation = census.Body(SeedCustomizationGuard, "PrepareAsync");
         var retainedRead = EvidenceCalls(guardedPreparation, InvocationContext, "get_CurrentInvocation").First();
         foreach (var opcode in new[] { OpCodes.Call, OpCodes.Ldftn, OpCodes.Ldvirtftn })
@@ -325,7 +343,8 @@ public sealed partial class IdentityAuditConventionTests
             errors.Add("Current decision borrowers keep the exact interface callvirt or concrete owner call, never an executable alias");
         EvidenceCallers(census, errors, callerIndex, InvocationContext, "get_CurrentDecision", CurrentDecisionBorrowers);
         EvidenceCallers(census, errors, callerIndex, PolicyOwner, "get_CurrentDecision",
-            [("LearnStack.Application.Persistence.TransactionExecutionCoordinator", "ExecuteFrameAsync", 1)]);
+            [("LearnStack.Application.Persistence.TransactionExecutionCoordinator", "ExecuteFrameAsync", 1),
+             (PolicyOwner, "get_CurrentInvitationWitness", 1)]);
         EvidenceCallers(census, errors, callerIndex, "LearnStack.SharedKernel.Audit.IAuthorizationRefusalReporter", "ReportRecheck",
             [(RoleAuthorization, "ReportRecheck", 1), (MemberAuthorization, "ReportRecheck", 1), (TenancyAuthorization, "RecheckAsync", 1), (ReceiptAuthorization, "RecheckAsync", 1), (ReadAuthorization, "RecheckAsync", 1),
                 (InvitationAuthorization, "RecheckAsync", 1), (InvitationPolicyAuthorization, "OwnAsync", 1)]);

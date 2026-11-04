@@ -1,6 +1,6 @@
 # Phase 03: Identity Domain, Authorization, and Admin Foundation
 
-> **Status (2026-11-04).** P03-0 through P03-3 implementation delivery is complete.
+> **Status (2026-11-05).** P03-0 through P03-3 implementation delivery is complete.
 > P03-1 ([PR #38](https://github.com/HodeTech/LearnStack/pull/38)),
 > P03-2 ([PR #39](https://github.com/HodeTech/LearnStack/pull/39)) and
 > P03-3 ([PR #40](https://github.com/HodeTech/LearnStack/pull/40)) are merged.
@@ -17,7 +17,8 @@
 > Its [seven-step package](phase-03-delivery-log.md#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04)
 > is in progress: Steps 1–4 and both review rounds are complete
 > ([Step 4 closeout](phase-03-delivery-log.md#p03-4-step-4-second-review-closeout-and-step-5-start-2026-11-04)).
-> Step 5 implements recipient entry and atomic invitation acceptance.
+> [Step 5 recipient entry and atomic acceptance](phase-03-delivery-log.md#p03-4-step-5-recipient-admission-and-atomic-acceptance-review-handoff-2026-11-05)
+> enters independent review.
 > P03-5 through P03-11 implementation has not started. Phase 03 remains in progress.
 >
 > | Packet | Title | State |
@@ -26,7 +27,7 @@
 > | P03-1 | Identity authority and membership foundation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-1-merge-and-closeout-2026-10-27) |
 > | P03-2 | Live membership and authorization | Complete and merged — [closeout](phase-03-delivery-log.md#p03-2-merge-and-closeout-2026-10-28) |
 > | P03-3 | Protected Studio and membership administration | Complete and merged — [closeout](phase-03-delivery-log.md#p03-3-merge-and-delivery-closeout-2026-11-04); evidence follow-ups remain open |
-> | P03-4 | Invitations and bounded delivery | In progress — G8 Accepted; Steps 1–4 reviewed; Step 5 recipient acceptance in progress |
+> | P03-4 | Invitations and bounded delivery | In progress — G8 Accepted; Steps 1–4 reviewed; Step 5 recipient acceptance under review |
 > | P03-5 | Custom fields and privacy classification | Not started |
 > | P03-6 | Provider event ingress and audit mirror | Not started |
 > | P03-7 | Back-channel session revocation | Not started |

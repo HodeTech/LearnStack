@@ -7,6 +7,23 @@ namespace LearnStack.SharedKernel.Identity;
 /// <summary>The single ADR-0093 verifier encoding used by staging and entry; never authentication authority.</summary>
 public static class InvitationVerifier
 {
+    public static bool TryDigest(Guid invitationId, string? code, out byte[] digest)
+    {
+        digest = [];
+        if (invitationId.Version != 7 || code is not { Length: 80 }
+            || code[..36] != invitationId.ToString("D") || code[36] != '.'
+            || code[37..].Any(value => !(char.IsAsciiLetterOrDigit(value) || value is '-' or '_'))) return false;
+        byte[] secret;
+        try { secret = Convert.FromBase64String(code[37..].Replace('-', '+').Replace('_', '/') + "="); }
+        catch (FormatException) { return false; }
+        try
+        {
+            if (secret.Length != 32 || Convert.ToBase64String(secret).TrimEnd('=').Replace('+', '-').Replace('/', '_') != code[37..]) return false;
+            digest = Compute(invitationId, secret); return true;
+        }
+        finally { CryptographicOperations.ZeroMemory(secret); }
+    }
+
     public static byte[] Compute(Guid invitationId, ReadOnlySpan<byte> secret)
     {
         if (invitationId.Version != 7 || secret.Length != 32)

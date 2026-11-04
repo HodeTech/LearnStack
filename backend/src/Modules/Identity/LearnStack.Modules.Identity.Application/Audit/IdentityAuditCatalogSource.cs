@@ -16,6 +16,10 @@ public sealed class IdentityAuditCatalogSource : IAuditCatalogSource
     public void Describe(IAuditCatalogBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
+        builder.Off<InspectInvitationQuery>();
+        builder.Off<GetOwnInvitationResultQuery>();
+        builder.MustAudit<AcceptInvitationCommand>("identity.invitation.accept", OperationType.SecurityEvent, typeof(Invitation));
+        builder.MustAudit<AcceptInvitationCommand>("identity.membership.admit_invitation", OperationType.SecurityEvent, typeof(Membership));
         builder.MustAudit<ListInvitationsQuery>("identity.invitation.list", OperationType.ReadSensitive, typeof(Invitation));
         builder.MustAudit<GetInvitationQuery>("identity.invitation.read", OperationType.ReadSensitive, typeof(Invitation));
         builder.MustAudit<ListInvitableRolesQuery>("identity.invitation.list_invitable_roles", OperationType.ReadSensitive, typeof(Invitation));

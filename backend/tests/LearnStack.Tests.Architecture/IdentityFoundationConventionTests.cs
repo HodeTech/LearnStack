@@ -16,7 +16,8 @@ namespace LearnStack.Tests.Architecture;
 public sealed class IdentityFoundationConventionTests
 {
     private static readonly string[] ContextualSaveOwners =
-    ["LearnStack.Modules.Identity.Infrastructure.Persistence.ContextualIdentityStorageControl.SaveAsync"];
+    ["LearnStack.Modules.Identity.Infrastructure.Invitations.InvitationWriteStore.UpdateAsync",
+     "LearnStack.Modules.Identity.Infrastructure.Persistence.ContextualIdentityStorageControl.SaveAsync"];
     private static readonly ImmutableHashSet<(PermissionScope Scope, string Key)> Expected =
     [
         (PermissionScope.Tenant, "identity.membership.admin"),
@@ -93,6 +94,7 @@ public sealed class IdentityFoundationConventionTests
     {
         string[] identityWriters =
         [
+            "LearnStack.Modules.Identity.Application.Invitations.AcceptInvitationCommandHandler.Handle",
             "LearnStack.Modules.Identity.Application.Invitations.InvitationAdministrationHandlers.MutateAsync",
             "LearnStack.Modules.Identity.Application.Roles.RoleGrantCommandHandlerBase.ExecuteAsync",
             "LearnStack.Modules.Identity.Application.Memberships.MembershipAdministrationCommandHandlerBase.ExecuteAsync",
@@ -135,8 +137,10 @@ public sealed class IdentityFoundationConventionTests
             .Should().BeEquivalentTo(acquisitions);
         Callers(typeof(IIdentityMutationLocks).FullName!, nameof(IIdentityMutationLocks.RequireCurrent))
             .Should().BeEquivalentTo(rechecks);
+        Callers("LearnStack.Modules.Identity.Infrastructure.Persistence.ContextualIdentityStorageControl", "RequireMutableGraph")
+            .Should().BeEquivalentTo(ContextualSaveOwners, "both bounded writers share the same graph-validation seal");
         Callers(typeof(DatabaseFacade).FullName!, "set_AutoSavepointsEnabled").Should().Equal(ContextualSaveOwners,
-            "only the closed whole-graph adapter may suspend automatic savepoints, with finally restoration and full rollback on failure");
+            "only the closed whole-graph adapter and exact acceptance Invitation UPDATE may suspend automatic savepoints, with finally restoration and full rollback on failure");
         var root = SourceScan.SourceRoot;
         var files = Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories)
             .Where(path => !path.Split(Path.DirectorySeparatorChar).Intersect(["obj", "bin"]).Any())
@@ -153,6 +157,11 @@ public sealed class IdentityFoundationConventionTests
             "Persistence", "ContextualIdentityStores.cs"));
         SourceText.WithoutWhitespace(save).Should().Contain("finally{db.Database.AutoSavepointsEnabled=savepoints;}")
             .And.Contain("unit.MarkRollbackOnly()");
+        var acceptance = File.ReadAllText(Path.Combine(root, "Modules", "Identity", "LearnStack.Modules.Identity.Infrastructure",
+            "Invitations", "InvitationAcceptanceStore.cs"));
+        SourceText.WithoutWhitespace(acceptance).Should().Contain("finally{db.Database.AutoSavepointsEnabled=savepoints;}")
+            .And.Contain("unit.MarkRollbackOnly()").And.Contain("!entry.IsInvitationEntryOwner(witness)")
+            .And.Contain("!ReferenceEquals(invocations.CurrentInvocation,witness.Invocation)");
     }
 
     [Theory]

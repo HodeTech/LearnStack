@@ -67,4 +67,7 @@ public enum TenantContextOrigin
     /// It admits classified protected operations, never PublicSurface or Platform.
     /// </summary>
     HostAndNativeSessionScope,
+
+    /// <summary>Exact native recipient and stored offer; only the three invitation entry operations.</summary>
+    HostAndInvitationOffer,
 }

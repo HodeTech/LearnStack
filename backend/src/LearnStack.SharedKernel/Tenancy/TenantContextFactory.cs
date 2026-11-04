@@ -141,6 +141,21 @@ public static class TenantContextFactory
             new HostScope(hostTenant, attempt.HostOrganizationId)));
     }
 
+    /// <summary>The source witness owns authority; this pure factory enforces the independently known host ceiling.</summary>
+    public static Result<TenantContext> CreateForInvitationOffer(TenantId hostTenant, OrganizationId? hostOrganization,
+        LearnStack.SharedKernel.Identity.InvitationEntryObservation offer, string? correlationId)
+    {
+        ArgumentNullException.ThrowIfNull(offer);
+        var host = new HostScope(hostTenant, hostOrganization);
+        if (!StronglyTypedId.IsAssigned(host.TenantId) || host.TenantId == TenantId.PlatformSentinel
+            || host.TenantId != offer.TenantId || !StronglyTypedId.IsAssigned(offer.Actor) || offer.Actor == UserId.SystemActor
+            || !StronglyTypedId.IsAssignedWhenPresent(host.OrganizationId) || !StronglyTypedId.IsAssignedWhenPresent(offer.OrganizationId)
+            || host.OrganizationId is { } organization && organization != offer.OrganizationId)
+            return Result.Fail<TenantContext>(Refused);
+        return Result.Ok(new TenantContext(offer.TenantId, offer.OrganizationId, offer.Actor,
+            TenantContextOrigin.HostAndInvitationOffer, correlationId, host));
+    }
+
     /// <summary>
     /// Which signals carried this context — the authority ceiling, decided once.
     /// </summary>

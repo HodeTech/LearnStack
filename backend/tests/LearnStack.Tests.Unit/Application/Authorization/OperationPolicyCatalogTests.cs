@@ -1,4 +1,5 @@
 using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
+using LearnStack.Modules.Identity.Application.Contracts.Invitations;
 using LearnStack.Application.Authorization;
 using LearnStack.Application.Jobs;
 using LearnStack.Modules.Customization.Application.Authorization;
@@ -33,7 +34,7 @@ public sealed class OperationPolicyCatalogTests
             && type.GetInterfaces().Any(contract => contract.IsGenericType && contract.GetGenericTypeDefinition() == typeof(IRequest<>)))
             .OrderBy(type => type.FullName, StringComparer.Ordinal).ToArray();
         Assert.Equal(actual, catalog.All.Select(policy => policy.RequestType));
-        Assert.Equal(94, actual.Length);
+        Assert.Equal(97, actual.Length);
         Assert.Equal(4, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.PublicRead));
         Assert.Single(catalog.All, policy => policy.Kind == OperationPolicyKind.AccountRead);
         Assert.Equal(36, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.Protected));
@@ -42,6 +43,15 @@ public sealed class OperationPolicyCatalogTests
             typeof(GetOwnMembershipContextsQuery), typeof(GetOwnCapabilitiesQuery), typeof(GetTenantInvitationPolicyQuery), typeof(ReadInvitationPolicyReceiptQuery) }
             .OrderBy(type => type.FullName, StringComparer.Ordinal), ownReads.Select(policy => policy.RequestType));
         Assert.All(ownReads, policy =>
+        {
+            Assert.Null(policy.RequiredPermission);
+            Assert.Empty(policy.Alternatives);
+            Assert.Equal(OperationReadScope.Scoped, policy.ReadScope);
+        });
+        var entry = catalog.All.Where(policy => policy.Kind == OperationPolicyKind.InvitationEntry).ToArray();
+        Assert.Equal(new[] { typeof(InspectInvitationQuery), typeof(AcceptInvitationCommand), typeof(GetOwnInvitationResultQuery) }
+            .OrderBy(type => type.FullName, StringComparer.Ordinal), entry.Select(policy => policy.RequestType));
+        Assert.All(entry, policy =>
         {
             Assert.Null(policy.RequiredPermission);
             Assert.Empty(policy.Alternatives);

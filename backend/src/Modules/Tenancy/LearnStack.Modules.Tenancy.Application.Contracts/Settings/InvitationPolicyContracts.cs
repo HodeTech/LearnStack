@@ -16,8 +16,10 @@ public sealed record ReadInvitationPolicyReceiptQuery(Guid SettingId) : IRequest
 public interface IInvitationMessageContextReader
 {
     Task<Result<InvitationMessageContext>> ReadAsync(CancellationToken cancellationToken = default);
+    Task<Result<InvitationMessageContext>> ReadEntryAsync(string admittedHost, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Result<InvitationMessageContext>.Fail(new Error(LearnStack.SharedKernel.Localization.LocalizedMessage.Of("lockey_not_found"))));
 }
-public sealed record InvitationMessageContext(string EntryHost, string Locale, [property: PiiSensitive] string TenantLabel)
+public sealed record InvitationMessageContext(string EntryHost, string Locale, [property: PiiSensitive] string TenantLabel, [property: PiiSensitive] string? OrganizationLabel = null)
 {
     public override string ToString() => nameof(InvitationMessageContext);
 }

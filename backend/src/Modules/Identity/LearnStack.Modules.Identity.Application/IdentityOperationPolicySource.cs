@@ -38,6 +38,9 @@ public sealed class IdentityOperationPolicySource : IOperationPolicySource
 
     public IEnumerable<OperationPolicy> Policies =>
     [
+        OperationPolicy.ForInvitationEntry<InspectInvitationQuery>("identity.invitation.inspect"),
+        OperationPolicy.ForInvitationEntry<AcceptInvitationCommand>("identity.invitation.accept"),
+        OperationPolicy.ForInvitationEntry<GetOwnInvitationResultQuery>("identity.invitation.read_own_result"),
         OperationPolicy.ForTrusted<PrepareTenantInvitationEmailCommand>("identity.invitation.prepare_tenant_email", AuthorizationSourceKind.BackgroundJob),
         OperationPolicy.ForTrusted<PrepareOrganizationInvitationEmailCommand>("identity.invitation.prepare_organization_email", AuthorizationSourceKind.BackgroundJob),
         OperationPolicy.ForTrusted<FinalizeTenantInvitationEmailCommand>("identity.invitation.tenant_email_submission", AuthorizationSourceKind.BackgroundJob),

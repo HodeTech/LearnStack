@@ -5,6 +5,26 @@ This is the Accepted bounded invitation provider contract; the
 [Phase 03 Status block](../../roadmap/phase-03-identity-admin.md) owns implementation
 and qualification. Acceptance is not evidence of a configured production sender.
 
+## Current recipient UserInfo
+
+| Boundary | Source binding |
+|---|---|
+| Application port | Identity Application.Contracts `ICurrentInvitationRecipientReader`; only the current inspection or initial acceptance invocation |
+| Credential owner | API `ValidatedInvitationCredential`, captured from the actual stock-validated bearer; neither a reparsed header nor a caller-supplied token is authority |
+| Provider adapter | API `CurrentInvitationRecipientReader` and its fixed backchannel; configured tenant issuer only, no supplied endpoint, redirect, cookie or certificate override |
+| Observation | One fresh request/token/invocation-bound evidence object; normalized mailbox matching belongs to the exact offer handler, with no User email mirror or reusable inspection proof |
+| Accepted recovery | `GetOwnInvitationResultQuery` does not call this provider; it reads the original same-actor Membership outcome under normal host/lifecycle availability |
+
+[Security Standards](../../standards/11-security.md#recipient-atomicity-and-fences)
+own the claim grammar, response/deadline limits and no-business-lock observation
+boundary. Actual transport cleanup precedes evidence publication; provider
+exception payloads do not cross the adapter. The finite
+[API contract](../../standards/04-api-design.md#verified-invitation-transport)
+owns bounded failure responses. No realm-admin credential or account search is
+introduced. Keycloak owns verification email separately from LearnStack's
+invitation SMTP sender; the [realm setup](../../../infra/keycloak/README.md)
+and phase qualification must establish that provider journey.
+
 ## Invitation SMTP
 
 | Boundary | Contract |

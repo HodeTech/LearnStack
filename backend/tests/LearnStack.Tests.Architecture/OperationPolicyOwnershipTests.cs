@@ -258,20 +258,21 @@ public sealed partial class OperationPolicyOwnershipTests
         Exact(Decision, ".ctor", [(Decision + "/MintingSource", "ForDecision", 1)]);
         Exact(Witness, ".ctor", [(Witness + "/MintingSource", "ForTenantRead", 1)]);
         Exact(Invocation + "/MintingSource", "ForInvocation", [(Coordinator, "ExecuteAsync", 1)]);
-        Exact(Decision + "/MintingSource", "ForDecision", [(Evaluator, "AuthorizeAsync", 6),
+        Exact(Decision + "/MintingSource", "ForDecision", [(Evaluator, "AuthorizeAsync", 8),
             (RoleEvaluator, "RecheckAsync", 2), (MemberEvaluator, "RecheckAsync", 2)]);
         Exact(Witness + "/MintingSource", "ForTenantRead", [(Decision + "/MintingSource", "ForDecision", 1)]);
         Exact(Permissions + "IProtectedOperationAuthorizer", "AuthorizeAsync", [(Coordinator, "ExecuteAsync", 1),
             (TenancyEvaluator, "RecheckAsync", 1), (ReceiptEvaluator, "RecheckAsync", 1), (ReadEvaluator, "RecheckAsync", 1),
             (InvitationEvaluator, "RecheckAsync", 1), (InvitationPolicyEvaluator, "OwnAsync", 1)]);
-        Exact(Permissions + "IAuthorizationCandidateSource", "ForValidatedScope", [(Coordinator, "ExecuteAsync", 1)]);
+        Exact(Permissions + "IAuthorizationCandidateSource", "ForValidatedScope", [(Coordinator, "ExecuteAsync", 2)]);
         Exact(Coordinator, "ExecuteRequestAsync", [(AuthorizationBehavior, "Handle", 1)]);
         Exact(HttpSource, "ForValidatedScope", [(HttpSource, Permissions + "IAuthorizationCandidateSource.ForValidatedScope", 1),
             ("LearnStack.Api.Authentication.ConfirmedClaimAssertionSource", "Capture", 1),
             ("LearnStack.Api.Authentication.LiveTenantMembershipReader", "CoversAsync", 1),
             ("LearnStack.Api.Idempotency.ProtectedReplayHttpAdmission", "AuthorizeAsync", 1)]);
         Exact(Coordinator, "CheckHttpAsync", [("LearnStack.Api.Idempotency.ProtectedReplayHttpAdmission", "AuthorizeAsync", 3),
-            ("LearnStack.Api.Authentication.OperationClassificationMiddleware", "InvokeAsync", 1)]);
+            ("LearnStack.Api.Authentication.OperationClassificationMiddleware", "InvokeAsync", 1),
+            ("LearnStack.Api.Authentication.OperationAuthorizationHandler", "HandleAsync", 1)]);
         Exact(Witness, "TryBindTo", [(Unit, "SetTenantContextCoreAsync", 2)]);
         Exact(Witness, "IsBoundTo", [(Unit, "SetTenantContextCoreAsync", 1), (Unit, "ValidateOperationReadScope", 1)]);
         Exact(Invocation, "TryBindRead", [(Witness, "TryBindTo", 1)]);
