@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,799 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,852 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -342,7 +342,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 hosted VM compatibility validation and corrective CI handoff (2026-11-04)](#p03-3-hosted-vm-compatibility-validation-and-corrective-ci-handoff-2026-11-04) — 39 lines
   - [P03-3 PR 40 review reconciliation and recovery corrections (2026-11-04)](#p03-3-pr-40-review-reconciliation-and-recovery-corrections-2026-11-04) — 76 lines
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
-  - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 30 lines
+  - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
+  - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -15685,3 +15686,56 @@ Head `620fdaf3` has complete same-source A/B evidence in
 that head. Publishing this cleanup creates a new head whose CI/qualification is
 tracked separately in the existing unmerged PR #40. Manual keyboard, focus,
 reflow, contrast and VoiceOver remain maintainer-deferred and unexecuted.
+
+
+### P03-3 merge and delivery closeout (2026-11-04)
+
+The maintainer merges [PR #40](https://github.com/HodeTech/LearnStack/pull/40)
+at 15:42:15 Europe/Istanbul (12:42:15 UTC). Reviewed head is `b97214e7`;
+the squash merge is `ef344c0f`. Both have tree `f8e89aea`. GitHub PR/commit
+metadata independently confirms the merge and identical source tree.
+P03-3 implementation delivery, including D03–D05, is complete and merged.
+The phase Status block owns packet state; this record owns the closeout evidence.
+
+Delivered behavior:
+
+- Provider-authenticated native self-entry, opt-in own-account creation without
+  implicit membership, own context discovery and tenant/organization switching.
+- Protected Studio membership/profile/status/Role operations, explicit permission
+  release adoption, localized own-profile preferences and editable validation
+  recovery, including the no-JavaScript flow and dirty-edit extension consent.
+- Bounded Tenancy organization/default/locale/setting operations, live host,
+  Membership and lifecycle checks, durable MUST audit and authorized protected
+  receipt replay, without broad provider-administration authority.
+- Preservation of valid warm-seed edits, fenced continuation/completion checks,
+  management-origin adoption and owned native response/process cleanup.
+
+Evidence and its limits:
+
+- Final-head [PR run 41826206204](https://github.com/HodeTech/LearnStack/actions/runs/41826206204),
+  attempt 1/A, completes all 27 jobs successfully. The jobs API independently
+  matches all jobs to `b97214e7`, the run and attempt; none is pending or skipped.
+- Parent `620fdaf3` has complete same-source A/B in
+  [run 41809078251](https://github.com/HodeTech/LearnStack/actions/runs/41809078251),
+  27/27 jobs per attempt, 50 API/digest/CRC-verified original archives, the same
+  7,951 backend cases, 3,586 frontend cases per attempt and distinct 27-pair
+  public-demo invocations with confirmed actual cleanup. This is parent evidence.
+- The final seed/documentation follow-up also passes its CI=true Release build,
+  3,434 unit cases, 46 real PostgreSQL seed-continuation cases, the aggregate seed
+  architecture control and documentation guards before publication.
+- Final-head B and the final-head original-archive audit are not established by
+  the observed PR run. They remain open P03-3 proof follow-ups; the merge does
+  not substitute for the required qualification. P03-11 must reconcile them
+  before phase exit. No new CI run or qualification is asserted by this closeout.
+- Manual keyboard/focus/reflow/contrast/VoiceOver checks remain deferred and
+  unexecuted under the existing maintainer decision. Branch-administrator Role
+  choices and full organization/settings editors remain Phase 06 work under
+  the existing permission/disclosure ceiling.
+
+Next delivery is P03-4: a delegated administrator offers a bounded invitation,
+then a verified new/existing invitee joins the intended tenant/organization.
+G8 must close before Invitation storage or an acceptance writer: decide trusted
+email matching, one-way single-use token storage, lifecycle/expiry/resend,
+current delegation, atomic membership/consumption, bounded delivery/recovery and
+accept/revoke/expiry races. GET remains inspection-only. This closeout starts
+no invitation implementation and accepts no new decision.
