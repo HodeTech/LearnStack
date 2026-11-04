@@ -146,7 +146,7 @@ census or a reflection/name heuristic.
 | MembershipProfile | Display name and locale preference | Both personal scalars marked for snapshot redaction; fixed diagnostics |
 | Assignment | Membership/person linkage and assignment history | Exact paths under Membership row; never log raw DTOs |
 | Role/Grant | Built-in key, capability scope, scoped keys, tenant and inherited actor references | None only for reviewed nonpersonal metadata; actor/linkage paths stay classified |
-| Invitation (planned) | Recipient email; current/consumed verifier; inviter, acceptor, result Membership, Role/version and generation/job references | Email/verifiers are redacted in snapshots; actor/relationship links remain classified; closed disposition is centrally captured, with no value-bearing diagnostics |
+| Invitation | Recipient email; current/consumed verifier; inviter, acceptor, result Membership, Role/version and generation/job references | Email/verifiers are redacted in snapshots; actor/relationship links remain classified; closed disposition is centrally captured, with no value-bearing diagnostics |
 
 No provider credentials, raw invitation token, browser binding, global active
 scope or dormant custom-field blob belongs in these models. Invitation verifiers

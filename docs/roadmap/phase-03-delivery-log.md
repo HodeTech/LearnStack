@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 675 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 703 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -360,6 +360,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 3 review closeout and administrator continuation (2026-11-04)](#p03-4-step-3-review-closeout-and-administrator-continuation-2026-11-04) — 30 lines
   - [P03-4 Step 4 administration and producer review handoff (2026-11-04)](#p03-4-step-4-administration-and-producer-review-handoff-2026-11-04) — 68 lines
   - [P03-4 Step 4 first review correction (2026-11-04)](#p03-4-step-4-first-review-correction-2026-11-04) — 23 lines
+  - [P03-4 Step 4 second review closeout and Step 5 start (2026-11-04)](#p03-4-step-4-second-review-closeout-and-step-5-start-2026-11-04) — 28 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -16430,3 +16431,31 @@ independently proves mutation denial and selective Role omission remain intact.
 The original full-suite receipt limits in the handoff remain unchanged; this is
 focused correction evidence. The verified finding is checked for closure before
 two new independent second-round reviewers examine the complete Step 4 range.
+
+### P03-4 Step 4 second review closeout and Step 5 start (2026-11-04)
+
+The first-round delegation fix is committed as `80e94416`; its finding reviewer
+verifies closure. Two different fresh second-round reviewers then examine the
+complete Step 4 range, including authority/scope/locks/producer/audit and protected
+replay/policy/HTTP/SDK/control integration. Both approve with no verified remaining
+Blocker, Major or Minor. The four focused failure-classification regressions,
+formatter, whitespace and documentation checks pass. Two stale planned labels
+are removed for the actual TTL setter and already-mapped Invitation privacy row;
+recipient acceptance entries remain planned until Step 5 registers them.
+
+The review explicitly preserves the existing protected idempotency limit:
+positive connection/transaction cleanup does not prove business rollback.
+[ADR-0079](../decisions/0079-bounded-identity-administration.md#durable-idempotency-and-protected-replay)
+and [Standard 04](../standards/04-api-design.md#idempotency) retain non-2xx claim
+release and at-least-once work across business COMMIT and missing outcome
+recording. No stronger unknown-outcome retention or exactly-once policy is
+introduced. Known audit-INSERT-refusal rollback evidence is not generalized to
+that uncertain window; completed retained receipts never rerun their mutation.
+
+Steps 1–4 and their two review rounds are complete. Step 5 begins actual
+operation-bound nonmember admission, fresh provider recipient evidence, atomic
+Invitation/Membership acceptance and exact original-result reconciliation.
+Step 6 owns Studio/native/provider journeys; Step 7 owns complete final-source
+suites, native process/cleanup/race proof, hosted A/B and original archives.
+The earlier architecture receipt limits and unexecuted manual evidence remain
+explicit; review approval does not complete those later steps.

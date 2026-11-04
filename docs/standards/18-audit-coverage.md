@@ -920,7 +920,7 @@ an implemented catalogue population.
   orgless own-current-tenant `GetTenantInvitationPolicyQuery` is Off/ReadOnly. Status detail returns only normalized current-generation submission
   evidence under current administration authority, without a delivery-body read.
 - The existing MUST `tenancy.setting.write` covers the exact tenant-wide TTL
-  setting. Its new planned setter uses whole-value TenantSetting redaction;
+  setting. Its setter uses whole-value TenantSetting redaction;
   no weaker class or generic settings grant follows from the extra key.
 - Ordinary module preparation/finalization is MUST and binds the exact
   Invitation/generation. `identity.invitation.email_submission` applies validated
