@@ -112,7 +112,8 @@ export function authorizationSourceEnvironment(values) {
 
 /** Every Seeder mode receives only its own credential and process prerequisites. */
 export function publicSeederEnvironment(applicationConnectionString, base = process.env) {
-  const environment = {};
+  // Setup owns each process group; do not allow reusable MSBuild nodes to outlive it.
+  const environment = { DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER: '1', MSBUILDDISABLENODEREUSE: '1' };
   for (const key of ['PATH', 'HOME', 'DOTNET_ROOT', 'TMPDIR', 'APPDATA',
     'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY',
     'http_proxy', 'https_proxy', 'all_proxy', 'no_proxy',

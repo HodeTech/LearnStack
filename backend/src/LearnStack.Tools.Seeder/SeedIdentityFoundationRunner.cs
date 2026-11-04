@@ -1,4 +1,5 @@
 using LearnStack.Modules.Identity.Application.Contracts.Seeding;
+using LearnStack.Modules.Identity.Application.Seeding;
 using LearnStack.Modules.Identity.Domain;
 using LearnStack.Modules.Identity.Infrastructure.Bindings;
 using LearnStack.SharedKernel.Identifiers;
@@ -30,6 +31,7 @@ public sealed class SeedIdentityFoundationRunner(Func<ITenantContext?, ServicePr
             if (!result.IsBound || result.Actor != person.UserId) throw Refused();
             admission.RecordAdopted(person.UserId);
         }
+        await VerifyInstallationDispositionAsync(cancellationToken);
         // Every Role is a separate aggregate transaction. All sixteen precede Memberships.
         foreach (var declaration in SeedData.IdentityRoles)
         {
@@ -67,7 +69,8 @@ public sealed class SeedIdentityFoundationRunner(Func<ITenantContext?, ServicePr
             var query = MembershipQuery(declaration);
             var before = (await SendAsync(context, query, cancellationToken)).State;
             if (!MatchesMembership(before, declaration)) throw Refused();
-            if (MatchesProfile(before!, declaration)) continue;
+            // A committed later version is retained history, including an edited empty profile.
+            if (before!.Version > 0) continue;
             await SendAsync(context, new SetSeedMembershipProfileCommand(declaration.MembershipId,
                 declaration.Identity.UserId, declaration.Role.RoleId, declaration.Scope, declaration.DisplayName, declaration.PreferredLocale, Manifest.Version,
                 Manifest.ProfileFingerprint(declaration.Identity.Tenant.TenantId, declaration.OrganizationId,
@@ -80,11 +83,8 @@ public sealed class SeedIdentityFoundationRunner(Func<ITenantContext?, ServicePr
     private static bool MatchesRole(RoleSeedDto? row, SeedFoundationRole declaration)
     {
         if (row is null) return false;
-        var template = Manifest.FindTemplate(declaration.BuiltInKey, declaration.Scope)!;
-        if (row.Id != declaration.RoleId || row.TenantId != declaration.Tenant.TenantId
-            || row.BuiltInKey != declaration.BuiltInKey || row.PermissionScope != declaration.Scope
-            || row.Version != 0 || row.DeletedAt is not null || row.DeletedBy is not null
-            || row.Grants.Length != template.Grants.Length || !row.Grants.ToHashSet().SetEquals(template.Grants))
+        if (!SeedIdentityInstallationEvidence.RoleIsInstalled(row, declaration.RoleId,
+                declaration.Tenant.TenantId, declaration.BuiltInKey, declaration.Scope))
             throw Refused();
         return true;
     }
@@ -92,18 +92,45 @@ public sealed class SeedIdentityFoundationRunner(Func<ITenantContext?, ServicePr
     private static bool MatchesMembership(MembershipSeedDto? row, SeedFoundationMembership declaration)
     {
         if (row is null) return false;
-        var pristine = row.DisplayName is null && row.PreferredLocale is null && row.Version == 0;
-        if (row.Id != declaration.MembershipId || row.TenantId != declaration.Identity.Tenant.TenantId
-            || row.OrganizationId != declaration.OrganizationId || row.UserId != declaration.Identity.UserId
-            || row.Status != "Active" || row.DeletedAt is not null || row.DeletedBy is not null
-            || row.RoleIds.Length != 1 || row.RoleIds[0] != declaration.Role.RoleId
-            || !(pristine || MatchesProfile(row, declaration))) throw Refused();
+        if (!SeedIdentityInstallationEvidence.MembershipIsInstalled(row, declaration.MembershipId,
+                declaration.Identity.Tenant.TenantId, declaration.OrganizationId, declaration.Identity.UserId)) throw Refused();
         return true;
     }
 
     private static bool MatchesProfile(MembershipSeedDto row, SeedFoundationMembership declaration) =>
         row.Version == 1 && string.Equals(row.DisplayName, declaration.DisplayName, StringComparison.Ordinal)
         && string.Equals(row.PreferredLocale, declaration.PreferredLocale, StringComparison.Ordinal);
+
+    private async Task VerifyInstallationDispositionAsync(CancellationToken ct)
+    {
+        foreach (var tenant in SeedData.All)
+        {
+            var roles = new List<(SeedFoundationRole Declaration, RoleSeedDto? State)>();
+            foreach (var role in SeedData.IdentityRoles.Where(role => role.Tenant == tenant))
+            {
+                var query = new GetRoleSeedStateQuery(role.RoleId, role.BuiltInKey, role.Scope, Manifest.Version,
+                    Manifest.RoleFingerprint(tenant.TenantId, role.RoleId, role.BuiltInKey, role.Scope));
+                var state = (await SendAsync(new SeedIdentityTenantContext(tenant.TenantId, null), query, ct)).State;
+                _ = MatchesRole(state, role);
+                roles.Add((role, state));
+            }
+            var members = new List<(SeedFoundationMembership Declaration, MembershipSeedDto? State)>();
+            foreach (var member in SeedData.IdentityMemberships.Where(member => member.Identity.Tenant == tenant))
+            {
+                var state = (await SendAsync(Context(member), MembershipQuery(member), ct)).State;
+                _ = MatchesMembership(state, member);
+                members.Add((member, state));
+            }
+            // Completion is named immutable roots plus valid current graphs, never mutable demo equality.
+            if (roles.All(value => value.State is not null) && members.All(value => value.State is { Version: > 0 })) continue;
+            // Every retained predecessor of an incomplete installation must still be the original v1 act.
+            if (roles.Any(value => value.State is { } row && !SeedIdentityInstallationEvidence.RoleIsPristine(row))
+                || members.Any(value => value.State is { } row && !SeedIdentityInstallationEvidence.MembershipIsPristine(
+                    row, value.Declaration.Role.RoleId, value.Declaration.DisplayName, value.Declaration.PreferredLocale)))
+                throw Refused();
+            if (roles.Any(value => value.State is null) && members.Any(value => value.State is not null)) throw Refused();
+        }
+    }
 
     private static string MembershipFingerprint(SeedFoundationMembership declaration) =>
         Manifest.MembershipFingerprint(declaration.Identity.Tenant.TenantId, declaration.OrganizationId,

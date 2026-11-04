@@ -13,11 +13,15 @@ public sealed partial class HangfireStorageTests
     [Xunit.Fact]
     public async Task Queued_schedule_guard_reverses_and_reapplies_on_an_already_migrated_store()
     {
-        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres, applyMigrations: false);
+        await MigrationChains.ApplyTenancyAsync(database.MigrationConnectionString);
         await using var source = new PrivilegedDataSource(() => OutboxDispatcherDataSource.Build(database.OutboxConnectionString));
         await using var context = new PlatformDbContext(new DbContextOptionsBuilder<PlatformDbContext>()
             .UseNpgsql(database.MigrationConnectionString,
                 options => options.MigrationsHistoryTable(PlatformDbContextFactory.HistoryTable)).Options);
+        const string queuedSchedule = "20261016170000_allow_queued_hangfire_schedule";
+        await context.GetService<IMigrator>().MigrateAsync(queuedSchedule);
+        (await context.Database.GetAppliedMigrationsAsync()).Last().Should().Be(queuedSchedule);
         await using var connection = await source.OpenConnectionAsync();
         const string queued = "SELECT public.fn_hangfire_metadata_valid('set','{\"key\":\"schedule\",\"score\":0,\"value\":\"transactional:1\"}')";
         const string legacy = "SELECT public.fn_hangfire_metadata_valid('set','{\"key\":\"schedule\",\"score\":0,\"value\":\"1\"}')";

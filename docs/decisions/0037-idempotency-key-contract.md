@@ -610,3 +610,64 @@ parameter, not a change to what the port does.
 - [Standards 04 § Idempotency](../standards/04-api-design.md)
 - [Standards 09 § Result Type](../standards/09-error-handling.md)
 - [Phase 02a: Kernel and Tenancy](../roadmap/phase-02a-kernel-tenancy.md)
+
+### Amendment 5 — Durable protected replay and bounded slot recycling (2026-10-28)
+
+Accepted [ADR-0079](0079-bounded-identity-administration.md) activates the existing
+durable-store trigger for its first keyed endpoints. It retains ordinary app-role
+RLS, five-minute fenced claims, 24-hour completion/tombstone retention, opaque
+fingerprint mismatch precedence and owned short transactions. No Platform bypass,
+app DELETE or exactly-once business-effect promise is introduced.
+
+The durable store now admits at most 1,000 stored key slots per tenant, without an
+inferred global tenant census. This explicitly selects a table budget where the
+original decision applied its numeric ceilings only to memory. Existing requested
+keys are serviced first. A separate short claim transaction's
+`IdempotencyTenantCapacity` fence serializes new insertion/expired-slot UPDATE
+recycling; atomic ownership and token tests remain mandatory. This replaces the
+single-statement-only claim shape where finite capacity/rekey requires the bounded
+transaction. It commits and actually releases before business dispatch, holds no
+business User/Tenant/Role/Membership lock, and is never acquired by a business
+owner. Completion/abandon starts after business ownership ends, using key/token
+fences instead. Standard 05 owns the distinct family, derivation and deadlines.
+
+Only database-expired slots can be rekeyed, with the old outcome/typed target
+cleared; live rows are never evicted. A stale key/token cannot complete the new
+claim. The bound counts stored slots, not MVCC/disk/backup bytes. An authorized
+actor can deliberately fill this shared budget and deny new keys for up to the
+24-hour retention window; existing keys remain serviceable. No per-actor fairness,
+priority bypass or new purge authority is promised. Phase 11 owns maintenance.
+
+For only ADR-0079's closed protected set, the versioned fingerprint includes the
+exact If-Match alongside actor, tenant/org, method/path/query/body. Required
+preconditions are one canonical strong decimal Int64 tag: absent, malformed,
+noncanonical, weak, wildcard or list is 400 validation_failed; a valid stale tag
+is 409 concurrency_conflict. Creation has no If-Match. Wire versions remain
+canonical decimal strings, not JavaScript numbers. Generic endpoints retain their
+original precondition and fingerprint contracts.
+
+The protected set records only 2xx receipts or their unreplayable tombstone;
+non-2xx attempts release rather than preserve targetless error bodies. Its
+headers-inclusive receipt cap is 1 KiB and version-only, with ETag and exact
+Location for creation; the generic 256-KiB cap/status policy remains. Completed
+protected outcomes persist the actual typed Membership/Role/Organization/Tenant
+target captured from the classified result, not an arbitrary request claim.
+Self-profile replay targets the original Membership, never a current successor.
+Paired optional replay-target columns extend the existing table without another
+role, privilege, FK or cross-module join.
+
+Protected replay freshly authorizes current disclosure of that immutable target
+through the separately classified MUST receipt-read query before stored bytes.
+This narrowly supersedes the accepted stale-handler-permission replay rule for
+those routes. Historical terminal targets may be inspected only for their receipt;
+original lifecycle/version/delegation mutation checks do not run again. A refused
+read or failed audit preserves the completion. The original mutation/audit is
+never repeated; new exchange/correlation and Idempotency-Replayed remain fresh.
+
+The business-COMMIT-to-outcome-recording crash window remains: a missing receipt
+proves no rollback, and natural-key/version guards are still required. Bootstrap
+uses its separately serialized tenantless natural key, not this tenant key space.
+The original body/status/date, earlier SQL history and generic behavior remain.
+[Standard 05](../standards/05-database.md#p03-3-storage-and-replay-contract) owns
+canonical schema/owner/lock rules; P03-3 owns restart/two-owner/app-role, saturation,
+unknown commit, original-target, audit and current-revocation proofs before delivery.

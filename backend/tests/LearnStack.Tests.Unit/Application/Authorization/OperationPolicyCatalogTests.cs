@@ -4,6 +4,7 @@ using LearnStack.Modules.Customization.Application.Authorization;
 using LearnStack.Modules.Education.Application.Authorization;
 using LearnStack.Modules.Identity.Application;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
+using LearnStack.Modules.Identity.Application.Contracts.Entry;
 using LearnStack.Modules.Tenancy.Application.Authorization;
 using LearnStack.SharedKernel.Permissions;
 using MediatR;
@@ -29,12 +30,26 @@ public sealed class OperationPolicyCatalogTests
             && type.GetInterfaces().Any(contract => contract.IsGenericType && contract.GetGenericTypeDefinition() == typeof(IRequest<>)))
             .OrderBy(type => type.FullName, StringComparer.Ordinal).ToArray();
         Assert.Equal(actual, catalog.All.Select(policy => policy.RequestType));
-        Assert.Equal(49, actual.Length);
+        Assert.Equal(80, actual.Length);
         Assert.Equal(4, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.PublicRead));
         Assert.Single(catalog.All, policy => policy.Kind == OperationPolicyKind.AccountRead);
-        Assert.Equal(3, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.Protected));
-        Assert.Equal(41, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.FiniteTrusted));
-        Assert.Equal(5, catalog.Definitions.Count(definition => definition.Assignable));
+        Assert.Equal(28, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.Protected));
+        var ownReads = catalog.All.Where(policy => policy.Kind == OperationPolicyKind.OwnMembershipRead).ToArray();
+        Assert.Equal(new[] { typeof(GetOwnMembershipProfileQuery), typeof(ReadOwnMembershipProfileReceiptQuery),
+            typeof(GetOwnMembershipContextsQuery), typeof(GetOwnCapabilitiesQuery) }
+            .OrderBy(type => type.FullName, StringComparer.Ordinal), ownReads.Select(policy => policy.RequestType));
+        Assert.All(ownReads, policy =>
+        {
+            Assert.Null(policy.RequiredPermission);
+            Assert.Empty(policy.Alternatives);
+            Assert.Equal(OperationReadScope.Scoped, policy.ReadScope);
+        });
+        Assert.Equal(42, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.FiniteTrusted));
+        var admission = Assert.Single(catalog.All, policy => policy.Kind == OperationPolicyKind.NativeSessionAdmission);
+        Assert.Equal(typeof(AdmitNativeSessionScopeCommand), admission.RequestType);
+        Assert.Null(admission.RequiredPermission);
+        Assert.Equal(OperationReadScope.Scoped, admission.ReadScope);
+        Assert.Equal(8, catalog.Definitions.Count(definition => definition.Assignable));
         Assert.Equal(3, catalog.Definitions.Count(definition => !definition.Assignable));
         Assert.DoesNotContain(catalog.Definitions, definition => definition.Definition.Scope == PermissionScope.Platform);
         foreach (var policy in catalog.All)

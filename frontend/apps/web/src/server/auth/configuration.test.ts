@@ -22,6 +22,11 @@ const fields = {
   LEARNSTACK_BFF_ENABLED: 'true',
   LEARNSTACK_BFF_ISSUER: 'https://identity.example.test/realms/learnstack',
   KEYCLOAK_WEB_CLIENT_SECRET: 'private-client-canary',
+  Identity__AuthorityId: '019a1929-5450-7bbb-8df1-516e8e002501',
+  Identity__NativeSession__CurrentSecret: Buffer.from(
+    Array.from({ length: 32 }, (_, index) => index + 1),
+  ).toString('base64url'),
+  LEARNSTACK_PUBLIC_HOP_SECRET: 'independent-public-hop-secret',
 };
 function fixture(values: Record<string, string> = {}) {
   const root = mkdtempSync(join(tmpdir(), 'learnstack-bff-config-'));
@@ -46,6 +51,11 @@ describe('atomic optional native BFF configuration', () => {
     ['activation', { LEARNSTACK_BFF_ENABLED: 'ambiguous-private-canary' }],
     ['issuer', { ...fields, LEARNSTACK_BFF_ISSUER: 'private-malformed-issuer-canary' }],
     ['client_secret', { ...fields, KEYCLOAK_WEB_CLIENT_SECRET: '' }],
+    ['authority', { ...fields, Identity__AuthorityId: 'private-authority-canary' }],
+    [
+      'native_source_secret',
+      { ...fields, Identity__NativeSession__CurrentSecret: 'private-native-canary' },
+    ],
   ] as const)('reports the closed %s startup issue without input details', (issue, environment) => {
     const f = fixture();
     let error: unknown;
@@ -98,6 +108,8 @@ describe('atomic optional native BFF configuration', () => {
       enabled: true,
       issuer: fields.LEARNSTACK_BFF_ISSUER,
       clientSecret: fields.KEYCLOAK_WEB_CLIENT_SECRET,
+      authorityId: fields.Identity__AuthorityId,
+      nativeSourceSecret: fields.Identity__NativeSession__CurrentSecret,
       allowLoopbackHttp: false,
     });
     expect(readFileSync(join(f.root, '.env'))).toEqual(before);
@@ -112,6 +124,9 @@ describe('atomic optional native BFF configuration', () => {
     'LEARNSTACK_BFF_ENABLED',
     'LEARNSTACK_BFF_ISSUER',
     'KEYCLOAK_WEB_CLIENT_SECRET',
+    'Identity__AuthorityId',
+    'Identity__NativeSession__CurrentSecret',
+    'LEARNSTACK_PUBLIC_HOP_SECRET',
   ] as const)('refuses conflicting %s before constructing an owner', (key) => {
     const f = fixture(fields);
     expect(() => bffConfiguration(f.root, { [key]: 'different-private-canary' })).toThrow(
@@ -123,15 +138,49 @@ describe('atomic optional native BFF configuration', () => {
       expect(error).toMatchObject({ issue: 'source_conflict' });
     }
   });
-  it.each(['LEARNSTACK_BFF_ISSUER', 'KEYCLOAK_WEB_CLIENT_SECRET'] as const)(
-    'true requires %s',
-    (key) => {
-      const f = fixture();
-      const env = { ...fields };
-      delete (env as Partial<typeof fields>)[key];
-      expect(() => bffConfiguration(f.root, env)).toThrow('BFF provider: configuration');
-    },
-  );
+  it.each([
+    'LEARNSTACK_BFF_ISSUER',
+    'KEYCLOAK_WEB_CLIENT_SECRET',
+    'Identity__AuthorityId',
+    'Identity__NativeSession__CurrentSecret',
+  ] as const)('true requires %s', (key) => {
+    const f = fixture();
+    const env = { ...fields };
+    delete (env as Partial<typeof fields>)[key];
+    expect(() => bffConfiguration(f.root, env)).toThrow('BFF provider: configuration');
+  });
+  it.each([
+    '',
+    'not-a-secret',
+    'A'.repeat(43),
+    Buffer.alloc(32, 42).toString('base64url'),
+    fields.Identity__NativeSession__CurrentSecret + '=',
+    fields.Identity__NativeSession__CurrentSecret.slice(0, -1) + 'B',
+  ])('refuses a noncanonical, nonrandom or malformed native source secret (%#)', (secret) => {
+    const f = fixture();
+    expect(() =>
+      bffConfiguration(f.root, { ...fields, Identity__NativeSession__CurrentSecret: secret }),
+    ).toThrowError(expect.objectContaining({ issue: 'native_source_secret' }));
+  });
+  it('refuses a native source secret reused as the public hop secret across private sources', () => {
+    const f = fixture({
+      ...fields,
+      LEARNSTACK_PUBLIC_HOP_SECRET: fields.Identity__NativeSession__CurrentSecret,
+    });
+    expect(() => bffConfiguration(f.root, {})).toThrowError(
+      expect.objectContaining({ issue: 'native_source_secret' }),
+    );
+  });
+  it.each([
+    '00000000-0000-0000-0000-000000000000',
+    fields.Identity__AuthorityId.toUpperCase(),
+    ' ' + fields.Identity__AuthorityId,
+  ])('requires the exact stable nonnil authority UUID (%#)', (authority) => {
+    const f = fixture();
+    expect(() =>
+      bffConfiguration(f.root, { ...fields, Identity__AuthorityId: authority }),
+    ).toThrowError(expect.objectContaining({ issue: 'authority' }));
+  });
   it.each(['symlink', 'mode', 'hardlink'] as const)(
     'refuses unsafe %s without silently repairing it',
     (kind) => {

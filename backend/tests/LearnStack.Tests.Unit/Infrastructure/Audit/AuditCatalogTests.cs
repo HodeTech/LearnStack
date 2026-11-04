@@ -27,6 +27,14 @@ namespace LearnStack.Tests.Unit.Infrastructure.Audit;
 /// </remarks>
 public sealed class AuditCatalogTests
 {
+    [Fact]
+    public void Tenancy_catalog_refuses_a_null_builder_at_its_boundary()
+    {
+        var source = new LearnStack.Modules.Tenancy.Application.Audit.TenancyAuditCatalogSource();
+        var describe = () => source.Describe(null!);
+        describe.Should().Throw<ArgumentNullException>().WithParameterName("builder");
+    }
+
     public sealed record AlphaCommand : IRequest<Result<string>>;
 
     public sealed record BetaCommand : IRequest<Result<string>>;

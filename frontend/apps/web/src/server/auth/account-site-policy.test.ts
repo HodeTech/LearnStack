@@ -1,17 +1,13 @@
 // @vitest-environment node
-import { IncomingMessage, ServerResponse } from 'node:http';
-import { Socket } from 'node:net';
-
 import { NextRequest } from 'next/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createAccountSiteCaller } from './account-client';
 import { BFF_COOKIES } from './cookies';
-import { createBffRequestRuntime } from './request-runtime';
 import { middleware } from '../../middleware';
 import { bffFixture, bffHost, bffRequest, bffSource } from '../../test/bff-fixture';
+import { snapshotRequest, SnapshotWire } from '../../test/page-response-fixture';
 import { INGRESS_HEADER, mintProvenance } from '../ingress';
-import { createPublicAdmissionRuntime } from '../public-admission-runtime';
 
 const { getSite } = vi.hoisted(() => ({ getSite: vi.fn() }));
 vi.mock('../configured-public-client', () => ({
@@ -72,7 +68,16 @@ function policyFixture() {
       },
     );
   });
-  const caller = createAccountSiteCaller({ apiOrigin: 'http://127.0.0.1:5100', secret }, transport);
+  const caller = createAccountSiteCaller(
+    {
+      apiOrigin: 'http://127.0.0.1:5100',
+      secret,
+      nativeSourceSecret: Buffer.from(Array.from({ length: 32 }, (_, index) => index + 1)).toString(
+        'base64url',
+      ),
+    },
+    transport,
+  );
   const f = bffFixture({ account: caller });
   fixtures.push(f);
   for (const method of ['redeem', 'refresh'] as const) {
@@ -98,10 +103,10 @@ function policyFixture() {
 function middlewareHarness(f: ReturnType<typeof policyFixture>) {
   vi.stubEnv('LEARNSTACK_PUBLIC_HOP_SECRET', secret);
   getSite.mockResolvedValue({ kind: 'success', status: 200, data: site });
-  const publicRuntime = createPublicAdmissionRuntime(true);
-  const requestRuntime = createBffRequestRuntime();
+  const publicRuntime = f.publicAdmission;
+  const requestRuntime = f.requestRuntime;
   const original = Object.getOwnPropertyDescriptor;
-  const holder = Object.freeze({ version: 1, store: Object.freeze(f.store), http: f.http });
+  const holder = Object.freeze({ version: 1, store: Object.freeze(f.store), http: f.protocol });
   vi.spyOn(Object, 'getOwnPropertyDescriptor').mockImplementation((object, key) => {
     const selected =
       key === Symbol.for('learnstack.public-admission.v1')
@@ -123,26 +128,34 @@ function middlewareHarness(f: ReturnType<typeof policyFixture>) {
         cookie,
         'sec-fetch-dest': 'document',
       });
-      const request = new IncomingMessage(new Socket());
+      const request = snapshotRequest();
       request.headers = Object.fromEntries(headers);
-      const response = new ServerResponse(request);
+      const response = new SnapshotWire();
       try {
-        return await publicRuntime.run(context, request, response, () =>
-          requestRuntime.run(context, request, response, async () => {
+        return await publicRuntime.run(context, request, response.native, () =>
+          requestRuntime.run(context, request, response.native, async () => {
             const result = await middleware(
               new NextRequest('https://' + bffHost + target, { headers }),
             );
-            return { response: result, session: requestRuntime.holder.read(context).session };
+            const session = requestRuntime.holder.read(context).session;
+            response.native.end(await result.text());
+            return { response: result, session };
           }),
         );
       } finally {
-        response.emit('finish');
+        if (!response.writableEnded && !response.destroyed) response.destroy();
+        response.drainCallbacks();
         request.socket.destroy();
+        await vi.waitFor(() => {
+          expect(requestRuntime.counts()).toBe(0);
+          expect(requestRuntime.snapshotCounts()).toEqual({ active: 0, owners: 0, bytes: 0 });
+          expect(f.store.counts()).toMatchObject({ operations: 0, pageSnapshots: 0 });
+        });
       }
     },
-    stop() {
-      requestRuntime.stop();
+    async stop() {
       publicRuntime.shutdown();
+      await requestRuntime.stop();
     },
   };
 }
@@ -167,8 +180,18 @@ describe('AccountSite authority status through caller, owner and HTTP response',
       const h = middlewareHarness(f);
       try {
         const pending = h.run(target, current.cookie);
+        void pending.catch(() => {});
         await vi.waitFor(() => expect(f.transport).toHaveBeenCalledTimes(2));
-        expect(f.store.counts()).toMatchObject({ owners: 1, credentialRecords: 1, operations: 1 });
+        expect(f.store.counts()).toMatchObject({
+          owners: 1,
+          credentialRecords: 1,
+          operations: target === '/studio' ? 2 : 1,
+          pageSnapshots: target === '/studio' ? 1 : 0,
+        });
+        expect(f.requestRuntime.snapshotCounts()).toMatchObject({
+          active: target === '/studio' ? 1 : 0,
+          owners: target === '/studio' ? 1 : 0,
+        });
         f.advance(30_000);
         held.release();
         const refused = await pending;
@@ -200,13 +223,14 @@ describe('AccountSite authority status through caller, owner and HTTP response',
         expect(f.provider.redeem).toHaveBeenCalledTimes(1);
         expect(f.provider.refresh).not.toHaveBeenCalled();
       } finally {
-        h.stop();
+        held.release();
+        await h.stop();
       }
     },
   );
 
   it.each([false, true])(
-    'initial callback 401 refuses publication and preserves any prior replacement: %s',
+    'initial explicit selection 401 refuses publication and preserves any prior replacement: %s',
     async (replacing) => {
       const f = policyFixture();
       const prior = replacing ? await f.login() : null;
@@ -217,19 +241,36 @@ describe('AccountSite authority status through caller, owner and HTTP response',
         returnPath: '/studio',
         ...(prior ? { browser: prior.binding.browser, handle: prior.binding.handle } : {}),
       });
+      const completed = await f.store.complete({
+        host: bffHost,
+        source: bffSource,
+        browser: started.browser,
+        state: started.state,
+        proof: started.proof,
+        responseUrl:
+          'https://' +
+          bffHost +
+          '/api/auth/callback/keycloak?state=' +
+          started.state +
+          '&code=owned',
+      });
       const held = gate();
       f.response(401, held);
       const pending = f.http.handle(
-        bffRequest('/api/auth/callback/keycloak?state=' + started.state + '&code=owned', {
+        bffRequest('/api/auth/entry/select', {
+          method: 'POST',
           cookie:
             BFF_COOKIES.browser +
             '=' +
-            started.browser +
+            completed.browser +
             '; ' +
-            BFF_COOKIES.login +
-            started.state +
+            BFF_COOKIES.entry +
             '=' +
-            started.proof,
+            completed.handle,
+          form: new URLSearchParams({
+            csrfToken: completed.entry.csrfToken,
+            tenantId: account.tenantId,
+          }).toString(),
         }),
       );
       await vi.waitFor(() => expect(f.transport).toHaveBeenCalledTimes(prior ? 2 : 1));
@@ -237,21 +278,19 @@ describe('AccountSite authority status through caller, owner and HTTP response',
         owners: prior ? 2 : 1,
         pending: 1,
         operations: 1,
-        credentialRecords: prior ? 1 : 0,
+        credentialRecords: prior ? 2 : 1,
       });
       held.release();
       const response = (await pending)!;
       expect(response.status).toBe(503);
       expect(response.headers.get('retry-after')).toBe('30');
       expect(await response.json()).toEqual({ code: 'provider_refused' });
-      expect(response.headers.getSetCookie()).toEqual([
-        BFF_COOKIES.login + started.state + '=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax',
-      ]);
+      expect(response.headers.getSetCookie()).toEqual([]);
       expect(f.store.counts()).toMatchObject({
-        owners: prior ? 1 : 0,
-        pending: 0,
+        owners: prior ? 2 : 1,
+        pending: 1,
         operations: 0,
-        credentialRecords: prior ? 1 : 0,
+        credentialRecords: prior ? 2 : 1,
         transactionRecords: 0,
         proofRecords: 0,
         loginStates: 0,

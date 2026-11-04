@@ -17,6 +17,7 @@ import {
   bffDevToolsFailureStage,
   bffProofCopy,
   createBffCookieScanner,
+  createBffBrowserCleanup,
   rememberBffCookies,
   withProofWaiters,
 } from './bff-proof-support.mjs';
@@ -25,7 +26,6 @@ import {
   createPrivateScanner,
   fixtureEnvironment,
 } from './fixture-support.mjs';
-import { stopTestChild } from './stop-test-child.mjs';
 
 const owner = createFixtureOwner();
 owner.install({ control: process.stdin, event: 'end' });
@@ -35,6 +35,7 @@ const secret = randomBytes(32).toString('base64url');
 const marker = randomBytes(32).toString('base64url');
 const privateValues = [secret, marker];
 const counter = process.argv[2] === '--without-history';
+const pageCounter = process.argv[2] === '--without-ready-pages';
 let stage = 'input';
 let browser;
 let browserProcess;
@@ -45,6 +46,12 @@ let restoresVeiled = true;
 let scanners = [];
 let counterProbe;
 let counterWitness;
+let counterOperation = 'none';
+let counterPage;
+let counterPageResponse;
+let administrationPages = 0;
+let noScriptHosts = 0;
+let disabledPreferenceChoices = 0;
 let authStatus = 0;
 let callbackStatus = 0;
 let authorizeCalls = 0;
@@ -53,30 +60,7 @@ const deadline = setTimeout(() => {
   void owner.cancel();
 }, 180_000);
 deadline.unref();
-async function cleanup() {
-  const failures = [];
-  for (const operation of [
-    () => browser?.close(),
-    async () => {
-      for (const child of [browserProcess, nativeServer?.process].filter(Boolean)) {
-        const stopped = await stopTestChild(child);
-        if (stopped.forced) failures.push(true);
-      }
-    },
-    () => owner.dispose(),
-  ])
-    try {
-      await operation();
-    } catch {
-      failures.push(true);
-    }
-  assert.equal(failures.length, 0, 'actual browser/native cleanup');
-  if (nativeServer) {
-    const stopped = await nativeServer.completed;
-    assert.equal(stopped.code, 0);
-    assert.equal(stopped.signal, null);
-  }
-}
+const cleanup = createBffBrowserCleanup(() => ({ browser, browserProcess, nativeServer, owner }));
 // A single bounded frame initializes the proof. Keep the pipe actively draining
 // afterwards: EOF is the parent's private lifetime signal, not input framing.
 function configuration() {
@@ -114,7 +98,7 @@ function configuration() {
   });
 }
 try {
-  assert.ok(process.argv.length === 2 || (process.argv.length === 3 && counter));
+  assert.ok(process.argv.length === 2 || (process.argv.length === 3 && (counter || pageCounter)));
   const input = await configuration();
   owner.assertActive();
   assert.equal(Object.keys(input).sort().join(','), 'protocol,sites');
@@ -163,11 +147,12 @@ try {
     secret,
     marker,
     uiMode: true,
+    disabledOwnPreference: true,
     sites: input.sites,
     fakeIssuer,
     fakeLogout: logoutTarget,
     clockBase: Date.now(),
-    mutation: counter ? 'history' : undefined,
+    mutation: counter ? 'history' : pageCounter ? 'unavailable-pages' : undefined,
     mark: (value) => {
       stage = value;
     },
@@ -280,35 +265,38 @@ try {
   const headerChecks = [];
   const cookiesSeen = [];
   const origin = (site) => 'https://' + site.host;
-  context.on('request', (request) => {
-    if (request.resourceType() === 'document') documents.push(request.url());
-  });
-  context.on('response', (response) => {
-    if (input.sites.some((site) => new URL(response.url()).origin === origin(site)))
-      headerChecks.push(
-        (async () => {
-          try {
-            const cookies = (await response.headersArray()).filter(
-              (header) => header.name.toLowerCase() === 'set-cookie',
-            );
-            rememberBffCookies(
-              cookies.map((cookie) => cookie.value),
-              host.cookieCanaries,
-            );
-            assertBffCookieAttributes(cookies.map((cookie) => cookie.value));
-            return (
-              cookies.every((cookie) => !/;\s*domain=/i.test(cookie.value)) &&
-              (await response.request().allHeaders()).authorization === undefined
-            );
-          } catch {
-            return false;
-          }
-        })(),
-      );
-    const path = new URL(response.url()).pathname;
-    if (path === '/api/auth/signin/keycloak') authStatus = response.status();
-    if (path === '/api/auth/callback/keycloak') callbackStatus = response.status();
-  });
+  function observeContext(observedContext) {
+    observedContext.on('request', (request) => {
+      if (request.resourceType() === 'document') documents.push(request.url());
+    });
+    observedContext.on('response', (response) => {
+      if (input.sites.some((site) => new URL(response.url()).origin === origin(site)))
+        headerChecks.push(
+          (async () => {
+            try {
+              const cookies = (await response.headersArray()).filter(
+                (header) => header.name.toLowerCase() === 'set-cookie',
+              );
+              rememberBffCookies(
+                cookies.map((cookie) => cookie.value),
+                host.cookieCanaries,
+              );
+              assertBffCookieAttributes(cookies.map((cookie) => cookie.value));
+              return (
+                cookies.every((cookie) => !/;\s*domain=/i.test(cookie.value)) &&
+                (await response.request().allHeaders()).authorization === undefined
+              );
+            } catch {
+              return false;
+            }
+          })(),
+        );
+      const path = new URL(response.url()).pathname;
+      if (path === '/api/auth/signin/keycloak') authStatus = response.status();
+      if (path === '/api/auth/callback/keycloak') callbackStatus = response.status();
+    });
+  }
+  observeContext(context);
   await context.exposeBinding('ownedRestored', (_source, value) => {
     restoresVeiled &&= value === 'hidden';
     ++naturalRestores;
@@ -320,6 +308,7 @@ try {
     });
   });
   let currentSite;
+  let authorizingContext = context;
   let wrongHostChecked = false;
   // Only provider grant/account operations are fake. The browser fetches both
   // provider documents over owned HTTPS; native callbacks and cookies remain real.
@@ -327,7 +316,7 @@ try {
   authorize = async (response) => {
     try {
       ++authorizeCalls;
-      const cookies = await context.cookies(origin(currentSite));
+      const cookies = await authorizingContext.cookies(origin(currentSite));
       const transaction = cookies.find((cookie) => cookie.name.startsWith('__Host-ls-login-'));
       assert.ok(transaction);
       const state = transaction.name.slice('__Host-ls-login-'.length);
@@ -335,13 +324,13 @@ try {
       if (!wrongHostChecked) {
         wrongHostChecked = true;
         const other = input.sites.find((site) => site.host !== currentSite.host);
-        const negative = await context.newPage();
+        const negative = await authorizingContext.newPage();
         const refusal = await negative.goto(
           origin(other) + '/api/auth/callback/keycloak?state=' + state + '&code=' + code,
         );
         assert.equal(refusal.status(), 400);
         assert.equal(
-          (await context.cookies(origin(currentSite))).some(
+          (await authorizingContext.cookies(origin(currentSite))).some(
             (cookie) => cookie.name === transaction.name,
           ),
           true,
@@ -402,7 +391,48 @@ try {
       throw new Error('Browser form must retain its exact same-origin proof');
     }
     stage = 'browser-callback';
+    await page.waitForURL(origin(site) + '/api/auth/entry');
+    stage = 'browser-entry-confirmation';
+    await page.getByText(bffProofCopy(site.locale, 'entry.confirm')).waitFor();
+    const entryCookies = await context.cookies(origin(site));
+    assert.ok(entryCookies.some((cookie) => cookie.name === '__Host-ls-entry'));
+    assert.equal(
+      entryCookies.some((cookie) => cookie.name === '__Host-ls-session'),
+      false,
+      'callback has no tenant session',
+    );
+    for (const cookie of entryCookies.filter((cookie) => cookie.name !== '__Host-ls-csrf'))
+      assert.equal(
+        (await page.content()).includes(cookie.value),
+        false,
+        'entry cookie stays out of HTML',
+      );
+    const choice = page.locator('form[action="/api/auth/entry/select"] button');
+    assert.equal(await choice.count(), 1, 'one independently discovered fixture context');
+    await choice.focus();
+    const [selectionRequest, selectionResponse] = await withProofWaiters(
+      [
+        page.waitForRequest(
+          (request) =>
+            request.method() === 'POST' &&
+            new URL(request.url()).pathname === '/api/auth/entry/select',
+        ),
+        page.waitForResponse(
+          (response) =>
+            response.request().method() === 'POST' &&
+            new URL(response.url()).pathname === '/api/auth/entry/select',
+        ),
+      ],
+      () => page.keyboard.press('Enter'),
+    );
+    assert.equal(await selectionRequest.headerValue('origin'), origin(site));
+    assert.equal(selectionResponse.status(), 303);
+    assert.equal(await selectionResponse.headerValue('location'), origin(site) + '/studio');
     await page.waitForURL(origin(site) + '/studio');
+    assert.equal(
+      (await context.cookies(origin(site))).some((cookie) => cookie.name === '__Host-ls-entry'),
+      false,
+    );
     stage = 'browser-storage';
     await page.locator('[data-bff-protected]').waitFor();
     await page.waitForLoadState('networkidle');
@@ -440,6 +470,102 @@ try {
     await page.keyboard.press('Enter');
     await page.getByText(bffProofCopy(site.locale, 'session.extended')).waitFor();
     assert.equal((await host.advance(0)).refreshes, before + 1);
+    stage = 'browser-administration-pages';
+    for (const [path, kind, selector] of [
+      [
+        '/studio/members',
+        'members',
+        '.auth-resource-list a[href="/studio/members/019a154b-0000-7000-8000-000000000012"]',
+      ],
+      [
+        '/studio/members/019a154b-0000-7000-8000-000000000012',
+        'member',
+        'form[action="/api/studio/membership-profile"] input[name="displayName"]',
+      ],
+      [
+        '/studio/roles',
+        'roles',
+        '.auth-resource-list a[href="/studio/roles/019a154b-0000-7000-8000-000000000013"]',
+      ],
+      [
+        '/studio/roles/019a154b-0000-7000-8000-000000000013',
+        'role',
+        'section[aria-labelledby="role-grants-title"] > ul:not(.auth-actions) > li',
+      ],
+      [
+        '/portal/profile',
+        'profile',
+        'form[action="/api/account/profile"] input[name="displayName"]',
+      ],
+    ]) {
+      const response = await page.goto(origin(site) + path);
+      counterPage = page;
+      counterPageResponse = response;
+      assert.equal(response.status(), 200);
+      assert.equal(await response.headerValue('cache-control'), 'no-store');
+      await page.locator('[data-bff-protected]').waitFor();
+      assert.equal(await page.getByRole('heading', { level: 1 }).count(), 1);
+      // The unavailable view deliberately retains this wrapper and h1. Neither
+      // is a positive witness for the selected page's actual contents.
+      assert.equal(
+        await page.locator('[data-bff-page-view]').getAttribute('data-bff-page-view'),
+        kind,
+      );
+      const specific = page.locator(selector);
+      assert.equal(await specific.count(), 1);
+      assert.equal(await specific.isVisible(), true);
+      if (kind === 'member' || kind === 'profile')
+        assert.equal(await specific.inputValue(), 'Fixture member');
+      else assert.ok((await specific.textContent()).trim().length > 0);
+      ++administrationPages;
+      const body = await page.content();
+      assert.equal(body.includes(marker), false);
+      assert.equal(body.includes('019a154b-0000-7000-8000-000000000011'), false);
+      assert.equal(
+        await page.locator('html').getAttribute('lang'),
+        site.locale === 'tr-TR' ? 'tr' : site.locale,
+      );
+      if (kind === 'profile') {
+        // Real browser dialog, DOM-local edits and a one-shot transport failure.
+        // The failed check still withholds private controls; retry needs a
+        // positive server check before the protected view can reappear.
+        await specific.fill('Unsaved browser profile');
+        const beforeChoice = (await host.advance(0)).refreshes;
+        let prompt;
+        page.once('dialog', async (dialog) => {
+          prompt = dialog.message();
+          await dialog.dismiss();
+        });
+        await page
+          .getByRole('button', { name: bffProofCopy(site.locale, 'session.extend'), exact: true })
+          .click();
+        assert.equal(prompt, bffProofCopy(site.locale, 'session.extend_unsaved'));
+        assert.equal(await specific.inputValue(), 'Unsaved browser profile');
+        assert.equal((await host.advance(0)).refreshes, beforeChoice);
+        const extensionUrl = origin(site) + '/api/auth/extend';
+        await page.route(extensionUrl, (route) => route.abort('failed'), { times: 1 });
+        page.once('dialog', async (dialog) => {
+          assert.equal(dialog.message(), bffProofCopy(site.locale, 'session.extend_unsaved'));
+          await dialog.accept();
+        });
+        await page
+          .getByRole('button', { name: bffProofCopy(site.locale, 'session.extend'), exact: true })
+          .click();
+        const retry = page.getByRole('button', {
+          name: bffProofCopy(site.locale, 'session.retry'),
+          exact: true,
+        });
+        await retry.waitFor();
+        assert.equal(await page.locator('input[name="displayName"]').count(), 0);
+        await retry.click();
+        await specific.waitFor();
+        assert.equal(await specific.inputValue(), 'Fixture member');
+      }
+    }
+    // Preserve the exact existing GET history mutation witness below.
+    await page.goto(origin(site) + '/studio');
+    await page.locator('[data-bff-protected]').waitFor();
+    await page.waitForLoadState('networkidle');
   }
   assert.notEqual(
     cookiesSeen[0],
@@ -512,6 +638,7 @@ try {
         !!document.querySelector('[data-bff-protected]'),
     ));
   stage = 'browser-back-revalidation';
+  if (counter) counterOperation = 'natural_back';
   await page.goBack();
   await page.waitForURL(
     (url) => url.origin === origin(first) && url.pathname === '/api/auth/signin',
@@ -522,6 +649,7 @@ try {
     'actual browser back navigation obtains fresh native admission after logout',
   );
   assert.equal(await page.locator('[data-bff-protected]').count(), 0);
+  counterOperation = 'none';
   // Keep a second already-rendered document alive while another tab logs it out.
   // An explicit persisted PageTransitionEvent reaches the restoration branch even
   // when this stock browser invalidates no-store BFCache entries after cookie changes.
@@ -550,25 +678,193 @@ try {
         !!document.querySelector('[data-bff-protected]'),
     ));
   stage = 'browser-history-revalidation';
+  if (counter) counterOperation = 'persisted_dispatch';
   await otherPage.evaluate(() =>
     window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })),
   );
+  if (counter) counterOperation = 'persisted_wait';
   await otherPage.waitForURL(
     (url) => url.origin === origin(second) && url.pathname === '/api/auth/signin',
     { timeout: 10_000 },
   );
+  if (counter) counterOperation = 'persisted_count';
   assert.equal(await otherPage.locator('[data-bff-protected]').count(), 0);
+  counterOperation = 'none';
+  stage = 'browser-no-script';
+  const noScript = await browser.newContext({ javaScriptEnabled: false });
+  observeContext(noScript);
+  authorizingContext = noScript;
+  for (const site of input.sites) {
+    currentSite = site;
+    const nativePage = await noScript.newPage();
+    stage = 'browser-no-script-anonymous';
+    const anonymousNoScript = await nativePage.goto(origin(site) + '/api/auth/session');
+    assert.equal((await anonymousNoScript.json()).state, 'anonymous');
+    stage = 'browser-no-script-signin';
+    await nativePage.goto(origin(site) + '/api/auth/signin?returnTo=%2Fportal%2Fprofile');
+    await nativePage.getByRole('button').click();
+    await nativePage.waitForURL(origin(site) + '/api/auth/entry');
+    stage = 'browser-no-script-confirm';
+    await nativePage.getByText(bffProofCopy(site.locale, 'entry.confirm')).waitFor();
+    stage = 'browser-no-script-select';
+    await nativePage.locator('form[action="/api/auth/entry/select"] button').click();
+    await nativePage.waitForURL(origin(site) + '/portal/profile');
+    stage = 'browser-no-script-controls';
+    assert.equal(
+      await nativePage.locator('html').getAttribute('lang'),
+      site.locale === 'tr-TR' ? 'tr' : site.locale,
+    );
+    assert.equal(
+      await nativePage.locator('[data-bff-page-view]').getAttribute('data-bff-page-view'),
+      'profile',
+    );
+    const noScriptProfile = nativePage.locator('form[action="/api/account/profile"]');
+    if ((await noScriptProfile.count()) !== 1) {
+      stage = 'browser-no-script-missing-form';
+      assert.fail('The no-script document needs one profile form');
+    }
+    if (!(await noScriptProfile.isVisible())) {
+      stage =
+        (await nativePage.locator('[hidden] form[action="/api/account/profile"]').count()) === 1
+          ? 'browser-no-script-hidden-render'
+          : 'browser-no-script-invisible-form';
+      assert.fail('The no-script profile form must be visible');
+    }
+    // Playwright's text engine skips NOSCRIPT and its descendants. Observe the
+    // actual no-script element directly, preserving visibility and exact-copy checks.
+    const noScriptNotice = nativePage.locator('[data-bff-protected] noscript > p');
+    await noScriptNotice.waitFor({ state: 'visible' });
+    assert.equal(await noScriptNotice.count(), 1);
+    assert.equal(
+      await noScriptNotice.textContent(),
+      bffProofCopy(site.locale, 'session.javascript_required'),
+    );
+    stage = 'browser-no-script-native-buttons';
+    assert.equal(
+      await nativePage.locator('button[type="button"]').count(),
+      0,
+      'no JavaScript-dependent extension control is presented as usable',
+    );
+    stage = 'browser-no-script-native-profile-form';
+    const profileForm = nativePage.locator('form[action="/api/account/profile"]');
+    assert.equal(await profileForm.count(), 1);
+    await profileForm
+      .locator('input[name="displayName"]')
+      .fill('Saved without JavaScript at ' + site.locale);
+    const firstHost = site === input.sites[0];
+    if (firstHost) {
+      const radios = profileForm.locator('input[type="radio"][name="preferredLocale"]');
+      assert.ok((await radios.count()) >= 2);
+      assert.equal(
+        await profileForm.locator('input[type="radio"][name="preferredLocale"]:checked').count(),
+        0,
+      );
+      assert.equal(await profileForm.evaluate((form) => form.checkValidity()), false);
+      assert.equal(
+        await profileForm.evaluate((form) => new FormData(form).has('preferredLocale')),
+        false,
+      );
+      await profileForm.locator('input[type="radio"][name="preferredLocale"][value=""]').check();
+      assert.equal(await profileForm.evaluate((form) => form.checkValidity()), true);
+    } else {
+      assert.equal(await profileForm.locator('select[name="preferredLocale"]').inputValue(), '');
+    }
+    stage = 'browser-no-script-profile-validation';
+    await profileForm.locator('input[name="displayName"]').fill('   ');
+    const [invalidProfile] = await withProofWaiters(
+      [
+        nativePage.waitForResponse(
+          (response) =>
+            response.request().method() === 'POST' &&
+            new URL(response.url()).pathname === '/api/account/profile',
+        ),
+      ],
+      () => profileForm.getByRole('button').click(),
+    );
+    assert.equal(invalidProfile.status(), 400);
+    assert.equal(await invalidProfile.headerValue('cache-control'), 'no-store');
+    assert.equal(await profileForm.locator('input[name="displayName"]').inputValue(), '   ');
+    assert.equal(
+      await profileForm.locator('input[name="displayName"]').getAttribute('aria-invalid'),
+      'true',
+    );
+    assert.equal(await nativePage.locator('#profile-name-error').isVisible(), true);
+    await profileForm
+      .locator('input[name="displayName"]')
+      .fill('Saved without JavaScript at ' + site.locale);
+    stage = 'browser-no-script-submit';
+    const [nativeWrite, nativeResult] = await withProofWaiters(
+      [
+        nativePage.waitForRequest(
+          (request) =>
+            request.method() === 'POST' &&
+            new URL(request.url()).pathname === '/api/account/profile',
+        ),
+        nativePage.waitForResponse(
+          (response) =>
+            response.request().method() === 'POST' &&
+            new URL(response.url()).pathname === '/api/account/profile',
+        ),
+      ],
+      () => profileForm.getByRole('button').click(),
+    );
+    stage = 'browser-no-script-origin';
+    assert.equal(await nativeWrite.headerValue('origin'), origin(site));
+    assert.equal(new URLSearchParams(nativeWrite.postData()).get('preferredLocale'), '');
+    stage = 'browser-no-script-result';
+    assert.equal(nativeResult.status(), 303);
+    assert.equal(await nativeResult.headerValue('location'), origin(site) + '/portal/profile');
+    stage = 'browser-no-script-cache';
+    assert.equal(await nativeResult.headerValue('cache-control'), 'no-store');
+    stage = 'browser-no-script-saved';
+    await nativePage.goto(origin(site) + '/portal/profile');
+    assert.equal(
+      await nativePage.locator('input[name="displayName"]').inputValue(),
+      'Saved without JavaScript at ' + site.locale,
+    );
+    assert.equal(await nativePage.locator('select[name="preferredLocale"]').inputValue(), '');
+    if (firstHost) ++disabledPreferenceChoices;
+    stage = 'browser-no-script-privacy';
+    const noScriptCookies = await noScript.cookies(origin(site));
+    assert.ok(noScriptCookies.some((cookie) => cookie.name === '__Host-ls-session'));
+    for (const cookie of noScriptCookies.filter((cookie) => cookie.name.startsWith('__Host-ls-')))
+      assert.equal(cookie.domain, site.host.split(':')[0]);
+    const nativeBody = await nativePage.content();
+    for (const cookie of noScriptCookies.filter((cookie) => cookie.name !== '__Host-ls-csrf'))
+      assert.equal(nativeBody.includes(cookie.value), false);
+    stage = 'browser-no-script-signout';
+    await nativePage.locator('form[action="/api/auth/signout"] button').click();
+    await nativePage.waitForURL(
+      (url) => url.origin === new URL(logoutTarget).origin && url.pathname === logoutPath,
+    );
+    assert.equal(
+      (await noScript.cookies(origin(site))).some((cookie) => cookie.name === '__Host-ls-session'),
+      false,
+    );
+    const signedOut = await nativePage.goto(origin(site) + '/api/auth/session');
+    assert.equal(signedOut.status(), 200);
+    assert.equal((await signedOut.json()).state, 'anonymous');
+    stage = 'browser-no-script-headers';
+    assert.ok(
+      (await Promise.all(headerChecks)).every(Boolean),
+      'actual no-script response headers settle before closing their browser context',
+    );
+    ++noScriptHosts;
+    await nativePage.close();
+  }
+  await noScript.close();
+  authorizingContext = context;
   stage = 'browser-headers';
   assert.equal(restoresVeiled, true, 'naturally restored protected documents are already veiled');
   assert.equal(routeFailed, false, 'fake authorization control completed');
   assert.equal(
     authorizeCalls,
-    input.sites.length,
-    'both logins fetch the owned HTTPS authorization endpoint',
+    input.sites.length * 2,
+    'both hosts with and without JavaScript fetch the owned HTTPS authorization endpoint',
   );
   assert.ok(headerChecks.length > 0 && (await Promise.all(headerChecks)).every(Boolean));
   stage = 'cleanup';
-  await cleanup();
+  await cleanup.run();
   stage = 'privacy';
   assertBffPrivateOutput(scanners);
   clearTimeout(deadline);
@@ -579,37 +875,80 @@ try {
       phase: 'browser_result',
       outcome: 'passed',
       hosts: 2,
+      administrationPages,
+      noScriptHosts,
+      disabledPreferenceChoices,
       version,
       naturalRestores,
     }) + '\n',
   );
 } catch (error) {
+  if (stage === 'cleanup') stage = cleanup.failureStage ?? stage;
   if (stage === 'browser-devtools') stage = bffDevToolsFailureStage(error);
   let expectedCounter = false;
+  let probe = 'not_run';
   if (
     counter &&
     ['browser-history-revalidation', 'browser-back-revalidation'].includes(stage) &&
     counterProbe
   )
     try {
-      expectedCounter = await counterProbe();
+      const result = await counterProbe();
+      probe = result === true ? 'true' : result === false ? 'false' : 'error';
+      expectedCounter = result === true;
     } catch {
+      probe = 'error';
       /* unrelated failure is not the mutant witness */
+    }
+  if (pageCounter && stage === 'browser-administration-pages')
+    try {
+      // Keep any failed predicate as a closed scalar stage. No DOM, exception
+      // message or other private value belongs in the driver diagnostic.
+      // Next's route announcer also has role=alert in an open shadow root.
+      // Observe the actual failure paragraph, not that framework live region.
+      const failureAlert = counterPage?.locator(
+        'section[aria-labelledby="page-failure-title"] > p[role="alert"]',
+      );
+      const checks = [
+        ['progress', administrationPages === 0],
+        ['status', counterPageResponse?.status() === 200],
+        ['cache', (await counterPageResponse?.headerValue('cache-control')) === 'no-store'],
+        ['wrapper', (await counterPage?.locator('[data-bff-protected]').count()) === 1],
+        ['heading', (await counterPage?.getByRole('heading', { level: 1 }).count()) === 1],
+        [
+          'view',
+          (await counterPage
+            ?.locator('[data-bff-page-view]')
+            .getAttribute('data-bff-page-view')) === 'unavailable',
+        ],
+        [
+          'alert',
+          (await failureAlert?.count()) === 1 && (await failureAlert?.isVisible()) === true,
+        ],
+      ];
+      const failed = checks.find(([, passed]) => !passed);
+      expectedCounter = failed === undefined;
+      if (failed) stage = 'browser-administration-counter-' + failed[0];
+      counterWitness = 'unavailable_view';
+    } catch {
+      stage = 'browser-administration-counter-observer';
     }
   let clean = true;
   try {
-    await cleanup();
+    await cleanup.run();
   } catch {
     clean = false;
   }
   clearTimeout(deadline);
   process.stdin.destroy();
+  if (pageCounter && expectedCounter && scanners.some((scanner) => scanner.leaked))
+    stage = 'browser-administration-counter-private-output';
   if (expectedCounter && clean && !scanners.some((scanner) => scanner.leaked)) {
     process.stdout.write(
       JSON.stringify({
         protocol: 1,
         phase: 'browser_result',
-        outcome: 'rejected_history',
+        outcome: pageCounter ? 'rejected_pages' : 'rejected_history',
         witness: counterWitness,
         hosts: 2,
         version,
@@ -623,9 +962,28 @@ try {
         (authorizeCalls ? 'browser-callback-' : 'browser-authorize-') +
         (codes.has(status) ? status : 'other');
     }
+    if (!clean && cleanup.nativeWait !== null)
+      process.stdout.write(
+        JSON.stringify({ protocol: 1, phase: 'browser_shutdown', state: cleanup.nativeWait }) +
+          '\n',
+      );
+    process.stdout.write(
+      JSON.stringify({
+        protocol: 1,
+        phase: 'browser_observation',
+        sample: clean ? 'absent' : cleanup.nativeSample,
+        probe,
+        operation: counterOperation,
+      }) + '\n',
+    );
     // Preserve the original closed stage even if later actual cleanup fails.
     process.stderr.write('BFF browser fixture failed: ' + stage + '\n');
-    if (!clean) process.stderr.write('BFF browser cleanup failed.\n');
+    if (!clean)
+      process.stderr.write(
+        'BFF browser cleanup failed' +
+          (cleanup.failureStage ? ': ' + cleanup.failureStage : '') +
+          '.\n',
+      );
   }
   process.exitCode = 1;
 }

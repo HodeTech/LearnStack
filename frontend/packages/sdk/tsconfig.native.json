@@ -9,5 +9,5 @@
     "declaration": true,
     "incremental": false
   },
-  "include": ["src/authenticated-server.ts"]
+  "include": ["src/authenticated-server.ts", "src/administration-server.ts"]
 }

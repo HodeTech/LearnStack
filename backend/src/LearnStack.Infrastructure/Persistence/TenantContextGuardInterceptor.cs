@@ -60,7 +60,7 @@ public sealed class TenantContextGuardInterceptor : DbCommandInterceptor
     public override InterceptionResult<DbDataReader> ReaderExecuting(
         DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result)
     {
-        Guard(command, eventData.Context);
+        Guard(command, eventData.Context, eventData.CommandSource);
         return base.ReaderExecuting(command, eventData, result);
     }
 
@@ -70,14 +70,14 @@ public sealed class TenantContextGuardInterceptor : DbCommandInterceptor
         InterceptionResult<DbDataReader> result,
         CancellationToken cancellationToken = default)
     {
-        Guard(command, eventData.Context);
+        Guard(command, eventData.Context, eventData.CommandSource);
         return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
     }
 
     public override InterceptionResult<int> NonQueryExecuting(
         DbCommand command, CommandEventData eventData, InterceptionResult<int> result)
     {
-        Guard(command, eventData.Context);
+        Guard(command, eventData.Context, eventData.CommandSource);
         return base.NonQueryExecuting(command, eventData, result);
     }
 
@@ -87,14 +87,14 @@ public sealed class TenantContextGuardInterceptor : DbCommandInterceptor
         InterceptionResult<int> result,
         CancellationToken cancellationToken = default)
     {
-        Guard(command, eventData.Context);
+        Guard(command, eventData.Context, eventData.CommandSource);
         return base.NonQueryExecutingAsync(command, eventData, result, cancellationToken);
     }
 
     public override InterceptionResult<object> ScalarExecuting(
         DbCommand command, CommandEventData eventData, InterceptionResult<object> result)
     {
-        Guard(command, eventData.Context);
+        Guard(command, eventData.Context, eventData.CommandSource);
         return base.ScalarExecuting(command, eventData, result);
     }
 
@@ -104,13 +104,16 @@ public sealed class TenantContextGuardInterceptor : DbCommandInterceptor
         InterceptionResult<object> result,
         CancellationToken cancellationToken = default)
     {
-        Guard(command, eventData.Context);
+        Guard(command, eventData.Context, eventData.CommandSource);
         return base.ScalarExecutingAsync(command, eventData, result, cancellationToken);
     }
 
     /// <summary>Throws unless this command's transaction has a current sanctioned announcement and read scope.</summary>
-    private void Guard(DbCommand command, DbContext? context)
+    private void Guard(DbCommand command, DbContext? context, CommandSource source)
     {
+        if (_unitOfWork is IUnitOfWorkContextEnrollment enrollment)
+            enrollment.RequireModuleCommandAllowed(context, command.Transaction,
+                isWrite: source is not (CommandSource.LinqQuery or CommandSource.FromSqlQuery));
         if (_unitOfWork is IGlobalIdentityUnitOfWork { IsGlobalIdentityTransaction: true } global)
         {
             if (context is not null && global.IsGlobalIdentityContextEnrolled(context, command.Transaction)) return;

@@ -73,11 +73,12 @@ public sealed partial class BackgroundJobPositiveSdkTests
         {
             using var startup = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             await runtime.StartAsync(startup.Token);
-            await probe.Written.Task.WaitAsync(TimeSpan.FromSeconds(45));
+            using var observation = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+            await probe.Written.Task.WaitAsync(observation.Token);
             execution = NativeFinalizerControl(runtime, job); // Existing lookup returns the actual job control, independent of stage.
             execution.Identity!.Stage.Should().Be(BackgroundJobExecutionStage.Prepare);
             execution.RunGate.IsClosed.Should().BeFalse();
-            var business = (Task<JobBusinessExecutionResult>)NativeSdkField(execution, "_business");
+            var business = await NativeSdkBusinessAsync(execution, observation.Token);
             business.IsCompleted.Should().BeFalse("the actual Prepare handler is held after its nested business write");
             originalAttempt = execution.Identity.AttemptId.Value;
             var initial = await NativeNoPlanPolicyFactsAsync(database, job);

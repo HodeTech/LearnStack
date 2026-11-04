@@ -25,6 +25,7 @@ internal sealed class SeedOperationSource : TrustedOperationDescriptor.MintingSo
         typeof(GetCourseSeedStateQuery), typeof(GetLessonSeedStateQuery), typeof(GetRoleSeedStateQuery), typeof(GetMembershipSeedStateQuery),
         typeof(InitializeSeedRoleCommand), typeof(CreateFirstSeedAdminMembershipCommand), typeof(CreateSeedMembershipCommand), typeof(SetSeedMembershipProfileCommand),
         typeof(ProvisionTenantCommand), typeof(CreateOrganizationCommand), typeof(MapHostToTenantCommand), typeof(AddTenantLocaleCommand),
+        typeof(AdoptSeedAdministrationOriginCommand),
         typeof(SetDefaultTenantLocaleCommand), typeof(SetTenantBrandingCommand), typeof(RegisterTenantContentTypeCommand), typeof(PublishTenantContentTypeCommand),
         typeof(RegisterTenantLevelTaxonomyCommand), typeof(PublishTenantLevelTaxonomyCommand), typeof(InitializeTenantContentTypeDefaultCommand), typeof(InitializeTenantLevelTaxonomyDefaultCommand),
         typeof(CreateCourseCommand), typeof(AddCourseTranslationCommand), typeof(PublishCourseCommand), typeof(CreateLessonCommand), typeof(AddLessonTranslationCommand), typeof(PublishLessonCommand),
@@ -35,6 +36,7 @@ internal sealed class SeedOperationSource : TrustedOperationDescriptor.MintingSo
     private readonly TenantId? _tenant;
     private readonly OrganizationId? _organization;
     private readonly UserId? _actor;
+    private readonly HashSet<TrustedOperationDescriptor> _issued = [];
 
     internal SeedOperationSource(ITenantContext context)
     {
@@ -52,8 +54,13 @@ internal sealed class SeedOperationSource : TrustedOperationDescriptor.MintingSo
         if (!CanIssue || !ReferenceEquals(context, _context) || !Requests.Contains(requestType)
             || !IsEvidenceCurrent(_context)
             || (!_resolved && requestType != typeof(ProvisionTenantCommand))) return null;
-        return ForOperation(AuthorizationSourceKind.Seed, requestType, context, _context);
+        var descriptor = ForOperation(AuthorizationSourceKind.Seed, requestType, context, _context);
+        _issued.Add(descriptor);
+        return descriptor;
     }
+
+    internal bool Owns(TrustedOperationDescriptor descriptor, Type requestType, ITenantContext context) =>
+        _issued.Contains(descriptor) && ReferenceEquals(context, _context) && descriptor.Matches(requestType, context);
 
     protected override bool IsEvidenceCurrent(object? evidence) => ReferenceEquals(evidence, _context)
         && _context.IsResolved == _resolved && _context.HostScope is null

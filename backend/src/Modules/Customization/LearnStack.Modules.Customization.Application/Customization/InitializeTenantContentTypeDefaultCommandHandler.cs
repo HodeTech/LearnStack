@@ -1,3 +1,4 @@
+using LearnStack.Modules.Customization.Application.Seeding;
 using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Customization.Application.Contracts.Customization;
 using LearnStack.Modules.Customization.Domain;
@@ -19,7 +20,8 @@ internal sealed class InitializeTenantContentTypeDefaultCommandHandler(
     IJsonSchemaValidator schemas,
     ITenantContext tenantContext,
     IClock clock,
-    IGuidFactory guids)
+    IGuidFactory guids,
+    ISeedCustomizationWriteGuard seedGuard)
     : IRequestHandler<InitializeTenantContentTypeDefaultCommand, Result<None>>
 {
     public async Task<Result<None>> Handle(
@@ -28,8 +30,9 @@ internal sealed class InitializeTenantContentTypeDefaultCommandHandler(
         ArgumentNullException.ThrowIfNull(request);
         if (!tenantContext.IsResolved) return CustomizationFailures.Unresolved<None>();
 
+        if (!await seedGuard.PrepareAsync(request, cancellationToken)) return Result<None>.Fail(seedGuard.Failure);
+
         var definition = BuiltInCustomizations.Card;
-        await contentTypes.LockConceptAsync(definition.Key, cancellationToken);
         if (await contentTypes.HasConceptHistoryAsync(definition.Key, cancellationToken))
             return Result.Ok(None.Value);
 
@@ -44,6 +47,7 @@ internal sealed class InitializeTenantContentTypeDefaultCommandHandler(
         if (unresolved.Count > 0) return CustomizationFailures.ExtensionsUnresolved<None>(unresolved);
 
         var actor = tenantContext.UserId ?? UserId.SystemActor;
+        if (!seedGuard.IsCurrent(request)) return CustomizationFailures.BusinessRule<None>("Seed", "lockey_business_rule_violation");
         var root = TenantContentType.Create(
             TenantContentTypeId.From(guids.NewUuidV7()), tenantContext.TenantId,
             definition.Key, BuiltInCustomizations.SchemaVersion, LocalizedText.From(definition.DisplayName),

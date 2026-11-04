@@ -101,21 +101,40 @@ public sealed partial class RoleGrantCommandIntegrationTests(IdentityAuthorizati
     }
 
     [Fact]
-    public async Task Finite_v1_adoption_is_a_separate_audited_act_and_unknown_manifest_never_repairs_the_target()
+    public async Task Historical_and_unknown_adoption_cannot_restore_retained_Organization_grants()
     {
         var role = RoleId(SchemaFixture.TenantA, BuiltInRoleKey.Learner, PermissionScope.Organization);
         try
         {
             Assert.True((await SendAsync(new ChangeRoleGrantsCommand(role, 0, []), "grant-before-adoption")).IsSuccess);
-            Assert.Equal("forbidden", (await SendAsync(new AdoptRoleGrantManifestCommand(role, 1, 2,
-                IdentityFoundationManifest.Version1.Fingerprint), "grant-unknown-manifest")).Error!.Code);
-            Assert.Empty((await ReadRoleAsync(role)).Grants);
-            var adopted = await SendAsync(new AdoptRoleGrantManifestCommand(role, 1, 1, IdentityFoundationManifest.Version1.Fingerprint), "grant-finite-adoption");
-            Assert.True(adopted.IsSuccess);
-            Assert.Equal(2, adopted.Value);
-            Assert.Equal(["Organization:identity.membership_profile.write"], (await ReadRoleAsync(role)).Grants);
-            var row = await AuditAsync("grant-finite-adoption", "identity.role.adopt_manifest", "success");
-            Assert.Equal("Must:SecurityEvent:Role:" + role.ToString("D"), row.Classification);
+            var before = await ReadRoleAsync(role);
+            Assert.Equal(1, before.Version);
+            Assert.Empty(before.Grants);
+            Assert.Equal(1, before.AdoptedReleaseVersion);
+            Assert.Equal(IdentityFoundationManifest.Version1.Fingerprint, before.AdoptedReleaseFingerprint);
+            foreach (var version in new[] { 1, 2 })
+            {
+                var correlation = $"grant-historical-adoption-{version}";
+                var refused = await SendAsync(new AdoptRoleGrantManifestCommand(role, before.Version, version,
+                    IdentityFoundationManifest.Version1.Fingerprint), correlation);
+                Assert.Equal("forbidden", refused.Error!.Code);
+                var after = await ReadRoleAsync(role);
+                Assert.Equal(before.Version, after.Version);
+                Assert.Equal(before.Grants, after.Grants);
+                Assert.Equal(before.AdoptedReleaseVersion, after.AdoptedReleaseVersion);
+                Assert.Equal(before.AdoptedReleaseFingerprint, after.AdoptedReleaseFingerprint);
+                // No outcome filter: the helper verifies exactly one resource event.
+                // Refusal precedes target designation, so no Role ID is fabricated.
+                var row = await AuditAsync(correlation, "identity.role.adopt_manifest");
+                Assert.Equal("denied", row.Outcome);
+                Assert.Equal("Must:SecurityEvent:Role:", row.Classification);
+                Assert.Empty(row.Changes);
+                var denial = await AuditAsync(correlation, "identity.authorization.deny");
+                Assert.Equal("denied", denial.Outcome);
+                Assert.Equal("Must:SecurityEvent::", denial.Classification);
+                using var metadata = JsonDocument.Parse(denial.Metadata);
+                Assert.Equal("capability", metadata.RootElement.GetProperty("denial_reason").GetString());
+            }
         }
         finally { await RestoreAsync(BuiltInRoleKey.Learner, PermissionScope.Organization); }
     }
@@ -213,19 +232,21 @@ public sealed partial class RoleGrantCommandIntegrationTests(IdentityAuthorizati
         return await harness.Sender.Send(request);
     }
 
-    private async Task<(long Version, string[] Grants)> ReadRoleAsync(Guid id)
+    private async Task<(long Version, string[] Grants, int AdoptedReleaseVersion, string AdoptedReleaseFingerprint)> ReadRoleAsync(Guid id)
     {
         await using var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(fixture.AppConnectionString);
         await SchemaQueries.AssertApplicationRoleAsync(app);
         await using var transaction = await app.BeginTransactionAsync();
         await ScopeAsync(app, transaction, SchemaFixture.TenantA);
         var version = await ScalarAsync<long>(app, transaction, "SELECT row_version FROM roles WHERE id=@id", ("id", id));
+        var release = await ScalarAsync<int>(app, transaction, "SELECT adopted_release_version FROM roles WHERE id=@id", ("id", id));
+        var fingerprint = await ScalarAsync<string>(app, transaction, "SELECT adopted_release_fingerprint FROM roles WHERE id=@id", ("id", id));
         await using var command = new NpgsqlCommand("SELECT permission_scope||':'||permission_key FROM role_permission_grants WHERE role_id=@id ORDER BY 1", app, transaction);
         command.Parameters.AddWithValue("id", id);
         await using var rows = await command.ExecuteReaderAsync();
         var grants = new List<string>();
         while (await rows.ReadAsync()) grants.Add(rows.GetString(0));
-        return (version, grants.ToArray());
+        return (version, grants.ToArray(), release, fingerprint);
     }
 
     private async Task RestoreAsync(BuiltInRoleKey key, PermissionScope scope)

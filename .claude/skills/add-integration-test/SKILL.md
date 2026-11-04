@@ -70,9 +70,8 @@ architecture test) plus any other invariant the change touches. See
 > what almost every test wants: **every** migration chain applied — through
 > `MigrationChains.ApplyAllAsync`, never a list a fixture keeps itself — and every
 > table populated under its role and table class, with two tenants and a second
-> organization under tenant A for tenant-owned data. There
-> are five chains and 42 data tables (47 including migration histories). Every
-> discovered public table must match an exact class in
+> organization under tenant A for tenant-owned data. Every discovered public
+> table must match an exact class in
 > [SchemaTableClasses](../../../backend/tests/LearnStack.Tests.Integration/Database/SchemaTableClasses.cs).
 > Vendor/control SELECTs as `learnstack_app` must raise `42501`; a zero count or
 > an excluded table does not prove the required denial. Discover
@@ -93,8 +92,9 @@ providers and restore case-owned changes before returning.
 Its generated CA is trusted only by the fixture's HTTPS clients, with normal
 hostname validation and a wrong-root refusal control. Never install a fixture CA
 in the host trust store or bypass TLS/cookie rules to get a passing login.
-Use real code/S256 authentication, keep credentials/tokens out of assertions and
-logs, and never follow the unimplemented BFF callback to claim session coverage.
+Use real code/S256 authentication and keep credentials/tokens out of assertions
+and logs. Stopping at the provider redirect does not establish BFF session/cookie
+publication; the named native HTTPS/session fixtures own that separate proof.
 This fixture does not replace application-role isolation proofs. Every consuming
 test class has the Docker trait, including classes outside `Database/`.
 Real-token API qualification uses the separate nonparallel
@@ -241,11 +241,14 @@ public async Task Org_X_cannot_read_Org_Y_within_TenantA()
 And one more, which the org-scoped template needs and an ordinary session cannot
 reach: with `app.scope = 'tenant'` set, the **read** widens across organizations
 and neither write does. Without that case both `AS RESTRICTIVE` guards can be
-deleted with the suite green — measured, in Packet 6. Set the variable in the test
-itself; nothing sets it at runtime, because the flag derives from the actor's role
-and roles arrive in
-[Phase 03](../../../docs/roadmap/phase-03-identity-admin.md), after Phase 02b's
-authenticated principal. See
+deleted with the suite green — measured, in Packet 6. Set the variable directly
+only for the raw RLS control. Production scope comes from the closed operation-bound
+read witness or fixed-seed verification sources in
+[Database Standards](../../../docs/standards/05-database.md), never from an actor's
+role alone. Exercise each producer's invocation, owner, lifetime and cleanup
+controls separately. The
+[Phase 03 Status](../../../docs/roadmap/phase-03-identity-admin.md) owns packet
+activation. See
 `TenancySchemaTests.TheTenantScopeHatchWidensReadsAndNeitherWrite`.
 
 The Packet 7 half of these cases goes through the **request**, and it needs no

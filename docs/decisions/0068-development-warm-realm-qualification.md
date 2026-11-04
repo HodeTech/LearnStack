@@ -399,3 +399,44 @@ prior phase receipts and invent no new canonical rule.
 - [Architecture 13](../architecture/13-identity-and-auth.md) and [Keycloak guide](../../infra/keycloak/README.md).
 - [ADR-0004](0004-authentication-strategy.md), [ADR-0064](0064-tenant-api-authentication-boundary.md)
   and [ADR-0067](0067-development-tenant-access-token-issuance.md).
+
+## Amendments
+
+### Amendment 1 — Fixed native web scope and administration callbacks (2026-10-28)
+
+Accepted [ADR-0078](0078-native-session-scope-and-self-entry.md) extends the bounded
+development graph/endpoint reconciliation authority. The existing
+`learnstack-tenant-api` scope contains actor, tenant/org and API-audience mappers
+and is shared by API/web clients. Preserve its entire definition and API-client
+attachment. Replace only its web default attachment with the fixed
+`learnstack-native-session` default scope containing actor and API audience, with
+no tenant/org emitter and no optional legacy-web attachment.
+
+Qualify the actual web baseline independently from API/direct/default/optional
+graphs. Foreign context emitters, conflicting fixed-scope definitions or unexpected
+edges refuse before writes. No account, provider ID, credential, lifespan,
+unrelated mapper/assignment or account-console policy is reset. Newly issued web
+grants deliberately become tenantless; acceptance of already issued scoped API
+bearers remains. Old native owners may require fresh sign-in. Real code and
+refresh prove zero web tenant/org claims and unchanged shared/API scope facts.
+
+The confidential web client adds only the exact management-origin callbacks to
+its existing two, giving these four callback URIs:
+
+- `https://demo-english.learnstack.local:3000/api/auth/callback/keycloak`
+- `https://demo-yoga.learnstack.local:3000/api/auth/callback/keycloak`
+- `https://manage.demo-english.learnstack.local:3000/api/auth/callback/keycloak`
+- `https://manage.demo-yoga.learnstack.local:3000/api/auth/callback/keycloak`
+
+Post-logout redirects are exactly the corresponding four origin roots; webOrigins
+remains empty. There is no wildcard, runtime provider-management credential or
+user-global scope-selection write. Fixed management-host mapping adoption belongs
+to ADR-0079's separately audited application upgrade, not provider normalization.
+The existing bounded loopback/private-source, pass deadline, stop-on-uncertainty,
+full-plan/readback and completed zero-write rerun rules still apply to the newly
+qualified finite edge/scope/callback acts.
+
+This is a changed decision, not a factual erratum. The P02b-6 accepted package and
+current reconciliation guide/standards carry this bounded extension; historical
+bodies, metadata and receipts remain. P03-3 owns final-source genuine warm-provider,
+code/refresh, partial failure, unrelated-state and repeated no-write proofs.

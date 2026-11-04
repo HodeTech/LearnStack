@@ -77,7 +77,8 @@ public sealed partial class TransactionExecutionCoordinator
             ArgumentNullException.ThrowIfNull(descriptor);
             if (unit is not IGlobalIdentityUnitOfWork global || unit.HasActiveTransaction || unit.IsRollbackOnly
                 || capture.HasOpenFrame || capture.Intents.Count != 0 || capture.Changes.Count != 0
-                || capture.State != AuditIntentState.None || descriptor.Kind == GlobalIdentityOwnerKind.Lookup)
+                || capture.State != AuditIntentState.None
+                || descriptor.Kind is not (GlobalIdentityOwnerKind.Bootstrap or GlobalIdentityOwnerKind.SeedAdoption))
                 throw new InvalidOperationException("Global creation preparation requires a fresh unit and capture.");
             var frame = await global.BeginGlobalIdentityTransactionAsync(descriptor, TransactionMode.ReadWrite, cancellationToken);
             try

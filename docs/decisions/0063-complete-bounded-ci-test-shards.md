@@ -479,6 +479,18 @@ actual hosted fit; the
 [Phase 03 delivery log](../roadmap/phase-03-delivery-log.md#adr-0075-acceptance-and-step-1-2026-10-27)
 owns its implementation and qualification receipts. Historical text and metadata remain intact.
 
+### Amendment 2 — Current-source Architecture and ordinary windows (2026-11-01)
+
+Accepted [ADR-0082](0082-current-source-ci-execution-windows.md) supersedes this
+record's twenty-minute Architecture ceiling and Amendment 1's twenty-five-minute
+ordinary ceiling with twenty-five and thirty minutes, respectively. Only these
+verified expected producers acquire the longer execution/observation bounds.
+Base/native twenty, aggregates/meta five, the 203-second reserve, test-operation
+limits, count ranges/cap, assignment and exact natural-complete A/B evidence
+remain unchanged. Its prohibition on unapproved increases gains only this named
+exception. The Decision and metadata remain historical. The [Phase 03 acceptance record](../roadmap/phase-03-delivery-log.md#adr-0082-maintainer-corrections-acceptance-and-step-1-2026-11-01)
+owns dependent implementation/reviews and fresh source-bound qualification.
+
 ## References
 
 - [ADR-0062](0062-native-crash-proof-ci-provisioning.md).

@@ -175,16 +175,18 @@ public sealed class RoleGrantCommandTests
     }
 
     [Fact]
-    public async Task Retained_v1_adoption_derives_the_actual_template_and_obeys_the_same_audited_gate()
+    public async Task Retained_v1_repair_is_refused_while_current_grant_acts_remain_explicitly_audited()
     {
         using var fixture = new Fixture(BuiltInRoleKey.Learner, PermissionScope.Organization, stripProfile: true);
         var request = new AdoptRoleGrantManifestCommand(fixture.Target.Id.Value, 1, 1, IdentityFoundationManifest.Version1.Fingerprint);
         fixture.Enter(request);
         var result = await fixture.Adopt.Handle(request, CancellationToken.None);
-        Assert.True(result.IsSuccess);
-        Assert.Equal(2, result.Value);
-        Assert.True(fixture.Target.MatchesInitialTemplate());
-        await fixture.Reader.Received(2).ReadAsync(Arg.Any<AuthorizationCandidate>(), Arg.Any<CancellationToken>());
+        Assert.Equal("forbidden", result.Error!.Code);
+        Assert.Equal(1, fixture.Target.Version);
+        Assert.False(fixture.Target.MatchesInitialTemplate());
+        await fixture.Reader.DidNotReceiveWithAnyArgs().ReadAsync(null!);
+        await fixture.Locks.DidNotReceiveWithAnyArgs().AcquireAsync(null!);
+        await fixture.Store.DidNotReceiveWithAnyArgs().UpdateAsync(null!);
         var catalog = new AuditCatalog([new IdentityAuditCatalogSource()]);
         var policies = new OperationPolicyCatalog([new IdentityOperationPolicySource()]);
         foreach (var type in new[] { typeof(ChangeRoleGrantsCommand), typeof(AdoptRoleGrantManifestCommand) })

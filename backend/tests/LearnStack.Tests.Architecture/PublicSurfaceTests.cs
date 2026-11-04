@@ -120,6 +120,17 @@ public sealed class PublicSurfaceTests
         PersistenceOffenders([Definition<CleanController>(module)], map).Should().BeEmpty();
         PersistenceOffenders([Definition<CleanGenericHelperController>(module)], map).Should().BeEmpty();
         PersistenceOffenders([Definition<CleanIdentifierProbe>(module)], map).Should().BeEmpty();
+        PersistenceOffenders([Definition<CleanGenericIdentifierProbe>(module)], map).Should().BeEmpty();
+        var predicate = kernel.GetType(typeof(StronglyTypedId).FullName!);
+        var plantedAcquisition = new FieldDefinition("BorrowedIdentityService", Mono.Cecil.FieldAttributes.Private | Mono.Cecil.FieldAttributes.Static,
+            kernel.ImportReference(typeof(IStronglyTypedId<Guid>)));
+        predicate.Fields.Add(plantedAcquisition);
+        try
+        {
+            PersistenceOffenders([Definition<CleanGenericIdentifierProbe>(module)], map).Should().NotBeEmpty(
+                "a real interface acquisition in the predicate must restore implementation traversal");
+        }
+        finally { predicate.Fields.Remove(plantedAcquisition); }
         Dispatches(Definition<PostDispatchHelperController>(module), "Get").Should().BeTrue(
             "the transitive persistence guard must independently refuse helper dispatch after a clean direct Send");
         foreach (var type in new[] { typeof(DirectHandlerController), typeof(HelperController), typeof(ConnectionProbe), typeof(ServiceLocatorProbe), typeof(InterfaceHelperController), typeof(AbstractHelperController), typeof(GenericInterfaceHelperController), typeof(GenericAbstractHelperController), typeof(PostDispatchHelperController), typeof(ConcreteMediatorProbe), typeof(PublisherProbe), typeof(DomainIdentifierProbe), typeof(IdentityServiceProbe) })
@@ -259,7 +270,7 @@ public sealed class PublicSurfaceTests
 
     // Walk the cancellation-token expression backwards. Stop at control flow and
     // unsupported stack shapes rather than guessing the request argument's origin.
-    private static bool SkipValue(Mono.Collections.Generic.Collection<Instruction> instructions, ref int position)
+    internal static bool SkipValue(Mono.Collections.Generic.Collection<Instruction> instructions, ref int position)
     {
         var needed = 1;
         while (position >= 0 && needed > 0)
@@ -311,7 +322,9 @@ public sealed class PublicSurfaceTests
             && EndpointComposition.HasLiteralPath(calls[0].Definition, calls[0].Instruction, "/healthz"));
     }).Select(type => type.FullName.Replace('/', '+'));
 
-    internal static IEnumerable<string> PersistenceOffenders(IEnumerable<TypeDefinition> roots, Dictionary<string, TypeDefinition> map)
+    internal static IEnumerable<string> PersistenceOffenders(IEnumerable<TypeDefinition> roots, Dictionary<string, TypeDefinition> map,
+        Func<TypeDefinition, IEnumerable<TypeReference>>? referenceProjection = null,
+        Func<TypeDefinition, bool>? validatedSenderBoundary = null)
     {
         var controllers = roots.ToArray();
         var controllerKeys = controllers.Select(Key).ToHashSet(StringComparer.Ordinal);
@@ -329,9 +342,9 @@ public sealed class PublicSurfaceTests
                     queue.Enqueue((implementation, true));
                 }
             if (!visited.Add(Key(type))) continue;
-            var references = Il.ReferencedTypeReferences(type).ToArray();
+            var references = (referenceProjection?.Invoke(type) ?? Il.ReferencedTypeReferences(type)).ToArray();
             if (references.Any(reference => Forbidden(reference.FullName))
-                || (!controllerKeys.Contains(Key(type)) && references.Any(reference =>
+                || (!controllerKeys.Contains(Key(type)) && validatedSenderBoundary?.Invoke(type) is not true && references.Any(reference =>
                     reference.FullName == typeof(ISender).FullName || reference.FullName == typeof(IMediator).FullName))
                 || Il.Methods(type).Any(method => method.Definition.HasBody && method.Definition.Body.Instructions.Any(instruction =>
                     instruction.Operand is MethodReference call && call.Name == "get_RequestServices")))
@@ -341,8 +354,9 @@ public sealed class PublicSurfaceTests
                     // A value object's own identifier-interface declaration is
                     // metadata, not acquisition of every ID implementation. An
                     // injected interface still follows implementations normally.
-                    && !(type.IsValueType && reference.GetElementType().FullName == typeof(IStronglyTypedId<>).FullName
-                        && type.Interfaces.Any(contract => Key(contract.InterfaceType) == Key(reference)))
+                    && !(reference.GetElementType().FullName == typeof(IStronglyTypedId<>).FullName
+                        && (type.IsValueType && type.Interfaces.Any(contract => Key(contract.InterfaceType) == Key(reference))
+                            || IsPureIdentifierConstraint(type, reference)))
                     // Il already scans generated members as part of their owner.
                     // Re-enqueuing an action's state machine would misclassify its
                     // sanctioned sender as a separate helper dependency.
@@ -358,6 +372,17 @@ public sealed class PublicSurfaceTests
                 }
         }
     }
+
+    // A value-constrained generic predicate reads the actual supplied struct;
+    // its constraint does not acquire every unrelated ID implementation. An
+    // interface field/parameter/return remains an acquisition and is expanded.
+    private static bool IsPureIdentifierConstraint(TypeDefinition type, TypeReference reference) =>
+        type.FullName == typeof(StronglyTypedId).FullName && type.IsAbstract && type.IsSealed
+        && !type.HasFields && !type.HasProperties && type.Methods.Count == 2 && !Acquires(type, Key(reference))
+        && type.Methods.All(method => method.IsStatic && method.Name is "IsAssigned" or "IsAssignedWhenPresent"
+            && method.Parameters.Count == 1 && method.GenericParameters.Count == 1
+            && method.GenericParameters[0].HasNotNullableValueTypeConstraint
+            && method.GenericParameters[0].Constraints.Any(constraint => Key(constraint.ConstraintType) == Key(reference)));
 
     private static bool Acquires(TypeDefinition owner, string dependency) => owner.Fields
         .SelectMany(field => Il.ExpandedTypeReferences(field.FieldType))
@@ -581,6 +606,10 @@ public sealed class PublicSurfaceTests
     private sealed class CleanIdentifierProbe
     {
         public static TenantId Read() => TenantId.From(Guid.NewGuid());
+    }
+    private sealed class CleanGenericIdentifierProbe
+    {
+        public static bool Read() => StronglyTypedId.IsAssigned(TenantId.From(Guid.NewGuid()));
     }
     private sealed class DomainIdentifierProbe
     {

@@ -6,6 +6,8 @@ using LearnStack.Modules.Identity.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace LearnStack.Tests.Integration.Database;
 
@@ -32,14 +34,25 @@ namespace LearnStack.Tests.Integration.Database;
 internal static class MigrationChains
 {
     /// <summary>Applies every chain, as <c>learnstack_migration</c>.</summary>
-    public static async Task ApplyAllAsync(string migrationConnectionString)
+    public static Task ApplyAllAsync(string migrationConnectionString) =>
+        ApplyAsync(migrationConnectionString, platformTargetMigration: null);
+
+    /// <summary>Applies every chain, pinning only Platform for an isolated historical migration proof.</summary>
+    public static Task ApplyThroughPlatformMigrationAsync(string migrationConnectionString, string platformTargetMigration)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(platformTargetMigration);
+        return ApplyAsync(migrationConnectionString, platformTargetMigration);
+    }
+
+    private static async Task ApplyAsync(string migrationConnectionString, string? platformTargetMigration)
     {
         await ApplyTenancyAsync(migrationConnectionString);
 
         await using (var platform = new PlatformDbContext(
             Options<PlatformDbContext>(migrationConnectionString, PlatformDbContextFactory.HistoryTable)))
         {
-            await platform.Database.MigrateAsync();
+            if (platformTargetMigration is null) await platform.Database.MigrateAsync();
+            else await platform.GetService<IMigrator>().MigrateAsync(platformTargetMigration);
         }
 
         // Tenancy is first, and that order is not cosmetic: audit_config

@@ -19,6 +19,7 @@ const f = vi.hoisted(() => ({
   },
   getSite: vi.fn(),
   bff: vi.fn(),
+  flight: vi.fn(),
   refuse: vi.fn(),
 }));
 vi.mock('../configured-public-client', () => ({
@@ -43,6 +44,7 @@ vi.mock('../public-admission', () => ({
     refuse: f.refuse,
   }),
 }));
+vi.mock('./request-owner', () => ({ bffRequestOwner: () => ({ flight: f.flight }) }));
 vi.mock('./session-owner', () => ({ bffSessionEnabled: () => f.enabled }));
 vi.mock('./http-admission', () => ({ admitBffHttp: f.bff }));
 
@@ -54,6 +56,7 @@ beforeEach(() => {
   f.enabled = false;
   f.published = false;
   vi.resetAllMocks();
+  f.flight.mockReturnValue(false);
   f.getSite.mockResolvedValue({ kind: 'success', data: f.site });
   f.bff.mockImplementation(async () => {
     expect(f.published).toBe(true);
@@ -209,4 +212,26 @@ describe('atomic host-first BFF middleware activation', () => {
     expect(body).not.toContain('private-provider-canary');
     expect(response.headers.getSetCookie()).toHaveLength(1);
   });
+});
+
+it('uses only native captured Flight admission while preserving the exact signed raw target', async () => {
+  f.enabled = true;
+  f.bff.mockResolvedValue({
+    response: null,
+    session: { state: 'authenticated' },
+    cookies: [],
+    unavailable: false,
+  });
+  const target = '/studio?_rsc=probe';
+  expect((await middleware(incoming(target, { rsc: '1' }))).status).toBe(404);
+  expect(f.bff).not.toHaveBeenCalled();
+  f.flight.mockReturnValue(true);
+  const response = await middleware(incoming(target));
+  expect(response.status).toBe(200);
+  expect(f.bff).toHaveBeenCalledWith(
+    expect.anything(),
+    expect.objectContaining({ target }),
+    expect.any(AbortSignal),
+    expect.any(Function),
+  );
 });

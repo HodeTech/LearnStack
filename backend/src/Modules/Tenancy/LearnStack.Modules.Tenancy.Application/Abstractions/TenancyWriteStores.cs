@@ -13,12 +13,16 @@ namespace LearnStack.Modules.Tenancy.Application.Abstractions;
 public interface ITenantWriteStore : IAggregateWriteStore<Domain.Tenant, TenantId>
 {
     Task<Domain.Tenant?> FindAsync(TenantId id, CancellationToken cancellationToken = default);
+    Task<Domain.Tenant?> FindForUpdateAsync(TenantId id, CancellationToken cancellationToken = default) =>
+        throw new InvalidOperationException("This Tenant store has no retained root lock.");
 }
 
 /// <summary>The tracked write side of one setting root.</summary>
 public interface ITenantSettingWriteStore : IAggregateWriteStore<TenantSetting, TenantSettingId>
 {
     Task<TenantSetting?> FindAsync(TenantSettingId id, CancellationToken cancellationToken = default);
+    Task<TenantSetting?> FindForUpdateAsync(TenantSettingId id, CancellationToken cancellationToken = default) =>
+        throw new InvalidOperationException("This setting store has no retained root lock.");
 }
 
 /// <summary>The write side of the <c>Organization</c> aggregate.</summary>
@@ -27,7 +31,11 @@ public interface ITenantSettingWriteStore : IAggregateWriteStore<TenantSetting, 
 /// confines cross-aggregate writes counts how many of these a handler takes, and a
 /// combined port would hide the very thing ADR-0042 exists to enumerate.
 /// </remarks>
-public interface IOrganizationWriteStore : IAggregateWriteStore<Organization, OrganizationId>;
+public interface IOrganizationWriteStore : IAggregateWriteStore<Organization, OrganizationId>
+{
+    Task<Organization?> FindForUpdateAsync(OrganizationId id, CancellationToken cancellationToken = default) =>
+        throw new InvalidOperationException("This Organization store has no retained root lock.");
+}
 
 /// <summary>The write side of <c>platform_host_to_tenant</c>.</summary>
 /// <remarks>
@@ -40,4 +48,6 @@ public interface IOrganizationWriteStore : IAggregateWriteStore<Organization, Or
 public interface IPlatformHostMappingStore
 {
     Task AddAsync(PlatformHostMapping mapping, CancellationToken cancellationToken = default);
+    Task<PlatformHostMapping?> FindForUpdateAsync(string host, CancellationToken cancellationToken = default) =>
+        throw new InvalidOperationException("This projection store has no retained row lock.");
 }

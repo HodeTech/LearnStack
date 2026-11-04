@@ -45,9 +45,13 @@ public sealed class IdentityScopeLifecycleTests(SchemaFixture schema)
         await using var source = ApplicationDataSource.Build(schema.Postgres.AppConnectionString);
         await using var unit = new NpgsqlUnitOfWork(source, NullLogger<NpgsqlUnitOfWork>.Instance);
         await using var frame = await unit.BeginTransactionAsync();
-        var context = new Context(TenantId.From(SchemaFixture.TenantA), OrganizationId.From(SchemaFixture.OrgA1));
+        // A2 is not the default. Rollback restores even the terminal Archived case
+        // without ever admitting an Archived-to-Active lifecycle transition.
+        var context = new Context(TenantId.From(SchemaFixture.TenantA), OrganizationId.From(SchemaFixture.OrgA2));
         await unit.SetTenantContextAsync(context);
-        await ExecuteAsync(unit, "UPDATE public.organizations SET status = @status WHERE id = @org", ("status", status), ("org", context.OrganizationId!.Value.Value));
+        await TenancyLifecycleFixture.LockAsync(unit.Connection, unit.Transaction!, context.TenantId.Value);
+        await ExecuteAsync(unit, "UPDATE public.organizations SET status = @status WHERE tenant_id = @tenant AND id = @org",
+            ("status", status), ("tenant", context.TenantId.Value), ("org", context.OrganizationId!.Value.Value));
         var facts = await new IdentityScopeLifecycleReader(unit).ReadAsync(context.TenantId, context.OrganizationId);
         facts.TenantExistsAndNotDeleted.Should().BeTrue();
         facts.OrganizationBelongsToTenant.Should().BeTrue();

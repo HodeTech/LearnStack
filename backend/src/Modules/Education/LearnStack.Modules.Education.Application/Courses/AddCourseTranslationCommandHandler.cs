@@ -1,3 +1,4 @@
+using LearnStack.Modules.Education.Application.Seeding;
 using LearnStack.Modules.Education.Application.Abstractions;
 using LearnStack.Modules.Education.Application.Writing;
 using LearnStack.Modules.Education.Domain;
@@ -15,13 +16,14 @@ using LearnStack.Modules.Education.Application.Contracts.Courses;
 namespace LearnStack.Modules.Education.Application.Courses;
 
 internal sealed class AddCourseTranslationCommandHandler(ICourseWriteStore roots, ITenantLocaleEligibilityReader locales, ITranslationCollisionReader collisions, ITenantContext tenantContext,
-    IUnitOfWork unitOfWork, IAuditSubject auditSubject, IClock clock)
+    IUnitOfWork unitOfWork, IAuditSubject auditSubject, IClock clock, ISeedEducationWriteGuard seedGuard)
     : IRequestHandler<AddCourseTranslationCommand, Result<CourseWriteDto>>
 {
     public async Task<Result<CourseWriteDto>> Handle(AddCourseTranslationCommand request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         if (EducationWriteSupport.Context<CourseWriteDto>(tenantContext) is { } unresolved) return unresolved;
+        if (!await seedGuard.PrepareAsync(request, cancellationToken)) return Result<CourseWriteDto>.Fail(seedGuard.Failure);
         var root = await roots.FindAsync(CourseId.From(request.CourseId), cancellationToken);
         if (root is null) return EducationWriteSupport.Code<CourseWriteDto>("lockey_not_found");
         if (EducationWriteSupport.Scope<CourseWriteDto>(root, tenantContext) is { } scopeFailure) return scopeFailure;
@@ -31,6 +33,7 @@ internal sealed class AddCourseTranslationCommandHandler(ICourseWriteStore roots
         var locale = await locales.ReadEligibleAsync(request.Locale, cancellationToken);
         if (locale.IsFailure) return Result<CourseWriteDto>.Fail(locale.Error);
 
+        if (!seedGuard.IsCurrent(request)) return EducationWriteSupport.Code<CourseWriteDto>("lockey_business_rule_violation");
         var added = root.AddTranslation(locale.Value, request.Title, request.Summary, request.Slug, clock, tenantContext.UserId ?? UserId.SystemActor);
         if (added.IsFailure) return Result<CourseWriteDto>.Fail(added.Error);
         return await EducationWriteSupport.SaveAsync(() => roots.UpdateAsync(root, cancellationToken),

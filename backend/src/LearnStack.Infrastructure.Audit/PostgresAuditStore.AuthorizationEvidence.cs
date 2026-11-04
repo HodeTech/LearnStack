@@ -16,6 +16,7 @@ public sealed partial class PostgresAuditStore
     {
         JobApplicationSourceOwner.RefuseExternalEntry();
         ArgumentNullException.ThrowIfNull(unitOfWork);
+        if (unitOfWork is IUnitOfWorkWriteGuard writeGuard) writeGuard.RequireWriteAllowed();
         var draft = RequireAuthorizationCatalog(occurrence);
         if (_globalEnrollment.IsActive || unitOfWork is IGlobalIdentityUnitOfWork { IsGlobalIdentityTransaction: true }
             || unitOfWork.Mode != TransactionMode.ReadWrite || !unitOfWork.HasActiveTransaction || unitOfWork.IsRollbackOnly
@@ -30,6 +31,7 @@ public sealed partial class PostgresAuditStore
             command.Transaction = transaction;
             command.CommandText = InsertSql;
             Bind(command.Parameters, draft);
+            if (unitOfWork is IUnitOfWorkWriteGuard finalWriteGuard) finalWriteGuard.RequireWriteAllowed();
             await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (DbException)

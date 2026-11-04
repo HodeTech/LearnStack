@@ -20,6 +20,7 @@ export type SourceGraph = {
 };
 
 export const ACCOUNT_ADAPTER = 'apps/web/src/server/auth/account-client.ts';
+export const NATIVE_API_TRANSPORT = 'apps/web/src/server/auth/native-api-transport.ts';
 export const BFF_BROWSER_ADAPTER = 'apps/web/src/client/bff-session.ts';
 export const ADAPTER = 'apps/web/src/server/configured-public-client.ts';
 export const INGRESS = 'apps/web/src/server/ingress.ts';
@@ -30,6 +31,7 @@ export const REQUEST_MEMO = 'apps/web/src/server/request-memo.ts';
 export const ADMISSION_RUNTIME = 'apps/web/src/server/public-admission-runtime.ts';
 export const ADMISSION_FACADE = 'apps/web/src/server/public-admission.ts';
 export const SDK_AUTHENTICATED = 'packages/sdk/src/authenticated-server.ts';
+export const SDK_ADMINISTRATION = 'packages/sdk/src/administration-server.ts';
 export const SDK_SERVER = 'packages/sdk/src/server.ts';
 
 /** Only these test roots are outside the production inventory; names are not authority. */
@@ -37,25 +39,116 @@ export function omittedProductionDirectory(path: string): boolean {
   return path === 'apps/web/src/test';
 }
 
+type HttpSourceSyntax = {
+  readonly file: ts.SourceFile;
+  readonly findings: readonly Finding[];
+};
+
+function analyzeHttpSource(name: string, source: string): HttpSourceSyntax {
+  const file = ts.createSourceFile(name, source, ts.ScriptTarget.Latest, true);
+  const findings: Finding[] = [];
+  walk(file, (node) => {
+    if (
+      (ts.isSourceFile(node) || ts.isBlock(node)) &&
+      node.statements.some(
+        (statement, index, statements) =>
+          ts.isExpressionStatement(statement) &&
+          ts.isStringLiteral(statement.expression) &&
+          statement.expression.text === 'use server' &&
+          statements
+            .slice(0, index)
+            .every(
+              (prior) => ts.isExpressionStatement(prior) && ts.isStringLiteral(prior.expression),
+            ),
+      )
+    )
+      findings.push(finding(node, 'Fix: no Server Action is admitted by the closed BFF surface.'));
+  });
+  if (name === 'apps/web/src/app/api/healthz/route.ts')
+    walk(file, (node) => {
+      if (
+        ts.isIdentifier(node) &&
+        ['HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'CONNECT', 'TRACE'].includes(
+          node.text,
+        )
+      )
+        findings.push(finding(node, 'Fix: the infrastructure route exports only GET.'));
+    });
+  return { file, findings };
+}
+
+/** Reuse only exact-text syntax facts inside one explicitly owned evaluation sequence. */
+export function createHttpSurfaceEvaluator(): (sources: SourceCensus) => Finding[] {
+  let previous = new Map<string, HttpSourceSyntax & { readonly source: string }>();
+  return (sources) => {
+    const current = new Map<string, HttpSourceSyntax & { readonly source: string }>();
+    const findings = evaluateHttpSurface(sources, (name, source) => {
+      const cached = previous.get(name);
+      const syntax =
+        cached?.source === source ? cached : { source, ...analyzeHttpSource(name, source) };
+      current.set(name, syntax);
+      return syntax;
+    });
+    // Keep one current version per present path. Removed sources are not retained.
+    previous = current;
+    return findings;
+  };
+}
+
 /** Pin the response entry points independently of middleware's runtime dispatcher. */
 export function closedHttpSurfaceFindings(sources: SourceCensus): Finding[] {
+  return evaluateHttpSurface(sources, analyzeHttpSource);
+}
+
+// This is the complete admitted webpack hook, including the existing resolver
+// alias. Printing parsed syntax ignores layout and comments, not executable code.
+const approvedWebpackSource = ts.createSourceFile(
+  'approved-webpack.ts',
+  `const config = { webpack(configuration, context) {
+    if (context.dev) {
+      configuration.plugins.push(createFrameworkDevelopmentPlugin({
+        appRoot: process.cwd(),
+        kind: context.nextRuntime === 'edge' ? 'edge' : context.isServer ? 'server' : 'client',
+      }));
+    }
+    configuration.resolve.extensionAlias = {
+      ...configuration.resolve.extensionAlias,
+      '.js': ['.ts', '.tsx', '.js'],
+    };
+    return configuration;
+  } };`,
+  ts.ScriptTarget.Latest,
+  true,
+);
+const approvedWebpack = (
+  (approvedWebpackSource.statements[0] as ts.VariableStatement).declarationList.declarations[0]!
+    .initializer as ts.ObjectLiteralExpression
+).properties[0]!;
+const syntaxPrinter = ts.createPrinter({ removeComments: true });
+
+function evaluateHttpSurface(
+  sources: SourceCensus,
+  syntax: (name: string, source: string) => HttpSourceSyntax,
+): Finding[] {
   const findings: Finding[] = [];
   const entries = new Set([
     'apps/web/src/app/api/healthz/route.ts',
     'apps/web/src/app/(studio)/studio/page.tsx',
+    'apps/web/src/app/(studio)/studio/members/page.tsx',
+    'apps/web/src/app/(studio)/studio/members/[membershipId]/page.tsx',
+    'apps/web/src/app/(studio)/studio/roles/page.tsx',
+    'apps/web/src/app/(studio)/studio/roles/[roleId]/page.tsx',
     'apps/web/src/app/(portal)/portal/page.tsx',
+    'apps/web/src/app/(portal)/portal/profile/page.tsx',
     'apps/web/src/app/(public)/[locale]/courses/page.tsx',
     'apps/web/src/app/(public)/[locale]/courses/[slug]/page.tsx',
     'apps/web/src/app/(public)/[locale]/courses/[slug]/lessons/[lessonSlug]/page.tsx',
     'apps/web/src/app/(public)/[locale]/status/not-found/page.tsx',
   ]);
   const files = new Map(
-    Object.entries(sources).map(([name, source]) => [
-      name,
-      ts.createSourceFile(name, source, ts.ScriptTarget.Latest, true),
-    ]),
+    Object.entries(sources).map(([name, source]) => [name, syntax(name, source)]),
   );
-  for (const [name, file] of files) {
+  for (const [name, { file, findings: syntaxFindings }] of files) {
     if (
       /^apps\/web\/(?:app\/|pages\/|src\/pages\/|middleware\.|(?:src\/)?instrumentation(?:-client)?\.)/.test(
         name,
@@ -75,35 +168,7 @@ export function closedHttpSurfaceFindings(sources: SourceCensus): Finding[] {
       !entries.delete(name)
     )
       findings.push(finding(file, 'Fix: keep the approved HTTP entry-point census closed.'));
-    walk(file, (node) => {
-      if (
-        (ts.isSourceFile(node) || ts.isBlock(node)) &&
-        node.statements.some(
-          (statement, index, statements) =>
-            ts.isExpressionStatement(statement) &&
-            ts.isStringLiteral(statement.expression) &&
-            statement.expression.text === 'use server' &&
-            statements
-              .slice(0, index)
-              .every(
-                (prior) => ts.isExpressionStatement(prior) && ts.isStringLiteral(prior.expression),
-              ),
-        )
-      )
-        findings.push(
-          finding(node, 'Fix: no Server Action is admitted by the closed BFF surface.'),
-        );
-    });
-    if (name === 'apps/web/src/app/api/healthz/route.ts')
-      walk(file, (node) => {
-        if (
-          ts.isIdentifier(node) &&
-          ['HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'CONNECT', 'TRACE'].includes(
-            node.text,
-          )
-        )
-          findings.push(finding(node, 'Fix: the infrastructure route exports only GET.'));
-      });
+    findings.push(...syntaxFindings);
   }
   for (const file of entries)
     findings.push({ file, line: 1, reason: 'Fix: retain the approved HTTP entry point.' });
@@ -129,7 +194,7 @@ export function closedHttpSurfaceFindings(sources: SourceCensus): Finding[] {
         ? property.name.text
         : undefined,
     );
-  const middleware = files.get(MIDDLEWARE);
+  const middleware = files.get(MIDDLEWARE)?.file;
   const config = object(middleware, 'config', true);
   const matcher = config?.properties.find(
     (property) => ts.isPropertyAssignment(property) && property.name.getText() === 'matcher',
@@ -156,7 +221,7 @@ export function closedHttpSurfaceFindings(sources: SourceCensus): Finding[] {
       reason: 'Fix: retain the exact native middleware matcher and runtime.',
     });
   const next = 'apps/web/next.config.ts';
-  const nextFile = files.get(next);
+  const nextFile = files.get(next)?.file;
   const nextConfig = object(nextFile, 'nextConfig');
   const imports = nextFile?.statements.filter(ts.isImportDeclaration) ?? [];
   const typeImport = imports.find(
@@ -166,10 +231,16 @@ export function closedHttpSurfaceFindings(sources: SourceCensus): Finding[] {
     (item) =>
       ts.isStringLiteral(item.moduleSpecifier) && item.moduleSpecifier.text === 'next-intl/plugin',
   );
+  const developmentImport = imports.find(
+    (item) =>
+      ts.isStringLiteral(item.moduleSpecifier) &&
+      item.moduleSpecifier.text === '../../scripts/framework-development.mjs',
+  );
   const types = typeImport?.importClause?.namedBindings;
+  const developmentBindings = developmentImport?.importClause?.namedBindings;
   if (
-    nextFile?.statements.length !== 4 ||
-    imports.length !== 2 ||
+    nextFile?.statements.length !== 5 ||
+    imports.length !== 3 ||
     !typeImport?.importClause?.isTypeOnly ||
     typeImport.importClause.name ||
     !types ||
@@ -180,7 +251,17 @@ export function closedHttpSurfaceFindings(sources: SourceCensus): Finding[] {
     !pluginImport?.importClause ||
     pluginImport.importClause.isTypeOnly ||
     pluginImport.importClause.name?.text !== 'createNextIntlPlugin' ||
-    pluginImport.importClause.namedBindings
+    pluginImport.importClause.namedBindings ||
+    !developmentImport?.importClause ||
+    developmentImport.attributes ||
+    developmentImport.importClause.isTypeOnly ||
+    developmentImport.importClause.name ||
+    !developmentBindings ||
+    !ts.isNamedImports(developmentBindings) ||
+    developmentBindings.elements.length !== 1 ||
+    developmentBindings.elements[0]!.isTypeOnly ||
+    developmentBindings.elements[0]!.name.text !== 'createFrameworkDevelopmentPlugin' ||
+    developmentBindings.elements[0]!.propertyName
   )
     findings.push({
       file: next,
@@ -203,6 +284,22 @@ export function closedHttpSurfaceFindings(sources: SourceCensus): Finding[] {
       file: next,
       line: 1,
       reason: 'Fix: keep Next configuration free of unapproved routing hooks or spreads.',
+    });
+  const webpack = nextConfig?.properties.find(
+    (property) =>
+      property.name && ts.isIdentifier(property.name) && property.name.text === 'webpack',
+  );
+  if (
+    !webpack ||
+    !ts.isMethodDeclaration(webpack) ||
+    !nextFile ||
+    syntaxPrinter.printNode(ts.EmitHint.Unspecified, webpack, nextFile) !==
+      syntaxPrinter.printNode(ts.EmitHint.Unspecified, approvedWebpack, approvedWebpackSource)
+  )
+    findings.push({
+      file: next,
+      line: 1,
+      reason: 'Fix: retain the approved development plugin and webpack extension alias.',
     });
   const exports = nextFile?.statements.filter(ts.isExportAssignment);
   const exported = exports?.length === 1 ? exports[0]!.expression : undefined;
@@ -317,10 +414,16 @@ export function admissionBoundaryFindings(graph: SourceGraph): Finding[] {
   });
   return [...findings, ...cacheFindings(graph, [ADMISSION_FACADE])];
 }
-const HOP_HEADERS = new Set([
+const PUBLIC_HOP_HEADERS = new Set([
   'x-learnstack-host',
   'x-learnstack-hop-secret',
   'x-learnstack-visitor-address',
+]);
+const HOP_HEADERS = new Set([
+  ...PUBLIC_HOP_HEADERS,
+  'x-learnstack-native-session-secret',
+  'x-learnstack-native-tenant-id',
+  'x-learnstack-native-organization-id',
 ]);
 const RAW_AUTHORITY_HEADERS = new Set([
   'host',
@@ -570,8 +673,8 @@ export function resolutionCensusFindings(
             value !== `./src/${subpath}.tsx` &&
             !(
               directory === 'packages/sdk' &&
-              subpath === 'authenticated-server' &&
-              value === './dist/authenticated-server.js'
+              ['authenticated-server', 'administration-server'].includes(subpath) &&
+              value === `./dist/${subpath}.js`
             ))
         );
       }) ||
@@ -734,6 +837,259 @@ export function reachable(graph: SourceGraph, roots: readonly string[]): string[
   return [...seen].sort();
 }
 
+/** Selected protected RSCs may read the prepared value, never start continuation work. */
+export function preparedPageRenderFindings(
+  graph: SourceGraph,
+  roots: readonly string[],
+): Finding[] {
+  const findings: Finding[] = [];
+  const seen = new Set<string>();
+  const facade = 'apps/web/src/server/auth/page.ts';
+  const shell = 'apps/web/src/components/auth/shell.tsx';
+  const ingressImports: Readonly<Record<string, readonly string[]>> = {
+    'node:crypto': ['createHmac', 'timingSafeEqual'],
+    'node:fs': ['readFileSync'],
+    'node:net': ['isIP'],
+    'node:path': ['resolve'],
+    './auth/http-paths.js': ['AUTH_INPUT_LIMIT', 'BFF_POST_PATHS', 'bffPostTarget'],
+    './auth/page-query.js': ['validTarget'],
+  };
+  const namedImports = (statement: ts.ImportDeclaration): string[] | null => {
+    const clause = statement.importClause;
+    const bindings = clause?.namedBindings;
+    if (clause?.name || !bindings || !ts.isNamedImports(bindings)) return null;
+    return bindings.elements
+      .filter((binding) => !binding.isTypeOnly)
+      .map((binding) =>
+        binding.propertyName
+          ? binding.propertyName.text + ':' + binding.name.text
+          : binding.name.text,
+      )
+      .sort();
+  };
+  const checkProvenanceLeaf = (file: ts.SourceFile) => {
+    const imported = new Map<string, { specifier: string; member: string }>();
+    for (const statement of file.statements) {
+      if (
+        !ts.isImportDeclaration(statement) ||
+        !runtimeImport(statement) ||
+        !ts.isStringLiteral(statement.moduleSpecifier)
+      )
+        continue;
+      const specifier = statement.moduleSpecifier.text;
+      const expected = ingressImports[specifier];
+      if (
+        !expected ||
+        JSON.stringify(namedImports(statement)) !== JSON.stringify([...expected].sort())
+      )
+        findings.push(
+          finding(
+            statement,
+            'Fix: keep the provenance leaf imports exact; it is not an IO exemption.',
+          ),
+        );
+      const bindings = statement.importClause?.namedBindings;
+      if (bindings && ts.isNamedImports(bindings))
+        for (const binding of bindings.elements)
+          imported.set(binding.name.text, {
+            specifier,
+            member: binding.propertyName?.text ?? binding.name.text,
+          });
+    }
+    const allowed = new Set([
+      'node:crypto#createHmac',
+      'node:crypto#timingSafeEqual',
+      'node:net#isIP',
+      './auth/page-query.js#validTarget',
+    ]);
+    const inspected = new Set<ts.Node>();
+    const inspect = (declaration: ts.Node): void => {
+      if (inspected.has(declaration)) return;
+      inspected.add(declaration);
+      walk(declaration, (node) => {
+        if (!ts.isIdentifier(node)) return;
+        const binding = imported.get(node.text);
+        if (binding && !allowed.has(binding.specifier + '#' + binding.member))
+          findings.push(
+            finding(
+              node,
+              'Fix: the passive provenance call cannot reach configuration or arbitrary IO.',
+            ),
+          );
+        for (const next of declarations(node, graph.checker))
+          if (
+            next.getSourceFile() === file &&
+            (ts.isFunctionDeclaration(next) || ts.isVariableDeclaration(next))
+          )
+            inspect(next);
+      });
+    };
+    for (const statement of file.statements)
+      if (
+        (ts.isFunctionDeclaration(statement) && statement.name?.text === 'verifyProvenance') ||
+        ts.isVariableStatement(statement) ||
+        ts.isExpressionStatement(statement)
+      )
+        inspect(statement);
+  };
+  const visit = (name: string): void => {
+    if (seen.has(name)) return;
+    seen.add(name);
+    const file = graph.files.get(name);
+    if (!file || hasDirective(file, 'use client') || file.flags & ts.NodeFlags.JsonFile) return;
+    if (name === INGRESS) checkProvenanceLeaf(file);
+    const passiveCalls = new Set<string>();
+    for (const statement of file.statements) {
+      if (
+        !ts.isImportDeclaration(statement) ||
+        !runtimeImport(statement) ||
+        !ts.isStringLiteral(statement.moduleSpecifier)
+      )
+        continue;
+      const specifier = statement.moduleSpecifier.text;
+      const bindings = statement.importClause?.namedBindings;
+      if (
+        graph.resolveModule(specifier, name) === INGRESS &&
+        (name !== facade ||
+          JSON.stringify(namedImports(statement)) !==
+            JSON.stringify(['INGRESS_HEADER', 'verifyProvenance']))
+      )
+        findings.push(
+          finding(
+            statement,
+            'Fix: protected rendering reaches ingress only through the exact passive provenance edge.',
+          ),
+        );
+      if (bindings && ts.isNamedImports(bindings)) {
+        for (const binding of bindings.elements) {
+          const imported = binding.propertyName?.text ?? binding.name.text;
+          if (
+            (graph.resolveModule(specifier, name) === facade &&
+              ['preparedPage', 'optionalPreparedPage'].includes(imported)) ||
+            (name === facade && specifier === 'next/headers' && imported === 'headers')
+          )
+            passiveCalls.add(binding.name.text);
+          if (['after', 'unstable_after'].includes(imported))
+            findings.push(
+              finding(binding, 'Fix: protected rendering cannot register background work.'),
+            );
+        }
+      }
+      if (
+        name !== INGRESS &&
+        /^(?:node:)?(?:fs|http|https|net|tls|child_process|worker_threads)(?:\/|$)/.test(specifier)
+      )
+        findings.push(finding(statement, 'Fix: native preparation owns protected IO.'));
+    }
+    if (name === facade) passiveCalls.add('optionalPreparedPage');
+    walk(file, (node) => {
+      if (
+        ts.isExportDeclaration(node) &&
+        node.moduleSpecifier &&
+        runtimeExport(node) &&
+        constantString(node.moduleSpecifier, graph.checker) !== undefined &&
+        graph.resolveModule(constantString(node.moduleSpecifier, graph.checker)!, name) === INGRESS
+      )
+        findings.push(
+          finding(node, 'Fix: do not re-export native ingress authority into protected rendering.'),
+        );
+      if (
+        ts.isIdentifier(node) &&
+        ['setTimeout', 'setInterval', 'setImmediate', 'queueMicrotask'].includes(node.text)
+      )
+        findings.push(
+          finding(node, 'Fix: protected rendering cannot borrow a background scheduler.'),
+        );
+      if (
+        ts.isAwaitExpression(node) &&
+        (!ts.isCallExpression(node.expression) ||
+          !ts.isIdentifier(node.expression.expression) ||
+          !passiveCalls.has(node.expression.expression.text))
+      )
+        findings.push(
+          finding(node, 'Fix: protected rendering awaits only its passive prepared page lookup.'),
+        );
+      if (
+        (ts.isFunctionDeclaration(node) ||
+          ts.isFunctionExpression(node) ||
+          ts.isArrowFunction(node) ||
+          ts.isMethodDeclaration(node)) &&
+        node.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.AsyncKeyword)
+      ) {
+        const method =
+          'name' in node && node.name && ts.isIdentifier(node.name) ? node.name.text : '';
+        if (
+          !(name === facade && ['preparedPage', 'optionalPreparedPage'].includes(method)) &&
+          !(
+            name === shell &&
+            ['AccountPage', 'AccountShell', 'accountPageMetadata'].includes(method)
+          )
+        )
+          findings.push(
+            finding(
+              node,
+              'Fix: keep selected protected views synchronous after their passive read.',
+            ),
+          );
+      }
+      if (
+        ts.isNewExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        node.expression.text === 'Promise'
+      )
+        findings.push(
+          finding(node, 'Fix: protected rendering cannot create unowned promise work.'),
+        );
+      if (ts.isCallExpression(node)) {
+        const call = node.expression;
+        if (
+          ts.isIdentifier(call) &&
+          call.text === 'require' &&
+          constantString(node.arguments[0], graph.checker) !== undefined &&
+          graph.resolveModule(constantString(node.arguments[0], graph.checker)!, name) === INGRESS
+        )
+          findings.push(
+            finding(
+              node,
+              'Fix: protected rendering reaches ingress only through the exact passive provenance edge.',
+            ),
+          );
+        const method = ts.isIdentifier(call)
+          ? call.text
+          : ts.isPropertyAccessExpression(call)
+            ? call.name.text
+            : ts.isElementAccessExpression(call) && ts.isStringLiteralLike(call.argumentExpression)
+              ? call.argumentExpression.text
+              : undefined;
+        if (
+          method &&
+          [
+            'then',
+            'catch',
+            'finally',
+            'after',
+            'unstable_after',
+            'waitUntil',
+            'setTimeout',
+            'setInterval',
+            'setImmediate',
+            'queueMicrotask',
+            'fetch',
+          ].includes(method)
+        )
+          findings.push(
+            finding(node, 'Fix: protected rendering cannot schedule API or continuation work.'),
+          );
+        if (call.kind === ts.SyntaxKind.ImportKeyword)
+          findings.push(finding(node, 'Fix: keep the protected render dependency closure static.'));
+      }
+    });
+    for (const next of graph.edges.get(name) ?? []) visit(next);
+  };
+  roots.forEach(visit);
+  return findings;
+}
+
 export function hasDirective(file: ts.SourceFile, directive: string): boolean {
   if (file.flags & ts.NodeFlags.JsonFile) return false;
   for (const statement of file.statements) {
@@ -790,9 +1146,11 @@ export function publicLayoutPolicyFindings(graph: SourceGraph): Finding[] {
 export function transportFindings(graph: SourceGraph): Finding[] {
   const findings: Finding[] = [];
   for (const [name, file] of graph.files) {
-    if (name === ADAPTER) continue;
+    const allowedHeader = (header: string) =>
+      name === NATIVE_API_TRANSPORT || (name === ADAPTER && PUBLIC_HOP_HEADERS.has(header));
     walk(file, (node) => {
       if (
+        name !== ADAPTER &&
         ts.isCallExpression(node) &&
         globalFetch(node.expression, graph) &&
         !(name === BFF_BROWSER_ADAPTER && fixedBffExtension(node, file))
@@ -800,7 +1158,11 @@ export function transportFindings(graph: SourceGraph): Finding[] {
         findings.push(
           finding(node, 'Fix: call the configured public SDK adapter instead of global fetch.'),
         );
-      if (ts.isCallExpression(node) && node.arguments.some((value) => globalFetch(value, graph)))
+      if (
+        name !== ADAPTER &&
+        ts.isCallExpression(node) &&
+        node.arguments.some((value) => globalFetch(value, graph))
+      )
         findings.push(
           finding(
             node,
@@ -808,6 +1170,7 @@ export function transportFindings(graph: SourceGraph): Finding[] {
           ),
         );
       if (
+        name !== ADAPTER &&
         (ts.isVariableDeclaration(node) || ts.isParameter(node) || ts.isPropertyAssignment(node)) &&
         node.initializer &&
         globalFetch(node.initializer, graph)
@@ -818,7 +1181,7 @@ export function transportFindings(graph: SourceGraph): Finding[] {
             'Fix: inject transport; do not store or default to global fetch outside the configured adapter.',
           ),
         );
-      if (ts.isExportAssignment(node) && globalFetch(node.expression, graph))
+      if (name !== ADAPTER && ts.isExportAssignment(node) && globalFetch(node.expression, graph))
         findings.push(
           finding(
             node,
@@ -842,13 +1205,17 @@ export function transportFindings(graph: SourceGraph): Finding[] {
           for (const pair of pairs.elements)
             if (ts.isArrayLiteralExpression(pair)) {
               const header = constantString(pair.elements[0], graph.checker);
-              if (name !== ACCOUNT_ADAPTER && header && HOP_HEADERS.has(header.toLowerCase()))
+              if (
+                header &&
+                HOP_HEADERS.has(header.toLowerCase()) &&
+                !allowedHeader(header.toLowerCase())
+              )
                 findings.push(
                   finding(pair, 'Fix: construct API-hop headers only in the configured adapter.'),
                 );
             }
       }
-      if (name !== ACCOUNT_ADAPTER && key && HOP_HEADERS.has(key.toLowerCase()))
+      if (key && HOP_HEADERS.has(key.toLowerCase()) && !allowedHeader(key.toLowerCase()))
         findings.push(
           finding(node, 'Fix: construct API-hop headers only in the configured adapter.'),
         );
@@ -979,6 +1346,7 @@ export function privateServerFiles(graph: SourceGraph): string[] {
         (name.startsWith('apps/web/src/i18n/messages/') && name.endsWith('.json')) ||
         name === SDK_SERVER ||
         name === SDK_AUTHENTICATED ||
+        name === SDK_ADMINISTRATION ||
         hasServerOnlyMarker(file)
       )
         return true;

@@ -1,6 +1,23 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 
+import type { OwnMembershipProfile } from '@learnstack/sdk/administration-server';
+
 import { canonicalAddress, normalizeHost } from '../ingress.js';
+import { openEntryCursor, sealEntryCursor } from './entry-cursor.js';
+import { bffActionDocumentTarget } from './http-paths.js';
+import { BffInputError } from './input-error.js';
+import { NativeApiError } from './native-contract.js';
+import type { NativeScope, SelfContexts } from './native-contract.js';
+import type { NativeOperation, NativeOperationResult } from './native-operation-contract.js';
+import { nativeContextPage } from './native-session-client.js';
+import type { NativeEntrySnapshot, NativePageSnapshot, ScopeChoices } from './page-contract.js';
+import { nativeDocumentPlan, preloadPage } from './page-preload.js';
+import { bffCursor, bffQuery } from './page-query.js';
+import type {
+  NativePageLease,
+  NativePagePreparation,
+  NativeSnapshotTicket,
+} from './page-snapshot-contract.js';
 import { BffProviderError } from './provider-error.js';
 import type { LoginTransaction, ProviderCredentials } from './provider.js';
 import { BffSessionError } from './session-contract.js';
@@ -9,13 +26,20 @@ import type {
   BffSessionStore,
   LoginCompletion,
   LoginStart,
+  EntryProjection,
+  SelectionCompletion,
+  SessionCompletion,
+  PublishedSessionIdentity,
+  NativeReturnPath,
   LogoutStart,
   SessionActivity,
   SessionBinding,
   SessionDependencies,
   SessionFailure,
   SessionProjection,
+  PagePreparation,
 } from './session-contract.js';
+import { isNativeReturnPath } from './session-path.js';
 
 export const BFF_LIMITS = Object.freeze({
   owners: 1024,
@@ -53,18 +77,35 @@ type Owner = {
   group: Group;
   epoch: string;
   source: string;
-  phase: 'starting' | 'pending' | 'exchange' | 'active' | 'logout' | 'closing';
+  phase:
+    | 'starting'
+    | 'pending'
+    | 'exchange'
+    | 'entry'
+    | 'selecting'
+    | 'active'
+    | 'switching'
+    | 'logout'
+    | 'closing';
   pending: boolean;
   deadline: number;
   controller: AbortController;
   work: Set<Promise<unknown>>;
   transaction?: LoginTransaction;
   proof?: string;
-  returnPath: '/' | '/studio' | '/portal';
+  returnPath: NativeReturnPath;
+  contextHint?: string;
   replacement?: Owner;
   subject?: Readonly<{ key: string }>;
   credentials?: ProviderCredentials;
   account?: AccountWitness;
+  identity?: PublishedSessionIdentity;
+  cursorKey?: Buffer;
+  pageCursorKey?: Buffer;
+  pageRevision?: object;
+  pageLeases?: Set<NativePageLease>;
+  busy?: Promise<unknown>;
+  transition?: Promise<SelectionCompletion>;
   absolute: number;
   activity: number;
   utcOffset: number;
@@ -81,12 +122,14 @@ export class InMemoryBffSessionStore implements BffSessionStore {
   readonly #logoutStates = new Map<string, Owner>();
   readonly #groups = new Map<string, Group>();
   readonly #dependencies: SessionDependencies;
+  readonly #preparation: NativePagePreparation | undefined;
   readonly #timer: ReturnType<typeof setInterval>;
   #stopped = false;
   #stopping?: Promise<void>;
 
-  constructor(dependencies: SessionDependencies) {
+  constructor(dependencies: SessionDependencies, preparation?: NativePagePreparation) {
     this.#dependencies = dependencies;
+    this.#preparation = preparation;
     this.#timer = setInterval(() => this.sweep(), BFF_LIMITS.sweepMs);
     this.#timer.unref();
   }
@@ -130,7 +173,10 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     if (this.#stopped) throw new BffSessionError('stopped');
     if (entry.phase !== phase || entry.epoch !== entry.group.epoch)
       throw new BffSessionError('revoked');
-    const deadline = phase === 'active' ? this.#effective(entry) : entry.deadline;
+    const deadline =
+      phase === 'active'
+        ? this.#effective(entry)
+        : Math.min(entry.deadline, entry.credentials?.refreshExpiresAt ?? entry.deadline);
     if (this.#now() >= deadline) throw new BffSessionError('expired');
   }
   #find(binding: SessionBinding) {
@@ -145,6 +191,11 @@ export class InMemoryBffSessionStore implements BffSessionStore {
   #release(entry: Owner) {
     if (entry.phase !== 'closing' || entry.work.size || this.#owners.get(entry.id) !== entry)
       return;
+    this.#clearCursorKey(entry);
+    this.#clearPageCursorKey(entry);
+    entry.pageLeases?.clear();
+    entry.pageLeases = undefined;
+    entry.pageRevision = undefined;
     this.#owners.delete(entry.id);
     if (entry.transaction) this.#states.delete(entry.transaction.state);
     if (entry.logoutState) this.#logoutStates.delete(entry.logoutState);
@@ -162,12 +213,357 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       this.#groups.delete(this.#groupKey(entry.group.host, entry.group.browser));
   }
   #close(entry: Owner) {
+    this.#abortPages(entry);
+    this.#clearCursorKey(entry);
+    this.#clearPageCursorKey(entry);
     entry.phase = 'closing';
     entry.credentials = undefined;
     entry.account = undefined;
+    entry.identity = undefined;
     entry.proof = undefined;
     entry.controller.abort();
     this.#release(entry);
+  }
+  #clearCursorKey(entry: Owner) {
+    entry.cursorKey?.fill(0);
+    entry.cursorKey = undefined;
+  }
+  #clearPageCursorKey(entry: Owner) {
+    entry.pageCursorKey?.fill(0);
+    entry.pageCursorKey = undefined;
+  }
+  #abortPages(entry: Owner, pinnedOnly = true) {
+    for (const lease of entry.pageLeases ?? []) if (!pinnedOnly || lease.pinned) lease.abort();
+  }
+  #pageRevision(entry: Owner) {
+    return (entry.pageRevision ??= Object.freeze({}));
+  }
+  #pageValid(entry: Owner, phase: 'entry' | 'active', revision: object) {
+    try {
+      this.#assert(entry, phase);
+      return this.#pageRevision(entry) === revision && (phase === 'entry' || this.#live(entry));
+    } catch {
+      return false;
+    }
+  }
+  #pageCursorBinding(entry: Owner, purpose: 'members' | 'scopes') {
+    return { ...this.#cursorBinding(entry), purpose };
+  }
+  #wrapPageCursor(entry: Owner, purpose: 'members' | 'scopes', cursor: string) {
+    entry.pageCursorKey ??= randomBytes(32);
+    return sealEntryCursor(entry.pageCursorKey, this.#pageCursorBinding(entry, purpose), cursor);
+  }
+  #openPageCursor(entry: Owner, purpose: 'members' | 'scopes', cursor: string | undefined) {
+    if (cursor === undefined) return undefined;
+    if (!entry.pageCursorKey) throw new BffInputError();
+    return openEntryCursor(entry.pageCursorKey, this.#pageCursorBinding(entry, purpose), cursor);
+  }
+  #retainPage(entry: Owner, ticket: NativeSnapshotTicket) {
+    if (!this.#preparation) throw new BffSessionError('configuration');
+    const lease = this.#preparation.reserve(ticket, entry);
+    (entry.pageLeases ??= new Set()).add(lease);
+    const hold = this.#tracked(entry, () => lease.cleaned);
+    const release = () => entry.pageLeases?.delete(lease);
+    void hold.then(release, release);
+    return lease;
+  }
+  /** The only page producer. Reservation precedes authority/API work on the real owner. */
+  async preparePage(
+    binding: SessionBinding,
+    source: string,
+    input: PagePreparation,
+  ): Promise<NativePageSnapshot | NativeEntrySnapshot> {
+    this.#checkSource(binding.host, source);
+    const ticket = input.ticket;
+    if (
+      !this.#preparation ||
+      ticket.binding.host !== binding.host ||
+      ticket.binding.peer !== source ||
+      ticket.signal.aborted
+    )
+      throw new BffSessionError('configuration');
+    if (input.kind === 'response') {
+      const target = ticket.binding.target;
+      const page = input.page;
+      if (
+        ticket.binding.method !== 'POST' ||
+        !bffActionDocumentTarget(target) ||
+        (page.kind === 'mutation_error'
+          ? target !== page.action ||
+            target === '/api/auth/switch' ||
+            target === '/api/auth/entry/select'
+          : page.kind !== 'account_change' ||
+            !['/api/auth/switch', '/api/auth/entry/select'].includes(target))
+      )
+        throw new BffInputError();
+      const owner = this.#find(binding);
+      if (!owner) throw new BffSessionError('revoked');
+      const csrf =
+        page.kind === 'account_change'
+          ? page.csrfToken
+          : page.fields.filter(([name]) => name === 'csrfToken');
+      if (
+        !bffSecretEquals(
+          typeof csrf === 'string' ? csrf : csrf.length === 1 ? csrf[0]![1] : undefined,
+          owner.csrf,
+        )
+      )
+        throw new BffSessionError('csrf');
+      const lease = this.#retainPage(owner, ticket);
+      const revision = this.#pageRevision(owner);
+      lease.pin(
+        () => this.#pageValid(owner, 'active', revision),
+        this.#effective(owner) - this.#now(),
+      );
+      // Only the current actor's API-validated preference selects recovery copy.
+      // Posted profile values never select it, including when editing oneself.
+      const localeWork = this.#bounded(owner, lease.signal, async (signal) => {
+        const result = await this.#dependencies.administration(
+          owner.credentials!.accessToken,
+          this.#scoped(binding, source, owner.identity!),
+          { kind: 'getOwnProfile' },
+          signal,
+        );
+        if (!this.#pageValid(owner, 'active', revision)) throw new BffSessionError('revoked');
+        const preferred =
+          result.kind === 'success' ? (result.data as OwnMembershipProfile).preferredLocale : null;
+        return typeof preferred === 'string' && ticket.site.enabledLocales.includes(preferred)
+          ? preferred
+          : ticket.site.defaultLocale;
+      });
+      lease.track(localeWork);
+      let locale = ticket.site.defaultLocale;
+      try {
+        locale = await this.#wait(localeWork, lease.signal);
+      } catch (error) {
+        if (!this.#pageValid(owner, 'active', revision) || lease.signal.aborted) throw error;
+        // A missing/unavailable optional preference keeps the admitted recovery,
+        // in the institution's language; it supplies no replacement authority.
+      }
+      return lease.publishEntry({
+        site: ticket.site,
+        locale,
+        view: page,
+      });
+    }
+    const path = ticket.binding.target.split('?', 1)[0];
+    if (input.kind === 'document') {
+      if (ticket.binding.method !== 'GET') throw new BffInputError();
+    } else {
+      if (
+        path !== (input.kind === 'create' ? '/api/auth/entry/create' : '/api/auth/entry') ||
+        ticket.binding.method !== (input.kind === 'create' ? 'POST' : 'GET')
+      )
+        throw new BffInputError();
+      const query = bffQuery(ticket.binding.target, input.kind === 'create' ? [] : ['cursor']);
+      if (input.kind !== 'create' && bffCursor(query.get('cursor')) !== input.cursor)
+        throw new BffInputError();
+    }
+    const plan =
+      input.kind === 'document' ? nativeDocumentPlan(ticket.binding.target, ticket.flight) : null;
+    const isEntry = input.kind === 'entry' || input.kind === 'create';
+    const owner = isEntry ? this.#findEntry(binding) : this.#find(binding);
+    if (!owner) throw new BffSessionError('revoked');
+    const rawCursor =
+      input.kind === 'entry'
+        ? input.cursor === undefined
+          ? undefined
+          : openEntryCursor(owner.cursorKey!, this.#cursorBinding(owner), input.cursor)
+        : input.kind === 'scopes'
+          ? this.#openPageCursor(owner, 'scopes', input.cursor)
+          : plan?.cursor
+            ? this.#openPageCursor(owner, 'members', plan.cursor)
+            : undefined;
+    if (input.kind === 'create') this.#entryProof(owner, input.csrf);
+    const lease = this.#retainPage(owner, ticket);
+    const pin = (phase: 'entry' | 'active') => {
+      const revision = this.#pageRevision(owner);
+      lease.pin(
+        () => this.#pageValid(owner, phase, revision),
+        (phase === 'active'
+          ? this.#effective(owner)
+          : Math.min(owner.deadline, owner.credentials!.refreshExpiresAt)) - this.#now(),
+      );
+      return revision;
+    };
+    const entryView = (entry: EntryProjection): NativeEntrySnapshot => ({
+      site: ticket.site,
+      locale: ticket.site.defaultLocale,
+      view: {
+        kind: 'entry',
+        entry,
+        cursor: input.kind === 'entry' ? (input.cursor ?? null) : null,
+      },
+    });
+    const failure = (error: unknown): NativeEntrySnapshot => {
+      if (lease.signal.aborted || this.#stopped) throw error;
+      if (!lease.pinned) lease.pin(() => !this.#stopped && !ticket.signal.aborted, 10_000);
+      const reason = this.#reason(error);
+      const supplied = error instanceof NativeApiError ? error.status : undefined;
+      const status =
+        supplied ??
+        (reason === 'csrf'
+          ? 403
+          : ['identity', 'invalid_grant', 'reauthenticate', 'expired', 'revoked'].includes(reason)
+            ? 400
+            : 503);
+      return lease.publishEntry({
+        site: ticket.site,
+        locale: ticket.site.defaultLocale,
+        view: {
+          kind: 'failure',
+          reason:
+            status === 401 ||
+            ['identity', 'invalid_grant', 'reauthenticate', 'expired', 'revoked'].includes(reason)
+              ? 'reauthenticate'
+              : status === 403 && input.kind === 'create' && error instanceof NativeApiError
+                ? 'creation_disabled'
+                : status === 403 || status === 404
+                  ? 'denied'
+                  : status === 429
+                    ? 'busy'
+                    : 'unavailable',
+          status,
+          code:
+            error instanceof BffSessionError || error instanceof BffProviderError
+              ? reason
+              : 'unavailable',
+          retryAfterSeconds:
+            error instanceof NativeApiError ? (error.retryAfterSeconds ?? null) : null,
+          returnPath: plan?.target ?? '/studio',
+        },
+      });
+    };
+    if (isEntry) {
+      pin('entry');
+      const work =
+        input.kind === 'create'
+          ? this.create(
+              binding,
+              source,
+              input.csrf,
+              input.signal ? AbortSignal.any([lease.signal, input.signal]) : lease.signal,
+            )
+          : this.#bounded(owner, lease.signal, (current) =>
+              this.#entryRead(owner, binding, source, rawCursor, current),
+            );
+      lease.track(work);
+      try {
+        return lease.publishEntry(entryView(await this.#wait(work, lease.signal)));
+      } catch (error) {
+        return failure(error);
+      }
+    }
+    let authorityFailure: unknown;
+    try {
+      const work = this.#bounded(owner, lease.signal, async (current) => {
+        this.#assert(owner, 'active');
+        if (owner.transition) throw new BffSessionError('transaction');
+        const refreshed =
+          ticket.activity === 'read'
+            ? await this.#ready(owner, binding, source, false, current, undefined, (actual) =>
+                lease.track(actual),
+              )
+            : false;
+        this.#assertSignal(current);
+        this.#assert(owner, 'active');
+        const credentials = owner.credentials!;
+        if (credentials.accessExpiresAt <= this.#now())
+          throw new BffSessionError('provider_refused');
+        if (!refreshed) {
+          try {
+            const account = await this.#dependencies.account(
+              credentials.accessToken,
+              this.#scoped(binding, source, owner.identity!),
+              current,
+            );
+            this.#assertSignal(current);
+            this.#assert(owner, 'active');
+            if (owner.credentials !== credentials) throw new BffSessionError('transaction');
+            this.#account(owner, account, owner.identity!);
+          } catch (error) {
+            if (this.#reason(error) === 'identity' && owner.phase !== 'logout') {
+              authorityFailure = error;
+              this.#close(owner);
+            }
+            throw error;
+          }
+          if (ticket.activity === 'read') owner.activity = this.#now();
+        }
+        const revision = pin('active');
+        const read = async (operation: NativeOperation) => {
+          this.#assertSignal(current);
+          if (!this.#pageValid(owner, 'active', revision)) throw new BffSessionError('revoked');
+          const result = await this.#dependencies.administration(
+            credentials.accessToken,
+            this.#scoped(binding, source, owner.identity!),
+            operation,
+            current,
+          );
+          this.#assertSignal(current);
+          if (!this.#pageValid(owner, 'active', revision)) throw new BffSessionError('revoked');
+          return result;
+        };
+        if (input.kind === 'scopes') {
+          const result = await read({
+            kind: 'getOwnContexts',
+            limit: 20,
+            ...(rawCursor ? { cursor: rawCursor } : {}),
+          });
+          if (result.kind === 'api-error')
+            throw new NativeApiError('provider_refused', result.status);
+          if (result.kind !== 'success') throw new BffSessionError('response');
+          const contexts = nativeContextPage(result.data, 20);
+          if (contexts.items.some((item) => item.tenantId !== owner.identity!.tenantId))
+            throw new BffSessionError('response');
+          const selection: ScopeChoices = {
+            session: this.#project(owner),
+            expiresAt: this.#project(owner).expiresAt,
+            contexts: {
+              items: contexts.items.map((item) => ({
+                ...item,
+                current:
+                  item.tenantId === owner.identity!.tenantId &&
+                  item.organizationId === owner.identity!.organizationId,
+              })),
+              endCursor:
+                contexts.endCursor === null
+                  ? null
+                  : this.#wrapPageCursor(owner, 'scopes', contexts.endCursor),
+              hasNextPage: contexts.hasNextPage,
+            },
+          };
+          return {
+            site: ticket.site,
+            locale: ticket.site.defaultLocale,
+            view: { kind: 'scopes', selection, cursor: input.cursor ?? null },
+          } as NativeEntrySnapshot;
+        }
+        return preloadPage(
+          { ...plan!, ...(rawCursor ? { cursor: rawCursor } : {}) },
+          {
+            target: plan!.target,
+            site: ticket.site,
+            session: this.#project(owner),
+            scopeKind: owner.identity!.organizationId === null ? 'tenant' : 'organization',
+            formKeys: Array.from({ length: 32 }, opaque),
+          },
+          owner.identity!.organizationId,
+          read,
+          (cursor) => this.#wrapPageCursor(owner, 'members', cursor),
+        );
+      });
+      lease.track(work);
+      const value = await this.#wait(work, lease.signal);
+      return 'target' in value ? lease.publish(value) : lease.publishEntry(value);
+    } catch (error) {
+      // Before positive authority, only public recovery may be returned. No cached
+      // session/profile/CSRF data enters this response after an uncertain refusal.
+      return failure(authorityFailure ?? error);
+    }
+  }
+  #cursorBinding(entry: Owner) {
+    return { id: entry.id, host: entry.group.host, epoch: entry.epoch };
   }
   #tracked<T>(entry: Owner, action: () => Promise<T>): Promise<T> {
     // Assign ownership before any action or continuation can execute.
@@ -211,39 +607,46 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       csrfToken: entry.csrf,
     });
   }
-  #account(
-    entry: Owner,
-    credentials: ProviderCredentials,
-    account: AccountWitness,
-    previous?: AccountWitness,
-  ) {
-    const identity = credentials.identity;
+  #account(entry: Owner, account: AccountWitness, expected: PublishedSessionIdentity) {
     if (
       !account ||
       typeof account.displayName !== 'string' ||
       account.displayName.length > 1024 ||
-      (account.organizationId !== null &&
-        (typeof account.organizationId !== 'string' ||
-          !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(
-            account.organizationId,
-          ) ||
-          account.organizationId === '00000000-0000-0000-0000-000000000000')) ||
-      account.actorId !== identity.actorId ||
-      account.tenantId !== identity.tenantId ||
-      (identity.organizationId !== null && account.organizationId !== identity.organizationId) ||
-      (previous &&
-        (account.actorId !== previous.actorId ||
-          account.tenantId !== previous.tenantId ||
-          account.organizationId !== previous.organizationId))
+      account.actorId !== expected.actorId ||
+      account.tenantId !== expected.tenantId ||
+      account.organizationId !== expected.organizationId
     )
       throw new BffSessionError('identity');
-    // Only closed fields are retained; additive provider/API objects cannot enter projections.
     entry.account = Object.freeze({
       actorId: account.actorId,
       tenantId: account.tenantId,
       organizationId: account.organizationId,
       displayName: account.displayName,
     });
+  }
+  #reserveSubject(entry: Owner, credentials: ProviderCredentials) {
+    const key = JSON.stringify([credentials.identity.issuer, credentials.identity.subject]);
+    if (
+      [...this.#owners.values()].filter((owner) => owner.subject?.key === key).length >=
+      BFF_LIMITS.subject
+    )
+      throw new BffSessionError('subject_capacity');
+    // Every retained owner consumes its own credit, including same-person replacement.
+    entry.subject = Object.freeze({ key });
+  }
+  #binding(binding: SessionBinding, source: string) {
+    return {
+      host: binding.host,
+      source,
+      ...(binding.traceparent ? { traceparent: binding.traceparent } : {}),
+    };
+  }
+  #scoped(binding: SessionBinding, source: string, scope: NativeScope) {
+    return {
+      ...this.#binding(binding, source),
+      tenantId: scope.tenantId,
+      organizationId: scope.organizationId,
+    };
   }
   #bundle(next: ProviderCredentials, previous?: ProviderCredentials) {
     if (
@@ -254,7 +657,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       next.accessExpiresAt <= this.#now() ||
       next.refreshExpiresAt <= this.#now() ||
       (previous &&
-        Object.keys(previous.identity).some(
+        (['issuer', 'subject', 'actorId', 'tenantId', 'organizationId'] as const).some(
           (key) =>
             previous.identity[key as keyof typeof previous.identity] !==
             next.identity[key as keyof typeof next.identity],
@@ -270,6 +673,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
         actorId: next.identity.actorId,
         tenantId: next.identity.tenantId,
         organizationId: next.identity.organizationId,
+        displayLabel: previous ? null : next.identity.displayLabel,
       }),
       accessExpiresAt: next.accessExpiresAt,
       refreshExpiresAt: next.refreshExpiresAt,
@@ -298,8 +702,14 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     this.#checkSource(input.host, input.source);
     if (input.signal?.aborted) throw new BffSessionError('cancelled');
     if (
-      !['/', '/studio', '/portal'].includes(input.returnPath) ||
-      (input.browser !== undefined && !isBffOpaque(input.browser))
+      !isNativeReturnPath(input.returnPath) ||
+      (input.browser !== undefined && !isBffOpaque(input.browser)) ||
+      (input.contextHint !== undefined &&
+        input.contextHint !== 'tenant' &&
+        (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(
+          input.contextHint,
+        ) ||
+          input.contextHint === '00000000-0000-0000-0000-000000000000'))
     )
       throw new BffSessionError('configuration');
     this.sweep();
@@ -343,6 +753,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       controller: new AbortController(),
       work: new Set(),
       returnPath: input.returnPath,
+      contextHint: input.contextHint,
       replacement,
       absolute: now + BFF_LIMITS.absoluteMs,
       activity: now,
@@ -409,61 +820,17 @@ export class InMemoryBffSessionStore implements BffSessionStore {
           ),
         );
         this.#assert(entry, 'exchange');
-        const account = await this.#dependencies.account(
-          credentials.accessToken,
-          {
-            host: input.host,
-            source: input.source,
-            ...(input.traceparent ? { traceparent: input.traceparent } : {}),
-          },
-          entry.controller.signal,
-        );
-        this.#assert(entry, 'exchange');
-        this.#account(entry, credentials, account);
-        this.sweep();
-        this.#assert(entry, 'exchange');
-        const subject = JSON.stringify([credentials.identity.issuer, credentials.identity.subject]);
-        const old =
-          entry.replacement && this.#live(entry.replacement) ? entry.replacement : undefined;
-        const retained = new Set(
-          [...this.#owners.values()]
-            .map((value) => value.subject)
-            .filter((credit) => credit?.key === subject),
-        ).size;
-        if (retained >= BFF_LIMITS.subject && old?.subject?.key !== subject)
-          throw new BffSessionError('subject_capacity');
-        // Reserve a new subject credit before retiring a different subject. A same-
-        // subject replacement borrows its old credit until actual old I/O settles.
-        entry.subject =
-          old?.subject?.key === subject ? old.subject : Object.freeze({ key: subject });
-        entry.group.publishing = entry;
-        const epoch = opaque();
-        entry.group.epoch = epoch;
-        entry.epoch = epoch;
-        for (const competing of entry.group.members)
-          if (competing !== entry && competing !== old && competing.pending) this.#close(competing);
-        if (old) {
-          this.#close(old);
-          await Promise.allSettled([...old.work]);
-          this.#assert(entry, 'exchange');
-        }
+        this.#reserveSubject(entry, credentials);
+        entry.cursorKey = randomBytes(32);
         entry.credentials = credentials;
-        entry.pending = false;
-        entry.source = '';
-        entry.replacement = undefined;
-        entry.phase = 'active';
-        entry.absolute = this.#now() + BFF_LIMITS.absoluteMs;
-        entry.activity = this.#now();
-        entry.proof = undefined;
         entry.transaction = undefined;
-        entry.group.current = entry;
-        entry.group.publishing = undefined;
-        this.#assert(entry, 'active');
+        entry.proof = undefined;
+        entry.phase = 'entry';
         return Object.freeze({
+          kind: 'entry',
           handle: entry.id,
           browser: entry.group.browser,
-          returnPath: entry.returnPath,
-          session: this.#project(entry),
+          entry: this.#entryProjection(entry),
         });
       } catch (error) {
         const reason = this.#stopped
@@ -475,6 +842,529 @@ export class InMemoryBffSessionStore implements BffSessionStore {
         this.#diagnostic(reason);
         throw new BffSessionError(reason, input.state);
       }
+    });
+  }
+
+  #findEntry(binding: SessionBinding, allowSelecting = false) {
+    const entry = isBffOpaque(binding.handle) ? this.#owners.get(binding.handle) : undefined;
+    if (
+      !entry ||
+      entry.group.host !== binding.host ||
+      !bffSecretEquals(entry.group.browser, binding.browser)
+    )
+      throw new BffSessionError('revoked');
+    if (entry.phase !== 'entry' && !(allowSelecting && entry.phase === 'selecting'))
+      throw new BffSessionError('revoked');
+    this.#assert(entry, entry.phase);
+    return entry;
+  }
+  #entryProjection(
+    entry: Owner,
+    identityState: EntryProjection['identityState'] = 'unavailable',
+    contexts: SelfContexts | null = null,
+  ): EntryProjection {
+    this.#assert(entry, 'entry');
+    return Object.freeze({
+      state: 'entry',
+      displayLabel: entry.credentials!.identity.displayLabel,
+      csrfToken: entry.csrf,
+      expiresAt: Math.round(
+        entry.utcOffset + Math.min(entry.deadline, entry.credentials!.refreshExpiresAt),
+      ),
+      identityState,
+      contexts:
+        contexts === null
+          ? null
+          : Object.freeze({
+              ...contexts,
+              endCursor:
+                contexts.endCursor === null
+                  ? null
+                  : sealEntryCursor(
+                      entry.cursorKey!,
+                      this.#cursorBinding(entry),
+                      contexts.endCursor,
+                    ),
+            }),
+      contextHint: entry.contextHint ?? null,
+    });
+  }
+  #entryProof(entry: Owner, csrf: string) {
+    if (!bffSecretEquals(csrf, entry.csrf)) throw new BffSessionError('csrf');
+  }
+  #assertSignal(signal: AbortSignal) {
+    if (signal.aborted) throw new BffSessionError('cancelled');
+  }
+  async #bounded<T>(
+    entry: Owner,
+    signal: AbortSignal | undefined,
+    action: (signal: AbortSignal) => Promise<T>,
+  ): Promise<T> {
+    const controller = new AbortController();
+    let timedOut = false;
+    const abort = () => controller.abort();
+    entry.controller.signal.addEventListener('abort', abort, { once: true });
+    signal?.addEventListener('abort', abort, { once: true });
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, 10_000);
+    timer.unref();
+    if (entry.controller.signal.aborted || signal?.aborted) abort();
+    const work = this.#tracked(entry, async () => {
+      this.#assertSignal(controller.signal);
+      const result = await action(controller.signal);
+      this.#assertSignal(controller.signal);
+      return result;
+    });
+    const settled = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', abort);
+      entry.controller.signal.removeEventListener('abort', abort);
+    };
+    void work.then(settled, settled);
+    try {
+      return await work;
+    } catch (error) {
+      if (controller.signal.aborted) throw new BffSessionError(timedOut ? 'deadline' : 'cancelled');
+      throw error;
+    }
+  }
+  async #entryRead(
+    entry: Owner,
+    binding: SessionBinding,
+    source: string,
+    cursor: string | undefined,
+    signal: AbortSignal,
+  ): Promise<EntryProjection> {
+    this.#assert(entry, 'entry');
+    const credentials = entry.credentials!;
+    const self = await this.#dependencies.native.self(
+      credentials.accessToken,
+      this.#binding(binding, source),
+      signal,
+    );
+    this.#assertSignal(signal);
+    this.#assert(entry, 'entry');
+    if (self.state === 'missing') return this.#entryProjection(entry, 'missing');
+    this.#dependencies.native.verifyAssociation(credentials.identity, self.association);
+    const contexts = await this.#dependencies.native.contexts(
+      credentials.accessToken,
+      this.#binding(binding, source),
+      { ...(cursor ? { cursor } : {}), limit: 20 },
+      signal,
+    );
+    this.#assertSignal(signal);
+    this.#assert(entry, 'entry');
+    return this.#entryProjection(entry, 'active', contexts);
+  }
+  async entry(
+    binding: SessionBinding,
+    source: string,
+    cursor?: string,
+    signal?: AbortSignal,
+  ): Promise<EntryProjection> {
+    this.#checkSource(binding.host, source);
+    const owner = this.#findEntry(binding);
+    const rawCursor =
+      cursor === undefined
+        ? undefined
+        : openEntryCursor(owner.cursorKey!, this.#cursorBinding(owner), cursor);
+    return this.#bounded(owner, signal, (current) =>
+      this.#entryRead(owner, binding, source, rawCursor, current),
+    );
+  }
+  async create(
+    binding: SessionBinding,
+    source: string,
+    csrf: string,
+    signal?: AbortSignal,
+  ): Promise<EntryProjection> {
+    this.#checkSource(binding.host, source);
+    const owner = this.#findEntry(binding);
+    this.#entryProof(owner, csrf);
+    if (owner.busy) throw new BffSessionError('transaction');
+    const work = this.#bounded(owner, signal, async (current) => {
+      const credentials = owner.credentials!;
+      const self = await this.#dependencies.native.self(
+        credentials.accessToken,
+        this.#binding(binding, source),
+        current,
+      );
+      this.#assertSignal(current);
+      this.#assert(owner, 'entry');
+      const association =
+        self.state === 'active'
+          ? self.association
+          : await this.#dependencies.native.bootstrap(
+              credentials.accessToken,
+              this.#binding(binding, source),
+              current,
+            );
+      this.#assertSignal(current);
+      this.#assert(owner, 'entry');
+      this.#dependencies.native.verifyAssociation(credentials.identity, association);
+      // A deliberately repeated create first resolves an existing binding; never retry POST automatically.
+      return this.#entryRead(owner, binding, source, undefined, current);
+    });
+    owner.busy = work;
+    try {
+      return await work;
+    } finally {
+      if (owner.busy === work) owner.busy = undefined;
+    }
+  }
+  discardEntry(binding: SessionBinding, csrf: string): LogoutStart {
+    this.#checkAddress(binding.host);
+    const entry = this.#findEntry(binding, true);
+    this.#entryProof(entry, csrf);
+    const idToken = entry.credentials!.idToken;
+    // This entry owns its provider logout; an unrelated live destination remains published.
+    this.#abortPages(entry);
+    this.#clearPageCursorKey(entry);
+    entry.phase = 'logout';
+    entry.controller.abort();
+    entry.csrf = '';
+    entry.deadline = this.#now() + BFF_LIMITS.transactionMs;
+    entry.logoutState = opaque();
+    entry.logoutProof = opaque();
+    this.#logoutStates.set(entry.logoutState, entry);
+    let redirectUrl: string | null = null;
+    try {
+      redirectUrl = this.#dependencies.provider.logoutUrl(
+        idToken,
+        'https://' + binding.host + '/',
+        entry.logoutState,
+      );
+    } catch (error) {
+      this.#diagnostic(this.#reason(error));
+    } finally {
+      this.#clearCursorKey(entry);
+      entry.credentials = undefined;
+      entry.account = undefined;
+      entry.identity = undefined;
+    }
+    return Object.freeze({ state: entry.logoutState, proof: entry.logoutProof, redirectUrl });
+  }
+  #validateProviderScope(credentials: ProviderCredentials, scope: NativeScope) {
+    const identity = credentials.identity;
+    if (
+      identity.tenantId !== null &&
+      (identity.tenantId !== scope.tenantId || identity.organizationId !== scope.organizationId)
+    )
+      throw new BffSessionError('identity');
+  }
+  async #chosen(
+    entry: Owner,
+    binding: SessionBinding,
+    source: string,
+    scope: NativeScope,
+    cursor: string | undefined,
+    signal: AbortSignal,
+  ) {
+    const credentials = entry.credentials!;
+    const contexts = await this.#dependencies.native.contexts(
+      credentials.accessToken,
+      this.#binding(binding, source),
+      { ...(cursor ? { cursor } : {}), limit: 20 },
+      signal,
+    );
+    this.#assertSignal(signal);
+    const selected = contexts.items.find(
+      (item) => item.tenantId === scope.tenantId && item.organizationId === scope.organizationId,
+    );
+    if (!selected) throw new BffSessionError('identity');
+    return selected;
+  }
+  async #admission(
+    entry: Owner,
+    binding: SessionBinding,
+    source: string,
+    scope: NativeScope,
+    signal: AbortSignal,
+    phase: Owner['phase'],
+  ) {
+    this.#assert(entry, phase);
+    const credentials = entry.credentials!;
+    this.#validateProviderScope(credentials, scope);
+    const witness = await this.#dependencies.native.admit(
+      credentials.accessToken,
+      this.#scoped(binding, source, scope),
+      signal,
+    );
+    this.#assertSignal(signal);
+    this.#assert(entry, phase);
+    this.#dependencies.native.verifyAssociation(credentials.identity, witness);
+    if (witness.tenantId !== scope.tenantId || witness.organizationId !== scope.organizationId)
+      throw new BffSessionError('identity');
+    const identity = Object.freeze({
+      actorId: witness.actorId,
+      tenantId: scope.tenantId,
+      organizationId: scope.organizationId,
+    });
+    const account = await this.#dependencies.account(
+      credentials.accessToken,
+      this.#scoped(binding, source, scope),
+      signal,
+    );
+    this.#assertSignal(signal);
+    this.#assert(entry, phase);
+    this.#account(entry, account, identity);
+    entry.identity = identity;
+  }
+  async #publish(
+    entry: Owner,
+    old: Owner | undefined,
+    phase: 'selecting' | 'switching',
+    signal: AbortSignal,
+  ): Promise<SessionCompletion> {
+    this.#assertSignal(signal);
+    this.#assert(entry, phase);
+    const epoch = opaque();
+    entry.group.epoch = epoch;
+    entry.epoch = epoch;
+    for (const competing of entry.group.members)
+      if (competing !== entry && competing !== old && competing.pending) this.#close(competing);
+    if (old) {
+      this.#close(old);
+      await Promise.allSettled([...old.work]);
+      try {
+        this.#assertSignal(signal);
+        this.#assert(entry, phase);
+      } catch (error) {
+        if (entry.phase !== 'logout') this.#close(entry);
+        throw error;
+      }
+    }
+    entry.pending = false;
+    entry.source = '';
+    entry.replacement = undefined;
+    entry.credentials = Object.freeze({
+      ...entry.credentials!,
+      identity: Object.freeze({ ...entry.credentials!.identity, displayLabel: null }),
+    });
+    this.#clearCursorKey(entry);
+    entry.phase = 'active';
+    // Switch inherits its source absolute cap; initial publication starts its own eight-hour cap.
+    if (phase === 'selecting') entry.absolute = this.#now() + BFF_LIMITS.absoluteMs;
+    entry.activity = this.#now();
+    entry.csrf = opaque();
+    entry.group.current = entry;
+    entry.group.publishing = undefined;
+    this.#assert(entry, 'active');
+    return Object.freeze({
+      kind: 'session',
+      handle: entry.id,
+      browser: entry.group.browser,
+      returnPath: entry.returnPath,
+      session: this.#project(entry),
+    });
+  }
+  async select(
+    binding: SessionBinding,
+    source: string,
+    csrf: string,
+    scope: NativeScope,
+    cursor?: string,
+    signal?: AbortSignal,
+  ): Promise<SelectionCompletion> {
+    scope = Object.freeze({ tenantId: scope.tenantId, organizationId: scope.organizationId });
+    this.#checkSource(binding.host, source);
+    const entry = this.#findEntry(binding);
+    this.#entryProof(entry, csrf);
+    const rawCursor =
+      cursor === undefined
+        ? undefined
+        : openEntryCursor(entry.cursorKey!, this.#cursorBinding(entry), cursor);
+    if (entry.busy || entry.group.publishing) throw new BffSessionError('transaction');
+    if (!entry.credentials!.identity.displayLabel) throw new BffSessionError('reauthenticate');
+    const old = entry.replacement && this.#live(entry.replacement) ? entry.replacement : undefined;
+    if (old && old.subject?.key !== entry.subject?.key) throw new BffSessionError('account_change');
+    entry.phase = 'selecting';
+    entry.group.publishing = entry;
+    this.#abortPages(entry, false);
+    const oldPages = [...(entry.pageLeases ?? [])].map((lease) => lease.cleaned);
+    try {
+      return await this.#bounded(entry, signal, async (current) => {
+        await Promise.allSettled(oldPages);
+        this.#assertSignal(current);
+        const selected = await this.#chosen(entry, binding, source, scope, rawCursor, current);
+        this.#assert(entry, 'selecting');
+        if (!selected.canUseCurrentHost) {
+          return Object.freeze({
+            kind: 'destination',
+            origin: selected.entryOrigin,
+            returnPath: entry.returnPath,
+            contextHint: scope.organizationId ?? 'tenant',
+          });
+        }
+        await this.#admission(entry, binding, source, scope, current, 'selecting');
+        return this.#publish(entry, old, 'selecting', current);
+      });
+    } finally {
+      if (entry.phase === 'selecting') entry.phase = 'entry';
+      if (entry.group.publishing === entry) entry.group.publishing = undefined;
+    }
+  }
+  async switchScope(
+    binding: SessionBinding,
+    source: string,
+    csrf: string,
+    scope: NativeScope,
+    cursor?: string,
+    signal?: AbortSignal,
+  ): Promise<SelectionCompletion> {
+    scope = Object.freeze({ tenantId: scope.tenantId, organizationId: scope.organizationId });
+    this.#checkSource(binding.host, source);
+    const old = this.#find(binding);
+    if (!old || !bffSecretEquals(csrf, old.csrf)) throw new BffSessionError('revoked');
+    const rawCursor = this.#openPageCursor(old, 'scopes', cursor);
+    if (old.transition || old.group.publishing) throw new BffSessionError('transaction');
+    this.sweep();
+    const pending = [...this.#owners.values()].filter((owner) => owner.pending);
+    const refusal =
+      pending.filter((owner) => owner.source === source).length >= BFF_LIMITS.source
+        ? 'source_capacity'
+        : pending.length >= BFF_LIMITS.pending
+          ? 'pending_capacity'
+          : this.#owners.size >= BFF_LIMITS.owners
+            ? 'global_capacity'
+            : null;
+    if (refusal) throw new BffSessionError(refusal);
+    const now = this.#now();
+    const entry: Owner = {
+      id: opaque(),
+      group: old.group,
+      epoch: old.epoch,
+      source,
+      phase: 'switching',
+      pending: true,
+      deadline: Math.min(now + BFF_LIMITS.transactionMs, this.#effective(old)),
+      controller: new AbortController(),
+      work: new Set(),
+      returnPath: old.returnPath === '/' ? '/studio' : old.returnPath,
+      replacement: old,
+      absolute: old.absolute,
+      activity: old.activity,
+      utcOffset: old.utcOffset,
+      csrf: opaque(),
+    };
+    entry.group.members.add(entry);
+    this.#owners.set(entry.id, entry);
+    try {
+      this.#reserveSubject(entry, old.credentials!);
+    } catch (error) {
+      this.#close(entry);
+      throw error;
+    }
+    old.group.publishing = entry;
+    const work = this.#bounded(entry, signal, async (current) => {
+      await this.#ready(old, binding, source, false, current, entry);
+      this.#assertSignal(current);
+      this.#assert(old, 'active');
+      this.#assert(entry, 'switching');
+      entry.credentials = old.credentials;
+      const choice = await this.#dependencies.administration(
+        entry.credentials!.accessToken,
+        this.#scoped(binding, source, old.identity!),
+        { kind: 'getOwnContexts', limit: 20, ...(rawCursor ? { cursor: rawCursor } : {}) },
+        current,
+      );
+      this.#assertSignal(current);
+      this.#assert(entry, 'switching');
+      this.#assert(old, 'active');
+      if (choice.kind === 'api-error') throw new NativeApiError('provider_refused', choice.status);
+      if (choice.kind !== 'success')
+        throw new BffSessionError(
+          choice.kind === 'cancelled'
+            ? 'cancelled'
+            : choice.kind === 'transport-error'
+              ? 'transport'
+              : 'response',
+        );
+      const contexts = nativeContextPage(choice.data, 20);
+      if (contexts.items.some((item) => item.tenantId !== old.identity!.tenantId))
+        throw new BffSessionError('response');
+      const selected = contexts.items.find(
+        (item) => item.tenantId === scope.tenantId && item.organizationId === scope.organizationId,
+      );
+      if (!selected) throw new BffSessionError('identity');
+      this.#assert(entry, 'switching');
+      this.#assert(old, 'active');
+      if (!selected.canUseCurrentHost)
+        return Object.freeze({
+          kind: 'destination',
+          origin: selected.entryOrigin,
+          returnPath: entry.returnPath,
+          contextHint: scope.organizationId ?? 'tenant',
+        });
+      await this.#admission(entry, binding, source, scope, current, 'switching');
+      this.#assert(old, 'active');
+      return this.#publish(entry, old, 'switching', current);
+    });
+    old.transition = work;
+    try {
+      return await work;
+    } finally {
+      if (old.transition === work) old.transition = undefined;
+      if (entry.phase !== 'active') this.#close(entry);
+      if (old.group.publishing === entry) old.group.publishing = undefined;
+    }
+  }
+  async operate(
+    binding: SessionBinding,
+    source: string,
+    operation: NativeOperation,
+    csrf?: string,
+    signal?: AbortSignal,
+  ): Promise<NativeOperationResult> {
+    this.#checkSource(binding.host, source);
+    const entry = this.#find(binding);
+    if (!entry) throw new BffSessionError('revoked');
+    if (entry.transition) throw new BffSessionError('transaction');
+    let captured: NativeOperation;
+    try {
+      const serialized = JSON.stringify(operation);
+      if (Buffer.byteLength(serialized) > 16 * 1024) throw new Error();
+      captured = JSON.parse(serialized) as NativeOperation;
+      if (!captured || typeof captured !== 'object') throw new Error();
+    } catch {
+      throw new BffSessionError('configuration');
+    }
+    const read = [
+      'listMemberships',
+      'listOrganizationMemberships',
+      'getMembership',
+      'getOwnProfile',
+      'getOwnContexts',
+      'getOwnCapabilities',
+      'listRoles',
+      'getRole',
+      'getPermissions',
+      'listOrganizations',
+      'getOrganization',
+    ].includes(captured.kind);
+    if (!read && !bffSecretEquals(csrf, entry.csrf)) throw new BffSessionError('csrf');
+    return this.#bounded(entry, signal, async (current) => {
+      // One ten-second deadline begins before refresh, including shared refresh wait and body cleanup.
+      await this.#ready(entry, binding, source, false, current);
+      this.#assertSignal(current);
+      this.#assert(entry, 'active');
+      const credentials = entry.credentials!;
+      const identity = entry.identity!;
+      const result = await this.#dependencies.administration(
+        credentials.accessToken,
+        this.#scoped(binding, source, identity),
+        captured,
+        current,
+      );
+      this.#assertSignal(current);
+      this.#assert(entry, 'active');
+      if (entry.credentials !== credentials || entry.identity !== identity)
+        throw new BffSessionError('response');
+      // Operation refusals withhold their bytes, never reinterpret 401/403/404 as session revocation.
+      if (result.kind === 'success') entry.activity = this.#now();
+      return result;
     });
   }
 
@@ -498,25 +1388,28 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     }
   }
 
-  async admit(
+  async #ready(
+    entry: Owner,
     binding: SessionBinding,
     source: string,
-    activity: SessionActivity,
+    force: boolean,
     signal?: AbortSignal,
-  ): Promise<SessionProjection> {
-    this.#checkSource(binding.host, source);
-    const entry = this.#find(binding);
-    if (!entry) throw new BffSessionError('revoked');
-    if (signal?.aborted) throw new BffSessionError('cancelled');
-    if (activity === 'passive') return this.#project(entry);
-    if (activity !== 'read' && activity !== 'extend') throw new BffSessionError('configuration');
+    transitionOwner?: Owner,
+    track?: (work: Promise<void>) => void,
+  ): Promise<boolean> {
+    this.#assert(entry, 'active');
+    if (
+      entry.transition &&
+      (!transitionOwner ||
+        entry.group.publishing !== transitionOwner ||
+        transitionOwner.replacement !== entry)
+    )
+      throw new BffSessionError('transaction');
     if (
       !entry.refresh &&
-      (activity === 'extend' ||
-        entry.credentials!.accessExpiresAt - this.#now() <= BFF_LIMITS.refreshAheadMs)
+      (force || entry.credentials!.accessExpiresAt - this.#now() <= BFF_LIMITS.refreshAheadMs)
     ) {
       const previous = entry.credentials!;
-      const account = entry.account!;
       const work = this.#tracked(entry, async () => {
         try {
           this.#assert(entry, 'active');
@@ -529,18 +1422,26 @@ export class InMemoryBffSessionStore implements BffSessionStore {
             previous,
           );
           this.#assert(entry, 'active');
-          const witnessed = await this.#dependencies.account(
+          const self = await this.#dependencies.native.self(
             next.accessToken,
-            {
-              host: binding.host,
-              source,
-              ...(binding.traceparent ? { traceparent: binding.traceparent } : {}),
-            },
+            this.#binding(binding, source),
             entry.controller.signal,
           );
           this.#assert(entry, 'active');
-          this.#account(entry, next, witnessed, account);
+          if (self.state !== 'active') throw new BffSessionError('identity');
+          this.#dependencies.native.verifyAssociation(next.identity, self.association);
+          if (self.association.actorId !== entry.identity!.actorId)
+            throw new BffSessionError('identity');
+          const witnessed = await this.#dependencies.account(
+            next.accessToken,
+            this.#scoped(binding, source, entry.identity!),
+            entry.controller.signal,
+          );
+          this.#assert(entry, 'active');
+          this.#account(entry, witnessed, entry.identity!);
           entry.credentials = next;
+          entry.pageRevision = Object.freeze({});
+          this.#abortPages(entry, true);
           entry.activity = this.#now();
           this.#assert(entry, 'active');
         } catch (error) {
@@ -557,11 +1458,29 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       void work.then(settled, settled);
     }
     if (entry.refresh) {
+      track?.(entry.refresh);
       await this.#wait(entry.refresh, signal);
       this.#assert(entry, 'active');
-      entry.activity = this.#now();
-      return this.#project(entry);
+      return true;
     }
+    return false;
+  }
+
+  async admit(
+    binding: SessionBinding,
+    source: string,
+    activity: SessionActivity,
+    signal?: AbortSignal,
+  ): Promise<SessionProjection> {
+    this.#checkSource(binding.host, source);
+    const entry = this.#find(binding);
+    if (!entry) throw new BffSessionError('revoked');
+    if (signal?.aborted) throw new BffSessionError('cancelled');
+    if (activity === 'passive') return this.#project(entry);
+    if (activity !== 'read' && activity !== 'extend') throw new BffSessionError('configuration');
+    if (entry.transition) throw new BffSessionError('transaction');
+    if (await this.#ready(entry, binding, source, activity === 'extend', signal))
+      return this.#project(entry);
     this.#assert(entry, 'active');
     // A normal authenticated read always uses the API's current authority too.
     const credentials = entry.credentials!;
@@ -570,15 +1489,12 @@ export class InMemoryBffSessionStore implements BffSessionStore {
         this.#assert(entry, 'active');
         const account = await this.#dependencies.account(
           credentials.accessToken,
-          {
-            host: binding.host,
-            source,
-            ...(binding.traceparent ? { traceparent: binding.traceparent } : {}),
-          },
+          this.#scoped(binding, source, entry.identity!),
           entry.controller.signal,
         );
         this.#assert(entry, 'active');
-        this.#account(entry, credentials, account, entry.account);
+        if (entry.credentials !== credentials) throw new BffSessionError('transaction');
+        this.#account(entry, account, entry.identity!);
       } catch (error) {
         const reason = this.#reason(error);
         // An ordinary read consumes no provider grant. A failed authority check
@@ -604,6 +1520,8 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     entry.group.current = undefined;
     for (const pending of entry.group.members)
       if (pending !== entry && pending.pending) this.#close(pending);
+    this.#abortPages(entry);
+    this.#clearPageCursorKey(entry);
     entry.phase = 'logout';
     entry.controller.abort();
     entry.csrf = '';
@@ -622,8 +1540,10 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     } catch (error) {
       this.#diagnostic(this.#reason(error));
     } finally {
+      this.#clearCursorKey(entry);
       entry.credentials = undefined;
       entry.account = undefined;
+      entry.identity = undefined;
     }
     this.#diagnostic('revoked');
     return Object.freeze({ state: entry.logoutState, proof: entry.logoutProof, redirectUrl });
@@ -656,7 +1576,10 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     clearInterval(this.#timer);
     const entries = [...this.#owners.values()];
     const work = entries.flatMap((entry) => [...entry.work]);
-    for (const entry of entries) this.#close(entry);
+    for (const entry of entries) {
+      this.#abortPages(entry, false);
+      this.#close(entry);
+    }
     void Promise.allSettled(work).then(() => {
       for (const entry of entries) this.#release(entry);
       completed();
@@ -674,6 +1597,17 @@ export class InMemoryBffSessionStore implements BffSessionStore {
         .size,
       operations: [...this.#owners.values()].reduce((count, entry) => count + entry.work.size, 0),
       credentialRecords: [...this.#owners.values()].filter((entry) => entry.credentials).length,
+      identityRecords: [...this.#owners.values()].filter((entry) => entry.identity).length,
+      pageCursorKeyRecords: [...this.#owners.values()].filter((entry) => entry.pageCursorKey)
+        .length,
+      pageSnapshots: [...this.#owners.values()].reduce(
+        (count, entry) => count + (entry.pageLeases?.size ?? 0),
+        0,
+      ),
+      cursorKeyRecords: [...this.#owners.values()].filter((entry) => entry.cursorKey).length,
+      displayLabelRecords: [...this.#owners.values()].filter(
+        (entry) => typeof entry.credentials?.identity.displayLabel === 'string',
+      ).length,
       transactionRecords: [...this.#owners.values()].filter((entry) => entry.transaction).length,
       proofRecords: [...this.#owners.values()].filter((entry) => entry.proof || entry.logoutProof)
         .length,

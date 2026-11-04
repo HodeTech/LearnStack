@@ -28,6 +28,13 @@ Live authorization evidence derives from jointly Accepted
 [ADR-0076](../decisions/0076-live-scoped-authorization.md) and
 [ADR-0077](../decisions/0077-trusted-authorization-evidence.md). The
 [phase Status block](../roadmap/phase-03-identity-admin.md) owns qualification.
+Native entry/administration and replay additions derive from jointly Accepted
+[ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md) and
+[ADR-0079](../decisions/0079-bounded-identity-administration.md).
+The internal fixed-seed prerequisite boundary additionally derives from
+[ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md).
+The separate fixed-origin completion purpose derives from
+[ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md).
 
 This standard defines **which operations must be audited**, **what an audit entry
 contains**, **how long entries are retained**, and how each module signs up for its
@@ -806,6 +813,73 @@ scoped read-only enrollment reader preserves the lazy application-source boundar
 No global audit read endpoint or P03-1 HTTP creation route follows. Registered
 Identity audit controls now exercise actual app-role, clean/dirty and physical
 COMMIT-boundary paths. Later contextual writers and HTTP activation remain separate.
+
+## Native entry and protected administration
+
+**Accepted contract; implementation/proof pending.** Identity and Tenancy's
+module matrices own the exact request/slug/resource bindings. Every human wrapper
+has its own classification/policy; reusing business logic never fabricates Seed
+provenance or invokes a Seed-only command.
+
+Initial selection and explicit switch commit ordinary ReadWrite MUST/SecurityEvent
+`identity.membership.admit_session_scope`, attributed to the actual Membership,
+before returning a publication witness. The row proves API approval, not browser
+cookie delivery. Failed INSERT/constraint/COMMIT cannot publish success; unknown
+COMMIT remains unknown. This is not a standalone denial-lane event.
+
+Ordinary refresh runs `ValidateRefreshedScope`: Off GET self followed by Off
+AccountSite on the same new held token and original context. It creates no new
+admission event or User. GET self/contexts and current own capability/profile
+navigation are explicitly Off and no-store; personal relationship disclosure is
+limited to the verified person's own records. Other people's member data and
+Role/permission configuration reads retain MUST sensitive-read coverage. Failed
+capability previews do not emit denial evidence; actual protected acts do.
+
+Protected successful receipt replay is a fresh MUST sensitive read of its
+original immutable target under current disclosure authority, separate from the
+original mutation's event. Its read audit commits before stored bytes. A failed
+guard/audit preserves the retained completion. Do not replay original audit
+evidence or re-run a successful mutation to authorize a receipt.
+
+Fixed management-origin adoption uses one Tenant-root marker change and its host
+projection on the same common transaction with declared plural MUST evidence.
+Both qualified `0→2` and `1→2` transitions retain those two MUST intents; an exact
+existing mapping is designated as an unchanged projection without a fictitious
+UPDATE. The runner verifies marker 2 and its exact live mapping, then stops
+before mutation dispatch, witness minting, temporary widening or another MUST
+intent. Marker 2 records historical qualified adoption, not current mutable-graph
+or provider eligibility. There is no second aggregate writer or private Seeder
+audit table. Successful warm no-write checks declare no new mutation intent.
+Real seed/adoption races,
+unknown creation, replay failure and refresh zero-event-delta proofs are required.
+
+The [closed fixed-seed prerequisite check](05-database.md#fixed-seed-prerequisite-read-authority)
+is internal to the classified seed act. Its metadata projection is not an
+externally callable directory or a disclosure under the other-person
+sensitive-read rule above; it adds no audit classification or separate successful
+read event. The eight temporary-read consumers and twelve ordinary-scope content
+writers retain their existing mutation classifications and MUST floors. Refusal
+retains the act's existing failed/denied audit and genuine unknown-COMMIT
+reconciliation. Editor IDs and relationship metadata remain personal data,
+internal to the check; no raw editor evidence enters results, diagnostics or
+durable receipts. An independently callable or value-disclosing reader requires
+separate sensitive-read classification before activation. Acceptance supplies no
+new runtime qualification; the phase Status block remains authoritative.
+
+The separately closed [fixed-origin completion check](05-database.md#fixed-seed-completion-read-authority)
+has the same internal admission/refusal audit boundary. Its sole consumer is
+`AdoptSeedAdministrationOriginCommand`; it does not join the eight pristine
+consumers. Owning completion readers disclose no values or relationships, so no
+independent successful sensitive-read event, new Off request or durable receipt
+is added. Completion refusal retains the adoption act's failed/denied evidence
+and unknown-COMMIT contract; successful transitions retain plural MUST rollback.
+Standard 05 owns the separate source, restoration, marker/repeat and recovery
+rules. Acceptance does not qualify these new controls.
+
+The seven-/two-year retention periods above remain **policy targets**, not an
+implemented automatic purge. Phase 11 owns enforcement and production volume
+qualification. New relationship/target/subject links remain personal data under
+the Data Protection inventory; ordinary redaction grants are not widened.
 
 ## Architecture and Integration Tests
 

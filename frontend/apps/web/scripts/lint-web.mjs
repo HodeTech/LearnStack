@@ -56,12 +56,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
           'exec',
           'next',
           'lint',
+          '--no-cache',
           '--max-warnings',
           '0',
           ...(fix ? ['--fix'] : []),
           ...files.flatMap((file) => ['--file', file]),
         ],
-        { cwd: root, stdio: 'inherit' },
+        { cwd: root, stdio: 'inherit', env: { ...process.env, NEXT_TELEMETRY_DISABLED: '1' } },
       );
       child.once('error', () => {
         process.exitCode = 1;

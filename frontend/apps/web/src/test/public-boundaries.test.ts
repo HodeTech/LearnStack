@@ -12,8 +12,10 @@ import { describe, expect, it } from 'vitest';
 import {
   ADAPTER,
   ACCOUNT_ADAPTER,
+  NATIVE_API_TRANSPORT,
   BFF_BROWSER_ADAPTER,
   SDK_AUTHENTICATED,
+  SDK_ADMINISTRATION,
   ADMISSION_RUNTIME,
   ADMISSION_FACADE,
   admissionBoundaryFindings,
@@ -22,6 +24,7 @@ import {
   cacheFindings,
   clientBoundaryFindings,
   closedHttpSurfaceFindings,
+  createHttpSurfaceEvaluator,
   hasDirective,
   hasServerOnlyMarker,
   I18N_REQUEST,
@@ -30,6 +33,7 @@ import {
   navigationFindings,
   omittedProductionDirectory,
   privateServerFiles,
+  preparedPageRenderFindings,
   publicLayoutPolicyFindings,
   PUBLIC_LAYOUT,
   rawAuthorityFindings,
@@ -168,7 +172,8 @@ function resolutionCensus() {
 describe('ADR-0053 production public boundaries', () => {
   it('closes actual matcher, Next routing hooks, framework entry points and Server Actions', () => {
     const current = httpSources();
-    clean(closedHttpSurfaceFindings(current), 'Fix: retain the approved closed HTTP surface.');
+    const evaluate = createHttpSurfaceEvaluator();
+    clean(evaluate(current), 'Fix: retain the approved closed HTTP surface.');
     const config = 'apps/web/next.config.ts';
     for (const [file, source] of [
       [MIDDLEWARE, sources[MIDDLEWARE]!.replace('?!_next/', '?!api/relay/|_next/')],
@@ -241,11 +246,9 @@ describe('ADR-0053 production public boundaries', () => {
         current['apps/web/src/app/api/healthz/route.ts']! + '\nexport function POST() {}',
       ],
     ])
-      expect(
-        closedHttpSurfaceFindings({ ...current, [file!]: source! }).map((item) => item.file),
-      ).toContain(file);
+      expect(evaluate({ ...current, [file!]: source! }).map((item) => item.file)).toContain(file);
     // The matcher exemption and relay handler must both be rejected, even together.
-    const bypass = closedHttpSurfaceFindings({
+    const bypass = evaluate({
       ...current,
       [MIDDLEWARE]: sources[MIDDLEWARE]!.replace('?!_next/', '?!api/relay/|_next/'),
       'apps/web/src/app/api/relay/route.ts':
@@ -255,12 +258,135 @@ describe('ADR-0053 production public boundaries', () => {
       expect.arrayContaining([MIDDLEWARE, 'apps/web/src/app/api/relay/route.ts']),
     );
     clean(
-      closedHttpSurfaceFindings({
+      evaluate({
         ...current,
         [probe]: 'const words = "use server"; export function helper() { return words; }',
       }),
       'Ordinary text and helpers do not create actions.',
     );
+  });
+  it.each([
+    [
+      'wrong development module',
+      (source: string) => source.replace('../../scripts/framework-development.mjs', './routing'),
+    ],
+    [
+      'renamed development binding',
+      (source: string) =>
+        source.replace(
+          '{ createFrameworkDevelopmentPlugin }',
+          '{ createFrameworkDevelopmentPlugin as plugin }',
+        ),
+    ],
+    [
+      'type-only development binding',
+      (source: string) =>
+        source.replace(
+          '{ createFrameworkDevelopmentPlugin }',
+          '{ type createFrameworkDevelopmentPlugin }',
+        ),
+    ],
+    [
+      'extra development binding',
+      (source: string) =>
+        source.replace(
+          '{ createFrameworkDevelopmentPlugin }',
+          '{ createFrameworkDevelopmentPlugin, route }',
+        ),
+    ],
+    [
+      'development import attributes',
+      (source: string) =>
+        source.replace(
+          "'../../scripts/framework-development.mjs';",
+          "'../../scripts/framework-development.mjs' with { type: 'json' };",
+        ),
+    ],
+    [
+      'computed plugin access',
+      (source: string) =>
+        source.replace('configuration.plugins.push(', "configuration['plugins'].push("),
+    ],
+    [
+      'unconditional development plugin',
+      (source: string) => source.replace('if (context.dev)', 'if (true)'),
+    ],
+    [
+      'routing mutation inside development condition',
+      (source: string) =>
+        source.replace(
+          'if (context.dev) {',
+          'if (context.dev) { configuration.rewrites = async () => [];',
+        ),
+    ],
+    [
+      'routing mutation in another condition',
+      (source: string) =>
+        source.replace(
+          'return configuration;',
+          'if (context.dev) configuration.redirects = async () => []; return configuration;',
+        ),
+    ],
+    [
+      'modified extension alias',
+      (source: string) => source.replace("'.js': ['.ts', '.tsx', '.js']", "'.js': ['.js']"),
+    ],
+    [
+      'wrong compiler context',
+      (source: string) =>
+        source.replace("context.nextRuntime === 'edge'", "context.nextRuntime === 'nodejs'"),
+    ],
+  ] as const)('refuses %s in the approved webpack configuration', (_name, mutate) => {
+    const current = httpSources();
+    const config = 'apps/web/next.config.ts';
+    const evaluate = createHttpSurfaceEvaluator();
+    clean(evaluate(current), 'The actual checked configuration is admitted.');
+    const dirty = { ...current, [config]: mutate(current[config]!) };
+    const findings = evaluate(dirty);
+    expect(findings).toEqual(closedHttpSurfaceFindings(dirty));
+    expect(findings.map((item) => item.file)).toContain(config);
+    expect(evaluate(current)).toEqual(closedHttpSurfaceFindings(current));
+    clean(evaluate(current), 'Restoring the original configuration restores admission.');
+  });
+  it('keeps cached HTTP syntax equivalent to raw findings through actual dirty and restored source', () => {
+    const evaluate = createHttpSurfaceEvaluator();
+    const baseline = httpSources();
+    const current: Record<string, string> = { ...baseline };
+    const verify = () => expect(evaluate(current)).toEqual(closedHttpSurfaceFindings(current));
+    verify();
+    current[MIDDLEWARE] = baseline[MIDDLEWARE]!.replace('?!_next/', '?!api/relay/|_next/');
+    verify();
+    expect(evaluate(current).some((item) => item.file === MIDDLEWARE)).toBe(true);
+    current[MIDDLEWARE] = baseline[MIDDLEWARE]!;
+    verify();
+    expect(evaluate(current)).toEqual([]);
+    current[probe] = '"use server"; export async function write() {}';
+    verify();
+    expect(evaluate(current).some((item) => item.file === probe)).toBe(true);
+    delete current[probe];
+    verify();
+    expect(evaluate(current)).toEqual([]);
+  });
+  it('keeps HTTP syntax source versions and evaluator ownership independent', () => {
+    const evaluate = createHttpSurfaceEvaluator();
+    const other = createHttpSurfaceEvaluator();
+    const source: Record<string, string> = { [probe]: 'export function read() {}' };
+    const check = () => {
+      expect(evaluate(source)).toEqual(closedHttpSurfaceFindings(source));
+      expect(other(source)).toEqual(closedHttpSurfaceFindings(source));
+    };
+    check();
+    source[probe] = '"use server"; export async function write() {}';
+    check();
+    expect(evaluate(source).some((item) => item.file === probe)).toBe(true);
+    source[probe] = 'export function read() {}';
+    check();
+    expect(evaluate(source).some((item) => item.file === probe)).toBe(false);
+    delete source[probe];
+    check();
+    source[probe] = '"use server"; export async function write() {}';
+    check();
+    expect(evaluate(source).some((item) => item.file === probe)).toBe(true);
   });
   it('keeps imported helpers in fixture-named production directories visible', () => {
     expect(omittedProductionDirectory('apps/web/src/test')).toBe(true);
@@ -350,8 +476,13 @@ describe('ADR-0053 production public boundaries', () => {
       expect.arrayContaining([
         'apps/web/src/app/(studio)/layout.tsx',
         'apps/web/src/app/(studio)/studio/page.tsx',
+        'apps/web/src/app/(studio)/studio/members/page.tsx',
+        'apps/web/src/app/(studio)/studio/members/[membershipId]/page.tsx',
+        'apps/web/src/app/(studio)/studio/roles/page.tsx',
+        'apps/web/src/app/(studio)/studio/roles/[roleId]/page.tsx',
         'apps/web/src/app/(portal)/layout.tsx',
         'apps/web/src/app/(portal)/portal/page.tsx',
+        'apps/web/src/app/(portal)/portal/profile/page.tsx',
       ]),
     );
     expect(reachable(production, [I18N_REQUEST])).toEqual(
@@ -405,8 +536,9 @@ describe('ADR-0053 production public boundaries', () => {
         expect(production.resolveModule(specifier, MIDDLEWARE)).toBe(
           directory +
             '/' +
-            (directory === 'packages/sdk' && key === './authenticated-server'
-              ? 'src/authenticated-server.ts'
+            (directory === 'packages/sdk' &&
+            ['./authenticated-server', './administration-server'].includes(key)
+              ? 'src/' + key.slice(2) + '.ts'
               : value.slice(2)),
         );
       }
@@ -499,7 +631,7 @@ describe('ADR-0053 production public boundaries', () => {
       'Fix: retain the dynamic/no-store public layout and request-local public data.',
     );
   });
-  it('global fetch remains public-only; hop setters stay in the two exact SDK adapters', () => {
+  it('global fetch remains public-only; hop setters stay in the exact public and native transports', () => {
     clean(transportFindings(production), 'Fix: use the configured public adapter.');
     // Allowed code must contain actual transport/setters: renaming it removes the exception.
     const renamed = Object.fromEntries(
@@ -512,20 +644,20 @@ describe('ADR-0053 production public boundaries', () => {
   it('confines authenticated hop setters without granting global fetch or a client SDK escape', () => {
     const renamed = Object.fromEntries(
       Object.entries(sources).map(([name, source]) => [
-        name === ACCOUNT_ADAPTER ? probe : name,
+        name === NATIVE_API_TRANSPORT ? probe : name,
         source,
       ]),
     );
     expect(
       transportFindings(buildSourceGraph(renamed)).filter((item) => item.file === probe),
-    ).toHaveLength(3);
+    ).toHaveLength(6);
     expect(
       transportFindings(
         graphWith(
-          ACCOUNT_ADAPTER,
-          sources[ACCOUNT_ADAPTER]! + '\nfetch("https://unowned.invalid");',
+          NATIVE_API_TRANSPORT,
+          sources[NATIVE_API_TRANSPORT]! + '\nfetch("https://unowned.invalid");',
         ),
-      ).some((item) => item.file === ACCOUNT_ADAPTER && item.reason.includes('global fetch')),
+      ).some((item) => item.file === NATIVE_API_TRANSPORT && item.reason.includes('global fetch')),
     ).toBe(true);
     const client = graphWith(
       probe,
@@ -533,10 +665,43 @@ describe('ADR-0053 production public boundaries', () => {
     );
     expect(clientBoundaryFindings(client).some((item) => item.file === probe)).toBe(true);
     expect(privateServerFiles(production)).toContain(SDK_AUTHENTICATED);
+    expect(privateServerFiles(production)).toContain(SDK_ADMINISTRATION);
+    const administration = graphWith(
+      probe,
+      '\'use client\'; import { createAdministrationServerSdk } from "@learnstack/sdk/administration-server"; export const unsafe = createAdministrationServerSdk;',
+    );
+    expect(clientBoundaryFindings(administration).some((item) => item.file === probe)).toBe(true);
+    const nativeHeaders = [
+      'X-LearnStack-Native-Session-Secret',
+      'X-LearnStack-Native-Tenant-Id',
+      'X-LearnStack-Native-Organization-Id',
+    ];
+    for (const file of [ADAPTER, ACCOUNT_ADAPTER, probe]) {
+      const setters = nativeHeaders
+        .map((header) => `new Headers().set('${header}', 'forged');`)
+        .join('\n');
+      expect(
+        transportFindings(graphWith(file, (sources[file] ?? '') + '\n' + setters)).filter(
+          (item) => item.file === file && item.reason.includes('API-hop headers'),
+        ),
+      ).toHaveLength(3);
+    }
+    const rawNative = graphWith(
+      probe,
+      nativeHeaders.map((header) => `request.headers.get('${header}');`).join('\n'),
+    );
+    expect(rawAuthorityFindings(rawNative, [probe])).toHaveLength(3);
     // Native implementation modules must not become bundled middleware/RSC dependencies.
     const bundled = reachable(production, renderRoots);
     for (const name of [
       'account-client',
+      'cookies',
+      'http-forms',
+      'http-input',
+      'native-api-transport',
+      'native-session-client',
+      'native-administration-client',
+      'native-contract',
       'configuration',
       'session-runtime',
       'session-store',
@@ -544,6 +709,10 @@ describe('ADR-0053 production public boundaries', () => {
       'provider-transport',
       'logout-response',
       'request-runtime',
+      'entry-cursor',
+      'page-snapshot-pool',
+      'page-response',
+      'page-preload',
       'http-protocol',
     ]) {
       expect(bundled).not.toContain('apps/web/src/server/auth/' + name + '.ts');
@@ -553,32 +722,186 @@ describe('ADR-0053 production public boundaries', () => {
       );
       expect(reachable(dirty, renderRoots)).toContain('apps/web/src/server/auth/' + name + '.ts');
     }
-  });
-  it('confines browser fetch to the exact same-origin no-store BFF extension action', () => {
-    const source = sources[BFF_BROWSER_ADAPTER]!;
-    expect(source).toContain("fetch('/api/auth/extend'");
-    for (const [from, to] of [
-      ["'/api/auth/extend'", "'/api/v1/account/site'"],
-      ["credentials: 'same-origin'", "credentials: 'include'"],
-      ["redirect: 'error'", "redirect: 'follow'"],
-      ["cache: 'no-store'", "cache: 'force-cache'"],
-      ['headers: {', "headers: { Authorization: 'Bearer private',"],
-    ]) {
-      expect(source).toContain(from);
+    const facade = 'apps/web/src/server/auth/auth.ts';
+    expect(hasServerOnlyMarker(production.files.get(facade)!)).toBe(true);
+    const facadeRead = graphWith(
+      probe,
+      'import { auth } from "@/server/auth/auth"; export const read = () => auth();',
+    );
+    const facadeClosure = reachable(facadeRead, [probe]);
+    expect(facadeClosure).toContain(facade);
+    expect(facadeClosure).toContain('apps/web/src/server/auth/request-owner.ts');
+    for (const native of [
+      NATIVE_API_TRANSPORT,
+      SDK_ADMINISTRATION,
+      'apps/web/src/server/auth/session-store.ts',
+      'apps/web/src/server/auth/request-runtime.ts',
+    ])
+      expect(facadeClosure).not.toContain(native);
+    expect(
+      clientBoundaryFindings(
+        graphWith(
+          probe,
+          '\'use client\'; import { auth } from "@/server/auth/auth"; export const read = auth;',
+        ),
+      ).some((item) => item.file === probe),
+    ).toBe(true);
+    const pageFacade = 'apps/web/src/server/auth/page.ts';
+    expect(hasServerOnlyMarker(production.files.get(pageFacade)!)).toBe(true);
+    const pageRead = graphWith(
+      probe,
+      'import { preparedPage } from "@/server/auth/page"; export const read = () => preparedPage();',
+    );
+    const pageClosure = reachable(pageRead, [probe]);
+    expect(pageClosure).toContain(pageFacade);
+    expect(pageClosure).toContain('apps/web/src/server/auth/request-owner.ts');
+    for (const native of [
+      NATIVE_API_TRANSPORT,
+      SDK_ADMINISTRATION,
+      'apps/web/src/server/auth/session-store.ts',
+      'apps/web/src/server/auth/request-runtime.ts',
+      'apps/web/src/server/auth/page-snapshot-pool.ts',
+      'apps/web/src/server/auth/page-response.ts',
+    ])
+      expect(pageClosure).not.toContain(native);
+    expect(
+      clientBoundaryFindings(
+        graphWith(
+          probe,
+          '\'use client\'; import { preparedPage } from "@/server/auth/page"; export const read = preparedPage;',
+        ),
+      ).some((item) => item.file === probe),
+    ).toBe(true);
+  }, 20_000); // Rebuilds the complete graph for each planted native transport and bundle edge.
+  it('selected protected RSCs consume prepared pages without creating later IO or framework work', () => {
+    clean(
+      preparedPageRenderFindings(production, scaffoldRoots),
+      'Fix: native preparation owns work; selected protected RSCs only read and render.',
+    );
+    const shell = 'apps/web/src/components/auth/shell.tsx';
+    const source = sources[shell]!;
+    for (const addition of [
+      '\nasync function late() { await Promise.resolve(); }',
+      '\nconst hidden = [1].map(async () => 1);',
+      '\nPromise.resolve().then(() => undefined);',
+      '\nqueueMicrotask(() => undefined);',
+      '\nsetTimeout(() => undefined, 0);',
+      '\nconst later = queueMicrotask; later(() => undefined);',
+      '\nimport { after as later } from "next/server"; later(() => undefined);',
+      '\nimport { readFile } from "node:fs/promises"; void readFile("private");',
+      '\nvoid import("./unmodeled-work");',
+    ])
       expect(
-        transportFindings(graphWith(BFF_BROWSER_ADAPTER, source.replace(from!, to!))).some(
-          (item) => item.file === BFF_BROWSER_ADAPTER && item.reason.includes('global fetch'),
+        preparedPageRenderFindings(graphWith(shell, source + addition), scaffoldRoots).some(
+          (item) => item.file === shell,
+        ),
+      ).toBe(true);
+    const helper = 'apps/web/src/components/auth/late-work.ts';
+    const dirty = buildSourceGraph({
+      ...sources,
+      [shell]: source + '\nimport "./late-work";',
+      [helper]: 'export const result = new Promise(resolve => resolve(1));',
+    });
+    expect(
+      preparedPageRenderFindings(dirty, scaffoldRoots).some((item) => item.file === helper),
+    ).toBe(true);
+  });
+  it('admits only the exact passive provenance edge, rejecting aliased native IO and ingress re-exports', () => {
+    const facade = 'apps/web/src/server/auth/page.ts';
+    const source = sources[facade]!;
+    for (const changed of [
+      source.replace(
+        'INGRESS_HEADER, verifyProvenance',
+        'INGRESS_HEADER, loadLocalEnvironment as verifyProvenance',
+      ),
+      source + '\nimport { readFileSync as check } from "node:fs"; check("private");',
+      source + '\nexport { mintProvenance as checked } from "../ingress";',
+      source + '\nconst native = require("../ingress"); native.mintProvenance({});',
+    ]) {
+      expect(changed).not.toBe(source);
+      expect(
+        preparedPageRenderFindings(graphWith(facade, changed), scaffoldRoots).some(
+          (item) => item.file === facade,
         ),
       ).toBe(true);
     }
+    const shell = 'apps/web/src/components/auth/shell.tsx';
+    expect(
+      preparedPageRenderFindings(
+        graphWith(
+          shell,
+          sources[shell]! +
+            '\nimport { verifyProvenance as inspect } from "@/server/ingress"; inspect(null, undefined);',
+        ),
+        scaffoldRoots,
+      ).some((item) => item.file === shell),
+    ).toBe(true);
+  });
+  it('follows the trusted provenance function dependencies and rejects IO introduced through local or module aliases', () => {
+    const ingress = sources[INGRESS]!;
+    const marker = 'const parts = /^v1\\.';
+    expect(ingress).toContain(marker);
+    const changed = ingress.replace(marker, 'const io = readFileSync; io("private");\n  ' + marker);
+    expect(
+      preparedPageRenderFindings(graphWith(INGRESS, changed), scaffoldRoots).some(
+        (item) => item.file === INGRESS && item.reason.includes('arbitrary IO'),
+      ),
+    ).toBe(true);
+    expect(
+      preparedPageRenderFindings(
+        graphWith(INGRESS, ingress + '\nconst leak = readFileSync("private");'),
+        scaffoldRoots,
+      ).some((item) => item.file === INGRESS && item.reason.includes('arbitrary IO')),
+    ).toBe(true);
+    const helper = 'apps/web/src/server/provenance-io.ts';
+    const graph = buildSourceGraph({
+      ...sources,
+      [INGRESS]:
+        'import { inspect as validate } from "./provenance-io";\n' +
+        ingress.replace(marker, 'validate();\n  ' + marker),
+      [helper]:
+        'import { readFileSync as load } from "node:fs"; export function inspect() { return load("private"); }',
+    });
+    const findings = preparedPageRenderFindings(graph, scaffoldRoots);
+    expect(
+      findings.some(
+        (item) => item.file === INGRESS && item.reason.includes('provenance leaf imports exact'),
+      ),
+    ).toBe(true);
+    expect(
+      findings.some((item) => item.file === helper && item.reason.includes('protected IO')),
+    ).toBe(true);
+  });
+  it.each([
+    ['path', "'/api/auth/extend'", "'/api/v1/account/site'"],
+    ['credentials', "credentials: 'same-origin'", "credentials: 'include'"],
+    ['redirect', "redirect: 'error'", "redirect: 'follow'"],
+    ['cache', "cache: 'no-store'", "cache: 'force-cache'"],
+    ['headers', 'headers: {', "headers: { Authorization: 'Bearer private',"],
+  ])('confines browser fetch to the BFF extension action when %s changes', (_label, from, to) => {
+    const source = sources[BFF_BROWSER_ADAPTER]!;
+    expect(source).toContain("fetch('/api/auth/extend'");
+    expect(source).toContain(from);
+    expect(
+      transportFindings(graphWith(BFF_BROWSER_ADAPTER, source.replace(from, to))).some(
+        (item) => item.file === BFF_BROWSER_ADAPTER && item.reason.includes('global fetch'),
+      ),
+    ).toBe(true);
+  });
+  it('rejects an extra browser fetch outside the BFF extension action', () => {
+    const source = sources[BFF_BROWSER_ADAPTER]!;
     expect(
       transportFindings(
         graphWith(BFF_BROWSER_ADAPTER, source + '\nfetch("/api/auth/extend");'),
       ).some((item) => item.file === BFF_BROWSER_ADAPTER && item.reason.includes('global fetch')),
     ).toBe(true);
-    expect(transportFindings(graphWith(probe, source)).some((item) => item.file === probe)).toBe(
-      true,
-    );
+  });
+  it('rejects the BFF extension fetch copied into another production module', () => {
+    expect(
+      transportFindings(graphWith(probe, sources[BFF_BROWSER_ADAPTER]!)).some(
+        (item) => item.file === probe,
+      ),
+    ).toBe(true);
   });
   it('the configured production caller imports the server-only marker', () => {
     expect(hasServerOnlyMarker(production.files.get(ADAPTER)!)).toBe(true);
@@ -1918,6 +2241,14 @@ describe('remediation source resolution census controls', () => {
     ['remapped subpath', { '.': './src/index.ts', './server': './src/other.ts' }],
     ['wildcard exports', { '.': './src/index.ts', './*': './src/*.ts' }],
     ['missing root export', { './server': './src/server.ts' }],
+    [
+      'remapped native administration export',
+      { '.': './src/index.ts', './administration-server': './dist/authenticated-server.js' },
+    ],
+    [
+      'unselected native export',
+      { '.': './src/index.ts', './other-native': './dist/other-native.js' },
+    ],
   ])('refuses %s through the production workspace predicate', (_name, exports) => {
     const { configs, packages } = resolutionCensus();
     expect(

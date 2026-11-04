@@ -383,3 +383,107 @@ for the two explicit lane keys without adding credentials to restore/build.
 - [PostgreSQL 18 READ COMMITTED](https://www.postgresql.org/docs/18/transaction-iso.html#XACT-READ-COMMITTED).
 - [Npgsql data sources and pools](https://www.npgsql.org/doc/basic-usage.html),
   [PgBouncer pool and database configuration](https://www.pgbouncer.org/config.html).
+
+## Amendments
+
+### Amendment 1 — Native candidates and finite administration requirements (2026-10-28)
+
+Jointly accepted [ADR-0078](0078-native-session-scope-and-self-entry.md) and
+[ADR-0079](0079-bounded-identity-administration.md) extend the exact candidate/policy
+census for native application scope and the named member/Role/Tenancy operations.
+Verified provider/binding facts remain immutable; distinct NativeScopeEvidence
+supplies a separately credentialed candidate, confirmed against real host and live
+Membership/lifecycle before HostAndNativeSessionScope. Candidate freshness retains
+exact request/feature/source references, isolated committed reads and actual owner
+cleanup. Legacy direct-bearer rules and the four-slot grant/lifecycle lane remain.
+
+Policy declarations gain only finite registered scoped alternatives/conjunctions
+and explicit self/target predicates. The exact operation matrix names each clause;
+there is no wildcard, generic Organization-to-Tenant escalation or cached HTTP
+allow. Tenant member-detail read clauses can mint their declared tenant-wide read
+witness; Organization clauses and the current-branch directory stay scoped. No
+read witness changes write authority. Direct application calls independently
+recheck classification, current capability and exact target after ordered waits.
+
+Exactly three Tenant Tenancy pairs form the v2 release delta; the original five
+Identity pairs/kernel and eight templates remain. Explicit first adoption carries
+its exact eligible Tenant Admin/role-admin/orgless/version/fingerprint/fence/MUST
+contract and monotonic marker; ordinary registration/seed/edit cannot restore a
+removed grant. Warm installed mutable authority is preserved under ADR-0079's
+pristine-prefix/per-write-lock rules rather than repaired or exact-v1 refused.
+
+Assignment writers serialize whole current Role grant graphs before checking the
+actor's complete delegation ceiling, under canonical User/Tenant/Role/Membership
+ordering. The admitted same-key Tenant-to-exact-Organization bridge stays explicit;
+other-key/reverse escalation and kernel removal remain refused. Live target User,
+lifecycle, terminal-state and last-admin guarantees are unchanged.
+
+Own-capability previews are separately classified Off self-navigation, not attempted
+protected acts: their nine advisory flags and addition-only canGrant choices mint
+no denial event or reusable authority. Actual reads/mutations still authorize and
+audit independently. Protected completed-receipt disclosure gets its own current
+MUST read and immutable target; stale mutation authorization is never replay
+permission. Denial evidence remains ADR-0077's common owner, without a new generic
+suppression budget or changed audit durability.
+
+[Standard 19](../standards/19-permissions.md) owns finite policies/releases and
+[Standard 05](../standards/05-database.md#p03-3-storage-and-replay-contract) owns
+source, lock and cleanup controls. Other grants, public/AccountSite ceilings,
+auxiliary capacities and historical body/status/date remain. P03-3 owes actual
+policy, HTTP/direct, app-role concurrency, replay and native proofs; acceptance
+alone does not mark its new callers or controls implemented.
+
+### Amendment 2 — Separate fixed-seed prerequisite source (2026-10-29)
+
+Accepted [ADR-0080](0080-fixed-seed-prerequisite-read-scope.md) adds a bounded
+exception to this ADR's human-capability-only read-hatch source. Exactly its eight
+fixed seed consumers may request internal prerequisite verification after their
+complete ordered fences and target preparation, on the same ordinary ReadWrite
+owner. The private seed witness binds the actual invocation and independently
+captured immutable declaration; it is default-denied in API composition.
+`OperationReadWitness` remains sealed and Protected-human-only, with its existing
+capability, actor, scope, invocation, nesting and one-use controls unchanged.
+
+The separate owner state and scope-only enable/clear sites preserve Tenant,
+organization and generation, returning narrow before any usable result or
+mutation. No seed-shaped context, SystemActor attribution, supplied hash, nested
+dispatch, human request or event inherits this authority. The metadata-only
+operation is an internal prerequisite of the classified seed act, not a general
+directory reader or separately successful sensitive-read event. Its physical
+Tenant-wide read reach is constrained by closed application source/projection
+and lifetime; it grants no wider write scope or SQL READ ONLY guarantee.
+
+[Database Standards](../standards/05-database.md#operation-bound-read-authority)
+and ADR-0080 own the source, state, barriers and proof obligations. The complete
+seed-write census extends beyond these eight readers; the remaining writers
+retain their separately specified narrow checks. Existing human authorization,
+auxiliary capacities, evidence durability and historical Accepted body/status/
+date remain unchanged. Acceptance registers the new controls; Step 3 proves them
+before activation.
+
+### Amendment 3 — Separate fixed completion read source (2026-10-29)
+
+Accepted [ADR-0081](0081-fixed-seed-completion-before-origin-adoption.md) adds a
+separate closed Seed-purpose exception for the fixed administration-origin
+completion check. Its one-consumer completion census has its own private witness,
+Seeder minter, owner entry and fixed owning-module projections. ADR-0080's exact
+eight pristine consumers, source and predicates remain unchanged. Pristine and
+completion authority cannot substitute for one another; neither a finite Seed
+policy alone nor SystemActor attribution grants either capability.
+
+The completion entry reuses the same ordinary ReadWrite owner, private typed
+state transition, two exact scope-only SQL sites, write barriers and actual
+cleanup policy. It restores narrow scope before returning usable admission or
+allowing mutation. Protected-human `OperationReadWitness` sources, capability/
+actor/invocation binding, one-use and nesting controls, live grant ceilings and
+auxiliary source capacities remain unchanged. Human requests, nested work,
+events and jobs receive no completion witness.
+
+The internal admission/refusal result adds no independently callable directory
+or separately successful sensitive-read event; the classified origin act retains
+its existing plural MUST evidence. [Database Standards](../standards/05-database.md#operation-bound-read-authority)
+owns the separate source and projection censuses and shared lifetime/barriers.
+ADR-0081 supplies the additional authority; this amendment discloses it without
+independently replacing this decision. Historical Accepted bytes, status, date,
+Deciders and prior amendments remain unchanged. Acceptance alone qualifies no
+new source or runtime control.

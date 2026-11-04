@@ -12,6 +12,8 @@
 (replacement admission proofs implemented; both review rounds complete),
 [ADR-0056 Public Demo Browser and Lighthouse Enforcement](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md)
 (accepted 2026-10-11; browser/audit replacement proofs implemented),
+[ADR-0085 Public Demo CI Execution Window](../decisions/0085-public-demo-ci-execution-window.md)
+(Accepted 2026-11-02; outer-window controls and hosted qualification are separate),
 [ADR-0057 Transactional Event Production and Completion](../decisions/0057-transactional-event-production-and-completion.md)
 (producer lifecycle, payload and production-census proofs implemented),
 [ADR-0046 Durable Event Delivery and Recovery](../decisions/0046-durable-event-delivery-and-recovery.md)
@@ -42,6 +44,8 @@ final-source hosted qualification),
 [ADR-0075 Ordinary CI Job Window](../decisions/0075-ordinary-ci-job-window.md)
 (Accepted 2026-10-27; the ordinary-budget extension below is implemented with
 offline controls and source-bound hosted A/B; the phase owns evidence review),
+[ADR-0082 Current-Source CI Execution Windows](../decisions/0082-current-source-ci-execution-windows.md)
+(Accepted 2026-11-01; dependent controls and hosted qualification remain separate),
 [ADR-0064 Tenant API Authentication Boundary](../decisions/0064-tenant-api-authentication-boundary.md)
 (Accepted 2026-10-19; P02b-5 obligations implemented and merged through PR #33;
 the [merge closeout](../roadmap/phase-02b-delivery-log.md#p02b-5-merge-and-closeout-2026-10-20)
@@ -65,6 +69,15 @@ Identity foundation registration additionally derives from Accepted
 Accepted live-authorization extensions additionally derive from
 [ADR-0076](../decisions/0076-live-scoped-authorization.md) and
 [ADR-0077](../decisions/0077-trusted-authorization-evidence.md).
+Accepted fixed-seed prerequisite extensions derive from
+[ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md); their
+separate obligations are tracked below.
+Accepted fixed-origin completion extensions derive from
+[ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md);
+its separate obligations are tracked below.
+Version-qualified framework cleanup and generated-output obligations derive from
+[ADR-0083](../decisions/0083-owned-next-response-compression-cleanup.md);
+the new rule and extension below remain Registered until their controls ship.
 The implemented Identity obligations and extensions name their actual proof
 owners below; the [phase Status block](../roadmap/phase-03-identity-admin.md) owns
 current qualification and review state.
@@ -160,7 +173,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**320 test methods run in
+**331 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -201,7 +214,7 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**251 rules in this catalogue are Implemented, and 146 of them are in that assembly.**
+**254 rules in this catalogue are Implemented, and 149 of them are in that assembly.**
 The other 105 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
@@ -779,7 +792,10 @@ otherwise).
   The guard reads identity literals from the authoritative `SeedData` declaration,
   not a second hard-coded list. Its source reader must observe the declared values
   and fail on an incomplete or unreadable declaration rather than report clean.
-- **Source:** [Phase 02d G20](../roadmap/phase-02d-delivery-log.md#p02d-2-accepted-answers).
+- **Source:** [Phase 02d G20](../roadmap/phase-02d-delivery-log.md#p02d-2-accepted-answers);
+  [ADR-0079](../decisions/0079-bounded-identity-administration.md) and
+  [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md)
+  select the closed fixed-origin security data.
 - **Scope:** P02d-2 accepted G20(a)'s source;
   [P02d-5](../roadmap/phase-02d-delivery-log.md#p02d-5-accepted-answers)
   accepted bounded seed/development/test exemptions, and
@@ -802,13 +818,28 @@ otherwise).
   verifies category coverage and exact frontend fixture drift. Canonical built-ins
   come from their owning declarations. Production census includes Seeder
   orchestration, frontend packages/messages/configuration/native code; only the
-  exact seed declaration and named test/development data are exempt. Complete
+  exact seed declaration and named test/development data are exempt. The
+  fixed-origin declarations remain inside that census: only the six literal
+  nodes of the two exact immutable `SeedAdministrationOriginManifest` records
+  receive bounded data admission. Their IDs/slugs and derived management hosts
+  match `SeedData`, with an independent fixed-pin test; exact compiled All/Find
+  callers are enumerated. Extra/computed records, executable branches, copied
+  management-host literals, aliases and unclassified conditional variants refuse.
+  This extension is qualified under the separately registered
+  [completion rule](#fixed_seed_origin_adoption_requires_completed_foundation).
+  Complete
   decoded values match ordinally; GUIDs match by value. C# conditional symbol
   configurations are parsed independently to a fixed point (at most eight symbols;
   excessive or unreadable configurations fail). UTF-8 literals and emitted JSX
   text/attribute values are included. Frontend
   runtime imports cannot hide helpers behind test filenames or directories;
   exact standalone proof/development entries retain their bounded exemptions.
+  The copied-runtime observation generator and its output-changing instrumenter
+  owner are bound to their complete reviewed LF-normalized UTF-8 source digests;
+  its two exact generated imports still follow current TypeScript targets.
+  Generator/owner drift, including substituted compiler inputs, hidden helper
+  reads or later output replacement, refuses until an explicit pin review.
+  Equivalent LF/CRLF checkout forms remain admitted without freezing target data.
   Generated/dependency roots are exact paths. Known environment/OS/editor/log
   files are omitted only when Git also ignores them; source and unknown formats
   retain fail-closed admission. Local module URL suffixes,
@@ -926,7 +957,13 @@ otherwise).
   reads nonempty Vitest JSON outcomes, refusing failures, skipped/todo cases,
   missing scripts/reports and omitted discovered files. Real clean/planted runs in
   `frontend-runner.test.ts` prove skip/todo, missing-script/report and omission
-  refusals; CLI success alone cannot close the rule.
+  refusals; CLI success alone cannot close the rule. Frontend completeness is
+  equality of discovered/reported files and consistency/pass of reported cases;
+  there is no generic independent expected-scenario-ID census. ADR-0088–0092's
+  selected test settings follow [Testing 06](06-testing.md#frontend-guarded-execution).
+  Controlled timers prove stop invocation/refusal, not retirement of every
+  independently detached family. Acceptance alone establishes no executable or
+  hosted qualification.
 - **Why it matters:** "architecture tests are non-skippable" is a policy the corpus states
   in three places and nothing enforced. Adding `Skip = "…"` is one edit, the suite goes
   green, and it reports the same number of passing files as before — which is precisely
@@ -944,10 +981,19 @@ otherwise).
   exempted this rule's own file, so the companion's fixtures were not read as code — and
   the exemption made the four corpus guards the only tests in the assembly that one edit
   could switch off. Stripping literals removed the reason for it.
-- **Source:** [06-testing.md § Architecture tests](06-testing.md).
+- **Source:** [06-testing.md § Architecture tests](06-testing.md),
+  [ADR-0086](../decisions/0086-native-web-test-package-window.md),
+  [ADR-0087](../decisions/0087-native-frontend-proof-windows.md),
+  [ADR-0088](../decisions/0088-frontend-ci-completion-windows.md).
 - **Type:** xUnit + a source scan with comments and literals stripped, plus a `.trx`
   assertion in CI. **Kind:** structural.
-- **Status:** **Implemented** — `CorpusConsistencyTests.cs`, Packet 10.
+- **Status:** **Implemented** — `CorpusConsistencyTests.cs`, Packet 10. The
+  ADR-0086 runner extension is implemented and passes controlled-timer, real
+  discovery/refusal and complete guarded frontend tests. ADR-0087’s selected
+  orchestration-window extension passes these existing controls and the complete
+  guard. ADR-0088's completion-setting extension passes the existing controls
+  and complete guard too; the [Phase 03 Status](../roadmap/phase-03-identity-admin.md)
+  owns current hosted qualification.
 - **Phase:** 02a (Packet 10).
 
 #### `The_Catalogue_Counts_Its_Own_Rules`
@@ -2526,15 +2572,12 @@ because the filters hold, and removing both turns all five red.
   ADR-0040 Amendment 5 adds. The MediatR transaction owner and P02b-3's transport
   stamp it through `SetTenantContextAsync`; acceptance and prepared execution
   announce their own ambient transaction before app-role commands. The durable
-  idempotency store remains unimplemented. The five other logical setters,
-  `OrganizationScopeValidator`, the two standalone audit writers and the two cached
-  projection loaders (`AuditConfig` and the tenant flags), issue raw `NpgsqlCommand`s on
-  connections of their own, which EF interception cannot see, so they need neither a mark
-  nor an exemption. (`CachedHostToTenantResolver` is not one of the eight: it sets
-  `app.resolving_host`.) The exemption list is empty for the
-  same reason, which is why `PlatformAdminScope` — a `BYPASSRLS` connection that announces
-  no tenant by design — is invisible here by construction rather than by a hand-written
-  exception someone later widens.
+  idempotency store uses raw app-role SQL on its short announced owners, which
+  EF interception does not see; it receives no EF exemption. The
+  [Security setter census](11-security.md#the-out-of-band-setters) owns the
+  complete logical set. Global, discovery and fixed-seed transitions retain their
+  separately enumerated owner checks. `PlatformAdminScope` announces no Tenant
+  and acquires no ordinary-context exemption.
 - **Note:** the guard is a **diagnostic above Row Level Security, never the boundary**.
   `Without_The_Guard_An_Unannounced_Read_Is_Silent_And_Empty` asserts the state it exists
   to make visible: safe already, because the predicate is `NULL`, and silent, which is the
@@ -2652,7 +2695,9 @@ Implemented requires nonempty production subjects and dirty/clean controls.
   [Database lock contract](05-database.md#lock-snapshot-and-adoption-conditions).
 - **Type:** real app-role PostgreSQL mutation/concurrency controls and closed
   transaction-only acquisition/caller census. **Kind:** structural and behavioural.
-- **Test owners:** `IdentityMembershipTests`, `IdentityMutationLockTests`, `IdentityFoundationConventionTests`.
+- **Test owners:** `IdentityMembershipTests`, `IdentityMutationLockTests`, `IdentityFoundationConventionTests`,
+  `MembershipAdministrationProfileTests`, `MembershipAdministrationAssignmentTests`,
+  `MembershipAdministrationRaceTests`.
 - **Status:** **Implemented** (`IdentityFoundationConventionTests`; `IdentityMembershipTests`, integration assembly) — real app-role races, immediate/deferred guards,
   transaction-only caller/receipt controls, fixture restoration and local
   command-path measurement. Current qualification/review state lives in the
@@ -2742,7 +2787,7 @@ promotes an unrun proof.
 - **Asserts:** complete real HTTP/request/source composition explicitly classifies
   public, AccountSite, permission-bound and confined seed/system operations.
   The unchanged canonical eight-step pipeline admits application requests through
-  `AuthorizationBehavior`. The HTTP census contains exactly eight public GET/HEAD
+  `AuthorizationBehavior`. The baseline HTTP census contains exactly eight public GET/HEAD
   actions, AccountSite GET and `GET /api/v1/identity/memberships`; exact named
   policies and the default/fallback refusal guard own the two authenticated reads.
   Live reader/evaluator/current-context/evidence aliases and qualification startup
@@ -2752,7 +2797,21 @@ promotes an unrun proof.
   committed revocation, same-key scoped delegation, finite manifest adoption and
   retained public/AccountSite ceilings have useful production positive/denied
   controls. Ambient/SystemActor or realm-role values alone supply no exemption.
+  The exact own-profile request uses coverage-only `OwnMembershipRead`, has no
+  stored permission or tenant-wide read witness, and checks the actor's exact
+  current Membership without NULL-org fallback. Its owning module declares
+  physical READ ONLY independently of AccountSite. Member detail's matched
+  Tenant clause may widen reads; its Organization clause and all writes stay
+  scoped. Exact current-invocation borrowers and the separate Membership target
+  decision source join the compiled census with missing/extra/alias controls.
+  Pure protected MUST-sensitive reads retain no payload on failed physical
+  audit COMMIT and report audit_unavailable for both scoped and Tenant clauses.
+  The exact current application decision/request gates this mapping; ordinary
+  mutations, cancellations and unrelated owners retain their primary failure
+  and original uncertain completion state.
 - **Source:** [ADR-0076](../decisions/0076-live-scoped-authorization.md);
+  [ADR-0077](../decisions/0077-trusted-authorization-evidence.md);
+  [ADR-0079](../decisions/0079-bounded-identity-administration.md);
   [Permissions](19-permissions.md#live-permission-enforcement-contract).
 - **Type:** complete compiled metadata/caller census, real direct dispatch and
   administrative-directory HTTP/database controls. **Kind:** behavioural and structural.
@@ -2760,6 +2819,9 @@ promotes an unrun proof.
   `OperationPolicyOwnershipTests`, `OperationHttpClassificationTests`,
   `OperationAuthorizationCoordinatorTests`, `IdentityOperationAuthorizerTests`,
   `RoleGrantCommandTests`, `RoleGrantCommandIntegrationTests`,
+  `MembershipAdministrationProfileTests`, `MembershipAdministrationAssignmentTests`,
+  `MembershipAdministrationRaceTests`,
+  `MembershipDetailCommitFailureTests`,
   `IdentityAuthorizationHttpTests`, `UndeclaredHttpOperationTests`.
 - **Status:** **Implemented** — `OperationPolicyOwnershipTests`; actual composition and
   caller controls complement the direct/HTTP proofs above.
@@ -2813,9 +2875,9 @@ promotes an unrun proof.
 
 - **Asserts:** exact registered scoped pairs match admitted target facts;
   Organization grants apply only through the matching branch Membership.
-  Tenant grants alone remove no filter or write scope. The declared operation
-  witness alone permits accepted tenant-wide reads; independent HostScope and
-  organization write guards survive. Missing/forged/other-branch target metadata
+  Tenant grants alone remove no filter or write scope. For human reads, the
+  declared operation witness alone permits accepted tenant-wide reads;
+  independent HostScope and organization write guards survive. Missing/forged/other-branch target metadata
   and prohibited scope implications refuse.
 - **Source:** [ADR-0076](../decisions/0076-live-scoped-authorization.md);
   [Permissions](19-permissions.md#live-permission-enforcement-contract).
@@ -2882,7 +2944,250 @@ own current qualification and review state.
 | [`AllowsUnresolvedTenantContext_Only_On_Provisioning_Commands`](#allowsunresolvedtenantcontext_only_on_provisioning_commands), [`Tenant_Context_Guard_Fires_Only_On_An_Unmarked_Transaction`](#tenant_context_guard_fires_only_on_an_unmarked_transaction) | Step 3: closed global authority mode and crossover refusal; provisioning marker/current four context writers do not grow. P03-2 separately implements the accepted ninth candidate setter. |
 | [`AuditEntry_Is_AppendOnly`](#auditentry_is_appendonly), [`MustClass_Audit_Writes_Share_The_Business_Transaction`](#mustclass_audit_writes_share_the_business_transaction) | Step 3: ordinary pending sentinel/global-owner refusal, typed global composition and two new central seams with independent failure/uncertainty/duplicate proof. Six ordinary seams and two confined global seams are implemented. |
 | [`Tenant_Authentication_Profile_Is_Closed`](#tenant_authentication_profile_is_closed), [`Keycloak_Roles_Are_Not_Application_Authority`](#keycloak_roles_are_not_application_authority), [`Authenticated_Rate_Limits_Use_Validated_Subject`](#authenticated_rate_limits_use_validated_subject), [`Authentication_Middleware_Order_Is_Enforced`](#authentication_middleware_order_is_enforced) | Step 5: verified subject before quota/binding SQL, optional actor evidence, normalized existing binding, uniform 401 and immutable feature/caller census. Numeric quota/fault/once-per-request semantics remain. |
-| [`Authenticated_Http_Surface_Is_Enumerated_And_ReadOnly`](#authenticated_http_surface_is_enumerated_and_readonly) | Step 5: existing-binding read, unchanged endpoint/SDK union, AccountSite404/405 and native publication. No POST or tenantless completion; P03-3 owns transport activation. |
+| [`Authenticated_Http_Surface_Is_Enumerated_And_ReadOnly`](#authenticated_http_surface_is_enumerated_and_readonly) | Step 5: existing-binding read, unchanged endpoint/SDK union, AccountSite404/405 and native publication. No POST or tenantless completion in this foundation slice; P03-3 transport activation follows the [native admission contract](11-security.md#native-scope-and-global-self-admission), with qualification and packet status owned by [Phase 03](../roadmap/phase-03-identity-admin.md). |
+
+### Accepted P03-3 extensions and new obligations
+
+Source: [ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md),
+[ADR-0079](../decisions/0079-bounded-identity-administration.md),
+[ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md) and
+[ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md). These are
+Accepted extensions with individually recorded statuses below; shipped
+populations above remain Implemented. A source census, proposed test name or
+document check does not qualify a new runtime population. The phase Status block
+owns delivery state, and later HTTP/native/browser consumers retain their own proof.
+
+| Existing canonical rule | P03-3 extension / proof owner |
+|---|---|
+| `Global_Identity_Storage_Is_Subject_Confined` and `Global_Identity_Creation_Uses_The_Common_Audit_Owner` | Extend the exact applied function/body/ACL/caller census from five to eight; qualify actual attempt/capacity/discovery owners, no counter reset or general User projection. Existing central success/reconciliation seams remain sole writers. |
+| `Identity_Seed_Uses_Finite_Adopted_Manifests` | `IdentitySeederTests` and Tenancy seed controls: pristine-prefix versions, edited completed-state preservation, terminal/tombstone refusal, no individual grant restoration, per-write fence/version recheck and real held-seed locale/profile/grant competitors. Fixed origin adoption's qualified marker-2 transitions, warm preservation, legacy upgrade and zero-dispatch repeat belong to [the separate completion rule](#fixed_seed_origin_adoption_requires_completed_foundation). ADR-0080's [temporary read](#fixed_seed_prerequisites_use_a_closed_temporary_read_scope) and [complete writer census](#tenant_bound_seed_writes_recheck_under_ordered_fences) retain separate authority and proof populations; their own rows record status. |
+| `Tenant_Scope_Widening_Is_Never_Set_From_Request_Input`, `Permission_Scope_Matches_Resource_Scope`, `Out_Of_Band_Setters_Open_Read_Only_Transactions`, `Protected_Operations_Require_Explicit_Live_Policies` and `Module_DbContexts_Enlist_In_The_Ambient_UnitOfWork` | Existing human witness, scope-carrier and source/attachment owners gain the exact separate fixed-seed producers and reader populations under [the eight-consumer prerequisite rule](#fixed_seed_prerequisites_use_a_closed_temporary_read_scope) and [one-consumer completion rule](#fixed_seed_origin_adoption_requires_completed_foundation). Their private typed transition shares the same two scope-only enable/clear SQL sites. Preserve Protected-human minters, current owner/source enrollment, ten Tenant setters and four context writers; no new physical owner or READ ONLY claim. Their separate rule rows record qualification under the named owners. |
+| `Permission_Definitions_DeclareScope` and `Permission_Registry_Has_DeniedTest` | `OperationPermissionConventionTests` and actual command controls: exact v1 five Identity pairs plus v2 three Tenant Tenancy pairs; finite Any/All alternatives, disabled default, explicit additive adoption and independent denied coverage. No blanket key/scope implication. |
+| `Identity_Membership_Invariants_Use_Fresh_Ordered_Locks` | Actual internal member profile/status/assignment commands, retained Role-root grant locks and fresh post-wait delegation; no extra User fence for profile/removal. `MembershipAdministrationProfileTests`, `MembershipAdministrationAssignmentTests` and `MembershipAdministrationRaceTests` own their app-role proof. Existing deferred/MUST rollback and last-admin guarantees remain; later HTTP/native consumers retain separate qualification. |
+| `Authenticated_Http_Surface_Is_Enumerated_And_ReadOnly` and `Authentication_Middleware_Order_Is_Enforced` | Exact protected write/global-self descriptors supplement the historical read-only union. Source admission follows verified-subject quota, separate native evidence never rewrites provider facts, and both HTTP/direct application entry retain independent policy checks. Wrong-method/masking, legacy/public and OpenAPI/SDK caller controls cover the complete union. |
+| `Bff_Session_Refresh_And_Revocation_Have_One_Owner` | Actual entry/selection/switch owners, unchanged-context refresh with zero new admission-event delta, original absolute deadline, exact-subject live-destination replacement and actual cancellation/cleanup. |
+| `Bff_Auth_Admission_And_Csrf_Are_Closed` and `Bff_Host_Cookies_And_History_Are_Isolated` | Exact native form/path/field census, nine advisory flags, no capability in aggregate ETag, bounded snapshot admission 128 global/eight per owner and 32 MiB serialized ceiling. Actual native HTTPS/browser same-label/truncation/Unicode different-subject recovery, four-origin cookies, late publication, history/no-script, en/tr and manual accessibility. |
+
+#### `Fixed_Seed_Prerequisites_Use_A_Closed_Temporary_Read_Scope`
+
+- **Asserts:** the exact eight fixed consumers use a separate private witness,
+  actual invocation and immutable declaration on the same ordinary ReadWrite
+  owner after their complete ordered plan and target preparation. API, human,
+  nested, event and origin-adoption sources cannot obtain it. Separate owner
+  state and exact scope-only enable/clear sites preserve Tenant/organization/
+  generation, and SQL/EF return narrow before usable evidence or mutation.
+  ADR-0081's distinct completion entry reuses one private typed transition and
+  those same two SQL sites; its separate minter/consumer census never widens this
+  exact eight-consumer pristine population.
+  The closed operation exposes no callback, submitted SQL or reusable scope lease.
+  Fixed owning-contract readers return only admission/refusal or opaque one-use
+  evidence; personal metadata never becomes a DTO, diagnostic, cache or receipt.
+  The common first SaveChanges barrier acts before audit/domain-event capture;
+  entry/exit change detection, the EF command
+  guard, owned raw audit/outbox writes, commit and nested/context/validation paths
+  refuse during verification; misuse and uncertain cleanup stay rollback-only.
+- **Required controls:** planted extra minters/callers/sites and human-witness
+  regressions; actual app-role SQL/EF foreign-Tenant masking and cross-org write
+  refusal; same-org and empty saves, owned raw writes and commit refusal;
+  enable/clear acknowledgement loss, cancellation, source/generation expiry,
+  nested entry, leaked scope and pooled reuse. Prove exact announcement
+  preservation and narrow reads after restoration. The held Yoga profile-edit
+  race, both commit orders, untouched interrupted resume and completed no-write
+  repeat must observe real target state and successful profile counts.
+  `FixedSeedPrerequisiteConventionTests`' owner/caller checks and scope sanitizer
+  follow the shared private transition while exempting exactly the two reviewed
+  SQL sites. Planted extra sites and cross-purpose substitutions
+  remain failures; completion has its own independent census below.
+- **Source:** [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md);
+  [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md);
+  [operation-bound read authority](05-database.md#operation-bound-read-authority)
+  and [warm-seed evidence](05-database.md#warm-seed-evidence-and-origin-adoption).
+- **Type:** exact production source/caller/statement census plus real app-role
+  PostgreSQL lifetime, fault and competing-commit controls.
+  **Kind:** structural and behavioural.
+- **Test owners:** `FixedSeedPrerequisiteConventionTests`,
+  `FixedSeedPrerequisiteReadTests`.
+- **Status:** **Implemented** — `FixedSeedPrerequisiteConventionTests`, `FixedSeedPrerequisiteReadTests`;
+  [Step 3 closeout](../roadmap/phase-03-delivery-log.md#p03-3-step-3-review-round-2-and-closeout-2026-10-29).
+- **Phase:** P03-3 Step 3.
+
+#### `Fixed_Seed_Origin_Adoption_Requires_Completed_Foundation`
+
+- **Asserts:** only the fixed `AdoptSeedAdministrationOriginCommand` consumes the
+  separate privately minted completion witness, with its actual active finite
+  Seed source,
+  independently captured declaration and immutable prepared target snapshot.
+  The minter validates actual owner/unit, retained complete exclusive Tenant plan
+  and locked Tenant/existing-mapping or fenced mapping-absence evidence;
+  caller versions, hashes or Booleans cannot
+  supply admission. Owning contracts verify the retained completed foundation
+  on that owner, with narrow Tenancy/Customization reads and fixed Education/
+  Identity branch reads inside the temporary hatch. Restoration precedes usable
+  results or mutation. The eight pristine consumers and Protected-human witness
+  remain separate; no global/provider read, new owner or general reader is added.
+- **Required controls:** exact separate minter/consumer/projection census and
+  forged-source/policy/request/target/plan/owner/generation controls; reject
+  cross-purpose reuse, extra scope SQL, callback/lease surfaces and profile/
+  global/provider value projections. Reuse the prerequisite rule's shared private
+  transition/barrier controls without enlarging its pristine census.
+  Actual app-role PostgreSQL controls refuse provisioning-only and every
+  incomplete stage, including a final other-branch profile and content pin;
+  completed legacy/fresh installations preserve lawful profile/assignment/grant,
+  locale/theme/Organization edits and retained terminal nonadmins. A revoked
+  former admin needs a qualifying local replacement; both kernel pairs remain
+  required and lawful nonkernel removals remain removed. Required Membership
+  aggregate version zero refuses; positive current retained state proves no
+  original profile-initializer or fresh global eligibility history.
+  Cover held-Tenant competing commits in both orders, actual target locks,
+  unchanged mapping/marker and successful audit counts on refusal, plural-MUST
+  rollback, exact-existing mappings, foreign masking, restoration/cleanup and
+  independent two-Tenant resume. Forward guards admit only qualified `0→2` and
+  `1→2`, reject new `0→1`, decrements and jumps, and preserve old marker-1 history.
+  Runner controls prove marker 0 dispatch/expect-2, marker 1 exact-mapping check
+  then dispatch/expect-2, marker 2 exact-mapping check then zero dispatch/witness/
+  hatch/intent, and other-marker refusal. Warm `make seed` accepts marker 2.
+  Marker-2 repeat records historical adoption, not current mutable-graph proof;
+  genuine unknown-COMMIT controls follow the canonical recovery contract without
+  inferring rollback or automatically replaying a mutation.
+- **Source:** [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md);
+  [closed completion authority](05-database.md#fixed-seed-completion-read-authority)
+  and [warm-seed evidence](05-database.md#warm-seed-evidence-and-origin-adoption).
+- **Type:** exact compiled source/consumer/projection and shared SQL-site census,
+  plus real app-role PostgreSQL completion, transition, fault and race controls.
+  **Kind:** structural and behavioural.
+- **Test owners:** `SeedOriginCompletionConventionTests`,
+  `SeedOriginCompletionTests`.
+- **Status:** **Implemented** — `SeedOriginCompletionConventionTests`, `SeedCompletionReadTests`,
+  `SeedOriginCompletionTests` and `SeedOriginCompletionGraphTests`;
+  [Step 3 closeout](../roadmap/phase-03-delivery-log.md#p03-3-step-3-review-round-2-and-closeout-2026-10-29).
+- **Phase:** P03-3 Step 3; Phase 06 reopens the admitted content-writer premise.
+
+#### `Tenant_Bound_Seed_Writes_Recheck_Under_Ordered_Fences`
+
+- **Asserts:** the actual 21 v1 writer types and separate fixed origin-adoption
+  writer each hold their complete ordered Tenant/root plan and freshly check
+  prerequisites on that owner before mutation. The eight temporary readers use
+  the [prerequisite rule](#fixed_seed_prerequisites_use_a_closed_temporary_read_scope);
+  `ProvisionTenant` stays INSERT-first. The twelve content
+  writers use narrow owning contracts for pristine Tenancy and absence of all
+  retained Role history, plus exact target/predecessor/natural-key/version and
+  immutable authored pins under the exact fixed source. Proposed Course/Lesson
+  creation cannot skip its missing predecessor; fixed branding requires completed
+  Customization on the same narrow owner and supplied plan, with exactly two
+  prerequisite caller sites and one independent reader implementation.
+  Tenant-wide Role storage,
+  denied DELETE and v1 Role-before-Membership ordering establish the stage proof;
+  inactive, tombstoned and undeclared Role IDs cannot evade it. Built-in event
+  competitors use their separate source and at least shared Tenant before
+  quota/concept locks. Origin adoption retains its separate completion/topology
+  and plural-audit contract under the [separate completion rule](#fixed_seed_origin_adoption_requires_completed_foundation);
+  global User adoption stays outside Tenant ownership.
+- **Required controls:** independently complete writer/competitor census with
+  missing/extra-source and removed-guard controls; actual held-Tenant/first-Role
+  competitors and both commit orders for all twelve content writer types;
+  retained/conflicting/absent roots, exact fixed-source denial and untouched
+  interruption at every stage, including later canonical Course/Lesson creation
+  and premature branding followed by successful ordinary resume. Preserve valid
+  completed edits, prove no-write
+  repeats and refuse incompatible incomplete history. This proves the admitted
+  writer population, not an all-branch snapshot or forged database history.
+- **Source:** [ADR-0079 Amendment 2](../decisions/0079-bounded-identity-administration.md#amendment-2--complete-seed-write-census-and-prerequisite-proof-2026-10-29),
+  [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md) and
+  [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md);
+  [warm-seed evidence](05-database.md#warm-seed-evidence-and-origin-adoption).
+- **Type:** complete compiled production-writer/source census and real app-role
+  PostgreSQL interruption, preservation and competing-commit controls.
+  **Kind:** structural and behavioural.
+- **Test owners:** `SeedContinuationConventionTests`, `SeedContentContinuationTests`,
+  `IdentitySeederTests` and `SeedAdministrationOriginTests`. The
+  [Phase 03 Status block](../roadmap/phase-03-identity-admin.md) distinguishes these
+  local controls from later HTTP/native/browser and final A/B qualification.
+- **Status:** **Implemented** — `SeedContinuationConventionTests`, `SeedContentContinuationTests`,
+  `IdentitySeederTests` and `SeedAdministrationOriginTests`;
+  [Step 3 closeout](../roadmap/phase-03-delivery-log.md#p03-3-step-3-review-round-2-and-closeout-2026-10-29).
+- **Phase:** P03-3 Step 3; Phase 06 reopens staging before mutable content administration.
+
+#### `Native_Scope_Evidence_Is_Separate_And_Host_Bound`
+
+- **Asserts:** verified provider subject, normalized stored actor and native scope
+  are separate immutable evidence. Current/previous purpose-secret qualification,
+  expiry, exact header/source/request binding and real host ceiling refuse
+  foreign/stale/partial/retargeted evidence. Provider/native tuple disagreement
+  and legacy assertion mismatch never select a winner. Native Tenant/Organization
+  scope cannot admit Platform/public/provisioning authority or a SQL write hatch.
+- **Source:** ADR-0078; [Security contract](11-security.md#native-scope-and-global-self-admission).
+- **Type:** compiled caller/source/pipeline census and actual HTTP/app-role
+  candidate/AccountSite controls. **Kind:** structural and behavioural.
+- **Planned test owners:** `NativeScopeAdmissionTests`,
+  `IdentityAuthorizationHttpTests`, `IdentityAuthorizationConventionTests`.
+- **Status:** **Registered.**
+- **Phase:** P03-3 Steps 2/7/8.
+
+#### `Global_Self_Entry_Is_Bounded_And_Subject_Confined`
+
+- **Asserts:** only the exact three subject/quota/native-host descriptors branch
+  before ordinary resolution. Genuine absence differs from terminal/conflicting
+  binding. Own discovery derives actor from subject and leaks no foreign cursor,
+  profile, Role or cross-module SQL data. The tenth captured-scope setter uses
+  sequential physically READ ONLY owners and retains cleanup. Real PostgreSQL
+  concurrent creation, failed/unknown commit, restart, UTC regression, selected
+  attempt/permanent bounds and seed-inclusive counters preserve central atomic
+  MUST creation and natural-key convergence. Real tenantless/actorless provider
+  entry creates no Membership or fabricated session; existing bindings consume
+  no new creation attempt.
+- **Source:** ADR-0078; [Storage contract](05-database.md#p03-3-storage-and-replay-contract).
+- **Type:** actual app-role PostgreSQL/HTTP/provider/native controls plus exact
+  function/policy/privilege/source census. **Kind:** behavioural and structural.
+- **Planned test owners:** `GlobalIdentityBootstrapTests`,
+  `IdentitySelfEntryHttpTests`, `IdentitySelfDiscoveryOwnerTests`,
+  `NativeScopeAdmissionDurabilityHttpTests`, `NativeScopeAdmissionTests` and
+  `TenantBffSessionTests`. The source/global/HTTP/READ ONLY core has local controls;
+  the later provider/native/browser obligations still require qualification.
+- **Status:** **Registered.**
+- **Phase:** P03-3 Steps 2/7/8.
+
+#### `Protected_Idempotent_Replay_Reauthorizes_Original_Target`
+
+- **Asserts:** actual Postgres adapter survives two owners/restart and enforces
+  1,000 retained tenant slots, existing-key precedence, expired-row recycling and
+  old-fence refusal. Capacity/claim owners close before business User/Tenant locks;
+  completion follows actual business disposal. Protected version fingerprints,
+  successful-only bounded receipts and original typed targets survive uncertainty
+  without an exactly-once claim. Fresh target/self/current-authority MUST receipt
+  read commits before replay; revoked caller, successor Membership and failed
+  replay-audit controls preserve the stored completion without disclosure.
+- **Source:** ADR-0079; [Storage contract](05-database.md#p03-3-storage-and-replay-contract).
+- **Type:** actual PostgreSQL/process-restart/HTTP and source/target census.
+  **Kind:** behavioural and structural.
+- **Test owners:** `PostgresIdempotencyStoreTests`, `ModuleReceiptDisclosureTests`,
+  `ModuleReceiptAuditFailureTests`, `UnitOfWorkCommitCleanupTests`,
+  `ProtectedIdempotencyHttpTests`, `IdempotencyConventionTests`.
+  These include internal/module/component controls; production HTTP/native replay
+  qualification remains required by the full rule before Implemented status.
+- **Status:** **Registered.**
+- **Phase:** P03-3 Steps 6/7/8.
+
+#### `Tenancy_Default_And_Archive_Use_Fresh_Ordered_Fences`
+
+- **Asserts:** actual default/archive transactions and invoker guards preserve
+  an Active own default and at least one Active Organization. Independent default
+  selection and archive write their single declared root, require orgless current
+  Tenant capability and fresh post-wait lifecycle/authorization. Held competing
+  branch mutations/default changes/archives prove both winner orders, timeouts,
+  direct app-role refusal and central MUST rollback. Retained NULL-default
+  no-op/reset and competing archive controls cannot manufacture INSERT-first
+  initiality; real untouched provisioning remains allowed. Locale/default/theme human
+  wrappers cannot manufacture Seed provenance or bypass root versions.
+- **Source:** ADR-0079; [Tenancy specification](../modules/tenancy/README.md).
+- **Type:** actual app-role races/guard/fault controls and finite policy/source
+  census. **Kind:** behavioural and structural.
+- **Test owners:** `TenancyAdministrationTests`,
+  `TenancyAdministrationRaceTests`, `TenancyAdministrationBranchRaceTests`,
+  `TenancyAdministrationAdditionalProofTests`, `TenancyAdministrationMigrationTests`,
+  `TenancyDefaultInitialityTests`, `TenancyOrganizationConflictTests`,
+  `TenancyWriterTests`, `TenancySchemaTests`, and their protected HTTP counterparts.
+- **Status:** **Registered.**
+- **Phase:** P03-3 Steps 3/5/7.
 
 #### `Every_TenantCustomFieldDef_Declares_PiiCategory`
 
@@ -4643,10 +4948,11 @@ implements it.
 - **Type:** xUnit over the host's real `EndpointDataSource`. **Kind:**
   structural.
 - **Status:** **Implemented** (`IdempotentEndpointConventionTests`). The
-  production surface carries no `[Idempotent]` endpoint until Phase 09, so the
-  rule would pass vacuously; a companion test drives the same predicate over a
-  probe host that *does* violate it, which is what distinguishes the guard from
-  an empty assertion.
+  current production surface has no keyed endpoint; ADR-0079 selects the
+  protected administration activation tracked by the
+  [phase Status block](../roadmap/phase-03-identity-admin.md). A companion test
+  drives the same predicate over a probe host that *does* violate it, which
+  distinguishes the guard from an empty assertion.
 - **Phase:** 02a (Packet 4).
 
 #### `A_Sweep_Never_Destroys_A_Claim_Another_Thread_Just_Won`
@@ -5180,69 +5486,49 @@ structural test proves — and what it does not.
 
 #### `Authenticated_Http_Surface_Is_Enumerated_And_ReadOnly`
 
-- **Asserts:** the nonempty complete production route/method/transitive-request
-  census contains only the eight existing public GET/HEAD actions, exact
-  AccountSite GET and `GET /api/v1/identity/memberships`, with enumerated
-  infrastructure exclusions. Extra controller,
-  minimal-route, mutation and unregistered/nested dispatch controls fail.
-  `GetAccountSiteQuery` independently requires valid HostAndClaim actor and
-  matching real host provenance before any reader, rejecting future
-  ClaimAndMembership too. It reads actual host-scoped public data as
-  `learnstack_app`, is explicitly Off with zero normal query audit rows, and uses
-  the existing exact-type physical ReadOnly owner: a planted SQL write is refused.
-  Both authenticated actions require their exact named canonical policies. The
-  administrative directory remains an ordinary ReadWrite operation with a MUST
-  ReadSensitive Membership intent; its result requires the audit commit.
-  No-store covers early errors; served OpenAPI and disjoint exhaustive
-  public/authenticated SDK GET ownership agree without a public AccountSite wrapper.
-  The real per-action MVC filter descriptors preserve the exact framework,
-  normalizer and response metadata, including scope, order, factory arguments and
-  reuse. Attached or inherited executable filters and explicit authorization
-  policy/requirement metadata fail independently. Compiled attached-attribute and
-  ordinary endpoint-convention controls cover these supported composition channels;
-  this bounded source/runtime proof does not model arbitrary reflection or dynamic
-  framework behavior.
-- **Source:** [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md)
-  § Closed authenticated read; ADR-0040 and ADR-0052's 2026-10-19 disclosures;
+- **Asserts:** the production census closes the finite HTTP surface at 31 MVC
+  actions and 27 distinct `IRequest` roots, including the public and authenticated
+  reads, ten protected keyed writes and native session-scope admission. It also
+  checks the separate three exact GlobalSelf middleware routes. The canonical
+  name is historical: administration includes writes, and sensitive reads can
+  require a ReadWrite owner to commit MUST audit evidence. AccountSite and public
+  reads retain their own physical ReadOnly contracts.
+- **Structural boundary:** the independent endpoint declarations pin route, verb,
+  request, response, policy and audit metadata; the protected descriptors pin the
+  keyed operation shapes. Compiled metadata, source and IL controls check the
+  supported MVC filter and authorization composition, controller/helper persistence,
+  request construction and transitive dispatch across production assemblies.
+  Dirty controls exercise extra or missing routes, changed descriptors and capability
+  paths. Native source admission and the exact GlobalSelf route descriptors have
+  separate entry controls; `HostAndNativeSessionScope` is a distinct origin and
+  native evidence does not rewrite provider facts. GlobalSelf helpers distinguish
+  static binding from ordinary `callvirt`/`ldvirtftn` slot reuse; unsupported generic
+  or MethodImpl class-slot resolution refuses. MVC checks cover filter scope,
+  ordering, factory arguments and reuse, including the filter-provider inventory. These
+  bounded checks do not model arbitrary reflection or dynamic framework behavior.
+- **Complementary runtime boundary:** actual HTTP and application-role PostgreSQL
+  controls exercise authorization, physical ownership and audit behavior. Protected
+  keyed-write metadata is distinct from the executable factory, replay and cleanup
+  owners and their runtime controls. OpenAPI/SDK controls check their own served
+  and generated contract surfaces. The [operation matrix](../decisions/0079-bounded-identity-administration.md#scoped-policy-and-mutation-ownership)
+  is the authority for the administration policy and audit contract.
+- **Source:** [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md),
+  [ADR-0076](../decisions/0076-live-scoped-authorization.md),
+  [ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md),
+  [ADR-0079](../decisions/0079-bounded-identity-administration.md), and
   [Security Standards](11-security.md#the-rule).
-- **Type:** complete production source/IL/route census with dirty/clean controls,
-  actual HTTP/app-role PostgreSQL and generated/served contract controls.
-  **Kind:** behavioural, with complementary structural controls.
-- **Test owner:**
-  `backend/tests/LearnStack.Tests.Architecture/AuthenticatedHttpSurfaceTests.cs`
-  and `backend/tests/LearnStack.Tests.Integration/Database/AccountSiteHttpTests.cs`;
-  SDK/OpenAPI contract controls remain with their actual contract owners.
-  The architecture owner checks the ten real production actions, exact
-  request construction, existing Off declarations and the directory's exact MUST
-  declaration, controller/helper persistence and
-  handler/helper nested dispatch across every production assembly, including
-  direct interface/concrete handler construction, fields, constructor parameters,
-  locals and `Handle` calls, custom-interface implementations and generic service
-  acquisition/non-Handle calls across distinct HTTP roots. Actual MVC filter
-  composition and source registrations are independently closed, including the
-  actual IFilterProvider DI inventory and bounded compiled provider capability
-  checks. A provider that changes effective filters without changing
-  MvcOptions.Filters fails independently. Custom/inherited IAllowAnonymous
-  metadata and actual endpoint authorization metadata have their own controls;
-  the exact public AllowAnonymous attribute remains required. Its
-  companion methods plant route, method, request, controller, mapping and
-  transitive-capability violations into those same Cecil subjects; missing
-  subjects and weakened discovery predicates fail. Each dirty control requires
-  its expected offender prefix, rather than any nonempty result. Complete runtime and
-  cross-contract local proof ships in Step 4; Step 5 owns full hosted qualification.
-- **Status:** **Implemented** (`AuthenticatedHttpSurfaceTests`, `AccountSiteHttpTests`,
-  `AccountSiteQueryTests`, `OpenApiContractTests`).
-- **Implemented P03-2 extension:** ADR-0076 adds only the administrative
-  directory GET and explicit policy metadata/classes. AccountSite/public reads
-  retain their exact physical READ ONLY contracts. The directory uses an ordinary
-  ReadWrite owner for MUST sensitive-read evidence; the canonical rule name does
-  not imply every authenticated GET is physically READ ONLY. Exact route/policy/DI
-  controls, live adapters and real classified/unclassified/underprivileged cases
-  complement the canonical application gate. The
-  [Phase 03 Status block](../roadmap/phase-03-identity-admin.md)
-  owns source-bound qualification.
-- **Phase:** P02b-5 Step 2 query/database boundary; Step 4 route/contract
-  activation; Step 5 complete transitive enforcement.
+- **Type:** production source, IL and metadata census with dirty/clean controls,
+  complemented by HTTP, database and contract controls. **Kind:** structural and
+  behavioural.
+- **Test owners:** `AuthenticatedHttpSurfaceTests`, `NativeScopeAdmissionTests`,
+  `AccountSiteHttpTests` and `AccountSiteQueryTests`; protected-write and
+  OpenAPI/SDK runtime controls remain with their respective owners.
+- **Status:** **Implemented** (`AuthenticatedHttpSurfaceTests`); the
+  [Phase 03 Status block](../roadmap/phase-03-identity-admin.md) owns packet
+  qualification. The P03-2 directory extension was the earlier finite surface;
+  ADR-0078 and ADR-0079 extend it with native entry and administration.
+- **Phase:** 02b-5 (closed authenticated read); 03 (scoped authorization, native
+  entry and bounded administration).
 
 #### `Keycloak_Roles_Are_Not_Application_Authority`
 
@@ -5273,9 +5559,14 @@ structural test proves — and what it does not.
   subjects and same-owner additional writes fail independently.
   The HTTP classifier's single `IAuthorizeData.Roles` read is confined to an
   immediate null/empty check that refuses nonempty metadata. Removed/reversed
-  rejection controls preserve the raw-role ban. The two HTTP policy adapters may
-  forward only the actual same-request endpoint; extra identity formatting still
-  fails inside those approved callers.
+  rejection controls preserve the raw-role ban. Its empty branch must still
+  derive and pass the exact canonical key-metadata gate, refuse on false, and
+  publish that same policy only on success; substituted/bypassed/reversed gates
+  and null policy publication have independent dirty controls. Classification
+  forwards only the actual same-request endpoint. The authorization handler
+  delegates to the separately enumerated protected-replay owner; both adapters
+  still reject extra identity formatting. The policy/receipt censuses close the
+  replay owner's actual candidate and three HTTP decision branches.
 - **Status:** **Implemented** (`AuthenticationAuthorityTests`).
 - **Phase:** P02b-5 Step 1 profile constraints; Step 5 complete production census.
 
@@ -5461,26 +5752,42 @@ structural test proves — and what it does not.
 
 #### `Organizations_Are_Read_By_Composite_Key`
 
-- **Asserts:** `IOrganizationScopeValidator` and every organization read resolve by the composite key `(tenant_id, id)`, never by `id` alone. `pk_organizations` is the surrogate id, so a lookup by it is a well-formed, index-served query that returns another tenant's row — for the policy to hide if the announcement was made, and to hand back if it was not. Two legs: the raw-SQL leg pins the validator's `WHERE` clause and its `set_config` announcement (scanned, because a command's text is a string literal no type-reference test can see), and the EF leg bans `Organizations.Find`/`FindAsync`, which take the primary key and therefore cannot express the composite one. **The EF leg is vacuous today** and deliberately kept: Packet 7 step 9 shipped the first command, and nothing calls `Organizations.Find` or `FindAsync`: the one `DbContext` read of the table, the seeder's ownership check, filters by slug under the tenant's announcement. A scan added only once there is something to catch is a scan nobody adds. The runtime suite cannot substitute for either leg — with the announcement made, the policy makes both spellings behave identically, which is defence in depth working and is exactly why the rule has to be structural.
-- **Source:** ADR-0036 § The reconciliation matrix.
-- **Type:** xUnit + source scan. **Kind:** structural.
-- **Status:** **Implemented** (`TenantContextConstructionTests`, Packet 7 step 5).
-- **Phase:** 02a (Packet 7).
-
-- **Accepted extension:** ADR-0047 names a minimal lifecycle inventory reader for
-  bounded recurrence fan-out, delivered in P02b-4 Step 8. Step 9's source census
-  pins five SQL subjects in four actual files: three composite point reads and
-  the two bounded composite-key inventory/bounds queries. It also pins the bound
-  key parameters and page-size option. The companion
+- **Asserts:** ordinary organization point reads retain both tenant and
+  organization keys. The surrogate `pk_organizations` makes an id-only lookup
+  valid SQL, so RLS alone cannot establish the independent composite-key guard.
+  The EF leg bans `Organizations.Find` and `FindAsync`, which cannot express that
+  composite key. The validator's tenant announcement and composite predicate are
+  checked separately.
+- **SQL census:** eight direct runtime SQL subjects include the validator, job
+  lifecycle readers, identity/self-discovery readers and the awaited
+  `OrganizationWriteStore.FindForUpdateAsync` composite-key lock followed by
+  tenant-bound EF materialization. ADR-0047's bounded lifecycle inventory and
+  bounds are the named enumeration exception. Two further composed page owners
+  use an interpolated cursor inside bounded, tenant-filtered EF queries; their
+  complete read-method token fingerprints and helper signatures pin the observed
+  execution shape. Four exact migration installer owners are checked separately,
+  including the administration and retained-default DDL batches.
+- **Controls and limits:**
   `Organization_reader_census_rejects_missing_keys_extra_readers_and_unbounded_pages`
-  runs the same production detector against dirty/restored source copies. These
-  checks complement the separate database column-grant and runtime caller proofs;
-  ordinary point reads still require both keys.
+  exercises the same census on changed source, including key and binding removal,
+  extra or unexecuted SQL, changed locks, page bounds and DDL guard changes. The
+  read-method fingerprints do not bind helper bodies, using directives or migration
+  callers. These source checks complement rather than replace the separate
+  authorization, database column-grant, RLS and runtime caller proofs; they do not
+  establish runtime behavior on their own.
+- **Source:** [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md)
+  § The reconciliation matrix; [ADR-0047](../decisions/0047-transactional-background-job-runtime.md);
+  [ADR-0079](../decisions/0079-bounded-identity-administration.md).
+- **Type:** xUnit and source scan. **Kind:** structural.
+- **Status:** **Implemented** (`TenantContextConstructionTests`); the
+  [Phase 03 Status block](../roadmap/phase-03-identity-admin.md) owns qualification.
+- **Phase:** 02a (Packet 7); 02b-4 (bounded lifecycle inventory); 03 (bounded
+  administration and own-context navigation).
 
 #### `Tenant_Scope_Widening_Is_Never_Set_From_Request_Input`
 
-- **Asserts:** `app.scope = 'tenant'` requires eligible Tenant capability and an
-  explicitly declared tenant-wide read. Its immutable operation witness binds
+- **Asserts:** for human reads, `app.scope = 'tenant'` requires eligible Tenant
+  capability and an explicitly declared tenant-wide read. Its immutable operation witness binds
   the actor, tenant/org, invocation and physical owner generation; request input,
   HostOnly and branch grants cannot mint it. SQL/EF use the same read authority;
   nested mismatch and pooled cleanup preserve its lifetime. Restrictive
@@ -5491,6 +5798,14 @@ structural test proves — and what it does not.
   earlier no-carrier premise. The
   [operation-bound read contract](05-database.md#operation-bound-read-authority)
   owns the canonical behavior.
+- **P03-3 extension:** ADR-0080's separate fixed-seed source and
+  scope-only sites are covered by
+  [`Fixed_Seed_Prerequisites_Use_A_Closed_Temporary_Read_Scope`](#fixed_seed_prerequisites_use_a_closed_temporary_read_scope).
+  ADR-0081 adds the distinct one-consumer
+  [`Fixed_Seed_Origin_Adoption_Requires_Completed_Foundation`](#fixed_seed_origin_adoption_requires_completed_foundation),
+  reusing the same two SQL sites through one private typed transition.
+  Those canonical entries own their implementation status and test evidence.
+  The existing Protected-human witness and Implemented controls remain unchanged.
 - **Source:** ADR-0036 § The reconciliation matrix;
   [ADR-0076](../decisions/0076-live-scoped-authorization.md).
 - **Type:** compiled/source/reflection controls plus actual app-role SQL/EF tests.
@@ -5685,6 +6000,15 @@ and verified fixes; Step 4 completes source/tooling proof after both review roun
 split/early output verdicts, exact EOF boundaries, retained trees after cleanup
 refusal and shared owner cancellation/disposal. Controls for
 surviving descendants and retired handles live in `fixture-cleanup.test.ts`.
+`bff-proof-lifeline.test.ts` exercises the actual detached BFF helper's invalid
+parent, natural completion, fork/worker inheritance, watcher failure and owner
+SIGKILL controls, including a synchronously blocked leader, its same-group child
+and a separate unaffected group. Its group-observation controls retain EPERM
+as pending uncertainty and require ESRCH within the existing observation bound.
+Parent-loss protection requires a live leader and live, runnable watcher; watcher-failure notification also requires the
+leader's event loop. Combined watcher loss and blocked-leader owner loss remain
+outside this control. Polling supplies no hard deadline, dead-leader or separately
+detached-descendant guarantee, Windows group control or killed-owner root cleanup.
 `verify-ingress-cleanup.mjs` runs real source-mutant cleanup/TLS/log/readiness/
 upgrade controls through `verify-ingress-controls.mjs`; normal `verify-ingress.mjs`
 remains its independent clean socket/framework control. The shutdown-only leak
@@ -5975,6 +6299,8 @@ test-only instrumentation stays in the disposable copied app.
   `frontend/apps/web/src/test/public-boundaries.test.ts`,
   `PublicServerRenderingTests`, `verify-public-rendering.mjs` and
   `frontend/apps/web/scripts/verify-ingress.mjs`, with facade/runtime unit controls.
+  `frontend/apps/web/src/test/ingress-upgrade-evidence.test.ts` checks exact
+  native/sink phase accounting and rejects missing, extra or altered observations.
 - **Phase:** 02d (P02d-6 remediation Steps 1–3).
 
 ## P02d-7 public demo and Lighthouse controls
@@ -5985,6 +6311,9 @@ and the always-running `public demo + lighthouse` job through `make demo`.
 `src/test/public-demo.test.ts` and `src/test/demo-lifecycle.test.ts` execute
 planted failing and clean controls in the required frontend job. Actual browser
 mutants, TLS refusals and a real Lighthouse timeout also run in the full proof.
+`src/test/demo-dotnet-owner.test.ts` runs real process-owner controls, including
+an unavailable private release gate; actual group retirement remains required.
+Its inert workers do not establish MSBuild behaviour.
 `src/test/demo-source.test.ts` uses disposable Git repositories for clean/mutated
 source checkpoints; `src/test/public-demo-diagnostics.test.ts` covers closed
 failure attribution with real children and provider canaries.
@@ -6045,23 +6374,33 @@ C# architecture-test methods or a full WCAG/production-performance claim.
   These checkpoints do not attest ignored inputs or edits restored between them.
   Closed diagnostics retain failure origin and status ownership; intentional
   teardown signals do not become a cleanup failure's process status.
-- **Source:** [ADR-0056](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md#pacing-runtime-and-artifacts).
+  ADR-0085's extension requires an exact top-level 22-minute ceiling, actual
+  first-step 19-minute reservation before checkout, 180-second nominal difference
+  and wrong-bound/order controls, with other job ceilings unchanged.
+- **Source:** [ADR-0056](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md#pacing-runtime-and-artifacts),
+  [ADR-0085](../decisions/0085-public-demo-ci-execution-window.md).
 - **Scope:** the shared demo lifecycle and full-stack CI job.
 - **Type:** Node lifecycle/proof controls and real production navigation.
   **Kind:** behavioural.
 - **Status:** **Implemented** — named Node proof and planted controls above.
+  ADR-0085's additional outer-window controls are implemented in the actual
+  workflow-shell tests with both fresh review rounds complete. Complete hosted
+  qualification remains separate; this status claims no new fit.
 - **Phase:** 02d (P02d-7 Steps 1, 3 and 4).
 
 
 ## P02b-7 tenant BFF obligations
 
 The maintainer accepted [ADR-0070](../decisions/0070-owned-tenant-bff-sessions.md)
-and the five-step package on 2026-10-23. Step 5 delivers the complete local
+and the five-step package on 2026-10-23. Step 5 delivers the local baseline
 controls below, including actual warm-provider/API and separate HTTPS browser
 evidence, failure cleanup and nonzero-shutdown counters, and the stopped-provider
 public demo. The phase Status and dated correction records own current review
 and exact-source hosted qualification; local implementation alone claims no
-hosted timing fit. Prior receipts do not qualify subsequent source changes.
+hosted timing fit. P03-3 extends these same canonical rules with native entry,
+administration and prepared-page controls; its
+[Status block](../roadmap/phase-03-identity-admin.md) owns their qualification.
+Prior receipts do not qualify subsequent source changes.
 
 #### `Bff_Credentials_And_Projections_Are_Confined`
 
@@ -6071,14 +6410,27 @@ hosted timing fit. Prior receipts do not qualify subsequent source changes.
   native observation exposes scalar logical occupancy only, never credential
   values, snapshots or a heap-zeroization claim. Browser-storage controls cover
   IndexedDB and Cookie Store; closed response-hook census includes not-found and
-  instrumentation entries.
-- **Source:** ADR-0070/0071; Security 11 § Tenant BFF sessions.
+  instrumentation entries. Native preparation publishes a complete immutable
+  page snapshot before rendering; the passive RSC facade exposes only that
+  snapshot and its liveness assertion, never a credential, API operation or
+  preparation capability. The exact seven protected page views and their shared
+  render helpers have source-census and AST dirty controls against additional
+  asynchronous work, IO and framework background work, including transitive
+  aliases. Entry, member-list and current-scope continuations conceal upstream
+  cursor material and authenticate their distinct purposes.
+- **Source:** ADR-0070/0071/0078/0079; Security 11 § Tenant BFF sessions and native entry.
 - **Type:** frontend source/production canaries. **Kind:** structural.
-- **Test owner:** `frontend/apps/web/src/test/bff-boundaries.test.ts` and existing
-  public boundary controls.
+- **Test owner:** `frontend/apps/web/src/test/bff-boundaries.test.ts` and
+  `src/test/public-boundaries.test.ts`, using the production graph and AST
+  analysis in `src/test/public-boundary-analysis.ts`; projection and cursor
+  controls in `src/server/auth/page-preload.test.ts` and
+  `src/server/auth/store-page-preload.test.ts`. Independent development canaries
+  live in `src/test/bff-development-diagnostics.test.ts` and
+  `src/test/bff-development-diagnostics-counter.test.ts`; their test-owned process
+  controls live in `src/test/bff-proof-lifeline.test.ts`.
 - **Status:** **Implemented** — frontend boundary, native protocol/canary and
   fixture-output controls named above.
-- **Phase:** P02b-7 Steps 1/3–5.
+- **Phase:** P02b-7 Steps 1/3–5; P03-3 Steps 8–9 extend native entry and prepared views.
 
 #### `Bff_Session_Refresh_And_Revocation_Have_One_Owner`
 
@@ -6093,16 +6445,161 @@ hosted timing fit. Prior receipts do not qualify subsequent source changes.
   windows isolate every availability category's no-idle-touch rule; publication
   clocks, caller cancellation and once-only local expiry/revocation diagnostics
   have separate controls. Session CSRF and logout state/proof remain independently
-  random, rather than aliases of another capability.
-- **Source:** ADR-0070/0071; Security 11 § Tenant BFF sessions.
+  random, rather than aliases of another capability. Entry-only callback and
+  deliberate creation/selection never publish a tenant session prematurely.
+  Switch choices use the old held scope's own-context API, including derived
+  branch choices, with no global fallback. Fresh admission/AccountSite and actual
+  old-work settlement precede handle/CSRF replacement; original lifetime stays.
+  Same-label or Unicode-lookalike different subjects cannot replace a live owner;
+  entry provider logout preserves the primary local owner and retains its own
+  credit through actual settlement. Entry continuation values conceal upstream
+  association material, authenticate the actual owner/host/epoch/purpose, and
+  preserve concurrent tabs without a page registry. Key custody clears on
+  publication/logout/expiry/stop, including before ignored work settles.
+  A separate private snapshot pool reserves before page API work and admits at
+  most 128 snapshots globally and eight per actual owner. Each complete UTF-8
+  JSON payload, including Site and common data, is bounded to 256 KiB: at most
+  32 MiB of serialized payload, not a heap-memory bound. Published copies are
+  deeply frozen and pinned to the actual request, owner epoch, credential revision
+  and effective expiry. Native mutation-recovery and account-change documents use
+  the same pool and output fence; invalidation withholds retained edits and CSRF
+  values even after the mutation itself has settled. Abort, finish and close
+  invalidate access but retain credit until actual API/shared-refresh work,
+  native handler, registered Next framework work and response-body/write-callback
+  cleanup settle. Stop joins these owners; delayed chunks cannot disclose an old
+  snapshot. Real destroyed-before-close sockets admit no new write callback credit;
+  an earlier issued callback retains its existing frame/snapshot credit until
+  actual settlement. A native HTTPS close before `finish` retires only its failed
+  `end()` observation, without invoking the user callback or settling other work.
+  An actual `finish` still retains a deliberately held callback. Real TLS-error
+  controls distinguish these events from the later `writableFinished` getter.
+  The framework hook accounts for registered work, with the selected
+  RSC source controls above closing additional application work.
+  ADR-0083 additionally requires the original framework pipe/router to join actual
+  compressor cleanup without releasing independent native handler, callback,
+  framework/API or snapshot owners on transport close. This extension remains
+  Registered under `Next_Response_Cleanup_Is_Installed_And_Owned`; it replaces
+  none of the existing native lifetime controls.
+- **Source:** ADR-0070/0071/0078/0079 and
+  [ADR-0083](../decisions/0083-owned-next-response-compression-cleanup.md);
+  Security 11 § Tenant BFF sessions and native entry, and
+  [Standard 07](07-frontend-architecture.md#version-qualified-next-response-cleanup).
 - **Type:** unit and actual response-owning routes. **Kind:** behavioural.
 - **Test owner:** `frontend/apps/web/src/server/auth/session-store.test.ts` and
   `frontend/apps/web/src/test/bff-session-routes.test.ts`, with composed caller/
   middleware controls in `src/server/auth/account-site-policy.test.ts` and real
-  protocol cancellation in `src/server/auth/session-http-lifetime.test.ts`.
+  protocol cancellation in `src/server/auth/session-http-lifetime.test.ts` and
+  authenticated cursor controls in `src/server/auth/entry-cursor.test.ts`.
+  Snapshot bounds and actual cleanup are exercised by
+  `src/server/auth/page-snapshot-lifecycle.test.ts`,
+  `src/server/auth/store-page-preload.test.ts`,
+  `src/server/auth/request-runtime-lifetime.test.ts` and
+  `src/server/auth/page-response.test.ts`; action recovery by
+  `src/server/auth/native-action-response.test.ts`; actual Next registered-work
+  retention and late output by `scripts/verify-bff-protocol.mjs`. Fixture-only
+  copied-runtime observation controls in
+  `src/test/bff-proof-runtime-observation.test.ts` exercise real frame/pool counts,
+  saturation and unchanged joins; failure samples describe their last observed
+  milestone, not a current cleanup acknowledgement. Closed browser/CI parsers
+  reject unknown fields and expose no request, person or credential values.
 - **Status:** **Implemented** — actual owner/route controls above and
   `TenantBffSessionTests` real refresh/maximum and shutdown/failure controls.
-- **Phase:** P02b-7 Steps 2–5.
+  The ADR-0083 framework extension remains **Registered** under the rule below.
+- **Phase:** P02b-7 Steps 2–5; P03-3 Steps 8–9 extend entry, operation and snapshot ownership.
+
+#### `Next_Response_Cleanup_Is_Installed_And_Owned`
+
+- **Asserts:** exact actual toolchain admission, frozen patch/lock/census/map
+  identity and verified clean generation cover every supported entry point.
+  Stale generated output beside corrected installed bytes refuses before runtime
+  import/listen. Every transformed semantic copy is accounted for and supported
+  runtime families execute corrected code. The synchronous compression owner
+  records actual selection/allocation and joins real compressor close through
+  both pipe and router, including direct-end and early-flushed bodyless paths.
+  Zero wire bytes, removed encoding headers or prior finish do not prove no
+  encoder. Both real terminal edges account for actual resources, including native
+  refusal after allocation. Real terminal observation, expected
+  abort, operation faults and physical cleanup remain distinct. Each error
+  boundary transitions before its join; primary identity and separate cleanup
+  faults survive without circular error-response waits or unhandled rejection.
+  Healthy wire/backpressure, actual callbacks/drain and native publication fences
+  remain intact. Transport closure, timeout or diagnostic disposal cannot release
+  independent native/framework/API/snapshot work. The decisive controls follow
+  [Testing 06](06-testing.md#version-qualified-next-response-cleanup); local proof
+  replaces no complete same-final-source hosted A/B.
+  ADR-0084 extends the same rule to the builtins owner/private-child import
+  closure, parent-only lease/cache mutation, irreversible startup cancellation,
+  first-request shutdown watchdog, distinct runtime result and actual family
+  joins. Producer cancellation remains failed. Direct close, ready IPC, timeout,
+  forced exit and outer-group absence cannot replace runtime retirement.
+  Copied profile/relay and input-graph controls preserve actual child attribution,
+  including the distinct public-admission commands, completion barrier and reply
+  counts. Owner-loss recovery requires unchanged records and complete family
+  evidence. SDK aggregate/cold-prefix/frontend job settings follow
+  [ADR-0092](../decisions/0092-sdk-completion-and-frontend-job-windows.md) and
+  [Testing 06](06-testing.md#frontend-guarded-execution).
+  Cold SDK typechecking produces no unowned incremental output; the
+  real compiler dirty twin retains that output and reaches `output_unowned`.
+  The actual recursive cold typecheck/lint prefix leaves only its permitted
+  routes stub before the build guard accepts. Web lint disables both ESLint
+  caching and Next telemetry writes; a private cache-enabled twin reaches the
+  real `output_unowned` refusal with its bytes preserved. Target exit receipts,
+  actual family retirement, all three lease releases and unchanged source
+  inputs precede fixture disposal.
+  The standalone producer CLI preserves its signal latch before and between
+  command families, including real leased preparation. Signal tests authenticate
+  the actual producer and verify family retirement and all three lease releases.
+  An actual received-aborted signal and absence of a post-boundary command
+  dispatch attempt distinguish cancellation from an ordinary failure. A private
+  missing-forwarding twin reaches a pre-spawn sentinel and earns no cancellation
+  credit; its independently confirmed retirement permits fixture disposal.
+  A leased `.next` directory alone does not prove a compiler started; failed or
+  forced test shutdown cannot authorize recursive deletion of retained records.
+  Failure diagnostics project the existing fully validated ownership capsule
+  before exposing only finite stage/case/mode/count, last marked operation,
+  root HTTP status, allowlisted own-data failure code and cleanup observations.
+  Per-launch status reset and independent exact-schema/range controls prevent
+  stale or unvalidated values from entering the projection. The operation is
+  a last marked span, not an exact fault location or new completion evidence. A
+  branded readiness failure preserves its closed reason, bounded elapsed time
+  and primitive outer-owner/proof-channel status, without claiming runtime-child
+  retirement. Router source controls expose fixed names and bounded primitive
+  classifications and a bounded observed TAP prefix, without raw caught
+  payloads or stdout text. Unavailable/buffered progress is not proof of no work;
+  observed progress cannot qualify a failed process. Closed-error and reporter canary
+  controls preserve that boundary, including actual copied-wrapper children,
+  dirty schemas and a sink closed after the observed child result. Diagnostic
+  completion never establishes fixture-family retirement.
+- **Source:** [ADR-0083](../decisions/0083-owned-next-response-compression-cleanup.md),
+  [ADR-0084](../decisions/0084-owned-frontend-runtime-process-families.md)
+  and [Standard 07](07-frontend-architecture.md#version-qualified-next-response-cleanup).
+- **Type:** installed/generated-source controls, actual Node/Next HTTP/HTTPS and
+  native integration. **Kind:** structural, startup and behavioural.
+- **Test owner:** `frontend/apps/web/src/test/next-response-cleanup.test.ts`,
+  `next-response-end-work.test.ts`, `next-response-maps.test.ts`,
+  `framework-provenance.test.ts`, `framework-install-hook.test.ts`,
+  `framework-runtime-controls.test.ts`, `framework-owner-imports.test.ts`,
+  `framework-proof-relay.test.ts`, `demo-runtime-owner.test.ts`,
+  `bff-watchdog-observation.test.ts`, `framework-response-bodyless.test.ts`,
+  `framework-response-transport.test.ts`, `framework-response-overlap.test.ts`,
+  `framework-router-matrix.test.ts`, `framework-router-faults.cases.ts`,
+  `framework-runtime-ownership.test.ts`,
+  `framework-runtime-workers.cases.ts`, `framework-runtime-recovery.cases.ts`,
+  `framework-runtime-watchdog-evidence.test.ts`,
+  `framework-proof-closed-boundary.test.ts`, `framework-proof-stdio.test.ts`
+  and SDK controls
+  `frontend/packages/sdk/src/cold-typecheck-output.test.ts`,
+  `frontend/packages/sdk/src/cold-lint-output.test.ts` and
+  `frontend/packages/sdk/src/producer-cli-stop.test.ts`, plus the existing
+  `backend/tests/LearnStack.Tests.Integration/TenancyIdentity/TenantBffSessionTests`
+  partial class, including `TenantBffSessionTests.FrameworkOwnership.cs`, and
+  `backend/tests/LearnStack.Tests.Integration/Database/PublicServerRenderingTests.cs`.
+  Parsed-copy and component controls do not replace initialized-router,
+  supported-loader, native/browser or source-bound hosted qualification.
+- **Status:** **Registered** — the complete runtime/held-owner and qualification
+  obligations remain; delivered local controls alone do not promote this rule.
+- **Phase:** P03-3; ADR-0083 Steps 2–3 and ADR-0084 implement and qualify
+  the extension.
 
 #### `Bff_Auth_Admission_And_Csrf_Are_Closed`
 
@@ -6116,16 +6613,34 @@ hosted timing fit. Prior receipts do not qualify subsequent source changes.
   write/end and a foreign origin with the same logout path. Fixed native port,
   POST return paths and exact provider/PKCE/logout wire parameters have isolated
   controls; fake-transport assertions run outside production exception conversion.
-- **Source:** ADR-0070; ADR-0054 dated auth extension; Security 11 § CSRF.
+  Canonical cursor input refuses impossible lengths and nonzero pad bits before
+  API work, while malformed upstream responses retain response-failure semantics.
+  Authenticated cursor tampering or cross-purpose reuse refuses before private
+  API work or snapshot reservation. The finite native preloader reads current
+  capabilities and the exact own profile before conditional page data; unavailable
+  Role-read capability causes zero Role API calls. A legitimate missing own
+  profile on a derived branch uses the site fallback. Failed AccountSite authority
+  publishes only public failure data, without cached private fields or CSRF.
+  The exact twelve HTTP entries include seven protected views; the twelve
+  POST actions remain closed. Ordinary passive documents still preload without
+  idle/refresh writes, while HEAD and speculative prefetch avoid private preload.
+- **Source:** ADR-0070/0078/0079; ADR-0054 dated auth extension; Security 11 § CSRF.
 - **Type:** native listener and actual Next route controls. **Kind:** behavioural.
 - **Test owner:** `frontend/apps/web/src/test/bff-auth-admission.test.ts` and
   `frontend/apps/web/src/test/bff-session-routes.test.ts`, with source census in
   `public-boundaries.test.ts` and raw TCP observation in
   `src/server/auth/logout-response.test.ts`, plus `src/server/ingress.test.ts`
-  and `src/server/auth/provider.test.ts`.
+  and `src/server/auth/provider.test.ts`. Prepared-page admission and conditional
+  reads use `src/server/auth/page-preload.test.ts`,
+  `src/server/auth/store-page-preload.test.ts` and `src/server/auth/auth.test.ts`;
+  exact en/tr catalogue and preferred-locale selection use
+  `src/i18n/administration-catalogues.test.ts` and `src/i18n/request.test.ts`.
+  `src/components/auth/admin-pages.test.tsx` covers explicit replacement of an
+  unavailable stored preference through the existing native field values; the
+  no-script browser journey exercises that required choice and verifies its POST.
 - **Status:** **Implemented** — native input/route controls above and the actual browser
   form/Origin and no-network startup cases in `TenantBffSessionTests`.
-- **Phase:** P02b-7 Steps 3–5.
+- **Phase:** P02b-7 Steps 3–5; P03-3 Steps 8–9 extend native forms and finite page preparation.
 
 #### `Bff_Host_Cookies_And_History_Are_Isolated`
 
@@ -6133,15 +6648,34 @@ hosted timing fit. Prior receipts do not qualify subsequent source changes.
   opaque cookies and cannot reuse another host's session/transaction; logout and
   browser history do not restore protected display. A separate real warm
   provider/BFF/API chain proves sign-in/AccountSite/refresh/extension/logout and
-  stored provider events. Stopped-provider public rendering remains independent.
-- **Source:** ADR-0070; Security 11 § Tenant BFF sessions.
+  stored provider events. Real paginated entry JSON/HTML, stock-browser next/Back
+  URLs/history and second-page selection keep subject/authority material private;
+  the original disclosure has a real old-source negative control. Stopped-provider
+  public rendering remains independent. The seven prepared protected views retain
+  native forms when JavaScript is disabled. Actual stock-browser page checks
+  require ready views and specific visible contents; an unavailable view retaining
+  the wrapper/h1 fails the same guard. No-script profile save/sign-out runs on both
+  hosts/locales with an exact closed receipt. GET history restoration re-admits the
+  document; native POST recovery replaces history with a validated fixed GET
+  destination instead of resubmitting the mutation. Natural browser history
+  observations and explicit persisted-event dirty controls remain distinct.
+  Automated UI/browser checks do not qualify manual assistive-technology use;
+  separate observed evidence is required, with qualification recorded by the
+  [Phase 03 Status block](../roadmap/phase-03-identity-admin.md).
+- **Source:** ADR-0070/0078/0079; Security 11 § Tenant BFF sessions and native entry.
 - **Type:** native HTTPS browser and Docker integration. **Kind:** behavioural.
 - **Test owner:** `frontend/apps/web/scripts/verify-bff-session.mjs`,
   `frontend/apps/web/scripts/verify-bff-browser.mjs` and backend
   `TenancyIdentity/TenantBffSessionTests.cs` using the app-role API/database.
+  `src/components/auth/history.test.ts`, `src/components/auth/shell.test.tsx`
+  and `src/components/auth/session.test.tsx` cover fixed GET recovery, native forms
+  and session/unsaved-edit behavior; `scripts/verify-bff-protocol.mjs` exercises
+  the actual Next prepared views and `verify-bff-browser.mjs` the no-script flow.
 - **Status:** **Implemented** — `TenantBffSessionTests`, its real-chain/browser scripts
   and the stopped-provider public-demo lifecycle.
-- **Phase:** P02b-7 Step 5; Phase 06 retains full browser OIDC end-to-end expansion.
+- **Phase:** P02b-7 Step 5; P03-3 Step 9 extends selected views, no-script and history
+  controls. Phase 06 retains full browser OIDC end-to-end expansion. The Phase 03
+  Status block owns current P03-3 qualification and review state.
 
 ## P02b-4 background-job obligations
 
@@ -6294,8 +6828,12 @@ and fixture definitions make the implemented controls non-vacuous.
   child environment/resource/collector prerequisites, absent dump artifacts and
   finally/exit markers distinguish fatal from normal exit with a dirty gate control.
   ADR-0062 confines CI collector setup to the named exclusive hosted-VM owner,
-  fixed literal write/readback and no restoration. Complete disjoint Docker
-  partitions, owned process completion and fail-closed aggregate evidence retain
+  fixed literal write/readback and no restoration. Native inventory phase/query
+  allocations follow [Testing 06](06-testing.md#complete-bounded-ci-assignments)
+  under [ADR-0091](../decisions/0091-native-inventory-phase-allocations.md), with
+  complete positive image provenance, final reserve and all refusal/ownership
+  checks retained. Acceptance alone supplies no implementation or hosted credit.
+  Complete disjoint Docker partitions, owned process completion and fail-closed aggregate evidence retain
   all cases and the existing required check. Offline copied-owner controls verify
   the actual fixed seams without changing local host policy; hosted qualification
   remains a separate obligation in the owning CI record.
@@ -6473,6 +7011,12 @@ and fixture definitions make the implemented controls non-vacuous.
   **Kind:** structural + startup + behavioural.
 - **Status:** **Implemented** — P02b-4 Step 9; `LearnStack.Tests.Architecture`,
   `OutboxDispatchConventionTests` ([canonical owner](../../backend/tests/LearnStack.Tests.Architecture/BackgroundJobRuntimeCompositionBoundaryTests.cs)).
+  Native integration observations in `BackgroundJobPositiveSdkTests.NativeWait.cs`
+  capture the actual business task under its publication lock within the existing
+  handler-observation budget. The direct-owner regression in
+  `BackgroundJobPositiveSdkTests.NativeBusinessPublication.cs` proves handler
+  progress can precede that publication, then verifies same-task capture and real
+  rollback/cleanup. It does not replace the separate native handoff/policy controls.
 
 ### `CI_Test_Shards_Are_Complete_And_Bounded`
 
@@ -6487,12 +7031,17 @@ and fixture definitions make the implemented controls non-vacuous.
   Pending-only API acquisition validates each fresh complete snapshot under
   one finite deadline; it never combines responses or retries terminal,
   malformed, missing, duplicate or identity-invalid evidence.
-  The ADR-0075 extension binds the ordinary-only twenty-five-minute whole-job
-  and enclosing observation bounds to verified expected producer identity;
-  other producers retain twenty minutes, operation caps and the 203-second
-  reserve stay fixed. Forged modes/partitions cannot select a longer window.
+  The ADR-0082 extension binds Architecture 1,500-second and ordinary
+  1,800-second whole-job/enclosing observation bounds to exact verified mode,
+  expected job and plan count. Base/native retain 1,200 seconds and the reserve
+  stays 203. Operation caps remain except ADR-0091's native inventory allocations
+  in [Testing 06](06-testing.md#complete-bounded-ci-assignments). Individual observations allow the
+  inclusive bound; disjoint receipt intervals sum strictly below it. Forged
+  modes/partitions cannot select a longer window.
 - **Source:** [ADR-0063](../decisions/0063-complete-bounded-ci-test-shards.md),
-  [ADR-0075](../decisions/0075-ordinary-ci-job-window.md).
+  [ADR-0075](../decisions/0075-ordinary-ci-job-window.md),
+  [ADR-0082](../decisions/0082-current-source-ci-execution-windows.md),
+  [ADR-0091](../decisions/0091-native-inventory-phase-allocations.md).
 - **Type:** actual Python plan/owner subprocess controls and workflow/API/hosted
   result proofs. **Kind:** structural + behavioural.
 - **Status:** **Implemented** — `scripts/ci-test-shards.py`,
@@ -6512,6 +7061,14 @@ and fixture definitions make the implemented controls non-vacuous.
   [Phase 03 closeout](../roadmap/phase-03-delivery-log.md#adr-0075-three-step-closeout-2026-10-27)
   owns implementation reviews and observed complete hosted A/B; local controls
   alone do not establish fit and later documentation identities remain distinct.
+  **ADR-0082 extension implemented** by the same owners and complete offline
+  suites: exact mode/job/index selection of 1,200/1,500/1,800 seconds, inclusive
+  expected-owner observations, strict interval sums, image caps and malformed/
+  forged/nonfinite/boundary counterexamples. Both fresh review rounds close;
+  the [implementation closeout](../roadmap/phase-03-delivery-log.md#adr-0082-step-2-reviews-and-implementation-closeout-2026-11-01)
+  records 18 provisioning, 101 native and 83 combined controls under the unchanged
+  meta allocation. Complete final-source hosted A/B remains a separate Phase 03
+  gate; this source-enforcement status establishes no hosted fit.
 - **Phase:** 02b (P02b-4 CI follow-up).
 
 ## References

@@ -45,15 +45,13 @@ flags, and a triage map for the most common failure shapes.
 # Required toolchain
 dotnet --version    # 10.0.x
 node --version      # 22.23.1 (frontend/.nvmrc)
-pnpm --version
+pnpm --version      # exactly 9.12.3
 
-# Restore — from the directories that hold the solution and the workspace.
-# There is no solution and no package.json at the repository root, so both
-# commands fail there. `make install` is these two lines, after its `.env` and
-# `hooks` prerequisites (which copy `.env.example` and point core.hooksPath at
-# `.githooks/`).
+# Restore from the repository root. The frontend wrapper checks the actual
+# manager before dependency mutation. `make install` runs these two commands
+# after its `.env` and `hooks` prerequisites.
 (cd backend && dotnet restore LearnStack.slnx)
-(cd frontend && pnpm install --frozen-lockfile)
+node frontend/scripts/install-frontend.mjs
 
 # Docker must be running for Database/ and TenancyIdentity/ provider cases
 docker info >/dev/null && echo "docker OK"
@@ -190,6 +188,12 @@ pnpm lint                # workspace lint, including next lint
 ```
 
 
+Use the canonical [frontend test windows and evidence scope](../../../docs/standards/06-testing.md#frontend-guarded-execution)
+from ADR-0092 and its predecessors. The guard reconciles discovered files and
+Vitest-reported cases;
+it is not an independent scenario-ID census. Package stop invocation does not
+prove retirement of every detached native family.
+
 The root frontend runner reads actual Vitest reports, compares discovered files,
 and refuses missing scripts, unreadable/empty reports, failures, skipped or todo
 cases. Use `pnpm --filter @learnstack/web test <path>` only for focused development;
@@ -236,7 +240,7 @@ From a fresh checkout without root `.env`, web `.env.local` or
 lifecycle:
 
 ```bash
-(cd frontend && pnpm install --frozen-lockfile)
+node frontend/scripts/install-frontend.mjs
 (cd frontend && pnpm exec playwright install --with-deps chromium)
 make demo DEMO_MODE=ci
 ```
@@ -258,8 +262,10 @@ This is hosted setup handling, not a workstation prerequisite or a guarantee of
 total setup duration. The actual workflow-shell controls live in
 `frontend/apps/web/src/test/public-demo-ci.test.ts`.
 
-The workflow's outer setup/proof allowance ends at minute 17 from its first
-step, reserving three minutes within the same 20-minute job ceiling. The native
+The workflow's [ADR-0085 outer setup/proof allowance](../../../docs/decisions/0085-public-demo-ci-execution-window.md)
+ends at minute 19 from its first step, reserving three nominal minutes within
+the same 22-minute job ceiling. The separate clock starts make this a nominal
+reserve, not a guaranteed tail at every instant. The native
 proof and cleanup retain their separate 12-minute and 30-second caps. Sandbox
 cleanup and workflow-receipt commands receive TERM after 15 seconds and KILL
 after five more; artifact upload retains its one-minute step limit. The nominal
@@ -387,7 +393,8 @@ completion; the unchanged required aggregate verifies both complete artifacts.
 Run the offline `scripts/test-ci-native-provisioning.py` and
 `scripts/test-ci-native-tests.py` controls locally without changing host policy.
 Their source/fixture checks do not qualify actual hosted cgroups, native exits or
-twenty-minute whole-job fit; the owning P02b-4 CI record carries those results.
+fit under the [current whole-job policy](../../../docs/standards/06-testing.md#complete-bounded-ci-assignments).
+The owning phase's CI record carries actual source-bound qualification.
 
 For flaky tests, run with `--blame-hang` and `--blame-hang-timeout`:
 
@@ -418,8 +425,10 @@ record and CONTRIBUTING; do not infer them from a local audit.
 
 - **No Docker.** The `Requires=Docker` integration cases need it. Start Docker
   Desktop first, or run `--filter "Requires!=Docker"`.
-- **Stale lockfile.** `pnpm install --frozen-lockfile` after a `package.json`
-  change — the lockfile must match.
+- **Stale lockfile.** For an intentional manifest change, use
+  `node frontend/scripts/install-frontend.mjs --prepare-lock`, review the lock
+  diff, then run the normal guarded installer. Raw `pnpm install` refuses; do not
+  bypass the project hook or lifecycle controls.
 - **Skipped architecture test.** Forbidden. If a test is marked `[Skip]`, treat
   it as a bug.
 - **Port collisions.** Testcontainers PostgreSQL uses a random host port and can

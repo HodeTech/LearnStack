@@ -9,10 +9,12 @@ using LearnStack.Infrastructure.Messaging;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Identity.Application;
 using LearnStack.Modules.Identity.Application.Audit;
+using LearnStack.Modules.Identity.Application.Memberships;
 using LearnStack.Modules.Identity.Infrastructure.Authorization;
 using LearnStack.Modules.Identity.Infrastructure.Bindings;
 using LearnStack.Modules.Identity.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Application.Contracts.IdentityLifecycle;
+using LearnStack.Modules.Tenancy.Application.Authorization;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Caching;
@@ -25,12 +27,13 @@ using LearnStack.SharedKernel.Time;
 using MediatR;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 using Xunit;
 
 namespace LearnStack.Tests.Integration.Database;
 
-/// <summary>Actual scoped authorization, committed rechecks, audited Role writes and independent evidence source.</summary>
+/// <summary>Actual scoped authorization, committed rechecks, audited Identity writes and independent evidence source.</summary>
 internal sealed class RoleGrantPipelineHarness : IAsyncDisposable
 {
     private readonly IdentityAuthorizationReadSource _authorization;
@@ -49,10 +52,12 @@ internal sealed class RoleGrantPipelineHarness : IAsyncDisposable
 
     public string ApplicationName { get; }
     public ISender Sender => _scope.ServiceProvider.GetRequiredService<ISender>();
+    public IServiceProvider Services => _scope.ServiceProvider;
     public NpgsqlUnitOfWork Unit => (NpgsqlUnitOfWork)_scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
     public static async Task<RoleGrantPipelineHarness> CreateAsync(string connectionString, IdentityAuthorityRegistration authority,
-        TenantId tenant, UserId actor, string correlation, OrganizationId? organization = null)
+        TenantId tenant, UserId actor, string correlation, OrganizationId? organization = null,
+        Action<IServiceCollection>? configure = null)
     {
         var authorization = new IdentityAuthorizationReadSource(connectionString);
         var evidence = new AuthorizationEvidenceSource(connectionString);
@@ -92,8 +97,10 @@ internal sealed class RoleGrantPipelineHarness : IAsyncDisposable
         services.AddScoped<IGlobalIdentityScopeAccessor, GlobalIdentityScopeAccessor>();
         services.AddModuleDbContext<IdentityDbContext>();
         services.AddIdentityContextualFoundation();
+        services.TryAddScoped<IOwnTenantNavigationCoverage, OwnTenantNavigationCoverage>();
         services.AddIdentityAuthorizationReader();
         services.AddIdentityOperationPolicies();
+        services.AddSingleton<IOperationPolicySource, TenancyOperationPolicySource>();
         services.AddScoped<IIdentityScopeLifecycleReader, IdentityScopeLifecycleReader>();
         services.AddSingleton<IOperationPolicyCatalog>(provider => new OperationPolicyCatalog(provider.GetServices<IOperationPolicySource>()));
         services.AddScoped<AuditStateCapture>();
@@ -114,6 +121,7 @@ internal sealed class RoleGrantPipelineHarness : IAsyncDisposable
         Assert.Equal(MediatRPipelineRegistration.CanonicalBehaviorOrder,
             services.Where(descriptor => descriptor.ServiceType == typeof(IPipelineBehavior<,>))
                 .Select(descriptor => descriptor.ImplementationType));
+        configure?.Invoke(services);
         return new(authorization, evidence, business, candidate, services.BuildServiceProvider(), application);
     }
 

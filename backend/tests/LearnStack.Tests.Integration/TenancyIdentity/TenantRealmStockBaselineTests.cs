@@ -166,10 +166,12 @@ public sealed class TenantRealmStockBaselineTests(ITestOutputHelper output)
             JsonNode.DeepEquals(profile, JsonNode.Parse((await admin.GetAsync("users/profile")).GetRawText())).Should().BeTrue(
                 "an independent GET must prove the entire test-owned metadata append, including ordered arrays");
 
+            Names(before["client-scopes"]).Should().NotContain("learnstack-native-session",
+                "the historical baseline lacks ADR-0078's fixed native scope before reconciliation");
             var first = await KeycloakReconciliationDriver.RunAsync(fixture);
             first.Success.Should().BeTrue("closed ordinary reconciliation outcome: {0}/{1} after {2} writes",
                 first.Stage, first.Reason, first.Mutations);
-            first.Mutations.Should().Be(17, "thirteen prior approved mutations, three console assignment DELETEs and one ADR-0070 event-policy PUT");
+            first.Mutations.Should().Be(18, "thirteen prior approved mutations, three console assignment DELETEs, one ADR-0070 event-policy PUT and one ADR-0078 native scope creation");
             var after = await CaptureAsync(admin, historicalAssignments: false);
             Names(after[consolePath + "/default-client-scopes"]).Should().Equal(DefaultScopes.Where(value => value != "roles"));
             Names(after[consolePath + "/optional-client-scopes"]).Should().Equal(OptionalScopes.Where(value => value is not ("microprofile-jwt" or "offline_access")));
@@ -184,6 +186,27 @@ public sealed class TenantRealmStockBaselineTests(ITestOutputHelper output)
                         "every stock global scope definition, effective mapper and allowance is unchanged");
             }
             var assignmentsAfter = await AssignmentsAsync(admin, after["clients"]);
+            var native = Named(after["client-scopes"], "name", "learnstack-native-session");
+            var declaredNative = desired["clientScopes"]!.AsArray().Single(scope =>
+                scope!["name"]!.GetValue<string>() == "learnstack-native-session")!;
+            var nativeMappers = after["client-scopes/" + Id(native) + "/protocol-mappers/models"].EnumerateArray()
+                .Select(mapper =>
+                {
+                    var value = JsonNode.Parse(mapper.GetRawText())!.AsObject();
+                    value.Remove("id");
+                    return (JsonNode)value;
+                }).OrderBy(mapper => mapper["name"]!.GetValue<string>(), StringComparer.Ordinal).ToArray();
+            var declaredNativeMappers = declaredNative["protocolMappers"]!.AsArray().Select(mapper => mapper!.DeepClone())
+                .OrderBy(mapper => mapper["name"]!.GetValue<string>(), StringComparer.Ordinal).ToArray();
+            JsonNode.DeepEquals(new JsonArray(nativeMappers), new JsonArray(declaredNativeMappers)).Should().BeTrue(
+                "the added scope contains exactly the fixed native actor and API-audience mappers, without context emitters");
+            var web = Named(after["clients"], "clientId", "learnstack-web");
+            Names(assignmentsAfter["clients/" + Id(web) + "/default-client-scopes"])
+                .Should().Contain("learnstack-native-session").And.NotContain("learnstack-tenant-api");
+            Names(assignmentsAfter["clients/" + Id(web) + "/optional-client-scopes"])
+                .Should().NotContain("learnstack-tenant-api");
+            Names(assignmentsAfter["clients/" + Id(api) + "/default-client-scopes"])
+                .Should().Contain("learnstack-tenant-api").And.NotContain("learnstack-native-session");
             foreach (var (path, prior) in assignmentsBefore)
             {
                 var expected = prior.EnumerateArray().Where(value => path == consolePath + "/default-client-scopes"
@@ -233,7 +256,7 @@ public sealed class TenantRealmStockBaselineTests(ITestOutputHelper output)
             var rerun = await KeycloakReconciliationDriver.RunAsync(fixture);
             rerun.Success.Should().BeTrue("closed rerun outcome: {0}/{1}", rerun.Stage, rerun.Reason);
             rerun.Mutations.Should().Be(0);
-            output.WriteLine("Historical ordinary stock path: 17 mutations including event policy, then zero; retained five default/three optional edges; elapsed={0:F3}s.", watch.Elapsed.TotalSeconds);
+            output.WriteLine("Historical ordinary stock path: 18 mutations including event policy and native scope creation, then zero; retained five default/three optional edges; elapsed={0:F3}s.", watch.Elapsed.TotalSeconds);
         }
         finally
         {

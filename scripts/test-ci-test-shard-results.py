@@ -141,7 +141,7 @@ class AggregateControls(unittest.TestCase):
             (lambda rows: rows[-1].update(steps=['PRIVATE-CANARY']), 'producer_gate_not_successful'),
             (lambda rows: rows[-1]['steps'].pop(), 'producer_gate_not_successful'),
             (lambda rows: rows[-1]['steps'].append(copy.deepcopy(rows[-1]['steps'][0])), 'producer_gate_not_successful'),
-            (lambda rows: rows[-1].update(completed_at='2026-10-19T00:21:02Z'), 'producer_ceiling_exceeded'),
+            (lambda rows: rows[-1].update(completed_at='2026-10-19T00:26:02Z'), 'producer_ceiling_exceeded'),
             (lambda rows: rows[0]['steps'][-1].update(conclusion='cancelled'), 'producer_gate_not_successful'),
             (lambda rows: rows[0]['steps'].pop(), 'producer_gate_not_successful'),
             (lambda rows: (rows[-1]['steps'][0].update(status='in_progress', conclusion=None),
@@ -482,7 +482,7 @@ class AggregateControls(unittest.TestCase):
             self.assertEqual('', output.getvalue())
         # This instant exhausted the old ordinary window. Pulls now share the
         # longer job window, while their 110/55-second caps remain unchanged.
-        for elapsed in (1000, 1260):
+        for elapsed in (1000, 1260, 1297, 1560, 1596):
             with self.fixture_preparation(elapsed=elapsed) as (command, _):
                 self.assertEqual(0, RESULTS.prepare_fixture_images('ordinary-0'))
                 pulls = [call for call in command.call_args_list if call.args[0][0] == RESULTS.OWNER.DOCKER]
@@ -497,7 +497,7 @@ class AggregateControls(unittest.TestCase):
             with self.fixture_preparation() as (command, _), mock.patch.object(RESULTS, 'FIXTURE_IMAGES', images):
                 self.refuses('fixture_setup_images_invalid', RESULTS.prepare_fixture_images, 'ordinary-0')
                 self.assertFalse(any(call.args[0][0] == RESULTS.OWNER.DOCKER for call in command.call_args_list))
-        with self.fixture_preparation(elapsed=1297) as (command, _):
+        with self.fixture_preparation(elapsed=1597) as (command, _):
             self.refuses('fixture_setup_deadline_exhausted', RESULTS.prepare_fixture_images, 'ordinary-0')
             self.assertFalse(any(call.args[0][0] == RESULTS.OWNER.DOCKER for call in command.call_args_list))
 
@@ -635,9 +635,10 @@ class AggregateControls(unittest.TestCase):
     def test_workflow_windows_and_fixture_mode_and_metadata_cannot_drift(self):
         jobs = self.documents['.github/workflows/ci.yml']['jobs']
         for job_id in RESULTS.JOB_IDS.values():
-            expected = 25 if job_id == 'backend-integration-tests' else 20
+            expected = {'backend-base': 20, 'backend-native': 20,
+                        'backend-architecture': 25, 'backend-integration-tests': 30}[job_id]
             self.assertEqual(expected, jobs[job_id]['timeout-minutes'])
-            for minutes in (19, 20, 24, 25, 26):
+            for minutes in (19, 20, 24, 25, 26, 29, 30, 31):
                 if minutes == expected:
                     continue
                 with self.subTest(job=job_id, minutes=minutes):
@@ -694,7 +695,8 @@ class AggregateControls(unittest.TestCase):
             owner = 'native' if mode == 'native-shard' else mode
             with self.subTest(owner=owner), mock.patch.object(RESULTS.OWNER, 'job_seconds',
                     wraps=RESULTS.OWNER.job_seconds) as policy:
-                self.assertEqual(1500 if owner.startswith('ordinary-') else 1200,
+                self.assertEqual((1800 if owner.startswith('ordinary-') else
+                               1500 if owner.startswith('architecture-') else 1200),
                                  RESULTS.producer_seconds(owner, self.plan))
                 policy.assert_called_once_with(mode, job, self.plan['counts'])
         for owner in ('native-shard', 'ordinary', 'ordinary-00', 'ordinary--1',
@@ -711,9 +713,9 @@ class AggregateControls(unittest.TestCase):
         for scope in ('backend', 'integration'):
             clean = self.jobs(scope)
             for index, job in enumerate(clean):
-                ordinary = job['name'].startswith('backend ordinary-')
-                ceiling = 1500 if ordinary else 1200
-                for seconds in (1200, 1201, 1499, 1500, 1501):
+                ceiling = (1800 if job['name'].startswith('backend ordinary-') else
+                           1500 if job['name'].startswith('backend architecture-') else 1200)
+                for seconds in (1200, 1201, 1499, 1500, 1501, 1799, 1800, 1801):
                     with self.subTest(scope=scope, owner=job['name'], seconds=seconds):
                         rows = copy.deepcopy(clean)
                         start = datetime.datetime.fromisoformat(rows[index]['started_at'].removesuffix('Z'))
@@ -727,7 +729,7 @@ class AggregateControls(unittest.TestCase):
     def test_seconds_observations_require_an_explicit_finite_owner_ceiling(self):
         with self.assertRaises(TypeError):
             RESULTS.finite_seconds(1)
-        for ceiling in (1200, 1500):
+        for ceiling in (1200, 1500, 1800):
             for value in (0, 0.5, 1200, ceiling):
                 self.assertTrue(RESULTS.finite_seconds(value, ceiling))
             for value in (ceiling + 0.001, -1, True, False, float('nan'), float('inf'),
@@ -736,6 +738,8 @@ class AggregateControls(unittest.TestCase):
                     self.assertFalse(RESULTS.finite_seconds(value, ceiling))
         self.assertFalse(RESULTS.finite_seconds(1250, 1200))
         self.assertTrue(RESULTS.finite_seconds(1250, 1500))
+        self.assertFalse(RESULTS.finite_seconds(1550, 1500))
+        self.assertTrue(RESULTS.finite_seconds(1550, 1800))
 
     def test_producer_refusal_retains_only_closed_owner_and_state_diagnostics(self):
         context = self.context()
@@ -956,9 +960,10 @@ class AggregateControls(unittest.TestCase):
                 owners = ('base', 'architecture-0') if scope == 'backend' else ('base', 'native', 'ordinary-0')
                 for owner in owners:
                     path = paths[owner]; clean = RESULTS.read_json(path / 'result.json')
-                    ceiling = 1500 if owner.startswith('ordinary-') else 1200
+                    ceiling = (1800 if owner.startswith('ordinary-') else
+                               1500 if owner.startswith('architecture-') else 1200)
                     for key in keys:
-                        for value in (1200, 1250, 1499, 1500, 1501, -1, True, False,
+                        for value in (1200, 1250, 1499, 1500, 1501, 1550, 1799, 1800, 1801, -1, True, False,
                                       float('nan'), float('inf'), -float('inf')):
                             with self.subTest(scope=scope, owner=owner, key=key, value=value):
                                 result = {**clean, **dict.fromkeys(keys, 0), key: value}
@@ -986,31 +991,34 @@ class AggregateControls(unittest.TestCase):
                                          path, self.context(), owner, self.plan, assignment)
                     self.write(path, 'result.json', clean)
 
-    def test_long_ordinary_measurements_fit_the_longer_receipt_with_short_prework(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            paths = self.outputs(temporary, 'integration'); path = paths['ordinary-0']
-            clean = RESULTS.read_json(path / 'measurements.json')
-            receipt = RESULTS.read_json(path / 'result.json')
-            self.write(path, 'result.json', {**receipt, 'preOwnerSeconds': 2, 'setupSeconds': 3,
-                'executionSeconds': 1253, 'cleanupSeconds': 2})
-            for key in ('workloadSeconds', 'firstResultSeconds', 'testProcessSeconds'):
-                with self.subTest(observation=key):
-                    measured = copy.deepcopy(clean); measured['workloadSeconds'] = 1252
-                    for phase in ('toolchainObservationSeconds', 'nonTestGateSeconds',
-                                  'discoveryAndSelectionSeconds', 'resultExportAndValidationSeconds'):
-                        measured[phase] = 0.1
-                    for project in measured['projects']:
-                        project['firstResultSeconds'] = 0.05
-                        project['testProcessSeconds'] = 0.1
-                    if key in ('firstResultSeconds', 'testProcessSeconds'):
-                        measured['projects'][0]['testProcessSeconds'] = 1251
-                        measured['projects'][0][key] = 1250
-                    else:
-                        measured[key] = 1250
-                        if key == 'workloadSeconds':
-                            measured['projects'][0]['testProcessSeconds'] = 1249
-                    self.write(path, 'measurements.json', measured); self.rehash(path)
-                    self.assertTrue(RESULTS.validate_outputs(paths, self.context(), self.plan, 'integration')['success'])
+    def test_long_extended_measurements_fit_the_expected_receipt_with_short_prework(self):
+        # Keep the prior ordinary control and add both new Architecture/ordinary bands.
+        for scope, owner, value in (('backend', 'architecture-0', 1250),
+                                    ('integration', 'ordinary-0', 1250),
+                                    ('integration', 'ordinary-0', 1550)):
+            with tempfile.TemporaryDirectory() as temporary:
+                paths = self.outputs(temporary, scope); path = paths[owner]
+                clean = RESULTS.read_json(path / 'measurements.json')
+                receipt = RESULTS.read_json(path / 'result.json')
+                self.write(path, 'result.json', {**receipt, 'preOwnerSeconds': 2, 'setupSeconds': 3,
+                    'executionSeconds': value + 3, 'cleanupSeconds': 2})
+                for key in ('workloadSeconds', 'firstResultSeconds', 'testProcessSeconds'):
+                    with self.subTest(owner=owner, observation=key, value=value):
+                        measured = copy.deepcopy(clean); measured['workloadSeconds'] = value + 2
+                        for phase in ('toolchainObservationSeconds', 'nonTestGateSeconds',
+                                      'discoveryAndSelectionSeconds', 'resultExportAndValidationSeconds'):
+                            measured[phase] = 0.1
+                        for project in measured['projects']:
+                            project['firstResultSeconds'] = 0.05
+                            project['testProcessSeconds'] = 0.1
+                        if key in ('firstResultSeconds', 'testProcessSeconds'):
+                            measured['projects'][0]['testProcessSeconds'] = value + 1
+                            measured['projects'][0][key] = value
+                        else:
+                            measured[key] = value
+                            measured['projects'][0]['testProcessSeconds'] = value - 1
+                        self.write(path, 'measurements.json', measured); self.rehash(path)
+                        self.assertTrue(RESULTS.validate_outputs(paths, self.context(), self.plan, scope)['success'])
 
     def test_all_measurement_fields_retain_expected_owner_bounds_and_reject_nonfinite_values(self):
         phase_keys = ('toolchainObservationSeconds', 'nonTestGateSeconds', 'discoveryAndSelectionSeconds',
@@ -1022,11 +1030,14 @@ class AggregateControls(unittest.TestCase):
                 owners = ('base', 'architecture-0') if scope == 'backend' else ('base', 'native', 'ordinary-0')
                 for owner in owners:
                     path = paths[owner]; clean = RESULTS.read_json(path / 'measurements.json')
-                    ceiling = 1500 if owner.startswith('ordinary-') else 1200
+                    ceiling = (1800 if owner.startswith('ordinary-') else
+                               1500 if owner.startswith('architecture-') else 1200)
                     for key in (*phase_keys, 'firstResultSeconds', 'testProcessSeconds'):
                         values = (ceiling + 0.001, -1, True, False, float('nan'), float('inf'), -float('inf'))
                         if ceiling == 1200:
                             values += (1250,)
+                        elif ceiling == 1500:
+                            values += (1550,)
                         for value in values:
                             with self.subTest(scope=scope, owner=owner, key=key, value=value):
                                 measured = copy.deepcopy(clean)
@@ -1114,6 +1125,39 @@ class AggregateControls(unittest.TestCase):
             self.assertTrue(RESULTS.validate_outputs(paths, self.context(), self.plan, 'integration')['success'])
             (native / 'native-refusals.jsonl').write_text('{"error":"refused"}\n'); self.rehash(native)
             self.refuses('native_evidence_incomplete', RESULTS.validate_outputs, paths, self.context(), self.plan, 'integration')
+
+    def test_documented_vm_signatures_keep_exact_receipt_validation_for_every_owner_kind(self):
+        for scope, owners in (('backend', ('base', 'architecture-0')),
+                              ('integration', ('ordinary-0', 'native'))):
+            with self.subTest(scope=scope), tempfile.TemporaryDirectory() as temporary:
+                paths = self.outputs(temporary, scope)
+                context = self.context()
+                assignment = PLAN.assign(self.fixture.manifest(), self.plan, context['runAttempt'])
+                for owner in owners:
+                    path = paths[owner]
+                    filename = 'provisioning.json' if owner == 'native' else 'result.json'
+                    value = RESULTS.read_json(path / filename)
+                    image = value if owner == 'native' else value['runtime']
+
+                    def record(signature):
+                        image['virtualization'] = signature
+                        self.write(path, filename, value)
+                        if owner == 'native':
+                            self.rehash(path)
+
+                    for signature in ('microsoft', 'kvm', 'qemu', 'amazon'):
+                        with self.subTest(owner=owner, signature=signature):
+                            record(signature)
+                            _, _, actual = RESULTS.verify_receipt(path, context, owner, self.plan, assignment)
+                            self.assertEqual(signature, actual['image']['virtualization'])
+                    for signature in ('amazon\n', 'Amazon', 'none', 'docker', 'unknown', 1, None):
+                        with self.subTest(owner=owner, invalid=signature):
+                            record(signature)
+                            self.refuses('image_evidence_invalid', RESULTS.verify_receipt,
+                                         path, context, owner, self.plan, assignment)
+                    record('amazon')
+                # A mixed AWS/Azure worker set still requires the full actual case/TRX union.
+                self.assertTrue(RESULTS.validate_outputs(paths, context, self.plan, scope)['success'])
 
     def test_toolchain_gate_and_resource_evidence_cannot_be_replaced_by_worker_hash_consensus(self):
         for mode in ('adapter', 'gates', 'resource', 'sdk', 'image'):

@@ -13,7 +13,8 @@ namespace LearnStack.Modules.Identity.Application.Seeding;
 
 public sealed class SetSeedMembershipProfileCommandHandler(IMembershipWriteStore store, ITenantContext context,
     ISeedIdentityFoundationAdmission admission, IIdentityScopeLifecycleReader lifecycle,
-    IIdentityMutationLocks locks, IClock clock) : IRequestHandler<SetSeedMembershipProfileCommand, Result<None>>
+    IIdentityMutationLocks locks, IClock clock, IRoleReadStore roles, IFixedSeedPrerequisiteVerifier prerequisites)
+    : IRequestHandler<SetSeedMembershipProfileCommand, Result<None>>
 {
     public async Task<Result<None>> Handle(SetSeedMembershipProfileCommand request, CancellationToken cancellationToken)
     {
@@ -33,13 +34,18 @@ public sealed class SetSeedMembershipProfileCommandHandler(IMembershipWriteStore
         {
             var id = MembershipId.From(request.MembershipId);
             var before = await store.FindAsync(id, cancellationToken);
-            if (!CanSet(before, request)) return Result<None>.Fail(IdentityFailures.Refused());
+            if (!CanSet(before, request) || !await HasPristineRoleAsync(request, cancellationToken))
+                return Result<None>.Fail(IdentityFailures.Refused());
             var originalVersion = before!.Version;
             var originalUser = before.UserId;
-            var plan = new IdentityMutationLockPlan([], context.TenantId, IdentityTenantLockMode.Shared);
+            var plan = new IdentityMutationLockPlan([request.ExpectedUserId], context.TenantId, IdentityTenantLockMode.Exclusive);
             await locks.AcquireAsync(plan, cancellationToken);
+            await store.LockAsync(id, cancellationToken);
             var membership = await store.FindAsync(id, cancellationToken);
-            if (!CanSet(membership, request) || membership!.Version != originalVersion || membership.UserId != originalUser)
+            if (!await SeedFoundationGate.AllowsCurrentLifecycleAsync(context, lifecycle, cancellationToken)
+                || !await HasPristineRoleAsync(request, cancellationToken)
+                || !CanSet(membership, request) || membership!.Version != originalVersion || membership.UserId != originalUser
+                || !await prerequisites.VerifyAsync(request, plan, cancellationToken))
                 return Result<None>.Fail(IdentityFailures.Refused());
             locks.RequireCurrent(plan);
             var changed = membership.SetProfile(request.DisplayName, request.PreferredLocale,
@@ -58,12 +64,25 @@ public sealed class SetSeedMembershipProfileCommandHandler(IMembershipWriteStore
         }
     }
 
+    private async Task<bool> HasPristineRoleAsync(SetSeedMembershipProfileCommand request, CancellationToken ct)
+    {
+        var role = await roles.ReadAsync(RoleId.From(request.ExpectedRoleId), ct);
+        return role is { Version: 0, UpdatedAt: null, UpdatedBy: null }
+            && role.CreatedAt != default && role.CreatedBy == LearnStack.SharedKernel.Identifiers.UserId.SystemActor
+            && role.TenantId == context.TenantId && role.PermissionScope == request.MembershipScope
+            && role.AdoptedReleaseVersion == 1 && role.AdoptedReleaseFingerprint == IdentityFoundationManifest.Version1.Fingerprint
+            && role.MatchesInitialTemplate();
+    }
+
     private bool CanSet(Membership? membership, SetSeedMembershipProfileCommand request) =>
         membership is { Status: MembershipStatus.Active, DeletedAt: null, DeletedBy: null }
+        && membership.CreatedAt != default && membership.CreatedBy == LearnStack.SharedKernel.Identifiers.UserId.SystemActor
         && membership.UserId == request.ExpectedUserId
         && membership.RoleAssignments.Count == 1 && membership.RoleAssignments.Single().RoleId.Value == request.ExpectedRoleId
         && membership.TenantId == context.TenantId && membership.OrganizationId == context.OrganizationId
-        && (membership.Version == 0 && membership.Profile.DisplayName is null && membership.Profile.PreferredLocale is null
+        && (membership.Version == 0 && membership.UpdatedAt is null && membership.UpdatedBy is null
+                && membership.Profile.DisplayName is null && membership.Profile.PreferredLocale is null
             || membership.Version == 1 && membership.Profile.DisplayName == request.DisplayName
-                && membership.Profile.PreferredLocale == request.PreferredLocale);
+                && membership.Profile.PreferredLocale == request.PreferredLocale
+                && membership.UpdatedBy == LearnStack.SharedKernel.Identifiers.UserId.SystemActor);
 }

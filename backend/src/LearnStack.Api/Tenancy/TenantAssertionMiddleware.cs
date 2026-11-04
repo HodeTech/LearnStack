@@ -37,6 +37,10 @@ public sealed class TenantAssertionMiddleware(RequestDelegate next)
     public const string TenantHeaderName = "X-Tenant-Id";
     public const string OrganizationHeaderName = "X-Organization-Id";
 
+    /// <summary>The global-self exception may refuse assertions, but cannot borrow their values as scope.</summary>
+    internal static bool HasAssertionHeaders(IHeaderDictionary headers) =>
+        headers.ContainsKey(TenantHeaderName) || headers.ContainsKey(OrganizationHeaderName);
+
     public async Task InvokeAsync(
         HttpContext context,
         ITenantContext tenantContext,

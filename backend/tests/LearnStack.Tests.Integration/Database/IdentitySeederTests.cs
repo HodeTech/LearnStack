@@ -22,7 +22,7 @@ namespace LearnStack.Tests.Integration.Database;
 /// <summary>The shipped external Seeder capability, app-role commands and durable separate acts.</summary>
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
 [Collection(SharedSchema.Name)]
-public sealed class IdentitySeederTests(SchemaFixture schema) : IAsyncLifetime
+public sealed partial class IdentitySeederTests(SchemaFixture schema) : IAsyncLifetime
 {
     private static readonly IdentityAuthorityRegistration Registration = new(
         IdentityAuthorityId.From(Guid.Parse("01930000-0000-7000-8000-000000009001")),
@@ -134,7 +134,7 @@ public sealed class IdentitySeederTests(SchemaFixture schema) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Legitimate_audited_grant_change_makes_fixed_v1_seed_refuse_without_repair_or_additional_audit()
+    public async Task Legitimate_audited_grant_change_is_preserved_by_warm_seed_without_additional_audit()
     {
         await using var dataSource = ApplicationDataSource.Build(_database.AppConnectionString);
         await SeedContentAsync(dataSource);
@@ -150,9 +150,7 @@ public sealed class IdentitySeederTests(SchemaFixture schema) : IAsyncLifetime
             changed.Value.Should().Be(1);
         }
         var before = await AuditCountAsync();
-        var act = async () => await RunAsync(dataSource);
-        (await act.Should().ThrowAsync<InvalidOperationException>()).Which.Message
-            .Should().Be("Development identity foundation was refused.");
+        await RunAsync(dataSource);
         (await AuditCountAsync()).Should().Be(before);
         (await CountContextualAsync("role_permission_grants")).Should().Be(SeedData.IdentityRoles.Sum(roleDeclaration =>
             LearnStack.Modules.Identity.Domain.IdentityFoundationManifest.Version1.FindTemplate(roleDeclaration.BuiltInKey, roleDeclaration.Scope)!.Grants.Length) - 1);
@@ -161,7 +159,7 @@ public sealed class IdentitySeederTests(SchemaFixture schema) : IAsyncLifetime
     [Theory]
     [InlineData("Suspended")]
     [InlineData("Revoked")]
-    public async Task A_nonactive_membership_stops_remaining_acts_and_is_never_recreated(string status)
+    public async Task A_valid_nonactive_membership_is_preserved_by_completed_warm_seed(string status)
     {
         await using var dataSource = ApplicationDataSource.Build(_database.AppConnectionString);
         await SeedContentAsync(dataSource);
@@ -174,7 +172,8 @@ public sealed class IdentitySeederTests(SchemaFixture schema) : IAsyncLifetime
             await IdentityMembershipFixture.LockAsync(app, transaction, member.Identity.Tenant.TenantId.Value, null, false);
             await IdentityMembershipFixture.ExecuteAsync(app, transaction, """
                 UPDATE public.memberships SET status=@status,row_version=row_version+1,
-                    deleted_at=CASE WHEN @status='Revoked' THEN clock_timestamp() ELSE NULL END,
+                    updated_at=statement_timestamp(),updated_by=@actor,
+                    deleted_at=CASE WHEN @status='Revoked' THEN statement_timestamp() ELSE NULL END,
                     deleted_by=CASE WHEN @status='Revoked' THEN @actor ELSE NULL END
                 WHERE tenant_id=@tenant AND id=@member;
                 SET CONSTRAINTS ALL IMMEDIATE;
@@ -183,8 +182,7 @@ public sealed class IdentitySeederTests(SchemaFixture schema) : IAsyncLifetime
             await transaction.CommitAsync();
         }
         var before = await AuditCountAsync();
-        var act = async () => await RunAsync(dataSource);
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        await RunAsync(dataSource);
         (await AuditCountAsync()).Should().Be(before);
         (await CountContextualAsync("memberships")).Should().Be(4L);
     }
@@ -213,9 +211,10 @@ public sealed class IdentitySeederTests(SchemaFixture schema) : IAsyncLifetime
         var witness = await WitnessAsync(Registration);
         var admission = new FixedSeedIdentityFoundationAdmission(witness);
         var contexts = 0;
+        var dispositionReads = SeedData.IdentityRoles.Length + SeedData.IdentityMemberships.Length;
         var runner = new SeedIdentityFoundationRunner(context =>
         {
-            if (context is not null && ++contexts == failAtContext)
+            if (context is not null && ++contexts - dispositionReads == failAtContext)
                 throw new InvalidOperationException("Fixture interruption before dispatch.");
             return SeedComposition.Build(dataSource, context, loggerFactory ?? NullLoggerFactory.Instance,
                 identityAuthority: Registration, seedAdmission: admission);

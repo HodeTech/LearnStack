@@ -67,21 +67,33 @@ public sealed class BackgroundJobLifecycleProjectionTests(SchemaFixture schema)
     [Fact]
     public async Task Projection_grant_down_and_reapply_change_only_the_named_column_budget()
     {
-        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres, applyMigrations: false);
         var options = new DbContextOptionsBuilder<TenancyDbContext>()
             .UseNpgsql(database.MigrationConnectionString, postgres => postgres.MigrationsHistoryTable(TenancyDbContextFactory.HistoryTable)).Options;
         await using var context = new TenancyDbContext(options, StaticTenantContextAccessor.Unresolved);
         await using var migration = await PostgresFixture.OpenAsync(database.MigrationConnectionString);
-        (await GrantsAsync(migration)).Should().Equal(Expected);
+        const string PreviousMigration = "20261002001839_tenant_locale_default_enabled";
+        const string ProjectionMigration = "20261017210806_grant_job_lifecycle_projection";
         var all = context.Database.GetMigrations().ToArray();
-        all[^1].Should().Be("20261017210806_grant_job_lifecycle_projection");
+        var projectionIndex = Array.IndexOf(all, ProjectionMigration);
+        projectionIndex.Should().BeGreaterThan(0);
+        all[projectionIndex - 1].Should().Be(PreviousMigration);
+        var migrator = context.GetService<IMigrator>();
+        // Start at the owned historical boundary: later forward-only guards
+        // must never be rolled back to qualify this reversible grant migration.
+        await migrator.MigrateAsync(PreviousMigration);
+        (await GrantsAsync(migration)).Should().BeEmpty();
         var tables = await SchemaQueries.ReadStringsAsync(migration, SchemaQueries.TableNames);
-        await context.GetService<IMigrator>().MigrateAsync(all[^2]);
+        tables.Should().NotBeEmpty();
+        await migrator.MigrateAsync(ProjectionMigration);
+        (await context.Database.GetAppliedMigrationsAsync()).Should().Equal(all.Take(projectionIndex + 1));
+        (await GrantsAsync(migration)).Should().Equal(Expected);
+        (await SchemaQueries.ReadStringsAsync(migration, SchemaQueries.TableNames)).Should().Equal(tables);
+        await migrator.MigrateAsync(PreviousMigration);
         (await GrantsAsync(migration)).Should().BeEmpty();
         (await SchemaQueries.ReadStringsAsync(migration, SchemaQueries.TableNames)).Should().Equal(tables);
-        await context.Database.MigrateAsync();
+        await migrator.MigrateAsync(ProjectionMigration);
         (await GrantsAsync(migration)).Should().Equal(Expected);
-        context.Database.HasPendingModelChanges().Should().BeFalse();
 
         var root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(RepositoryPath.RolesScript())!, "../../.."));
         var document = await File.ReadAllTextAsync(Path.Combine(root, "docs/standards/05-database.md"));
@@ -89,7 +101,7 @@ public sealed class BackgroundJobLifecycleProjectionTests(SchemaFixture schema)
         var canonical = section.Split("```sql\n", StringSplitOptions.None)[1].Split("\n```", StringSplitOptions.None)[0];
         // A pregranted schema cannot distinguish a sufficient canonical block
         // from an empty one. Exercise both versions from a demonstrated empty ACL.
-        await context.GetService<IMigrator>().MigrateAsync(all[^2]);
+        await migrator.MigrateAsync(PreviousMigration);
         (await GrantsAsync(migration)).Should().BeEmpty();
         canonical.Split("default_organization_id", StringSplitOptions.None).Should().HaveCount(2,
             "the missing-column control must remove one actual required grant");
@@ -103,12 +115,18 @@ public sealed class BackgroundJobLifecycleProjectionTests(SchemaFixture schema)
         exactBudget.Should().Throw<Xunit.Sdk.XunitException>(
             "the same exact-budget assertion must reject a canonical block missing a required column");
 
-        await context.Database.MigrateAsync();
-        await context.GetService<IMigrator>().MigrateAsync(all[^2]);
+        await migrator.MigrateAsync(ProjectionMigration);
+        await migrator.MigrateAsync(PreviousMigration);
         (await GrantsAsync(migration)).Should().BeEmpty();
         await SchemaQueries.ExecuteAsync(migration, null, canonical);
         (await GrantsAsync(migration)).Should().Equal(Expected, "the sole canonical grant block must itself produce the bounded ACL");
-        await context.Database.MigrateAsync();
+        await migrator.MigrateAsync(ProjectionMigration);
+        (await GrantsAsync(migration)).Should().Equal(Expected);
+        (await context.Database.GetAppliedMigrationsAsync()).Should().Equal(all.Take(projectionIndex + 1));
+        // Only after every named down/up control, qualify the full current schema.
+        await MigrationChains.ApplyAllAsync(database.MigrationConnectionString);
+        (await context.Database.GetAppliedMigrationsAsync()).Should().Equal(all);
+        context.Database.HasPendingModelChanges().Should().BeFalse();
         (await GrantsAsync(migration)).Should().Equal(Expected);
     }
 

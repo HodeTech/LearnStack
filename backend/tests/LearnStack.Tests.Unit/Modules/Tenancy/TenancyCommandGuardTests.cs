@@ -2,6 +2,7 @@ using FluentAssertions;
 using LearnStack.Api.Common;
 using LearnStack.Modules.Tenancy.Application.Abstractions;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
+using LearnStack.Modules.Tenancy.Application.Contracts.Seeding;
 using LearnStack.Modules.Tenancy.Domain;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Persistence;
@@ -11,6 +12,7 @@ using LearnStack.SharedKernel.Time;
 using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using NSubstitute;
 using Xunit;
 using OrganizationAggregate = LearnStack.Modules.Tenancy.Domain.Organization;
 
@@ -39,6 +41,8 @@ public sealed class TenancyCommandGuardTests
 {
     private static readonly TenantId Tenant =
         TenantId.From(Guid.Parse("0199b000-0000-7000-8000-000000000001"));
+
+    private static readonly FixedClock Clock = new(new DateTimeOffset(2026, 9, 3, 9, 0, 0, TimeSpan.Zero));
 
     [Fact]
     public async Task Creating_an_organization_without_a_tenant_refuses_with_a_mapped_code()
@@ -87,8 +91,11 @@ public sealed class TenancyCommandGuardTests
         var handler = Resolve<MapHostToTenantCommand, HostMappingDto>(
             Tenant, reserved: "app.learnstack.dev");
 
+        PlatformHostMapping.Create("APP.learnstack.dev.", Tenant, null, true, true).Host
+            .Should().Be("app.learnstack.dev", "the projection factory owns host normalization");
+        // The actual seed act must also match its finite declaration exactly.
         var result = await handler.Handle(
-            new MapHostToTenantCommand("APP.learnstack.dev.", IsActive: true),
+            new MapHostToTenantCommand("app.learnstack.dev", IsActive: true, IsPubliclyLive: true),
             CancellationToken.None);
 
         result.IsFailure.Should().BeTrue(
@@ -113,8 +120,10 @@ public sealed class TenancyCommandGuardTests
         var handler = Resolve<MapHostToTenantCommand, HostMappingDto>(
             Tenant, invalidator: invalidated);
 
+        var normalized = PlatformHostMapping.Create("TÜRKÇE.example.com", Tenant, null, true, true).Host;
+        normalized.Should().Be("xn--trke-2oa7j.example.com");
         var result = await handler.Handle(
-            new MapHostToTenantCommand("TÜRKÇE.example.com", IsActive: true, IsPubliclyLive: true),
+            new MapHostToTenantCommand(normalized, IsActive: true, IsPubliclyLive: true),
             CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
@@ -133,28 +142,48 @@ public sealed class TenancyCommandGuardTests
     /// convenience. Resolution also proves they are discoverable by the assembly scan the
     /// composition root relies on.
     /// </remarks>
-    private static IRequestHandler<TCommand, Result<TResponse>> Resolve<TCommand, TResponse>(
+    private static InvokedHandler<TCommand, TResponse> Resolve<TCommand, TResponse>(
         TenantId? tenant = null,
         string? reserved = null,
         IHostResolutionInvalidator? invalidator = null)
-        where TCommand : IRequest<Result<TResponse>>
+        where TCommand : notnull, IRequest<Result<TResponse>>
     {
         var services = new ServiceCollection();
         services.AddMediatR(configuration => configuration.RegisterServicesFromAssembly(
             typeof(ITenantWriteStore).Assembly));
-        services.AddSingleton<IClock>(new FixedClock(
-            new DateTimeOffset(2026, 9, 3, 9, 0, 0, TimeSpan.Zero)));
-        services.AddSingleton<ITenantContext>(
-            tenant is { } resolved ? new ResolvedContext(resolved) : UnresolvedTenantContext.Instance);
+        services.AddSingleton<IClock>(Clock);
+        ITenantContext context = tenant is { } resolved ? new ResolvedContext(resolved) : UnresolvedTenantContext.Instance;
+        services.AddSingleton(context);
         services.AddSingleton<IOrganizationWriteStore, RefusingStore>();
         services.AddSingleton<IOrganizationScopeValidator, RefusingStore>();
         services.AddSingleton<IPlatformHostMappingStore>(new AcceptingHostStore());
         services.AddSingleton<IReservedHostRegistry>(
             reserved is null ? NoReservedHosts.Instance : new OneReservedHost(reserved));
         services.AddSingleton(invalidator ?? NullHostResolutionInvalidator.Instance);
+        var target = tenant ?? Tenant;
+        var first = new SeedOrganizationDeclaration(OrganizationId.From(Guid.CreateVersion7()), "first", "First");
+        var second = new SeedOrganizationDeclaration(OrganizationId.From(Guid.CreateVersion7()), "second", "Second");
+        var declaration = new SeedTenantDeclaration(target, "probe", "Probe", first, second,
+            [new("en", true, true, 0)], reserved ?? "xn--trke-2oa7j.example.com", null, null, null);
+        var root = LearnStack.Modules.Tenancy.Domain.Tenant.Create(target, declaration.Slug, declaration.DisplayName, Clock, UserId.SystemActor);
+        root.AssignDefaultOrganization(first.Id, Clock, new SystemGuidFactory(), UserId.SystemActor);
+        var state = Substitute.For<ISeedStateReader>();
+        state.ReadTenantAsync(Arg.Any<CancellationToken>()).Returns(new TenantSeedDto(target, root.Slug, root.DisplayName,
+            root.Status.ToString(), root.DefaultOrganizationId, root.Version, [], root.CreatedAt, root.CreatedBy, root.UpdatedAt, root.UpdatedBy));
+        foreach (var organization in new[] { first, second })
+            state.ReadOrganizationAsync(organization.Id, Arg.Any<CancellationToken>()).Returns(new OrganizationSeedDto(
+                organization.Id, target, organization.Slug, organization.DisplayName, "Active", CreatedAt: Clock.UtcNow, CreatedBy: UserId.SystemActor));
+        TenancySeedHandlerOwner.Register(services, context, declaration, state, Clock);
+        var provider = services.BuildServiceProvider();
+        return new InvokedHandler<TCommand, TResponse>(provider.GetRequiredService<IRequestHandler<TCommand, Result<TResponse>>>(),
+            provider.GetRequiredService<TenancySeedHandlerOwner>());
+    }
 
-        return services.BuildServiceProvider()
-            .GetRequiredService<IRequestHandler<TCommand, Result<TResponse>>>();
+    private sealed class InvokedHandler<TCommand, TResponse>(IRequestHandler<TCommand, Result<TResponse>> handler,
+        TenancySeedHandlerOwner owner) : IRequestHandler<TCommand, Result<TResponse>> where TCommand : notnull, IRequest<Result<TResponse>>
+    {
+        public Task<Result<TResponse>> Handle(TCommand request, CancellationToken cancellationToken) =>
+            owner.ExecuteAsync(request, handler, cancellationToken);
     }
 
     /// <summary>

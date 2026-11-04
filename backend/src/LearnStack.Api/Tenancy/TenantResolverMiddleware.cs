@@ -79,6 +79,11 @@ public sealed class TenantResolverMiddleware(
         }
 
         var identity = context.Features.Get<TenantCredentialFeature>()?.Identity;
+        if (context.Features.Get<NativeSessionSourceFeature>() is not null)
+        {
+            await ResolveNativeAsync(context, classification, organizationScopes, memberships);
+            return;
+        }
         if (identity is { TenantId: null }) LogClaimless(logger, null);
         var attempt = await BuildAttemptAsync(context, classification, organizationScopes, memberships, identity);
 
@@ -122,6 +127,57 @@ public sealed class TenantResolverMiddleware(
         {
             accessor.Current = previous;
         }
+    }
+
+    private async Task ResolveNativeAsync(HttpContext context, HostClassification host,
+        IOrganizationScopeValidator organizationScopes, ITenantMembershipReader memberships)
+    {
+        var evidence = context.Features.Get<NativeScopeEvidence>();
+        if (evidence?.IsCurrent(context) is not true)
+        {
+            TenantIdentityBindingAdmissionMiddleware.Refuse(context);
+            return;
+        }
+        var covers = await memberships.CoversAsync(evidence.Actor, evidence.Tenant,
+            evidence.Organization, context.RequestAborted);
+        if (!evidence.IsCurrent(context))
+        {
+            TenantIdentityBindingAdmissionMiddleware.Refuse(context);
+            return;
+        }
+        bool? organizationBelongs = null;
+        if (covers && evidence.Organization is { } organization)
+            organizationBelongs = await organizationScopes.BelongsToTenantAsync(evidence.Tenant,
+                organization, context.RequestAborted);
+        context.RequestAborted.ThrowIfCancellationRequested();
+        if (!evidence.IsCurrent(context))
+        {
+            TenantIdentityBindingAdmissionMiddleware.Refuse(context);
+            return;
+        }
+        var resolved = TenantContextFactory.CreateForNativeScope(new NativeScopeResolutionAttempt
+        {
+            HostTenantId = host.TenantId,
+            HostOrganizationId = host.OrganizationId,
+            TenantId = evidence.Tenant,
+            OrganizationId = evidence.Organization,
+            ActorUserId = evidence.Actor,
+            MembershipCovers = covers,
+            OrganizationBelongsToTenant = organizationBelongs,
+            CorrelationId = Activity.Current?.Id ?? context.TraceIdentifier,
+        });
+        if (resolved.IsFailure)
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+        var previous = accessor.Current;
+        try
+        {
+            accessor.Current = resolved.Value;
+            await next(context);
+        }
+        finally { accessor.Current = previous; }
     }
 
     /// <summary>

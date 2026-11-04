@@ -10,6 +10,8 @@
 [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md),
 [ADR-0076](../decisions/0076-live-scoped-authorization.md),
 [ADR-0077](../decisions/0077-trusted-authorization-evidence.md),
+[ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md),
+[ADR-0079](../decisions/0079-bounded-identity-administration.md),
 [ADR-0020](../decisions/0020-triple-deployment-hybrid-license.md). For the
 day-to-day rules read [09-error-handling.md](../standards/09-error-handling.md),
 [10-observability.md](../standards/10-observability.md), and
@@ -144,8 +146,9 @@ Global and tenant owners cannot join or retarget one another. The central audit
 composer alone emits the typed global metadata/creation reference; successful
 User/audit reciprocity and exact non-success evidence use the canonical
 [Database contract](../standards/05-database.md#proposed-global-central-audit-branch).
-This extension adds no MediatR stage or HTTP/new-user BFF route. P03-3 owns that
-activation; the current complete native profile and ordinary pipeline remain.
+That delivered extension adds no MediatR stage or HTTP/new-user BFF route.
+ADR-0078's Accepted P03-3 extension below defines their activation contract while
+retaining the ordinary pipeline.
 
 Jointly Accepted ADR-0076/0077 define the live extension: independent
 HTTP/application live policy checks and one administrative membership directory
@@ -167,6 +170,31 @@ ledger remains [Standard 05](../standards/05-database.md#authorization-and-evide
 Runtime, fault/crash and pool-progress controls separately exercise these
 boundaries; the [Phase 03 Status block](../roadmap/phase-03-identity-admin.md)
 owns current source-bound qualification.
+
+ADR-0078/0079 add a bounded native/global-self entry branch and exact protected
+administration operations, without adding a ninth MediatR stage. The
+[Security contract](../standards/11-security.md#native-scope-and-global-self-admission)
+owns the outer HTTP ordering, separate native credential and immutable provider/
+native evidence, three exact global-self descriptors and real-host ceilings.
+Ordinary contextual requests continue through binding, resolution, assertions and
+live policy; the global branch never becomes a generic unresolved-context route.
+Provider credentials identify the person, not a selected Tenant permission set.
+
+Initial/explicit context admission uses common MUST audit. Ordinary refresh
+validates the unchanged scope through Off self/AccountSite reads without another
+admission event; failure after refresh retains the stricter publication rule.
+Native forms and page-data owners retain actual work through cleanup and reject
+late publication after replacement/logout. Their admission limits do not prove
+browser cookie delivery or global resource fairness.
+
+ADR-0079's protected replay authorizes disclosure anew against the persisted
+original target, then commits its own MUST read event before stored bytes.
+Original mutation audit is not replayed. Its
+[database owner contract](../standards/05-database.md#p03-3-storage-and-replay-contract)
+separates short claim/capacity ownership from business User/Tenant locks and
+preserves uncertain commit outcomes. These are Accepted extensions; the phase
+Status block, actual source censuses and runtime controls establish activation,
+not this conceptual description.
 
 [ADR-0032 § Sub-decision 2](../decisions/0032-exception-handling-logging-and-observability.md)
 binds the ordinary pipeline order. Reading bottom-most as innermost:

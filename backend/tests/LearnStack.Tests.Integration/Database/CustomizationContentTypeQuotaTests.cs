@@ -206,12 +206,10 @@ public sealed class CustomizationContentTypeQuotaTests(SchemaFixture schema, Con
     private static RegisterTenantContentTypeCommand Register(string key, int version = 1) => new(Guid.CreateVersion7(), key, version,
         new Dictionary<string, string> { ["en"] = "Quota proof" }, BuiltInCustomizations.Card.JsonSchema, BuiltInCustomizations.Card.RendererKey);
 
-    private async Task<Context> ProvisionAsync(NpgsqlDataSource source)
+    private static async Task<Context> ProvisionAsync(NpgsqlDataSource source)
     {
         var id = TenantId.From(Guid.CreateVersion7());
-        await using var provider = BuildProvider(source, null);
-        (await SendAsync(provider, null, new ProvisionTenantCommand(id, "quota-" + id.Value.ToString("N"), "Quota proof",
-            OrganizationId.From(Guid.CreateVersion7()), "main", "Main"))).IsSuccess.Should().BeTrue();
+        await ContentComponentFixture.CreateTenantAsync(source, id);
         return new(id);
     }
 

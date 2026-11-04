@@ -1,3 +1,4 @@
+using LearnStack.Modules.Education.Application.Seeding;
 using LearnStack.Modules.Education.Application.Abstractions;
 using LearnStack.Modules.Education.Application.Writing;
 using LearnStack.Modules.Education.Domain;
@@ -16,13 +17,14 @@ namespace LearnStack.Modules.Education.Application.Courses;
 
 internal sealed class CreateCourseCommandHandler(ICourseWriteStore courses,
     IExactCustomizationDefinitionReader definitions, ITenantContext tenantContext,
-    IUnitOfWork unitOfWork, IAuditSubject auditSubject, IClock clock)
+    IUnitOfWork unitOfWork, IAuditSubject auditSubject, IClock clock, ISeedEducationWriteGuard seedGuard)
     : IRequestHandler<CreateCourseCommand, Result<CourseWriteDto>>
 {
     public async Task<Result<CourseWriteDto>> Handle(CreateCourseCommand request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         if (EducationWriteSupport.Context<CourseWriteDto>(tenantContext) is { } unresolved) return unresolved;
+        if (!await seedGuard.PrepareAsync(request, cancellationToken)) return Result<CourseWriteDto>.Fail(seedGuard.Failure);
         if (request is { LevelTaxonomyKey: { } key, LevelTaxonomySchemaVersion: { } version, LevelBandKey: { } bandKey })
         {
             var taxonomy = await definitions.ReadTaxonomyAsync(key, version,
@@ -31,6 +33,7 @@ internal sealed class CreateCourseCommandHandler(ICourseWriteStore courses,
             if (!taxonomy.Value.Bands.Any(band => band.Key == bandKey))
                 return EducationWriteSupport.Field<CourseWriteDto>("LevelBandKey", "lockey_education_band_invalid");
         }
+        if (!seedGuard.IsCurrent(request)) return EducationWriteSupport.Code<CourseWriteDto>("lockey_business_rule_violation");
         var access = request.ContentAccess == "public" ? CourseContentAccess.Public : CourseContentAccess.EnrollmentRequired;
         var root = Course.Create(CourseId.From(request.CourseId), tenantContext.TenantId, tenantContext.OrganizationId,
             request.SlugKey, access, clock, tenantContext.UserId ?? UserId.SystemActor,

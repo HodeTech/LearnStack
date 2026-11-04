@@ -561,7 +561,10 @@ public sealed class AliasedCollectionTests { }
         calls = []
         root = ROOT
         class Budget:
-            def command(self, argv, reason):
+            def command(self, argv, reason, *, classify=False):
+                expected_classification = argv == [PROVISIONER.VIRT, '--vm']
+                if classify is not expected_classification:
+                    raise AssertionError('Only the fixed VM probe may classify failures')
                 calls.append(argv)
                 if argv[0] == PROVISIONER.DOCKER:
                     return 0, b''
@@ -841,6 +844,108 @@ public sealed class AliasedCollectionTests { }
             with self.assertRaises(LAUNCHER.Refusal) as failure:
                 LAUNCHER.qualify_shard_vm('base', time.monotonic() + 5)
             self.assertEqual('unsupported_image', failure.exception.reason)
+
+    def test_vm_refusal_classes_cross_both_coordinator_adapters_unchanged(self):
+        for suffix in ('os_error', 'timeout', 'output_bound', 'exit', 'shape'):
+            reason = 'vm_evidence_missing_' + suffix
+            reader = types.SimpleNamespace(Budget=mock.Mock(), Refusal=PROVISIONER.Refusal,
+                workflow_context=mock.Mock(return_value=ROOT),
+                qualify_runtime=mock.Mock(side_effect=PROVISIONER.Refusal(reason)))
+            spec = types.SimpleNamespace(loader=types.SimpleNamespace(exec_module=mock.Mock()))
+            with self.subTest(reason=reason), \
+                    mock.patch.dict(LAUNCHER.os.environ, {'RUNNER_ENVIRONMENT': 'github-hosted',
+                        'ImageOS': 'ubuntu24', 'ImageVersion': '20261012.334.1'}), \
+                    mock.patch.object(LAUNCHER.importlib.util, 'spec_from_file_location', return_value=spec), \
+                    mock.patch.object(LAUNCHER.importlib.util, 'module_from_spec', return_value=reader):
+                for mode in ('base', 'architecture-0', 'ordinary-0'):
+                    with self.assertRaises(LAUNCHER.Refusal) as caught:
+                        LAUNCHER.qualify_shard_vm(mode, time.monotonic() + 5)
+                    self.assertEqual(reason, caught.exception.reason)
+                with self.assertRaises(LAUNCHER.Refusal) as caught:
+                    LAUNCHER.prevalidate_native(reader, time.monotonic() + 5)
+                self.assertEqual(reason, caught.exception.reason)
+
+    def test_prelaunch_vm_refusal_never_starts_a_unit_or_earns_a_complete_receipt(self):
+        results = module('ci_vm_refusal_results_controls', 'ci-test-shard-results.py')
+        context = {'runId': '42', 'runAttempt': '1', 'sourceSha': 'a' * 40}
+        for suffix in ('os_error', 'timeout', 'output_bound', 'exit', 'shape'):
+            reason = 'vm_evidence_missing_' + suffix
+            with self.subTest(reason=reason), tempfile.TemporaryDirectory() as tmp, \
+                    contextlib.ExitStack() as stack:
+                root = Path(tmp); private = root / 'private'; output = root / 'output'
+                group = root / 'cgroup'; group.mkdir(); (group / 'cgroup.controllers').touch()
+                launch = mock.Mock(side_effect=AssertionError('VM refusal precedes unit launch'))
+                command = mock.Mock(side_effect=AssertionError('VM refusal precedes unit probes'))
+                forbidden = mock.Mock(side_effect=AssertionError('No workload or cleanup authority'))
+                for name, value in {'identity': lambda _: context,
+                    'deadlines': lambda _: (time.monotonic() + 5, time.monotonic() + 10),
+                    'lower_core': lambda: None, 'locations': lambda *_: ('owned.service', private, output),
+                    'CGROUP': str(group), 'DOTNET': '/usr/bin/true',
+                    'docker_census': lambda _: [], 'docker_complete': forbidden,
+                    'qualify_shard_vm': mock.Mock(side_effect=LAUNCHER.Refusal(reason)),
+                    'launch_unit': launch, 'command': command, 'crash_scan': forbidden,
+                    'validate_results': forbidden, 'export_hashes': forbidden}.items():
+                    stack.enter_context(mock.patch.object(LAUNCHER, name, value))
+                observed = io.StringIO()
+                stack.enter_context(contextlib.redirect_stdout(observed))
+                self.assertEqual(1, LAUNCHER.execute('ordinary-0'))
+                result = LAUNCHER.read_json(output / 'result.json')
+                self.assertEqual(result, json.loads(observed.getvalue()))
+                self.assertEqual(reason, result['error'])
+                self.assertTrue(all(result[key] is False
+                    for key in ('success', 'complete', 'ownershipComplete', 'forcedCleanup')))
+                self.assertNotIn('cases', result)
+                self.assertNotIn('runtime', result)
+                self.assertNotIn('cleanupOwnershipComplete', result)
+                self.assertFalse((private / 'launch').exists())
+                launch.assert_not_called(); command.assert_not_called(); forbidden.assert_not_called()
+                # A cause label confers no success authority even with forged flags.
+                result.update({key: True for key in
+                    ('success', 'complete', 'ownershipComplete', 'cleanupOwnershipComplete')})
+                LAUNCHER.write_json(output / 'result.json', result)
+                with self.assertRaises(results.Refusal) as caught:
+                    results.verify_receipt(output, context, 'ordinary-0', self.plan, {})
+                self.assertEqual('execution_receipt_incomplete', caught.exception.reason)
+
+    def test_native_postlaunch_vm_refusal_keeps_the_existing_stop_path(self):
+        context = {'runId': '42', 'runAttempt': '1', 'sourceSha': 'a' * 40}
+        for suffix in ('os_error', 'timeout', 'output_bound', 'exit', 'shape'):
+            reason = 'vm_evidence_missing_' + suffix
+            with self.subTest(reason=reason), tempfile.TemporaryDirectory() as tmp, \
+                    contextlib.ExitStack() as stack:
+                root = Path(tmp); private = root / 'private'; output = root / 'output'
+                group = root / 'cgroup'; group.mkdir(); (group / 'cgroup.controllers').touch()
+                reader = types.SimpleNamespace(Refusal=PROVISIONER.Refusal,
+                    provision=mock.Mock(side_effect=PROVISIONER.Refusal(reason)))
+                spec = types.SimpleNamespace(loader=types.SimpleNamespace(exec_module=mock.Mock()))
+                commands = mock.Mock(return_value=b''); launch = mock.Mock()
+                crash = mock.Mock(return_value={'verifiedImageDirectories': 0})
+                for name, value in {'identity': lambda _: context,
+                    'deadlines': lambda _: (time.monotonic() + 5, time.monotonic() + 10),
+                    'lower_core': lambda: None, 'locations': lambda *_: ('owned.service', private, output),
+                    'CGROUP': str(group), 'DOTNET': '/usr/bin/true', 'docker_census': lambda _: [],
+                    'docker_complete': mock.Mock(return_value=True), 'prevalidate_native': lambda *_: None,
+                    'launch_unit': launch, 'command': commands, 'crash_scan': crash,
+                    'export_hashes': mock.Mock(side_effect=AssertionError('No success export'))}.items():
+                    stack.enter_context(mock.patch.object(LAUNCHER, name, value))
+                stack.enter_context(mock.patch.object(LAUNCHER.importlib.util,
+                    'spec_from_file_location', return_value=spec))
+                stack.enter_context(mock.patch.object(LAUNCHER.importlib.util,
+                    'module_from_spec', return_value=reader))
+                stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+                self.assertEqual(1, LAUNCHER.execute('native-shard'))
+                result = LAUNCHER.read_json(output / 'result.json')
+                self.assertEqual(reason, result['error'])
+                self.assertTrue(all(result[key] is False for key in
+                    ('success', 'complete', 'ownershipComplete', 'cleanupOwnershipComplete')))
+                self.assertTrue(result['forcedCleanup'])
+                self.assertFalse((private / 'launch').exists())
+                launch.assert_called_once(); reader.provision.assert_called_once()
+                self.assertEqual(2, crash.call_count)
+                self.assertEqual([LAUNCHER.SUDO, '-n', LAUNCHER.SYSTEMCTL, 'stop', 'owned.service'],
+                                 commands.call_args_list[1].args[0])
+                self.assertEqual([LAUNCHER.SUDO, '-n', LAUNCHER.SYSTEMCTL, 'reset-failed', 'owned.service'],
+                                 commands.call_args_list[2].args[0])
 
     def test_live_unready_startup_has_its_own_finite_budget(self):
         with tempfile.TemporaryDirectory() as tmp, \

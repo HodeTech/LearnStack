@@ -35,6 +35,7 @@ function fixture() {
   for (const name of [
     'demo',
     'seed',
+    'seed-admin-origins',
     'compose',
     'demo-process',
     'demo-database',
@@ -55,6 +56,16 @@ function fixture() {
       { mode: name === 'seed.sh' ? 0o700 : 0o600 },
     );
   mkdirSync(join(root, 'frontend/apps/web/scripts'));
+  mkdirSync(join(root, 'frontend/scripts'));
+  // These fixtures own realm/configuration ordering and cleanup, not package
+  // qualification. The separate install-hook suite executes the actual pnpm.
+  writeFileSync(
+    join(root, 'frontend/scripts/framework-installation.mjs'),
+    `export function resolveQualifiedPnpm({ frontendRoot }) {
+  if (frontendRoot !== ${JSON.stringify(join(root, 'frontend'))}) throw new Error('Unexpected framework workspace');
+  return { command: process.execPath, args: ['qualified-manager.cjs'] };
+}\n`,
+  );
   writeFileSync(
     join(root, 'frontend/apps/web/scripts/stop-test-child.mjs'),
     readFileSync(new URL('../../scripts/stop-test-child.mjs', import.meta.url)),
@@ -184,6 +195,7 @@ type Result = {
     label: string;
     confined: boolean;
     prerequisitesPreserved: boolean;
+    buildControls: boolean;
     dockerContext: string | null;
     dockerHome: string | null;
     timeout?: number;
@@ -259,6 +271,7 @@ DemoProcesses.prototype.run = async function(command, args, options = {}) {
     'NODE_EXTRA_CA_CERTS', 'SSL_CERT_FILE', 'SSL_CERT_DIR',
     'NUGET_PACKAGES', 'NUGET_HTTP_CACHE_PATH', 'COREPACK_HOME', 'PNPM_HOME', 'XDG_CACHE_HOME',
     'NPM_CONFIG_CACHE', 'npm_config_cache', 'NPM_CONFIG_STORE_DIR', 'npm_config_store_dir',
+    'DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER', 'MSBUILDDISABLENODEREUSE',
     ...(startup || migration || command === 'docker' ? ['USERPROFILE', 'XDG_CONFIG_HOME', 'XDG_RUNTIME_DIR', 'DOCKER_CONFIG', 'DOCKER_CONTEXT', 'DOCKER_HOST', 'DOCKER_TLS_VERIFY', 'DOCKER_CERT_PATH', 'DOCKER_DEFAULT_PLATFORM', 'DOCKER_API_VERSION'] : []),
     ...(startup || migration ? ['LEARNSTACK_COMPOSE_PROJECT', 'LEARNSTACK_COMPOSE_ENV_FILE', 'LEARNSTACK_COMPOSE_MODE'] : []),
     ...(migration ? ['ConnectionStrings__Migration', 'Identity__AuthorityId', 'Authentication__Tenant__Issuer'] : []),
@@ -270,6 +283,7 @@ DemoProcesses.prototype.run = async function(command, args, options = {}) {
     && env.Authentication__Tenant__Issuer === ${JSON.stringify(f.values.Authentication__Tenant__Issuer)}
     && env.Deployment__Mode === 'Development');
   f.commands.push({ command, args, label: options.label, timeout: options.timeout,
+    buildControls: command !== 'dotnet' || (env.DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER === '1' && env.MSBUILDDISABLENODEREUSE === '1'),
     dockerContext: env.DOCKER_CONTEXT ?? null,
     dockerHome: env.HOME ?? null,
     prerequisitesPreserved: (command === 'docker' ? ['DOCKER_CONFIG', 'DOCKER_CONTEXT']
@@ -299,8 +313,15 @@ DemoProcesses.prototype.run = async function(command, args, options = {}) {
   if (command === 'dotnet' && args.length === 1 && args[0].endsWith('/LearnStack.Tools.Seeder.dll')) {
     f.events.push('appseed');
     if (f.scenario === 'seed-failure') throw f.seedFailure;
+    return 'seed-result: {"version":2,"freshTenantIds":[],"qualifiedOriginTenantIds":[]}\\n';
   }
-  if (command === 'pnpm' && args.at(-1) === 'build') { f.events.push('renderer'); throw f.boundary; }
+  if (options.label === 'Locked frontend restore'
+    && (command !== process.execPath || args.length !== 1
+      || args[0] !== join(${JSON.stringify(f.root)}, 'frontend/scripts/install-frontend.mjs')))
+    throw new Error('Unexpected frontend restore boundary');
+  if (command === process.execPath && args[0] === 'qualified-manager.cjs' && args.at(-1) === 'build') {
+    f.events.push('renderer'); throw f.boundary;
+  }
   return '';
 };
 let failure = '', notice = '', preparationDispatched = false;
@@ -482,6 +503,7 @@ if (JSON.stringify(args) === JSON.stringify(['compose', 'version'])) {
     `#!${process.execPath}
 import { record, values } from '../scripts/boundary-observer.mjs';
 const args = process.argv.slice(2);
+if (process.env.DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER !== '1' || process.env.MSBUILDDISABLENODEREUSE !== '1') process.exit(19);
 if (args.length === 1 && args[0].endsWith('/LearnStack.Tools.IdentityAuthorityInstaller.dll')) {
   record('authority-install', 'Migration', process.env.Identity__AuthorityId === values.Identity__AuthorityId
     && process.env.Authentication__Tenant__Issuer === values.Authentication__Tenant__Issuer);
@@ -489,11 +511,14 @@ if (args.length === 1 && args[0].endsWith('/LearnStack.Tools.IdentityAuthorityIn
 }
 if (process.cwd() !== ${JSON.stringify(join(f.root, 'backend'))}) process.exit(19);
 if (JSON.stringify(args) === JSON.stringify(['tool', 'restore'])) record('migration-tools');
-else if (JSON.stringify(args) === JSON.stringify(['build', 'src/LearnStack.Api', '--configuration', 'Release', '--nologo'])) record('migration-build');
-else if (JSON.stringify(args) === JSON.stringify(['build', 'src/LearnStack.Tools.IdentityAuthorityInstaller', '--configuration', 'Release', '--nologo'])) record('authority-build');
+else if (JSON.stringify(args) === JSON.stringify(['build', 'src/LearnStack.Api', '--configuration', 'Release', '--nologo', '--disable-build-servers'])) record('migration-build');
+else if (JSON.stringify(args) === JSON.stringify(['build', 'src/LearnStack.Tools.IdentityAuthorityInstaller', '--configuration', 'Release', '--nologo', '--disable-build-servers'])) record('authority-build');
 else if (args[0] === 'ef' && args[1] === 'database' && args[2] === 'update') record('migration-ef', 'Migration', !args.includes('--connection') && !args.some(arg => arg.includes('Password=')));
-else if (JSON.stringify(args) === JSON.stringify(['build', 'src/LearnStack.Tools.Seeder', '--configuration', 'Release', '--nologo'])) record('seeder-build');
-else if (args.length === 1 && args[0] === ${JSON.stringify(join(f.root, 'backend/src/LearnStack.Tools.Seeder/bin/Release/net10.0/LearnStack.Tools.Seeder.dll'))}) record('appseed', 'Default');
+else if (JSON.stringify(args) === JSON.stringify(['build', 'src/LearnStack.Tools.Seeder', '--configuration', 'Release', '--nologo', '--disable-build-servers'])) record('seeder-build');
+else if (args.length === 1 && args[0] === ${JSON.stringify(join(f.root, 'backend/src/LearnStack.Tools.Seeder/bin/Release/net10.0/LearnStack.Tools.Seeder.dll'))}) {
+  record('appseed', 'Default');
+  process.stdout.write('seed-result: {"version":2,"freshTenantIds":[],"qualifiedOriginTenantIds":[]}\\n');
+}
 else process.exit(19);
 `,
     { mode: 0o700 },
@@ -527,6 +552,8 @@ export async function reconcileDevelopmentRealm({ selected, signal, seedIdentity
     DOCKER_HOST: 'unix:///fixture/docker.sock',
     DOCKER_CONFIG: dockerConfiguration,
     UNRELATED_PRIVATE_VALUE: randomBytes(20).toString('hex'),
+    DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER: '0',
+    MSBUILDDISABLENODEREUSE: '0',
   };
   const sensitiveValues = [
     ...f.canaries,
@@ -568,7 +595,8 @@ export async function reconcileDevelopmentRealm({ selected, signal, seedIdentity
 }
 
 type ReadinessCleanupResult = {
-  reason: string;
+  readinessReason: string;
+  cleanupRefused: boolean;
   observedDocker: boolean;
   readinessTimeouts: number[];
   sameOwner: boolean;
@@ -586,17 +614,23 @@ function readinessCleanupFixture(kind: 'cancelled' | 'deadline') {
   const nestedRelease = join(f.root, 'release-nested-cleanup');
   const cleanupComplete = join(f.root, 'fixture-cleanup-complete');
   const dockerRetired = join(f.root, 'docker-retired');
+  const dockerRelease = join(f.root, 'release-owned-docker');
   const ownership = randomBytes(16).toString('hex');
   writeFileSync(
     join(f.root, 'bin/docker'),
     `#!${process.execPath}
-import { appendFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 const args = process.argv.slice(2);
 if (args.includes('config')) {
   process.on('SIGTERM', () => {});
   writeFileSync(${JSON.stringify(marker)}, JSON.stringify({ pid: process.pid, ownership: ${JSON.stringify(ownership)} }));
   writeFileSync(${JSON.stringify(heartbeat)}, '.');
-  setInterval(() => appendFileSync(${JSON.stringify(heartbeat)}, '.'), 20);
+  setInterval(() => {
+    if (existsSync(${JSON.stringify(dockerRelease)})
+        && readFileSync(${JSON.stringify(dockerRelease)}, 'utf8') === ${JSON.stringify(ownership)})
+      process.exit(0);
+    appendFileSync(${JSON.stringify(heartbeat)}, '.');
+  }, 20);
 } else if (args[0] === 'context') {
   process.stdout.write(JSON.stringify([{ Endpoints: { docker: { Host: 'unix:///fixture/docker.sock' } } }]));
 } else if (args.includes('up') || JSON.stringify(args) === JSON.stringify(['compose', 'version'])) process.exit(0);
@@ -615,18 +649,20 @@ else process.exit(19);
     stopHelper,
     `import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { stopTestChild as actualStop } from './stop-test-child-actual.mjs';
+export { assertUnforcedTestChildStop, stopProductionRuntimeOwner } from './stop-test-child-actual.mjs';
 export async function stopTestChild(child) {
   if (process.argv[1]?.endsWith('/wait-compose.mjs')) {
     writeFileSync(${JSON.stringify(nestedCleanup)}, 'started');
     while (!existsSync(${JSON.stringify(nestedRelease)}))
       await new Promise(resolve => setTimeout(resolve, 10));
   }
-  await actualStop(child);
+  const stopped = await actualStop(child);
   if (existsSync(${JSON.stringify(marker)})) {
     const value = JSON.parse(readFileSync(${JSON.stringify(marker)}, 'utf8'));
     if (value.ownership === ${JSON.stringify(ownership)} && value.pid === child.pid)
       writeFileSync(${JSON.stringify(dockerRetired)}, 'retired');
   }
+  return stopped;
 }
 `,
   );
@@ -662,9 +698,14 @@ DemoProcesses.prototype.start = function(...args) {
 const run = DemoProcesses.prototype.run;
 const readinessTimeouts = [];
 const readinessDeadlines = [];
+let readinessReason = '';
 let seedOwner;
 let sameOwner = true;
 DemoProcesses.prototype.run = function(command, args, options = {}) {
+  const observeReadiness = operation => options.label !== 'Compose readiness' ? operation : operation.catch(error => {
+    readinessReason = error.reason ?? 'unexpected';
+    throw error;
+  });
   if (options.label === 'Docker Compose prerequisite') seedOwner = this;
   if (options.label === 'Compose readiness') {
     readinessTimeouts.push(options.timeout);
@@ -675,11 +716,11 @@ DemoProcesses.prototype.run = function(command, args, options = {}) {
       const timeout = AbortSignal.timeout;
       AbortSignal.timeout = milliseconds => milliseconds === options.timeout
         ? deadline.signal : timeout(milliseconds);
-      try { return run.call(this, command, args, options); }
+      try { return observeReadiness(run.call(this, command, args, options)); }
       finally { AbortSignal.timeout = timeout; }
     }
   }
-  return run.call(this, command, args, options);
+  return observeReadiness(run.call(this, command, args, options));
 };
 const alive = pid => { try { process.kill(pid, 0); return true; } catch (error) { if (error.code === 'ESRCH') return false; throw error; } };
 let retired = false;
@@ -708,9 +749,13 @@ const poll = setInterval(() => {
 const watchdog = setTimeout(() => controller.abort(), 9000);
 let result;
 try {
-  let reason = '';
+  let cleanupRefused = false;
   try { await seedDevelopment({ selected: composeSelection('e2e'), signal: controller.signal }); }
-  catch (error) { reason = error.reason ?? 'unexpected'; }
+  catch (error) {
+    cleanupRefused = error instanceof AggregateError
+      && error.message === 'Owned process cleanup failed; private files retained';
+    if (!cleanupRefused) throw error;
+  }
   clearInterval(poll);
   clearTimeout(watchdog);
   const pid = ownedPid();
@@ -721,7 +766,7 @@ try {
   const before = existsSync(${JSON.stringify(heartbeat)}) ? readFileSync(${JSON.stringify(heartbeat)}, 'utf8') : '';
   await new Promise(resolve => setTimeout(resolve, 300));
   const after = existsSync(${JSON.stringify(heartbeat)}) ? readFileSync(${JSON.stringify(heartbeat)}, 'utf8') : '';
-  result = { reason, observedDocker: pid !== undefined, readinessTimeouts, sameOwner,
+  result = { readinessReason, cleanupRefused, observedDocker: pid !== undefined, readinessTimeouts, sameOwner,
     childSurvivesOwnerCleanup: childSurvived || (pid !== undefined && ownedDockerAlive(pid)),
     otherOwnedGroupSurvivesOwnerCleanup: groupSurvived || trackedGroupAlive(), heartbeatContinuesAfterCleanup: before !== after,
     nestedCleanupStarted: existsSync(${JSON.stringify(nestedCleanup)}) };
@@ -729,18 +774,28 @@ try {
   clearInterval(poll);
   clearTimeout(watchdog);
   writeFileSync(${JSON.stringify(nestedRelease)}, 'release');
-  await Promise.all(tracked.map(child => stopTestChild(child)));
+  // An observed leaderless group remains uncertain. Release only this fixture's
+  // nonce-bound inert Docker work; never signal a saved group after leader loss.
+  const stopped = await Promise.allSettled(tracked.map(child => stopTestChild(child)));
+  if (stopped.some(item => item.status === 'rejected')) {
+    if (!existsSync(${JSON.stringify(nestedCleanup)}) || stopped.some(item => item.status === 'rejected'
+        && item.reason?.message !== 'Owned fixture process group did not stop'))
+      throw new Error('Unexpected fixture stop refusal');
+  }
+  writeFileSync(${JSON.stringify(dockerRelease)}, ${JSON.stringify(ownership)});
+  const retirementDeadline = Date.now() + 3000;
   const pid = ownedPid();
   if (pid !== undefined && ownedDockerAlive(pid)) {
-    try { process.kill(-pid, 'SIGKILL'); }
-    catch (error) {
-      if (error.code !== 'ESRCH') throw error;
-      retired = true;
-      writeFileSync(${JSON.stringify(dockerRetired)}, 'retired');
-    }
-    const deadline = Date.now() + 3000;
     while (ownedDockerAlive(pid)) {
-      if (Date.now() >= deadline) throw new Error('Fixture Docker did not stop');
+      if (Date.now() >= retirementDeadline) throw new Error('Fixture Docker did not stop');
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+  }
+  for (const child of tracked) {
+    while (child.pid !== undefined && !retiredGroups.has(child.pid)) {
+      try { process.kill(-child.pid, 0); }
+      catch (error) { if (error.code === 'ESRCH') break; throw error; }
+      if (Date.now() >= retirementDeadline) throw new Error('Fixture group did not stop');
       await new Promise(resolve => setTimeout(resolve, 20));
     }
   }
@@ -772,15 +827,7 @@ process.stdout.write(JSON.stringify(result));
         return false;
       }
     };
-    if (groupAlive()) {
-      try {
-        process.kill(-value.pid, 'SIGKILL');
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
-        retired = true;
-        writeFileSync(dockerRetired, 'retired');
-      }
-    }
+    writeFileSync(dockerRelease, ownership);
     const deadline = Date.now() + 3000;
     while (groupAlive()) {
       if (Date.now() >= deadline) throw new Error('Fixture Docker did not stop');
@@ -796,6 +843,7 @@ process.stdout.write(JSON.stringify(result));
         nestedRelease,
         cleanupComplete,
         dockerRetired,
+        dockerRelease,
       ])
         rmSync(path, { force: true });
       let execution;
@@ -816,8 +864,8 @@ process.stdout.write(JSON.stringify(result));
         ),
       ).toBe(false);
       expect(execution.error).toBeUndefined();
-      expect(execution.status).toBe(0);
       expect(execution.stderr).toBe('');
+      expect(execution.status).toBe(0);
       expect(existsSync(cleanupComplete)).toBe(true);
       return JSON.parse(execution.stdout) as ReadinessCleanupResult;
     },
@@ -940,7 +988,8 @@ DemoProcesses.prototype.dispose = async function() {
         !result.otherOwnedGroupSurvivesOwnerCleanup &&
         !result.heartbeatContinuesAfterCleanup;
       const clean = await f.run();
-      expect(clean.reason).toBe(kind);
+      expect(clean.readinessReason).toBe(kind);
+      expect(clean.cleanupRefused).toBe(true);
       expect(clean.observedDocker).toBe(true);
       expect(clean.readinessTimeouts).toEqual([15000]);
       expect(clean.sameOwner).toBe(true);
@@ -950,11 +999,14 @@ DemoProcesses.prototype.dispose = async function() {
 
       f.plantNestedReadiness();
       const nested = await f.run();
-      expect(nested.reason).toBe(kind);
+      expect(nested.readinessReason).toBe(kind);
+      expect(nested.cleanupRefused).toBe(true);
       expect(nested.observedDocker).toBe(true);
       expect(nested.readinessTimeouts).toEqual([15000]);
       expect(nested.nestedCleanupStarted).toBe(true);
-      expect(nested.otherOwnedGroupSurvivesOwnerCleanup).toBe(false);
+      // The deliberately nested topology now retains its leaderless group;
+      // refusing a stale group signal must not make this dirty twin look clean.
+      expect(nested.otherOwnedGroupSurvivesOwnerCleanup).toBe(true);
       expect(stopped(nested)).toBe(false);
       expect(nested.childSurvivesOwnerCleanup).toBe(true);
       expect(nested.heartbeatContinuesAfterCleanup).toBe(true);
@@ -1102,6 +1154,8 @@ DemoProcesses.prototype.dispose = async function() {
       NUGET_PACKAGES: join(f.root, 'nuget-cache'),
       DOCKER_CONFIG: join(f.root, 'docker-config'),
       DOCKER_CONTEXT: 'owned-fixture-context',
+      DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER: '0',
+      MSBUILDDISABLENODEREUSE: '0',
     });
     const result = execute(f, 'demo');
     expect(result.failure).toBe('renderer boundary');
@@ -1121,10 +1175,37 @@ DemoProcesses.prototype.dispose = async function() {
     expect(result.selectedDescription!.project).toMatch(/^learnstack-demo-[a-f0-9]+$/);
     expect(result.commands.every((command) => command.confined)).toBe(true);
     expect(result.commands.every((command) => command.prerequisitesPreserved)).toBe(true);
+    expect(result.commands.every((command) => command.buildControls)).toBe(true);
+    expect(result.commands.find(({ label }) => label === 'Backend restore')).toMatchObject({
+      command: 'dotnet',
+      args: ['restore', 'LearnStack.slnx', '--disable-build-servers'],
+    });
+    expect(result.commands.find(({ label }) => label === 'Seeder build')).toMatchObject({
+      command: 'dotnet',
+      args: [
+        'build',
+        'src/LearnStack.Tools.Seeder',
+        '--configuration',
+        'Release',
+        '--no-restore',
+        '--nologo',
+        '--disable-build-servers',
+      ],
+    });
     expect(result.commands.find(({ label }) => label === 'Required docker')).toMatchObject({
       command: 'docker',
       args: ['compose', 'version'],
       prerequisitesPreserved: true,
+    });
+    expect(result.commands.find(({ label }) => label === 'Locked frontend restore')).toMatchObject({
+      command: process.execPath,
+      args: [join(f.root, 'frontend/scripts/install-frontend.mjs')],
+    });
+    expect(
+      result.commands.find(({ label }) => label === 'Production renderer build'),
+    ).toMatchObject({
+      command: process.execPath,
+      args: ['qualified-manager.cjs', '--filter', '@learnstack/web', 'build'],
     });
     expect(result.migrationSelection).toBe(true);
     expect(result.identityFoundationRequested).toBe(true);
@@ -1241,7 +1322,9 @@ describe('private configuration refuses launch before commands', () => {
       expect(result.failure).toBe('realm: preflight/configuration');
       expect(
         result.commands
-          .filter(({ command }) => ['make', 'dotnet', 'pnpm'].includes(command))
+          .filter(({ command }) =>
+            ['make', 'dotnet', 'pnpm', 'node', process.execPath].includes(command),
+          )
           .every(({ args }) => args.includes('--version')),
       ).toBe(true);
       expect(

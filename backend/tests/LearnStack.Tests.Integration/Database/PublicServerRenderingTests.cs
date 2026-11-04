@@ -482,8 +482,8 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
                 secret = new string('s', 43),
                 tenants = new[] { new { host = "first.example" }, new { host = "second.example" } }
             }, JsonOptions));
-            // Wait for a real compiler acquisition before failing its parent
-            // pipe. No listener or API call is needed before build-complete.
+            // Wait for the producer's leased output acquisition before failing
+            // its parent pipe. The directory precedes actual Next compilation.
             string? ownedRoot = null;
             while (!process.HasExited)
             {
@@ -492,7 +492,7 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
                 await Task.Delay(50, deadline.Token);
             }
             ownedRoot.Should().NotBeNull("the actual renderer must acquire its private build root");
-            Directory.Exists(Path.Combine(ownedRoot!, "frontend/apps/web/.next")).Should().BeTrue("the owned compiler must have started");
+            Directory.Exists(Path.Combine(ownedRoot!, "frontend/apps/web/.next")).Should().BeTrue("the leased producer must have claimed its output");
             if (brokenOutput) process.StandardOutput.Close();
             else process.StandardInput.Close();
             await process.WaitForExitAsync(deadline.Token);
@@ -511,7 +511,10 @@ public sealed class PublicServerRenderingTests(PublicReadFixture fixture)
                 try { await process.WaitForExitAsync(shutdown.Token); }
                 catch (OperationCanceledException) { process.Kill(entireProcessTree: true); await process.WaitForExitAsync(CancellationToken.None); }
             }
-            if (Directory.Exists(temporaryRoot)) Directory.Delete(temporaryRoot, recursive: true);
+            // A failed or forced shutdown does not authorize deleting retained
+            // ownership metadata or work whose retirement is still uncertain.
+            if (Directory.Exists(temporaryRoot) && !Directory.EnumerateFileSystemEntries(temporaryRoot).Any())
+                Directory.Delete(temporaryRoot);
         }
     }
 

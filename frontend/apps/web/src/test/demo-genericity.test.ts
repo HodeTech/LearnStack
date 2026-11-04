@@ -1,7 +1,8 @@
 // @vitest-environment node
 import { execFileSync, spawnSync } from 'node:child_process';
-import { readdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -93,11 +94,25 @@ describe('P02d-7 exact demo identity boundary', () => {
       'frontend/apps/web/src/server/ingress.ts',
       'frontend/apps/web/src/server/auth/session-runtime.ts',
       'frontend/apps/web/src/server/auth/session-store.ts',
+      'frontend/apps/web/src/server/auth/native-session-client.ts',
+      'frontend/apps/web/src/server/auth/native-administration-client.ts',
       'frontend/apps/web/src/server/configured-public-client.ts',
       'frontend/apps/web/src/components/public/lesson.tsx',
       'frontend/apps/web/src/i18n/messages/en/public.json',
       'frontend/packages/sdk/src/server.ts',
+      'frontend/packages/sdk/src/administration-server.ts',
       'frontend/apps/web/scripts/public-server.mjs',
+      'frontend/apps/web/scripts/public-server-runtime.mjs',
+      'frontend/apps/web/scripts/public-runtime-child.mjs',
+      'frontend/scripts/framework-runtime-family.mjs',
+      'frontend/scripts/framework-runtime-child-control.mjs',
+      'frontend/apps/web/scripts/framework-proof-relay.mjs',
+      'frontend/apps/web/scripts/framework-proof-host-broker.mjs',
+      'frontend/apps/web/scripts/framework-build.mjs',
+      'frontend/apps/web/scripts/framework-proof-support.mjs',
+      'frontend/scripts/framework-installation.mjs',
+      'frontend/scripts/framework-development.mjs',
+      'frontend/framework/next-response-cleanup/owner.mjs',
       'frontend/apps/web/scripts/development-hmr.mjs',
       'frontend/apps/web/scripts/stop-test-child.mjs',
       'frontend/apps/web/scripts/verify-bff-protocol.mjs',
@@ -284,6 +299,569 @@ describe('P02d-7 exact demo identity boundary', () => {
         'Unmodeled runtime import',
       );
   });
+  const frameworkGuard = 'frontend/scripts/framework-installation.mjs';
+  const frameworkGuardSource = readFileSync(join(root, frameworkGuard), 'utf8');
+  const guardSources = (source = frameworkGuardSource) =>
+    new Map([
+      [frameworkGuard, source],
+      ['frontend/scripts/framework-process-family.mjs', 'export const family = true;'],
+      ['frontend/scripts/framework-runtime-family.mjs', 'export const runtime = true;'],
+    ]);
+  const parserEntry = 'frontend/apps/web/scripts/framework-router-generated-pipes.mjs';
+  const parserSource = readFileSync(join(root, parserEntry), 'utf8');
+  const parserSources = (source = parserSource) => guardSources().set(parserEntry, source);
+  const parserResolver = (_from: string, edge: string) =>
+    `frontend/apps/web/node_modules/${edge}/index.js`;
+  const parserLoaderMarker =
+    "  const require = createRequire(join(identity.appRoot, 'package.json'));";
+  it('binds both copied parser loaders and their three exact edges to the actual app package', () => {
+    expect(parserSource.split(parserLoaderMarker)).toHaveLength(3);
+    const observed: { from: string; edge: string; anchors: string[] }[] = [];
+    const selected = productionDemoSources(parserSources(), (from, edge, anchors) => {
+      observed.push({ from, edge, anchors });
+      return parserResolver(from, edge);
+    });
+    expect(selected.get(parserEntry)).toBe(parserSource);
+    expect(observed).toEqual([
+      { from: 'frontend/apps/web/package.json', edge: 'next', anchors: [] },
+      { from: 'frontend/apps/web/package.json', edge: 'next/dist/bin/next', anchors: [] },
+      { from: 'frontend/apps/web/package.json', edge: 'typescript/bin/tsc', anchors: [] },
+      { from: 'frontend/apps/web/package.json', edge: 'typescript', anchors: [] },
+      { from: 'frontend/apps/web/package.json', edge: 'typescript/package.json', anchors: [] },
+      { from: 'frontend/apps/web/package.json', edge: 'typescript', anchors: [] },
+    ]);
+  });
+  const parserLoaderMutants = [
+    [
+      'foreign first root',
+      parserLoaderMarker,
+      parserLoaderMarker.replace('identity.appRoot', 'otherRoot'),
+    ],
+    [
+      'foreign runtime root',
+      'function loadParser(identity, expected) {',
+      'function loadParser(identity, expected) {\n  identity.appRoot = otherRoot;',
+    ],
+    [
+      'alternate package anchor',
+      parserLoaderMarker,
+      parserLoaderMarker.replace('package.json', 'other.json'),
+    ],
+    [
+      'factory alias',
+      "import { createRequire } from 'node:module';",
+      "import { createRequire as hidden } from 'node:module';",
+    ],
+    ['loader alias', parserLoaderMarker, parserLoaderMarker + '\n  const hidden = require;'],
+    ['loader rebind', parserLoaderMarker, parserLoaderMarker + '\n  require = other;'],
+    [
+      'loader shadow',
+      parserLoaderMarker,
+      parserLoaderMarker + "\n  function nested(require) { return require('typescript'); }",
+    ],
+    [
+      'root shadow',
+      parserLoaderMarker,
+      parserLoaderMarker + "\n  function nested(identity) { return require('typescript'); }",
+    ],
+    ['dynamic parser', "const ts = require('typescript');", 'const ts = require(selectedModule);'],
+    ['extra local edge', parserLoaderMarker, parserLoaderMarker + "\n  require('./hidden.cjs');"],
+    [
+      'different package',
+      "require.resolve('typescript/package.json')",
+      "require.resolve('foreign/package.json')",
+    ],
+    [
+      'unmodeled owner',
+      'function loadParser(identity, expected)',
+      'function alternateParser(identity, expected)',
+    ],
+  ] as const;
+  for (const [name, before, after] of parserLoaderMutants)
+    it('refuses copied parser ' + name, () => {
+      expect(parserSource).toContain(before);
+      const changed = parserSource.replace(before, after);
+      expect(changed).not.toBe(parserSource);
+      expect(() => productionDemoSources(parserSources(changed), parserResolver)).toThrow(
+        'Unmodeled runtime import',
+      );
+    });
+  const provenanceEntry = 'frontend/scripts/test-framework-provenance.mjs';
+  const provenanceSource = readFileSync(join(root, provenanceEntry), 'utf8');
+  const provenanceSources = (source = provenanceSource) =>
+    guardSources()
+      .set(provenanceEntry, source)
+      .set('frontend/scripts/framework-development.mjs', 'export const development = true;')
+      .set(
+        'frontend/scripts/test-framework-metadata-contention.mjs',
+        'export const metadata = true;',
+      )
+      .set('frontend/scripts/test-framework-process-family.mjs', 'export const family = true;');
+  it('resolves the actual guard loaders from the checked application package and retains the guard source', () => {
+    const observed: { from: string; edge: string; anchors: string[] }[] = [];
+    const selected = productionDemoSources(guardSources(), (from, edge, anchors) => {
+      observed.push({ from, edge, anchors });
+      return `frontend/apps/web/node_modules/${edge}/index.js`;
+    });
+    expect(selected.has(frameworkGuard)).toBe(true);
+    expect(selected.has('frontend/scripts/framework-process-family.mjs')).toBe(true);
+    expect(observed).toEqual([
+      { from: 'frontend/apps/web/package.json', edge: 'next', anchors: [] },
+      { from: 'frontend/apps/web/package.json', edge: 'next/dist/bin/next', anchors: [] },
+      { from: 'frontend/apps/web/package.json', edge: 'typescript/bin/tsc', anchors: [] },
+    ]);
+  });
+  it('follows extra guard loader edges through local and externally resolved first-party test helpers', () => {
+    const local = 'frontend/apps/web/src/test/guard-local.ts';
+    const external = 'frontend/apps/web/src/test/guard-external.ts';
+    const nested = 'frontend/apps/web/src/test/guard-nested.test.ts';
+    const marker = "  const require = createRequire(join(appRoot, 'package.json'));";
+    const source = frameworkGuardSource.replace(
+      marker,
+      `${marker}\n  require('./src/test/guard-local.ts');\n  require.resolve('guard-helper');`,
+    );
+    expect(source).not.toBe(frameworkGuardSource);
+    const files = guardSources(source)
+      .set(local, "export * from './guard-nested.test';")
+      .set(external, `export const identity = ${JSON.stringify(identity)};`)
+      .set(nested, `export const identity = ${JSON.stringify(identity)};`);
+    const selected = productionDemoSources(files, (from, edge) => {
+      expect(from).toBe('frontend/apps/web/package.json');
+      return edge === 'guard-helper' ? external : `frontend/apps/web/node_modules/${edge}/index.js`;
+    });
+    for (const helper of [local, external, nested]) expect(selected.has(helper)).toBe(true);
+    for (const helper of [external, nested])
+      expect(demoIdentityFindings(helper, selected.get(helper)!, vocabulary)).toEqual([identity]);
+  });
+  it('refuses unknown, unchecked, rebound and shadowed guard loader roots or loader bindings', () => {
+    const marker = "  const require = createRequire(join(appRoot, 'package.json'));";
+    for (const [before, after] of [
+      [marker, "  const require = createRequire(join(otherRoot, 'package.json'));"],
+      ["join(identity.appRoot, 'package.json')", "join(identity.otherRoot, 'package.json')"],
+      ['appRoot = checkedRoot(appRoot);', 'appRoot = otherRoot;'],
+      ['appRoot = checkedRoot(appRoot);', 'appRoot = checkedRoot(otherRoot);'],
+      [marker, `appRoot = otherRoot;\n${marker}`],
+      [marker, `${marker}\n  appRoot = otherRoot;`],
+      [marker, `${marker}\n  ({ root: appRoot } = other);`],
+      [marker, `${marker}\n  ([...appRoot] = other);`],
+      [marker, `${marker}\n  for (appRoot of otherRoots) { require('./hidden'); }`],
+      [marker, `${marker}\n  function nested(appRoot) { require('./hidden'); }`],
+      [marker, `${marker}\n  function nested(require) { require('./hidden'); }`],
+      [marker, `${marker}\n  require = otherRequire;`],
+      [marker, `${marker}\n  require.resolve = otherResolve;`],
+      [marker, `${marker}\n  const loader = require; loader('./hidden');`],
+      [marker, `${marker}\n  const loader = createRequire; loader(otherRoot)('./hidden');`],
+      [marker, `${marker}\n  join = otherJoin;`],
+      [marker, `${marker}\n  checkedRoot = otherCheck;`],
+      [marker, `${marker}\n  createRequire = otherFactory;`],
+      [marker, "  const require = createRequire(join(appRoot, 'other.json'));"],
+      [marker, '  const require = createRequire(import.meta.url);'],
+      [
+        "  const require = createRequire(join(identity.appRoot, 'package.json'));",
+        "  const require = createRequire(join(identity.appRoot, 'package.json'));\n  identity.appRoot = otherRoot;",
+      ],
+      [marker, `${marker}\n  const extra = createRequire(join(otherRoot, 'package.json'));`],
+      [
+        "import { createRequire } from 'node:module';",
+        "import { createRequire } from './loader.mjs';",
+      ],
+    ]) {
+      const source = frameworkGuardSource.replace(before!, after!);
+      expect(source).not.toBe(frameworkGuardSource);
+      expect(
+        () =>
+          productionDemoSources(guardSources(source), () => 'frontend/node_modules/clean/index.js'),
+        after,
+      ).toThrow('Unmodeled runtime import');
+    }
+  });
+  it.each([
+    [
+      'aliased named factory',
+      "import { createRequire as hiddenFactory } from 'node:module';",
+      'hiddenFactory',
+    ],
+    [
+      'namespace factory',
+      "import * as hiddenModule from 'node:module';",
+      'hiddenModule.createRequire',
+    ],
+    [
+      'bare builtin aliased factory',
+      "import { createRequire as hiddenFactory } from 'module';",
+      'hiddenFactory',
+    ],
+  ])(
+    'refuses an additional %s that would hide a reachable first-party helper',
+    (_name, factoryImport, factory) => {
+      const helper = 'frontend/apps/web/src/test/concealed-helper.mjs';
+      const source =
+        `${factoryImport}\n${frameworkGuardSource}\n` +
+        `const hiddenLoader = ${factory}(join(FRAMEWORK_FRONTEND_ROOT, 'apps/web/package.json'));\n` +
+        "hiddenLoader('./src/test/concealed-helper.mjs');\n";
+      const files = guardSources(source).set(
+        helper,
+        `export const branch = ${JSON.stringify(identity)};`,
+      );
+      expect(demoIdentityFindings(helper, files.get(helper)!, vocabulary)).toEqual([identity]);
+      expect(() =>
+        productionDemoSources(files, () => 'frontend/node_modules/clean/index.js'),
+      ).toThrow('Unmodeled runtime import');
+    },
+  );
+  it.each([
+    ['dynamic prefixed module', "const hiddenModule = await import('node:module');", ''],
+    ['dynamic bare module', "const hiddenModule = await import('module');", ''],
+    ['required prefixed module', "const hiddenModule = require('node:module');", ''],
+    ['required bare module', "const hiddenModule = require('module');", ''],
+    ['bare builtin getter', "const hiddenModule = process.getBuiltinModule('module');", ''],
+    [
+      'prefixed builtin getter',
+      "const hiddenModule = process.getBuiltinModule('node:module');",
+      '',
+    ],
+    ['literal computed getter', "const hiddenModule = process['getBuiltinModule']('module');", ''],
+    [
+      'computed getter and module',
+      "const hiddenModule = process['get' + 'BuiltinModule']('node:' + 'module');",
+      '',
+    ],
+    [
+      'aliased builtin getter',
+      "const getter = process.getBuiltinModule; const hiddenModule = getter('node:module');",
+      '',
+    ],
+    [
+      'destructured builtin getter',
+      "const { getBuiltinModule: getter } = process; const hiddenModule = getter('module');",
+      '',
+    ],
+    [
+      'aliased process with computed getter',
+      "const hiddenProcess = process; const hiddenModule = hiddenProcess['get' + 'BuiltinModule']('module');",
+      '',
+    ],
+    [
+      'reflected builtin getter',
+      "const getter = Reflect.get(process, 'getBuiltinModule'); const hiddenModule = getter('module');",
+      '',
+    ],
+    [
+      'aliased global process',
+      "const hiddenGlobal = globalThis; const hiddenModule = hiddenGlobal['process']['getBuiltinModule']('module');",
+      '',
+    ],
+    [
+      'dynamically acquired process',
+      "const hiddenProcess = (await import('node:process')).default; const hiddenModule = hiddenProcess.getBuiltinModule('module');",
+      '',
+    ],
+    [
+      'required process',
+      "const hiddenProcess = require('process'); const hiddenModule = hiddenProcess.getBuiltinModule('module');",
+      '',
+    ],
+    [
+      'statically imported process',
+      "const hiddenModule = hiddenProcess['getBuiltinModule']('module');",
+      "import hiddenProcess from 'node:process';",
+    ],
+  ])(
+    'refuses %s in both closed sources while Node actually loads the concealed helper',
+    (_name, acquisition, preamble) => {
+      const privateRoot = mkdtempSync(join(tmpdir(), 'learnstack-source-factory-'));
+      const appRoot = join(privateRoot, 'frontend/apps/web');
+      const helper = 'frontend/apps/web/src/test/concealed-helper.cjs';
+      const helperSource = `module.exports = ${JSON.stringify(identity)};`;
+      try {
+        mkdirSync(join(appRoot, 'src/test'), { recursive: true });
+        writeFileSync(join(appRoot, 'package.json'), '{"type":"commonjs"}\n');
+        writeFileSync(join(privateRoot, helper), helperSource);
+        const load =
+          "const hiddenLoader = hiddenModule['create' + 'Require'](join(appRoot, 'package.json'));\n" +
+          "hiddenLoader('./src/test/concealed-helper.cjs');\n";
+        const actual = execFileSync(
+          process.execPath,
+          [
+            '--input-type=module',
+            '-e',
+            `${preamble}\nimport { createRequire } from 'node:module';\n` +
+              "import { join } from 'node:path';\n" +
+              `const appRoot = ${JSON.stringify(appRoot)};\n` +
+              "const require = createRequire(join(appRoot, 'package.json'));\n" +
+              acquisition +
+              '\n' +
+              load.replace(
+                "hiddenLoader('./src/test/concealed-helper.cjs');",
+                "console.log(hiddenLoader('./src/test/concealed-helper.cjs'));",
+              ),
+          ],
+          { encoding: 'utf8', cwd: privateRoot },
+        );
+        expect(actual.trim()).toBe(identity);
+        for (const [entry, source, marker, sources] of [
+          [
+            frameworkGuard,
+            frameworkGuardSource,
+            "  const require = createRequire(join(appRoot, 'package.json'));",
+            guardSources,
+          ],
+          [
+            provenanceEntry,
+            provenanceSource,
+            "const actualRequire = createRequire(join(FRAMEWORK_FRONTEND_ROOT, 'apps/web/package.json'));",
+            provenanceSources,
+          ],
+        ] as const) {
+          const selectedLoad =
+            entry === provenanceEntry
+              ? load.replace(
+                  "join(appRoot, 'package.json')",
+                  "join(FRAMEWORK_FRONTEND_ROOT, 'apps/web/package.json')",
+                )
+              : load;
+          const addition = `${acquisition}\n${selectedLoad}`.replaceAll(
+            /\brequire\(/g,
+            entry === provenanceEntry ? 'actualRequire(' : 'require(',
+          );
+          const dirty = `${preamble}\n${source.replace(marker, `${marker}\nvoid (async () => {\n${addition}\n})();`)}`;
+          expect(source).toContain(marker);
+          const files = sources(dirty).set(helper, helperSource);
+          expect(demoIdentityFindings(helper, helperSource, vocabulary)).toEqual([identity]);
+          expect(() =>
+            productionDemoSources(files, () => 'frontend/node_modules/clean/index.js'),
+          ).toThrow(`Unmodeled runtime import: ${entry}`);
+        }
+      } finally {
+        rmSync(privateRoot, { recursive: true, force: true });
+      }
+    },
+  );
+  it('keeps ordinary builtin imports outside the special loader model unchanged', () => {
+    const entry = 'frontend/apps/web/scripts/ordinary.mjs';
+    const source =
+      "import process from 'node:process'; import { createRequire } from 'node:module';\n" +
+      "await import('module'); require('node:module'); process.getBuiltinModule('module');";
+    expect(productionDemoSources(new Map([[entry, source]])).get(entry)).toBe(source);
+  });
+  it('refuses unmodeled guard edges even after recognizing the app-relative loader', () => {
+    const marker = "  const require = createRequire(join(appRoot, 'package.json'));";
+    for (const edge of [
+      'require.resolve(selectedModule);',
+      "require('./src/test/missing.ts');",
+      "require['resolve']('next');",
+      'await import(selectedModule);',
+      "require.resolve('outside');",
+    ]) {
+      const source = frameworkGuardSource.replace(marker, `${marker}\n  ${edge}`);
+      expect(() =>
+        productionDemoSources(guardSources(source), (_from, name) =>
+          name === 'outside' ? '../foreign/helper.mjs' : `frontend/node_modules/${name}/index.js`,
+        ),
+      ).toThrow('Unmodeled runtime import');
+    }
+  });
+  it('models the actual provenance control app anchor and refuses a changed or rebound control root', () => {
+    const entry = provenanceEntry;
+    const source = provenanceSource;
+    const sources = provenanceSources;
+    const observed: { from: string; edge: string }[] = [];
+    const external = (from: string, edge: string) => {
+      observed.push({ from, edge });
+      return `frontend/apps/web/node_modules/${edge}/index.js`;
+    };
+    expect(productionDemoSources(sources(source), external).has(entry)).toBe(true);
+    expect(observed).toEqual([
+      { from: 'frontend/apps/web/package.json', edge: 'next' },
+      { from: 'frontend/apps/web/package.json', edge: 'next/dist/bin/next' },
+      { from: 'frontend/apps/web/package.json', edge: 'typescript/bin/tsc' },
+      { from: 'frontend/apps/web/package.json', edge: 'next/dist/build/create-compiler-aliases' },
+      { from: 'frontend/apps/web/package.json', edge: 'next/dist/compiled/webpack/webpack' },
+      { from: 'frontend/apps/web/package.json', edge: 'next/dist/server/lib/find-page-file' },
+      { from: 'frontend/apps/web/package.json', edge: 'typescript' },
+      { from: 'frontend/apps/web/package.json', edge: 'next/dist/lib/find-pages-dir' },
+      { from: 'frontend/apps/web/package.json', edge: 'next/dist/lib/find-pages-dir' },
+      { from: 'frontend/apps/web/package.json', edge: 'next/dist/lib/find-pages-dir' },
+      { from: 'frontend/apps/web/package.json', edge: 'next/dist/lib/find-pages-dir' },
+      { from: 'frontend/apps/web/package.json', edge: 'next/dist/lib/get-files-in-dir' },
+      { from: 'frontend/apps/web/package.json', edge: 'next/dist/build/utils.js' },
+      { from: 'frontend/apps/web/package.json', edge: 'next/dist/compiled/browserslist' },
+      { from: 'frontend/apps/web/package.json', edge: 'next/dist/build/utils.js' },
+    ]);
+    const marker =
+      "const actualRequire = createRequire(join(FRAMEWORK_FRONTEND_ROOT, 'apps/web/package.json'));";
+    expect(source).toContain(marker);
+    for (const dirty of [
+      source.replace(
+        marker,
+        "const actualRequire = createRequire(join(otherRoot, 'apps/web/package.json'));",
+      ),
+      source.replace(
+        marker,
+        "const actualRequire = createRequire(join(FRAMEWORK_FRONTEND_ROOT, 'apps/other/package.json'));",
+      ),
+      source.replace(marker, `${marker}\nFRAMEWORK_FRONTEND_ROOT = otherRoot;`),
+      source.replace(
+        marker,
+        `${marker}\nfunction nested(FRAMEWORK_FRONTEND_ROOT) { actualRequire('./hidden'); }`,
+      ),
+      source.replace(marker, `${marker}\nactualRequire = otherRequire;`),
+      source.replace(
+        marker,
+        `${marker}\nfunction nested(actualRequire) { actualRequire('./hidden'); }`,
+      ),
+      source.replace(
+        marker,
+        `${marker}\nconst hiddenLoader = actualRequire; hiddenLoader('./hidden');`,
+      ),
+      source.replace(marker, `${marker}\nrequire('./hidden');`),
+      source.replace(marker, marker.replace('const actualRequire', 'let actualRequire')),
+      source.replace(marker, `function nested() { ${marker} }`),
+      source.replace(marker, `${marker}\nactualRequire.resolve(selectedModule);`),
+      source.replace('  FRAMEWORK_FRONTEND_ROOT,', '  FRAMEWORK_FRONTEND_ROOT as OTHER_ROOT,'),
+      source + '\nconst FRAMEWORK_FRONTEND_ROOT = otherRoot;',
+    ]) {
+      expect(dirty).not.toBe(source);
+      expect(() => productionDemoSources(sources(dirty), external)).toThrow(
+        'Unmodeled runtime import',
+      );
+    }
+  });
+  it('follows the hoisted provenance loader into local and transitive first-party helpers', () => {
+    const local = 'frontend/apps/web/src/test/provenance-local.cjs';
+    const nested = 'frontend/apps/web/src/test/provenance-nested.test.cjs';
+    const marker =
+      "const actualRequire = createRequire(join(FRAMEWORK_FRONTEND_ROOT, 'apps/web/package.json'));";
+    expect(provenanceSource).toContain(marker);
+    const source = provenanceSource.replace(
+      marker,
+      `${marker}\nactualRequire('./src/test/provenance-local.cjs');`,
+    );
+    const files = provenanceSources(source)
+      .set(local, "module.exports = require('./provenance-nested.test.cjs');")
+      .set(nested, `module.exports = ${JSON.stringify(identity)};`);
+    const selected = productionDemoSources(
+      files,
+      () => 'frontend/apps/web/node_modules/clean/index.js',
+    );
+    for (const helper of [local, nested]) expect(selected.has(helper)).toBe(true);
+    expect(demoIdentityFindings(nested, selected.get(nested)!, vocabulary)).toEqual([identity]);
+  });
+  it('models only the copied BFF observation harness generated imports and their actual sources', () => {
+    const harness = 'frontend/apps/web/scripts/test-bff-proof-runtime-observation.mjs';
+    const runtime = 'frontend/apps/web/src/server/auth/request-runtime.ts';
+    const fixture = 'frontend/apps/web/src/test/page-response-fixture.ts';
+    const source = readFileSync(join(root, harness), 'utf8');
+    const host = 'frontend/apps/web/scripts/bff-proof-host.mjs';
+    const instrumenter = readFileSync(join(root, host), 'utf8');
+    const files = new Map([
+      ...guardSources(),
+      [harness, source],
+      [runtime, 'export const runtime = true;'],
+      [fixture, `export const special = ${JSON.stringify(identity)};`],
+      [host, instrumenter],
+      ['frontend/apps/web/scripts/fixture-support.mjs', 'export const helper = true;'],
+      [
+        'frontend/apps/web/scripts/framework-external-provider-ca-source.mjs',
+        'export const helper = true;',
+      ],
+      ['frontend/apps/web/scripts/bff-proof-support.mjs', 'export const helper = true;'],
+      ['frontend/apps/web/scripts/framework-proof-support.mjs', 'export const helper = true;'],
+      ['frontend/apps/web/scripts/framework-proof-host-broker.mjs', 'export const helper = true;'],
+      [
+        'frontend/apps/web/scripts/framework-ownership-matrix-source.mjs',
+        'export const helper = true;',
+      ],
+      [
+        'frontend/apps/web/scripts/framework-ownership-proof-source.mjs',
+        'export const helper = true;',
+      ],
+      [
+        'frontend/apps/web/scripts/framework-transport-proof-source.mjs',
+        'export const helper = true;',
+      ],
+      [
+        'frontend/apps/web/scripts/framework-router-matrix-source.mjs',
+        'export const helper = true;',
+      ],
+      [
+        'frontend/apps/web/scripts/framework-router-fault-source.mjs',
+        'export const helper = true;',
+      ],
+      [
+        'frontend/apps/web/scripts/framework-overlap-proof-source.mjs',
+        'export const helper = true;',
+      ],
+    ]);
+    const external = () => 'frontend/node_modules/typescript/index.js';
+    const selected = productionDemoSources(files, external);
+    expect(selected.get(frameworkGuard)).toBe(frameworkGuardSource);
+    expect(selected.has(runtime)).toBe(true);
+    expect(selected.has(fixture)).toBe(true);
+    expect(demoIdentityFindings(fixture, selected.get(fixture)!, vocabulary)).toEqual([identity]);
+    const toCrlf = (text: string) => text.replace(/\r?\n/g, '\r\n');
+    for (const text of [source, instrumenter]) expect(toCrlf(toCrlf(text))).toBe(toCrlf(text));
+    for (const generatorText of [source.replace(/\r\n/g, '\n'), toCrlf(source)])
+      for (const ownerText of [instrumenter.replace(/\r\n/g, '\n'), toCrlf(instrumenter)]) {
+        const form = new Map(files).set(harness, generatorText).set(host, ownerText);
+        const formSelected = productionDemoSources(form, external);
+        expect(formSelected.has(runtime)).toBe(true);
+        expect(demoIdentityFindings(fixture, formSelected.get(fixture)!, vocabulary)).toEqual([
+          identity,
+        ]);
+      }
+    const changedInstrumenter = instrumenter.replace(
+      'export function instrumentBffProofRequestRuntime(runtime) {',
+      "export function instrumentBffProofRequestRuntime(runtime) {\n  runtime += '\\n' + readFileSync(new URL('../src/test/unmodeled-fixture.ts', import.meta.url), 'utf8');",
+    );
+    expect(changedInstrumenter).not.toBe(instrumenter);
+    expect(() =>
+      productionDemoSources(new Map(files).set(host, changedInstrumenter), external),
+    ).toThrow('Unmodeled runtime import');
+    const missingInstrumenter = new Map(files);
+    missingInstrumenter.delete(host);
+    expect(() => productionDemoSources(missingInstrumenter, external)).toThrow(
+      'Unmodeled runtime import',
+    );
+    for (const dirty of [
+      source.replace(/\r?\n/g, '\r'),
+      source.replace("'server/auth/request-runtime.js'", "'server/auth/other.js'"),
+      source.replace("'test/page-response-fixture.js'", "'test/other.js'"),
+      source.replace("'learnstack-bff-observation-'", "'unowned-'"),
+      source.replace("readFileSync(source, 'utf8')", "readFileSync(other, 'utf8')"),
+      source.replace('const path = join(input, name);', 'const path = join(other, name);'),
+      source.replace(
+        "path === source ? instrumented : readFileSync(path, 'utf8')",
+        "readFileSync(path, 'utf8')",
+      ),
+      source.replace(
+        '  const { createBffRequestRuntime }',
+        "  writeFileSync(join(root, 'test/page-response-fixture.js'), readFileSync(join(web, 'src/test/unmodeled-fixture.ts'), 'utf8'));\n  const { createBffRequestRuntime }",
+      ),
+      source.replace(
+        "text = readFileSync(input, 'utf8')",
+        "text = readFileSync(join(web, 'src/test/unmodeled-fixture.ts'), 'utf8')",
+      ),
+      source.replace(
+        '    const result = ts.transpileModule(text, {',
+        "    text = readFileSync(join(web, 'src/test/unmodeled-fixture.ts'), 'utf8');\n    const result = ts.transpileModule(text, {",
+      ),
+      source + "\nawait import('./other.mjs');",
+      source + "\nawait import(pathToFileURL(join(root, 'server/auth/request-runtime.js')));",
+      source.replace(
+        "pathToFileURL(join(root, 'test/page-response-fixture.js'))",
+        "pathToFileURL(join(other, 'test/page-response-fixture.js'))",
+      ),
+    ]) {
+      expect(dirty).not.toBe(source);
+      expect(() => productionDemoSources(new Map(files).set(harness, dirty), external)).toThrow(
+        'Unmodeled runtime import',
+      );
+    }
+    const missing = new Map(files);
+    missing.delete(fixture);
+    expect(() => productionDemoSources(missing, external)).toThrow('Unmodeled runtime import');
+  });
   it('omits only known generated roots in the actual filesystem collector', () => {
     for (const path of [
       'frontend/apps/web/.next',
@@ -345,6 +923,7 @@ describe('P02d-7 exact demo identity boundary', () => {
       'scripts/demo.mjs',
       'scripts/node_modules/probe/index.js',
       'frontend/apps/web/src/test/probe.test.ts',
+      'frontend/scripts/fixtures/router-minified-join.runtime.mjs',
     ])
       expect(demoSourceClassification(path)).toBe('runtime');
     for (const path of [
@@ -369,6 +948,8 @@ describe('P02d-7 exact demo identity boundary', () => {
       'third-party/hangfire/core/corresponding-source.tar.gz',
       'third-party/hangfire/qualification/MaintenanceProbe.cs',
       'frontend/apps/web/src/app/globals.css',
+      'frontend/scripts/fixtures/router-minified-join.txt',
+      'frontend/scripts/fixtures/router-minified-join.provenance.json',
     ])
       expect(demoSourceClassification(path)).toBe('other');
   });
@@ -520,6 +1101,8 @@ describe('P02d-7 exact demo identity boundary', () => {
     const entry = 'scripts/demo.mjs';
     const source = 'frontend/apps/web/src/server/ingress.ts';
     const nested = 'frontend/apps/web/src/server/auth/session-runtime.ts';
+    const native = 'frontend/apps/web/src/server/auth/native-administration-client.ts';
+    const sdk = 'frontend/packages/sdk/src/administration-server.ts';
     const helper = 'frontend/apps/web/src/server/auth/owned-helper.ts';
     const config = {
       compilerOptions: { rootDir: 'src/server', outDir: '.server' },
@@ -530,6 +1113,8 @@ describe('P02d-7 exact demo identity boundary', () => {
         'src/server/auth/configuration.ts',
         'src/server/auth/http-protocol.ts',
         'src/server/auth/logout-response.ts',
+        'src/server/auth/native-administration-client.ts',
+        'src/server/auth/native-session-client.ts',
         'src/server/auth/provider-core.ts',
         'src/server/auth/request-runtime.ts',
         'src/server/auth/session-runtime.ts',
@@ -538,16 +1123,54 @@ describe('P02d-7 exact demo identity boundary', () => {
     const files = new Map([
       [
         entry,
-        "import '../frontend/apps/web/.server/ingress.js'; import '../frontend/apps/web/.server/auth/session-runtime.js'; import '../frontend/apps/web/src/app/globals.css';",
+        "import '../frontend/apps/web/.server/ingress.js'; import '../frontend/apps/web/.server/auth/session-runtime.js'; import '../frontend/apps/web/.server/auth/native-administration-client.js'; import '../frontend/apps/web/src/app/globals.css';",
       ],
       [source, 'export const clean = true;'],
       [nested, "import './owned-helper.js';"],
       [helper, 'export const owned = true;'],
+      [native, "import '@learnstack/sdk/administration-server';"],
+      [sdk, `export const special = ${JSON.stringify(identity)};`],
+      [
+        'frontend/packages/sdk/package.json',
+        JSON.stringify({
+          name: '@learnstack/sdk',
+          exports: { './administration-server': './dist/administration-server.js' },
+        }),
+      ],
+      [
+        'frontend/packages/sdk/tsconfig.native.json',
+        JSON.stringify({
+          compilerOptions: { rootDir: 'src', outDir: 'dist' },
+          include: ['src/authenticated-server.ts', 'src/administration-server.ts'],
+        }),
+      ],
       ['frontend/apps/web/src/app/globals.css', ':root { color: black }'],
       ['frontend/apps/web/tsconfig.server.json', JSON.stringify(config)],
     ]);
     const selected = productionDemoSources(files);
-    for (const input of [source, nested, helper]) expect(selected.has(input)).toBe(true);
+    for (const input of [source, nested, helper, native, sdk])
+      expect(selected.has(input)).toBe(true);
+    expect(demoIdentityFindings(sdk, selected.get(sdk)!, vocabulary)).toEqual([identity]);
+    for (const patch of [
+      {
+        compilerOptions: { rootDir: 'src', outDir: 'unmodeled' },
+        include: ['src/authenticated-server.ts', 'src/administration-server.ts'],
+      },
+      {
+        compilerOptions: { rootDir: 'src', outDir: 'dist' },
+        include: ['src/authenticated-server.ts', 'src/administration-server.ts', 'src/hidden.ts'],
+      },
+      {
+        compilerOptions: { rootDir: 'src', outDir: 'dist' },
+        include: ['src/authenticated-server.ts'],
+      },
+    ]) {
+      const dirty = new Map(files);
+      dirty.set('frontend/packages/sdk/tsconfig.native.json', JSON.stringify(patch));
+      expect(() => productionDemoSources(dirty)).toThrow(
+        'Unmodeled runtime import: tsconfig.native.json',
+      );
+    }
     const unknown = new Map(files);
     unknown.set(
       'frontend/apps/web/tsconfig.server.json',

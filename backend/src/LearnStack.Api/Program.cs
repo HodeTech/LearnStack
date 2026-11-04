@@ -54,6 +54,8 @@ builder.Services.AddLearnStackRateLimiting();
 builder.Services.AddLearnStackTenantAuthentication(
     TenantAuthenticationOptions.FromConfiguration(builder.Configuration, deploymentMode));
 builder.Services.AddLearnStackTenantSubjectAdmission();
+builder.Services.AddLearnStackNativeSessionSource(builder.Configuration);
+builder.Services.AddLearnStackIdentitySelfEntry();
 builder.Services.AddLearnStackTenantIdentityBindingAdmission();
 builder.Services.AddLearnStackLiveAuthorization(builder.Configuration, deploymentMode);
 builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, TenantAuthorizationResultHandler>();
@@ -126,6 +128,8 @@ app.UseLearnStackHostClassification();
 app.UseAuthentication();
 app.UseLearnStackTenantCredentialAdmission();
 app.UseLearnStackTenantSubjectAdmission();
+app.UseLearnStackNativeSessionSource();
+app.UseMiddleware<GlobalSelfEntryMiddleware>();
 app.UseLearnStackTenantIdentityBindingAdmission();
 
 // Reconcile both trusted signals once, after credential/quota/binding admission.

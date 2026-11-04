@@ -13,6 +13,15 @@ Identity foundation definitions, manifests and role ownership derive from Accept
 Live enforcement and evidence additionally derive from Accepted
 [ADR-0076](../decisions/0076-live-scoped-authorization.md) and
 [ADR-0077](../decisions/0077-trusted-authorization-evidence.md).
+Native scope admission and bounded administration additionally derive from
+[ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md) and
+[ADR-0079](../decisions/0079-bounded-identity-administration.md). The
+[phase Status block](../roadmap/phase-03-identity-admin.md) owns implementation
+and qualification state.
+The separate fixed-seed prerequisite source derives from
+[ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md).
+The separate fixed-origin completion source derives from
+[ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md).
 
 LearnStack uses permission-based RBAC layered on top of tenant membership. This standard pins the **naming convention**, **closed action set**, **registration pattern**, **enforcement points**, and the **per-module matrix template** that every module must produce.
 
@@ -120,7 +129,8 @@ Rules:
 
 Seed/registry reruns preserve adopted grants and never perform upgrades. A
 legitimate later manifest adoption takes precedence over fixed-v1 seed state;
-that seed refuses a differing adopted version instead of repairing it. Changes
+warm seed verifies valid installed state without restoring earlier grants. Missing
+facts resume only under the confined pristine-prefix contract below. Changes
 to the closed role/delegation contract require their owning decision.
 
 ## Enforcement Points
@@ -272,9 +282,10 @@ adopt this foundation contract. The live boundary below enforces each act.
 
 P03-1's five pairs and version-1 grants below are the complete foundation set.
 P03-2 owns the separately admitted finite live-authorization/grant-adoption
-contract, including its administrative GET; P03-3 owns remaining protected
-HTTP operations and UI/scope transitions. Neither a
-later operation nor an older built-in-role example silently expands v1 grants.
+contract, including its administrative GET. Protected HTTP operations and native
+UI/scope transitions follow the [P03-3 frontend contract](07-frontend-architecture.md#native-entry-and-administration);
+[Phase 03](../roadmap/phase-03-identity-admin.md) owns qualification and packet status.
+Neither a later operation nor an older built-in-role example silently expands v1 grants.
 
 ### Capability scope and template ownership
 
@@ -296,7 +307,7 @@ template never promotes an Organization grant to Tenant capability or widens wri
 
 A branch session may consume eligible Tenant grants for operations on that
 branch. Tenant-wide Membership/Profile/template writes require P03-3's explicit
-validated orgless reissue, preserving the canonical write guards. The
+validated orgless native context admission, preserving canonical write guards. The
 `app.scope = 'tenant'` hatch remains read-only; a permission or Tenant assignment
 cannot clear an authenticated branch scope implicitly.
 
@@ -364,11 +375,16 @@ New tenants receive the explicitly selected current finite initial version.
 Existing Roles retain adopted grants; registry/seed reruns add no new-key grants.
 P03-2 owns separately admitted audited grant additions/removals outside the kernel.
 Keep historical manifest versions/fingerprints for completed-act verification.
-Matching completed seed acts do no writes; revoked/suspended/operator-edited
-authority conflicts without repair/reset. A legitimate later manifest adoption
-that differs from the fixed v1 seed also makes that seed refuse, preserving the
-adopted state. Seed is not an upgrade reconciler. Realm roles/SystemActor cannot
-supply manifests or authority.
+Matching completed seed acts do no writes. A valid installed graph may contain
+suspension, historical Revoked Memberships, changed profiles/assignments and
+adopted grants; ordinary warm seed preserves it without reactivation, successors,
+reset or grant repair. Missing contained grants/assignments are never inferred to
+be uninstalled from absence alone. Only a recognized pristine incomplete prefix
+may resume, with current fence/version evidence rechecked at each possible write
+under [Standard 05](05-database.md#p03-3-storage-and-replay-contract).
+Incompatible/foreign or edited partial state refuses before remaining writes;
+earlier committed facts remain. Ordinary seed never adopts v2. Realm roles and
+SystemActor cannot supply manifests or authority.
 [Identity's seed sequence](../modules/identity/README.md#first-admin-and-seed-sequence)
 owns ordering and interrupted-run disposition.
 
@@ -377,8 +393,9 @@ owns ordering and interrupted-run disposition.
 P03-1 Step 4 supplies nonempty actual-command registry, templates, reference/
 scope guards and kernel artifact. P03-2 owns default deny/delegation, per-act
 revocation/freshness, grant adoption and denied controls. P03-2 also owns the one
-administrative directory GET; P03-3 owns new-user
-HTTP/BFF activation, protected UI and explicit scope transitions;
+administrative directory GET. New-user HTTP/BFF activation, protected UI and
+explicit scope transitions follow the [P03-3 frontend contract](07-frontend-architecture.md#native-entry-and-administration);
+[Phase 03](../roadmap/phase-03-identity-admin.md) owns qualification and packet status;
 P03-9/G13 owns production first-admin/recovery before its production provisioner.
 The development seed capability is not that future authority.
 
@@ -394,8 +411,8 @@ implementation proof. Current qualification state lives in the
 ADR-0076 replaces the live
 admission/delegation deferrals above while retaining P03-1's exact five assignable
 pairs, eight templates, two-pair admin kernel and fixed v1 seed manifest.
-Registration remains distinct from grants; no v2 manifest or new assignable
-capability is selected. Current implementation status remains in the
+ADR-0079 adds the exact v2 contract below; registration remains distinct from
+grants. Implementation and qualification state remain in the
 [phase Status block](../roadmap/phase-03-identity-admin.md).
 
 | Virtual Tenant definition | Existing PublicSurface requests |
@@ -418,11 +435,36 @@ results are not reusable grants. Tenant-wide read widening requires the
 [operation witness](05-database.md#operation-bound-read-authority), never an
 Organization grant or implicit clearing of authenticated branch write scope.
 
+The separate [fixed-seed prerequisite witness](05-database.md#fixed-seed-prerequisite-read-authority)
+derives only from the exact active finite Seed invocation and independently
+captured fixed declaration. It grants no human permission and does not generalize
+Protected-only `OperationReadWitness` minting. The closed temporary check runs
+after the complete ordered plan, clears before any usable result or mutation and
+cannot be inherited by human, event/job, origin-adoption or content writers.
+Content seed writers instead obey the
+[ordinary-scope per-write proof](05-database.md#every-tenant-bound-seed-write).
+Standard 05 owns both contracts and their closed source/caller populations;
+acceptance supplies no implementation proof or production provisioner authority.
+
+The distinct [fixed-origin completion witness](05-database.md#fixed-seed-completion-read-authority)
+admits only the fixed `AdoptSeedAdministrationOriginCommand` and its two existing
+declarations. It binds the actual finite Seed invocation and immutable prepared
+target snapshot under the retained complete plan; caller versions, hashes or
+Booleans confer no authority. It never borrows the pristine witness or human
+`OperationReadWitness`, adds no permission pair and grants no login, Role,
+Membership or reactivation power. Its retained local administrator predicate
+keeps both kernel pairs and preserves lawful nonkernel removals; it supplies no
+fresh global User/provider eligibility claim. Qualified marker 2 plus the exact
+live mapping permits only the runner's write-free repeat, not current protected
+authority or a current mutable-graph proof. Standard 05 owns completion and
+repeat rules; the phase Status block owns qualification.
+
 `ChangeRoleGrantsCommand` and `AdoptRoleGrantManifestCommand` are separate
 production application acts, each with one Role root and expected Role row version.
 Both require current Tenant Admin/role-admin authority, orgless write scope,
-concurrency/kernel guards and a current delegation ceiling, rechecked after the
-invariant-lock wait before mutation. They cannot grant authority the actor lacks.
+concurrency/kernel guards and post-lock reauthorization. Ordinary grant changes
+retain the current delegation ceiling and cannot grant authority the actor lacks;
+only the exact first-v2-adoption exception below admits its three new keys.
 An eligible Tenant Admin holding Tenant `identity.role.admin` may author an exact
 registered Organization pair only while holding the same key's Tenant pair.
 That is an explicit authoring relation, not scoped-key equivalence or evaluation
@@ -432,12 +474,61 @@ Grant edits and finite approved release-manifest adoption have separate MUST
 `identity.role.change_grants` / `identity.role.adopt_manifest` audit transactions,
 including contained grant changes. Adoption accepts only the approved finite
 manifest/diff; P03-2 proves retained v1, unknown manifests refuse, and registration
-or rerunning seed never upgrades grants. Legitimate differing adopted state makes
-fixed-v1 seed refuse instead of reset. Human-facing edit/adoption routes remain
-P03-3; arbitrary roles, wildcard grants and Platform admission are not added.
+or rerunning seed never upgrades grants. Valid differing adopted state is preserved
+by the accepted warm contract above. Human-facing edit/adoption routes belong to
+P03-3; arbitrary Roles, wildcard grants and Platform admission are not added.
 
 Actual denial evidence and successful sensitive disclosure obey
 [Standard 18](18-audit-coverage.md#trusted-authorization-evidence), independently
 of an ordinary operation's Off/SHOULD/MAY classification. Real HTTP, direct,
 post-lock revocation, scoped SQL/EF and finite-source dirty controls must qualify
 this contract before activation; acceptance alone advances no runtime proof.
+
+## Bounded administration and version-2 adoption
+
+**Accepted contract.**
+Derived from [ADR-0079](../decisions/0079-bounded-identity-administration.md).
+The finite registry has these versioned additions; the version-1 table and grant
+manifest above remain historical inputs, not a seed repair target.
+
+| Release | Assignable registry | Grant adoption |
+|---|---|---|
+| v1 | Exactly the five Identity scoped pairs above | Eight fixed initial templates; unchanged two-pair Tenant Admin kernel |
+| v2 | Exactly Tenant `tenancy.organization.admin`, Tenant `tenancy.locale.write`, Tenant `tenancy.setting.write` in addition to v1; eight pairs total | Only the exact three-key Tenant Admin delta, by explicit first adoption |
+
+No Organization Tenancy pair, custom Role or generic settings power is selected.
+Tenant `tenancy.organization.admin` covers Organization create/rename/archive and
+the Tenant-root default-reference sub-operation; target guards still prove the
+selected Organization belongs to that Tenant and is Active/nondeleted. Locale
+writing concerns contained Tenant locales; setting writing concerns only whole
+tenant-wide `branding.theme`. Their full editors and any separately selected
+Organization-capability variants belong to Phase 06.
+
+First v2 adoption requires an Active NULL-org Membership whose User admits work,
+assigned the Tenant Admin template with both kernel pairs, current Tenant
+`identity.role.admin`, orgless scope, expected Role version and exact approved
+release/fingerprint. Its exclusive tenant fence and fresh post-wait checks admit
+only the three new keys; prior nonkernel removals remain removed. Monotonic
+adopted-release version/fingerprint on that Role prevents repeat adoption after a
+new key is removed. Registration, ordinary grant edits and warm seed cannot use
+this exception. Unknown releases/deltas refuse. New seeds retain v1 until a
+separately selected finite initial manifest changes that declaration.
+
+Compiled operation policies can express enumerated alternatives/conjunctions,
+without a user policy language or global key implication. A declared branch act
+may accept eligible Tenant authority or its exact branch's Organization pair.
+Another branch contributes nothing. Each successful alternative retains its own
+declared read scope; the organization directory never gains a Tenant read hatch.
+Own profile requires applicable profile-write and exact actor ownership; another
+person's profile additionally requires membership-admin. Write scope never widens.
+Assignment changes recheck the actual target Role graph and current delegation
+ceiling under retained ordered locks; [Standard 05](05-database.md#p03-3-storage-and-replay-contract)
+owns the lock, adoption and isolated durable-receipt contracts.
+
+Own-capability flags and per-pair addition hints are advisory, no-store, audit Off
+and carry no resource ETag. A false preview emits no denial; each actual request
+independently reauthorizes. [Identity's permission matrix](../modules/identity/permissions.md#bounded-administration-contract)
+owns their exact operation bindings. Permission-registry/Role disclosures and
+protected receipt reads are separately MUST audited before disclosure. Stored
+successful receipts require current target-specific disclosure authority, not a
+cached permission or reexecution of the original mutation.

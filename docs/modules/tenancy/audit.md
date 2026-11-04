@@ -3,6 +3,11 @@
 Per [Audit Coverage](../../standards/18-audit-coverage.md), which names this
 file. Part of the [module spec](README.md).
 
+The [bounded human bindings](#bounded-administration-bindings) register the
+internal administration requests separately from Seed requests. Native transport
+and replay consumers retain their own classifications below.
+[Phase 03](../../roadmap/phase-03-identity-admin.md) owns packet state and proofs.
+
 **P02b-1 Step 3 producer implemented — 2026-10-12.** Completed provisioning
 adds one pending outbox row before the existing two MUST rows and commit. Its
 domain translator adds no independent intent or audit operation and writes no
@@ -138,9 +143,14 @@ unmarked row is one a shipped command already raises.
 | `Tenant` | `tenancy.tenant.create` | **MUST** | The root of a customer's data; its existence is a contractual fact |
 | `Tenant` | `tenancy.tenant.change_status` `(planned)` | **MUST** | Suspension withdraws access; an operator must be able to say who and when |
 | `Tenant` | `tenancy.tenant.rename` `(planned)` | SHOULD | Presentational |
+| `Tenant` | `tenancy.tenant.adopt_seed_origin` | **MUST** (`security-event`) | Closed `AdoptSeedAdministrationOriginCommand` advances only its fixed Tenant seed-origin marker; its separate hostmapping MUST intent shares the same transaction. |
 | `Organization` | `tenancy.organization.create` | **MUST** | Adds an isolation surface; every org-scoped row written afterwards is written under it |
-| `Organization` | `tenancy.organization.archive` `(planned)` | **MUST** | Withdraws that surface while every row it isolated stays behind, and the rows themselves say nothing about who archived the organization or when |
-| `Organization` | `tenancy.organization.rename` `(planned)` | SHOULD | Presentational |
+| `Organization` | `tenancy.organization.archive` | **MUST** | Withdraws that surface while every row it isolated stays behind, and the rows themselves say nothing about who archived the organization or when |
+| `Organization` | `tenancy.organization.rename` | SHOULD | Presentational |
+| `Tenant` default reference | `tenancy.organization.select_default` | **MUST** (`update`) | `SelectDefaultOrganizationCommand` changes only Tenant's default/version; the selected Active/nondeleted Organization must belong to that Tenant. Resource segment matches the organization-admin sub-operation. |
+| Organization summaries | `tenancy.organization.list` | **MUST** (`read-sensitive`) | Fresh Tenant organization-admin admission before scope-owned configuration/default-version disclosure. |
+| Organization detail | `tenancy.organization.read` | **MUST** (`read-sensitive`) | Fresh target read admission before Organization configuration/version disclosure. |
+| Original Organization/Tenant default outcome | `tenancy.organization.read_receipt` | **MUST** (`read-sensitive`) | Current original-target receipt disclosure authority and fresh committed evidence before replay bytes; no mutation rerun. |
 | `TenantDomain` | `tenancy.domain.claim` `(planned)` | **MUST** | `ux_tenant_domains_host` is unique on the host alone, so a claim takes a host no other tenant can claim while it stands |
 | `TenantDomain` | `tenancy.domain.verify` `(planned)` | **MUST** | Verification is the gate the custom-domain lifecycle opens before a mapping row exists; a wrongly verified domain serves one tenant's content at another's address |
 | `TenantDomain` | `tenancy.domain.fail` `(planned)` | **MUST** | The negative half of the same lifecycle — the attempt count and the recorded reason are what a support thread reconstructs, and repeated failures against one host are worth seeing |
@@ -273,3 +283,59 @@ TenantSetting.Value retains its independent whole-value snapshot redaction.
 The model finalizer and complete census reject undeclared/new neutral fields;
 provider/domain-verification and privileged toggle writers retain their named
 phase authority and fixed-diagnostic requirements before activation.
+
+## Bounded administration bindings
+
+Internal human requests and catalogue bindings implement
+[ADR-0079](../../decisions/0079-bounded-identity-administration.md).
+[Phase 03](../../roadmap/phase-03-identity-admin.md) owns packet state. Existing slugs
+may bind more than one request type; the catalogue/matrix join remains total.
+Human wrappers have separate Protected policies, never Seed provenance or nested
+dispatch to Seed-only commands. The classification matrix above remains the sole
+class/type declaration; this request-binding table maps types to those rows:
+
+| New human request | Aggregate subject | Matrix operation |
+|---|---|---|
+| `ListOrganizationsQuery` | Organization summaries | `tenancy.organization.list` |
+| `GetOrganizationDetailQuery` | Exact detached Organization | `tenancy.organization.read` |
+| `CreateManagedOrganizationCommand` | Organization | `tenancy.organization.create` |
+| `RenameOrganizationCommand` | Organization | `tenancy.organization.rename` |
+| `ArchiveOrganizationCommand` | Organization | `tenancy.organization.archive` |
+| `SelectDefaultOrganizationCommand` | Tenant | `tenancy.organization.select_default` |
+| `AddManagedTenantLocaleCommand` | Tenant | `tenancy.locale.write` |
+| `SetManagedDefaultTenantLocaleCommand` | Tenant | `tenancy.locale.write` |
+| `SetTenantLocaleEnabledCommand` | Tenant | `tenancy.locale.write` |
+| `RemoveTenantLocaleCommand` | Tenant | `tenancy.locale.write` |
+| `SetManagedTenantBrandingCommand` | TenantSetting | `tenancy.setting.write` |
+
+Locale writes are contained Tenant changes: their permission/audit resource is
+`locale`, while snapshots and version belong to Tenant. Default selection is the
+Tenant-root sub-operation of `tenancy.organization.admin`, not a general Tenant
+settings grant. Its Tenant intent and returned version describe that root only.
+Successful mutation audit shares business commit; existing MUST rollback remains.
+
+`AdoptSeedAdministrationOriginCommand` is a distinct closed Seed request for one
+Tenant. It declares both `tenancy.tenant.adopt_seed_origin` and existing
+`tenancy.hostmapping.write` MUST intents on its common transaction. Tenant marker
+and fixed projection commit together for qualified `0→2` / `1→2`; an exact existing
+mapping is designated unchanged without an UPDATE. Under Accepted
+[ADR-0081](../../decisions/0081-fixed-seed-completion-before-origin-adoption.md),
+the runner's marker-2/exact-live-mapping branch skips mutation dispatch, witness
+minting, the temporary hatch and MUST intents. The separate completion check is
+internal to this act, adds no successful sensitive-read event or new Off request,
+and retains failed/denied and genuine unknown-COMMIT evidence on refusal.
+It grants no human host-mapping permission or v2 Role authority and introduces
+no second aggregate/provisioning exception. The
+[canonical completion contract](../../standards/05-database.md#fixed-seed-completion-read-authority)
+owns the separate source, retained completion facts, restoration, marker/repeat
+and recovery rules; qualification remains in the phase Status block.
+
+Organization/default protected receipt reads are ordinary MUST sensitive reads
+with current original-target disclosure admission before stored bytes. Failed
+guard/audit retains the completed receipt, and original mutation evidence is not
+replayed. Off global-self/current-context navigation obtains Tenancy labels only
+through the separately confined own-discovery reader; the helper creates no
+independent resource intent or general cross-tenant directory. Own-current-Tenant
+navigation uses the separate invocation-bound ordinary ReadOnly contract and
+also adds no independent resource intent. AccountSite remains Off under its
+actual-host ceiling, including the separately validated native-session origin.

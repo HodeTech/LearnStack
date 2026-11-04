@@ -167,6 +167,7 @@ describe('observational CI demo source checkpoints', () => {
       mkdirSync(join(f.root, 'scripts'));
       for (const name of [
         'demo',
+        'seed-admin-origins',
         'demo-process',
         'demo-source',
         'demo-observation',
@@ -190,6 +191,13 @@ describe('observational CI demo source checkpoints', () => {
         "export async function reconcileDevelopmentRealm() { throw new Error('Unexpected reconciliation before restore'); }\n",
       );
       mkdirSync(join(f.root, 'frontend/apps/web/scripts'), { recursive: true });
+      mkdirSync(join(f.root, 'frontend/scripts'), { recursive: true });
+      // This case owns launcher ordering, not package-manager qualification.
+      // The guard's real executable/bytes controls run in its separate suite.
+      writeFileSync(
+        join(f.root, 'frontend/scripts/framework-installation.mjs'),
+        'export function resolveQualifiedPnpm() { return { command: process.execPath, args: ["qualified-manager.cjs"] }; }\n',
+      );
       writeFileSync(
         join(f.root, 'frontend/apps/web/scripts/stop-test-child.mjs'),
         readFileSync(new URL('../../scripts/stop-test-child.mjs', import.meta.url)),
@@ -218,7 +226,7 @@ describe('observational CI demo source checkpoints', () => {
           commands.push({ command, args });
           if (command === 'git') return run.call(this, command, args, options);
           if (command === 'docker' && args[0] === 'context') return JSON.stringify([{ Endpoints: { docker: { Host: 'unix:///var/run/docker.sock' } } }]);
-          if (command === 'pnpm' && args[0] === 'install') throw stop;
+          if (command === process.execPath && args[0] === ${JSON.stringify(join(f.root, 'frontend/scripts/install-frontend.mjs'))}) throw stop;
           return '';
         };
         const { startDemo } = await import(${JSON.stringify(pathToFileURL(join(f.root, 'scripts/demo.mjs')).href)});
@@ -240,8 +248,8 @@ describe('observational CI demo source checkpoints', () => {
       expect(sourceCommands).toHaveLength(mode === 'ci' ? 4 : 0);
       if (mode === 'ci') expect(result.commands.slice(0, 4)).toEqual(sourceCommands);
       expect(result.commands.at(-1)).toMatchObject({
-        command: 'pnpm',
-        args: ['install', '--frozen-lockfile'],
+        command: process.execPath,
+        args: [join(f.root, 'frontend/scripts/install-frontend.mjs')],
       });
     },
     25000,

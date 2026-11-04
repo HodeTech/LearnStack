@@ -271,6 +271,7 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
     {
         await using var transaction = await app.BeginTransactionAsync();
         await EducationSchemaSeed.AnnounceAsync(app, transaction, tenant, null);
+        await TenancyLifecycleFixture.LockAsync(app, transaction, tenant);
         await SchemaQueries.ExecuteAsync(app, transaction,
             "UPDATE tenants SET default_organization_id=@organization,status=@status WHERE id=@tenant",
             ("organization", organization), ("status", status), ("tenant", tenant));

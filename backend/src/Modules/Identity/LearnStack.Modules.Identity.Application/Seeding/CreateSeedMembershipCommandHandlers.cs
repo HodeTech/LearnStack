@@ -14,38 +14,38 @@ namespace LearnStack.Modules.Identity.Application.Seeding;
 
 public sealed class CreateFirstSeedAdminMembershipCommandHandler(IMembershipWriteStore store, IRoleReadStore roles,
     ITenantContext context, ISeedIdentityFoundationAdmission admission, IIdentityScopeLifecycleReader lifecycle,
-    IIdentityMutationLocks locks, IClock clock)
+    IIdentityMutationLocks locks, IClock clock, IFixedSeedPrerequisiteVerifier prerequisites)
     : IRequestHandler<CreateFirstSeedAdminMembershipCommand, Result<Guid>>
 {
     public Task<Result<Guid>> Handle(CreateFirstSeedAdminMembershipCommand request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return SeedMembershipCreation.CreateAsync(request.MembershipId, request.UserId, request.RoleId,
+        return SeedMembershipCreation.CreateAsync(request, request.MembershipId, request.UserId, request.RoleId,
             PermissionScope.Tenant, request.ManifestVersion, request.ExpectedFingerprint, true,
-            store, roles, context, admission, lifecycle, locks, clock, cancellationToken);
+            store, roles, context, admission, lifecycle, locks, clock, prerequisites, cancellationToken);
     }
 }
 
 public sealed class CreateSeedMembershipCommandHandler(IMembershipWriteStore store, IRoleReadStore roles,
     ITenantContext context, ISeedIdentityFoundationAdmission admission, IIdentityScopeLifecycleReader lifecycle,
-    IIdentityMutationLocks locks, IClock clock) : IRequestHandler<CreateSeedMembershipCommand, Result<Guid>>
+    IIdentityMutationLocks locks, IClock clock, IFixedSeedPrerequisiteVerifier prerequisites) : IRequestHandler<CreateSeedMembershipCommand, Result<Guid>>
 {
     public Task<Result<Guid>> Handle(CreateSeedMembershipCommand request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return SeedMembershipCreation.CreateAsync(request.MembershipId, request.UserId, request.RoleId,
+        return SeedMembershipCreation.CreateAsync(request, request.MembershipId, request.UserId, request.RoleId,
             request.MembershipScope, request.ManifestVersion, request.ExpectedFingerprint, false,
-            store, roles, context, admission, lifecycle, locks, clock, cancellationToken);
+            store, roles, context, admission, lifecycle, locks, clock, prerequisites, cancellationToken);
     }
 }
 
 internal static class SeedMembershipCreation
 {
-    internal static async Task<Result<Guid>> CreateAsync(Guid membershipId, UserId userId, Guid roleId,
+    internal static async Task<Result<Guid>> CreateAsync(object request, Guid membershipId, UserId userId, Guid roleId,
         PermissionScope scope, int manifestVersion, string fingerprint, bool firstAdmin,
         IMembershipWriteStore store, IRoleReadStore roles, ITenantContext context,
         ISeedIdentityFoundationAdmission admission, IIdentityScopeLifecycleReader lifecycle,
-        IIdentityMutationLocks locks, IClock clock, CancellationToken cancellationToken)
+        IIdentityMutationLocks locks, IClock clock, IFixedSeedPrerequisiteVerifier prerequisites, CancellationToken cancellationToken)
     {
         if (!SeedFoundationGate.HasActor(context) || scope != SeedFoundationGate.Scope(context)
             || !SeedFoundationGate.ValidRoot(membershipId) || !SeedFoundationGate.ValidRoot(roleId)
@@ -67,15 +67,16 @@ internal static class SeedMembershipCreation
                 || await store.FindAsync(id, cancellationToken) is not null
                 || firstAdmin && await store.HasMembershipHistoryAsync(cancellationToken))
                 return Result<Guid>.Fail(IdentityFailures.Refused());
-            // Classification comes from the actual referenced complete Role, never the command's scope label.
-            var mode = role!.IsTenantAdministrator ? IdentityTenantLockMode.Exclusive : IdentityTenantLockMode.Shared;
-            var plan = new IdentityMutationLockPlan([userId], context.TenantId, mode);
+            // Every seed continuation is serialized against ordinary tenant writers.
+            var plan = new IdentityMutationLockPlan([userId], context.TenantId, IdentityTenantLockMode.Exclusive);
             await locks.AcquireAsync(plan, cancellationToken);
             var freshRole = await roles.ReadAsync(referencedRoleId, cancellationToken);
-            if (!IsDeclaredRole(freshRole, context.TenantId, scope, firstAdmin)
-                || freshRole!.IsTenantAdministrator != role.IsTenantAdministrator
+            if (!await SeedFoundationGate.AllowsCurrentLifecycleAsync(context, lifecycle, cancellationToken)
+                || !IsDeclaredRole(freshRole, context.TenantId, scope, firstAdmin)
+                || freshRole!.IsTenantAdministrator != role!.IsTenantAdministrator
                 || await store.FindAsync(id, cancellationToken) is not null
-                || firstAdmin && await store.HasMembershipHistoryAsync(cancellationToken))
+                || firstAdmin && await store.HasMembershipHistoryAsync(cancellationToken)
+                || !await prerequisites.VerifyAsync(request, plan, cancellationToken))
                 return Result<Guid>.Fail(IdentityFailures.Refused());
             locks.RequireCurrent(plan);
             var membership = Membership.Create(id, context.TenantId, context.OrganizationId, userId,
@@ -92,6 +93,10 @@ internal static class SeedMembershipCreation
     }
 
     private static bool IsDeclaredRole(Role? role, TenantId tenant, PermissionScope scope, bool firstAdmin) =>
-        role is { Version: 0 } && role.TenantId == tenant && role.PermissionScope == scope && role.MatchesInitialTemplate()
+        role is { Version: 0, UpdatedAt: null, UpdatedBy: null } && role.TenantId == tenant
+        && role.CreatedBy == UserId.SystemActor && role.CreatedAt != default
+        && role.AdoptedReleaseVersion == 1
+        && role.AdoptedReleaseFingerprint == IdentityFoundationManifest.Version1.Fingerprint
+        && role.PermissionScope == scope && role.MatchesInitialTemplate()
         && (firstAdmin ? role.IsTenantAdministrator : role.BuiltInKey == BuiltInRoleKey.Learner);
 }

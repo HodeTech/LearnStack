@@ -319,3 +319,49 @@ global subject owner, five-function confinement, absence of a generic User
 reader and all other decisions remain unchanged. The Accepted body, status and
 date above remain historical; ADR-0074 and Standard 05 own the current timing
 contract and its pending Step 4 proofs.
+
+### Amendment 2 — Bounded deliberate HTTP bootstrap and self discovery (2026-10-28)
+
+Accepted [ADR-0078](0078-native-session-scope-and-self-entry.md) activates the
+previously withheld new-user entry contract, not a runtime implementation claim.
+Exactly three credentialed global-self descriptors follow provider validation,
+subject quota and independent native-source validation, before ordinary existing-
+binding admission. They retain prepared global owners, subject serialization,
+central User/MUST audit atomicity and failed/indeterminate reconciliation; no
+generic unresolved path, runtime provider administrator or email merge is added.
+
+Bootstrap allocation is explicit deployment opt-in and person-confirmed CSRF
+entry. It consumes a separately committed attempt debit only after initial
+absence, then enters the prepared subject owner and freshly rechecks. Matching
+existing bindings return 200 without a new creation intent, including a racing
+winner. Acknowledged new binding is 201; unknown COMMIT is 503, not asserted
+rollback or an automatic retry instruction. Nonadmitting/closed bindings never
+become missing or receive successors. Creation alone supplies no Membership or
+tenant cookie, and zero-Membership native completion is truthful recovery.
+
+The singleton stable authority shares 10 attempts/UTC minute and 100/UTC day
+across all tenants. Failed/cancelled/uncertain attempts do not refund. Capacity is
+10,000 retained Users including fixed seed actors and closure tombstones; the
+permanent counter is monotonic. User INSERT and central MUST audit enforce total
+capacity atomically; earlier attempt debit is intentionally separate. Existing
+bindings spend no allocation attempts. Deployment initializes the control row
+from retained Users, and ordinary runtime cannot reset/read arbitrary counters.
+Intentional multi-account exhaustion of shared onboarding budget is an accepted
+availability cost, not tenant fairness or DDoS protection. Raising/resetting needs
+reviewed migration/decision; closure does not refund lifetime capacity.
+
+The exact eight-function definer census is the existing five plus subject-derived
+own-membership discovery, creation-attempt admission and User-INSERT capacity
+trigger functions. The platform control relation adds no database class/login.
+[Standard 05](../standards/05-database.md#p03-3-storage-and-replay-contract) owns
+signatures, owner/ACL/body/caller, RLS, counters, canonical key and real app-role
+proofs. Discovery adds no arbitrary User reader: it derives only the Active
+subject's own Membership scopes; short sequential tenant-label owners use their
+separately enumerated tenth setter. Personal relationship/digest data remains
+classified even where self-only navigation is audit Off.
+
+The original body/status/date and previous timing Amendment remain historical.
+P03-3 implementation closes only after durable budget/restart/concurrent creator,
+central audit failure/unknown commit, terminal binding, exact function privilege,
+provider/native association and real no-session/browser controls pass. P03-9
+issuer/production onboarding and P03-10 closure/redaction ownership remain.

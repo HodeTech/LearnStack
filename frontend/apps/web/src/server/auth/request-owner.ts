@@ -21,6 +21,8 @@ export function bffRequestOwner(): BffRequestHolder {
     value.version !== 1 ||
     !('activity' in value) ||
     typeof value.activity !== 'function' ||
+    !('flight' in value) ||
+    typeof value.flight !== 'function' ||
     !('publish' in value) ||
     typeof value.publish !== 'function' ||
     !('read' in value) ||

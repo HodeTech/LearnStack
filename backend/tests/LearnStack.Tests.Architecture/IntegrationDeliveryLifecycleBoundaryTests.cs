@@ -30,7 +30,15 @@ public sealed partial class OutboxDispatchConventionTests
     private const string LifecycleIdentityBindings = "LearnStack.Modules.Identity.Infrastructure.Bindings.";
     private const string LifecycleAcceptance = "LearnStack.Infrastructure.Messaging.PostgresDeliveryAcceptance";
     private const string LifecyclePlatform = "LearnStack.Infrastructure.MultiTenancy.PlatformAdminScope";
+    private const string LifecycleIdempotencyStore = "LearnStack.Infrastructure.Idempotency.PostgresIdempotencyStore";
     private const string LifecycleTask = "System.Threading.Tasks.Task";
+    private static readonly string[] LifecycleIdempotencyOwnerParameters =
+    [
+        "LearnStack.SharedKernel.Identifiers.TenantId",
+        "System.Func`4<Npgsql.NpgsqlConnection,Npgsql.NpgsqlTransaction,System.Threading.CancellationToken,System.Threading.Tasks.Task`1<T>>",
+        BoundaryCancellation,
+    ];
+    private static readonly string[] LifecycleIdempotencyCallers = ["ReadCompletedAsync", "TryClaimAsync", "CompleteAsync", "AbandonAsync"];
     private const string LifecycleScopeTask = "System.Threading.Tasks.Task`1<" + LifecycleScope + ">";
     private static readonly string[] LifecycleTerminalMethods = ["Commit", "Rollback", "CommitAsync", "RollbackAsync"];
     private static readonly string[] LifecycleFacadeTerminalMethods = ["CommitTransaction", "RollbackTransaction", "CommitTransactionAsync", "RollbackTransactionAsync"];
@@ -55,6 +63,7 @@ public sealed partial class OutboxDispatchConventionTests
         public void Integration_delivery_lifecycle_census_rejects_typed_helper_async_delegate_and_missing_paths()
         {
             using var census = ProductionCensus.Read();
+            AssertLifecycleCapabilityMemo(census);
             var types = census.Types;
             var unit = types[(KernelAssembly, LifecycleUnit)];
             var scope = types[(KernelAssembly, LifecycleScope)];
@@ -141,6 +150,8 @@ public sealed partial class OutboxDispatchConventionTests
                              new[] { "Npgsql.NpgsqlConnection", LifecycleIdentityBindings + "IdentityAuthorityRegistration", BoundaryCancellation }, "database.CommitAsync"),
                          (LifecycleIdentityAssembly, LifecycleIdentityBindings + "IdentityAuthorityQualification", "QualifyCoreAsync",
                              new[] { BoundaryCancellation }, "database.CommitAsync"),
+                         (InfrastructureAssembly, LifecycleIdempotencyStore, "OwnAsync",
+                             LifecycleIdempotencyOwnerParameters, "database.CommitAsync"),
                          (InfrastructureAssembly, LifecycleAuthorizationOwner, "CompleteAsync",
                              Array.Empty<string>(), "database.CommitAsync"),
                          (InfrastructureAssembly, LifecycleEvidenceOwner, "CompleteAsync",
@@ -169,6 +180,50 @@ public sealed partial class OutboxDispatchConventionTests
                 AssertMutation(census, "a missing actual helper terminal operation in " + MethodId(owner), () =>
                     ReplaceInstruction(terminals[0], OpCodes.Ldstr, "missing helper terminal operation"), IntegrationLifecycleOffenders);
             }
+            var idempotencyOwner = types[(InfrastructureAssembly, LifecycleIdempotencyStore)].Methods
+                .Single(method => method.Name == "OwnAsync" && ParametersMatch(method, LifecycleIdempotencyOwnerParameters));
+            AssertMutation(census, "an exposed idempotency transaction helper", () =>
+                ChangeAttributes(() => idempotencyOwner.Attributes, value => idempotencyOwner.Attributes = value,
+                    (idempotencyOwner.Attributes & ~MethodAttributes.MemberAccessMask) | MethodAttributes.Public), IntegrationLifecycleOffenders);
+            AssertMutation(census, "a static idempotency transaction helper", () =>
+                ChangeAttributes(() => idempotencyOwner.Attributes, value => idempotencyOwner.Attributes = value,
+                    idempotencyOwner.Attributes | MethodAttributes.Static), IntegrationLifecycleOffenders);
+            AssertMutation(census, "an extra idempotency helper type parameter", () =>
+            {
+                var parameter = new GenericParameter("Unexpected", idempotencyOwner);
+                idempotencyOwner.GenericParameters.Add(parameter);
+                return () => idempotencyOwner.GenericParameters.Remove(parameter);
+            }, IntegrationLifecycleOffenders);
+            var ownerAttribute = idempotencyOwner.CustomAttributes.Single(attribute =>
+                attribute.AttributeType.FullName == "System.Runtime.CompilerServices.AsyncStateMachineAttribute");
+            AssertMutation(census, "a missing generic async idempotency owner attribute", () =>
+            {
+                idempotencyOwner.CustomAttributes.Remove(ownerAttribute);
+                return () => idempotencyOwner.CustomAttributes.Add(ownerAttribute);
+            }, IntegrationLifecycleOffenders);
+            var idempotencyCalls = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
+                .Where(instruction => instruction.Operand is MethodReference target && IsIdempotencyOwnerTarget(target)).ToArray();
+            idempotencyCalls.Should().HaveCount(4, "only the four concrete store operations may invoke their private transaction helper");
+            foreach (var call in idempotencyCalls)
+            {
+                AssertMutation(census, "a missing actual idempotency helper invocation", () =>
+                    ReplaceInstruction(call, OpCodes.Nop, null!), IntegrationLifecycleOffenders);
+                AssertMutation(census, "an idempotency helper borrowed as a delegate by its admitted caller", () =>
+                    ReplaceInstruction(call, OpCodes.Ldftn, call.Operand), IntegrationLifecycleOffenders);
+            }
+            var genericTarget = (MethodReference)idempotencyCalls[0].Operand;
+            foreach (var opcode in new[] { OpCodes.Call, OpCodes.Callvirt, OpCodes.Ldftn, OpCodes.Ldvirtftn })
+                AssertMutation(census, "an extra idempotency helper caller through " + opcode.Name, () =>
+                    AddCallProbe(application, "BorrowedIdempotencyOwner", genericTarget, opcode), IntegrationLifecycleOffenders);
+            AssertMutation(census, "an asynchronous extra idempotency helper caller", () =>
+                AddAsyncCallProbe(application, "AsyncBorrowedIdempotencyOwner", genericTarget), IntegrationLifecycleOffenders);
+            var constructed = (GenericInstanceMethod)genericTarget;
+            AssertMutation(census, "a changed idempotency helper result instantiation", () =>
+            {
+                var original = constructed.GenericArguments[0];
+                constructed.GenericArguments[0] = application.TypeSystem.Object;
+                return () => constructed.GenericArguments[0] = original;
+            }, IntegrationLifecycleOffenders);
             var announcements = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
                 .Where(instruction => instruction.Operand is MethodReference target
                     && IntegrationLifecycleCapability(target, types) == "unit.announce").ToArray();
@@ -243,6 +298,9 @@ public sealed partial class OutboxDispatchConventionTests
                      (InfrastructureAssembly, LifecycleAuthorizationView), (InfrastructureAssembly, LifecycleEvidenceView) })
             if (!types.ContainsKey(subject)) offenders.Add("Missing lifecycle subject: " + subject.Item2);
         if (offenders.Count != 0) return offenders;
+        // The detector reads one stable metadata graph. Its mutation and undo
+        // each invoke a new detector and therefore get a new classifier memo.
+        var classification = new LifecycleCapabilityMemo(types);
         var unit = types[(KernelAssembly, LifecycleUnit)];
         var scope = types[(KernelAssembly, LifecycleScope)];
         var adapter = types[(InfrastructureAssembly, LifecycleAdapter)];
@@ -287,7 +345,7 @@ public sealed partial class OutboxDispatchConventionTests
             offenders.Add("Units without the physical read binding capability default-deny the witness overload");
         foreach (var instruction in OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
                      .Where(instruction => instruction.Operand is MethodReference target
-                         && IntegrationLifecycleCapability(target, types) is "unit.announce" or "unit.announce-wide" or "owned-unit.announce"))
+                         && classification.Classify(target) is "unit.announce" or "unit.announce-wide" or "owned-unit.announce"))
             if (instruction.OpCode != OpCodes.Call && instruction.OpCode != OpCodes.Callvirt)
                 offenders.Add("A tenant announcement cannot escape its actual caller as a delegate");
         foreach (var type in new[] { scope, frame })
@@ -295,7 +353,8 @@ public sealed partial class OutboxDispatchConventionTests
             CheckLifecycleDeclarations(type, "CompleteAsync", LifecycleTask, [[BoundaryCancellation]]);
             CheckLifecycleDeclarations(type, "FailAsync", LifecycleTask, [[BoundaryCancellation]]);
         }
-        offenders.UnionWith(IntegrationLifecycleCallsiteOffenders(types, CallSites(census)));
+        CheckIdempotencyLifecycleOwner(census, offenders);
+        offenders.UnionWith(IntegrationLifecycleCallsiteOffenders(types, CallSites(census), classification));
         return offenders;
 
         void CheckLifecycleDeclarations(TypeDefinition type, string name, string returnType, string[][] signatures)
@@ -307,10 +366,65 @@ public sealed partial class OutboxDispatchConventionTests
         }
     }
 
+    private static bool IsIdempotencyOwnerTarget(MethodReference target) =>
+        Key(target.DeclaringType) == (InfrastructureAssembly, LifecycleIdempotencyStore) && target.Name == "OwnAsync";
+
+    private static void CheckIdempotencyLifecycleOwner(ProductionCensus census, SortedSet<string> offenders)
+    {
+        if (!census.Types.TryGetValue((InfrastructureAssembly, LifecycleIdempotencyStore), out var store))
+        {
+            offenders.Add("Missing durable idempotency transaction owner");
+            return;
+        }
+        var owners = store.Methods.Where(method => method.Name == "OwnAsync").ToArray();
+        if (!store.IsSealed || owners.Length != 1 || !owners[0].IsPrivate || owners[0].IsStatic
+            || !owners[0].HasBody || owners[0].GenericParameters.Count != 1
+            || owners[0].ReturnType.FullName != "System.Threading.Tasks.Task`1<T>"
+            || !ParametersMatch(owners[0], LifecycleIdempotencyOwnerParameters)
+            || owners[0].CustomAttributes.Count(attribute =>
+                attribute.AttributeType.FullName == "System.Runtime.CompilerServices.AsyncStateMachineAttribute") != 1)
+        {
+            offenders.Add("Durable idempotency retains its exact private instance generic async transaction helper");
+            return;
+        }
+        var owner = owners[0];
+        var callers = new Dictionary<string, MethodDefinition>(StringComparer.Ordinal);
+        foreach (var name in LifecycleIdempotencyCallers)
+        {
+            var methods = store.Methods.Where(method => method.Name == name).ToArray();
+            if (methods.Length != 1 || !methods[0].IsPublic || methods[0].IsStatic || methods[0].HasGenericParameters
+                || methods[0].ReturnType is not GenericInstanceType result || result.ElementType.FullName != "System.Threading.Tasks.Task`1"
+                || result.GenericArguments.Count != 1)
+                offenders.Add("Missing or changed durable idempotency helper caller: " + name);
+            else callers.Add(MethodId(methods[0]), methods[0]);
+        }
+        var calls = CallSites(census).Where(site => IsIdempotencyOwnerTarget(site.Target)).ToArray();
+        CheckSet(offenders, "private idempotency transaction helper callers", calls.Select(site => site.Owner), callers.Keys);
+        foreach (var site in calls)
+        {
+            // Constructed generic references normalize only to this exact declared
+            // method. Same-name methods, other assemblies and delegates gain no authority.
+            if (site.Target is not GenericInstanceMethod generic || generic.GenericArguments.Count != 1
+                || MethodId(generic.ElementMethod) != MethodId(owner)
+                || !callers.TryGetValue(site.Owner, out var caller)
+                || generic.GenericArguments[0].FullName != ((GenericInstanceType)caller.ReturnType).GenericArguments[0].FullName)
+                offenders.Add("Unexpected durable idempotency helper target: " + site.Owner);
+        }
+        foreach (var item in OwnedBodies(census).Where(item => item.Owner.DeclaringType == store && callers.ContainsKey(MethodId(item.Owner))))
+            foreach (var instruction in item.Body.Body.Instructions.Where(instruction =>
+                         instruction.Operand is MethodReference target && IsIdempotencyOwnerTarget(target)))
+                if (instruction.OpCode != OpCodes.Call)
+                    offenders.Add("The private idempotency transaction helper cannot escape its direct caller as a delegate");
+    }
+
     private static SortedSet<string> IntegrationLifecycleCallsiteOffenders(
         Dictionary<(string Assembly, string Type), TypeDefinition> types,
-        IEnumerable<(string Owner, MethodReference Target)> sites)
+        IEnumerable<(string Owner, MethodReference Target)> sites,
+        LifecycleCapabilityMemo? classification = null)
     {
+        // Direct callsite controls own their fresh memo; the complete detector
+        // shares only its current evaluation's memo with this final traversal.
+        classification ??= new LifecycleCapabilityMemo(types);
         var offenders = new SortedSet<string>(StringComparer.Ordinal);
         var expected = new Dictionary<string, string[]>(StringComparer.Ordinal)
         {
@@ -328,7 +442,10 @@ public sealed partial class OutboxDispatchConventionTests
                 ["LearnStack.SharedKernel.Tenancy.ITenantContext", LifecycleReadWitness, BoundaryCancellation])],
             ["scope.complete"] = [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"), Owner(InfrastructureAssembly, LifecycleAcceptance, "AcceptAsync"),
                 Owner(DeliveryApplication, LifecycleGlobalPrepared, "CompleteExistingAsync"),
-                Owner(LifecycleIdentityAssembly, LifecycleIdentityBindings + "GlobalIdentityBindingService", "ResolveExistingAsync")],
+                Owner(LifecycleIdentityAssembly, LifecycleIdentityBindings + "GlobalIdentityBindingService", "ResolveExistingAsync"),
+                Owner(LifecycleIdentityAssembly, LifecycleIdentityBindings + "GlobalIdentityBindingService", "DebitAttemptAsync"),
+                Owner(LifecycleIdentityAssembly, LifecycleIdentityBindings + "GlobalIdentityBindingService", "ReadScopesAsync"),
+                Owner("LearnStack.Modules.Tenancy.Infrastructure", "LearnStack.Modules.Tenancy.Infrastructure.Persistence.PreContextSelfDiscoveryScopeReader", "ReadAsync")],
             ["scope.fail"] = [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"), Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"),
                 Owner(DeliveryApplication, DeliveryPrepared, "CreateAsync"), Owner(InfrastructureAssembly, LifecycleAcceptance, "AcceptAsync"),
                 Owner(DeliveryApplication, LifecycleGlobalPrepared, "CreateAsync"),
@@ -337,6 +454,9 @@ public sealed partial class OutboxDispatchConventionTests
             ["database.CommitAsync"] =
             [
                 Owner(InfrastructureAssembly, LifecycleAdapter, "CommitFrameAsync"),
+                // ADR-0079/Standard 05: this private helper commits only its own short
+                // app-role receipt transaction, never the ambient business owner.
+                Owner(InfrastructureAssembly, LifecycleIdempotencyStore, "OwnAsync", LifecycleIdempotencyOwnerParameters),
                 Owner(InfrastructureAssembly, LifecycleAuthorizationOwner, "CompleteAsync"),
                 Owner(InfrastructureAssembly, LifecycleEvidenceOwner, "CompleteAsync"),
                 Owner(InfrastructureAssembly, Store, "AcquireAsync"), Owner(InfrastructureAssembly, Store, "TryTerminalizeAsync"),
@@ -382,7 +502,7 @@ public sealed partial class OutboxDispatchConventionTests
             ["database.Commit"] = [],
             ["database.Rollback"] = [],
         };
-        var actual = sites.Select(site => (site.Owner, site.Target, Capability: IntegrationLifecycleCapability(site.Target, types)))
+        var actual = sites.Select(site => (site.Owner, site.Target, Capability: classification.Classify(site.Target)))
             .Where(site => site.Capability is not null).ToArray();
         foreach (var (capability, owners) in expected)
             CheckSet(offenders, "typed lifecycle " + capability, actual.Where(site => site.Capability == capability).Select(site => site.Owner), owners);

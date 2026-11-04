@@ -6,12 +6,11 @@ import { join } from 'node:path';
 
 import { afterEach, expect, it } from 'vitest';
 
-const job = readFileSync(
+const workflow = readFileSync(
   new URL('../../../../../.github/workflows/ci.yml', import.meta.url),
   'utf8',
-)
-  .split('  public-demo:\n')[1]
-  ?.split('\n  meta:')[0];
+);
+const job = workflow.split('  public-demo:\n')[1]?.split('\n  meta:')[0];
 const roots: string[] = [];
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
@@ -50,12 +49,18 @@ function browserSetup(failure = '') {
   const files = fixture();
   for (const [name, body] of [
     [
+      'node',
+      `
+      printf 'node %s\\n' "$*" >> "$INVOCATION"
+      [ "$*" = 'scripts/install-frontend.mjs' ] || exit 99
+      [ "$FAILURE" != dependencies ] || exit 19
+    `,
+    ],
+    [
       'pnpm',
       `
       printf 'pnpm %s\\n' "$*" >> "$INVOCATION"
-      if [ "$*" = 'install --frozen-lockfile' ]; then
-        [ "$FAILURE" != dependencies ] || exit 19
-      elif [ "$*" = 'exec playwright install chromium' ]; then
+      if [ "$*" = 'exec playwright install chromium' ]; then
         [ "$FAILURE" != browser ] || exit 23
       else exit 99; fi
     `,
@@ -84,31 +89,101 @@ it('installs only the pinned Chromium build without any APT mirror dependency', 
   const files = browserSetup();
   expect(files.result.status).toBe(0);
   expect(readFileSync(files.invocation, 'utf8').trim().split('\n')).toEqual([
-    'pnpm install --frozen-lockfile',
+    'node scripts/install-frontend.mjs',
     'pnpm exec playwright install chromium',
   ]);
 });
 
 it.each([
-  ['dependencies', 19, ['pnpm install --frozen-lockfile']],
-  ['browser', 23, ['pnpm install --frozen-lockfile', 'pnpm exec playwright install chromium']],
+  ['dependencies', 19, ['node scripts/install-frontend.mjs']],
+  ['browser', 23, ['node scripts/install-frontend.mjs', 'pnpm exec playwright install chromium']],
 ] as const)('fails closed on browser setup %s', (failure, code, calls) => {
   const files = browserSetup(failure);
   expect(files.result.status).toBe(code);
   expect(readFileSync(files.invocation, 'utf8').trim().split('\n')).toEqual(calls);
 });
 
-it('starts the absolute budget before checkout and reserves three minutes of the job ceiling', () => {
+function assertDemoWindow(source: string) {
+  const ceilings = source.match(/^ {4}timeout-minutes: \d+$/gm);
+  expect(ceilings).toEqual(['    timeout-minutes: 22']);
   const files = fixture();
-  const first = job?.match(
-    /steps:\n(?: {6}#.*\n)* {6}- name: Reserve demo cleanup and artifact time\n {8}run: (.+)\n/,
+  const first = source.match(
+    /^ {4}steps:\n(?: {6}#.*\n)* {6}- name: Reserve demo cleanup and artifact time\n {8}run: (.+)\n/m,
   );
   expect(first).not.toBeNull();
-  expect(job).toContain('timeout-minutes: 20');
   if (!first?.[1]) throw new Error('Missing first-step budget reservation');
-  const result = spawnSync('/bin/bash', ['-eu', '-c', first[1]], { env: files.env });
+  const result = spawnSync('/bin/bash', ['-eu', '-c', first[1]], {
+    env: files.env,
+    timeout: 10000,
+  });
   expect(result.status).toBe(0);
-  expect(readFileSync(files.environment, 'utf8')).toBe('PUBLIC_DEMO_DEADLINE=2020\n');
+  const announcement = readFileSync(files.environment, 'utf8');
+  expect(announcement).toBe('PUBLIC_DEMO_DEADLINE=2140\n');
+  const workSeconds = Number(announcement.split('=')[1]) - 1000;
+  const jobSeconds = Number(ceilings![0].split(': ')[1]) * 60;
+  expect(jobSeconds - workSeconds).toBe(180);
+}
+
+it('starts the exact absolute budget before checkout and reserves three minutes of the job ceiling', () => {
+  assertDemoWindow(job!);
+});
+
+it.each([
+  [
+    'wrong job ceiling masked by a step ceiling',
+    (source: string) =>
+      source
+        .replace('    timeout-minutes: 22', '    timeout-minutes: 20')
+        .replace('        timeout-minutes: 2', '        timeout-minutes: 22'),
+  ],
+  [
+    'oversized job ceiling',
+    (source: string) => source.replace('timeout-minutes: 22', 'timeout-minutes: 23'),
+  ],
+  ['old work deadline', (source: string) => source.replace('+ 19 * 60', '+ 17 * 60')],
+  ['oversized work deadline', (source: string) => source.replace('+ 19 * 60', '+ 20 * 60')],
+  [
+    'checkout before reservation',
+    (source: string) =>
+      source.replace('    steps:\n', '    steps:\n      - name: Checkout\n        run: true\n'),
+  ],
+] as const)('refuses the workflow window mutant: %s', (_name, mutate) => {
+  const mutant = mutate(job!);
+  expect(mutant).not.toBe(job);
+  expect(() => assertDemoWindow(mutant)).toThrow();
+});
+
+it('preserves every other whole-job ceiling', () => {
+  const ceilings = (source: string) =>
+    Object.fromEntries(
+      source
+        .split('\njobs:\n')[1]!
+        .split(/(?=^ {2}[a-z][a-z0-9-]*:\n)/m)
+        .filter((block) => /^ {2}[a-z][a-z0-9-]*:\n/.test(block))
+        .map((block) => {
+          const name = block.match(/^ {2}([a-z][a-z0-9-]*):\n/)![1];
+          const bounds = block.match(/^ {4}timeout-minutes: \d+$/gm);
+          expect(bounds).toHaveLength(1);
+          return [name, Number(bounds![0].split(': ')[1])];
+        }),
+    );
+  const expected = {
+    'backend-base': 20,
+    'backend-architecture': 25,
+    'backend-integration-tests': 30,
+    'backend-native': 20,
+    backend: 5,
+    'backend-integration': 5,
+    frontend: 30,
+    'openapi-diff': 15,
+    'public-demo': 22,
+    meta: 5,
+    'secret-scan': 5,
+  };
+  expect(ceilings(workflow)).toEqual(expected);
+  expect(
+    ceilings(workflow.replace('    timeout-minutes: 30', '    timeout-minutes: 31')),
+  ).not.toEqual(expected);
 });
 
 it('restores the existing NuGet cache without adding a cache-save post step', () => {

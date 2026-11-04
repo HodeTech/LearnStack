@@ -61,6 +61,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/LearnStack.Tests.AuthorizationEvidenceProbe/LearnStack.Tests.AuthorizationEvidenceProbe.csproj" />
+    <Project Path="tests/LearnStack.Tests.IdempotencyStoreProbe/LearnStack.Tests.IdempotencyStoreProbe.csproj" />
     <Project Path="tests/LearnStack.Tests.JobLifecycleProbe/LearnStack.Tests.JobLifecycleProbe.csproj" />
     <Project Path="tests/LearnStack.Tests.Unit/LearnStack.Tests.Unit.csproj" />
     <Project Path="tests/LearnStack.Tests.Integration/LearnStack.Tests.Integration.csproj" />

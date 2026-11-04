@@ -301,10 +301,12 @@ Two paths:
 - **Server-side** — React Server Components and route handlers call the .NET API directly using the typed SDK in `packages/sdk`. The SDK is generated from the backend's OpenAPI document; [Standards 07 § SDK](../standards/07-frontend-architecture.md) owns when and how.
 - **Authenticated boundary** — P02b-7 supplies native credential custody and
   exact AccountSite transport under ADR-0070. Browser code receives a safe
-  session projection and the closed extension action, never a generic API proxy,
-  bearer token or tenant/organization selector. The native caller attaches its
+  session projection and the closed extension action, never a generic API proxy
+  or bearer token. P03-3's separately admitted context forms propose candidates;
+  they do not supply API scope authority. The native caller attaches its
   bearer and trusted host hop; the injected SDK owns neither. Public SDK
-  requests remain credential-free. Phase 06 owns wider authenticated consumers.
+  requests remain credential-free. ADR-0078/0079 define the bounded P03-3 native
+  extension; Phase 06 owns broader authenticated consumers.
 
 The SDK is the only sanctioned way to call the API. Hand-rolled `fetch('/api/v1/...')` calls are blocked by lint — `no-restricted-globals`, because `fetch` is a global and an import rule could never have caught a single call.
 
@@ -327,6 +329,16 @@ Auth is delegated to the identity provider (Keycloak/Authentik, see [Identity an
   CSRF-protected POST starts provider navigation. Disabled mode returns the
   bounded sign-in-unavailable state, without provider traffic.
 - Public remains anonymous-by-default; P02b-7 adds no personalized content.
+
+Accepted [ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md) /
+[ADR-0079](../decisions/0079-bounded-identity-administration.md) extend this
+baseline with explicit self entry/context confirmation, scope-preserving refresh
+and finite native forms/screens. The
+[Frontend contract](../standards/07-frontend-architecture.md#native-entry-and-administration)
+owns their exact allowlists, credential-free projections and request-bound page
+snapshots. Acceptance is separate from runtime/browser qualification; the phase
+Status block owns delivery. No general proxy, protected client cache or Server
+Action is admitted by this extension.
 
 ## Page-Block Resolver
 
@@ -441,7 +453,11 @@ shift, interaction latency and the initial JavaScript payload — are owned by
 [Performance Standards § Initial Budgets and § Bundle Size](../standards/15-performance.md).
 This document does not restate them.
 
-Studio and Portal have higher budgets because they are authenticated apps and benefit from client-side state.
+Broader Studio/Portal client state remains Phase 06's separately admitted work.
+P03-3's bounded screens use native forms and request snapshots. Their
+[snapshot admission limit](../standards/07-frontend-architecture.md#native-entry-and-administration)
+bounds serialized data, not whole-process RAM; actual work cleanup releases
+capacity, not a logical timeout.
 
 P02d-7's always-running `public demo + lighthouse` job exercises nine seeded
 public pages under ADR-0056. Performance Standards owns its hard budgets and
@@ -457,6 +473,10 @@ owns real CI and required-check receipts.
   [Testing Standards § End-to-End Tests](../standards/06-testing.md#end-to-end-tests)
   names the owning phase.
 - Keyboard navigation and focus order are reviewed before any block ships.
+- P03-3 entry/switch/member/Role/profile screens require their own real browser
+  history and manual assistive-technology evidence under
+  [Accessibility Standards](../standards/16-accessibility.md#testing). Existing
+  public-page observations do not qualify those new authenticated flows.
 - Accepted P02d-6/G38(b,c)/G43 requires actual product HTML/DOM proofs and applicable
   jsx-a11y error rules with planted controls. Manual keyboard, focus, reflow/zoom,
   contrast and real screen-reader evidence for catalog → course → lesson names

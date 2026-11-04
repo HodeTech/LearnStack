@@ -1,25 +1,30 @@
 # Phase 03: Identity Domain, Authorization, and Admin Foundation
 
-> **Status (2026-10-28).** P03-0 and P03-1 are complete. P03-1 is merged through
-> [PR #38](https://github.com/HodeTech/LearnStack/pull/38); its six implementation
-> steps, review corrections and ADR-0075 correction are closed. The
-> [merge closeout](phase-03-delivery-log.md#p03-1-merge-and-closeout-2026-10-27)
-> distinguishes implementation-source A/B qualification from the final PR head's
-> successful protected checks and records the identical squash-merge file tree.
-> Phase 03 remains in progress; P03-2 implementation, both fresh review rounds per
-> step and complete hosted A/B qualification are closed. PR review remains pending.
-> Live Membership and permission enforcement are implemented; new-user HTTP/BFF
-> activation stays in P03-3. This remains the critical-path phase after
-> [Phase 02b](phase-02b-events-auth.md). The
-> [decision register](#the-decision-register) owns gate state; dated records live
-> in the [delivery log](phase-03-delivery-log.md).
+> **Status (2026-11-04).** P03-0, P03-1 and P03-2 are complete.
+> P03-1 ([PR #38](https://github.com/HodeTech/LearnStack/pull/38)) and
+> P03-2 ([PR #39](https://github.com/HodeTech/LearnStack/pull/39)) are merged.
+> P03-3 implementation and both independent review rounds are complete for
+> Steps 1–9 and Step 10's source corrections. Accepted ADR-0078–0092 govern the
+> native entry, administration, seed, framework ownership and CI changes; the
+> decision register below links their decisions and proof obligations.
+> ADR-0091's native inventory and [ADR-0092](../decisions/0092-sdk-completion-and-frontend-job-windows.md)
+> SDK settings are implemented. The [VM compatibility handoff](phase-03-delivery-log.md#p03-3-hosted-vm-compatibility-validation-and-corrective-ci-handoff-2026-11-04)
+> records the narrow standard-host signature correction, passing 23/41/106
+> offline controls and two fresh reviews.
+> [PR #40](https://github.com/HodeTech/LearnStack/pull/40) owns parallel product
+> review and current complete same-source hosted A/B/archive qualification.
+> Its proof record distinguishes local, hosted and manual evidence.
+> Failed/cancelled runs receive no qualification credit.
+> [Manual keyboard/focus/reflow/contrast/VoiceOver evidence](phase-03-delivery-log.md#p03-3-maintainer-approved-manual-deferral-and-step-10-continuation-2026-10-30)
+> remains maintainer-deferred and unexecuted for PR review.
+> Phase 03 remains the critical path; later packets have not started.
 >
 > | Packet | Title | State |
 > |---|---|---|
 > | P03-0 | Entry preparation | Complete — [reconciliation](phase-03-delivery-log.md#entry-preparation-2026-10-25) |
 > | P03-1 | Identity authority and membership foundation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-1-merge-and-closeout-2026-10-27) |
-> | P03-2 | Live membership and authorization | Implemented and qualified — [Step 6 closeout](phase-03-delivery-log.md#p03-2-step-6-qualification-and-review-handoff-2026-10-28); all six steps and review rounds closed; PR review pending |
-> | P03-3 | Protected Studio and membership administration | Not started |
+> | P03-2 | Live membership and authorization | Complete and merged — [closeout](phase-03-delivery-log.md#p03-2-merge-and-closeout-2026-10-28) |
+> | P03-3 | Protected Studio and membership administration | Implemented, in [PR #40](https://github.com/HodeTech/LearnStack/pull/40) review; current qualification tracked there |
 > | P03-4 | Invitations and bounded delivery | Not started |
 > | P03-5 | Custom fields and privacy classification | Not started |
 > | P03-6 | Provider event ingress and audit mirror | Not started |
@@ -126,12 +131,12 @@ named part, and the register links each explicit acceptance and vehicle.
 
 | Gate | Question | Existing boundary / required answer | First consumer | Vehicle | Status |
 |---|---|---|---|---|---|
-| G1 | Who establishes issuer + opaque `sub` → stable `UserId` and proves actor association before an accepted login? | Preserve seeded/provider IDs, reject substitution/email merging, name trusted pre-membership admission, first User-writer audit attribution, concurrency and cross-system reconciliation; self-registration alone grants no membership/session; new-user HTTP activation also requires provider registration and durable creation budgets | P03-1 storage/seed; P03-3 activation | Identity authority ADR; bounded ADR-0064/0070 disclosures if affected; Identity spec | Accepted foundation; P03-3 activation Open |
+| G1 | Who establishes issuer + opaque `sub` → stable `UserId` and proves actor association before an accepted login? | Preserve seeded/provider IDs, reject substitution/email merging, name trusted pre-membership admission, first User-writer audit attribution, concurrency and cross-system reconciliation; self-registration alone grants no membership/session; new-user HTTP activation also requires provider registration and durable creation budgets | P03-1 storage/seed; P03-3 activation | Identity authority ADR; bounded ADR-0064/0070 disclosures if affected; Identity spec | Accepted foundation and P03-3 activation contract — [ADR-0078/0079 package](phase-03-delivery-log.md#p03-3-maintainer-corrections-joint-acceptance-and-step-1-2026-10-28); P03-3 runtime qualification tracked in [PR #40](https://github.com/HodeTech/LearnStack/pull/40) |
 | G2 | How do membership and permission readers reach data before resolved tenant SQL exists, and how does authorized `app.scope` reach EF/RLS? | Exact principal, grants, candidate-scope owner and transaction/setter handoff; live authorization of rows 6/9; qualified rows 7/10/14 and distinct successful claim-only header-mismatch evidence outside host-tenant budgets | P03-1 contract; P03-2 execution | ADR-0036/0040 authority; Security/Database standards and closed-set tests | Accepted — 2026-10-27, [ADR-0076/0077 and package](phase-03-delivery-log.md#p03-2-joint-acceptance-and-step-1-2026-10-27); execution implemented and qualified in the [Step 6 closeout](phase-03-delivery-log.md#p03-2-step-6-qualification-and-review-handoff-2026-10-28) |
-| G3 | What are membership/profile/role-binding boundaries, nullable natural keys, lifecycle and global-user projections? | Decide active uniqueness, tenant/org grant composition, profile granularity, archive/reinvite and last-admin/org invariants, same-module composite FKs and Tenancy lifecycle contracts; no cross-module Organization FK/join | P03-1 | Identity module spec; ADR for aggregate/ownership changes; database class declaration | Accepted foundation and [ADR-0074 timing delta](../decisions/0074-membership-admission-under-ordered-locks.md); foundation and per-act lifecycle proofs implemented/reviewed in Step 4; archive/closure transition activation remains P03-3/10 |
-| G4 | How are active tenant/org claims issued per session, discovered and switched safely? | Current mappers use user-global attributes and ordinary BFF refresh preserves scope; decide storage implications first, then token reissue, callbacks/hosts, no-membership entry and switch/logout/refresh races | P03-1 implications; P03-3 transition | Provider/session ADR and applicable ADR-0070 disclosure; auth architecture | Accepted storage boundary; P03-3 transition Open |
-| G5 | What identifies a scoped permission, who may delegate it, and when do revocations take effect? | Reconcile disabled-default versus Tenant Admin seed expansion; decide registry shape, closed-role defaults, bootstrap/recovery, grant ceilings, last-admin concurrency, finite SystemActor permissions, anonymous Portal Public and API/UI freshness | P03-1 schema/bootstrap; P03-2 enforcement; P03-3 UI | ADR-0017/0064-derived permission contract; Standard 19 and module matrices | Accepted — 2026-10-27, [P03-2 enforcement contract](phase-03-delivery-log.md#p03-2-joint-acceptance-and-step-1-2026-10-27); enforcement implemented and qualified; P03-3 UI/delegation surfaces remain Open |
-| G6 | Which protected endpoint/application policies and native web/SDK operations are admitted? | Decide denial precedence/resource lookup first; then exact routes/methods, Origin/CSRF, input/deadline/no-store bounds, ETag/conflict, actor/scope-bound idempotent replay and cache cleanup; no generic proxy or Server Action implied | P03-2 policy ordering; P03-3 transport | API/BFF contract; ADR-0064/0070/0071 disclosures if affected; Standards 04/07 | Accepted — 2026-10-27, [policy/directory slice](phase-03-delivery-log.md#p03-2-joint-acceptance-and-step-1-2026-10-27); policy/directory slice implemented and qualified; P03-3 native/mutation/UI transport remains Open |
+| G3 | What are membership/profile/role-binding boundaries, nullable natural keys, lifecycle and global-user projections? | Decide active uniqueness, tenant/org grant composition, profile granularity, archive/reinvite and last-admin/org invariants, same-module composite FKs and Tenancy lifecycle contracts; no cross-module Organization FK/join | P03-1 | Identity module spec; ADR for aggregate/ownership changes; database class declaration | Accepted foundation and [ADR-0074 timing delta](../decisions/0074-membership-admission-under-ordered-locks.md); foundation and per-act lifecycle proofs implemented/reviewed in Step 4; P03-3 archive/default contract Accepted under ADR-0079 with P03-3 runtime qualification tracked in [PR #40](https://github.com/HodeTech/LearnStack/pull/40); global closure remains P03-10 |
+| G4 | How is application scope admitted per session, discovered and switched safely? | Current mappers use user-global attributes and ordinary BFF refresh preserves scope; decide storage implications first, then independent native scope, callbacks/hosts, no-membership entry and switch/logout/refresh races | P03-1 implications; P03-3 transition | Provider/session ADR and applicable ADR-0070 disclosure; auth architecture | Accepted storage boundary and P03-3 native transition contract — [ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md); P03-3 runtime qualification tracked in [PR #40](https://github.com/HodeTech/LearnStack/pull/40) |
+| G5 | What identifies a scoped permission, who may delegate it, and when do revocations take effect? | Reconcile disabled-default versus Tenant Admin seed expansion; decide registry shape, closed-role defaults, bootstrap/recovery, grant ceilings, last-admin concurrency, finite SystemActor permissions, anonymous Portal Public and API/UI freshness | P03-1 schema/bootstrap; P03-2 enforcement; P03-3 UI | ADR-0017/0064-derived permission contract; Standard 19 and module matrices | Accepted — 2026-10-27, [P03-2 enforcement contract](phase-03-delivery-log.md#p03-2-joint-acceptance-and-step-1-2026-10-27); enforcement implemented and qualified; P03-3 finite UI/delegation/adoption contract Accepted under ADR-0079; fixed-seed prerequisite source [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md) and separate origin-completion source [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md) Accepted 2026-10-29; their separate censuses remain required and runtime qualification is tracked in [PR #40](https://github.com/HodeTech/LearnStack/pull/40) |
+| G6 | Which protected endpoint/application policies and native web/SDK operations are admitted? | Decide denial precedence/resource lookup first; then exact routes/methods, Origin/CSRF, input/deadline/no-store bounds, ETag/conflict, actor/scope-bound idempotent replay and cache cleanup; no generic proxy or Server Action implied | P03-2 policy ordering; P03-3 transport | API/BFF contract; ADR-0064/0070/0071 disclosures if affected; Standards 04/07 | Accepted — 2026-10-27, [policy/directory slice](phase-03-delivery-log.md#p03-2-joint-acceptance-and-step-1-2026-10-27); policy/directory slice implemented and qualified; P03-3 native/mutation/UI transport contract Accepted under ADR-0078/0079; P03-3 runtime qualification tracked in [PR #40](https://github.com/HodeTech/LearnStack/pull/40) |
 | G7 | Who audits HTTP/application/resource denials and supplies trusted actor/request context? | One evidence owner per refusal, MUST sensitive reads, membership/role/platform/operator/route provenance, trusted IP and bounded user-agent; preserve refusal on audit failure; no generic ADR-0065 budget | P03-2 | ADR-0033/0044; Audit spec, enrichment port and matrices | Accepted — 2026-10-27, [ADR-0077 / P03-2 evidence](phase-03-delivery-log.md#p03-2-joint-acceptance-and-step-1-2026-10-27); runtime implemented and qualified; privileged population remains G13 Open |
 | G8 | What makes invitation acceptance and delivery authoritative and recoverable? | Verified current provider email, hashed single-use token, GET inspection only, explicit mutating act, current delegation, accept/revoke/expiry/resend races, aggregate atomicity and bounded delivery independent of Phase 08a | P03-1 only if shared aggregate shape changes; P03-4 writer | Invitation contract; ADR-0042 successor if an exception changes; phase package and delivery handoff | Open |
 | G9 | How do field definitions and values preserve schema/classification history? | Decide revision pins/active uniqueness, scalar-field compatibility with the existing admitted object profile, nested data, required/default/retire/reclassify/key-reuse behavior, consent and supported localized forms; no raw JSONB bypass | P03-5 before its schema | Customization/privacy contract; ADR-0043 disclosure or successor if needed; module specs | Open |
@@ -173,13 +178,15 @@ owns exact tables, keys, lifecycle and contained state:
 - `User` is the permanent global application binding under
   [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md), without an
   email/verification or unused global-profile mirror. P03-1 supplies fixed seed
-  adoption and existing-binding admission; new-user HTTP/BFF entry remains P03-3.
+  adoption and existing-binding admission; new-user HTTP/BFF entry follows the
+  [P03-3 native self-entry contract](../decisions/0078-native-session-scope-and-self-entry.md).
 - `Membership` is a contextual root with a stable ID, current null-safe natural
   uniqueness, a contained profile and assignments. Revoked memberships retire;
   rejoin creates a successor under
   [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md).
-- `MembershipProfile` holds contextual display name and locale preference. P03-3/G6
-  decides self/admin DTOs; P03-5/G9 owns dynamic fields and revision history.
+- `MembershipProfile` holds contextual display name and locale preference.
+  [ADR-0079](../decisions/0079-bounded-identity-administration.md) bounds self/admin
+  DTOs and edits; P03-5/G9 owns dynamic fields and revision history.
   No dormant contact/custom-field column or editable consent Boolean is admitted.
 - `Role` is a tenant-wide template with Tenant or Organization capability scope;
   assignments derive exact organization authority from Membership. Platform
@@ -246,7 +253,7 @@ the table it lives in and who may write it.
 | Global application binding and admission lifecycle | Identity under [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) | `users` and the deployment authority under the [Database contract](../standards/05-database.md#identity-storage-contract) | Admitted creation owner; global closure remains P03-10/G16 |
 | Canonical provider email/verification mirror, if selected | Provider source | No P03-1 mirror storage; P03-6/G10 or an earlier proven consumer decides fields/source/freshness | Its separately admitted mirror owner; never email-based identity merging |
 | Roles and permissions inside a tenant | Tenant | Membership/role bindings under G3/G5 | Admin within the decided delegation ceiling and scope |
-| Contextual display name and locale preference | Tenant / membership context | Contained `membership_profiles` under the [Identity contract](../modules/identity/README.md#lifecycle-profile-and-admission) | Closed seed owner; P03-3/G6 decides self/admin edits |
+| Contextual display name and locale preference | Tenant / membership context | Contained `membership_profiles` under the [Identity contract](../modules/identity/README.md#lifecycle-profile-and-admission) | Closed seed owner; bounded self/admin edits under [ADR-0079](../decisions/0079-bounded-identity-administration.md) |
 | Consent evidence | The person for the stated purpose | Append-only contract in [Data Protection](../architecture/23-data-protection.md#consent-management) | G3/G9 decide references and authorized capture; a profile edit cannot fabricate consent |
 | Tenant-defined custom fields | Tenant | P03-5/G9 decides revision-aware Membership values; no foundation column | P03-5/G9 decides authorized writers |
 | Learning behaviour (progress, attempts, attendance) | Tenant | per-module tenant-owned tables | The owning module |
@@ -411,11 +418,11 @@ wires LearnStack into that flow:
   from [Phase 02b](phase-02b-events-auth.md), including opaque HttpOnly cookies,
   on-demand refresh and local-first provider logout. Extend its membership and
   permission integration here rather than implementing session custody again.
-- Post-login membership lookup: resolve memberships for the authenticated user and
-  surface the active tenant via a host + claim cross-check.
-- G1 establishes required actor claims before the accepted callback needs them;
-  no first-login mirror relaxes the API profile. G4 decides discovery for zero or
-  multiple memberships and session-specific scope issuance. Editing a shared
+- Post-login membership lookup: resolve the verified person's current memberships
+  and admit native application scope against the real host under ADR-0078.
+- G1 associates verified issuer/sub with the stored actor; a provider actor claim
+  is optional consistency evidence. G4's Accepted native transition supplies
+  zero/multiple-membership discovery and independent session scope. Editing a shared
   provider user attribute is not evidence of independent A/B sessions: both must
   keep their own scope through real refresh. Switching preserves host-only cookie,
   callback/return allowlists and late-publication fences.
@@ -470,11 +477,10 @@ and provider token refresh alone cannot establish application permission freshne
   [Permissions Standards § Built-in Roles](../standards/19-permissions.md#built-in-roles).
   G5 supplies that anonymous capability model without requiring a stored membership
   or promoting `HostOnly` to protected authority.
-- **Lights up the [Phase 02a Packet 3](phase-02a-kernel-tenancy.md)
-  `AuthorizationBehavior` shell** — resolves each command's `[Authorize(Policy)]`,
-  calls `IAuthorizationService.AuthorizeAsync` against the tenant +
-  organization-scoped resource, and returns `Result.FailFor<TResponse>(forbidden)` on
-  deny, per
+- **Uses the live `AuthorizationBehavior`** — common Application evaluates each
+  exact request's operation-policy declaration through the module-owned
+  authorizer, with no ASP.NET dependency. HTTP policy and application/resource
+  checks independently default deny; expected denials return failed results, per
   [ADR-0032 § Sub-decision 2](../decisions/0032-exception-handling-logging-and-observability.md).
 
 - **Owns the `app.scope` carrier**, parked here by Phase 02a Packet 7. The
@@ -518,10 +524,12 @@ better error message, not the isolation boundary.
 
 ### Protected web and API operations
 
-The delivered authenticated caller accepts only `GET /api/v1/account/site`.
-P03-3 extends native credential custody through exact generated SDK operations
-under G6; the public caller stays anonymous. A generic proxy, browser bearer,
-Server Action or tenant/org selector is not admitted by adding an admin screen.
+The AccountSite caller remains limited to `GET /api/v1/account/site`.
+A separate closed native administration dispatcher uses the generated SDK
+operations defined by [ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md)
+and [ADR-0079](../decisions/0079-bounded-identity-administration.md). The public
+caller stays anonymous. A generic proxy, browser bearer, Server Action or
+browser-supplied tenant/org authority is not admitted by adding an admin screen.
 
 - Decide endpoint/application/resource policy ordering before activation. HTTP
   denials occur before the MediatR audit frame; G7 assigns their evidence owner.
@@ -800,13 +808,13 @@ Test-only endpoints, fake grants or empty scans do not establish shipped behavio
 
 | ID | Observable proof | Packet evidence |
 |---|---|---|
-| C01 | A real nonseed invitee obtains required actor claims and completes the permitted flow; concurrent first login and provider/DB retries preserve one mapping. Same-email/different-sub and conflicting/reserved actor values refuse; the four seed identities/credentials survive. | P03-1 internal foundation; P03-3 HTTP/native entry; P03-4 invitation path |
+| C01 | A real nonseed invitee obtains a stored actor association for its verified issuer/sub and completes the permitted flow without requiring a provider actor claim; concurrent first login and provider/DB retries preserve one mapping. Email-based merging and conflicting/reserved supplied actor values refuse; the four seed identities/credentials survive. | P03-1 internal foundation; P03-3 HTTP/native entry; P03-4 invitation path |
 | C02 | Tenant/org directory and profile reads expose only authorized members/fields, including a guessed foreign global UserId. NULL-org uniqueness, archive/revoke/reinvite and profile granularity follow G3 with database race controls. | P03-1–3, P03-5 |
 | C03 | Org/self/invite grant escalation fails; legitimate delegation and bootstrap work. Concurrent last-admin changes preserve the decided invariant; registry upgrades grant only the accepted defaults. API revocation meets its declared boundary and stale UI cannot mutate; SystemActor has finite permissions. | P03-1–3 |
 | C04 | Actual HTTP rejects an unclassified protected endpoint and an underprivileged valid principal before handler dispatch. Direct MediatR dispatch independently refuses; expected denials return `Result.Fail(forbidden)`. Explicit public reads remain anonymous. | P03-2 |
 | C05 | Real rows 7/10/14 succeed only with active membership. Protected rows 6/9 also enforce revocation. Successful claim-only header mismatch has its separately decided evidence. The role-derived tenant read hatch affects EF/RLS consistently and cannot widen org UPDATE/DELETE or be set from request input. | P03-2 |
-| C06 | Actual native/SDK member read/edit works with no browser bearer/raw profile. Wrong Origin/CSRF/provenance, forged scope, stale ETag and late old-session response refuse safely. Another actor or revoked actor cannot replay a sensitive idempotent response; paging/search and error states remain scoped. | P03-3 |
-| C07 | One person's simultaneous A/B provider/BFF sessions retain independent scope across refresh; tenant/org switching works only through the accepted reissue transition. Held old refresh, wrong destination or revoked target cannot publish; zero-membership entry has usable recovery. | P03-3 |
+| C06 | Actual native/SDK member read/edit works with no browser bearer/provider profile. Wrong Origin/CSRF/provenance, forged scope, stale ETag and late old-session response refuse safely. Another actor or revoked actor cannot replay a sensitive idempotent response; bounded cursor paging without search and error states remain scoped. | P03-3 |
+| C07 | One person's simultaneous A/B native sessions retain independent API-admitted application scope through real provider refresh; tenant/org switching uses only the Accepted native admission/owner-transfer transition. Held old refresh, wrong destination or revoked target cannot publish; zero-membership entry has usable recovery. Ordinary refresh adds no admission event; a different-subject live destination uses explicit recovery. | P03-3 |
 | C08 | New/existing invitee acceptance checks current trusted verified email and delegation. Wrong/unverified/changed email, wrong org, revoked/expired offer and accept/revoke/expiry/resend races produce one reconciled outcome. GET cannot grant; delivery failure is visible/recoverable, without duplicate grants or unsupported external exactly-once claims. | P03-4 |
 | C09 | Definition/value writes use actual admitted schemas and permitted targets; missing/invalid PII category and `Payment` refuse. Required/default/null, successor/retirement/reclassification/key reuse and sensitive-consent cases retain historical interpretation/exportability without orphaned values or raw write bypass. | P03-5 |
 | C10 | The actual `users` model has no tenant-authored/custom-fields column. The PII census has a planted missing subject; sensitive value/token/link canaries remain absent from logs, validation errors, Sentry/local archives and audit snapshots, with positive redaction controls for nested custom values. | P03-1, P03-5 |

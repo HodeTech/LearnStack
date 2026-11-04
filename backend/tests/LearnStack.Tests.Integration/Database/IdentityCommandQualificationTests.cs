@@ -53,9 +53,13 @@ public sealed class IdentityCommandQualificationTests(SchemaFixture schema, ITes
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
         await using (var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.MigrationConnectionString))
+        {
             await IdentityAuthorityDeploymentInstaller.InstallAsync(owner, Authority);
+            // Reuse the applied exact-signature/body/owner/ACL/trigger inspector;
+            // a numerical count alone cannot qualify the accepted eight definers.
+            (await GlobalIdentitySchemaTests.FunctionViolationsAsync(owner)).Should().BeEmpty();
+        }
         var original = await FunctionsAsync(database);
-        original.Definers.Length.Should().Be(5);
         // This twin retains every current coordinator, transaction, lock acquisition,
         // trigger and write. Only the heldness observation body changes. It is not a
         // security qualification or a reconstruction of any previously shipped code.
@@ -120,7 +124,9 @@ public sealed class IdentityCommandQualificationTests(SchemaFixture schema, ITes
             (restored.Definition == original.Definition && restored.Source == original.Source
                 && restored.Metadata == original.Metadata).Should().BeTrue("the exact observation function is restored");
             restored.Definers.SequenceEqual(original.Definers, StringComparer.Ordinal).Should().BeTrue(
-                "all five SECURITY DEFINER definitions, owners and ACLs remain exact");
+                "the complete accepted SECURITY DEFINER definitions, owners and ACLs remain exact");
+            await using var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.MigrationConnectionString);
+            (await GlobalIdentitySchemaTests.FunctionViolationsAsync(owner)).Should().BeEmpty();
         }
         // await using drops each isolated database, including on failed qualification.
     }
@@ -246,7 +252,7 @@ public sealed class IdentityCommandQualificationTests(SchemaFixture schema, ITes
         command.CommandText = """
             SELECT pg_get_functiondef(proc.oid),json_build_array(proc.proowner,proc.proacl)::text
             FROM pg_catalog.pg_proc proc JOIN pg_catalog.pg_namespace ns ON ns.oid=proc.pronamespace
-            WHERE ns.nspname='public' AND proc.proname LIKE 'fn_identity_%' AND proc.prosecdef
+            WHERE ns.nspname='public' AND proc.prosecdef
             ORDER BY proc.proname,pg_get_function_identity_arguments(proc.oid)
             """;
         var definers = new List<string>();

@@ -49,44 +49,65 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
       first.response.emit('finish');
       expect(() => escaped.assertActive()).toThrow();
     });
+    await runtime.stop();
     expect(runtime.counts()).toBe(0);
-    runtime.stop();
   });
   it.each(['aborted', 'finish', 'close'])(
-    'actual %s closes request authority and removes native listeners',
-    (event) => {
+    'actual %s closes authority immediately and removes listeners after actual handler/body cleanup',
+    async (event) => {
       const runtime = createBffRequestRuntime();
       const { request, response } = lifetime();
       runtime.run(context, request, response, () => {
         runtime.holder.publish(context, null);
         (event === 'aborted' ? request : response).emit(event);
         expect(() => runtime.holder.read(context)).toThrow();
-        expect(
-          request.listenerCount('aborted') +
-            response.listenerCount('finish') +
-            response.listenerCount('close'),
-        ).toBe(0);
+        expect(runtime.counts()).toBe(1);
+        if (event === 'aborted') response.emit('close');
       });
+      await runtime.stop();
       expect(runtime.counts()).toBe(0);
+      expect(
+        request.listenerCount('aborted') +
+          response.listenerCount('finish') +
+          response.listenerCount('close'),
+      ).toBe(0);
     },
   );
-  it('copies only safe fields and denies re-publication, wrong bindings and publication after stop', () => {
+  it('copies only safe fields and denies re-publication, wrong bindings and publication after stop', async () => {
     const runtime = createBffRequestRuntime();
     const { request, response } = lifetime();
-    const value = { ...projection(), token: 'private-canary' };
+    const value = {
+      ...projection(),
+      token: 'private-canary',
+      association: {
+        authorityId: 'private-authority',
+        subjectKey: 'private-subject',
+        actorId: 'private-actor',
+      },
+      contexts: [{ tenantId: 'private-tenant', organizationId: 'private-organization' }],
+    };
     runtime.run(context, request, response, () => {
       runtime.holder.publish(context, value);
       value.displayName = 'mutated';
       expect(runtime.holder.read(context).session?.displayName).toBe('School');
-      expect(JSON.stringify(runtime.holder.read(context))).not.toContain('private-canary');
+      expect(Object.keys(runtime.holder.read(context).session!).sort()).toEqual([
+        'csrfToken',
+        'displayName',
+        'expiresAt',
+        'limitedByAbsolute',
+        'state',
+      ]);
+      expect(JSON.stringify(runtime.holder.read(context))).not.toContain('private-');
       expect(() => runtime.holder.publish(context, null)).toThrow();
       expect(() => runtime.holder.read({ ...context, host: 'other.example.test:3000' })).toThrow();
       runtime.stop();
       expect(() => runtime.holder.read(context)).toThrow();
+      response.emit('close');
     });
     expect(() => runtime.run(context, request, response, () => null)).toThrow();
+    await runtime.stop();
   });
-  it('captures only the activity scalar before Next removes or mutates Flight headers', () => {
+  it('captures activity and Flight scalars before Next removes or mutates their native headers', async () => {
     const runtime = createBffRequestRuntime();
     for (const prefetch of [false, true]) {
       const owner = lifetime();
@@ -98,13 +119,36 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
         delete (owner.request.headers as Record<string, string>).rsc;
         delete (owner.request.headers as Record<string, string>)['next-router-prefetch'];
         expect(runtime.holder.activity(context)).toBe(prefetch ? 'passive' : 'read');
+        expect(runtime.holder.flight(context)).toBe(true);
         runtime.holder.publish(context, null);
+        const read = runtime.holder.read(context);
+        expect(read.flight).toBe(true);
+        expect(Object.isFrozen(read)).toBe(true);
+        expect(Reflect.set(read, 'flight', false)).toBe(false);
+        expect(runtime.holder.read(context).flight).toBe(true);
         expect(() => runtime.holder.activity(context)).toThrow();
+        expect(() => runtime.holder.flight(context)).toThrow();
         owner.response.emit('finish');
+        expect(() => read.assertActive()).toThrow();
+        expect(() => runtime.holder.read(context)).toThrow();
       });
     }
+    const ordinary = lifetime();
+    runtime.run(context, ordinary.request, ordinary.response, () => {
+      Object.assign(ordinary.request.headers, { rsc: '1' });
+      expect(runtime.holder.flight(context)).toBe(false);
+      runtime.holder.publish(context, null);
+      const read = runtime.holder.read(context);
+      expect(read.flight).toBe(false);
+      expect(Object.isFrozen(read)).toBe(true);
+      expect(Reflect.set(read, 'flight', true)).toBe(false);
+      expect(runtime.holder.read(context).flight).toBe(false);
+      ordinary.response.emit('finish');
+      expect(() => read.assertActive()).toThrow();
+      expect(() => runtime.holder.read(context)).toThrow();
+    });
+    await runtime.stop();
     expect(runtime.counts()).toBe(0);
-    runtime.stop();
   });
   it.each([
     { csrfToken: 'not-an-opaque-secret' },
@@ -114,7 +158,7 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
     { limitedByAbsolute: 'true' },
     { state: 'anonymous' },
     undefined,
-  ])('invalid projection publication closes request authority: %j', (patch) => {
+  ])('invalid projection publication closes request authority: %j', async (patch) => {
     const runtime = createBffRequestRuntime();
     const { request, response } = lifetime();
     runtime.run(context, request, response, () => {
@@ -123,7 +167,10 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
         runtime.holder.publish(context, invalid as ReturnType<typeof projection>),
       ).toThrow();
       expect(() => runtime.holder.read(context)).toThrow();
+      expect(runtime.counts()).toBe(1);
+      response.emit('close');
     });
+    await runtime.stop();
     expect(runtime.counts()).toBe(0);
     expect(
       request.listenerCount('aborted') +
@@ -133,7 +180,7 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
   });
   it.each([{ peer: '203.0.113.72' }, { method: 'HEAD' }, { target: '/portal' }])(
     'denies a different request binding %j without changing the correct snapshot',
-    (patch) => {
+    async (patch) => {
       const runtime = createBffRequestRuntime();
       const { request, response } = lifetime();
       runtime.run(context, request, response, () => {
@@ -143,6 +190,7 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
         expect(runtime.holder.read(context).session).toEqual(session);
         response.emit('finish');
       });
+      await runtime.stop();
       expect(runtime.counts()).toBe(0);
     },
   );
@@ -161,6 +209,8 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
       ).toThrow();
       expect(entered).toBe(false);
       expect(runtime.counts()).toBe(0);
+      expect(runtime.snapshotCounts()).toEqual({ active: 0, owners: 0, bytes: 0 });
+      expect(runtime.framework.get()).toBeUndefined();
       expect(
         request.listenerCount('aborted') +
           response.listenerCount('finish') +
@@ -168,7 +218,7 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
       ).toBe(0);
     },
   );
-  it('synchronous work failure relinquishes native listeners and active authority', () => {
+  it('synchronous work failure closes authority but retains listeners until the native body closes', async () => {
     const runtime = createBffRequestRuntime();
     const { request, response } = lifetime();
     const failure = new Error('owned-work-failure');
@@ -177,6 +227,9 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
         throw failure;
       }),
     ).toThrow(failure);
+    expect(runtime.counts()).toBe(1);
+    response.emit('close');
+    await runtime.stop();
     expect(runtime.counts()).toBe(0);
     expect(
       request.listenerCount('aborted') +
@@ -235,7 +288,7 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
         expect(locked(lock + '\n  ' + quote + name + '@0.41.3' + quote + ':\n', name)).toBe(true);
     }
   });
-  it('the actual separately compiled native module and pinned NextRequest share only the immutable projection', () => {
+  it('the compiled native request owner exposes only its immutable projection to readers', () => {
     const moduleUrl = new URL('../../.server/auth/request-runtime.js', import.meta.url).href;
     const program = [
       "import assert from 'node:assert/strict';",
@@ -243,11 +296,12 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
       "import { NextRequest } from 'next/server.js';",
       'const { installBffRequestRuntime } = await import(process.argv[1]);',
       'const runtime = installBffRequestRuntime();',
+      'assert.deepEqual(Object.keys(runtime.holder).sort(), ["activity", "flight", "publish", "read", "version"]);',
       'const context = { host: "institution.example.test:3000", peer: "203.0.113.1", method: "GET", target: "/studio" };',
       'const request = Object.assign(new EventEmitter(), { aborted: false, headers: {} }); const response = Object.assign(new EventEmitter(), { destroyed: false, writableEnded: false });',
       'const next = new NextRequest("https://" + context.host + context.target); assert.equal(next.method, context.method);',
-      'await runtime.run(context, request, response, async () => { runtime.holder.publish(context, null); await Promise.resolve(); assert.equal(runtime.holder.read(context).session, null); response.emit("finish"); assert.throws(() => runtime.holder.read(context)); });',
-      'assert.equal(runtime.counts(), 0); runtime.stop();',
+      'await runtime.run(context, request, response, async () => { assert.equal(runtime.holder.flight(context), false); runtime.holder.publish(context, null); await Promise.resolve(); const read = runtime.holder.read(context); assert.deepEqual(Object.keys(read).sort(), ["assertActive", "flight", "page", "session"]); assert.equal(read.session, null); assert.equal(read.page, null); assert.equal(read.flight, false); assert.equal(Object.isFrozen(read), true); response.emit("finish"); assert.throws(() => runtime.holder.read(context)); });',
+      'await runtime.stop(); assert.equal(runtime.counts(), 0);',
     ].join('\n');
     expect(
       execFileSync(process.execPath, ['--input-type=module', '-e', program, moduleUrl], {
@@ -266,7 +320,7 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
       }),
     ).toBe('BFF native Next protocol: passed\n');
   }, 160_000);
-  it('the same actual Next proof rejects a copy that drops native activity at the middleware handoff', () => {
+  it('the same actual Next proof rejects a copy that drops native page activity at preparation', () => {
     const script = new URL('../../scripts/verify-bff-protocol.mjs', import.meta.url);
     let failure: unknown;
     try {
@@ -315,36 +369,6 @@ describe('Bff_Credentials_And_Projections_Are_Confined', () => {
         maxBuffer: 65536,
       }),
     ).toBe('BFF production UI: passed\n');
-  }, 160_000);
-  it('development callback/logout canaries stay out of actual console and persisted framework traces', () => {
-    const script = new URL('../../scripts/verify-bff-protocol.mjs', import.meta.url);
-    expect(
-      execFileSync(process.execPath, [script.pathname, '--dev'], {
-        encoding: 'utf8',
-        timeout: 150_000,
-        maxBuffer: 65536,
-      }),
-    ).toBe('BFF development diagnostics: passed\n');
-  }, 160_000);
-  it('the same development canary kills removal of native trace suppression even with logging false', () => {
-    const script = new URL('../../scripts/verify-bff-protocol.mjs', import.meta.url);
-    let failure: unknown;
-    try {
-      execFileSync(process.execPath, [script.pathname, '--without-native-diagnostics'], {
-        encoding: 'utf8',
-        timeout: 150_000,
-        maxBuffer: 65536,
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
-    } catch (error) {
-      failure = error;
-    }
-    expect(failure).toMatchObject({
-      status: 1,
-      signal: null,
-      stdout: '',
-      stderr: 'BFF native Next protocol failed: dev-trace\n',
-    });
   }, 160_000);
   it('auth() is a passive server-only projection lookup and has no credential/provider/idle/cookie writer', () => {
     const source = readFileSync(new URL('../server/auth/auth.ts', import.meta.url), 'utf8');

@@ -2,6 +2,7 @@ using FluentAssertions;
 using LearnStack.Infrastructure.Messaging;
 using LearnStack.SharedKernel.Messaging;
 using Mono.Cecil;
+using Mono.Cecil.Cil;
 using Xunit;
 
 namespace LearnStack.Tests.Architecture;
@@ -40,7 +41,7 @@ public sealed class OutboxProducerConventionTests
             "Fix: an inherited IOutbox implementation must remain in the production census");
         foreach (var probe in new[] { typeof(ConnectionProbe), typeof(CommitProbe), typeof(PublishProbe),
                      typeof(InterfaceProbe), typeof(AsyncProbe), typeof(LocatorProbe),
-                     typeof(AbstractDispatchProbe), typeof(VirtualDispatchProbe) })
+                     typeof(AbstractDispatchProbe), typeof(VirtualDispatchProbe), typeof(DelegateProbe) })
         {
             Offenders([module.GetType(probe.FullName!.Replace('+', '/'))], types).Should().NotBeEmpty(
                 $"Fix: the same producer walk must reject {probe.Name}");
@@ -113,6 +114,7 @@ public sealed class OutboxProducerConventionTests
         var visited = new HashSet<(string Assembly, string Type)>();
         var offenders = new SortedSet<string>(StringComparer.Ordinal);
         var queue = new Queue<TypeDefinition>(roots);
+        var borrowedWriteGuard = BorrowedUnitWriteGuard(types);
         while (queue.TryDequeue(out var type))
         {
             if (!visited.Add(Key(type))) continue;
@@ -120,6 +122,7 @@ public sealed class OutboxProducerConventionTests
             {
                 if (ForbiddenCapability(reference.FullName)) offenders.Add(type.FullName + " -> " + reference.FullName);
                 if (reference.FullName == "LearnStack.SharedKernel.Persistence.IUnitOfWork") continue;
+                if (borrowedWriteGuard && Key(reference) == ("LearnStack.SharedKernel", WriteGuardType)) continue;
                 if (!types.TryGetValue(Key(reference), out var helper)) continue;
                 queue.Enqueue(helper);
                 if (!helper.IsSealed)
@@ -146,6 +149,133 @@ public sealed class OutboxProducerConventionTests
             }
         }
         return offenders;
+    }
+
+    private const string WriteGuardType = "LearnStack.SharedKernel.Persistence.IUnitOfWorkWriteGuard";
+    private const string UnitType = "LearnStack.Infrastructure.Persistence.NpgsqlUnitOfWork";
+    private const string JobOwnerType = "LearnStack.SharedKernel.Jobs.JobApplicationSourceOwner";
+
+    // Borrowing the unit's denial-only port must not traverse its unrelated commit,
+    // resolver and connection ownership. This boundary exists only while the complete
+    // production census has this one implementation and its exact guard closure is pure.
+    private static bool BorrowedUnitWriteGuard(Dictionary<(string Assembly, string Type), TypeDefinition> types)
+    {
+        if (!types.TryGetValue(("LearnStack.SharedKernel", WriteGuardType), out var contract)
+            || !types.TryGetValue(("LearnStack.Infrastructure", UnitType), out var unit)
+            || !types.TryGetValue(("LearnStack.SharedKernel", JobOwnerType), out var job)
+            || !contract.IsInterface || contract.Interfaces.Count != 0 || contract.Fields.Count != 0
+            || contract.Methods.Count != 1 || contract.Methods[0] is not
+            { Name: "RequireWriteAllowed", IsAbstract: true, Parameters.Count: 0, ReturnType.FullName: "System.Void" }
+            || !unit.IsSealed) return false;
+        var implementations = types.Values.Where(type => !type.IsInterface && Implements(type, contract, types)).ToArray();
+        if (implementations.Length != 1 || implementations[0] != unit) return false;
+        MethodDefinition? Method(TypeDefinition owner, string name) => owner.Methods.SingleOrDefault(method => method.Name == name);
+        var guard = Method(unit, "RequireWriteAllowed");
+        var refuse = Method(unit, "RefuseFixedSeedRead");
+        var poison = Method(unit, "PoisonFixedSeedRead");
+        var external = Method(job, "RefuseExternalEntry");
+        var isExternal = Method(job, "get_IsExternal");
+        var refused = Method(job, "Refused");
+        var initialize = Method(job, ".cctor");
+        if (guard is not { IsPublic: true, IsStatic: false, Parameters.Count: 0, ReturnType.FullName: "System.Void" }
+            || refuse is not { IsPrivate: true, IsStatic: false, Parameters.Count: 0, ReturnType.FullName: "System.Void" }
+            || poison is not { IsPrivate: true, IsStatic: false, Parameters.Count: 0, ReturnType.FullName: "System.Void" }) return false;
+        return GuardBody(guard,
+                [(Code.Call, JobOwnerType, "RefuseExternalEntry", 0), (Code.Call, "System.ObjectDisposedException", "ThrowIf", 2),
+                    (Code.Call, UnitType, "RefuseFixedSeedRead", 0)],
+                [(Code.Ldfld, UnitType, "_disposed"), (Code.Ldfld, UnitType, "_seedReadState")])
+            && GuardBody(refuse,
+                [(Code.Call, UnitType, "PoisonFixedSeedRead", 0), (Code.Newobj, "System.InvalidOperationException", ".ctor", 1)], [])
+            && GuardBody(poison, [], [(Code.Stfld, UnitType, "_seedReadState"), (Code.Stfld, UnitType, "_rollbackOnly"),
+                (Code.Stfld, UnitType, "_tenantContextIssued"), (Code.Stfld, UnitType, "_tenantContextAnnouncement")])
+            && GuardBody(external, [(Code.Call, JobOwnerType, "get_IsExternal", 0), (Code.Call, JobOwnerType, "Refused", 0)], [])
+            && GuardBody(isExternal, [(Code.Callvirt, "System.Threading.AsyncLocal`1<System.Object>", "get_Value", 0)],
+                [(Code.Ldsfld, JobOwnerType, "External")])
+            && GuardBody(refused, [(Code.Newobj, "System.InvalidOperationException", ".ctor", 1)], [])
+            && GuardBody(initialize,
+                [(Code.Newobj, "System.Threading.AsyncLocal`1<" + JobOwnerType + "/Binding>", ".ctor", 0),
+                    (Code.Newobj, "System.Threading.AsyncLocal`1<System.Object>", ".ctor", 0)],
+                [(Code.Stsfld, JobOwnerType, "Ambient"), (Code.Stsfld, JobOwnerType, "External")]);
+    }
+
+    private static bool GuardBody(MethodDefinition? method,
+        (Code Opcode, string Owner, string Name, int Parameters)[] expectedCalls,
+        (Code Opcode, string Owner, string Name)[] expectedFields)
+    {
+        if (method is not { HasBody: true } || method.Body.ExceptionHandlers.Count != 0
+            || method.Body.Variables.Any(local => local.VariableType.FullName is not
+                ("System.Boolean" or "System.Int32" or "System.InvalidOperationException"))) return false;
+        var instructions = method.Body.Instructions;
+        var calls = instructions.Where(instruction => instruction.Operand is MethodReference).Select(instruction =>
+        {
+            var call = (MethodReference)instruction.Operand;
+            return (instruction.OpCode.Code, call.DeclaringType.FullName, call.Name, call.Parameters.Count);
+        }).ToArray();
+        var fields = instructions.Where(instruction => instruction.Operand is FieldReference).Select(instruction =>
+        {
+            var field = (FieldReference)instruction.Operand;
+            return (instruction.OpCode.Code, field.DeclaringType.FullName, field.Name);
+        }).ToArray();
+        if (!calls.OrderBy(value => value.ToString(), StringComparer.Ordinal).SequenceEqual(expectedCalls.OrderBy(value => value.ToString(), StringComparer.Ordinal))
+            || !fields.OrderBy(value => value.ToString(), StringComparer.Ordinal).SequenceEqual(expectedFields.OrderBy(value => value.ToString(), StringComparer.Ordinal))) return false;
+        // This includes unreachable instructions: an unused unknown helper, indirect
+        // call or delegate acquisition cannot hide behind a legitimate guard name.
+        return instructions.All(instruction => instruction.OpCode.Code is Code.Nop or Code.Ret or Code.Call or Code.Callvirt or Code.Newobj
+            or Code.Ldarg_0 or Code.Ldstr or Code.Ldnull or Code.Ldc_I4 or Code.Ldc_I4_S or Code.Ldc_I4_0 or Code.Ldc_I4_1
+            or Code.Ldc_I4_2 or Code.Ldc_I4_3 or Code.Ldc_I4_4 or Code.Ldc_I4_5 or Code.Ldc_I4_6 or Code.Ldc_I4_7 or Code.Ldc_I4_8
+            or Code.Ldfld or Code.Stfld or Code.Ldsfld or Code.Stsfld or Code.Throw or Code.Dup or Code.Pop
+            or Code.Ceq or Code.Cgt_Un or Code.Br or Code.Br_S or Code.Brtrue or Code.Brtrue_S or Code.Brfalse or Code.Brfalse_S
+            or Code.Beq or Code.Beq_S or Code.Bne_Un or Code.Bne_Un_S
+            or Code.Ldloc or Code.Ldloc_S or Code.Ldloc_0 or Code.Ldloc_1 or Code.Ldloc_2 or Code.Ldloc_3
+            or Code.Stloc or Code.Stloc_S or Code.Stloc_0 or Code.Stloc_1 or Code.Stloc_2 or Code.Stloc_3);
+    }
+
+    [Fact]
+    public void Borrowed_write_guard_boundary_checks_its_implementation_and_every_denial_helper()
+    {
+        var modules = ReadProductionModules();
+        try
+        {
+            var types = TypeMap(modules);
+            var unit = types[("LearnStack.Infrastructure", UnitType)];
+            var job = types[("LearnStack.SharedKernel", JobOwnerType)];
+            var root = types[("LearnStack.Infrastructure", typeof(PostgresOutbox).FullName!)];
+            void Dirty()
+            {
+                BorrowedUnitWriteGuard(types).Should().BeFalse();
+                Offenders([root], types).Should().NotBeEmpty();
+            }
+            BorrowedUnitWriteGuard(types).Should().BeTrue();
+            var helpers = unit.Methods.Where(method => method.Name is "RequireWriteAllowed" or "RefuseFixedSeedRead" or "PoisonFixedSeedRead")
+                .Concat(job.Methods.Where(method => method.Name is "RefuseExternalEntry" or "get_IsExternal" or "Refused" or ".cctor"));
+            foreach (var helper in helpers)
+            {
+                var acquisition = Instruction.Create(OpCodes.Newobj, helper.Module.ImportReference(typeof(Npgsql.NpgsqlConnection).GetConstructor(Type.EmptyTypes)!));
+                helper.Body.Instructions.Add(acquisition);
+                try { Dirty(); } finally { helper.Body.Instructions.Remove(acquisition); }
+            }
+            var guard = unit.Methods.Single(method => method.Name == "RequireWriteAllowed");
+            var unknownHelper = new MethodDefinition("ReviewUnknownGuardHelper", MethodAttributes.Private, unit.Module.TypeSystem.Void);
+            unknownHelper.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+            unit.Methods.Add(unknownHelper);
+            var unusedCall = Instruction.Create(OpCodes.Call, unknownHelper);
+            guard.Body.Instructions.Add(unusedCall);
+            try { Dirty(); }
+            finally { guard.Body.Instructions.Remove(unusedCall); unit.Methods.Remove(unknownHelper); }
+            var other = new TypeDefinition("ReviewProbe", "OtherWriteGuard", TypeAttributes.Public | TypeAttributes.Class | TypeAttributes.Sealed,
+                unit.Module.TypeSystem.Object);
+            other.Interfaces.Add(new InterfaceImplementation(unit.Module.ImportReference(types[("LearnStack.SharedKernel", WriteGuardType)])));
+            unit.Module.Types.Add(other);
+            types.Add(Key(other), other);
+            try { Dirty(); }
+            finally { types.Remove(Key(other)); unit.Module.Types.Remove(other); }
+            BorrowedUnitWriteGuard(types).Should().BeTrue();
+            Offenders([root], types).Should().BeEmpty("removing malicious guard changes restores the borrowed denial boundary");
+        }
+        finally
+        {
+            foreach (var module in modules) module.Dispose();
+        }
     }
 
     private static bool Implements(TypeDefinition candidate, TypeDefinition contract,
@@ -207,6 +337,10 @@ public sealed class OutboxProducerConventionTests
     private sealed class AsyncProbe
     {
         public static async Task Run() { await Task.Yield(); ConnectionProbe.Run(); }
+    }
+    private sealed class DelegateProbe
+    {
+        public static void Run() { Action acquire = ConnectionProbe.Run; acquire(); }
     }
     private sealed class LocatorProbe(IServiceProvider provider)
     {

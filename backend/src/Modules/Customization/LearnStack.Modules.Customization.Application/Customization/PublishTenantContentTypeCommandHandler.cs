@@ -1,3 +1,4 @@
+using LearnStack.Modules.Customization.Application.Seeding;
 using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Customization.Application.Contracts.Customization;
 using LearnStack.Modules.Customization.Domain;
@@ -44,7 +45,8 @@ internal sealed class PublishTenantContentTypeCommandHandler(
     IUnitOfWork unitOfWork,
     ITenantContext tenantContext,
     IAuditSubject auditSubject,
-    IClock clock)
+    IClock clock,
+    ISeedCustomizationWriteGuard seedGuard)
     : IRequestHandler<PublishTenantContentTypeCommand, Result<TenantContentTypeDto>>
 {
     public async Task<Result<TenantContentTypeDto>> Handle(
@@ -56,6 +58,8 @@ internal sealed class PublishTenantContentTypeCommandHandler(
         {
             return CustomizationFailures.Unresolved<TenantContentTypeDto>();
         }
+
+        if (!await seedGuard.PrepareAsync(request, cancellationToken)) return Result<TenantContentTypeDto>.Fail(seedGuard.Failure);
 
         var successor = await contentTypes.FindAsync(TenantContentTypeId.From(request.ContentTypeId), cancellationToken);
 
@@ -116,6 +120,7 @@ internal sealed class PublishTenantContentTypeCommandHandler(
             }
         }
 
+        if (!seedGuard.IsCurrent(request)) return CustomizationFailures.BusinessRule<TenantContentTypeDto>("Seed", "lockey_business_rule_violation");
         successor.Publish(clock, actor);
 
         try

@@ -75,11 +75,12 @@ for identity, membership and authorization work; the
 
 | Area | Delivered now | Next milestone |
 |---|---|---|
-| **Tenancy** | Tenant provisioning, organizations, locales, typed settings/branding reads, host resolution and database isolation | User membership and permissions in [Phase 03](docs/roadmap/phase-03-identity-admin.md) |
+| **Tenancy** | Tenant provisioning, organizations, locales, typed settings/branding reads, host resolution and database isolation | Organization management endpoints in [Phase 03](docs/roadmap/phase-03-identity-admin.md) |
+| **Identity** | Global User binding, contextual Membership/Profile/Role foundations, live scoped authorization, bounded member directory and trusted denial evidence | Protected administration, new-user entry and validated scope switching in [Phase 03](docs/roadmap/phase-03-identity-admin.md) |
 | **Customization** | Content types, level taxonomies, exact-definition and generation-cached batched display readers, text-card metadata validation, create-only provisioning defaults and semantic built-in seed verification | Remaining authoring capabilities across [Phases 04–08a](docs/roadmap/README.md) |
 | **Audit** | Classified write path and transactional durability for business changes | Operational hardening in [Phase 11](docs/roadmap/phase-11-production-hardening.md) |
 | **Education** | Course and Lesson aggregates, translations, protected-content policy, scoped authoring commands, complete demo seeds and isolated public GET/HEAD reads | Full versioned curriculum in [Phase 05](docs/roadmap/phase-05-education-learning-content.md) |
-| **API foundation** | Error contracts, validation, tenancy, concurrency, observability, durable events/subscriber delivery, background jobs, the closed tenant bearer/AccountSite boundary and development realm reconciliation | Membership and permissions in [Phase 03](docs/roadmap/phase-03-identity-admin.md); current exit state in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
+| **API foundation** | Error contracts, validation, tenancy, concurrency, observability, durable events/subscriber delivery, background jobs, the closed tenant bearer/AccountSite boundary and development realm reconciliation | Protected native administration operations in [Phase 03](docs/roadmap/phase-03-identity-admin.md); current exit state in [Phase 02b](docs/roadmap/phase-02b-events-auth.md) |
 | **Frontend** | Native TLS ingress, live locale entry, trusted server caller, localized catalog/course/lesson pages, safe themes, accessibility controls/manual smoke, generated typed SDK and optional bounded native BFF session scaffolds | Full renderer/Studio and Playwright Test/axe in [Phase 06](docs/roadmap/phase-06-renderer-admin-studio.md) |
 
 **Five modules contain domain implementations:** Tenancy, Customization, Audit,
@@ -109,8 +110,12 @@ Use Docker with **Compose V2**, Git, Make, Bash, Python 3, curl and OpenSSL
 | Tool | Repository requirement |
 |---|---|
 | .NET SDK | `10.0.112` with the roll-forward policy in [backend/global.json](backend/global.json) |
-| Node.js | `>=22.23.1`, as declared in [frontend/package.json](frontend/package.json) |
+| Node.js | Exactly `22.23.1` under [ADR-0083](docs/decisions/0083-owned-next-response-compression-cleanup.md) |
 | pnpm | `9.12.3`, pinned in [frontend/package.json](frontend/package.json) |
+
+ADR-0083 requires the exact Node/pnpm toolchain. Executable enforcement and
+installed/generated framework verification are implementation obligations;
+[Phase 03](docs/roadmap/phase-03-identity-admin.md) owns their delivery state.
 
 ### 2. Bootstrap from the repository root
 
@@ -151,12 +156,13 @@ Run its trust step yourself, then create the local leaf certificate:
 mkcert -install
 mkdir -p .data/tls
 mkcert -cert-file .data/tls/public.pem -key-file .data/tls/public-key.pem \
-  localhost demo-english.learnstack.local demo-yoga.learnstack.local
+  localhost demo-english.learnstack.local demo-yoga.learnstack.local \
+  manage.demo-english.learnstack.local manage.demo-yoga.learnstack.local
 ```
 
-Manually map the two seeded names to `127.0.0.1` in your hosts file. Repository
-commands never edit that file or install trust. Keep the CA private key local;
-only the ignored leaf/key paths belong in `.env`.
+Manually map the four public and management names listed above to `127.0.0.1` in
+your hosts file. Repository commands never edit that file or install trust. Keep
+the CA private key local; only the ignored leaf/key paths belong in `.env`.
 
 ```bash
 make demo

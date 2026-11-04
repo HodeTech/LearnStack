@@ -60,7 +60,7 @@ class Budget:
         require(remaining > 0, 'deadline_exhausted')
         return min(remaining, self.command_timeout)
 
-    def command(self, argv, reason, *, write=False):
+    def command(self, argv, reason, *, write=False, classify=False):
         # No inherited Docker/Git configuration, shell, provider stderr or raw
         # collector output can escape through subprocess diagnostics.
         try:
@@ -73,10 +73,13 @@ class Budget:
                 env={'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8', 'LC_ALL': 'C.UTF-8',
                      'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': '/dev/null'},
             )
-        except (OSError, subprocess.TimeoutExpired):
-            raise Refusal(reason) from None
+        except subprocess.TimeoutExpired:
+            raise Refusal(reason + '_timeout' if classify else reason) from None
+        except OSError:
+            raise Refusal(reason + '_os_error' if classify else reason) from None
         self.remaining()
-        require(write or len(result.stdout) <= 16384, reason)
+        require(write or len(result.stdout) <= 16384,
+                reason + '_output_bound' if classify else reason)
         return result.returncode, b'' if write else result.stdout
 
     def read(self, path, reason, limit=4096):
@@ -197,9 +200,11 @@ def qualify_runtime(budget, workspace, *, docker=True):
                               re.IGNORECASE), 'container_detected')
     status, value = budget.command([VIRT, '--container'], 'container_evidence_unreadable')
     require(status == 1 and value == b'none\n', 'container_detected')
-    status, value = budget.command([VIRT, '--vm'], 'vm_evidence_missing')
-    require(status == 0 and value in (b'microsoft\n', b'kvm\n', b'qemu\n'),
-            'vm_evidence_missing')
+    # Only this fixed probe emits finite failure classes, never provider bytes.
+    status, value = budget.command([VIRT, '--vm'], 'vm_evidence_missing', classify=True)
+    require(status == 0, 'vm_evidence_missing_exit')
+    require(value in (b'microsoft\n', b'kvm\n', b'qemu\n', b'amazon\n'),
+            'vm_evidence_missing_shape')
     vm = value.decode('ascii').strip()
     if docker:
         status, value = budget.command(

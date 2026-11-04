@@ -28,6 +28,13 @@ P02d-4 is complete and merged through
 [PR #25](https://github.com/HodeTech/LearnStack/pull/25) on 2026-10-08; its
 [merge closeout](../../roadmap/phase-02d-delivery-log.md#p02d-4-merge-and-closeout-2026-10-08)
 records final verification. The diagram includes the access column.
+The fixed-seed continuation extension derives from
+[ADR-0080](../../decisions/0080-fixed-seed-prerequisite-read-scope.md); its new
+guards and race proofs remain governed by the
+[Phase 03 Status block](../../roadmap/phase-03-identity-admin.md).
+The separate fixed-origin completion contract derives from Accepted
+[ADR-0081](../../decisions/0081-fixed-seed-completion-before-origin-adoption.md);
+acceptance does not qualify its owning readers or completion proofs.
 
 ## Overview
 
@@ -259,6 +266,27 @@ including exact ownership/content/state and current root version where needed.
 They are explicitly audit Off, unrouted, without unresolved/public admission and
 never bypass RLS. The phase's convergence rules govern skip/create/verify behavior;
 they are not a weaker alternate write path.
+
+All six fixed Course/Lesson create, translation-append and publish writers obey
+the [ordinary-scope per-write contract](../../standards/05-database.md#every-tenant-bound-seed-write).
+Module-local guards bind the exact active fixed declaration, acquire an exclusive
+Tenant fence before applicable parent/target row locks, then freshly verify
+pristine Tenancy prerequisites, absence of all retained Identity Role history
+and exact retained target/predecessor state, natural keys, expected versions and
+immutable authored pins. Reads use owning Application.Contracts ports on that
+same owner; pre-wait tracked objects are not evidence. These writers use no
+temporary seed hatch. Standard 05 owns the admitted immutable-content proof,
+its cross-branch limits and the Phase 06 reopening requirement.
+
+The distinct [fixed-origin completion operation](../../standards/05-database.md#fixed-seed-completion-read-authority)
+uses a closed Education Application.Contracts reader on the same prepared
+adoption owner. Inside its temporary read hatch, it checks every declared
+Course/Lesson across the original organizations: exact root/parent/scope/natural
+keys, immutable definition/translation pins, required children and completed
+publication state. Immutable payloads stay internal; only admission/refusal
+returns after narrow restoration. This is not a new Education writer, public
+projection or pristine-read consumer. Standard 05 owns source/lifetime and
+completion rules; Phase 06 reopens the proof before mutable content administration.
 
 ## Components and primary read flow
 

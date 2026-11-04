@@ -6,7 +6,7 @@ set -eu -o pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
-if [[ $# -gt 1 || ($# -eq 1 && "$1" != "--validate-config") ]]; then
+if [[ $# -gt 1 || ($# -eq 1 && "$1" != "--validate-config" && "$1" != "--adopt-admin-origins") ]]; then
     echo "seed: unsupported arguments." >&2
     exit 2
 fi
@@ -31,7 +31,7 @@ for _dep in docker dotnet; do
 done
 # The Node owner confines stack/migration prerequisites, supplies only the app
 # credential to the fresh Release DLL, and joins its commands on failure.
-node scripts/seed.mjs
+node scripts/seed.mjs "$@"
 
 cat <<'HOSTS'
 

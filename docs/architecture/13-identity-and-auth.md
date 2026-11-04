@@ -105,7 +105,7 @@ The cost is one more service to operate. That is acceptable: self-hosted infrast
 | Roles, permissions inside a tenant | no | yes |
 | Invitations | no | yes |
 | Audit log of identity events | yes (own) | yes (mirrored for cross-events) |
-| Contextual profile | provider-owned account fields | MembershipProfile/storage/seed implemented under ADR-0073; live administration remains P03-2/3, dynamic values P03-5 |
+| Contextual profile | provider-owned account fields | MembershipProfile/storage/seed implemented under ADR-0073; ADR-0079 defines bounded live administration, dynamic values remain P03-5 |
 
 The split keeps Keycloak focused on authentication (knowing who you are) and LearnStack focused on authorisation and domain context (what you can do in which tenant).
 
@@ -130,15 +130,16 @@ Role templates. Roles confer capability only through eligible assignments.
 
 Two realm strategies were considered:
 
-- **Single tenant realm, scalar active scope** (chosen). The `learnstack` realm
-  is the required issuer. The shipped P02b-5/P02b-6 profile requires opaque `sub`
-  and UUID `user_id`, with optional scalar UUID `tenant_id` / `organization_id`.
-  Accepted ADR-0072 makes API `user_id` optional at the verified-provider stage,
-  resolving the stored actor before normal identity admission. The complete native
-  BFF profile still requires actor/tenant and its AccountSite witness. It carries
-  no authoritative membership array or application-role grant. P02b-6 supplies
-  admin-controlled attributes/mappers and real issuance proof; the committed realm
-  export issues that profile. Phase 03 owns live memberships.
+- **Single tenant realm, separate application scope** (chosen). The `learnstack`
+  realm is the required issuer. ADR-0072 makes API `user_id` optional consistency
+  evidence, resolving the stored actor before ordinary identity admission. The
+  delivered P02b-5/P02b-6 API profile accepts optional scalar tenant/organization
+  claims; the delivered BFF profile additionally requires actor/tenant and
+  AccountSite. Accepted ADR-0078 defines tenantless native web issuance and an
+  independently authenticated server-owned scope candidate, confirmed by actual
+  host and live Membership/lifecycle. It preserves the legacy API claim profile;
+  provider identity and application scope remain separate. Neither profile carries
+  an authoritative membership array or application-role grant.
 - **Realm-per-tenant**. Cleaner isolation, but a user with memberships in multiple tenants needs separate accounts; user discovery and SSO get more complex.
 
 The single tenant realm matches the global-user, tenant-scoped membership model.
@@ -161,15 +162,18 @@ with the existing uniform 401; no lookup allocates, adopts or repairs a User.
 Anonymous reads perform no identity lookup. This adds a binding-store dependency
 to authenticated admission, separately from provider-key caching.
 
-P03-1 admits fixed witnessed seed creation/adoption and existing-session binding
-only. It adds no POST, SDK operation or native no-session completion. P03-3 owns
-new-user HTTP/BFF entry and independently validated orgless/branch reissue. The
-shipped complete native profile and AccountSite host ceiling remain; optional API
-actor evidence does not publish a tenantless native session. The
+P03-1 delivers fixed witnessed seed creation/adoption and existing-session binding
+only. Accepted [ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md)
+adds bounded global-self entry and independently confirmed native orgless/branch
+selection; [ADR-0079](../decisions/0079-bounded-identity-administration.md) adds
+bounded administration. These are Accepted contracts, with activation and proof
+recorded only in the phase Status block. A created actor still supplies no
+Membership or tenant session. The
 [live authorization contract](../standards/11-security.md#live-authorization-contract)
-owns G2 execution. G4 scope transitions remain P03-3; current provider user-global
-attributes do not prove independent simultaneous session scopes. Ordinary
-refresh remains scope-preserving until that bounded transition contract ships.
+owns G2 execution. Provider user-global attributes do not prove independent
+simultaneous session scopes. The
+[native admission contract](../standards/11-security.md#native-scope-and-global-self-admission)
+owns source ordering, immutable evidence and the exact additional origin ceiling.
 
 No missing profile is repaired by email merging, a new per-login actor, a client
 tenant selector or a permissive membership default. Existing seed/provider IDs
@@ -178,6 +182,11 @@ from development realm tooling; an actual SDK introduction triggers its catalogu
 backfill, while direct HTTP alone does not.
 
 ## Token Flow
+
+The sequence below describes the delivered P02b-7 baseline. ADR-0078's Accepted
+extension interposes bounded self entry, explicit context confirmation and API
+admission before publishing a scoped owner; it does not publish a tenantless
+session or infer authority from a successful OIDC callback.
 
 ```mermaid
 sequenceDiagram
@@ -249,13 +258,28 @@ The benefit ends when the existing refresh threshold requires a new grant.
 
 ## Tenant Resolution Across Identity
 
-When a user logs in, they may have multiple memberships. HTTP tenant authority
-comes only from the independent verified host and validated active-scope claims,
-reconciled by ADR-0036. A selector or cookie may suggest a later token reissue;
-it never selects API scope. Phase 03 owns membership-aware tenant switching.
+When a user logs in, they may have multiple memberships. Legacy HTTP authority
+uses independent verified host and validated active-scope claims, reconciled by
+ADR-0036. Accepted ADR-0078 additionally permits a separately authenticated native
+candidate, not a browser selector or cookie as API authority. The API confirms
+binding, Membership, lifecycle and actual host before admitting that context.
 See [27-custom-domain-tls.md](27-custom-domain-tls.md) for host verification/TLS.
 
-The JWT carries a `tenant_id` claim for the active session; LearnStack rejects requests where the host-derived tenant disagrees with the claim. That rejection is not a fallback rule but the general shape of resolution — every authoritative signal is resolved independently and the request proceeds only on their intersection. The full matrix, including the organization dimension and the platform-host case, is [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md). See also [Tenant Isolation](09-tenant-isolation.md).
+No signal wins a disagreement. Present provider scope must agree with the native
+candidate; legacy assertion headers can only reject. The full signal matrix and
+authority ceilings remain in [ADR-0036](../decisions/0036-tenant-resolution-trusted-inputs.md)
+and its dated native extension. See also [Tenant Isolation](09-tenant-isolation.md).
+
+Native Studio/Portal entry uses actual Tenant/Organization origins, including
+the fixed orgless development `manage.*` origins. Platform hosts retain their
+legacy direct-bearer role, with no native AccountSite/session publication.
+Same-host switching retains verified subject and original deadlines; ordinary refresh
+checks the unchanged scope without a new admission event. Cross-host entry uses
+independent destination sign-in. A different destination subject cannot replace
+a live owner through an ambiguous display label: explicit sign-out and fresh
+sign-in recovery are required. The database
+[storage/owner contract](../standards/05-database.md#p03-3-storage-and-replay-contract)
+and Security contract own the detailed rules.
 
 ## Roles and Permissions
 
@@ -294,7 +318,7 @@ definitions; it has no stored Membership, Role template or assignable grants.
 Its policy classification preserves publication, host, tenant/org and physical
 READ ONLY limits and needs no identity/grant lookup.
 
-The one additional protected HTTP surface is the administrative
+The delivered P03-2 additional protected HTTP surface is the administrative
 `GET /api/v1/identity/memberships`, using the existing Tenant
 `identity.membership.admin` capability. It can use HostAndClaim or confirmed
 ClaimAndMembership, including on a platform host. Public and AccountSite reads
@@ -302,7 +326,9 @@ retain their separate HostScope ceilings; AccountSite remains nonsensitive and
 Off on success. Directory disclosure requires its own same-transaction MUST
 sensitive-read row. [API Standards](../standards/04-api-design.md) owns the exact
 route, response and pagination contract; native BFF operations, editing and UI
-remain P03-3. The authenticated native caller still permits only AccountSite.
+follow ADR-0078/0079's Accepted P03-3 extension. Its exact generated operations,
+native forms and protected screens require their own activation proofs; accepting
+the contract does not widen the running caller allowlist.
 
 Accepted [ADR-0077](../decisions/0077-trusted-authorization-evidence.md) adds
 central, trusted evidence for denied policy acts and Membership-confirmed header
@@ -409,6 +435,13 @@ Two audit streams:
 - **Keycloak audit** — login success/failure, password change, MFA enroll, account lock. Retained inside Keycloak.
 - **LearnStack `AuditLog`** — role change, permission change, invitation, tenant setting change, platform admin bypass. Owned by LearnStack.
 
+ADR-0078 adds central MUST events for actual User creation and initial/explicit
+scope admission. Self discovery and ordinary unchanged-scope refresh validation
+remain Off; they do not turn each refresh into a new security event. ADR-0079's
+protected replay requires fresh read evidence instead of replaying a mutation's
+old audit. [Audit architecture](31-audit-subsystem.md) owns these common-owner
+boundaries; no private Identity audit store is introduced.
+
 The mirror is a Phase 03 G10 target. That gate selects authenticated durable
 provider listener/webhook or pull ingress, stable provider-event deduplication,
 global/unknown/multi-membership attribution and retention. Approved facts enter
@@ -455,12 +488,21 @@ also needs `Membership`, which [Phase 03](../roadmap/phase-03-identity-admin.md)
 delivers. Native BFF custody/session rules derive from ADR-0070; the phase Status
 owns current delivery and qualification.
 
+ADR-0078/0079 additionally select four exact public/management callback origins,
+tenantless native web scope issuance and explicit fixed management-origin
+adoption for completed legacy application seeds. Ordinary warm seed preserves
+valid administration instead of repairing absent adopted origins or restoring
+removed grants/locales. These changes require the packet's provider, database
+and native HTTPS proofs; the realm guide and
+[Identity seed contract](../modules/identity/README.md#first-admin-and-seed-sequence)
+own their executable setup and preservation rules.
+
 ## Risks
 
 - **Keycloak as a bottleneck for sign-in.** Mitigated by running Keycloak in HA from the start, using PostgreSQL (not the dev H2) as its store, and caching JWKS.
 - **Token scope versus live membership.** ADR-0064 accepts one scalar active
-  tenant and optional organization, never a memberships array. Phase 03 owns
-  live membership checks and switching through reissued tokens; a signed scope
-  alone does not prove current membership or immediate revocation.
+  tenant and optional organization for legacy bearer calls, never a memberships
+  array. ADR-0078's native context needs separate API confirmation; neither a
+  signed scope nor a retained candidate proves current Membership or permission.
 - **Migration path away from Keycloak.** Unlikely, but: usernames + emails are stable, so a migration to Authentik or a custom provider is mechanical. Refresh tokens would not migrate; users would re-authenticate.
 - **Federation complexity.** Per-tenant SSO requires careful admin UX to avoid misconfiguration; tenant admins should not be able to break their own login by removing the only IdP.

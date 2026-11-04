@@ -1,5 +1,9 @@
 import { spawn } from 'node:child_process';
-import { stopTestChild } from '../frontend/apps/web/scripts/stop-test-child.mjs';
+import {
+  assertUnforcedTestChildStop,
+  stopTestChild,
+  stopProductionRuntimeOwner,
+} from '../frontend/apps/web/scripts/stop-test-child.mjs';
 
 const commandReasons = new Set([
   'exit',
@@ -66,11 +70,12 @@ export class DemoProcesses {
       });
     if (this.#failed) throw this.#failed;
   }
-  start(command, args, { cwd, env, label, observe = () => {}, capture = false } = {}) {
-    return this.#start(command, args, { cwd, env, label, observe, capture });
+  start(command, args, { cwd, env, label, observe = () => {}, capture = false, ownedRuntime = false } = {}) {
+    return this.#start(command, args, { cwd, env, label, observe, capture, ownedRuntime });
   }
-  #start(command, args, { cwd, env, label, observe = () => {}, capture = false } = {}, privateInput) {
+  #start(command, args, { cwd, env, label, observe = () => {}, capture = false, ownedRuntime = false } = {}, privateInput) {
     this.assertActive();
+    if (typeof ownedRuntime !== 'boolean') throw new Error('Invalid owned runtime selection');
     let child;
     try {
       child = spawn(command, args, {
@@ -83,6 +88,16 @@ export class DemoProcesses {
       throw new DemoCommandError(label ?? command, cause, undefined, { reason: 'spawn' });
     }
     const closed = new Promise((resolve) => child.once('close', resolve));
+    // Only the exact managed public-server caller selects this strategy. Its
+    // owner result delegates physical family retirement without any proof relay.
+    // Copied fixtures use their separately captured runtime-family evidence.
+    let stopping;
+    const stop = () => {
+      stopping ??= ownedRuntime
+        ? stopProductionRuntimeOwner(child)
+        : stopTestChild(child).then((result) => assertUnforcedTestChildStop(child, result));
+      return stopping;
+    };
     const output = [];
     let outputBytes = 0;
     let failed;
@@ -96,7 +111,7 @@ export class DemoProcesses {
         publishRefusal({ cause: failed, reason: failureReason });
       }
       // dispose still owns a failed stop; do not create an unhandled rejection.
-      void stopTestChild(child).catch(() => {});
+      void stop().catch(() => {});
     };
     if (privateInput !== undefined) {
       // One bounded write and EOF. Never inherit a terminal or retain the value
@@ -146,6 +161,7 @@ export class DemoProcesses {
       exit,
       nativeExit,
       refusal,
+      stop,
       result: () => ({
         output: Buffer.concat(output).toString('utf8'),
         failed,
@@ -156,6 +172,7 @@ export class DemoProcesses {
       closed,
       result: running.result,
       daemon: false,
+      stop,
     });
     return running;
   }
@@ -230,7 +247,7 @@ export class DemoProcesses {
     } finally {
       signal.removeEventListener('abort', cancelled);
       try {
-        await stopTestChild(running.child);
+        await running.stop();
       } catch (error) {
         // Retain this handle for dispose's cleanup failure; do not replace the
         // triggering command failure or attribute teardown's signal to it.
@@ -244,9 +261,11 @@ export class DemoProcesses {
   async dispose() {
     this.#closed = true;
     const results = await Promise.allSettled(
-      [...this.#children].map(async ([child, { closed, result, daemon }]) => {
+      [...this.#children].map(async ([_child, { closed, result, daemon, stop }]) => {
         const deadline = Date.now() + 5000;
-        await stopTestChild(child);
+        const failures = [];
+        try { await stop(); }
+        catch (error) { failures.push(error); }
         // Group absence does not establish stream EOF. A closed child has also
         // delivered its buffered stdout/stderr; bound this separate drain so
         // inherited/leaked pipes cannot hang teardown.
@@ -261,13 +280,16 @@ export class DemoProcesses {
               );
             }),
           ]);
+        } catch (error) {
+          failures.push(error);
         } finally {
           clearTimeout(timer);
         }
         if (daemon && result().failureReason === 'output')
-          throw new Error('Owned output was refused', {
+          failures.push(new Error('Owned output was refused', {
             cause: result().failed,
-          });
+          }));
+        if (failures.length) throw new AggregateError(failures, 'Owned command cleanup unconfirmed');
       }),
     );
     if (results.some((row) => row.status === 'rejected'))

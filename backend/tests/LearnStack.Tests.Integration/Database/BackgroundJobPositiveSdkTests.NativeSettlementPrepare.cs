@@ -82,7 +82,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
             var external = IssueNativeSettlementFlight(externalFlight, () => controller.ExecuteExternalNormalAsync(original));
             boundary = "prepare_commit_held";
             await prepareProxy.CommitRequestHeld.WaitAsync(deadline.Token);
-            business = (Task<JobBusinessExecutionResult>)NativeSdkField(original, "_business");
+            business = await NativeSdkBusinessAsync(original, deadline.Token);
             var completedCommitsBeforeRelease = prepareProxy.CompletedCommits;
             prepareProxy.HeldCommitRequests.Should().Be(1);
             original.Gate.CommitStarted.Should().BeTrue();

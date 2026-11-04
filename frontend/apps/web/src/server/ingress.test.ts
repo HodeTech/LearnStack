@@ -53,12 +53,28 @@ describe('captured ingress provenance', () => {
         '/api/auth/callback/keycloak?state=x',
         '/studio',
         '/portal',
+        '/studio/members',
+        '/studio/roles/019a154b-0000-7000-8000-000000000022',
+        '/portal/profile',
+        '/api/auth/entry',
       ]) {
         const request = make(target);
         expect(admitIncomingRequest(request, secret, true)).toBe(false);
         expect(request.headers[INGRESS_HEADER]).toBeUndefined();
       }
-      expect(admitIncomingRequest(make('/api/auth/signout', 'POST'), secret, true)).toBe(false);
+      for (const target of [
+        '/api/auth/signout',
+        '/api/auth/entry/create',
+        '/api/auth/entry/select',
+        '/api/auth/switch',
+        '/api/studio/membership-profile',
+        '/api/studio/membership-roles',
+        '/api/studio/membership-status',
+        '/api/studio/role-grants',
+        '/api/studio/role-manifest-adoption',
+        '/api/account/profile',
+      ])
+        expect(admitIncomingRequest(make(target, 'POST'), secret, true)).toBe(false);
       const publicRead = make('/en/courses');
       expect(admitIncomingRequest(publicRead, secret, true)).toBe(true);
       expect(verifyProvenance(String(publicRead.headers[INGRESS_HEADER]), secret)?.host).toBe(

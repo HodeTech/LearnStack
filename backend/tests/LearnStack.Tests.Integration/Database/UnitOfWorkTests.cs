@@ -960,12 +960,16 @@ public sealed class UnitOfWorkTests
         }
         finally
         {
-            await using var platform = await PostgresFixture.OpenAsync(
-                _schema.Postgres.PlatformConnectionString);
-            await using var cleanup = new NpgsqlCommand(
-                "DELETE FROM organizations WHERE slug = @slug", (NpgsqlConnection)platform);
-            cleanup.Parameters.AddWithValue("slug", slug);
-            await cleanup.ExecuteNonQueryAsync();
+            // Remove only this case's extra nondefault branch under the canonical
+            // exclusive Tenant plan; the shared default and other Active rows remain.
+            await using var app = await PostgresFixture.OpenAsync(_schema.Postgres.AppConnectionString);
+            await using var transaction = await app.BeginTransactionAsync();
+            await EducationSchemaSeed.AnnounceAsync(app, transaction, SchemaFixture.TenantA, null);
+            await TenancyLifecycleFixture.LockAsync(app, transaction, SchemaFixture.TenantA);
+            await SchemaQueries.ExecuteAsync(app, transaction,
+                "DELETE FROM organizations WHERE tenant_id=@tenant AND slug=@slug",
+                ("tenant", SchemaFixture.TenantA), ("slug", slug));
+            await transaction.CommitAsync();
         }
     }
 

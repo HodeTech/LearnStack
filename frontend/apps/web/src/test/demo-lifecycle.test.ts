@@ -69,6 +69,7 @@ function seedFixture(root: string) {
   for (const file of [
     'seed.sh',
     'seed.mjs',
+    'seed-admin-origins.mjs',
     'connection-string.awk',
     'compose.mjs',
     'demo-database.mjs',
@@ -280,6 +281,9 @@ describe('launcher-owned local database validation', () => {
       LEARNSTACK_OUTBOX_PW: 'dispatcher-password',
       DEBUG: '*',
       NODE_TLS_REJECT_UNAUTHORIZED: '0',
+      DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER: '0',
+      MSBUILDDISABLENODEREUSE: '0',
+      MSBUILDUNSELECTED: 'private-unselected',
     };
     const prerequisites = {
       PATH: '/bin',
@@ -288,6 +292,8 @@ describe('launcher-owned local database validation', () => {
       TMPDIR: '/tmp',
       APPDATA: '/profile',
       ...tooling,
+      DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER: '1',
+      MSBUILDDISABLENODEREUSE: '1',
     };
     expect(publicSeederEnvironment(undefined, base)).toEqual(prerequisites);
     expect(publicSeederEnvironment('selected-application', base)).toEqual({
@@ -560,11 +566,12 @@ appendFileSync(${JSON.stringify(join(root, 'events'))}, (startup ? 'stack-up' : 
 const { appendFileSync } = require('node:fs');
 const { join } = require('node:path');
 const args = process.argv.slice(2);
-const build = JSON.stringify(args) === JSON.stringify(['build', 'src/LearnStack.Tools.Seeder', '--configuration', 'Release', '--nologo']);
+const build = JSON.stringify(args) === JSON.stringify(['build', 'src/LearnStack.Tools.Seeder', '--configuration', 'Release', '--nologo', '--disable-build-servers']);
 const seed = args.length === 1 && args[0] === join(${JSON.stringify(root)}, 'backend/src/LearnStack.Tools.Seeder/bin/Release/net10.0/LearnStack.Tools.Seeder.dll');
 const forbidden = Object.keys(process.env).filter(key => /keycloak|outbox|migration|platform|debug/i.test(key));
-if ((!build && !seed) || process.cwd() !== ${JSON.stringify(join(root, 'backend'))} || forbidden.length || process.env.HOME !== '/seed-home' || !process.env.PATH || (build ? process.env.ConnectionStrings__Default !== undefined : process.env.ConnectionStrings__Default !== 'Username=learnstack_app')) process.exit(13);
+if ((!build && !seed) || process.env.DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER !== '1' || process.env.MSBUILDDISABLENODEREUSE !== '1' || process.cwd() !== ${JSON.stringify(join(root, 'backend'))} || forbidden.length || process.env.HOME !== '/seed-home' || !process.env.PATH || (build ? process.env.ConnectionStrings__Default !== undefined : process.env.ConnectionStrings__Default !== 'Username=learnstack_app')) process.exit(13);
 appendFileSync(${JSON.stringify(join(root, 'events'))}, (build ? 'build' : 'appseed') + '\\n');
+if (seed) process.stdout.write('seed-result: {"version":2,"freshTenantIds":[],"qualifiedOriginTenantIds":[]}\\n');
 `,
       { mode: 0o700 },
     );
@@ -575,6 +582,8 @@ appendFileSync(${JSON.stringify(join(root, 'events'))}, (build ? 'build' : 'apps
           PATH: `${join(root, 'bin')}:${process.env.PATH}`,
           HOME: '/seed-home',
           NODE_ENV: 'test',
+          DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER: '0',
+          MSBUILDDISABLENODEREUSE: '0',
           ConnectionStrings__OutboxDispatcher: 'ambient-dispatcher',
           CONNECTIONSTRINGS__OUTBOXDISPATCHER: 'ambient-alias',
           'ConnectionStrings:OutboxDispatcher': 'ambient-colon-alias',
@@ -833,6 +842,7 @@ describe('demo runtime boundaries', () => {
       ConnectionStrings__Default: 'application',
       ConnectionStrings__OutboxDispatcher: 'dispatcher',
       ASPNETCORE_ENVIRONMENT: 'Development',
+      Identity__NativeSession__HttpsPort: '3000',
       ASPNETCORE_URLS: 'http://127.0.0.1:5080',
       Tenancy__TrustedHop__Networks__0: '127.0.0.1/32',
       Tenancy__TrustedHop__Secrets__0: 'private',

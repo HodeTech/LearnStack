@@ -70,15 +70,15 @@ export function publicCallsiteKeys(
     ts.ScriptKind.TSX,
   );
   const translatorNames = new Set([property]);
-  const translationFactories = new Set([
-    property === 'copy' ? 'createAuthTranslator' : 'getTranslations',
-  ]);
+  const factory =
+    property === 'copy'
+      ? 'createAuthTranslator'
+      : property === 'admin' || property === 'profile'
+        ? 'createAdministrationTranslator'
+        : 'getTranslations';
+  const translationFactories = new Set([factory]);
   const collectImports = (node: ts.Node): void => {
-    if (
-      ts.isImportSpecifier(node) &&
-      (node.propertyName?.text ?? node.name.text) ===
-        (property === 'copy' ? 'createAuthTranslator' : 'getTranslations')
-    ) {
+    if (ts.isImportSpecifier(node) && (node.propertyName?.text ?? node.name.text) === factory) {
       translationFactories.add(node.name.text);
     }
     ts.forEachChild(node, collectImports);

@@ -2,6 +2,8 @@ using LearnStack.Api.Common;
 using LearnStack.Api.Composition;
 using LearnStack.Api.Tenancy;
 using LearnStack.Api.Versioning;
+using LearnStack.Modules.Identity.Application.Contracts.Authorization;
+using LearnStack.Modules.Identity.Infrastructure.Authorization;
 using LearnStack.SharedKernel.Hosting;
 using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Tenancy;
@@ -90,6 +92,8 @@ public class ComponentApiFactory : IDisposable, IAsyncDisposable
             builder.Services.AddControllers(options =>
                 options.Conventions.Insert(0, new ComponentControllerFilter()));
             builder.Services.AddSingleton<IProtectedOperationAuthorizer, NoHumanAuthorization>();
+            builder.Services.AddSingleton<IIdentityAuthorizationReader, NoHumanIdentityReader>();
+            builder.Services.AddIdentityOperationPolicies();
             builder.Services.AddSingleton<IClaimContextAssertionRecorder, NoClaimAssertionRecorder>();
             ConfigureTestHost(builder.WebHost);
             ConstructionOnlyApiFactory.RemoveDispatcher(builder.Services);
@@ -167,6 +171,13 @@ public class ComponentApiFactory : IDisposable, IAsyncDisposable
         public Task<ProtectedOperationDecision> AuthorizeAsync(OperationInvocation invocation, OperationPolicy policy,
             AuthorizationCandidate candidate, CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException("The component host has no human authorization source.");
+    }
+
+    private sealed class NoHumanIdentityReader : IIdentityAuthorizationReader
+    {
+        public Task<IdentityAuthorizationResult> ReadAsync(AuthorizationCandidate candidate,
+            CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("The component host has no human Identity facts.");
     }
 
     private sealed class NoClaimAssertionRecorder : IClaimContextAssertionRecorder

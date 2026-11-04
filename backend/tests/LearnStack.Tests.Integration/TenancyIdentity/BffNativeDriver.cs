@@ -8,12 +8,17 @@ internal sealed class BffNativeDriver : IAsyncDisposable
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private static readonly string[] ErrorStages = (new[] { "input", "input-issuer", "input-api", "input-secrets", "input-sites", "setup", "compile", "build", "start", "command", "request", "request-deadline", "request-connect", "request-tls", "request-socket", "response-json", "cleanup", "privacy", "native-stop",
-                     "browser-launch", "browser-anonymous", "browser-signin-document", "browser-submit", "browser-origin-null", "browser-origin-absent", "browser-origin-other", "browser-storage", "browser-extension", "browser-logout-submit", "browser-logout-origin", "browser-logout-origin-null", "browser-logout-origin-other", "browser-logout-response", "browser-logout-location", "browser-logout-navigation", "browser-logout-cookie-header", "browser-logout-cookie", "browser-back-revalidation", "browser-history-setup", "browser-history-revalidation", "browser-headers",
+                     "cleanup-cdp", "cleanup-disconnect", "cleanup-browser-wait", "cleanup-browser-stop", "cleanup-browser-forced", "cleanup-browser-exit", "cleanup-browser-signal", "cleanup-native-shutdown", "cleanup-native-wait", "cleanup-native-stop", "cleanup-native-forced", "cleanup-owner", "cleanup-native-exit", "cleanup-native-signal",
+                     "browser-administration-pages", "browser-no-script",
+                     "browser-no-script-hidden-render", "browser-no-script-missing-form", "browser-no-script-invisible-form", "browser-no-script-native-buttons", "browser-no-script-native-profile-form",
+                     "browser-no-script-anonymous", "browser-no-script-signin", "browser-no-script-confirm", "browser-no-script-select", "browser-no-script-controls", "browser-no-script-submit", "browser-no-script-origin", "browser-no-script-result", "browser-no-script-cache", "browser-no-script-saved", "browser-no-script-privacy", "browser-no-script-signout", "browser-no-script-headers", "browser-launch", "browser-anonymous", "browser-signin-document", "browser-submit", "browser-entry-confirmation", "browser-origin-null", "browser-origin-absent", "browser-origin-other", "browser-storage", "browser-extension", "browser-logout-submit", "browser-logout-origin", "browser-logout-origin-null", "browser-logout-origin-other", "browser-logout-response", "browser-logout-location", "browser-logout-navigation", "browser-logout-cookie-header", "browser-logout-cookie", "browser-back-revalidation", "browser-history-setup", "browser-history-revalidation", "browser-headers",
                      "browser-executable", "browser-spawn", "browser-devtools", "browser-devtools-inactive",
                      "browser-devtools-unreadable", "browser-devtools-missing", "browser-devtools-empty", "browser-devtools-malformed",
                      "browser-not-live", "browser-connect", "browser-context" }
                  .Concat(new[] { "browser-callback-", "browser-authorize-", "browser-logout-status-" }
-                     .SelectMany(prefix => new[] { "0", "200", "303", "400", "403", "404", "429", "503", "other" }.Select(code => prefix + code)))).ToArray();
+                     .SelectMany(prefix => new[] { "0", "200", "303", "400", "403", "404", "429", "503", "other" }.Select(code => prefix + code)))
+                 .Concat(new[] { "progress", "status", "cache", "wrapper", "heading", "view", "alert", "observer", "private-output" }
+                     .Select(reason => "browser-administration-counter-" + reason))).ToArray();
     private readonly Process _child;
     private readonly CancellationTokenSource _deadline = new(TimeSpan.FromMinutes(4));
     private readonly Task<string?> _errors;
@@ -21,9 +26,14 @@ internal sealed class BffNativeDriver : IAsyncDisposable
     private Task? _disposal;
     private bool _complete;
     private int _expectedExit;
+    private string? _shutdownDiagnostic;
+    private string? _browserObservation;
+    private readonly bool _browserCounter;
 
-    private BffNativeDriver(string root, bool browser = false, bool counter = false, bool heldBuild = false)
+    private BffNativeDriver(string root, bool browser = false, bool counter = false, bool heldBuild = false,
+        bool unavailablePageCounter = false)
     {
+        _browserCounter = browser && counter;
         var start = new ProcessStartInfo("node")
         {
             WorkingDirectory = root,
@@ -35,6 +45,7 @@ internal sealed class BffNativeDriver : IAsyncDisposable
         };
         start.ArgumentList.Add(Path.Combine(root, "frontend/apps/web/scripts/" + (browser ? "verify-bff-browser.mjs" : "verify-bff-session.mjs")));
         if (counter) start.ArgumentList.Add(browser ? "--without-history" : "--without-successful-native-stop");
+        if (unavailablePageCounter) start.ArgumentList.Add("--without-ready-pages");
         if (heldBuild) start.ArgumentList.Add("--hold-build");
         start.Environment.Clear();
         start.Environment["PATH"] = Environment.GetEnvironmentVariable("PATH");
@@ -80,11 +91,14 @@ internal sealed class BffNativeDriver : IAsyncDisposable
     }
 
     internal static async Task<BffBrowserReceipt> BrowserAsync(string root, object configuration, bool counter,
-        Action? secondaryCleanupFailure = null)
+        Action? secondaryCleanupFailure = null, bool unavailablePageCounter = false)
     {
-        var driver = new BffNativeDriver(root, browser: true, counter: counter);
+        if (counter && unavailablePageCounter)
+            throw new InvalidOperationException("BFF browser counters require separate closed modes.");
+        var driver = new BffNativeDriver(root, browser: true, counter: counter,
+            unavailablePageCounter: unavailablePageCounter);
         var bodyFailed = false;
-        try { return await ReadBrowserAsync(driver, configuration, counter); }
+        try { return await ReadBrowserAsync(driver, configuration, counter, unavailablePageCounter); }
         catch (Exception error) when (Catchable(error)) { bodyFailed = true; throw; }
         finally
         {
@@ -102,26 +116,38 @@ internal sealed class BffNativeDriver : IAsyncDisposable
     private static bool Catchable(Exception error) => error.GetType() != typeof(OutOfMemoryException)
         && error.GetType() != typeof(StackOverflowException);
 
-    private static async Task<BffBrowserReceipt> ReadBrowserAsync(BffNativeDriver driver, object configuration, bool counter)
+    private static async Task<BffBrowserReceipt> ReadBrowserAsync(BffNativeDriver driver, object configuration, bool counter,
+        bool unavailablePageCounter)
     {
         await driver.WriteAsync(configuration);
         var reply = await driver.ReadAsync("browser_result");
         driver._child.StandardInput.Close();
         await driver._child.WaitForExitAsync(driver._deadline.Token);
         await driver.AssertOutputEndedAsync();
-        var expected = counter ? "rejected_history" : "passed";
+        var rejected = counter || unavailablePageCounter;
+        var expected = counter ? "rejected_history" : unavailablePageCounter ? "rejected_pages" : "passed";
+        var properties = string.Join(',', reply.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal));
+        if (properties != (rejected ? "hosts,outcome,phase,protocol,version,witness"
+            : "administrationPages,disabledPreferenceChoices,hosts,naturalRestores,noScriptHosts,outcome,phase,protocol,version"))
+            throw new InvalidOperationException("BFF browser fixture receipt has an invalid closed shape.");
         var version = reply.GetProperty("version").GetString();
-        driver._expectedExit = counter ? 1 : 0;
+        driver._expectedExit = rejected ? 1 : 0;
         if (reply.GetProperty("outcome").GetString() != expected || reply.GetProperty("hosts").GetInt32() != 2
             || version is null || version.Length > 32 || !System.Text.RegularExpressions.Regex.IsMatch(version, @"^\d+(?:\.\d+){1,3}$")
             || driver._child.ExitCode != driver._expectedExit || await driver._errors is not null)
             throw new InvalidOperationException("BFF browser fixture lacks its complete positive/counter witness.");
-        var restores = counter ? 0 : reply.GetProperty("naturalRestores").GetInt32();
+        var restores = rejected ? 0 : reply.GetProperty("naturalRestores").GetInt32();
         if (restores is < 0 or > 32) throw new InvalidOperationException("BFF browser restore count is outside its bound.");
+        if (!rejected && (reply.GetProperty("administrationPages").GetInt32() != 10
+            || reply.GetProperty("noScriptHosts").GetInt32() != 2
+            || reply.GetProperty("disabledPreferenceChoices").GetInt32() != 1))
+            throw new InvalidOperationException("BFF browser fixture lacks both hosts' complete page/no-script witnesses.");
         driver._complete = true;
-        var witness = counter ? reply.GetProperty("witness").GetString() : null;
+        var witness = rejected ? reply.GetProperty("witness").GetString() : null;
         if (counter && witness is not ("natural_back" or "persisted_event"))
             throw new InvalidOperationException("BFF browser counter has no closed restoration witness.");
+        if (unavailablePageCounter && witness != "unavailable_view")
+            throw new InvalidOperationException("BFF browser counter has no closed unavailable-page witness.");
         return new(version, restores, witness);
     }
 
@@ -139,7 +165,8 @@ internal sealed class BffNativeDriver : IAsyncDisposable
             if (status is < 100 or > 599 || cookies.Length > 32 || cookies.Sum(value => value.Length) > 32768
                 || (location?.Length ?? 0) > 32768) throw new InvalidOperationException();
             return new(status, cookies, location, cache, reply.GetProperty("data").Clone(),
-                reply.GetProperty("rendered").GetBoolean(), reply.GetProperty("privateFree").GetBoolean());
+                reply.GetProperty("rendered").GetBoolean(), reply.GetProperty("privateFree").GetBoolean(),
+                reply.TryGetProperty("pageReady", out var pageReady) ? pageReady.GetBoolean() : null);
         }
         catch { throw new InvalidOperationException("BFF native fixture response has an invalid closed shape."); }
     }
@@ -156,6 +183,27 @@ internal sealed class BffNativeDriver : IAsyncDisposable
         _complete = true;
     }
 
+    internal async Task<BffEntryBrowserReceipt> EntryBrowserAsync(string host, string cookie, string subjectKey)
+    {
+        await WriteAsync(new { protocol = 1, action = "entry-browser", host, cookie, subjectKey });
+        var reply = await ReadAsync("entry_browser");
+        try
+        {
+            if (string.Join(',', reply.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal))
+                != "browserPrivateFree,firstItems,historyEntries,historyPrivateFree,htmlPrivateFree,networkPrivateFree,phase,protocol,restoredItems,secondItems")
+                throw new InvalidOperationException();
+            var result = new BffEntryBrowserReceipt(reply.GetProperty("firstItems").GetInt32(), reply.GetProperty("secondItems").GetInt32(),
+                reply.GetProperty("restoredItems").GetInt32(), reply.GetProperty("historyEntries").GetInt32(),
+                reply.GetProperty("htmlPrivateFree").GetBoolean(), reply.GetProperty("browserPrivateFree").GetBoolean(),
+                reply.GetProperty("historyPrivateFree").GetBoolean(), reply.GetProperty("networkPrivateFree").GetBoolean());
+            if (result.FirstItems is < 0 or > 20 || result.SecondItems is < 0 or > 20
+                || result.RestoredItems is < 0 or > 20 || result.HistoryEntries is < 2 or > 8)
+                throw new InvalidOperationException();
+            return result;
+        }
+        catch { throw new InvalidOperationException("BFF entry browser receipt has an invalid closed shape."); }
+    }
+
     private async Task WriteAsync(object value)
     {
         try
@@ -170,7 +218,7 @@ internal sealed class BffNativeDriver : IAsyncDisposable
     {
         var lastStage = "input";
         using var responseBudget = CancellationTokenSource.CreateLinkedTokenSource(_deadline.Token);
-        responseBudget.CancelAfter(TimeSpan.FromSeconds(phase is "ready" or "held-build" ? 90 : phase == "browser_result" ? 150 : 40));
+        responseBudget.CancelAfter(TimeSpan.FromSeconds(phase is "ready" or "held-build" or "entry_browser" ? 90 : phase == "browser_result" ? 150 : 40));
         try
         {
             for (var count = 0; count < 8; ++count)
@@ -191,7 +239,19 @@ internal sealed class BffNativeDriver : IAsyncDisposable
                     lastStage = value;
                     continue;
                 }
-                if (actual != phase) throw new InvalidOperationException();
+                if (phase == "browser_result" && actual == "browser_shutdown")
+                {
+                    if (_shutdownDiagnostic is not null) throw new InvalidOperationException();
+                    _shutdownDiagnostic = ParseShutdownDiagnostic(parsed.RootElement);
+                    continue;
+                }
+                if (phase == "browser_result" && actual == "browser_observation")
+                {
+                    if (_browserObservation is not null) { _browserObservation = null; throw new InvalidOperationException(); }
+                    _browserObservation = ParseBrowserObservation(parsed.RootElement, _browserCounter);
+                    continue;
+                }
+                if (actual != phase || _shutdownDiagnostic is not null || _browserObservation is not null) throw new InvalidOperationException();
                 return parsed.RootElement.Clone();
             }
             throw new InvalidOperationException();
@@ -201,8 +261,74 @@ internal sealed class BffNativeDriver : IAsyncDisposable
             var reason = "response";
             if (responseBudget.IsCancellationRequested) reason = "deadline_" + lastStage;
             else if (_child.HasExited) try { reason = await _errors ?? "exit"; } catch { reason = "output"; }
-            throw new InvalidOperationException("BFF native fixture did not reach the closed " + phase + "/" + reason + " phase.");
+            var failure = new InvalidOperationException("BFF native fixture did not reach the closed " + phase + "/" + reason + " phase.");
+            if (_shutdownDiagnostic is not null) failure.Data["BffBrowserShutdown"] = _shutdownDiagnostic;
+            if (_browserObservation is not null && CoherentBrowserObservation(_browserObservation, _shutdownDiagnostic, reason))
+                failure.Data["BffBrowserObservation"] = _browserObservation;
+            throw failure;
         }
+    }
+
+    private const string ShutdownStatePattern = @"\A(valid|invalid|absent),[01],[01],[pfr],[pfr],[pfr],[pfr],(live|zero|nonzero|signal),[01],(open|ended|closed|absent),(open|ended|closed|absent)\z";
+    private const string BrowserObservationPattern = @"\A(absent|invalid|valid,(entered|listener|next|sessions|requests|watchdog),(0|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-6]),(0|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-6]),(0|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-6]),(0|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-6]),(0|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-6]));(not_run|true|false|error);(none|natural_back|persisted_dispatch|persisted_wait|persisted_count)\z";
+
+    internal static string ParseBrowserObservation(JsonElement value, bool counter)
+    {
+        if (value.ValueKind != JsonValueKind.Object ||
+            string.Join(',', value.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal))
+                != "operation,phase,probe,protocol,sample" || value.GetProperty("protocol").GetInt32() != 1 ||
+            value.GetProperty("phase").GetString() != "browser_observation") throw new InvalidOperationException();
+        var sample = value.GetProperty("sample").GetString();
+        var probe = value.GetProperty("probe").GetString();
+        var operation = value.GetProperty("operation").GetString();
+        var result = sample + ";" + probe + ";" + operation;
+        if (sample is null || probe is null || operation is null || result.Length > 128 ||
+            !System.Text.RegularExpressions.Regex.IsMatch(result, BrowserObservationPattern) ||
+            (probe == "not_run") != (operation == "none") || (!counter && probe != "not_run"))
+            throw new InvalidOperationException();
+        return result;
+    }
+
+    internal static string? BrowserObservation(Exception error) => error.Data["BffBrowserObservation"] as string;
+
+    internal static bool CoherentBrowserObservation(string observation, string? shutdown, string reason)
+    {
+        var parts = observation.Split(';');
+        if (parts.Length != 3 || !System.Text.RegularExpressions.Regex.IsMatch(observation, BrowserObservationPattern)) return false;
+        var sample = parts[0].Split(',');
+        if (sample[0] != "absent" && shutdown is null) return false;
+        if (sample[0] == "valid")
+        {
+            var state = shutdown!.Split(',');
+            if (state.Length != 11 || state[0] != "valid" || state[1] != "1") return false;
+            var index = sample[1] switch { "listener" => 3, "next" => 4, "sessions" => 5, "requests" => 6, _ => -1 };
+            if (index >= 0 && state[index] == "p" || sample[1] == "watchdog" && state[2] != "1") return false;
+        }
+        if (parts[1] != "not_run")
+        {
+            var stage = parts[2] == "natural_back" ? "browser-back-revalidation" : "browser-history-revalidation";
+            if (reason != stage && !reason.StartsWith(stage + "_cleanup_", StringComparison.Ordinal)) return false;
+        }
+        return true;
+    }
+
+    internal static string ParseShutdownDiagnostic(JsonElement value)
+    {
+        if (value.ValueKind != JsonValueKind.Object ||
+            string.Join(',', value.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal))
+                != "phase,protocol,state" || value.GetProperty("protocol").GetInt32() != 1 ||
+            value.GetProperty("phase").GetString() != "browser_shutdown") throw new InvalidOperationException();
+        var state = value.GetProperty("state").GetString();
+        if (state is null || state.Length > 96 || !System.Text.RegularExpressions.Regex.IsMatch(state, ShutdownStatePattern))
+            throw new InvalidOperationException();
+        return state;
+    }
+
+    internal static string? ShutdownDiagnostic(Exception error)
+    {
+        var state = error.Data["BffBrowserShutdown"] as string;
+        return state is not null && state.Length <= 96 && System.Text.RegularExpressions.Regex.IsMatch(state, ShutdownStatePattern)
+            ? state : null;
     }
 
     private async Task AssertOutputEndedAsync()
@@ -242,6 +368,10 @@ internal sealed class BffNativeDriver : IAsyncDisposable
                 var cleanup = prefix == "BFF browser fixture failed: "
                     ? "BFF browser cleanup failed.\n" : "BFF session cleanup failed.\n";
                 if (!overflow && text.ToString() == closed + cleanup) return stage + "_cleanup_failed";
+                if (!overflow && prefix == "BFF browser fixture failed: ")
+                    foreach (var cleanupStage in ErrorStages.Where(value => value.StartsWith("cleanup-", StringComparison.Ordinal)))
+                        if (text.ToString() == closed + "BFF browser cleanup failed: " + cleanupStage + ".\n")
+                            return stage + "_cleanup_" + cleanupStage;
                 if (text.ToString().Contains(closed, StringComparison.Ordinal)) return stage + "_unexpected_output";
             }
         foreach (var (pattern, reason) in new[] { ("ERR_MODULE_NOT_FOUND", "node_module_missing"),
@@ -308,8 +438,10 @@ internal sealed class BffNativeDriver : IAsyncDisposable
 }
 
 internal sealed record BffWireResponse(int Status, string[] Cookies, string? Location, string? Cache,
-    JsonElement Data, bool Rendered, bool PrivateFree);
+    JsonElement Data, bool Rendered, bool PrivateFree, bool? PageReady = null);
 internal sealed record BffBrowserReceipt(string Version, int NaturalRestores, string? CounterWitness);
+internal sealed record BffEntryBrowserReceipt(int FirstItems, int SecondItems, int RestoredItems, int HistoryEntries,
+    bool HtmlPrivateFree, bool BrowserPrivateFree, bool HistoryPrivateFree, bool NetworkPrivateFree);
 
 /// <summary>Separate HTTP-chain jars; browser storage rules are proved by the actual browser case.</summary>
 internal sealed class BffWireCookies

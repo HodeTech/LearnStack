@@ -131,19 +131,59 @@ public sealed partial class AuthenticationAuthorityTests
         Offenders(modules).Should().Contain(value => value.StartsWith("Raw claim/role authority:", StringComparison.Ordinal),
             "nonempty role metadata cannot enter the admitted branch");
         emptyBranch.OpCode = admittedWhenEmpty;
+        var metadataCheck = classifier.Body.Instructions.Single(instruction => instruction.Operand is MethodReference target
+            && target.Name == "HasCanonicalKeyMetadata");
+        var metadataPredicate = metadataCheck.Operand;
+        metadataCheck.Operand = classifier.DeclaringType.Methods.Single(method => method.Name == "IsFrameworkMethodRejection");
+        Offenders(modules).Should().Contain(value => value.StartsWith("Raw claim/role authority:", StringComparison.Ordinal),
+            "an unrelated boolean predicate cannot replace canonical key-metadata admission");
+        metadataCheck.Operand = metadataPredicate;
+        var metadataBranch = metadataCheck.Next;
+        var admittedWhenCanonical = metadataBranch.OpCode;
+        metadataBranch.OpCode = OpCodes.Brfalse_S;
+        Offenders(modules).Should().Contain(value => value.StartsWith("Raw claim/role authority:", StringComparison.Ordinal),
+            "noncanonical key metadata cannot enter the admitted branch");
+        metadataBranch.OpCode = OpCodes.Br_S;
+        Offenders(modules).Should().Contain(value => value.StartsWith("Raw claim/role authority:", StringComparison.Ordinal),
+            "the key-metadata result must be consumed, not bypassed with an unconditional branch");
+        metadataBranch.OpCode = admittedWhenCanonical;
+        metadataBranch.Next.OpCode = OpCodes.Ldc_I4_2;
+        Offenders(modules).Should().Contain(value => value.StartsWith("Raw claim/role authority:", StringComparison.Ordinal),
+            "the failed key-metadata gate must return Refused, never Application");
+        metadataBranch.Next.OpCode = OpCodes.Ldc_I4_1;
+        var metadataEntry = emptyBranch.Operand;
+        emptyBranch.Operand = metadataBranch.Operand;
+        Offenders(modules).Should().Contain(value => value.StartsWith("Raw claim/role authority:", StringComparison.Ordinal),
+            "empty roles cannot skip the key-metadata gate and publish a policy directly");
+        emptyBranch.Operand = metadataEntry;
+        var publishedPolicy = ((Instruction)metadataBranch.Operand).Next;
+        var policyLoad = publishedPolicy.OpCode;
+        var policyLocal = publishedPolicy.Operand;
+        publishedPolicy.OpCode = OpCodes.Ldnull;
+        publishedPolicy.Operand = null;
+        Offenders(modules).Should().Contain(value => value.StartsWith("Raw claim/role authority:", StringComparison.Ordinal),
+            "Application admission must publish the same policy whose descriptor passed the metadata gate");
+        publishedPolicy.OpCode = policyLoad;
+        publishedPolicy.Operand = policyLocal;
+        Offenders(modules).Should().BeEmpty("restoring the role absence, key-metadata gate and exact policy publication restores the clean graph");
         foreach (var type in new[] { Authentication + "OperationAuthorizationHandler", Authentication + "OperationClassificationMiddleware" })
         {
             var operation = Methods([api.GetType(type)]).Single(method => method.Definition.Body.Instructions.Any(instruction =>
-                instruction.Operand is MethodReference target && target.Name == "CheckHttpAsync"));
-            var check = operation.Definition.Body.Instructions.Single(instruction => instruction.Operand is MethodReference target && target.Name == "CheckHttpAsync");
-            var endpoint = check.Previous.Previous.Previous.Previous;
-            var acquisition = endpoint.Operand;
-            endpoint.OpCode = OpCodes.Ldnull;
-            endpoint.Operand = null;
-            Offenders(modules).Should().Contain("Opaque typed identity/feature export: " + operation.Site,
-                "the opaque operation argument must be the actual same-request endpoint");
-            endpoint.OpCode = OpCodes.Call;
-            endpoint.Operand = acquisition;
+                instruction.Operand is MethodReference target && Is(target.DeclaringType, Feature) && target.Name == "get_Identity"));
+            if (type == Authentication + "OperationClassificationMiddleware")
+            {
+                // The handler delegates to the typed replay admission owner; only
+                // classification still forwards an opaque endpoint directly here.
+                var check = operation.Definition.Body.Instructions.Single(instruction => instruction.Operand is MethodReference target && target.Name == "CheckHttpAsync");
+                var endpoint = check.Previous.Previous.Previous.Previous;
+                var acquisition = endpoint.Operand;
+                endpoint.OpCode = OpCodes.Ldnull;
+                endpoint.Operand = null;
+                Offenders(modules).Should().Contain("Opaque typed identity/feature export: " + operation.Site,
+                    "the opaque operation argument must be the actual same-request endpoint");
+                endpoint.OpCode = OpCodes.Call;
+                endpoint.Operand = acquisition;
+            }
             var identityRead = operation.Definition.Body.Instructions.Single(instruction => instruction.Operand is MethodReference target
                 && Is(target.DeclaringType, Feature) && target.Name == "get_Identity");
             var format = new[] { Instruction.Create(OpCodes.Dup), Instruction.Create(OpCodes.Callvirt,
@@ -152,7 +192,7 @@ public sealed partial class AuthenticationAuthorityTests
             var previous = identityRead;
             foreach (var instruction in format) { processor.InsertAfter(previous, instruction); previous = instruction; }
             Offenders(modules).Should().Contain("Opaque typed identity/feature export: " + operation.Site,
-                "an approved endpoint forwarding site must still reject extra formatting of its actual identity");
+                "both HTTP authorization adapters must reject extra formatting of their actual identity");
             foreach (var instruction in format) processor.Remove(instruction);
             Offenders(modules).Should().BeEmpty("restoring endpoint acquisition and removing identity formatting restores the exact owner");
         }

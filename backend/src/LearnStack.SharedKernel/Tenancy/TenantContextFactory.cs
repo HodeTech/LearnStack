@@ -121,6 +121,26 @@ public static class TenantContextFactory
                 : null));
     }
 
+    /// <summary>Admits only a complete native tuple, independently defended host and affirmative current port answers.</summary>
+    public static Result<TenantContext> CreateForNativeScope(NativeScopeResolutionAttempt attempt)
+    {
+        ArgumentNullException.ThrowIfNull(attempt);
+        if (attempt.HostTenantId is not { } hostTenant || !StronglyTypedId.IsAssigned(hostTenant)
+            || !StronglyTypedId.IsAssigned(attempt.TenantId) || hostTenant != attempt.TenantId
+            || hostTenant == TenantId.PlatformSentinel
+            || !StronglyTypedId.IsAssigned(attempt.ActorUserId) || attempt.ActorUserId == UserId.SystemActor
+            || !StronglyTypedId.IsAssignedWhenPresent(attempt.HostOrganizationId)
+            || !StronglyTypedId.IsAssignedWhenPresent(attempt.OrganizationId)
+            || (attempt.HostOrganizationId is { } hostOrganization && hostOrganization != attempt.OrganizationId)
+            || attempt.MembershipCovers is not true
+            || (attempt.OrganizationId is not null && attempt.OrganizationBelongsToTenant is not true))
+            return Result.Fail<TenantContext>(Refused);
+
+        return Result.Ok(new TenantContext(attempt.TenantId, attempt.OrganizationId, attempt.ActorUserId,
+            TenantContextOrigin.HostAndNativeSessionScope, attempt.CorrelationId,
+            new HostScope(hostTenant, attempt.HostOrganizationId)));
+    }
+
     /// <summary>
     /// Which signals carried this context — the authority ceiling, decided once.
     /// </summary>

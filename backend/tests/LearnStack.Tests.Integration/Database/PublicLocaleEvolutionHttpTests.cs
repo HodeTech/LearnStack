@@ -1,4 +1,5 @@
 using System.Net;
+using System.Collections.Immutable;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -11,12 +12,17 @@ using LearnStack.Modules.Tenancy.Application.Contracts.Locales;
 using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
 using LearnStack.Modules.Tenancy.Application.Contracts.Seeding;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
+using LearnStack.Modules.Tenancy.Application.Abstractions;
+using LearnStack.Modules.Tenancy.Domain;
 using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Identity;
+using LearnStack.SharedKernel.Audit;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
+using LearnStack.SharedKernel.Time;
 using LearnStack.Tools.Seeder;
 using MediatR;
 using Microsoft.AspNetCore.Hosting;
@@ -24,6 +30,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
@@ -48,7 +55,7 @@ public sealed class PublicLocaleEvolutionHttpTests(SchemaFixture schema, Constru
     private static SeedTenant Yoga => SeedData.Yoga;
 
     [Fact]
-    public async Task Third_locale_authored_through_api_commands_serves_exact_new_urls_without_changing_existing_responses_or_migrations()
+    public async Task Third_locale_authored_by_component_commands_serves_exact_new_urls_without_changing_existing_responses_or_migrations()
     {
         await using var database = await SeededDatabaseAsync();
         await using var evidence = await ComponentAuthorizationEvidence.CreateAsync(database);
@@ -302,7 +309,8 @@ public sealed class PublicLocaleEvolutionHttpTests(SchemaFixture schema, Constru
     }
 
     // Explicit admission for this component mechanism; this is not a live HTTP authorization proof.
-    private static void AddComponentAuthority(IServiceCollection services) =>
+    private static void AddComponentAuthority(IServiceCollection services)
+    {
         ComponentOperationRegistration.AddExactComponentAuthority(services,
             OperationPolicy.ForTrusted<GetTenantSeedStateQuery>("tests.component.locale.read_tenant", AuthorizationSourceKind.Seed),
             OperationPolicy.ForTrusted<GetCourseSeedStateQuery>("tests.component.locale.read_course", AuthorizationSourceKind.Seed),
@@ -318,6 +326,65 @@ public sealed class PublicLocaleEvolutionHttpTests(SchemaFixture schema, Constru
             OperationPolicy.ForTrusted<PublishLessonCommand>("tests.component.locale.publish_lesson", AuthorizationSourceKind.Seed),
             OperationPolicy.ForTrusted<MapHostToTenantCommand>("tests.component.locale.map_host", AuthorizationSourceKind.Seed),
             OperationPolicy.ForTrusted<SetTenantBrandingCommand>("tests.component.locale.branding", AuthorizationSourceKind.Seed));
+        // These two setup acts are outside the fixed v1 seed declaration. Keep
+        // actual domain/store/audit behavior under explicit component authority;
+        // they do not prove production human or fixed Seeder write admission.
+        services.Replace(ServiceDescriptor.Scoped<IRequestHandler<AddTenantLocaleCommand, Result<TenantLocalesDto>>, LocaleComponentHandler>());
+        services.Replace(ServiceDescriptor.Scoped<IRequestHandler<MapHostToTenantCommand, Result<HostMappingDto>>, HostComponentHandler>());
+    }
+
+    private static void RequireComponentInvocation(object request, string policyId, ITenantContext context,
+        IOperationInvocationContext execution, IOperationPolicyCatalog catalog)
+    {
+        if (execution.CurrentInvocation is not { IsActive: true, EntryKind: OperationEntryKind.Application } invocation
+            || !ReferenceEquals(invocation.Operation, request) || !ReferenceEquals(invocation.Context, context)
+            || !catalog.TryGet(request.GetType(), out var policy) || !ReferenceEquals(invocation.Policy, policy)
+            || policy.Id != policyId || policy.Kind != OperationPolicyKind.FiniteTrusted
+            || invocation.TrustedSource is not { SourceKind: AuthorizationSourceKind.Seed } source
+            || !source.Matches(request.GetType(), context) || !context.IsResolved || context.OrganizationId is not null)
+            throw new InvalidOperationException("Locale fixture requires its exact component invocation.");
+    }
+
+    private sealed class LocaleComponentHandler(ITenantWriteStore tenants, ITenantContext context,
+        IIdentityMutationLocks locks, IOperationInvocationContext execution, IOperationPolicyCatalog catalog,
+        IAuditSubject subject, IClock clock) : IRequestHandler<AddTenantLocaleCommand, Result<TenantLocalesDto>>
+    {
+        public async Task<Result<TenantLocalesDto>> Handle(AddTenantLocaleCommand request, CancellationToken cancellationToken)
+        {
+            RequireComponentInvocation(request, "tests.component.locale.add_locale", context, execution, catalog);
+            var plan = new IdentityMutationLockPlan([], context.TenantId, IdentityTenantLockMode.Exclusive);
+            await locks.AcquireAsync(plan, cancellationToken);
+            var tenant = await tenants.FindForUpdateAsync(context.TenantId, cancellationToken)
+                ?? throw new InvalidOperationException("Locale fixture requires its retained Tenant.");
+            RequireComponentInvocation(request, "tests.component.locale.add_locale", context, execution, catalog);
+            locks.RequireCurrent(plan);
+            if (tenant.Version != request.ExpectedVersion || !tenant.HasValidLocaleConfiguration())
+                throw new InvalidOperationException("Locale fixture requires its current Tenant version.");
+            subject.Designate(tenant);
+            tenant.AddLocale(request.Locale, request.IsDefault, clock, context.UserId ?? UserId.SystemActor, request.IsEnabled, request.Sort);
+            await tenants.UpdateAsync(tenant, cancellationToken);
+            return Result.Ok(new TenantLocalesDto(tenant.Id, tenant.Version, tenant.Locales
+                .OrderBy(locale => locale.Sort).ThenBy(locale => locale.Locale, StringComparer.Ordinal)
+                .Select(locale => new TenantLocaleDto(locale.Locale, locale.IsEnabled, locale.IsDefault, locale.Sort)).ToImmutableArray()));
+        }
+    }
+
+    private sealed class HostComponentHandler(IPlatformHostMappingStore mappings, ITenantContext context,
+        IIdentityMutationLocks locks, IOperationInvocationContext execution, IOperationPolicyCatalog catalog)
+        : IRequestHandler<MapHostToTenantCommand, Result<HostMappingDto>>
+    {
+        public async Task<Result<HostMappingDto>> Handle(MapHostToTenantCommand request, CancellationToken cancellationToken)
+        {
+            RequireComponentInvocation(request, "tests.component.locale.map_host", context, execution, catalog);
+            var plan = new IdentityMutationLockPlan([], context.TenantId, IdentityTenantLockMode.Exclusive);
+            await locks.AcquireAsync(plan, cancellationToken);
+            RequireComponentInvocation(request, "tests.component.locale.map_host", context, execution, catalog);
+            locks.RequireCurrent(plan);
+            var mapping = PlatformHostMapping.Create(request.Host, context.TenantId, request.OrganizationId, request.IsActive, request.IsPubliclyLive);
+            await mappings.AddAsync(mapping, cancellationToken);
+            return Result.Ok(new HostMappingDto(mapping.Host, mapping.TenantId, mapping.OrganizationId, mapping.IsActive, mapping.IsPubliclyLive));
+        }
+    }
 
     private WebApplicationFactory<Program> ApiHost(DisposableSchemaDatabase database, ComponentAuthorizationEvidence evidence, PublicReadObservation observation,
         TranslationScopeObservation? scopes = null) =>
@@ -357,7 +424,7 @@ public sealed class PublicLocaleEvolutionHttpTests(SchemaFixture schema, Constru
         try
         {
             var result = await scope.ServiceProvider.GetRequiredService<ISender>().Send(request);
-            result.IsSuccess.Should().BeTrue("the normal API pipeline must accept {0}: {1}", request.GetType().Name, result.Error?.Code);
+            result.IsSuccess.Should().BeTrue("the explicitly authorized component pipeline must accept {0}: {1}", request.GetType().Name, result.Error?.Code);
             return result.Value!;
         }
         finally { accessor.Current = previous; }

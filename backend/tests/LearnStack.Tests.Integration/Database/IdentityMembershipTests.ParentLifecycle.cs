@@ -25,27 +25,12 @@ public sealed partial class IdentityMembershipTests
     [InlineData(true)]
     public async Task Assignment_addition_serializes_with_Membership_Revoke_and_the_predecessor_exposes_the_race(bool corrected)
     {
-        await using var database = await DisposableSchemaDatabase.CreateAsync(fixture.Postgres);
-        await SeedSchemaAsync(database.MigrationConnectionString, database.AppConnectionString);
-        await using var migration = new IdentityDbContext(new DbContextOptionsBuilder<IdentityDbContext>()
-            .UseNpgsql(database.MigrationConnectionString, options =>
-                options.MigrationsHistoryTable(IdentityDbContextFactory.HistoryTable)).Options,
-            StaticTenantContextAccessor.Unresolved, EmptyIdentityScope.Instance);
-        var currentFunctions = await ReadIdentityFunctionsAsync(database);
-        await migration.GetService<IMigrator>().MigrateAsync("20261026043921_correct_identity_admission_parent_sqlstate");
+        const string Predecessor = "20261026043921_correct_identity_admission_parent_sqlstate";
+        await using var database = await CreateHistoricalIdentityDatabaseAsync(Predecessor);
+        await SeedHistoricalIdentityGraphAsync(database);
+        await using var migration = HistoricalIdentityMigration(database);
         var predecessorFunctions = await ReadIdentityFunctionsAsync(database);
-        var currentGuard = currentFunctions.Except(predecessorFunctions).Should().ContainSingle().Which;
-        var previousGuard = predecessorFunctions.Except(currentFunctions).Should().ContainSingle().Which;
-        currentGuard.Identity.Should().Be("fn_identity_contextual_mutation_guard()");
-        (currentGuard with { Definition = previousGuard.Definition }).Should().Be(previousGuard,
-            "the forward replacement preserves function identity, owner, ACL, volatility and execution mode");
-        currentGuard.Definition.Should().Be(previousGuard.Definition.Replace(
-            "target_member FOR KEY SHARE;", "target_member FOR NO KEY UPDATE;", StringComparison.Ordinal));
-        if (corrected)
-        {
-            await migration.Database.MigrateAsync();
-            (await ReadIdentityFunctionsAsync(database)).Should().Equal(currentFunctions);
-        }
+        if (corrected) await AssertParentLifecycleCorrectionAsync(database, migration, predecessorFunctions);
         migration.Database.HasPendingModelChanges().Should().BeFalse();
 
         await using var source = ApplicationDataSource.Build(database.AppConnectionString);
@@ -99,6 +84,11 @@ public sealed partial class IdentityMembershipTests
             ("member", LearnerMembershipA))).Should().Be("Revoked");
         (await ScalarAsync<long>(inserter, read, "SELECT count(*) FROM public.membership_role_assignments WHERE membership_id=@member AND role_id=@role",
             ("member", LearnerMembershipA), ("role", instructor))).Should().Be(corrected ? 0 : 1);
+        await read.RollbackAsync();
+        if (!corrected) await AssertParentLifecycleCorrectionAsync(database, migration, predecessorFunctions);
+        await MigrationChains.ApplyAllAsync(database.MigrationConnectionString);
+        await AssertFreshIdentityChainAsync(database);
+        migration.Database.HasPendingModelChanges().Should().BeFalse();
     }
 
     private static async Task WaitForBlockingBackendAsync(NpgsqlConnection observer, int waiting, int blocker)

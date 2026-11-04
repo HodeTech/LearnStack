@@ -25,6 +25,8 @@ import { demoSource } from './demo-source.mjs';
 import { RealmError, realmFailureNotice } from './development-realm-errors.mjs';
 import { readRealmEnvironmentFile, realmEnvironment, seedAuthorityEnvironment, validateLocalDockerContext } from './development-realm-owner.mjs';
 import { reconcileDevelopmentRealm } from './reconcile-development-realm.mjs';
+import { seedAdministrationOriginTenantIds, adoptSeedAdministrationOrigins } from './seed-admin-origins.mjs';
+import { resolveQualifiedPnpm } from '../frontend/scripts/framework-installation.mjs';
 
 const appRoot = join(repositoryRoot, 'frontend/apps/web');
 const backendRoot = join(repositoryRoot, 'backend');
@@ -237,9 +239,10 @@ export async function startDemo(mode) {
       );
     }
     await vacant(3000);
+    const manager = resolveQualifiedPnpm({ frontendRoot: join(repositoryRoot, 'frontend') });
     for (const [command, args] of [
       ['node', ['--version']],
-      ['pnpm', ['--version']],
+      [manager.command, [...manager.args, '--version']],
       ['dotnet', ['--version']],
       ['docker', ['compose', 'version']],
       ['openssl', ['version']],
@@ -257,15 +260,15 @@ export async function startDemo(mode) {
     // Git/hook configuration is untouched. The frontend lock and pinned SDK/tool
     // manifests are the same dependency inputs used by required checks.
     console.log('demo: restoring pinned dependencies');
-    await run('pnpm', ['install', '--frozen-lockfile'], 'Locked frontend restore', {
+    await run(process.execPath, [join(repositoryRoot, 'frontend/scripts/install-frontend.mjs')], 'Locked frontend restore', {
       cwd: join(repositoryRoot, 'frontend'),
       timeout: 180000,
     });
-    await run('dotnet', ['restore', 'LearnStack.slnx'], 'Backend restore', {
+    await run('dotnet', ['restore', 'LearnStack.slnx', '--disable-build-servers'], 'Backend restore', {
       cwd: backendRoot,
       timeout: 180000,
     });
-    await run('pnpm', ['--filter', '@learnstack/web', 'build:ingress'], 'Ingress compilation', {
+    await run(manager.command, [...manager.args, '--filter', '@learnstack/web', 'build:ingress'], 'Ingress compilation', {
       cwd: join(repositoryRoot, 'frontend'),
     });
     await run(
@@ -277,6 +280,7 @@ export async function startDemo(mode) {
         'Release',
         '--no-restore',
         '--nologo',
+        '--disable-build-servers',
       ],
       'Seeder build',
       { cwd: backendRoot },
@@ -440,12 +444,15 @@ export async function startDemo(mode) {
       timeout: 300000,
     });
     await waitCompose(selected, processes, controller.signal);
-    await run('dotnet', [seederDll], 'Contextual seed convergence', {
+    const seedOutput = await run('dotnet', [seederDll], 'Contextual seed convergence', {
       cwd: backendRoot,
       env: developmentSeederRuntimeEnvironment(rawValues),
       timeout: 180000,
+      capture: true,
     });
-    await reconcileDevelopmentRealm({ selected, signal: controller.signal, seedIdentityFoundation: true });
+    const originTenants = seedAdministrationOriginTenantIds(seedOutput);
+    const realmResult = await reconcileDevelopmentRealm({ selected, signal: controller.signal, seedIdentityFoundation: true });
+    await adoptSeedAdministrationOrigins(processes, rawValues, originTenants, realmResult.preparationDispatched === true);
     if (mode === 'ci') {
       await compose(['stop', 'keycloak'], { timeout: 20000 });
       const rows = await compose(['ps', '--status', 'running', '--format', '{{.Service}}'], {
@@ -455,7 +462,7 @@ export async function startDemo(mode) {
     }
     // make migrate already built the fresh Release API used by both demo modes.
     console.log('demo: building production renderer');
-    await run('pnpm', ['--filter', '@learnstack/web', 'build'], 'Production renderer build', {
+    await run(manager.command, [...manager.args, '--filter', '@learnstack/web', 'build'], 'Production renderer build', {
       cwd: join(repositoryRoot, 'frontend'),
       timeout: 180000,
     });
@@ -498,6 +505,7 @@ export async function startDemo(mode) {
       cwd: appRoot,
       env: publicWebEnvironment(values, privateRoot),
       label: 'Owned native web',
+      ownedRuntime: true,
       observe: (chunk) => {
         webTail = (webTail + chunk.toString()).slice(-1024);
         if (webTail.includes('Public HTTPS listener ready on 127.0.0.1:3000'))

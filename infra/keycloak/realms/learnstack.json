@@ -295,13 +295,15 @@
       "serviceAccountsEnabled": false,
       "redirectUris": [
         "https://demo-english.learnstack.local:3000/api/auth/callback/keycloak",
-        "https://demo-yoga.learnstack.local:3000/api/auth/callback/keycloak"
+        "https://demo-yoga.learnstack.local:3000/api/auth/callback/keycloak",
+        "https://manage.demo-english.learnstack.local:3000/api/auth/callback/keycloak",
+        "https://manage.demo-yoga.learnstack.local:3000/api/auth/callback/keycloak"
       ],
       "webOrigins": [],
       "protocol": "openid-connect",
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "https://demo-english.learnstack.local:3000/##https://demo-yoga.learnstack.local:3000/"
+        "post.logout.redirect.uris": "https://demo-english.learnstack.local:3000/##https://demo-yoga.learnstack.local:3000/##https://manage.demo-english.learnstack.local:3000/##https://manage.demo-yoga.learnstack.local:3000/"
       },
       "fullScopeAllowed": true,
       "defaultClientScopes": [
@@ -311,7 +313,7 @@
         "web-origins",
         "acr",
         "basic",
-        "learnstack-tenant-api"
+        "learnstack-native-session"
       ],
       "optionalClientScopes": [
         "offline_access",
@@ -726,6 +728,46 @@
           "config": {
             "user.attribute": "organization_id",
             "claim.name": "organization_id",
+            "jsonType.label": "String",
+            "multivalued": "false",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "learnstack-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "learnstack-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "learnstack-native-session",
+      "description": "Native provider identity without tenant or organization scope; access-only API audience.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "user_id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "user_id",
+            "claim.name": "user_id",
             "jsonType.label": "String",
             "multivalued": "false",
             "access.token.claim": "true",

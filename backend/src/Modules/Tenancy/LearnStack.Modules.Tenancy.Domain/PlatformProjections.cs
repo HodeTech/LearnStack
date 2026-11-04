@@ -115,7 +115,7 @@ public sealed class PlatformEntitlement : ITenantOwned
 /// (<see href="../../../../../docs/decisions/0034-hub-contract-surface-invariant.md">ADR-0034</see>).
 /// </para>
 /// </remarks>
-public sealed class PlatformHostMapping
+public sealed class PlatformHostMapping : LearnStack.SharedKernel.Audit.IAuditProjectionSubject
 {
     private PlatformHostMapping() => Host = null!;
 
@@ -188,6 +188,8 @@ public sealed class PlatformHostMapping
 
     /// <summary>The normalized effective host. Primary key — one answer per host.</summary>
     public string Host { get; private set; }
+
+    string LearnStack.SharedKernel.Audit.IAuditProjectionSubject.AuditProjectionKey => Host;
 
     public TenantId TenantId { get; private set; }
 

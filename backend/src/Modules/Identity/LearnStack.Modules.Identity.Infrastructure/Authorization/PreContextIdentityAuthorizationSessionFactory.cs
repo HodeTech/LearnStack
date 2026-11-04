@@ -129,7 +129,7 @@ public sealed class PreContextIdentityAuthorizationSessionFactory : IIdentityAut
                 if (rows.IsDBNull(5)) continue;
                 var permissionKey = rows.GetString(6);
                 if (rows.GetString(5) != role.Scope.ToString()
-                    || !IdentityFoundationManifest.Version1.IsActive(role.Scope, permissionKey)) throw Unavailable();
+                    || !IdentityRoleRelease.Version2.IsActive(role.Scope, permissionKey)) throw Unavailable();
                 role.Grants.Add(new(role.Scope, permissionKey));
             }
             return [.. memberships.Values.OrderBy(member => member.Id).Select(member => new AuthorizationMembershipFacts(
@@ -149,7 +149,7 @@ public sealed class PreContextIdentityAuthorizationSessionFactory : IIdentityAut
     private static string[] RoleKeys(PermissionScope scope) => [.. IdentityFoundationManifest.Version1.Templates
         .Where(template => template.Scope == scope).Select(template => template.BuiltInKey.ToString())];
 
-    private static string[] PermissionKeys(PermissionScope scope) => [.. IdentityFoundationManifest.Version1.Definitions
+    private static string[] PermissionKeys(PermissionScope scope) => [.. IdentityRoleRelease.Version2.Definitions
         .Where(definition => definition.IsActive && definition.Scope == scope).Select(definition => definition.Key)];
 
     private static async ValueTask<bool> TryDisposeAsync(IAsyncDisposable? resource)

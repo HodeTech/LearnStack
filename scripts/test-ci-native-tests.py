@@ -5,6 +5,7 @@ Only fixed proc/executable constants change in the byte-verified copy. Fixture
 executables are real subprocesses, including exit, stdout and setsid behavior.
 These controls do not qualify a hosted systemd/cgroup implementation or CI fit.
 """
+import ast
 from collections import Counter
 import contextlib
 import errno
@@ -218,11 +219,11 @@ class OwnerControls(unittest.TestCase):
         fixture = fixtures.ShardControls(); fixture.plan = self.owner.shard_owner().load_plan()
         return fixture
 
-    def run_workload(self, manifest, status, name, execution=None):
+    def run_workload(self, manifest, status, name, execution=None, *, mode='ordinary-0'):
         private, output = self.root / ('private-' + name), self.root / ('output-' + name)
         private.mkdir(); output.mkdir(); (output / 'results').mkdir()
         plan = self.owner.shard_owner().load_plan()
-        expected = self.owner.shard_owner().assign(manifest, plan, '1')['owners']['ordinary-0']
+        expected = self.owner.shard_owner().assign(manifest, plan, '1')['owners'][mode]
         def completed(argv, deadline, work, consume, progress):
             if execution is not None:
                 return execution(progress, expected)
@@ -237,7 +238,7 @@ class OwnerControls(unittest.TestCase):
                 mock.patch.object(self.owner, 'adapter_evidence', return_value={}), \
                 mock.patch.object(self.owner, 'shard_dotnet', side_effect=completed), \
                 contextlib.redirect_stdout(io.StringIO()):
-            self.owner.workload('ordinary-0', {'runAttempt': '1'}, private, output,
+            self.owner.workload(mode, {'runAttempt': '1'}, private, output,
                                 time.monotonic() + 3, '/owned/work')
         return private, output, expected
 
@@ -331,17 +332,24 @@ class OwnerControls(unittest.TestCase):
     def test_job_window_is_closed_to_exact_plan_bounded_mode_and_expected_job(self):
         counts = self.owner.shard_owner().load_plan()['counts']
         self.assertEqual(1200, self.owner.JOB_SECONDS)
-        self.assertEqual(1500, self.owner.ORDINARY_JOB_SECONDS)
+        self.assertEqual(1500, self.owner.ARCHITECTURE_JOB_SECONDS)
+        self.assertEqual(1800, self.owner.ORDINARY_JOB_SECONDS)
         self.assertEqual(203, self.owner.RESERVE_SECONDS)
-        for mode, job in self.owner.SHARD_JOBS.items():
+        for mode, job in tuple(self.owner.SHARD_JOBS.items()):
             with self.subTest(mode=mode):
-                expected = 1500 if mode.startswith('ordinary-') else 1200
+                expected = (1800 if mode.startswith('ordinary-') else
+                            1500 if mode.startswith('architecture-') else 1200)
                 self.assertEqual(expected, self.owner.job_seconds(mode, job, counts))
                 for forged_job in set(self.owner.SHARD_JOBS.values()) - {job}:
                     self.refuses('job_identity_mismatch', self.owner.job_seconds, mode, forged_job, counts)
+                # Even an explicitly changed expected job cannot change the validated mode's budget.
+                with mock.patch.dict(self.owner.SHARD_JOBS, {mode: 'reviewed-shared-job'}):
+                    self.assertEqual(expected, self.owner.job_seconds(mode, 'reviewed-shared-job', counts))
         for mode in ('ordinary', 'ordinary-00', 'ordinary--1', 'ordinary-1-extra',
                      'ordinary-12', 'ordinary-999', 'ordinary-0suffix', 'native',
-                     'architecture-6', 'aggregate', 'aggregate-backend', '', ' ordinary-0'):
+                     'architecture-6', 'architecture-00', 'architecture--1', 'architecture-0suffix',
+                     'architecture-1-extra', 'aggregate', 'aggregate-backend', '', ' ordinary-0',
+                     None, False, [], {}):
             with self.subTest(mode=mode):
                 self.refuses('mode_refused', self.owner.job_seconds, mode, 'backend-integration-tests', counts)
         reduced = {**counts, 'ordinary': counts['ordinary'] - 1,
@@ -365,14 +373,15 @@ class OwnerControls(unittest.TestCase):
             with self.subTest(mode=mode), mock.patch.dict(os.environ, {**env, 'GITHUB_JOB': job}, clear=True), \
                     mock.patch.object(self.owner.time, 'time', return_value=1700), \
                     mock.patch.object(self.owner.time, 'monotonic', return_value=500):
-                ceiling = 1500 if mode.startswith('ordinary-') else 1200
+                ceiling = (1800 if mode.startswith('ordinary-') else
+                           1500 if mode.startswith('architecture-') else 1200)
                 self.assertEqual((500 + ceiling - 700 - self.owner.RESERVE_SECONDS,
                                   500 + ceiling - 700 - self.owner.UPLOAD_SECONDS - self.owner.MARGIN_SECONDS),
                                  self.owner.deadlines(mode))
-        for mode, job, ceiling in (('ordinary-0', 'backend-integration-tests', 1500),
+        for mode, job, ceiling in (('ordinary-0', 'backend-integration-tests', 1800),
                                    ('native-shard', 'backend-native', 1200),
                                    ('base', 'backend-base', 1200),
-                                   ('architecture-0', 'backend-architecture', 1200)):
+                                   ('architecture-0', 'backend-architecture', 1500)):
             for elapsed in (-1, ceiling):
                 with self.subTest(mode=mode, elapsed=elapsed), \
                         mock.patch.dict(os.environ, {**env, 'GITHUB_JOB': job}, clear=True), \
@@ -383,7 +392,11 @@ class OwnerControls(unittest.TestCase):
         with mock.patch.dict(os.environ, {**env, 'GITHUB_JOB': 'backend-integration-tests'}, clear=True), \
                 mock.patch.object(self.owner.time, 'time', return_value=2250), \
                 mock.patch.object(self.owner.time, 'monotonic', return_value=500):
-            self.assertEqual(547, self.owner.deadlines('ordinary-0')[0])
+            self.assertEqual(847, self.owner.deadlines('ordinary-0')[0])
+        with mock.patch.dict(os.environ, {**env, 'GITHUB_JOB': 'backend-architecture'}, clear=True), \
+                mock.patch.object(self.owner.time, 'time', return_value=2250), \
+                mock.patch.object(self.owner.time, 'monotonic', return_value=500):
+            self.assertEqual(547, self.owner.deadlines('architecture-0')[0])
 
     def test_composed_native_prevalidation_rejects_actual_unknown_collector_before_privilege(self):
         spec = importlib.util.spec_from_file_location(
@@ -445,6 +458,48 @@ except launcher.Refusal as failure:
         for directory in (self.bin / 'proc').iterdir():
             for path in directory.iterdir(): path.unlink()
             directory.rmdir()
+
+    def test_fixed_metadata_command_classification_retains_original_io_and_deadline(self):
+        argv = [self.owner.DOCKER, '--host', 'unix:///var/run/docker.sock', 'info', '--format', 'fixed']
+        reason = 'image_metadata_unavailable_info_command'
+        controls = [
+            ('timeout', subprocess.TimeoutExpired(argv, 5, output=b'PRIVATE-CANARY', stderr=b'PRIVATE-CANARY')),
+            ('os_error', PermissionError('PRIVATE-CANARY')),
+            ('exit', subprocess.CompletedProcess(argv, 7, stdout=b'PRIVATE-CANARY')),
+            ('output_bound', subprocess.CompletedProcess(argv, 0, stdout=b'PRIVATE-CANARY')),
+        ]
+        for kind, result in controls:
+            with self.subTest(kind=kind):
+                options = {'side_effect': result} if isinstance(result, Exception) else {'return_value': result}
+                with mock.patch.object(self.owner.subprocess, 'run', **options) as run, \
+                     mock.patch.object(self.owner, 'MAX_BYTES', 8), \
+                     mock.patch.object(self.owner, 'remaining', return_value=5) as remaining:
+                    self.refuses(reason + '_' + kind, self.owner.command, argv, 123, reason, classify=True)
+                remaining.assert_called_once_with(123, self.owner.COMMAND_SECONDS)
+                self.assertEqual(argv, run.call_args.args[0])
+                self.assertEqual(5, run.call_args.kwargs['timeout'])
+                self.assertEqual(subprocess.DEVNULL, run.call_args.kwargs['stdin'])
+                self.assertEqual(subprocess.DEVNULL, run.call_args.kwargs['stderr'])
+                self.assertEqual(subprocess.PIPE, run.call_args.kwargs['stdout'])
+                self.assertFalse(run.call_args.kwargs['check'])
+                # The real scan call site preserves these failure classes without
+                # widening traversal, its allocation or private-output handling.
+                with mock.patch.object(self.owner.subprocess, 'run', **options) as scan, \
+                     mock.patch.object(self.owner, 'MAX_BYTES', 8), \
+                     mock.patch.object(self.owner, 'remaining', return_value=5) as scan_remaining:
+                    self.refuses('crash_inventory_unreadable_' + kind,
+                                 self.owner.find_crash_candidate, ['/fixed'], 123)
+                scan_remaining.assert_called_once_with(123, self.owner.SCAN_SECONDS)
+                self.assertEqual([self.owner.SUDO, '-n', self.owner.FIND, '/fixed', '-xdev'],
+                                 scan.call_args.args[0][:5])
+                self.assertNotIn('-L', scan.call_args.args[0])
+                self.assertEqual(5, scan.call_args.kwargs['timeout'])
+                self.assertEqual(subprocess.DEVNULL, scan.call_args.kwargs['stderr'])
+                self.assertEqual(subprocess.PIPE, scan.call_args.kwargs['stdout'])
+        with mock.patch.object(self.owner.subprocess, 'run') as run:
+            self.refuses('deadline_exhausted', self.owner.command, argv, time.monotonic() - 1,
+                         reason, classify=True)
+            run.assert_not_called()
 
     @contextlib.contextmanager
     def capture_diagnostic_owners(self):
@@ -753,12 +808,14 @@ except launcher.Refusal as failure:
                 'BackgroundJobPositiveSdkTests.NativeSettlementPrepare.cs',
                 'BackgroundJobRecurrenceStoreTests.NativeOwnership.cs',
                 'BackgroundJobRecurrenceStoreTests.Runtime.cs',
-                'TenantRealmApiTests.WarmQualification.cs', 'BffNativeDriver.cs', 'TenantBffSessionTests.cs'}
+                'TenantRealmApiTests.WarmQualification.cs', 'BffNativeDriver.cs', 'TenantBffSessionTests.cs',
+                'FrameworkOwnershipDriver.cs', 'TenantBffSessionTests.FrameworkOwnership.cs'}
         self.assertEqual(expected, set(self.owner.FAILURE_SOURCES))
         self.assertEqual(len(expected), len(set(self.owner.FAILURE_SOURCES.values())))
         for filename, code in self.owner.FAILURE_SOURCES.items():
             directory = 'TenancyIdentity' if filename in {
-                'TenantRealmApiTests.WarmQualification.cs', 'BffNativeDriver.cs', 'TenantBffSessionTests.cs'} else 'Database'
+                'TenantRealmApiTests.WarmQualification.cs', 'BffNativeDriver.cs', 'TenantBffSessionTests.cs',
+                'FrameworkOwnershipDriver.cs', 'TenantBffSessionTests.FrameworkOwnership.cs'} else 'Database'
             self.assertTrue((ROOT / 'backend/tests/LearnStack.Tests.Integration' / directory / filename).is_file())
             progress.failure_locations.clear()
             item = self.execution_result(cases[0]); item['Outcome'] = 2
@@ -866,6 +923,20 @@ except launcher.Refusal as failure:
         self.assertLess(initialize.index(capture), initialize.index('await DisposeAsync();'))
         self.assertIn('"; startup cancellation requested " + (startupCancellationRequested ? "true" : "false") + "."',
                       initialize)
+        self.assertLess(initialize.index('diagnostics.Snapshot(_keycloak?.State)'), initialize.index('await DisposeAsync();'))
+        self.assertIn('failure.Data[KeycloakStartupDiagnostics.DataKey] = observation;', initialize)
+        self.assertIn('using var startup = new CancellationTokenSource(TimeSpan.FromMinutes(2));', initialize)
+        diagnostics = (directory / 'KeycloakStartupDiagnostics.cs').read_text()
+        milestones = diagnostics.split('internal static readonly string[] Milestones =', 1)[1].split('];', 1)[0]
+        self.assertEqual(self.owner.KEYCLOAK_STARTUP_MILESTONES, tuple(re.findall(r'"([a-z_]+)"', milestones)))
+        self.assertEqual(self.owner.KEYCLOAK_FAILURE_STAGES, set(self.owner.KEYCLOAK_STARTUP_MILESTONES))
+        self.assertEqual(self.owner.KEYCLOAK_READINESS_OUTCOMES | self.owner.KEYCLOAK_CACHED_PROVIDER_STATES,
+                         set(re.findall(r'=> "([a-z_]+)"', diagnostics)))
+        for name, value in (('MaximumCount', self.owner.KEYCLOAK_OBSERVATION_MAX_COUNT),
+                            ('MaximumMilliseconds', self.owner.KEYCLOAK_OBSERVATION_MAX_MS)):
+            constant = re.search(r'internal const int ' + name + r' = ([0-9_]+);', diagnostics)
+            self.assertIsNotNone(constant)
+            self.assertEqual(value, int(constant[1].replace('_', '')))
         self.assertEqual({'TenantRealmApiTests', 'TenantRealmIssuanceTests', 'TenantRealmProfileProtectionTests',
                           'TenantRealmReconciliationTests', 'TenantRealmSelfServiceTests',
                           'TenantRealmStockBaselineTests'},
@@ -991,6 +1062,120 @@ except launcher.Refusal as failure:
         self.assertNotIn('PRIVATE-CANARY', path.read_text())
         self.assertNotIn('provider_start', path.read_text())
         self.refuses('results_incomplete', self.owner.validate_results, output, cases[:1])
+
+    def keycloak_observation_sentence(self, **changes):
+        values = {'fixture': '7', 'elapsedMs': '120008',
+            'milestones': ','.join(str(value) for value in range(11)) + ',-1,-1,-1,-1',
+            'attempts': '101', 'completed': '101', 'readiness': 'connect', 'cachedProvider': 'running'}
+        values.update(changes)
+        return 'Keycloak startup observation v1; ' + '; '.join(name + '=' + value for name, value in values.items()) + '.'
+
+    def test_keycloak_startup_observation_rejects_unknown_duplicate_extra_and_unbounded_context(self):
+        parse = self.owner.closed_keycloak_startup_observation
+        sentence = self.keycloak_observation_sentence()
+        expected = {'fixtureOrdinal': 7, 'elapsedMilliseconds': 120008,
+            'milestoneMilliseconds': dict(zip(self.owner.KEYCLOAK_STARTUP_MILESTONES, [*range(11), -1, -1, -1, -1])),
+            'readinessAttempts': 101, 'readinessCompleted': 101,
+            'readinessOutcome': 'connect', 'cachedProviderState': 'running'}
+        self.assertEqual(expected, parse(sentence))
+        self.assertEqual(sentence, self.owner.keycloak_startup_observation_sentence(expected))
+        for state in self.owner.KEYCLOAK_CACHED_PROVIDER_STATES:
+            for outcome in self.owner.KEYCLOAK_READINESS_OUTCOMES:
+                changes = {'cachedProvider': state, 'readiness': outcome}
+                if outcome == 'not_attempted':
+                    changes.update(attempts='0', completed='0')
+                elif outcome == 'pending':
+                    changes.update(attempts='2', completed='1')
+                self.assertIsNotNone(parse(self.keycloak_observation_sentence(**changes)))
+        boundary = self.keycloak_observation_sentence(fixture='1000000', elapsedMs='600000',
+            milestones=','.join(['600000'] * 15), attempts='1000000', completed='1000000', readiness='pending')
+        self.assertIsNotNone(parse(boundary), 'saturated counters cannot prove that no request is pending')
+        invalid = [None, {}, sentence + sentence, sentence + '; extra=1.', sentence[:-1] + '; extra=1.',
+            sentence.replace('v1;', 'v2;'), sentence.replace('fixture=7;', 'fixture=7; fixture=7;'),
+            sentence + ' PRIVATE-CANARY', 'x' * 65536 + sentence,
+            self.keycloak_observation_sentence(fixture='0'), self.keycloak_observation_sentence(fixture='1000001'),
+            self.keycloak_observation_sentence(fixture='07'), self.keycloak_observation_sentence(fixture='+7'),
+            self.keycloak_observation_sentence(elapsedMs='600001'), self.keycloak_observation_sentence(elapsedMs='-1'),
+            self.keycloak_observation_sentence(milestones=','.join(['0'] * 14)),
+            self.keycloak_observation_sentence(milestones=','.join(['0'] * 16)),
+            self.keycloak_observation_sentence(milestones=','.join(['-2'] * 15)),
+            self.keycloak_observation_sentence(milestones=','.join(['120009'] * 15)),
+            self.keycloak_observation_sentence(milestones=','.join(['00'] * 15)),
+            self.keycloak_observation_sentence(attempts='1000001'), self.keycloak_observation_sentence(completed='102'),
+            self.keycloak_observation_sentence(readiness='not_attempted'),
+            self.keycloak_observation_sentence(readiness='pending'),
+            self.keycloak_observation_sentence(attempts='0', completed='0', readiness='pending'),
+            self.keycloak_observation_sentence(attempts='1', completed='0', readiness='tls'),
+            self.keycloak_observation_sentence(readiness='PRIVATE-CANARY'),
+            self.keycloak_observation_sentence(cachedProvider='PRIVATE-CANARY')]
+        case = self.case(1, 'LearnStack.Tests.Integration.TenancyIdentity.TenantRealmIssuanceTests.Proof')
+        failure = ('Keycloak fixture startup failed at provider_starting/readiness_timeout; '
+                   'owned cleanup completed; startup cancellation requested true.')
+        for value in invalid:
+            with self.subTest(value_type=type(value).__name__):
+                self.assertIsNone(parse(value))
+                if isinstance(value, str):
+                    self.assertIsNone(self.owner.closed_failure_details(case, {'ErrorMessage': failure + ' ' + value}))
+        self.assertIsNone(self.owner.closed_failure_details(case, {'ErrorMessage': failure + ' extra ' + sentence}))
+        self.assertEqual(expected, self.owner.closed_failure_details(case,
+            {'ErrorMessage': failure + ' ' + sentence + '\nPRIVATE-CANARY'})['startupObservation'])
+
+    def test_keycloak_startup_context_survives_real_measurement_and_sanitized_trx_export_seams(self):
+        case = self.case(1, 'LearnStack.Tests.Integration.TenancyIdentity.TenantRealmIssuanceTests.Proof')
+        sentence = self.keycloak_observation_sentence()
+        failure = ('Keycloak fixture startup failed at provider_starting/readiness_timeout; '
+                   'owned cleanup completed; startup cancellation requested true. ' + sentence)
+        expected = self.owner.closed_keycloak_startup_observation(sentence)
+        stream, console = io.StringIO(), io.StringIO()
+        progress = self.progress(self.root / 'keycloak-observation.diag', 'LearnStack.Tests.Integration', [case], stream)
+        raw = self.execution_result(case, outcome=2)
+        raw.update(ErrorMessage='System.InvalidOperationException : ' + failure + '\nPRIVATE-CANARY',
+                   ErrorStackTrace='/private/PRIVATE-CANARY/fixture.cs:line 99',
+                   Messages=[{'Category': 'StdOutMsgs', 'Text': 'PRIVATE-CANARY'}])
+        with contextlib.redirect_stdout(console):
+            progress.results({'NewTestResults': [raw]})
+        self.assertEqual(expected, progress.failure_locations[0]['details']['startupObservation'])
+        measurements = self.root / 'keycloak-measurements.json'
+        self.owner.write_json(measurements, {'projects': [{'failureLocations': progress.failure_locations}]})
+        self.assertEqual(expected, json.loads(measurements.read_text())['projects'][0]
+                         ['failureLocations'][0]['details']['startupObservation'])
+        for projection in (console.getvalue(), stream.getvalue(), measurements.read_text()):
+            self.assertNotIn('PRIVATE-CANARY', projection)
+            self.assertNotIn('/private/', projection)
+        self.assertNotIn('startupObservation', stream.getvalue(), 'case completion stays separate from diagnostics')
+        output = self.root / 'keycloak-output'
+        path = self.trx(output / 'results', [case], outcome='Failed', raw_canary=True)
+        tree = ET.parse(path)
+        raw_output = tree.find('t:Results/t:UnitTestResult/t:Output', self.owner.NS)
+        tag = lambda name: '{' + self.owner.NS['t'] + '}' + name
+        ET.SubElement(ET.SubElement(raw_output, tag('ErrorInfo')), tag('Message')).text = failure + '\nPRIVATE-CANARY'
+        ET.SubElement(raw_output, tag('StdOut')).text = 'PRIVATE-CANARY raw provider output'
+        tree.write(path, encoding='utf-8')
+        self.owner.export_results(path.parent, output, time.monotonic() + 5)
+        retained = ET.parse(path)
+        self.assertEqual(sentence, retained.findtext('t:Results/t:UnitTestResult/t:Output/t:StdOut', namespaces=self.owner.NS))
+        self.assertEqual([], retained.findall('.//t:ErrorInfo', self.owner.NS))
+        self.assertNotIn('PRIVATE-CANARY', path.read_text())
+        self.assertNotIn('readiness_timeout', path.read_text(), 'raw failure text is not copied')
+        self.assertEqual('Failed', self.owner.trx_cases(path, sanitize=True)[0]['outcome'])
+        self.assertEqual(sentence, ET.parse(path).findtext('t:Results/t:UnitTestResult/t:Output/t:StdOut', namespaces=self.owner.NS))
+        self.refuses('results_incomplete', self.owner.validate_results, output, [case])
+        for index, (named, outcome, message) in enumerate((
+                (case, 'Failed', failure.replace('cachedProvider=running', 'cachedProvider=PRIVATE-CANARY')),
+                (case, 'Failed', failure + ' ' + sentence),
+                ({**case, 'name': 'LearnStack.Tests.Integration.Database.Other.Proof'}, 'Failed', failure),
+                ({**case, 'assembly': 'learnstack.tests.unit'}, 'Failed', failure),
+                (case, 'Passed', failure))):
+            rejected = self.trx(self.root / ('rejected-keycloak-' + str(index)), [named], outcome=outcome, raw_canary=True)
+            rejected_tree = ET.parse(rejected)
+            rejected_output = rejected_tree.find('t:Results/t:UnitTestResult/t:Output', self.owner.NS)
+            ET.SubElement(ET.SubElement(rejected_output, tag('ErrorInfo')), tag('Message')).text = message
+            # A valid-looking stdout receipt cannot rescue an invalid or foreign error message.
+            ET.SubElement(rejected_output, tag('StdOut')).text = sentence
+            rejected_tree.write(rejected, encoding='utf-8')
+            self.owner.trx_cases(rejected, sanitize=True)
+            self.assertEqual([], ET.parse(rejected).findall('.//t:Output', self.owner.NS))
+            self.assertNotIn('PRIVATE-CANARY', rejected.read_text())
 
     @staticmethod
     def recurrence_native_sentence(kind='failure', **changes):
@@ -1275,6 +1460,32 @@ except launcher.Refusal as failure:
             self.assertNotIn('/private/', exported)
             self.assertNotIn('Source contention failure;', exported)
 
+    def test_framework_ownership_details_accept_only_exact_private_bridge_failures(self):
+        source = (ROOT / 'backend/tests/LearnStack.Tests.Integration/TenancyIdentity/FrameworkOwnershipDriver.cs').read_text()
+        self.assertEqual({'framework_ownership_driver', 'framework_ownership_test'},
+                         {self.owner.FAILURE_SOURCES[name] for name in
+                          ('FrameworkOwnershipDriver.cs', 'TenantBffSessionTests.FrameworkOwnership.cs')})
+        self.assertEqual(2, len(self.owner.FRAMEWORK_OWNERSHIP_FAILURE_CASES))
+        for name in self.owner.FRAMEWORK_OWNERSHIP_FAILURE_CASES:
+            case = {**self.case(1), 'name': name}
+            for message, reason in self.owner.FRAMEWORK_OWNERSHIP_FIXED_FAILURES.items():
+                if reason in ('prepare_frame', 'closed_frame'):
+                    self.assertIn('Framework ownership fixture rejected its " + phase + " frame.', source)
+                else:
+                    self.assertIn(message, source)
+                self.assertEqual({'stage': 'framework_ownership', 'reason': reason},
+                                 self.owner.closed_failure_details(case, {'ErrorMessage': message}))
+                self.assertEqual({'stage': 'framework_ownership', 'reason': reason},
+                                 self.owner.closed_failure_details(case,
+                                     {'ErrorMessage': 'System.InvalidOperationException : ' + message}))
+            for invalid in ('PRIVATE-CANARY', 'Framework ownership fixture rejected its open frame.',
+                            'Framework ownership fixture retained its private tree. PRIVATE-CANARY'):
+                self.assertIsNone(self.owner.closed_failure_details(case, {'ErrorMessage': invalid}))
+            self.assertIsNone(self.owner.closed_failure_details({**case, 'assembly': 'other'},
+                              {'ErrorMessage': 'Framework ownership fixture retained its private tree.'}))
+            self.assertIsNone(self.owner.closed_failure_details({**case, 'name': name + '_other'},
+                              {'ErrorMessage': 'Framework ownership fixture retained its private tree.'}))
+
     def test_bff_browser_details_preserve_only_existing_closed_reasons_and_journey(self):
         case = {**self.case(1), 'name': self.owner.BFF_BROWSER_FAILURE_CASE}
         parse = self.owner.closed_failure_details
@@ -1284,6 +1495,12 @@ except launcher.Refusal as failure:
         expected = set(re.findall(r'"([^"]+)"', initial))
         expected |= {prefix + code for prefix in ('browser-callback-', 'browser-authorize-', 'browser-logout-status-')
                      for code in ('0', '200', '303', '400', '403', '404', '429', '503', 'other')}
+        counter = suffix.split('.Concat', 1)[1]
+        counter_array = counter.split('new[] {', 1)[1].split('}', 1)[0]
+        counter_reasons = re.findall(r'"([^"]+)"', counter_array)
+        self.assertEqual(9, len(counter_reasons))
+        self.assertIn('.Select(reason => "browser-administration-counter-" + reason)', counter)
+        expected |= {'browser-administration-counter-' + reason for reason in counter_reasons}
         self.assertEqual(expected, self.owner.BFF_BROWSER_FAILURE_STAGES)
         self.assertIn('privacy', self.owner.BFF_BROWSER_FAILURE_STAGES)
         for reason in self.owner.BFF_BROWSER_FAILURE_REASONS:
@@ -1292,12 +1509,82 @@ except launcher.Refusal as failure:
         for message, reason in self.owner.BFF_BROWSER_FIXED_FAILURES.items():
             self.assertIn(message, source)
             self.assertEqual(reason, parse(case, {'ErrorMessage': message})['reason'])
-        for journey in ('positive', 'counter'):
+        for journey in ('positive', 'counter', 'unavailable_pages'):
             raw = {'ErrorMessage': 'PRIVATE-CANARY', 'Messages': [{'Category': 'StdOutMsgs', 'Text':
                 'BFF browser failure;journey=' + journey + '.\nBFF browser cleanup;journey=' + journey + ';state=failed.'}]}
             self.assertEqual({'stage': 'bff_browser', 'journey': journey, 'secondaryCleanup': 'failed', 'reason': 'other'}, parse(case, raw))
             self.assertIsNone(parse({**case, 'name': case['name'] + '_other'}, raw))
             self.assertIsNone(parse({**case, 'assembly': 'other'}, raw))
+        for cleanup in (stage for stage in self.owner.BFF_BROWSER_FAILURE_STAGES if stage.startswith('cleanup-')):
+            reason = 'browser-history-revalidation_cleanup_' + cleanup
+            message = 'BFF native fixture did not reach the closed browser_result/' + reason + ' phase.'
+            self.assertEqual({'stage': 'bff_browser', 'reason': reason}, parse(case, {'ErrorMessage': message}))
+            self.assertIsNone(parse(case, {'ErrorMessage': message.replace(cleanup, 'PRIVATE-CANARY')}))
+        counter_raw = {'ErrorMessage': 'BFF native fixture did not reach the closed browser_result/browser-administration-counter-view phase.',
+                       'Messages': [{'Category': 'StdOutMsgs', 'Text': 'BFF browser failure;journey=unavailable_pages.'}]}
+        self.assertEqual({'stage': 'bff_browser', 'journey': 'unavailable_pages',
+                          'reason': 'browser-administration-counter-view'}, parse(case, counter_raw))
+
+    def test_bff_browser_shutdown_diagnostics_are_closed_journey_bound_and_do_not_replace_reason(self):
+        case = {**self.case(1), 'name': self.owner.BFF_BROWSER_FAILURE_CASE}
+        parse = self.owner.closed_failure_details
+        reason = 'browser-administration-pages_cleanup_cleanup-native-wait'
+        message = 'BFF native fixture did not reach the closed browser_result/' + reason + ' phase.'
+        failure = 'BFF browser failure;journey=unavailable_pages.'
+        shutdown = 'BFF browser shutdown;journey=unavailable_pages;state=valid,1,0,p,f,p,p,live,0,open,open.'
+        raw = {'ErrorMessage': message, 'Messages': [{'Category': 'StdOutMsgs', 'Text': failure + '\n' + shutdown}]}
+        expected = {'stage': 'bff_browser', 'journey': 'unavailable_pages', 'reason': reason,
+                    'nativeShutdown': {'ipc': 'valid', 'entered': True, 'watchdog': False,
+                        'listener': 'pending', 'next': 'fulfilled', 'sessions': 'pending', 'requests': 'pending',
+                        'leader': 'live', 'close': False, 'stdout': 'open', 'stderr': 'open'}}
+        self.assertEqual(expected, parse(case, raw))
+        for invalid in (shutdown + '\n' + shutdown, shutdown + 'PRIVATE-CANARY',
+                shutdown.replace('valid,', 'PRIVATE-CANARY,'), shutdown.replace(',p,f,', ',p,private,'),
+                shutdown.replace('unavailable_pages', 'positive'), shutdown.replace(',live,', ',12345,'),
+                shutdown.replace(',open,open.', ',open,open,extra.')):
+            self.assertIsNone(parse(case, {'ErrorMessage': message, 'Messages': [
+                {'Category': 'StdOutMsgs', 'Text': failure + '\n' + invalid}]}))
+        self.assertIsNone(parse(case, {'ErrorMessage': message, 'Messages': [
+            {'Category': 'StdOutMsgs', 'Text': shutdown}]}))
+        self.assertIsNone(parse(case, {'ErrorMessage': message, 'Messages': [
+            {'Category': 'StdOutMsgs', 'Text': failure}, {'Category': 'StdErrMsgs', 'Text': shutdown}]}))
+        progress = self.progress(self.root / 'bff-shutdown.diag', 'LearnStack.Tests.Integration', [case], io.StringIO())
+        item = self.execution_result(case, 2)
+        item.update(raw)
+        progress.results({'NewTestResults': [item]})
+        self.assertEqual(expected, progress.failure_locations[0]['details'])
+        measurement = self.root / 'bff-shutdown-measurements.json'
+        self.owner.write_json(measurement, {'failureLocations': progress.failure_locations})
+        self.assertEqual(expected, json.loads(measurement.read_text())['failureLocations'][0]['details'])
+        self.assertNotIn('BFF browser shutdown;', measurement.read_text())
+
+    def test_bff_browser_observation_is_bounded_and_bound_to_the_actual_failure(self):
+        case = {**self.case(1), 'name': self.owner.BFF_BROWSER_FAILURE_CASE}
+        parse = self.owner.closed_failure_details
+        reason = 'browser-history-revalidation_cleanup_cleanup-native-wait'
+        message = 'BFF native fixture did not reach the closed browser_result/' + reason + ' phase.'
+        failure = 'BFF browser failure;journey=counter.'
+        shutdown = 'BFF browser shutdown;journey=counter;state=valid,1,0,f,f,f,p,live,0,open,open.'
+        observed = 'BFF browser observation;journey=counter;state=valid,next,1,0,256,2,1;true;persisted_wait.'
+        def raw(text):
+            return {'ErrorMessage': message, 'Messages': [{'Category': 'StdOutMsgs', 'Text': text}]}
+        text = '\n'.join((failure, shutdown, observed))
+        result = parse(case, raw(text))
+        self.assertEqual(reason, result['reason'])
+        self.assertEqual({'probe': 'true', 'operation': 'persisted_wait', 'sample': {
+            'status': 'valid', 'milestone': 'next', 'handlerPending': 1, 'terminalPending': 0,
+            'issuedWrites': 256, 'frameworkWaitUntil': 2, 'poolHeld': 1}}, result['observation'])
+        for invalid in (observed.replace('256', '257'), observed.replace('next', 'requests'),
+                observed.replace('counter', 'positive'), observed.replace('true', 'PRIVATE-CANARY'),
+                observed.replace('true;persisted_wait', 'true;none'), observed + '\n' + observed,
+                observed.replace('valid,next,1,0,256,2,1', 'valid,next,01,0,256,2,1')):
+            self.assertIsNone(parse(case, raw('\n'.join((failure, shutdown, invalid)))))
+        self.assertIsNone(parse(case, raw('\n'.join((failure, observed)))))
+        self.assertIsNone(parse(case, {'ErrorMessage': message, 'Messages': [
+            {'Category': 'StdOutMsgs', 'Text': failure + '\n' + shutdown},
+            {'Category': 'StdErrMsgs', 'Text': observed}]}))
+        bad_reason = message.replace('browser-history-revalidation', 'browser-launch')
+        self.assertIsNone(parse(case, {**raw(text), 'ErrorMessage': bad_reason}))
 
     def test_bff_browser_details_refuse_private_malformed_duplicate_and_wrong_channel_data(self):
         case = {**self.case(1), 'name': self.owner.BFF_BROWSER_FAILURE_CASE}
@@ -1311,6 +1598,8 @@ except launcher.Refusal as failure:
                 ('StdOutMsgs', marker + 'PRIVATE-CANARY'), ('StdOutMsgs', marker.replace('positive', 'private')),
                 ('StdOutMsgs', 'BFF browser cleanup;journey=positive;state=failed.'),
                 ('StdOutMsgs', marker + '\nBFF browser cleanup;journey=counter;state=failed.'),
+                ('StdOutMsgs', marker + '\nBFF browser cleanup;journey=unavailable_pages;state=failed.'),
+                ('StdOutMsgs', marker.replace('positive', 'unavailable_pages_PRIVATE-CANARY')),
                 ('StdOutMsgs', 'X' * 65537 + marker)]:
             self.assertIsNone(parse(case, {'ErrorMessage': message, 'Messages': [{'Category': channel, 'Text': text}]}))
         self.assertIsNone(parse(case, {'ErrorMessage': message, 'Messages': [
@@ -1318,7 +1607,8 @@ except launcher.Refusal as failure:
 
     def test_bff_browser_failure_export_is_case_bound_failure_only_and_contains_no_raw_text(self):
         case = {**self.case(1), 'name': self.owner.BFF_BROWSER_FAILURE_CASE}
-        for reason in ('browser-executable', 'browser-spawn', 'browser-devtools', 'browser-devtools-inactive',
+        for reason in ('browser-administration-counter-view', 'browser-administration-counter-private-output',
+                       'browser-executable', 'browser-spawn', 'browser-devtools', 'browser-devtools-inactive',
                        'browser-devtools-unreadable', 'browser-devtools-missing', 'browser-devtools-empty',
                        'browser-devtools-malformed', 'browser-not-live', 'browser-connect', 'browser-context'):
             for suffix in ('', '_cleanup_failed'):
@@ -2096,6 +2386,119 @@ except launcher.Refusal as failure:
         self.refuses('trx_missing', self.owner.validate_results, output, started)
         self.assertEqual([], list(private.glob('*-execution*')), 'The private raw protocol remains unexported')
 
+    def failure_checkpoint_fixture(self):
+        manifest = self.selector_fixture().manifest()
+        case = manifest['ordinary'][0]
+        case.update(method=self.owner.BFF_BROWSER_FAILURE_CASE, name=self.owner.BFF_BROWSER_FAILURE_CASE)
+        owners = self.owner.shard_owner().assign(manifest, self.owner.shard_owner().load_plan(), '1')['owners']
+        mode = next(name for name, cases in owners.items() if case in cases)
+        raw = self.execution_result(case, 2)
+        raw.update(ErrorMessage='System.InvalidOperationException : BFF native fixture did not reach the closed browser_result/browser-launch phase.',
+                   ErrorStackTrace='/private/PRIVATE-CANARY/BffNativeDriver.cs:line 123',
+                   Messages=[{'Category': 'StdOutMsgs', 'Text': 'PRIVATE-CANARY\nBFF browser failure;journey=positive.'}])
+        diagnostic = {'assembly': case['assembly'], 'id': case['id'],
+                      'locations': [{'source': 'bff_native_driver', 'line': 123}],
+                      'exceptionKind': 'invalid_state',
+                      'details': {'stage': 'bff_browser', 'journey': 'positive', 'reason': 'browser-launch'}}
+        return manifest, mode, case, raw, diagnostic
+
+    def test_failed_case_checkpoint_survives_sigkill_at_completed_result_publication(self):
+        manifest, mode, case, raw, diagnostic = self.failure_checkpoint_fixture()
+        name = 'failure-sigkill'
+        private, output = self.root / ('private-' + name), self.root / ('output-' + name)
+        def interrupted(progress, _expected):
+            progress.path.write_text(self.execution_message('TestExecution.StatsChange', {'NewTestResults': [raw]}))
+            flush = progress.stream.flush
+            def stop_after_publication():
+                flush()
+                os.kill(os.getpid(), signal.SIGKILL)
+            # Kill at the actual completed-line publication, before parser return
+            # or workload finally. No cooperative exception supplies this proof.
+            with mock.patch.object(progress.stream, 'flush', side_effect=stop_after_publication):
+                progress.poll()
+            return 1
+        pid = os.fork()
+        if pid == 0:
+            try:
+                self.run_workload(manifest, 1, name, interrupted, mode=mode)
+            except BaseException:
+                os._exit(71)
+            os._exit(72)
+        joined, status = 0, None
+        try:
+            end = time.monotonic() + 5
+            while joined != pid and time.monotonic() < end:
+                joined, status = os.waitpid(pid, os.WNOHANG)
+                if joined != pid:
+                    time.sleep(0.01)
+            self.assertEqual(pid, joined, 'The test-owned worker must terminate within its bound')
+            self.assertEqual(-signal.SIGKILL, os.waitstatus_to_exitcode(status))
+        finally:
+            if joined != pid:
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                os.waitpid(pid, 0)
+        with self.assertRaises(ChildProcessError):
+            os.waitpid(pid, os.WNOHANG)
+        measured = self.owner.read_json(output / 'measurements.json')
+        item = measured['projects'][0]
+        self.assertEqual([diagnostic], item['failureLocations'])
+        for field in ('adapter', 'firstResultSeconds', 'testProcessSeconds'):
+            self.assertIsNone(item[field], 'A checkpoint does not invent final process observations')
+        self.assertNotIn('executionDiagnostics', item)
+        self.assertEqual([], item['successObservations'])
+        rows = [json.loads(line) for line in (output / 'completed-cases.jsonl').read_text().splitlines()]
+        self.assertEqual([{**{key: case[key] for key in ('assembly', 'id', 'name')},
+                           'outcome': 'Failed', 'duration': raw['Duration']}], rows)
+        self.assertEqual(0o600, (output / 'measurements.json').stat().st_mode & 0o777)
+        self.assertFalse((output / 'measurements.json.tmp').exists())
+        self.assertEqual(1, len(list(private.glob('*-execution.diag'))), 'SIGKILL bypassed private diagnostic finalization')
+        self.assertFalse((private / 'workload.json').exists())
+        self.refuses('trx_missing', self.owner.validate_results, output, [case])
+        exported = ''.join(path.read_text() for path in output.rglob('*') if path.is_file())
+        for value in ('PRIVATE-CANARY', '/private/', 'BFF native fixture', 'BFF browser failure;'):
+            self.assertNotIn(value, exported)
+
+    def test_failed_case_checkpoint_is_refined_by_normal_finalization_without_schema_or_cleanup_change(self):
+        manifest, mode, _case, raw, diagnostic = self.failure_checkpoint_fixture()
+        name = 'failure-finalized'
+        private, output = self.root / ('private-' + name), self.root / ('output-' + name)
+        captured = []
+        def completed(progress, expected):
+            captured.append(progress)
+            results = [raw if case['id'] == diagnostic['id'] else self.execution_result(case) for case in expected]
+            progress.path.write_text(self.execution_message('TestExecution.Completed', {
+                'TestRunCompleteArgs': {'IsCanceled': False, 'IsAborted': False, 'Error': None,
+                    'TestRunStatistics': {'ExecutedTests': len(expected), 'Stats': {'Passed': len(expected) - 1, 'Failed': 1}}},
+                'LastRunTests': {'NewTestResults': results}}))
+            progress.poll(final=True)
+            return 1
+        self.refuses('tests_failed', self.run_workload, manifest, 1, name, completed, mode=mode)
+        measured = self.owner.read_json(output / 'measurements.json')
+        item = measured['projects'][0]
+        self.assertEqual({'assembly', 'cases', 'adapter', 'firstResultSeconds', 'testProcessSeconds',
+                          'failureLocations', 'successObservations', 'executionDiagnostics'}, set(item))
+        self.assertEqual([diagnostic], item['failureLocations'])
+        self.assertEqual({}, item['adapter'])
+        self.assertIsInstance(item['firstResultSeconds'], (int, float))
+        self.assertIsInstance(item['testProcessSeconds'], (int, float))
+        self.assertEqual({'status': 'unavailable', 'startedWithoutResult': None}, item['executionDiagnostics'])
+        self.assertEqual([], item['successObservations'])
+        self.assertTrue(captured[0].completed)
+        self.assertTrue(captured[0].reader.closed)
+        self.assertEqual([], list(private.glob('*-execution*')))
+        self.assertFalse((output / 'measurements.json.tmp').exists())
+        self.assertFalse((private / 'workload.json').exists(), 'A failed test never qualifies the workload')
+        rows = [json.loads(line) for line in (output / 'completed-cases.jsonl').read_text().splitlines()]
+        self.assertEqual(item['cases'], len(rows))
+        self.assertEqual(1, sum(row['outcome'] == 'Failed' for row in rows))
+        self.assertTrue(all(set(row) == {'assembly', 'id', 'name', 'outcome', 'duration'} for row in rows))
+        exported = ''.join(path.read_text() for path in output.rglob('*') if path.is_file())
+        for value in ('PRIVATE-CANARY', '/private/', 'BFF native fixture', 'BFF browser failure;'):
+            self.assertNotIn(value, exported)
+
     def test_execution_protocol_requires_unique_expected_ids_and_finite_non_skip_outcomes(self):
         case = self.case(1)
         for mutation in ('missing', 'wrong', 'duplicate', 'skip', 'none', 'notfound', 'unknown', 'boolean'):
@@ -2504,7 +2907,7 @@ except launcher.Refusal as failure:
             ):
                 with self.subTest(scope=scope, kind=kind):
                     self.configure(crash=path + '\0')
-                    provenance = '_image_metadata_unavailable' if scope == 'docker_overlay' else ''
+                    provenance = '_image_metadata_unavailable_info_parse' if scope == 'docker_overlay' else ''
                     self.refuses('unexpected_crash_artifact_' + scope + '_' + kind + '_unknown' + provenance,
                                  self.owner.crash_scan, time.monotonic() + 2)
             self.configure(crash='PRIVATE-CANARY without a delimiter')
@@ -2530,6 +2933,132 @@ except launcher.Refusal as failure:
                          self.owner.crash_scan, time.monotonic() + 2)
             self.configure(crash='')
             self.owner.crash_scan(time.monotonic() + 2)
+
+    def configure_inventory_candidate(self):
+        layer = '/var/lib/docker/overlay2/' + 'b' * 64 + '/diff'
+        parent = '/var/lib/docker/overlay2/' + 'c' * 64 + '/diff'
+        link = '/var/lib/docker/overlay2/l/' + 'D' * 26
+        image = 'sha256:' + 'a' * 64
+        record = {'id': image, 'driver': {'Name': 'overlay2', 'Data': {'UpperDir': layer, 'LowerDir': link}}}
+        self.configure(image_info=json.dumps({'driver': 'overlay2', 'root': '/var/lib/docker'}),
+                       image_ids=image + '\n', image_inspect=json.dumps(record) + '\n',
+                       realpaths={link: parent}, crash=layer + '/PRIVATE-CANARY.dump\0',
+                       crash_after_prune='')
+
+    def test_inventory_phases_clip_all_repeated_metadata_reads_to_one_parent(self):
+        self.configure_inventory_candidate()
+        temporary = self.root / 'runner-temp'
+        temporary.mkdir()
+        actual_command, actual_run = self.owner.command, subprocess.run
+        for phase, outer, cost in (('preflight', 1000, 0.9), ('final', 1000, 0.9),
+                                   ('preflight', 112, 0.45), ('final', 112, 0.45)):
+            with self.subTest(phase=phase, outer=outer):
+                clock, observed = [100.0], []
+                allocation = 60 if phase == 'preflight' else 20
+                end = min(outer, 100 + allocation)
+                def command(argv, deadline, reason, **options):
+                    observed.append((reason, deadline, options.get('cap', 5), clock[0]))
+                    result = actual_command(argv, deadline, reason, **options)
+                    clock[0] += 0.5 if reason == 'crash_inventory_unreadable' else cost
+                    return result
+                with mock.patch.dict(os.environ, {'RUNNER_TEMP': str(temporary)}), \
+                     mock.patch.object(self.owner.time, 'monotonic', side_effect=lambda: clock[0]), \
+                     mock.patch.object(self.owner, 'command', side_effect=command), \
+                     mock.patch.object(self.owner.subprocess, 'run', wraps=actual_run) as run:
+                    self.assertEqual({'verifiedImageDirectories': 2}, self.owner.crash_scan(outer, phase=phase))
+                self.assertEqual(20, len(observed))
+                self.assertEqual(len(observed), len(run.call_args_list))
+                for (reason, deadline, cap, began), call in zip(observed, run.call_args_list):
+                    self.assertEqual(end, deadline)
+                    self.assertEqual(allocation if reason == 'crash_inventory_unreadable' else 10, cap)
+                    self.assertAlmostEqual(min(cap, end - began), call.kwargs['timeout'])
+                    self.assertEqual(subprocess.DEVNULL, call.kwargs['stderr'])
+                counts = Counter(reason for reason, *_ in observed)
+                self.assertEqual(2, counts['crash_inventory_unreadable'])
+                self.assertEqual(4, counts['image_metadata_unavailable_info_command'])
+                self.assertEqual(18, sum(n for reason, n in counts.items() if reason.startswith('image_metadata_')))
+                if phase == 'final' or outer == 112:
+                    self.assertTrue(any(call.kwargs['timeout'] < 10 for call in run.call_args_list))
+                self.assertLess(clock[0], end)
+
+    def test_inventory_phase_selection_refuses_unknown_shapes_and_preserves_final_ledger(self):
+        class ForgedPhase(str):
+            pass
+        for phase in (None, True, 0, 1, [], {}, b'preflight', '', 'Final', 'setup', ForgedPhase('preflight')):
+            with self.subTest(shape=type(phase).__name__), mock.patch.object(self.owner, 'command') as command:
+                self.refuses('crash_scan_phase_invalid', self.owner.crash_scan, 1000, phase=phase)
+                self.refuses('crash_scan_phase_invalid', self.owner.find_crash_candidate,
+                             ['/fixed'], 1000, phase=phase)
+                command.assert_not_called()
+        self.assertEqual((20, 5, 143, 203, 1200), (self.owner.SCAN_SECONDS, self.owner.COMMAND_SECONDS,
+                         self.owner.TAIL_SECONDS, self.owner.RESERVE_SECONDS, self.owner.JOB_SECONDS))
+
+    def test_native_execute_selects_preflight_before_launch_and_final_in_cleanup(self):
+        self.configure_inventory_candidate()
+        temporary = self.root / 'runner-temp'
+        temporary.mkdir()
+        (self.bin / 'cgroup/cgroup.controllers').touch()
+        # The copied owner imports this inert sibling, but never invokes a
+        # provisioner or launches a real unit in these deliberately failed acts.
+        self.copy.with_name('ci-native-provisioning.py').write_text('# Inert control module.\n')
+        actual_scan, actual_command = self.owner.crash_scan, self.owner.command
+        for early in (True, False):
+            with self.subTest(preflight_refused=early):
+                suffix = 'early' if early else 'launch'
+                private, output = self.root / ('private-' + suffix), self.root / ('output-' + suffix)
+                execution, cleanup = time.monotonic() + 10, time.monotonic() + 20
+                events, reads, active = [], [], [None]
+                def scan(deadline, **options):
+                    phase = options.get('phase', 'final')
+                    events.append((phase, deadline))
+                    if early:
+                        raise self.owner.Refusal('crash_inventory_unreadable_timeout')
+                    active[0] = phase
+                    try:
+                        return actual_scan(deadline, **options)
+                    finally:
+                        active[0] = None
+                def command(argv, deadline, reason, **options):
+                    reads.append((active[0], reason, options.get('cap', 5)))
+                    return actual_command(argv, deadline, reason, **options)
+                def launch(*args):
+                    self.assertEqual([('preflight', execution)], events)
+                    raise self.owner.Refusal('unit_launch_failed')
+                with contextlib.ExitStack() as stack:
+                    for name, value in (('identity', {}), ('locations', ('owned.service', private, output)),
+                                        ('deadlines', (execution, cleanup)), ('lower_core', None),
+                                        ('docker_census', {}), ('prevalidate_native', None), ('docker_complete', False)):
+                        stack.enter_context(mock.patch.object(self.owner, name, return_value=value))
+                    stack.enter_context(mock.patch.dict(os.environ, {'RUNNER_TEMP': str(temporary)}))
+                    stack.enter_context(mock.patch.object(self.owner, 'crash_scan', side_effect=scan))
+                    stack.enter_context(mock.patch.object(self.owner, 'command', side_effect=command))
+                    launched = stack.enter_context(mock.patch.object(self.owner, 'launch_unit', side_effect=launch))
+                    stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+                    self.assertEqual(1, self.owner.execute('native-shard'))
+                expected = [('preflight', execution)] + ([] if early else [('final', cleanup)])
+                self.assertEqual(expected, events)
+                result = self.owner.read_json(output / 'result.json')
+                self.assertFalse(result['success'])
+                self.assertFalse(result['ownershipComplete'])
+                self.assertEqual('crash_inventory_unreadable_timeout' if early else 'unit_launch_failed', result['error'])
+                if early:
+                    launched.assert_not_called()
+                    self.assertEqual([], reads)
+                else:
+                    for phase, allocation in (('preflight', 60), ('final', 20)):
+                        self.assertEqual([allocation, allocation],
+                                         [cap for owner, reason, cap in reads
+                                          if owner == phase and reason == 'crash_inventory_unreadable'])
+                        self.assertEqual([10] * 18, [cap for owner, reason, cap in reads
+                                                   if owner == phase and reason.startswith('image_metadata_')])
+        tree = ast.parse(SOURCE.read_text())
+        calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)
+                 and isinstance(node.func, ast.Name) and node.func.id == 'crash_scan']
+        self.assertEqual(2, len(calls))
+        calls.sort(key=lambda node: node.lineno)
+        self.assertEqual(['execution', 'cleanup'], [node.args[0].id for node in calls])
+        self.assertEqual([('phase', 'preflight')], [(item.arg, item.value.value) for item in calls[0].keywords])
+        self.assertEqual([], calls[1].keywords)
 
     def test_image_provenance_prunes_only_verified_directories_after_complete_rerun(self):
         layer = '/var/lib/docker/overlay2/' + 'b' * 64 + '/diff'
@@ -2584,21 +3113,25 @@ except launcher.Refusal as failure:
                  'image_ids': image + '\n', 'image_inspect': json.dumps(record) + '\n',
                  'status': {}, 'realpaths': {}, 'kinds': {}}
         changes = [
-            {'image_info': ''}, {'image_info': '[]'},
-            {'image_info': json.dumps({'driver': 'overlayfs', 'root': '/var/lib/docker'})},
-            {'image_info': json.dumps({'driver': 'overlay2', 'root': '/private/other'})},
-            {'image_ids': 'short\n'}, {'image_ids': image + '\ninvalid\n'},
-            {'image_inspect': ''}, {'image_inspect': '[]'},
-            {'image_inspect': json.dumps({**record, 'id': 'sha256:' + 'f' * 64})},
-            {'image_inspect': json.dumps({**record, 'driver': None})},
-            {'image_inspect': json.dumps({**record, 'driver': {'Name': 'overlay2', 'Data': {'UpperDir': '/tmp'}}})},
-            {'realpaths': {layer: '/tmp/escaped'}}, {'kinds': {layer: 'regular file'}},
-            {'status': {'docker': 1}}, {'status': {'realpath': 1}}, {'status': {'stat': 1}},
+            ({'image_info': ''}, 'info_parse'), ({'image_info': '[]'}, 'info_shape'),
+            ({'image_info': json.dumps({'driver': 'overlayfs', 'root': '/var/lib/docker'})}, 'info_shape'),
+            ({'image_info': json.dumps({'driver': 'overlay2', 'root': '/private/other'})}, 'info_shape'),
+            ({'image_ids': 'short\n'}, 'image_list_shape'), ({'image_ids': image + '\ninvalid\n'}, 'image_list_shape'),
+            ({'image_inspect': ''}, 'image_inspect_count'), ({'image_inspect': '[]'}, 'image_identity'),
+            ({'image_inspect': 'PRIVATE-CANARY'}, 'image_inspect_parse'),
+            ({'image_inspect': json.dumps({**record, 'id': 'sha256:' + 'f' * 64})}, 'image_identity'),
+            ({'image_inspect': json.dumps({**record, 'driver': None})}, 'graph_driver_shape'),
+            ({'image_inspect': json.dumps({**record, 'driver': {'Name': 'overlay2', 'Data': {}}})}, 'layer_fields'),
+            ({'image_inspect': json.dumps({**record, 'driver': {'Name': 'overlay2', 'Data': {'UpperDir': '/tmp'}}})}, 'layer_path'),
+            ({'realpaths': {layer: '/tmp/escaped'}}, 'canonical_shape'), ({'kinds': {layer: 'regular file'}}, 'layer_kind'),
+            ({'status': {'docker': 1}}, 'info_command_exit'),
+            ({'status': {'realpath': 1}}, 'canonical_command_exit'),
+            ({'status': {'stat': 1}}, 'layer_stat_command_exit'),
         ]
-        for change in changes:
-            with self.subTest(change=change):
+        for change, stage in changes:
+            with self.subTest(stage=stage):
                 self.configure(**{**valid, **change})
-                self.refuses('image_metadata_unavailable', self.owner.image_layer_snapshot,
+                self.refuses('image_metadata_unavailable_' + stage, self.owner.image_layer_snapshot,
                              candidate, time.monotonic() + 3)
         self.configure(**valid)
         original = self.owner.command
@@ -2611,7 +3144,7 @@ except launcher.Refusal as failure:
                     return b''
             return original(argv, *args, **kwargs)
         with mock.patch.object(self.owner, 'command', side_effect=changed):
-            self.refuses('image_metadata_unavailable', self.owner.image_layer_snapshot,
+            self.refuses('image_metadata_unavailable_inventory_changed', self.owner.image_layer_snapshot,
                          candidate, time.monotonic() + 3)
         canonical_reads = 0
         def canonical_changed(argv, *args, **kwargs):
@@ -2623,7 +3156,7 @@ except launcher.Refusal as failure:
                     return value.replace(b'/diff', b'/changed')
             return value
         with mock.patch.object(self.owner, 'command', side_effect=canonical_changed):
-            self.refuses('image_metadata_unavailable', self.owner.image_layer_snapshot,
+            self.refuses('image_metadata_unavailable_canonical_changed', self.owner.image_layer_snapshot,
                          candidate, time.monotonic() + 3)
         self.configure(**{**valid, 'image_ids': ''})
         self.refuses('image_metadata_no_match', self.owner.image_layer_snapshot,
@@ -2902,7 +3435,7 @@ except launcher.Refusal as failure:
         ordinary = source.split('  backend-integration-tests:\n', 1)[1].split('\n  # ───', 1)[0]
         native = source.split('  backend-native:\n', 1)[1].split('\n  # ───', 1)[0]
         aggregate = source.split('  backend-integration:\n', 1)[1].split('\n  # ───', 1)[0]
-        for mode, block, minutes in (('ordinary-${{ matrix.index }}', ordinary, 25), ('native-shard', native, 20)):
+        for mode, block, minutes in (('ordinary-${{ matrix.index }}', ordinary, 30), ('native-shard', native, 20)):
             self.assertIn('timeout-minutes: ' + str(minutes), block)
             self.assertLess(block.index('LEARNSTACK_CI_STARTED_AT='), block.index('uses: actions/checkout@'))
             self.assertIn('python3 scripts/ci-native-tests.py ' + mode, block)

@@ -1,6 +1,8 @@
-import { BFF_POST_PATHS } from './http-paths.js';
-import { validTarget } from '../ingress.js';
-import { AUTH_INPUT_LIMIT, BffInputError } from './cookies.js';
+import { AUTH_INPUT_LIMIT, BFF_POST_PATHS } from './http-paths.js';
+import { BffInputError } from './input-error.js';
+import { bffQueryFields } from './page-query.js';
+
+export { bffQuery } from './page-query.js';
 
 export type BffHttpRequest = Readonly<{
   host: string;
@@ -21,7 +23,7 @@ const readable = new Set([
 export function bffRoute(method: string, path: string): boolean {
   return method === 'POST'
     ? BFF_POST_PATHS.includes(path)
-    : (method === 'GET' && path === '/api/auth/callback/keycloak') ||
+    : (method === 'GET' && ['/api/auth/callback/keycloak', '/api/auth/entry'].includes(path)) ||
         ((method === 'GET' || method === 'HEAD') && readable.has(path));
 }
 export function bffActivity(method: string, headers: Headers): 'read' | 'passive' {
@@ -42,27 +44,6 @@ export function bffActivity(method: string, headers: Headers): 'read' | 'passive
 }
 export function exactBffOrigin(request: BffHttpRequest) {
   if (request.headers.get('origin') !== 'https://' + request.host) throw new BffInputError();
-}
-function fields(text: string, allowed: readonly string[]) {
-  const query = new URLSearchParams();
-  try {
-    for (const pair of text ? text.split('&') : []) {
-      const equal = pair.indexOf('=');
-      if (!pair || equal < 0) throw new BffInputError();
-      const decode = (value: string) => decodeURIComponent(value.replace(/\+/g, ' '));
-      const key = decode(pair.slice(0, equal));
-      if (!allowed.includes(key) || query.has(key)) throw new BffInputError();
-      query.set(key, decode(pair.slice(equal + 1)));
-    }
-  } catch {
-    throw new BffInputError();
-  }
-  return query;
-}
-export function bffQuery(target: string, allowed: readonly string[]): URLSearchParams {
-  if (!validTarget(target)) throw new BffInputError();
-  const question = target.indexOf('?');
-  return fields(question < 0 ? '' : target.slice(question + 1), allowed);
 }
 
 /** Native/Next stream, one finite input budget. Cancellation is not fabricated completion. */
@@ -113,7 +94,7 @@ export async function bffForm(
     } catch {
       throw new BffInputError();
     }
-    return fields(text, allowed);
+    return bffQueryFields(text, allowed);
   } finally {
     signal.removeEventListener('abort', cancel);
     await reader?.cancel().catch(() => {});

@@ -92,6 +92,12 @@ public sealed partial class AccountSiteQueryTests(PublicReadFixture fixture) : I
     [InlineData(true, "deleted", true)]
     public async Task Actual_account_query_rechecks_live_tenant_mapped_and_claim_selected_organization(bool organization, string state, bool claimSelected)
     {
+        // An archived Organization is terminal. Its history belongs to this
+        // disposable database; cleanup must not resurrect a shared seed branch.
+        await using var isolated = organization ? await PublicReadFixture.CreateIsolatedAsync(fixture) : null;
+        var source = isolated ?? fixture;
+        await using var isolatedEvidence = organization ? await ComponentAuthorizationEvidence.CreateAsync(
+            source.AppConnectionString, source.MigrationConnectionString) : null;
         var tenant = organization ? SeedData.Yoga : SeedData.English;
         var context = claimSelected ? TenantContextFactory.Create(new TenantResolutionAttempt
         {
@@ -103,29 +109,71 @@ public sealed partial class AccountSiteQueryTests(PublicReadFixture fixture) : I
             MembershipCovers = true,
             ClaimedOrganizationBelongsToTenant = true,
         }).Value! : Context(tenant, organization);
-        await using var host = CreateHost(context);
+        await using var host = CreateHost(source, isolatedEvidence ?? _evidence, context);
         (await Send(host)).IsSuccess.Should().BeTrue("the same stored scope is visible before its lifecycle changes");
         if (claimSelected) await AssertPublicConfigurationLiveness(host, visible: true);
-        var before = await AuditCountsAsync(context);
+        var before = await AuditCountsAsync(source, context);
         var table = organization ? "organizations" : "tenants";
         var predicate = organization ? "tenant_id=@tenant AND id=@organization" : "id=@tenant";
-        await fixture.ExecuteAsync(tenant, state == "deleted"
+        var withdraw = state == "deleted"
             ? $"UPDATE {table} SET deleted_at=now(),deleted_by=@actor WHERE {predicate}"
-            : $"UPDATE {table} SET status='{state}' WHERE {predicate}");
+            : $"UPDATE {table} SET status='{state}' WHERE {predicate}";
+        if (organization)
+        {
+            Func<Task> unfenced = () => source.ExecuteAsync(tenant, withdraw);
+            (await unfenced.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be("P0311");
+            Func<Task> currentDefault = () => source.ExecuteLifecycleAsync(tenant, withdraw);
+            var refusedDefault = (await currentDefault.Should().ThrowAsync<PostgresException>()).Which;
+            refusedDefault.SqlState.Should().Be("P0312");
+            refusedDefault.MessageText.Should().Be("tenancy default graph is invalid");
+
+            // ADR-0079: explicitly select another Active default in its own
+            // committed transaction, then withdraw the originally resolved branch.
+            await source.ExecuteLifecycleAsync(tenant, $"""
+                UPDATE tenants SET default_organization_id='{tenant.SecondOrganization.OrganizationId.Value:D}',
+                    row_version=row_version+1,updated_at=clock_timestamp(),updated_by=@actor WHERE id=@tenant
+                """);
+            var afterSelection = await Send(host);
+            afterSelection.IsSuccess.Should().BeTrue("changing the default does not rewrite the mapped or claimed branch");
+            afterSelection.Value!.OrganizationId.Should().Be(tenant.DefaultOrganization.OrganizationId);
+            (await AuditCountsAsync(source, context)).Should().Be(before);
+            await source.ExecuteLifecycleAsync(tenant, withdraw);
+        }
+        else await source.ExecuteAsync(tenant, withdraw);
         try
         {
             Hidden(await Send(host));
             if (claimSelected) await AssertPublicConfigurationLiveness(host, visible: false);
-            (await AuditCountsAsync(context)).Should().Be((before.Business, before.Denials + 1));
+            (await AuditCountsAsync(source, context)).Should().Be((before.Business, before.Denials + 1));
+            if (organization && state == "Archived")
+            {
+                Func<Task> revive = () => source.ExecuteLifecycleAsync(tenant,
+                    "UPDATE organizations SET status='Active' WHERE tenant_id=@tenant AND id=@organization");
+                var terminal = (await revive.Should().ThrowAsync<PostgresException>()).Which;
+                terminal.SqlState.Should().Be("P0312");
+                terminal.MessageText.Should().Be("tenancy lifecycle transition is invalid");
+                Hidden(await Send(host));
+                if (claimSelected) await AssertPublicConfigurationLiveness(host, visible: false);
+                (await AuditCountsAsync(source, context)).Should().Be((before.Business, before.Denials + 2));
+                return;
+            }
         }
         finally
         {
-            await fixture.ExecuteAsync(tenant,
-                $"UPDATE {table} SET status='{(organization ? "Active" : "Trial")}',deleted_at=NULL,deleted_by=NULL WHERE {predicate}");
+            if (organization && state != "Archived")
+                await source.ExecuteLifecycleAsync(tenant, """
+                    UPDATE organizations SET status='Active',deleted_at=NULL,deleted_by=NULL
+                        WHERE tenant_id=@tenant AND id=@organization;
+                    UPDATE tenants SET default_organization_id=@organization,row_version=row_version+1,
+                        updated_at=clock_timestamp(),updated_by=@actor WHERE id=@tenant;
+                    """);
+            else if (!organization)
+                await source.ExecuteAsync(tenant,
+                    "UPDATE tenants SET status='Trial',deleted_at=NULL,deleted_by=NULL WHERE id=@tenant");
         }
-        (await Send(host)).IsSuccess.Should().BeTrue("restoring the exact scope restores the live read");
+        (await Send(host)).IsSuccess.Should().BeTrue("restoring the exact nonterminal scope restores the live read");
         if (claimSelected) await AssertPublicConfigurationLiveness(host, visible: true);
-        (await AuditCountsAsync(context)).Should().Be((before.Business, before.Denials + 1));
+        (await AuditCountsAsync(source, context)).Should().Be((before.Business, before.Denials + 1));
     }
 
     [Theory]
@@ -223,13 +271,17 @@ public sealed partial class AccountSiteQueryTests(PublicReadFixture fixture) : I
     }
 
     private WebApplicationFactory<Program> CreateHost(ITenantContext context, Action<IServiceCollection>? configure = null) =>
-        fixture.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+        CreateHost(fixture, _evidence, context, configure);
+
+    private static WebApplicationFactory<Program> CreateHost(PublicReadFixture source,
+        ComponentAuthorizationEvidence evidence, ITenantContext context, Action<IServiceCollection>? configure = null) =>
+        source.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
         {
             // Admit only this unrouted component request; keep the canonical slot 5
             // and the actual ExplicitReadOnlyRequest/handler/EF/app-role adapters.
             ComponentOperationRegistration.AddExactComponentAuthority(services,
                 OperationPolicy.ForTrusted<GetAccountSiteQuery>("tests.component.account.read", AuthorizationSourceKind.Seed));
-            _evidence.AddTo(services);
+            evidence.AddTo(services);
             services.AddSingleton<RefusedReadObservation>();
             services.AddScoped<GetAccountSiteQueryHandler>();
             services.AddScoped<IRequestHandler<GetAccountSiteQuery, Result<AccountSite>>, ObservedAccountHandler>();
@@ -261,9 +313,12 @@ public sealed partial class AccountSiteQueryTests(PublicReadFixture fixture) : I
         result.Error!.Code.Should().Be("not_found");
     }
 
-    private async Task<(long Business, long Denials)> AuditCountsAsync(TenantContext context)
+    private Task<(long Business, long Denials)> AuditCountsAsync(TenantContext context) =>
+        AuditCountsAsync(fixture, context);
+
+    private static async Task<(long Business, long Denials)> AuditCountsAsync(PublicReadFixture source, TenantContext context)
     {
-        await using var connection = new NpgsqlConnection(fixture.AppConnectionString);
+        await using var connection = new NpgsqlConnection(source.AppConnectionString);
         await connection.OpenAsync();
         await using var transaction = await connection.BeginTransactionAsync();
         await SchemaQueries.SetTenantAsync(connection, transaction, context.TenantId.Value);

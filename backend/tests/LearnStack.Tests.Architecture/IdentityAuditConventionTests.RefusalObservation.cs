@@ -10,7 +10,8 @@ public sealed partial class IdentityAuditConventionTests
     private const string EvidenceScope = CentralEvidence + "/ExecutionScope";
     private const string ObservedContexts = "System.Collections.Generic.Dictionary`2<" + EvidenceInvocation + "," + AuditContext + ">";
 
-    private static void EvidenceObservationOffenders(EvidenceCensus census, List<string> errors)
+    private static void EvidenceObservationOffenders(EvidenceCensus census, List<string> errors,
+        ILookup<string, EvidenceCallerSite> callerIndex)
     {
         var observation = census.Type(RefusalObservation);
         if (!observation.IsNestedAssembly || !observation.IsSealed
@@ -30,16 +31,16 @@ public sealed partial class IdentityAuditConventionTests
         foreach (var name in new[] { "CaptureRefusalObservation", "RecordRefusalResult" })
         {
             if (!census.Method(CentralEvidence, name).IsAssembly) errors.Add("Audit observation is internal to the common execution owner: " + name);
-            EvidenceCallers(census, errors, CentralEvidence, name, [(PolicyOwner, "ExecuteAsync", 1), (EvidenceTransactionOwner, "ExecuteFrameAsync", 1)]);
+            EvidenceCallers(census, errors, callerIndex, CentralEvidence, name, [(PolicyOwner, "ExecuteAsync", 1), (EvidenceTransactionOwner, "ExecuteFrameAsync", 1)]);
         }
-        EvidenceCallers(census, errors, RefusalObservation, ".ctor", [(CentralEvidence, "CaptureRefusalObservation", 1)]);
-        EvidenceCallers(census, errors, RefusalObservation, "TryConsume", [(CentralEvidence, "RecordRefusalResult", 1)]);
-        EvidenceCallers(census, errors, RefusalObservation, "get_Invocation", [(RefusalObservation, "TryConsume", 1), (CentralEvidence, "RecordRefusalResult", 2)]);
-        EvidenceCallers(census, errors, EvidenceScope, "IsOpen", [(CentralEvidence, "CaptureRefusalObservation", 1), (RefusalObservation, "TryConsume", 1)]);
-        EvidenceCallers(census, errors, PolicyOwner, "HasOpenObservationFrame", [(RefusalObservation, "TryConsume", 1)]);
-        EvidenceCallers(census, errors, PolicyOwner, "get_CurrentInvocation", [(CentralEvidence, "CaptureRefusalObservation", 1)]);
-        EvidenceCallers(census, errors, CentralEvidence, "RecordObservedDenial", [(CentralEvidence, "RecordDenial", 1), (CentralEvidence, "RecordRefusalResult", 1)]);
-        EvidenceCallers(census, errors, CentralEvidence, "EndExecutionAsync", [(EvidenceScope, "DisposeAsync", 1)]);
+        EvidenceCallers(census, errors, callerIndex, RefusalObservation, ".ctor", [(CentralEvidence, "CaptureRefusalObservation", 1)]);
+        EvidenceCallers(census, errors, callerIndex, RefusalObservation, "TryConsume", [(CentralEvidence, "RecordRefusalResult", 1)]);
+        EvidenceCallers(census, errors, callerIndex, RefusalObservation, "get_Invocation", [(RefusalObservation, "TryConsume", 1), (CentralEvidence, "RecordRefusalResult", 2)]);
+        EvidenceCallers(census, errors, callerIndex, EvidenceScope, "IsOpen", [(CentralEvidence, "CaptureRefusalObservation", 1), (RefusalObservation, "TryConsume", 1)]);
+        EvidenceCallers(census, errors, callerIndex, PolicyOwner, "HasOpenObservationFrame", [(RefusalObservation, "TryConsume", 1)]);
+        EvidenceCallers(census, errors, callerIndex, PolicyOwner, "get_CurrentInvocation", [(CentralEvidence, "CaptureRefusalObservation", 1)]);
+        EvidenceCallers(census, errors, callerIndex, CentralEvidence, "RecordObservedDenial", [(CentralEvidence, "RecordDenial", 1), (CentralEvidence, "RecordRefusalResult", 1)]);
+        EvidenceCallers(census, errors, callerIndex, CentralEvidence, "EndExecutionAsync", [(EvidenceScope, "DisposeAsync", 1)]);
         var observationFrames = new[] { census.Body(PolicyOwner, "ExecuteAsync").DeclaringType.FullName,
             census.Body(EvidenceTransactionOwner, "ExecuteFrameAsync").DeclaringType.FullName };
         if (!EvidenceSame(census.Types.SelectMany(type => type.Fields.Where(field => field.FieldType.FullName == RefusalObservation)

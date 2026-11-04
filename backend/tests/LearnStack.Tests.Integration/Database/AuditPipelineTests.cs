@@ -1,6 +1,9 @@
 using FluentAssertions;
+using LearnStack.Modules.Customization.Application.Contracts.Customization;
+using LearnStack.Modules.Tenancy.Application.Contracts.Locales;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Audit;
+using LearnStack.SharedKernel.Results;
 using LearnStack.Tools.Seeder;
 using MediatR;
 using LearnStack.Infrastructure.Caching;
@@ -42,8 +45,9 @@ namespace LearnStack.Tests.Integration.Database;
 [Collection(SharedSchema.Name)]
 public sealed class AuditPipelineTests : IAsyncLifetime
 {
-    // Keep the audit subject focused on provisioning and unchanged built-ins.
-    private static readonly SeedTenant Tenant = SeedData.English with { Curriculum = null };
+    // The focused prefix keeps the production declaration, including the locale
+    // prerequisite that must precede built-in initialization (ADR-0079/0080).
+    private static readonly SeedTenant Tenant = SeedData.English;
 
     private readonly SchemaFixture _schema;
     private DisposableSchemaDatabase _database = null!; // Initialized by the per-test fixture.
@@ -73,21 +77,20 @@ public sealed class AuditPipelineTests : IAsyncLifetime
         // request" would silently never write the Organization row the matrix promises.
         await using var dataSource = NpgsqlDataSource.Create(_database.AppConnectionString);
 
-        var exitCode = await Runner(dataSource).RunAsync(CancellationToken.None, [Tenant]);
-
-        exitCode.Should().Be(0);
+        await SeedPrefixAsync(dataSource);
 
         var rows = await RowsAsync(Tenant.TenantId.Value);
 
-        // The focused provisioning/built-in declaration, every operation its matrix classifies
-        // MUST. The pair is the point — ProvisionTenantCommand alone accounts for the
-        // first two — and the rest are here because a case asserting only the pair would
-        // pass while every other command audited nothing.
+        // The six MUST subjects and the exact SHOULD locale prerequisite. The pair
+        // is the point — ProvisionTenantCommand alone accounts for the first two —
+        // and the rest are here because a case asserting only the pair would pass
+        // while every other command audited nothing.
         rows.Select(row => row.Operation).Should().BeEquivalentTo(
             "tenancy.tenant.create",
             "tenancy.organization.create",
             "tenancy.organization.create",
             "tenancy.hostmapping.write",
+            "tenancy.locale.write",
             "customization.content_type.initialize",
             "customization.level_taxonomy.initialize");
 
@@ -112,15 +115,17 @@ public sealed class AuditPipelineTests : IAsyncLifetime
         // subtransaction ids while the audit row, raw SQL at the top level, carries the
         // parent's. Rows on one transaction show different `xmin`s.
         await using var dataSource = NpgsqlDataSource.Create(_database.AppConnectionString);
-        (await Runner(dataSource).RunAsync(CancellationToken.None, [Tenant])).Should().Be(0);
+        await SeedBeforeHostAsync(dataSource);
 
-        const string Host = "unauditable.example";
+        // This is the next admitted fixed-seed act, not an undeclared host that
+        // would be refused before reaching the business write and audit trigger.
+        var host = Tenant.Host;
 
         await ExecuteAsOwnerAsync(
             $$"""
             CREATE FUNCTION refuse_probe_audit() RETURNS trigger LANGUAGE plpgsql AS $fn$
             BEGIN
-                IF NEW.entity_id = '{{Host}}' THEN
+                IF NEW.entity_id = '{{host}}' THEN
                     RAISE EXCEPTION 'forced audit failure';
                 END IF;
                 RETURN NEW;
@@ -134,21 +139,21 @@ public sealed class AuditPipelineTests : IAsyncLifetime
         {
             await using var provider = SeedComposition.Build(
                 dataSource,
-                new SeedTenantContext(Tenant.TenantId, Tenant.DefaultOrganization.OrganizationId),
+                new SeedTenantContext(Tenant.TenantId, null),
                 NullLoggerFactory.Instance);
 
             var act = async () =>
             {
                 await using var scope = provider.CreateAsyncScope();
-                await scope.ServiceProvider.GetRequiredService<ISender>().Send(new MapHostToTenantCommand(Host));
+                await scope.ServiceProvider.GetRequiredService<ISender>().Send(HostCommand());
             };
 
             (await act.Should().ThrowAsync<AuditWriteFailedException>()).Which.Error.Code
                 .Should().Be("audit_unavailable", "the edge answers it 503");
 
-            (await CountAsync("SELECT count(*) FROM platform_host_to_tenant WHERE host = @key", Host))
+            (await CountAsync("SELECT count(*) FROM platform_host_to_tenant WHERE host = @key", host))
                 .Should().Be(0, "a mapping whose MUST row could not be written did not happen");
-            (await CountAsync("SELECT count(*) FROM audit_log WHERE entity_id = @key", Host))
+            (await CountAsync("SELECT count(*) FROM audit_log WHERE entity_id = @key", host))
                 .Should().Be(0, "the premise: the trigger refused both attempts");
 
             provider.GetRequiredService<IAuditHealth>().IsHealthy.Should().BeFalse(
@@ -181,11 +186,9 @@ public sealed class AuditPipelineTests : IAsyncLifetime
         {
             await using var dataSource = NpgsqlDataSource.Create(_database.AppConnectionString);
 
-            var exitCode = await Runner(dataSource).RunAsync(CancellationToken.None, [Tenant]);
-
-            exitCode.Should().Be(0,
-                "classification reads the in-process catalogue, and the tenant override read is "
-                + "the one failure ADR-0033 does not reject the operation for");
+            // Each prefix act must succeed: classification uses the in-process
+            // catalogue, and an unavailable override read keeps the declared tier.
+            await SeedPrefixAsync(dataSource);
 
             var rows = await RowsAsync(Tenant.TenantId.Value);
 
@@ -243,7 +246,7 @@ public sealed class AuditPipelineTests : IAsyncLifetime
         // IProvisionsTenant.ProvisioningTenantId instead (ADR-0044 § 2).
         await using var dataSource = NpgsqlDataSource.Create(_database.AppConnectionString);
 
-        (await Runner(dataSource).RunAsync(CancellationToken.None, [Tenant])).Should().Be(0);
+        await SeedPrefixAsync(dataSource);
 
         var rows = await RowsAsync(Tenant.TenantId.Value);
 
@@ -263,7 +266,7 @@ public sealed class AuditPipelineTests : IAsyncLifetime
         // reports success everywhere else.
         await using var dataSource = NpgsqlDataSource.Create(_database.AppConnectionString);
 
-        (await Runner(dataSource).RunAsync(CancellationToken.None, [Tenant])).Should().Be(0);
+        await SeedPrefixAsync(dataSource);
 
         var tenantRow = (await RowsAsync(Tenant.TenantId.Value))
             .Single(row => row.Operation == "tenancy.tenant.create");
@@ -294,7 +297,7 @@ public sealed class AuditPipelineTests : IAsyncLifetime
         // row that records that something happened and not what.
         await using var dataSource = NpgsqlDataSource.Create(_database.AppConnectionString);
 
-        (await Runner(dataSource).RunAsync(CancellationToken.None, [Tenant])).Should().Be(0);
+        await SeedPrefixAsync(dataSource);
 
         var mapping = (await RowsAsync(Tenant.TenantId.Value))
             .Single(row => row.Operation == "tenancy.hostmapping.write");
@@ -332,13 +335,23 @@ public sealed class AuditPipelineTests : IAsyncLifetime
         // real refusals retain audit intents after their business transaction rolls back.
         await using var dataSource = NpgsqlDataSource.Create(_database.AppConnectionString);
 
-        (await Runner(dataSource).RunAsync(CancellationToken.None, [Tenant])).Should().Be(0);
+        await SeedPrefixAsync(dataSource);
         await using (var unresolved = SeedComposition.Build(dataSource, null, NullLoggerFactory.Instance))
         {
             (await unresolved.GetRequiredService<ISender>().Send(new ProvisionTenantCommand(
                 Tenant.TenantId, Tenant.Slug, Tenant.DisplayName, Tenant.DefaultOrganization.OrganizationId,
                 Tenant.DefaultOrganization.Slug, Tenant.DefaultOrganization.DisplayName))).IsFailure.Should().BeTrue();
         }
+        // Observe the plural provisioning refusal before a second request can
+        // contribute an Organization row with the same operation slug.
+        var provisionRefusal = (await RowsAsync(Tenant.TenantId.Value))
+            .Where(row => row.Outcome != "success").ToList();
+        provisionRefusal.Should().HaveCount(2);
+        provisionRefusal.Should().ContainSingle(row => row.Operation == "tenancy.tenant.create"
+            && row.EntityId == Tenant.TenantId.Value.ToString());
+        provisionRefusal.Should().ContainSingle(row => row.Operation == "tenancy.organization.create"
+            && row.EntityId == null);
+
         await using (var resolved = SeedComposition.Build(dataSource,
             new SeedTenantContext(Tenant.TenantId, null), NullLoggerFactory.Instance))
         {
@@ -352,8 +365,8 @@ public sealed class AuditPipelineTests : IAsyncLifetime
         // The repeated commands REFUSE, and every refusal is recorded. That is the point rather
         // than an inconvenience: a repeated provisioning attempt is exactly the shape a
         // probe takes, and Audit Coverage justifies the whole `denied` class with it.
-        rows.Count(row => row.Outcome == "success").Should().Be(6,
-            "the first run's rows are untouched");
+        rows.Count(row => row.Outcome == "success").Should().Be(7,
+            "the six MUST rows and the exact SHOULD locale prerequisite are untouched");
 
         rows.Where(row => row.Outcome != "success").Should().NotBeEmpty(
             "the explicit refused commands are on the record too");
@@ -364,33 +377,25 @@ public sealed class AuditPipelineTests : IAsyncLifetime
         // INTENTS ARE PLURAL, and a refusal is where that is easiest to get wrong: the refused
         // provisioning declares two — the tenant and its default organization — and both are
         // reconciled, so the refusal is two rows rather than one (ADR-0033 Amendment 2 § 1).
-        // By ENTITY, not by operation: the seed also runs CreateOrganizationCommand, whose own
-        // refusal writes a `tenancy.organization.create` row — so an assertion on the slug alone
-        // is satisfied by the wrong command and the singular reading it exists to refuse passes.
-        // The provisioning's second intent is the row naming the DEFAULT organization.
+        // The immediate snapshot distinguishes provisioning's Organization intent
+        // from the later standalone refusal with the same slug. Neither refused
+        // Organization was constructed, so its instance remains undesignated.
         var refused = rows.Where(row => row.Outcome != "success").ToList();
 
         refused.Should().Contain(
             row => row.Operation == "tenancy.tenant.create"
                 && row.EntityId == Tenant.TenantId.Value.ToString(),
             "the refused provisioning records its first intent");
-        // The repeated commands refuse two organization creations, which are distinct. The
-        // standalone CreateOrganizationCommand names the organization it was asked for; the
-        // provisioning's SECOND INTENT names none, because it was refused before the aggregate
-        // existed to be designated. Distinguishing them is the point: an assertion on the slug
-        // alone is satisfied by the standalone command, and the singular reading this case
-        // exists to refuse — one row per request — would still pass.
+        // The fixed-prefix guard refuses the standalone command before an
+        // Organization exists to capture, so it names no instance either. The
+        // earlier snapshot already proved provisioning's two independent intents;
+        // this second invocation contributes exactly one further Organization row.
+        refused.Should().HaveCount(provisionRefusal.Count + 1);
         var organizations = refused
             .Where(row => row.Operation == "tenancy.organization.create")
             .ToList();
-
-        organizations.Should().Contain(
-            row => row.EntityId == Tenant.SecondOrganization.OrganizationId.Value.ToString(),
-            "the standalone command's refusal names the organization it was asked for");
-        organizations.Should().Contain(
-            row => row.EntityId == null,
-            "and the provisioning's second intent is on the record too, with no instance to name "
-            + "— ProvisionTenantCommand declares two intents and the refusal reconciles both");
+        organizations.Should().HaveCount(2).And.OnlyContain(row => row.EntityId == null,
+            "both refusals precede aggregate construction; incoming IDs are not captured resources");
 
         // And the refused run wrote no business row: the counts are the first run's, exactly.
         (await ScalarAsync("SELECT count(*) FROM tenants WHERE id = @tenant",
@@ -421,9 +426,42 @@ public sealed class AuditPipelineTests : IAsyncLifetime
         string? BeforeState,
         string? AfterState);
 
-    private static SeedRunner Runner(NpgsqlDataSource dataSource) =>
-        new(context => SeedComposition.Build(dataSource, context, NullLoggerFactory.Instance),
-            NullLogger<SeedRunner>.Instance);
+    private static async Task SeedBeforeHostAsync(NpgsqlDataSource dataSource)
+    {
+        await SendSeedActAsync(dataSource, null, new ProvisionTenantCommand(
+            Tenant.TenantId, Tenant.Slug, Tenant.DisplayName, Tenant.DefaultOrganization.OrganizationId,
+            Tenant.DefaultOrganization.Slug, Tenant.DefaultOrganization.DisplayName));
+        await SendSeedActAsync(dataSource, new SeedTenantContext(Tenant.TenantId, null),
+            new CreateOrganizationCommand(Tenant.SecondOrganization.OrganizationId,
+                Tenant.SecondOrganization.Slug, Tenant.SecondOrganization.DisplayName));
+    }
+
+    private static async Task SeedPrefixAsync(NpgsqlDataSource dataSource)
+    {
+        // Exercise the exact admitted prefix through the production composition;
+        // do not alter the immutable continuation declarations to shorten a seed.
+        await SeedBeforeHostAsync(dataSource);
+        var context = new SeedTenantContext(Tenant.TenantId, null);
+        await SendSeedActAsync(dataSource, context, HostCommand());
+        long version = 1;
+        foreach (var locale in Tenant.Curriculum!.Locales.OrderByDescending(value => value.IsDefault).ThenBy(value => value.Sort))
+            await SendSeedActAsync(dataSource, context, new AddTenantLocaleCommand(version++, locale.Locale,
+                locale.IsEnabled, locale.IsDefault, locale.Sort));
+        await SendSeedActAsync(dataSource, context, new InitializeTenantContentTypeDefaultCommand());
+        await SendSeedActAsync(dataSource, context, new InitializeTenantLevelTaxonomyDefaultCommand());
+    }
+
+    private static MapHostToTenantCommand HostCommand() => new(Tenant.Host,
+        Tenant.MapHostToDefaultOrganization ? Tenant.DefaultOrganization.OrganizationId : null, true, true);
+
+    private static async Task SendSeedActAsync<T>(NpgsqlDataSource dataSource, SeedTenantContext? context,
+        IRequest<Result<T>> request)
+    {
+        await using var provider = SeedComposition.Build(dataSource, context, NullLoggerFactory.Instance);
+        await using var scope = provider.CreateAsyncScope();
+        var result = await scope.ServiceProvider.GetRequiredService<ISender>().Send(request);
+        result.IsSuccess.Should().BeTrue("each exact fixed-prefix act must be admitted by the production guards");
+    }
 
     /// <summary>
     /// Reads the rows as <c>learnstack_platform</c>.

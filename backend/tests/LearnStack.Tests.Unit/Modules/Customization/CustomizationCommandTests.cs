@@ -3,6 +3,7 @@ using FluentValidation;
 using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Customization.Application.Contracts.Customization;
 using LearnStack.Modules.Customization.Application.IntegrationEvents;
+using LearnStack.Modules.Customization.Application.Seeding;
 using LearnStack.Modules.Customization.Domain;
 using LearnStack.Modules.Tenancy.Application.Contracts.IntegrationEvents;
 using LearnStack.SharedKernel.Audit;
@@ -1428,6 +1429,7 @@ public sealed class CustomizationCommandTests
         services.AddSingleton<ITenantLevelTaxonomyStore>(stores);
         services.AddSingleton<ITenantLevelTaxonomyCatalog>(stores);
         services.AddSingleton<ICustomizationGenerationStore>(stores);
+        services.AddSingleton<ISeedCustomizationWriteGuard>(new HandlerFixtureGuard(stores));
         services.AddSingleton(features ?? new ContentTypeFeatures(5));
         services.AddSingleton<IAuditSubject>(stores);
         services.AddSingleton(gate ?? new StubGate(admitSchemas));
@@ -1438,6 +1440,43 @@ public sealed class CustomizationCommandTests
             resolved ? new ResolvedContext(Tenant) : new UnresolvedTenantContext());
 
         return services.BuildServiceProvider();
+    }
+
+    // These bare-handler tests exercise domain decisions and original store-lock
+    // ordering. Fixed-source authority and physical-owner admission are exercised
+    // by SeedContentContinuationTests against the real production composition.
+    private sealed class HandlerFixtureGuard(RecordingStores stores) : ISeedCustomizationWriteGuard
+    {
+        private object? _request;
+        public Error Failure { get; } = new(new LocalizedMessage("lockey_business_rule_violation"));
+
+        public async Task<bool> PrepareAsync(object request, CancellationToken cancellationToken)
+        {
+            _request = request;
+            switch (request)
+            {
+                case RegisterTenantContentTypeCommand value:
+                    if (value.Key != BuiltInCustomizations.Card.Key) await stores.LockRegistrationsAsync(cancellationToken);
+                    await ((ITenantContentTypeStore)stores).LockConceptAsync(value.Key, cancellationToken);
+                    break;
+                case RegisterTenantLevelTaxonomyCommand value:
+                    await ((ITenantLevelTaxonomyStore)stores).LockConceptAsync(value.Key, cancellationToken);
+                    break;
+                case InitializeTenantContentTypeDefaultCommand:
+                    await ((ITenantContentTypeStore)stores).LockConceptAsync(BuiltInCustomizations.Card.Key, cancellationToken);
+                    break;
+                case InitializeTenantLevelTaxonomyDefaultCommand:
+                    await ((ITenantLevelTaxonomyStore)stores).LockConceptAsync(BuiltInCustomizations.Plain.Key, cancellationToken);
+                    break;
+                case PublishTenantContentTypeCommand or PublishTenantLevelTaxonomyCommand:
+                    break;
+                default:
+                    return false;
+            }
+            return true;
+        }
+
+        public bool IsCurrent(object request) => ReferenceEquals(request, _request);
     }
 
     /// <summary>

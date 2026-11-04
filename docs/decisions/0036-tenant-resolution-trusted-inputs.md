@@ -1308,3 +1308,49 @@ endpoint. [Security](../standards/11-security.md) owns placement and the
 [phase record](../roadmap/phase-03-delivery-log.md#p03-2-joint-acceptance-and-step-1-2026-10-27)
 owns implementation/proof progress. Acceptance is not activation. Other decisions
 and historical Accepted body/status/date remain unchanged.
+
+### Amendment 17 — Native scope and confined global-self rows (2026-10-28)
+
+Jointly accepted [ADR-0078](0078-native-session-scope-and-self-entry.md) and
+[ADR-0079](0079-bounded-identity-administration.md) extend the trusted signal
+space with a separately authenticated native session candidate. This narrowly
+supersedes the prohibition on header-carried scope sources for that named source
+only. Public-hop authentication alone, browser input and legacy assertion headers
+remain insufficient; provider evidence is not rewritten into application scope.
+
+The following rows extend the reconciliation matrix. Unknown-host precedence
+still runs first. A valid subject is provider-verified and quota-admitted; scoped
+native admission additionally requires its Active matching application binding.
+
+| Host / signals | Resolution and ceiling | Refusal |
+|---|---|---|
+| Known Tenant/Org host; valid subject and native credential; no native scope fields; exact GET self, POST self/bootstrap or GET self/contexts descriptor | Confined global-self owner only; no TenantContext, Membership or generic unresolved-marker authority | Missing credentials 404; present invalid credentials 401; malformed input 400 |
+| TenantHost(T); valid native tuple (T, O?) | HostAndNativeSessionScope after current Membership/lifecycle and, when selected, O belongs to T; explicit org absence stays NULL | Host/scope/noncoverage mismatch 404 |
+| OrgHost(T, O); valid native tuple (T, O) | Same native origin after current exact coverage/lifecycle | Orgless, foreign tenant or another branch 404; host never fills absent native org |
+| Provider scope and native scope both present | Require complete tenant/org tuple equality, including NULL org; optional actor equals stored actor | Scope disagreement 404; actor conflict 401; no source wins or completes an old scoped tuple |
+| PlatformHost with valid native source | No native scoped session, AccountSite or global-self admission | 404; existing direct-bearer matrix rows remain |
+| Native source present but invalid | No fallback to provider claims, public authority or absence | 401 after the existing host precedence |
+| Resolved native context plus legacy X-Tenant-Id/X-Organization-Id | Assertions compare the final resolved tuple only | Mismatch 404; no fallback or scope selection |
+
+The native origin reaches only independently classified authenticated operations
+under fresh current operation/resource checks, including member reads/writes and
+AccountSite. Tenant-wide read authority still needs its exact admitted policy;
+it grants no update hatch, Platform permission or PublicSurface expansion.
+AccountSite additionally requires independently resolved matching real HostScope.
+The four existing TenantContext writers remain the only writers; a fifth enum
+origin is not an unresolved or partially populated context. Enum comments,
+factory, candidate minters and surface/application guards name that distinction.
+
+Native Studio/Portal operates on admitted tenant/organization origins. The two
+fixed management origins are tenant hosts with NULL organization; PlatformHost
+(`app.learnstack.dev`, `localhost`) retains its direct-bearer resolution role,
+without acquiring native session/AccountSite entry. Production origins need
+explicit deployment mappings, TLS/native admission and exact callbacks.
+
+Only the three global-self descriptors branch after provider/subject quota and
+native-source checks, before ordinary binding/resolution. They admit no generic
+MediatR unresolved path. Ordinary resolution remains route-independent and never
+allocates. [Security Standards](../standards/11-security.md) owns exact placement,
+source features, statuses and current caller ceilings. Other source, assertion,
+host-budget and public rules remain; the historical body/metadata are preserved.
+Acceptance changes the contract, not runtime or matrix-test qualification.

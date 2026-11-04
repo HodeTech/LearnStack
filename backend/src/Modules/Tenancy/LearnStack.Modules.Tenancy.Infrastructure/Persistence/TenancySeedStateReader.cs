@@ -13,22 +13,24 @@ public sealed class TenancySeedStateReader(TenancyDbContext context, ITenantCont
     public async Task<TenantSeedDto?> ReadTenantAsync(CancellationToken cancellationToken)
     {
         var row = await context.Tenants.AsNoTracking().Include(tenant => tenant.Locales)
-            .SingleOrDefaultAsync(tenant => tenant.Id == tenantContext.TenantId && tenant.DeletedAt == null,
+            .SingleOrDefaultAsync(tenant => tenant.Id == tenantContext.TenantId,
                 cancellationToken);
         return row is null ? null : new TenantSeedDto(row.Id, row.Slug, row.DisplayName, row.Status.ToString(),
             row.DefaultOrganizationId, row.Version, row.Locales.OrderBy(locale => locale.Sort)
                 .ThenBy(locale => locale.Locale, StringComparer.Ordinal)
                 .Select(locale => new TenantLocaleSeedDto(locale.Locale, locale.IsEnabled, locale.IsDefault, locale.Sort))
-                .ToImmutableArray());
+                .ToImmutableArray(), row.CreatedAt, row.CreatedBy, row.UpdatedAt, row.UpdatedBy,
+            row.DeletedAt, row.DeletedBy, row.AdoptedSeedOriginVersion);
     }
 
     public async Task<OrganizationSeedDto?> ReadOrganizationAsync(
         OrganizationId organizationId, CancellationToken cancellationToken)
     {
         var row = await context.Organizations.AsNoTracking().SingleOrDefaultAsync(
-            organization => organization.Id == organizationId && organization.DeletedAt == null, cancellationToken);
+            organization => organization.Id == organizationId, cancellationToken);
         return row is null ? null : new OrganizationSeedDto(row.Id, row.TenantId, row.Slug, row.DisplayName,
-            row.Status.ToString());
+            row.Status.ToString(), row.Version, row.CreatedAt, row.CreatedBy, row.UpdatedAt, row.UpdatedBy,
+            row.DeletedAt, row.DeletedBy);
     }
 
     public async Task<HostMappingSeedDto?> ReadHostMappingAsync(string host, CancellationToken cancellationToken)
@@ -43,8 +45,9 @@ public sealed class TenancySeedStateReader(TenancyDbContext context, ITenantCont
     public async Task<SettingSeedDto?> ReadSettingAsync(TenantSettingId settingId, CancellationToken cancellationToken)
     {
         var row = await context.TenantSettings.AsNoTracking().SingleOrDefaultAsync(
-            setting => setting.Id == settingId && setting.DeletedAt == null, cancellationToken);
+            setting => setting.Id == settingId, cancellationToken);
         return row is null ? null : new SettingSeedDto(row.Id.Value, row.TenantId, row.OrganizationId,
-            row.Key, row.Value, row.Version);
+            row.Key, row.Value, row.Version, row.CreatedAt, row.CreatedBy, row.UpdatedAt, row.UpdatedBy,
+            row.DeletedAt, row.DeletedBy);
     }
 }

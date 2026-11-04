@@ -153,10 +153,22 @@ public sealed partial class BackgroundJobRecurrenceStoreTests
         await using (var transaction = await app.BeginTransactionAsync())
         {
             await EducationSchemaSeed.AnnounceAsync(app, transaction, SchemaFixture.TenantA, null);
+            if (organization)
+            {
+                await TenancyLifecycleFixture.LockAsync(app, transaction, SchemaFixture.TenantA);
+                // The occurrence was frozen with exactly A1. Add its replacement only
+                // after claiming, then withdraw that original claimed route legally.
+                await SchemaQueries.ExecuteAsync(app, transaction, """
+                    INSERT INTO organizations(id,tenant_id,slug,display_name,status,created_at,created_by,row_version)
+                    VALUES(@organization,@tenant,'replacement','Replacement','Active',clock_timestamp(),@actor,0);
+                    """, ("organization", SchemaFixture.OrgA2), ("tenant", SchemaFixture.TenantA), ("actor", SchemaFixture.Actor));
+                await TenancyLifecycleFixture.SelectDefaultAsync(app, transaction, SchemaFixture.TenantA, SchemaFixture.OrgA2);
+            }
             await SchemaQueries.ExecuteAsync(app, transaction, organization
-                ? "UPDATE organizations SET deleted_at=clock_timestamp(),deleted_by=@actor WHERE id=@id"
+                ? "UPDATE organizations SET deleted_at=clock_timestamp(),deleted_by=@actor WHERE tenant_id=@tenant AND id=@id"
                 : "UPDATE tenants SET deleted_at=clock_timestamp(),deleted_by=@actor WHERE id=@id",
-                ("actor", SchemaFixture.Actor), ("id", organization ? SchemaFixture.OrgA1 : SchemaFixture.TenantA));
+                ("actor", SchemaFixture.Actor), ("tenant", SchemaFixture.TenantA),
+                ("id", organization ? SchemaFixture.OrgA1 : SchemaFixture.TenantA));
             await transaction.CommitAsync();
         }
         await using var host = RecipientHost(database, new());

@@ -524,3 +524,28 @@ ordinary tenant/org template and four login roles remain unchanged.
 This is a bounded extension of this ADR's table/role model, not a correction of
 its historical body. Authority is accepted; P03-1 Steps 3/4 still own applied
 schema, owner-function and real app-role isolation proofs.
+
+## Amendment 10 — Confined own-Membership discovery (2026-10-28)
+
+**Status: Accepted.** [ADR-0078](0078-native-session-scope-and-self-entry.md)
+extends Amendment9's named owner-execution boundary. Its subject-confined
+self-discovery function adds one role-qualified own-actor visibility arm to the
+existing single Membership isolation policy. Only the announced verified
+subject's Active User and its Active/nondeleted Membership scope keys qualify.
+This is a named exception for that relation, not an owner-wide tenant directory
+or a reusable change to the tenant/org RLS template.
+
+USING supplies row visibility, not a SELECT-only policy. The unchanged WITH CHECK
+and actual command/fence guards still refuse unscoped writes; the new function
+performs no Membership mutation. ENABLE/FORCE, the four login roles, no BYPASSRLS,
+no PUBLIC execution and fixed owner/search-path/body/caller confinement remain.
+The closed definer census becomes eight: the existing five plus own discovery,
+creation-attempt admission and User-INSERT capacity enforcement. Canonical
+signatures, policy predicates, grants, projections and owner lifetimes live only
+in [Database Standards](../standards/05-database.md#p03-3-storage-and-replay-contract).
+
+This dated Amendment records the bounded policy exception already selected by
+ADR-0078 and its canonical storage contract; it is not an ADR-0041 erratum or a
+historical-body rewrite. P03-3's actual app-role/applied-policy/function/privilege
+and foreign-subject dirty controls must qualify it before consumer activation.
+Acceptance and document checks are not isolation proof.

@@ -128,8 +128,12 @@ public sealed partial class TenantRealmExportTests
             ("missing attached scope", realm =>
             {
                 var scopes = Client(realm, "learnstack-web")["defaultClientScopes"]!.AsArray();
-                scopes.Remove(scopes.Single(scope => Text(scope) == "learnstack-tenant-api"));
+                scopes.Remove(scopes.Single(scope => Text(scope) == "learnstack-native-session"));
             }),
+            ("requestable legacy web scope", realm => Client(realm, "learnstack-web")["optionalClientScopes"]!.AsArray().Add("learnstack-tenant-api")),
+            ("native scope context mapper", realm => Scope(realm, "learnstack-native-session")["protocolMappers"]!.AsArray().Add(Mapper(realm, "tenant_id").DeepClone())),
+            ("native scope actor source", realm => Scope(realm, "learnstack-native-session")["protocolMappers"]![0]!["config"]!["user.attribute"] = "tenant_id"),
+            ("native scope ID audience", realm => Scope(realm, "learnstack-native-session")["protocolMappers"]![1]!["config"]!["id.token.claim"] = "true"),
             ("missing basic scope", realm => Scopes(realm).Remove(Scope(realm, "basic"))),
             ("missing sub mapper", realm => Scope(realm, "basic")["protocolMappers"] = new JsonArray()),
             ("missing actor mapper", realm => Mappers(realm).RemoveAt(0)),
@@ -216,15 +220,18 @@ public sealed partial class TenantRealmExportTests
                 Require(Strings(client["webOrigins"]).Length == 0, "server-only client");
                 var defaults = Strings(client["defaultClientScopes"]);
                 Require(defaults.Contains("basic", StringComparer.Ordinal)
-                    && defaults.Contains("learnstack-tenant-api", StringComparer.Ordinal), "required default scopes");
+                    && defaults.Contains(clientId == "learnstack-web" ? "learnstack-native-session" : "learnstack-tenant-api", StringComparer.Ordinal), "required default scopes");
                 var effectiveScopes = defaults.Concat(Strings(client["optionalClientScopes"])).ToArray();
+                if (clientId == "learnstack-web")
+                    Require(!effectiveScopes.Contains("learnstack-tenant-api", StringComparer.Ordinal), "legacy scope cannot be requested by native web");
                 Require(effectiveScopes.All(scopeNames.Contains), "all attached scopes actually declared");
                 var effectiveMappers = effectiveScopes.SelectMany(name =>
                     Scope(realm, name)["protocolMappers"]?.AsArray() ?? []).Concat(
                     client["protocolMappers"]?.AsArray() ?? []).ToArray();
                 foreach (var name in identityNames)
-                    Require(effectiveMappers.Count(mapper => ClaimRoot(Text(mapper?["config"]?["claim.name"])) == name) == 1,
-                        "one effective identity mapper");
+                    Require(effectiveMappers.Count(mapper => ClaimRoot(Text(mapper?["config"]?["claim.name"])) == name)
+                        == (clientId == "learnstack-web" && name != "user_id" ? 0 : 1),
+                        "exact client-specific effective identity mappers");
                 Require(effectiveMappers.All(mapper => KnownMapperTypes.Contains(Text(mapper?["protocolMapper"]), StringComparer.Ordinal)),
                     "every effective mapper type is qualified against the pinned provider");
                 Require(effectiveMappers.All(mapper => !ReservedClaims.Contains(
@@ -248,10 +255,12 @@ public sealed partial class TenantRealmExportTests
                     Require(client["serviceAccountsEnabled"]?.GetValue<bool>() == false, "no web service account");
                     Require(Text(client["secret"]) == "${KEYCLOAK_WEB_CLIENT_SECRET}", "private secret placeholder");
                     Require(Text(client["attributes"]?["pkce.code.challenge.method"]) == "S256", "S256 required");
-                    Require(Strings(client["redirectUris"]).Order().SequenceEqual(SeedData.All.Select(tenant =>
-                        "https://" + tenant.Host + ":3000/api/auth/callback/keycloak").Order()), "exact callbacks");
+                    Require(Strings(client["redirectUris"]).Order().SequenceEqual(SeedData.All
+                        .SelectMany(tenant => new[] { tenant.Host, "manage." + tenant.Host })
+                        .Select(host => "https://" + host + ":3000/api/auth/callback/keycloak").Order()), "exact callbacks");
                     Require(Text(client["attributes"]?["post.logout.redirect.uris"]).Split("##").Order()
-                        .SequenceEqual(SeedData.All.Select(tenant => "https://" + tenant.Host + ":3000/").Order()),
+                        .SequenceEqual(SeedData.All.SelectMany(tenant => new[] { tenant.Host, "manage." + tenant.Host })
+                            .Select(host => "https://" + host + ":3000/").Order()),
                         "exact logout roots");
                 }
                 else
@@ -266,6 +275,11 @@ public sealed partial class TenantRealmExportTests
                 Text(mapper?["protocolMapper"]) == "oidc-sub-mapper"
                 && Text(mapper?["config"]?["access.token.claim"]) == "true"), "actual subject mapper");
             Require(Mappers(realm).Count == 4, "closed managed scope");
+            var nativeMappers = Scope(realm, "learnstack-native-session")["protocolMappers"]!.AsArray();
+            Require(nativeMappers.Count == 2, "closed native identity scope");
+            foreach (var name in new[] { "user_id", "learnstack-api-audience" })
+                Require(JsonNode.DeepEquals(nativeMappers.Single(mapper => Text(mapper?["name"]) == name), Mapper(realm, name)),
+                    "native actor and audience preserve the canonical scalar/access-only mappings");
             foreach (var name in identityNames)
             {
                 var mapper = Mapper(realm, name);

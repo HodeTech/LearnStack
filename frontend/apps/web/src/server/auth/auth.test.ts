@@ -3,15 +3,94 @@ import { EventEmitter } from 'node:events';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { snapshotBinding, snapshotRequest, SnapshotWire } from '../../test/page-response-fixture';
 import { INGRESS_HEADER, mintProvenance } from '../ingress';
+import { createPublicAdmissionRuntime } from '../public-admission-runtime';
 import { auth } from './auth';
+import { optionalPreparedPage, preparedPage } from './page';
+import type { NativePageSnapshot } from './page-contract';
 import { createBffRequestRuntime } from './request-runtime';
 
 const incoming = vi.hoisted(() => ({ value: new Headers() }));
 vi.mock('next/headers', () => ({ headers: async () => incoming.value }));
+vi.mock('./session-owner', () => ({ bffSessionEnabled: () => true }));
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
+});
+
+describe('passive prepared page facade', () => {
+  it('returns only one immutable request snapshot and a liveness check; forged and stale reads fail closed', async () => {
+    const secret = 'test-hop-'.padEnd(48, 'x');
+    vi.stubEnv('LEARNSTACK_PUBLIC_HOP_SECRET', secret);
+    const admission = createPublicAdmissionRuntime(true);
+    const runtime = createBffRequestRuntime(admission.holder);
+    const read = vi.fn(runtime.holder.read);
+    const holder = Object.freeze({ ...runtime.holder, read });
+    const original = Object.getOwnPropertyDescriptor;
+    vi.spyOn(Object, 'getOwnPropertyDescriptor').mockImplementation((object, key) =>
+      object === globalThis && key === Symbol.for('learnstack.bff-request.v1')
+        ? { value: holder, configurable: false, enumerable: false, writable: false }
+        : original(object, key),
+    );
+    const site = {
+      displayName: 'School',
+      defaultLocale: 'en',
+      enabledLocales: ['en'],
+      theme: null,
+      showPlatformAttribution: true,
+    };
+    const session = {
+      state: 'authenticated' as const,
+      displayName: 'School',
+      expiresAt: Date.now() + 30_000,
+      limitedByAbsolute: false,
+      csrfToken: 'A'.repeat(43),
+    };
+    const input: NativePageSnapshot = {
+      target: '/studio',
+      site,
+      session,
+      scopeKind: 'tenant',
+      capabilities: null,
+      ownProfile: null,
+      profileState: 'missing',
+      formKeys: [],
+      outcome: { kind: 'ready', view: { kind: 'studio' } },
+    };
+    const wire = new SnapshotWire();
+    const request = snapshotRequest();
+    let revision = 1;
+    await admission.run(snapshotBinding, request, wire.native, () => {
+      admission.holder.begin(snapshotBinding).publish(site);
+      return runtime.run(snapshotBinding, request, wire.native, async () => {
+        const lease = runtime.preparation.reserve(runtime.preparation.current(snapshotBinding), {});
+        lease.pin(() => revision === 1, 30_000);
+        const published = lease.publish(input);
+        runtime.holder.publish(snapshotBinding, session);
+        incoming.value = new Headers({ [INGRESS_HEADER]: mintProvenance(snapshotBinding, secret) });
+        const first = await preparedPage();
+        const second = await optionalPreparedPage();
+        expect(Object.keys(first).sort()).toEqual(['assertActive', 'snapshot']);
+        expect(first.snapshot).toBe(published);
+        expect(second?.snapshot).toBe(first.snapshot);
+        expect(Object.isFrozen(first)).toBe(true);
+        expect(Object.isFrozen(first.snapshot.site.enabledLocales)).toBe(true);
+        first.assertActive();
+        read.mockClear();
+        incoming.value = new Headers({ [INGRESS_HEADER]: 'forged' });
+        await expect(preparedPage()).rejects.toThrow('Protected page context unavailable');
+        expect(read).not.toHaveBeenCalled();
+        incoming.value = new Headers({ [INGRESS_HEADER]: mintProvenance(snapshotBinding, secret) });
+        ++revision;
+        expect(() => first.assertActive()).toThrow();
+        await expect(preparedPage()).rejects.toThrow();
+      });
+    });
+    wire.drainCallbacks();
+    await runtime.stop();
+    expect(runtime.snapshotCounts()).toEqual({ active: 0, owners: 0, bytes: 0 });
+  });
 });
 describe('read-only app-local auth()', () => {
   it('uses actual signed provenance and native ALS; repeated RSC reads cannot refresh, touch or write cookies', async () => {
@@ -50,7 +129,7 @@ describe('read-only app-local auth()', () => {
       response.emit('finish');
       await expect(auth()).rejects.toThrow('BFF request context unavailable');
     });
-    runtime.stop();
+    await runtime.stop();
   });
   it('a forged envelope cannot turn request headers into session authority', async () => {
     const secret = 'test-hop-'.padEnd(48, 'x');
@@ -92,7 +171,8 @@ describe('read-only app-local auth()', () => {
         response.emit('finish');
       });
     } finally {
-      runtime.stop();
+      response.emit('close');
+      await runtime.stop();
     }
   });
 });

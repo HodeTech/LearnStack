@@ -1,0 +1,20 @@
+{
+  "version": "9.12.3",
+  "files": [
+    {
+      "path": "package.json",
+      "bytes": 6033,
+      "sha256": "4167331eba19e68ffa6be24ac285b1ae74efa340e5ba2c79c2a46ba42e179f67"
+    },
+    {
+      "path": "bin/pnpm.cjs",
+      "bytes": 997,
+      "sha256": "2651efc8bc13e7d797dc8bb88b552eb5d657c700381db9aee587fdea5c5888d5"
+    },
+    {
+      "path": "dist/pnpm.cjs",
+      "bytes": 9559895,
+      "sha256": "b32617078bc4b6cf531f25fb8019ef6035d484425c03cc9c46c731280cd75adf"
+    }
+  ]
+}

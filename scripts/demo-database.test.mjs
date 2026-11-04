@@ -26,17 +26,21 @@ const hostileAmbient = {
   ConnectionStrings__AuthorizationEvidence: 'unselected-evidence-private',
   Identity__AuthorityId: 'unselected-identity', Authentication__Tenant__Issuer: 'unselected-issuer',
   Deployment__Mode: 'SaaS', KEYCLOAK_ADMIN_PASSWORD: 'provider-private',
+  DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER: '0', MSBUILDDISABLENODEREUSE: '0',
+  MSBUILDUNSELECTED: 'private-unselected',
 };
 
 test('restore/build environment carries process prerequisites and no runtime authority or credentials', () => {
   assert.deepEqual(publicSeederEnvironment(undefined, hostileAmbient), {
     PATH: '/owned/bin', HTTPS_PROXY: 'http://owned-proxy', SSL_CERT_FILE: '/owned/trust.pem',
+    DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER: '1', MSBUILDDISABLENODEREUSE: '1',
   });
 });
 
 test('owned Development runtime carries selected app connection and authority without importing ambient credentials', () => {
   assert.deepEqual(developmentSeederRuntimeEnvironment(selected, hostileAmbient), {
     PATH: '/owned/bin', HTTPS_PROXY: 'http://owned-proxy', SSL_CERT_FILE: '/owned/trust.pem',
+    DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER: '1', MSBUILDDISABLENODEREUSE: '1',
     ...selected, Deployment__Mode: 'Development',
   });
 });

@@ -1,5 +1,7 @@
 import type { ServerSdk } from '@learnstack/sdk/server';
 
+import { bffDocumentQuery } from './auth/page-query';
+import { isNativeReturnPath } from './auth/session-path';
 import { normalizeHost, PUBLIC_HTTPS_PORT, validTarget } from './ingress';
 
 type SiteResult = Awaited<ReturnType<ServerSdk['getSite']>>;
@@ -73,7 +75,7 @@ export function canonicalRouteLocale(target: string): string | null {
 }
 
 /** Bootstrap must be live before this membership-first entry policy is evaluated. */
-export function publicEntry(target: string, site: PublicSite): PublicEntry {
+export function publicEntry(target: string, site: PublicSite, nativeFlight = false): PublicEntry {
   if (!validTarget(target)) return { kind: 'refuse', status: 404 };
   const enabled = site.enabledLocales;
   if (
@@ -106,7 +108,14 @@ export function publicEntry(target: string, site: PublicSite): PublicEntry {
       ? { kind: 'redirect', status: 307, path: `/${canonical}/courses${query}` }
       : { kind: 'continue', locale: canonical };
   }
-  if (path === '/studio' || path === '/portal') return { kind: 'continue', locale: null };
+  if (isNativeReturnPath(path)) {
+    try {
+      bffDocumentQuery(target, nativeFlight);
+      return { kind: 'continue', locale: null };
+    } catch {
+      return { kind: 'refuse', status: 404 };
+    }
+  }
   if (contentPath(parts))
     return { kind: 'redirect', status: 307, path: `/${site.defaultLocale}${path}${query}` };
   return { kind: 'refuse', status: 404 };

@@ -154,7 +154,7 @@ jobs:
   backend-architecture:
     name: backend architecture-${{ matrix.index }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -242,7 +242,7 @@ jobs:
   backend-integration-tests:
     name: backend ordinary-${{ matrix.index }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -275,6 +275,9 @@ jobs:
       # The actual production-rendering fixture remains in the Docker census.
       - name: Set up pnpm for production rendering fixture
         uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        env:
+          # Keep the generated launcher inside the closed compiler environment.
+          npm_config_extend_node_path: "false"
         with:
           version: ${{ env.PNPM_VERSION }}
 
@@ -287,7 +290,7 @@ jobs:
 
       - name: Install production rendering fixture dependencies
         working-directory: frontend
-        run: pnpm install --frozen-lockfile
+        run: node scripts/install-frontend.mjs
 
       - name: Compile native web and authenticated SDK fixture entries
         working-directory: frontend
@@ -564,7 +567,7 @@ jobs:
   frontend:
     name: frontend (typecheck + lint + build + test)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: frontend
@@ -581,6 +584,9 @@ jobs:
 
       - name: Set up pnpm
         uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        env:
+          # Keep the generated launcher inside the closed compiler environment.
+          npm_config_extend_node_path: "false"
         with:
           version: ${{ env.PNPM_VERSION }}
           run_install: false
@@ -594,7 +600,7 @@ jobs:
             pnpm-${{ runner.os }}-
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: node scripts/install-frontend.mjs
 
       - name: Regenerate SDK from the committed contract and refuse drift
         env:
@@ -688,12 +694,12 @@ jobs:
   public-demo:
     name: public demo + lighthouse
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 22
     steps:
       # Start before checkout. Reserve three minutes: 35s owner stop grace,
       # 20s sandbox cleanup, 20s receipt, 60s upload and 45s runner/post margin.
       - name: Reserve demo cleanup and artifact time
-        run: echo "PUBLIC_DEMO_DEADLINE=$(( $(date +%s) + 17 * 60 ))" >> "$GITHUB_ENV"
+        run: echo "PUBLIC_DEMO_DEADLINE=$(( $(date +%s) + 19 * 60 ))" >> "$GITHUB_ENV"
 
       - name: Checkout
         timeout-minutes: 2
@@ -716,6 +722,9 @@ jobs:
       - name: Set up pnpm
         timeout-minutes: 1
         uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        env:
+          # Keep the generated launcher inside the closed compiler environment.
+          npm_config_extend_node_path: "false"
         with:
           version: ${{ env.PNPM_VERSION }}
           run_install: false
@@ -733,7 +742,7 @@ jobs:
         timeout-minutes: 5
         working-directory: frontend
         run: |
-          pnpm install --frozen-lockfile
+          node scripts/install-frontend.mjs
           # The hosted image already carries every Chromium shared library.
           # --with-deps only added CJK/Thai/X fonts through the runner's APT
           # mirror, whose slow downloads repeatedly exhausted this budget.

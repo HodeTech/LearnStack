@@ -24,6 +24,7 @@ public sealed class PostgresOutbox(IUnitOfWork unitOfWork, ProducerExecution pro
     {
         ArgumentNullException.ThrowIfNull(integrationEvent);
         cancellationToken.ThrowIfCancellationRequested();
+        if (unitOfWork is IUnitOfWorkWriteGuard writeGuard) writeGuard.RequireWriteAllowed();
         // Refuse raw/unannounced/read-only/stale scopes before executing event getters
         // or touching Connection (whose getter would otherwise open a connection).
         var announcement = producer.RequireAnnouncement(unitOfWork);
@@ -65,6 +66,7 @@ public sealed class PostgresOutbox(IUnitOfWork unitOfWork, ProducerExecution pro
 
         try
         {
+            if (unitOfWork is IUnitOfWorkWriteGuard finalWriteGuard) finalWriteGuard.RequireWriteAllowed();
             await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
         catch

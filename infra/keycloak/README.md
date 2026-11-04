@@ -161,6 +161,8 @@ are disabled. Only these exact callbacks are registered:
 
 - `https://demo-english.learnstack.local:3000/api/auth/callback/keycloak`
 - `https://demo-yoga.learnstack.local:3000/api/auth/callback/keycloak`
+- `https://manage.demo-english.learnstack.local:3000/api/auth/callback/keycloak`
+- `https://manage.demo-yoga.learnstack.local:3000/api/auth/callback/keycloak`
 
 Post-logout redirects are the corresponding exact HTTPS roots on port 3000,
 joined with Keycloak's `##` attribute separator. No wildcard or localhost HTTP
@@ -173,7 +175,7 @@ install certificates in the developer's trust store.
 
 `learnstack-api` has no browser code flow or redirects. Its legacy service account
 and secret are retained; its tokens cannot satisfy the API's user-token profile.
-Both named clients attach `learnstack-tenant-api` as a default scope:
+`learnstack-api` retains the `learnstack-tenant-api` default scope:
 
 - `user_id`, optional `tenant_id` and optional `organization_id` are scalar String
   user-attribute claims in access and ID tokens. Profile view/edit permission for
@@ -182,6 +184,21 @@ Both named clients attach `learnstack-tenant-api` as a default scope:
 - The export includes the actual pinned built-in scope definitions, especially
   `basic` and its `sub` mapper. Listing a missing built-in name is insufficient
   when an import supplies its own `clientScopes` collection.
+
+`learnstack-web` attaches the fixed `learnstack-native-session` default scope.
+It retains only the scalar `user_id` compatibility mapper and access-only API
+audience from the scoped declaration. Neither code nor refresh grants emit
+`tenant_id` or `organization_id`; the native owner obtains application identity
+and selects context through the [accepted native entry contract](../../docs/decisions/0078-native-session-scope-and-self-entry.md).
+The scoped API declaration, its mapper IDs and its API attachment remain intact.
+The web client cannot request the legacy scope optionally.
+
+Warm reconciliation replaces only the web client's legacy default attachment.
+It independently qualifies web direct, default and optional mappers before any
+write. A foreign context emitter, an optional legacy attachment or a conflicting
+pre-existing fixed native scope requires operator recovery. The reconciler
+creates a missing native scope, verifies exact mapper/configuration readback,
+and repeated converged passes perform no provider writes.
 
 The configured tenant-realm access-token lifespan is 900 seconds, without
 per-client overrides. [Security Standards](../../docs/standards/11-security.md#authentication)

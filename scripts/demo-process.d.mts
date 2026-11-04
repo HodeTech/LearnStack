@@ -34,6 +34,8 @@ interface Options {
   env?: NodeJS.ProcessEnv;
   label?: string;
   capture?: boolean;
+  /** Exact managed native launch: soft owner stop, never generic group escalation. */
+  ownedRuntime?: boolean;
   timeout?: number;
   observe?: (chunk: Buffer, stream: "stdout" | "stderr") => void;
 }

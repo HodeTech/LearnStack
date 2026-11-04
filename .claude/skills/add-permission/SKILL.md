@@ -189,8 +189,8 @@ denied coverage; verify its current catalogue status and nonempty subjects.
 - Check `Permission_Keys_Match_Convention`,
   `Permission_Scope_Matches_Resource_Scope` and
   `Permission_Registry_Has_DeniedTest` against their current catalogue status.
-  Their P03-2 controls are Registered at acceptance; run the actual implemented
-  owners before claiming green, and never promote an absent proof.
+  Run their actual current proof owners before claiming green; a later Accepted
+  extension remains pending until its nonempty subjects are implemented and run.
 
 ## Common pitfalls
 

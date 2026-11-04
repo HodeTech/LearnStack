@@ -85,7 +85,11 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
       identifies the exact implementation head inspected after activation;
       subsequent heads still require all seven passing checks.
   - P02d-5 keeps the existing check names. The frontend job uses the guarded
-    workspace test runner and native production/cleanup controls. Backend
+    workspace test runner and native production/cleanup controls.
+    Package/proof windows and the discovered-file/reported-case evidence scope
+    follow [Testing 06](../docs/standards/06-testing.md#frontend-guarded-execution)
+    and [ADR-0092](../docs/decisions/0092-sdk-completion-and-frontend-job-windows.md).
+    A package stop is not complete detached-family retirement. Backend
     integration also builds a disposable Next app against the real API/PostgreSQL;
     Node 22.23.1/pnpm, frozen frontend dependencies and OpenSSL are required by
     both that job and the frontend native-ingress proof.
@@ -127,10 +131,12 @@ Configure these in **GitHub → Settings → Branches → Branch protection rule
 - **Allow deletions**: off.
 
 The ordinary fast checks retain their approximately three-minute target.
-ADR-0056's full-stack job deliberately includes real limiter-window waits: its
-20-minute job ceiling includes setup/build, a 12-minute serial proof and separate
-30-second cleanup. Timing ceilings are not performance targets. A failing or
-slow check is investigated rather than skipped on `main`.
+The full-stack job deliberately includes real limiter-window waits. Its
+[ADR-0085 window](../docs/decisions/0085-public-demo-ci-execution-window.md) is
+22 job minutes with a 19-minute first-step work deadline and a 180-second nominal
+reserve. The internal 12-minute serial proof and separate 30-second cleanup stay
+fixed. Timing ceilings are not performance targets or a hosted-fit guarantee.
+A failing or slow check is investigated rather than skipped on `main`.
 
 ## Commit messages
 

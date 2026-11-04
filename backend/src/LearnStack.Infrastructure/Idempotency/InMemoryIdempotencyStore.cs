@@ -6,8 +6,7 @@ using LearnStack.SharedKernel.Time;
 namespace LearnStack.Infrastructure.Idempotency;
 
 /// <summary>
-/// The default <see cref="IIdempotencyStore"/>: correct for one instance,
-/// wrong for two.
+/// An explicitly selected component-test <see cref="IIdempotencyStore"/> with process-local state.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -27,8 +26,9 @@ namespace LearnStack.Infrastructure.Idempotency;
 /// while the durable store is additive and ships on its
 /// <see href="../../../../docs/decisions/0035-demand-gated-infrastructure.md">ADR-0035</see>
 /// trigger — the first <c>[Idempotent]</c> endpoint, or the first deployment
-/// running more than one instance. This implementation stays registered until
-/// then.
+/// running more than one instance. ADR-0079's protected administration uses
+/// <see cref="PostgresIdempotencyStore"/>; this implementation remains available
+/// only when a component explicitly selects its volatile behavior.
 /// </para>
 /// <para>
 /// The same limitation is why <c>ICacheService</c> exists as a port and why
@@ -84,6 +84,25 @@ public sealed class InMemoryIdempotencyStore(IClock clock) : IIdempotencyStore
 
     private long _lastSweepTicks;
     private Census _census = Census.Empty;
+
+    public Task<IdempotentResponse?> ReadCompletedAsync(
+        TenantId tenantId, string key, string fingerprint, CancellationToken cancellationToken)
+    {
+        Guard(tenantId, key);
+        ArgumentNullException.ThrowIfNull(fingerprint);
+        cancellationToken.ThrowIfCancellationRequested();
+        // No sweep, claim, expiry extension or capacity mutation belongs to this read.
+        var response = _entries.TryGetValue((tenantId, key), out var current)
+            && current.IsUsable(clock.UtcNow) && current.State == EntryState.Completed
+            && string.Equals(current.Fingerprint, fingerprint, StringComparison.Ordinal)
+            ? current.Response : null;
+        return Task.FromResult(response is null ? null : response with
+        {
+            Headers = response.Headers.ToDictionary(item => item.Key,
+                item => (IReadOnlyList<string>)item.Value.ToArray(), StringComparer.OrdinalIgnoreCase),
+            Body = response.Body.ToArray(),
+        });
+    }
 
     public Task<IdempotencyClaimResult> TryClaimAsync(
         TenantId tenantId, string key, string fingerprint, CancellationToken cancellationToken)
@@ -219,7 +238,7 @@ public sealed class InMemoryIdempotencyStore(IClock clock) : IIdempotencyStore
         // id type, which is neither this guard's contract nor a message a caller can act
         // on. Both sentinels are refused, because a struct nobody assigned and one
         // assigned the all-zero Guid are the same mistake.
-        if (!tenantId.IsInitialized() || tenantId.Value == Guid.Empty)
+        if (!tenantId.IsInitialized() || tenantId.Value == Guid.Empty || tenantId == TenantId.PlatformSentinel)
         {
             throw new ArgumentException(
                 "An idempotency key is scoped to a tenant; an unassigned id is not one.",

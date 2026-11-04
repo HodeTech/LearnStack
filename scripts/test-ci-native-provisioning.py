@@ -10,7 +10,7 @@ import tempfile
 import unittest
 
 SOURCE = Path(__file__).with_name('ci-native-provisioning.py')
-SOURCE_SHA256 = '2af57083522e7415ee73c2617644bf0b831065ebdacc580e75582c62366cda7b'
+SOURCE_SHA256 = '682efe054e7540d4a2bc85c55a1bf84672cce273a5441725d298363ab4b0544b'
 FIXED_PATHS = {
     'CORE_PATTERN': '/proc/sys/kernel/core_pattern', 'OS_RELEASE': '/etc/os-release',
     'CGROUP_INIT': '/proc/1/cgroup', 'CGROUP_SELF': '/proc/self/cgroup',
@@ -109,8 +109,19 @@ elif name == 'git':
 elif name == 'virt':
     if args == ['--container']:
         print(cfg.get('container', 'none'))
+        if cfg.get('vm_os_error'):
+            Path(sys.argv[0]).unlink()
         sys.exit(cfg.get('container_status', 1))
-    print(cfg.get('vm', 'microsoft'))
+    assert args == ['--vm']
+    print('PRIVATE-VM-STDERR-CANARY', file=sys.stderr)
+    if cfg.get('vm_timeout'):
+        (root / 'vm-pid').write_text(str(os.getpid()))
+        print('PRIVATE-VM-TIMEOUT-CANARY', flush=True)
+        time.sleep(2)
+    if 'vm_output_hex' in cfg:
+        sys.stdout.buffer.write(bytes.fromhex(cfg['vm_output_hex']))
+    else:
+        print(cfg.get('vm', 'microsoft'))
     sys.exit(cfg.get('vm_status', 0))
 elif name == 'docker':
     sys.stdout.write(cfg.get('docker_output', ''))
@@ -146,14 +157,28 @@ import json
 from pathlib import Path
 import resource
 import time
+import types
 spec = importlib.util.spec_from_file_location('owner', OWNER_LITERAL)
 owner = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(owner)
 cfg = json.loads(Path(CONFIG_LITERAL).read_text())
 try:
-    receipt = owner.provision(deadline=time.monotonic() + cfg.get('deadline', 15),
-                              command_timeout=cfg.get('command_timeout', 2))
-    Path(AUTHORIZED_LITERAL).touch()
+    if cfg.get('budget_probe'):
+        if cfg.get('cross_deadline'):
+            # Only the budget clock is controlled; subprocess.run remains real.
+            ticks = iter((0, 2))
+            owner.time = types.SimpleNamespace(monotonic=lambda: next(ticks))
+            deadline = 1
+        else:
+            deadline = time.monotonic() + cfg.get('deadline', 15)
+        budget = owner.Budget(deadline, cfg.get('command_timeout', 2))
+        status, value = budget.command([owner.VIRT, '--vm'], 'vm_evidence_missing',
+                                      classify=cfg.get('classify', False))
+        receipt = {'status': status, 'bytes': len(value)}
+    else:
+        receipt = owner.provision(deadline=time.monotonic() + cfg.get('deadline', 15),
+                                  command_timeout=cfg.get('command_timeout', 2))
+        Path(AUTHORIZED_LITERAL).touch()
     print(json.dumps({'ok': True, 'receipt': receipt,
                       'limits': resource.getrlimit(resource.RLIMIT_CORE)}))
 except owner.Refusal as error:
@@ -365,14 +390,88 @@ print(json.dumps(result))
             ({'cpus': 'unknown'}, 'unsupported_cpu_count'),
             ({'cpus': '9' * 5000}, 'unsupported_cpu_count'),
             ({'container': 'docker', 'container_status': 0}, 'container_detected'),
+            ({'vm': 'amazon', 'container': 'docker', 'container_status': 0}, 'container_detected'),
+            ({'vm': 'amazon', 'cpus': '1'}, 'unsupported_cpu_count'),
             ({'container_status': 2}, 'container_detected'),
-            ({'vm': 'none', 'vm_status': 1}, 'vm_evidence_missing'),
-            ({'vm': 'docker'}, 'vm_evidence_missing'),
+            ({'vm': 'none', 'vm_status': 1}, 'vm_evidence_missing_exit'),
+            ({'vm': 'docker'}, 'vm_evidence_missing_shape'),
             ({'docker_status': 1}, 'docker_baseline_unreadable'),
         ]
         for config, reason in cases:
             with self.subTest(config=config):
                 self.assert_refused(self.fixture.run(config), reason)
+
+    def test_vm_probe_retains_all_supported_exact_success_values(self):
+        for vm in ('microsoft', 'kvm', 'qemu', 'amazon'):
+            with self.subTest(vm=vm), tempfile.TemporaryDirectory() as root:
+                fixture = Fixture(root)
+                result = fixture.run({'vm': vm})
+                self.assertTrue(result['ok'])
+                self.assertEqual(vm, result['receipt']['virtualization'])
+                self.assertEqual([['--container'], ['--vm']],
+                                 [item['args'] for item in fixture.commands('virt')])
+
+    def test_vm_status_shape_and_output_bound_are_distinct_without_disclosure(self):
+        invalid = (b'', b'microsoft', b'microsoft\nextra', b'microsoft\r\n', b'kvm\n\n',
+                   b'amazon', b'amazon\r\n', b'amazon\nextra', b'Amazon\n', b'none\n',
+                   b'PRIVATE-VM-STDOUT-CANARY\n', b'\xff\x00', b'x' * 16384)
+        cases = [({'vm_output_hex': value.hex()}, 'vm_evidence_missing_shape')
+                 for value in invalid]
+        cases += [({'vm_status': 7}, 'vm_evidence_missing_exit'),
+                  ({'vm_status': 7, 'vm_output_hex': b'PRIVATE-VM-STDOUT-CANARY'.hex()},
+                   'vm_evidence_missing_exit'),
+                  ({'vm_output_hex': (b'PRIVATE-VM-STDOUT-CANARY' + b'x' * 16385).hex()},
+                   'vm_evidence_missing_output_bound'),
+                  ({'vm_status': 7, 'vm_output_hex': (b'x' * 16385).hex()},
+                   'vm_evidence_missing_output_bound')]
+        for config, reason in cases:
+            with self.subTest(reason=reason):
+                before = len(self.fixture.commands('virt'))
+                self.assert_refused(self.fixture.run(config), reason)
+                self.assertEqual([['--container'], ['--vm']],
+                    [item['args'] for item in self.fixture.commands('virt')[before:]])
+                self.assertEqual([], self.fixture.commands('docker'))
+                self.assertEqual([], self.fixture.commands('tee'))
+
+    def test_vm_os_error_occurs_after_successful_container_probe(self):
+        # A missing VIRT at entry would exercise --container, not this VM path.
+        with tempfile.TemporaryDirectory(prefix='PRIVATE-VM-PATH-CANARY-') as root:
+            self.fixture = Fixture(root)
+            self.assert_refused(self.fixture.run({'vm_os_error': True}),
+                                'vm_evidence_missing_os_error')
+            self.assertEqual([['--container']],
+                             [item['args'] for item in self.fixture.commands('virt')])
+            self.assertFalse(Path(self.fixture.paths['VIRT']).exists())
+            self.assertEqual([], self.fixture.commands('docker'))
+
+    def test_actual_vm_timeout_is_classified_and_its_direct_child_is_reaped(self):
+        self.assert_refused(self.fixture.run({'vm_timeout': True, 'command_timeout': 0.5}),
+                            'vm_evidence_missing_timeout')
+        pid = int((self.fixture.root / 'vm-pid').read_text())
+        with self.assertRaises(ProcessLookupError):
+            os.kill(pid, 0)
+        self.assertEqual([['--container'], ['--vm']],
+                         [item['args'] for item in self.fixture.commands('virt')])
+        self.assertEqual([], self.fixture.commands('docker'))
+
+    def test_command_classification_is_opt_in_and_absolute_deadline_still_wins(self):
+        for config in ({'vm_timeout': True, 'command_timeout': 0.5},
+                       {'vm_output_hex': (b'x' * 16385).hex()}):
+            with self.subTest(kind=list(config)):
+                self.assert_refused(self.fixture.run({'budget_probe': True, **config}),
+                                    'vm_evidence_missing')
+        self.assert_refused(self.fixture.run({'budget_probe': True, 'classify': True,
+            'cross_deadline': True, 'vm_output_hex': (b'x' * 16385).hex()}),
+            'deadline_exhausted')
+        self.assert_refused(self.fixture.run({'budget_probe': True, 'classify': True,
+            'deadline': 0.5, 'command_timeout': 2, 'vm_timeout': True}),
+            'vm_evidence_missing_timeout')
+        Path(self.fixture.paths['VIRT']).unlink()
+        self.assert_refused(self.fixture.run({'budget_probe': True}), 'vm_evidence_missing')
+        before = len(self.fixture.commands('virt'))
+        self.assert_refused(self.fixture.run({'budget_probe': True, 'classify': True,
+            'deadline': -1}), 'deadline_exhausted')
+        self.assertEqual(before, len(self.fixture.commands('virt')))
 
     def test_matching_but_unsupported_context_identity_still_refuses(self):
         for key, value, reason in [

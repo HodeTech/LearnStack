@@ -52,7 +52,7 @@ the backend runs today calls them, so `make dev` starts 7 services and
 | Docker Desktop | Yes | Required for every container. |
 | .NET 10 SDK | Yes | `dotnet --version` returns `10.0.x`. |
 | OpenSSL CLI | Yes for frontend tests | Isolated TLS fixtures generate temporary certificates without installing trust. |
-| Node >=22.23.1 + pnpm | Yes | For the frontend; `frontend/package.json` sets the floor and CI pins `22.23.1`. |
+| Node 22.23.1 + pnpm 9.12.3 | Yes | The exact qualified tuple is enforced by the frontend installer and producer; see [ADR-0083](../../../docs/decisions/0083-owned-next-response-compression-cleanup.md). |
 | Deployment mode | Yes | `Development` (default) / `SaaS` / `Dedicated` / `SelfHostedOnline` / `SelfHostedAirGapped` (per [Standards 12 § Deployment Modes](../../../docs/standards/12-infrastructure.md)). |
 | Selected private `.env` (gitignored) | Yes before stack startup | `.env.example` is the template; preserve existing secrets and private file permissions. |
 
@@ -62,16 +62,15 @@ the backend runs today calls them, so `make dev` starts 7 services and
 
 ```bash
 dotnet --version       # 10.0.x
-node --version         # >=22.23.1
-pnpm --version
+node --version         # exactly 22.23.1
+pnpm --version         # exactly 9.12.3
 docker info >/dev/null && echo "docker OK"
 ```
 
 If any of these is missing, install:
 
 - .NET 10 SDK: <https://dotnet.microsoft.com/download>
-- Node: use Volta or fnm; `frontend/package.json` requires `>=22.23.1` and CI
-  pins `22.23.1`.
+- Node: use Volta or fnm; `frontend/package.json` requires exactly `22.23.1`.
 - pnpm: `corepack enable`; `frontend/package.json` pins `pnpm@9.12.3`.
 - Docker Desktop: <https://www.docker.com/products/docker-desktop>.
 
@@ -85,8 +84,12 @@ make .env                 # creates a missing local-only file with private permi
 # Before make dev, prepare KEYCLOAK_WEB_CLIENT_SECRET in that private file.
 
 (cd backend && dotnet restore LearnStack.slnx --locked-mode)
-(cd frontend && pnpm install --frozen-lockfile)
+node frontend/scripts/install-frontend.mjs
 ```
+
+Use the guarded installer for frontend restoration; raw `pnpm install` refuses
+before dependency mutation. Follow the [framework maintenance guide](../../../frontend/framework/next-response-cleanup/README.md)
+for an intentional lockfile update or correction regeneration.
 
 Never overwrite an existing private source or regenerate its BFF secret on a
 routine rerun. For a legacy source, first verify it is your regular, nonsymlink,
@@ -120,6 +123,39 @@ shell-evaluates `.env`, edits hosts or installs trust. The optional web projecti
 must match the root private source. README Quickstart owns the
 [closed local demo database grammar](../../../README.md#3-prepare-local-https-and-start-the-applications)
 and its supported field aliases; it does not promise general Npgsql parsing.
+
+**Native entry configuration.**
+[ADR-0078's exact callback/origin contract](../../../docs/decisions/0078-native-session-scope-and-self-entry.md#selection-refresh-and-host-transition)
+adds management hosts to the existing two public hosts. Explicit local hosts
+aliases and trusted TLS leaves must cover `demo-english.learnstack.local`,
+`demo-yoga.learnstack.local`, `manage.demo-english.learnstack.local` and
+`manage.demo-yoga.learnstack.local`; no script installs system aliases or CA
+trust. Provider callback/post-logout registrations and native origin admission
+must match those exact HTTPS origins, without wildcards. Follow the
+[realm guide](../../../infra/keycloak/README.md#tenant-client-contract) for the
+fixed native web scope and bounded warm reconciliation.
+
+With `LEARNSTACK_BFF_ENABLED=true`, the native loader requires
+`LEARNSTACK_BFF_ISSUER`, `KEYCLOAK_WEB_CLIENT_SECRET`, `Identity__AuthorityId` and
+`Identity__NativeSession__CurrentSecret`. Defined values in the private root
+`.env`, optional web `.env.local` and process environment must agree. The native
+source secret is a separate random 32-byte canonical base64url value, distinct
+from `LEARNSTACK_PUBLIC_HOP_SECRET`; the AuthorityId must match the installed API
+authority. Preserve existing values. These are private runtime inputs, never
+public configuration, build inputs or browser code.
+
+`make public-api` selects the exact native API keys from those same sources:
+`Identity__NativeSession__CurrentSecret`, `Identity__NativeSession__PreviousSecret`,
+`Identity__NativeSession__PreviousRetiresAt`, `Identity__NativeSession__HttpsPort`
+and `Identity__SelfBootstrap__Enabled`. Conflicting or blank supplied values
+refuse before launch; the API validates their formats and relationships.
+The launcher supplies HTTPS port 3000 when absent, but generates no native secret
+and does not enable self-bootstrap. The issuer/AuthorityId pair must also be
+complete in each source that supplies either key. Use
+[Security's qualified rotation contract](../../../docs/standards/11-security.md#native-scope-and-global-self-admission)
+for current/previous secret handling. The
+[phase Status block](../../../docs/roadmap/phase-03-identity-admin.md) owns native
+activation and qualification; configuration alone proves neither.
 
 **Ordinary API startup.** `dotnet run` does not load `.env`. For an API-only
 session, supply `ConnectionStrings:Default` (`learnstack_app`) and
@@ -248,7 +284,7 @@ P02d-7 also supplies isolated CI mode over the same production lifecycle. In a
 fresh checkout without root `.env`, web `.env.local` or `artifacts/public-demo`:
 
 ```bash
-(cd frontend && pnpm install --frozen-lockfile)
+node frontend/scripts/install-frontend.mjs
 (cd frontend && pnpm exec playwright install --with-deps chromium)
 make demo DEMO_MODE=ci
 ```

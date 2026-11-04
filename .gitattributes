@@ -27,3 +27,7 @@ third-party/hangfire/dependency-notices/Dapper.AOT-1.0.48-LICENSE.txt -text
 third-party/hangfire/core/NOTICES -text -whitespace
 third-party/hangfire/dependency-notices/Newtonsoft.Json-13.0.4-LICENSE.md -text -whitespace
 third-party/hangfire/dependency-notices/Apache-2.0.txt -text -whitespace
+
+# Exact generated patch bytes include upstream blank/context whitespace. Neither
+# checkout conversion nor whitespace repair may change its verified carrier.
+frontend/patches/next@15.5.28.patch -text -whitespace

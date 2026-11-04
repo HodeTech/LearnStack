@@ -1,6 +1,8 @@
 using FluentAssertions;
+using LearnStack.Modules.Audit.Infrastructure.Persistence;
 using LearnStack.Modules.Identity.Domain;
 using LearnStack.Modules.Identity.Infrastructure.Persistence;
+using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Permissions;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.EntityFrameworkCore;
@@ -20,22 +22,17 @@ public sealed partial class IdentityMembershipTests
         const string Predecessor = "20261025232309_add_contextual_identity";
         const string Correction = "20261026035353_correct_identity_parent_mirror_sqlstate";
         const string Guard = "fn_identity_contextual_mutation_guard()";
-        await using var database = await DisposableSchemaDatabase.CreateAsync(fixture.Postgres);
-        await IdentityMembershipFixture.SeedSchemaAsync(database.MigrationConnectionString, database.AppConnectionString);
-        await using var context = new IdentityDbContext(new DbContextOptionsBuilder<IdentityDbContext>()
-            .UseNpgsql(database.MigrationConnectionString, options =>
-                options.MigrationsHistoryTable(IdentityDbContextFactory.HistoryTable)).Options,
-            StaticTenantContextAccessor.Unresolved, EmptyIdentityScope.Instance);
+        await using var database = await CreateHistoricalIdentityDatabaseAsync(Predecessor);
+        await SeedHistoricalIdentityGraphAsync(database);
+        await using var context = HistoricalIdentityMigration(database);
         context.Database.HasPendingModelChanges().Should().BeFalse();
-        var fresh = await ReadIdentityFunctionsAsync(database);
-        fresh.Should().HaveCountGreaterThan(1, "the replacement must preserve actual sibling functions");
+        var predecessor = await ReadIdentityFunctionsAsync(database);
+        predecessor.Should().HaveCountGreaterThan(1, "the replacement must preserve actual sibling functions");
+        await AssertParentMirrorFailureAsync(database, "P0304", null);
+
         await context.GetService<IMigrator>().MigrateAsync(Correction);
         var corrected = await ReadIdentityFunctionsAsync(database);
         await AssertParentMirrorFailureAsync(database, "23514", "membership_parent_scope");
-
-        await context.GetService<IMigrator>().MigrateAsync(Predecessor);
-        var predecessor = await ReadIdentityFunctionsAsync(database);
-        await AssertParentMirrorFailureAsync(database, "P0304", null);
         var previousGuard = predecessor.Except(corrected).Should().ContainSingle().Which;
         var correctedGuard = corrected.Except(predecessor).Should().ContainSingle().Which;
         previousGuard.Identity.Should().Be(Guard);
@@ -52,14 +49,8 @@ public sealed partial class IdentityMembershipTests
         await context.GetService<IMigrator>().MigrateAsync(Correction);
         (await ReadIdentityFunctionsAsync(database)).Should().Equal(corrected);
         await AssertParentMirrorFailureAsync(database, "23514", "membership_parent_scope");
-        await context.GetService<IMigrator>().MigrateAsync(Predecessor);
-        (await ReadIdentityFunctionsAsync(database)).Should().Equal(predecessor);
-        await AssertParentMirrorFailureAsync(database, "P0304", null);
-        await context.GetService<IMigrator>().MigrateAsync(Correction);
-        (await ReadIdentityFunctionsAsync(database)).Should().Equal(corrected);
-        await AssertParentMirrorFailureAsync(database, "23514", "membership_parent_scope");
-        await context.Database.MigrateAsync();
-        (await ReadIdentityFunctionsAsync(database)).Should().Equal(fresh);
+        await MigrationChains.ApplyAllAsync(database.MigrationConnectionString);
+        await AssertFreshIdentityChainAsync(database);
         context.Database.HasPendingModelChanges().Should().BeFalse();
     }
 
@@ -69,21 +60,16 @@ public sealed partial class IdentityMembershipTests
         const string Predecessor = "20261026035353_correct_identity_parent_mirror_sqlstate";
         const string Correction = "20261026043921_correct_identity_admission_parent_sqlstate";
         const string Guard = "fn_identity_membership_admission_guard()";
-        await using var database = await DisposableSchemaDatabase.CreateAsync(fixture.Postgres);
-        await IdentityMembershipFixture.SeedSchemaAsync(database.MigrationConnectionString, database.AppConnectionString);
-        await using var context = new IdentityDbContext(new DbContextOptionsBuilder<IdentityDbContext>()
-            .UseNpgsql(database.MigrationConnectionString, options =>
-                options.MigrationsHistoryTable(IdentityDbContextFactory.HistoryTable)).Options,
-            StaticTenantContextAccessor.Unresolved, EmptyIdentityScope.Instance);
+        await using var database = await CreateHistoricalIdentityDatabaseAsync(Predecessor);
+        await SeedHistoricalIdentityGraphAsync(database);
+        await using var context = HistoricalIdentityMigration(database);
         context.Database.HasPendingModelChanges().Should().BeFalse();
-        var fresh = await ReadIdentityFunctionsAsync(database);
+        var predecessor = await ReadIdentityFunctionsAsync(database);
+        await AssertAdmissionParentFailureAsync(database, corrected: false);
+
         await context.GetService<IMigrator>().MigrateAsync(Correction);
         var corrected = await ReadIdentityFunctionsAsync(database);
         await AssertAdmissionParentFailureAsync(database, corrected: true);
-
-        await context.GetService<IMigrator>().MigrateAsync(Predecessor);
-        var predecessor = await ReadIdentityFunctionsAsync(database);
-        await AssertAdmissionParentFailureAsync(database, corrected: false);
         var previousGuard = predecessor.Except(corrected).Should().ContainSingle().Which;
         var correctedGuard = corrected.Except(predecessor).Should().ContainSingle().Which;
         previousGuard.Identity.Should().Be(Guard);
@@ -101,15 +87,116 @@ public sealed partial class IdentityMembershipTests
         await context.GetService<IMigrator>().MigrateAsync(Correction);
         (await ReadIdentityFunctionsAsync(database)).Should().Equal(corrected);
         await AssertAdmissionParentFailureAsync(database, corrected: true);
-        await context.GetService<IMigrator>().MigrateAsync(Predecessor);
-        (await ReadIdentityFunctionsAsync(database)).Should().Equal(predecessor);
-        await AssertAdmissionParentFailureAsync(database, corrected: false);
-        await context.GetService<IMigrator>().MigrateAsync(Correction);
-        (await ReadIdentityFunctionsAsync(database)).Should().Equal(corrected);
-        await AssertAdmissionParentFailureAsync(database, corrected: true);
-        await context.Database.MigrateAsync();
-        (await ReadIdentityFunctionsAsync(database)).Should().Equal(fresh);
+        await MigrationChains.ApplyAllAsync(database.MigrationConnectionString);
+        await AssertFreshIdentityChainAsync(database);
         context.Database.HasPendingModelChanges().Should().BeFalse();
+    }
+
+    private async Task<DisposableSchemaDatabase> CreateHistoricalIdentityDatabaseAsync(string predecessor)
+    {
+        var database = await DisposableSchemaDatabase.CreateAsync(fixture.Postgres, applyMigrations: false);
+        try
+        {
+            // Only Identity's prerequisites precede the historical target. The
+            // canonical inventory still owns installation of every complete chain.
+            await MigrationChains.ApplyTenancyAsync(database.MigrationConnectionString);
+            await using (var audit = new AuditDbContext(new DbContextOptionsBuilder<AuditDbContext>()
+                .UseNpgsql(database.MigrationConnectionString, options =>
+                    options.MigrationsHistoryTable(AuditDbContextFactory.HistoryTable)).Options,
+                StaticTenantContextAccessor.Unresolved))
+                await audit.Database.MigrateAsync();
+            await using var identity = HistoricalIdentityMigration(database);
+            await identity.GetService<IMigrator>().MigrateAsync(predecessor);
+            return database;
+        }
+        catch
+        {
+            await database.DisposeAsync();
+            throw;
+        }
+    }
+
+    private static IdentityDbContext HistoricalIdentityMigration(DisposableSchemaDatabase database) => new(
+        new DbContextOptionsBuilder<IdentityDbContext>().UseNpgsql(database.MigrationConnectionString, options =>
+            options.MigrationsHistoryTable(IdentityDbContextFactory.HistoryTable)).Options,
+        StaticTenantContextAccessor.Unresolved, EmptyIdentityScope.Instance);
+
+    private static async Task SeedHistoricalIdentityGraphAsync(DisposableSchemaDatabase database)
+    {
+        // The current installer also owns the later creation-capacity table.
+        // This old-schema fixture installs only its then-existing immutable anchor.
+        await using (var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.MigrationConnectionString))
+            await ExecuteAsync(owner, null, """
+                INSERT INTO public.identity_authority(id,authority_id,issuer) VALUES(1,@authority,@issuer)
+                """, ("authority", Authority.AuthorityId.Value), ("issuer", Authority.Issuer));
+        foreach (var actor in new[] { AdminA, PersonA, AdminB, PersonB }) await InsertUserAsync(database.AppConnectionString, actor);
+        await using var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.AppConnectionString);
+        await SchemaQueries.AssertApplicationRoleAsync(app);
+        foreach (var tenant in new[] { SchemaFixture.TenantA, SchemaFixture.TenantB })
+            foreach (var template in IdentityFoundationManifest.Version1.Templates)
+            {
+                await using var transaction = await app.BeginTransactionAsync();
+                await ScopeAsync(app, transaction, tenant);
+                await LockAsync(app, transaction, tenant, null, false);
+                var role = RoleId(tenant, template.BuiltInKey, template.Scope);
+                await ExecuteAsync(app, transaction, """
+                INSERT INTO public.roles(id,tenant_id,built_in_key,permission_scope,created_at,created_by)
+                VALUES(@id,@tenant,@key,@scope,clock_timestamp(),@actor)
+                """, ("id", role), ("tenant", tenant), ("key", template.BuiltInKey.ToString()),
+                    ("scope", template.Scope.ToString()), ("actor", UserId.SystemActor.Value));
+                foreach (var permission in template.Grants)
+                    await ExecuteAsync(app, transaction, """
+                    INSERT INTO public.role_permission_grants(tenant_id,role_id,permission_scope,permission_key)
+                    VALUES(@tenant,@role,@scope,@key)
+                    """, ("tenant", tenant), ("role", role), ("scope", permission.Scope.ToString()), ("key", permission.Key));
+                await ExecuteAsync(app, transaction, "SET CONSTRAINTS ALL IMMEDIATE");
+                await transaction.CommitAsync();
+            }
+        foreach (var target in new (Guid Tenant, Guid Member, Guid Actor, Guid? Organization, BuiltInRoleKey Role)[]
+        {
+            (SchemaFixture.TenantA, AdminMembershipA, AdminA, null, BuiltInRoleKey.TenantAdmin),
+            (SchemaFixture.TenantA, LearnerMembershipA, PersonA, null, BuiltInRoleKey.Learner),
+            (SchemaFixture.TenantA, BranchMembershipA1, PersonA, SchemaFixture.OrgA1, BuiltInRoleKey.Learner),
+            (SchemaFixture.TenantA, BranchMembershipA2, PersonA, SchemaFixture.OrgA2, BuiltInRoleKey.Learner),
+            (SchemaFixture.TenantB, AdminMembershipB, AdminB, null, BuiltInRoleKey.TenantAdmin),
+            (SchemaFixture.TenantB, BranchMembershipB, PersonB, SchemaFixture.OrgB1, BuiltInRoleKey.Learner),
+        })
+        {
+            await using var transaction = await app.BeginTransactionAsync();
+            await ScopeAsync(app, transaction, target.Tenant, target.Organization);
+            await LockAsync(app, transaction, target.Tenant, target.Actor, target.Role == BuiltInRoleKey.TenantAdmin);
+            await InsertMemberAsync(app, transaction, target.Tenant, target.Organization, target.Member, target.Actor,
+                RoleId(target.Tenant, target.Role, target.Organization is null ? PermissionScope.Tenant : PermissionScope.Organization));
+            await ExecuteAsync(app, transaction, "SET CONSTRAINTS ALL IMMEDIATE");
+            await transaction.CommitAsync();
+        }
+    }
+
+    private async Task AssertFreshIdentityChainAsync(DisposableSchemaDatabase database)
+    {
+        await using var fresh = await DisposableSchemaDatabase.CreateAsync(fixture.Postgres);
+        var expected = await ReadIdentityFunctionsAsync(fresh);
+        var actual = await ReadIdentityFunctionsAsync(database);
+        // OIDs are database-local. All function bodies, identities, owners, ACLs,
+        // execution modes, volatility and search paths must converge exactly.
+        actual.Select(function => function with { Oid = 0 }).Should()
+            .Equal(expected.Select(function => function with { Oid = 0 }));
+        await using var owner = await PostgresFixture.OpenAsync(database.MigrationConnectionString);
+        await SchemaTableClasses.AssertCompleteAsync(owner);
+    }
+
+    private static async Task AssertParentLifecycleCorrectionAsync(DisposableSchemaDatabase database,
+        IdentityDbContext migration, IReadOnlyList<IdentityFunction> predecessor)
+    {
+        await migration.GetService<IMigrator>().MigrateAsync("20261026102944_serialize_identity_parent_lifecycle");
+        var corrected = await ReadIdentityFunctionsAsync(database);
+        var currentGuard = corrected.Except(predecessor).Should().ContainSingle().Which;
+        var previousGuard = predecessor.Except(corrected).Should().ContainSingle().Which;
+        currentGuard.Identity.Should().Be("fn_identity_contextual_mutation_guard()");
+        (currentGuard with { Definition = previousGuard.Definition }).Should().Be(previousGuard,
+            "the forward replacement preserves function OID, identity, owner, ACL, volatility and execution mode");
+        currentGuard.Definition.Should().Be(previousGuard.Definition.Replace(
+            "target_member FOR KEY SHARE;", "target_member FOR NO KEY UPDATE;", StringComparison.Ordinal));
     }
 
     private static async Task AssertAdmissionParentFailureAsync(DisposableSchemaDatabase database, bool corrected)

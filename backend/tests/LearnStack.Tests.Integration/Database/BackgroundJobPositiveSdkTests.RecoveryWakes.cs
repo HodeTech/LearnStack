@@ -22,14 +22,23 @@ public sealed partial class BackgroundJobPositiveSdkTests
     [InlineData(true)]
     public async Task Actual_external_recovery_wakes_advance_once_preserve_history_and_fence_old_callbacks(bool retainedUnarmed)
     {
-        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres, applyMigrations: false);
         await using var migration = RecoveryWakeContext(database);
+        const string PreviousMigration = "20261017032122_add_external_job_failure_policy";
         const string RecoveryWakeMigration = "20261017111954_add_external_job_recovery_wakes";
-        // Qualify this guard at its own schema boundary. Later migrations can
-        // commit their own successful Down before this one correctly refuses.
-        await migration.GetService<IMigrator>().MigrateAsync(RecoveryWakeMigration);
+        var all = migration.Database.GetMigrations().ToArray();
+        var recoveryIndex = Array.IndexOf(all, RecoveryWakeMigration);
+        recoveryIndex.Should().BeGreaterThan(0);
+        all[recoveryIndex - 1].Should().Be(PreviousMigration);
+        // Install all dependent module chains, but start Platform at the exact
+        // historical boundary without rolling back later forward-only guards.
+        await MigrationChains.ApplyThroughPlatformMigrationAsync(database.MigrationConnectionString, RecoveryWakeMigration);
+        (await migration.Database.GetAppliedMigrationsAsync()).Should().Equal(all.Take(recoveryIndex + 1));
         if (retainedUnarmed)
-            await migration.GetService<IMigrator>().MigrateAsync("20261017032122_add_external_job_failure_policy");
+        {
+            await migration.GetService<IMigrator>().MigrateAsync(PreviousMigration);
+            (await migration.Database.GetAppliedMigrationsAsync()).Should().Equal(all.Take(recoveryIndex));
+        }
         await BackgroundJobSchemaSeed.SeedTenantsAsync(database.AppConnectionString);
         await using var provider = await BackgroundJobProviderJournalDatabase.CreateAsync(schema.Postgres);
         await using var host = ShortRecoveryOriginalHost(database, provider.Settings);
@@ -49,6 +58,7 @@ public sealed partial class BackgroundJobPositiveSdkTests
                 """, ("id", job.Value));
             await migration.GetService<IMigrator>().MigrateAsync(RecoveryWakeMigration);
         }
+        (await migration.Database.GetAppliedMigrationsAsync()).Should().Equal(all.Take(recoveryIndex + 1));
         await using var source = new PrivilegedDataSource(() => OutboxDispatcherDataSource.Build(database.OutboxConnectionString));
         var runtime = new BackgroundJobRuntimeGate(Fixture.Registry.Infrastructure);
         var bounds = new BackgroundJobRuntimeOptions();
@@ -66,10 +76,11 @@ public sealed partial class BackgroundJobPositiveSdkTests
         var current = await GenerationAsync(database, job);
         current.Should().Be(generation + 1);
         var inventory = await BackgroundJobSchemaInventory.ReadAsync(database.MigrationConnectionString);
-        var downgrade = () => migration.GetService<IMigrator>().MigrateAsync("20261017032122_add_external_job_failure_policy");
+        var downgrade = () => migration.GetService<IMigrator>().MigrateAsync(PreviousMigration);
         (await downgrade.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
         (await BackgroundJobSchemaInventory.ReadAsync(database.MigrationConnectionString)).Should().Equal(inventory,
             "a refused downgrade rolls back its all-tenant inspection and FORCE RLS change");
+        (await migration.Database.GetAppliedMigrationsAsync()).Should().Equal(all.Take(recoveryIndex + 1));
         (await store.RunRecoveryQuantumAsync(BackgroundJobControlLane.ExternalRecovery, [])).Value.Should().BeEmpty();
         (await store.RunRecoveryQuantumAsync(BackgroundJobControlLane.ExternalUnarmed, [])).Value.Should().BeEmpty();
         (await GenerationAsync(database, job)).Should().Be(current);
@@ -112,6 +123,14 @@ public sealed partial class BackgroundJobPositiveSdkTests
         recovered.Value.Should().ContainSingle().Which.WakeGeneration.Should().Be(current + 1);
         (await bridge.AcknowledgeAsync(hint, "124")).Should().BeFalse();
         (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job)).Should().Be(1);
+        // Finish by applying the current forward tail, after the historical guard
+        // and genuine app-role lifecycle have been exercised without alteration.
+        await MigrationChains.ApplyAllAsync(database.MigrationConnectionString);
+        (await migration.Database.GetAppliedMigrationsAsync()).Should().Equal(all);
+        migration.Database.HasPendingModelChanges().Should().BeFalse();
+        (await GenerationAsync(database, job)).Should().Be(current + 1);
+        (await BackgroundJobRuntimeRows.CountAttemptsAsync(database.AppConnectionString, job)).Should().Be(1);
+        (await provider.CountsAsync(original.Operation)).Should().Be((0L, 0L, 0L));
     }
 
     [Theory]

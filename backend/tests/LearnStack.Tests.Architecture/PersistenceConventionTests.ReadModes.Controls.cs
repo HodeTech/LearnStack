@@ -6,6 +6,55 @@ namespace LearnStack.Tests.Architecture;
 
 public sealed partial class PersistenceConventionTests
 {
+    private static void AssertReadOnlyProducerControls(MethodDefinition owner, ModuleDefinition[] modules)
+    {
+        var declarations = owner.Body.Instructions.Where(instruction => instruction.Operand is MethodReference target
+            && target.DeclaringType.FullName == ReadOnlyDeclaration && target.Name == ".ctor").ToArray();
+        declarations.Should().HaveCount(ReadOnlyProducers.Count(producer => producer.Owner == ReadOnlyOwner(owner)));
+        foreach (var declared in declarations)
+        {
+            var literal = owner.Body.Instructions[owner.Body.Instructions.IndexOf(declared) - 2];
+            var originalType = (TypeReference)literal.Operand;
+            var replacements = ReadOnlyProducers.Select(producer => modules.Single(module => module.Assembly.Name.Name == producer.Assembly)
+                    .GetType(producer.Request)).Cast<TypeReference>()
+                .Concat(new[] { owner.Module.ImportReference(typeof(string)),
+                    owner.Module.ImportReference(typeof(LearnStack.Modules.Tenancy.Application.Contracts.Tenant.ListOrganizationsQuery)),
+                    owner.Module.ImportReference(typeof(LearnStack.Modules.Tenancy.Application.Contracts.Tenant.GetOrganizationDetailQuery)) });
+            foreach (var replacement in replacements.Where(type => type.FullName != originalType.FullName))
+            {
+                literal.Operand = owner.Module.ImportReference(replacement);
+                try { AssertDirty(); }
+                finally { literal.Operand = originalType; }
+            }
+            literal.Operand = new TypeReference(originalType.Namespace, originalType.Name, owner.Module,
+                owner.Module.TypeSystem.String.Scope);
+            try { AssertDirty(); }
+            finally { literal.Operand = originalType; }
+            foreach (var instruction in new[] { literal, literal.Next, declared })
+            {
+                var opcode = instruction.OpCode;
+                instruction.OpCode = OpCodes.Nop;
+                try { AssertDirty(); }
+                finally { instruction.OpCode = opcode; }
+            }
+            var index = owner.Body.Instructions.IndexOf(declared);
+            owner.Body.Instructions.Remove(declared);
+            try { AssertDirty(); }
+            finally { owner.Body.Instructions.Insert(index, declared); }
+            foreach (var opcode in new[] { OpCodes.Newobj, OpCodes.Call, OpCodes.Ldftn })
+            {
+                var duplicate = Instruction.Create(opcode, (MethodReference)declared.Operand);
+                owner.Body.Instructions.Add(duplicate);
+                try { AssertDirty(); }
+                finally { owner.Body.Instructions.Remove(duplicate); }
+            }
+        }
+        ExplicitReadOnlyModeOffenders(modules).Should().BeEmpty("restoring every exact declaration restores the clean census");
+
+        void AssertDirty() => ExplicitReadOnlyModeOffenders(modules).Should().NotBeEmpty(
+            "Fix: preserve each exact module, CLR request and assembly tuple; an approved duplicate cannot hide a missing declaration");
+    }
+
     private static void AssertReadOnlyShapeControls(TypeDefinition type, string propertyType, string property, string constructorArgument)
     {
         bool Matches() => ReadOnlyShape(type, propertyType, property, constructorArgument);

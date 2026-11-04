@@ -1,13 +1,14 @@
 using LearnStack.Infrastructure.Jobs;
+using LearnStack.Application.Authorization;
+using LearnStack.Modules.Tenancy.Application.Contracts.Seeding;
+using LearnStack.SharedKernel.Permissions;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using FluentAssertions;
-using LearnStack.Api.Composition;
 using LearnStack.Api.Common;
 using LearnStack.Application.Pipeline;
 using LearnStack.Application.Persistence;
 using LearnStack.Application.Messaging;
 using LearnStack.Infrastructure.Audit;
-using LearnStack.Infrastructure.Persistence;
-using LearnStack.Infrastructure.Messaging;
 using LearnStack.Modules.Tenancy.Application.Abstractions;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.Modules.Tenancy.Domain;
@@ -15,14 +16,12 @@ using LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Errors;
 using LearnStack.SharedKernel.Persistence;
-using LearnStack.SharedKernel.Messaging;
 using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Time;
 using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
@@ -49,21 +48,48 @@ namespace LearnStack.Tests.Integration.Database;
 /// name by role.
 /// </para>
 /// <para>
-/// Each case removes what it committed: the container is shared with the schema cases,
-/// several of which assert exact row counts. Cleanup runs as <c>learnstack_platform</c>
-/// because the rows belong to tenants that no longer have a context to announce.
+/// Every case owns a disposable database on the shared container. Real commits remain
+/// observable while the shared schema's exact row counts stay unchanged. Teardown drops
+/// that database; it never NULLs an established default or deletes its only Active branch.
 /// </para>
 /// </remarks>
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
 [Collection(SharedSchema.Name)]
-public sealed class TenantProvisioningTests
+public sealed class TenantProvisioningTests : IAsyncLifetime
 {
     private static readonly FixedClock Clock = new(
         new DateTimeOffset(2026, 9, 3, 9, 0, 0, TimeSpan.Zero));
 
     private readonly SchemaFixture _schema;
 
+    private DisposableSchemaDatabase? _database;
+    private DisposableSchemaDatabase Database => _database
+        ?? throw new InvalidOperationException("The provisioning case database is not initialized.");
+
     public TenantProvisioningTests(SchemaFixture schema) => _schema = schema;
+
+    public async Task InitializeAsync()
+    {
+        _database = await DisposableSchemaDatabase.CreateAsync(_schema.Postgres);
+        try
+        {
+            await using var source = NpgsqlDataSource.Create(Database.AppConnectionString);
+            // Incidental app-role setup for the existing collision, detached-root and
+            // locale-graph controls; provisioning itself still runs its real handler.
+            await ContentComponentFixture.CreateTenantAsync(source, TenantId.From(SchemaFixture.TenantA),
+                OrganizationId.From(SchemaFixture.OrgA1), OrganizationId.From(SchemaFixture.OrgA2), englishLocale: true);
+            await ContentComponentFixture.CreateTenantAsync(source, TenantId.From(SchemaFixture.TenantB),
+                OrganizationId.From(SchemaFixture.OrgB1));
+        }
+        catch
+        {
+            await Database.DisposeAsync();
+            _database = null;
+            throw;
+        }
+    }
+
+    public Task DisposeAsync() => _database?.DisposeAsync().AsTask() ?? Task.CompletedTask;
 
     [Fact]
     public async Task Provisioning_commits_the_tenant_its_default_organization_and_the_assignment()
@@ -73,31 +99,24 @@ public sealed class TenantProvisioningTests
         // default organization.
         var command = Command();
 
-        try
-        {
-            var result = await ProvisionAsync(command);
+        var result = await ProvisionAsync(command);
 
-            result.IsSuccess.Should().BeTrue();
+        result.IsSuccess.Should().BeTrue();
 
-            (await ScalarAsPlatformAsync(
-                "SELECT count(*) FROM tenants WHERE id = @id", command.TenantId.Value))
-                .Should().Be(1L);
-            (await ScalarAsPlatformAsync(
-                "SELECT count(*) FROM organizations WHERE id = @id",
-                command.DefaultOrganizationId.Value))
-                .Should().Be(1L);
-            (await ScalarAsPlatformAsync(
-                """
-                SELECT count(*) FROM tenants
-                WHERE id = @id AND default_organization_id IS NOT NULL
-                """,
-                command.TenantId.Value))
-                .Should().Be(1L, "the back-reference commits on the same transaction");
-        }
-        finally
-        {
-            await CleanUpAsync(command);
-        }
+        (await ScalarAsPlatformAsync(
+            "SELECT count(*) FROM tenants WHERE id = @id", command.TenantId.Value))
+            .Should().Be(1L);
+        (await ScalarAsPlatformAsync(
+            "SELECT count(*) FROM organizations WHERE id = @id",
+            command.DefaultOrganizationId.Value))
+            .Should().Be(1L);
+        (await ScalarAsPlatformAsync(
+            """
+            SELECT count(*) FROM tenants
+            WHERE id = @id AND default_organization_id IS NOT NULL
+            """,
+            command.TenantId.Value))
+            .Should().Be(1L, "the back-reference commits on the same transaction");
     }
 
     [Fact]
@@ -123,27 +142,20 @@ public sealed class TenantProvisioningTests
             DefaultOrganizationId = OrganizationId.From(SchemaFixture.OrgA1),
         };
 
-        try
-        {
-            var result = await ProvisionAsync(command);
+        var result = await ProvisionAsync(command);
 
-            result.IsFailure.Should().BeTrue();
-            result.Error!.Details.Should().ContainKey(
-                nameof(ProvisionTenantCommand.DefaultOrganizationId),
-                "the collision is on the organization's key, which proves the tenant "
-                + "insert had already gone through when the second write was refused");
-            HttpStatusMap.For(result.Error.Code).Should().Be(StatusCodes.Status409Conflict);
+        result.IsFailure.Should().BeTrue();
+        result.Error!.Details.Should().ContainKey(
+            nameof(ProvisionTenantCommand.DefaultOrganizationId),
+            "the collision is on the organization's key, which proves the tenant "
+            + "insert had already gone through when the second write was refused");
+        HttpStatusMap.For(result.Error.Code).Should().Be(StatusCodes.Status409Conflict);
 
-            (await ScalarAsPlatformAsync(
-                "SELECT count(*) FROM tenants WHERE id = @id", command.TenantId.Value))
-                .Should().Be(0L,
-                    "the tenant insert had already succeeded when the organization failed, "
-                    + "and it must roll back with it");
-        }
-        finally
-        {
-            await CleanUpAsync(command);
-        }
+        (await ScalarAsPlatformAsync(
+            "SELECT count(*) FROM tenants WHERE id = @id", command.TenantId.Value))
+            .Should().Be(0L,
+                "the tenant insert had already succeeded when the organization failed, "
+                + "and it must roll back with it");
     }
 
     [Theory]
@@ -162,45 +174,37 @@ public sealed class TenantProvisioningTests
         // one there is; the adapter translates it and the handler turns it into a Result.
         var first = Command();
 
-        try
-        {
-            (await ProvisionAsync(first)).IsSuccess.Should().BeTrue();
+        (await ProvisionAsync(first)).IsSuccess.Should().BeTrue();
 
-            var second = collideOn == "slug"
-                ? Command() with { Slug = first.Slug }
-                : Command() with { TenantId = first.TenantId };
+        var second = collideOn == "slug"
+            ? Command() with { Slug = first.Slug }
+            : Command() with { TenantId = first.TenantId };
 
-            var result = await ProvisionAsync(second);
+        var result = await ProvisionAsync(second);
 
-            result.IsFailure.Should().BeTrue("a taken name is a refusal, not a fault");
+        result.IsFailure.Should().BeTrue("a taken name is a refusal, not a fault");
 
-            // The top-level code is what decides the HTTP status, and this is the leg
-            // nothing checked before: four module-specific keys at the top level were
-            // measured falling through HttpStatusMap's closed table to 500, which made a
-            // "slug taken" answer worse than the generic one it replaced.
-            HttpStatusMap.For(result.Error!.Code).Should().Be(
-                StatusCodes.Status409Conflict,
-                "a code absent from the map falls through to 500, and a module does not "
-                + "grow the global table for its own vocabulary");
+        // The top-level code is what decides the HTTP status, and this is the leg
+        // nothing checked before: four module-specific keys at the top level were
+        // measured falling through HttpStatusMap's closed table to 500, which made a
+        // "slug taken" answer worse than the generic one it replaced.
+        HttpStatusMap.For(result.Error!.Code).Should().Be(
+            StatusCodes.Status409Conflict,
+            "a code absent from the map falls through to 500, and a module does not "
+            + "grow the global table for its own vocabulary");
 
-            // The specificity lives in the details, keyed by the field that collided —
-            // a caller retrying blindly on the wrong half never succeeds.
-            result.Error.Details.Should().ContainKey(expectedField)
-                .WhoseValue.Should().ContainSingle()
-                .Which.Key.Should().Be(expectedReason);
+        // The specificity lives in the details, keyed by the field that collided —
+        // a caller retrying blindly on the wrong half never succeeds.
+        result.Error.Details.Should().ContainKey(expectedField)
+            .WhoseValue.Should().ContainSingle()
+            .Which.Key.Should().Be(expectedReason);
 
-            (await ScalarAsPlatformAsync(
-                "SELECT count(*) FROM tenants WHERE id = @id", second.TenantId.Value))
-                .Should().Be(collideOn == "slug" ? 0L : 1L,
-                    "the second provisioning rolled back; on the id collision the row that "
-                    + "remains is the FIRST tenant's");
+        (await ScalarAsPlatformAsync(
+            "SELECT count(*) FROM tenants WHERE id = @id", second.TenantId.Value))
+            .Should().Be(collideOn == "slug" ? 0L : 1L,
+                "the second provisioning rolled back; on the id collision the row that "
+                + "remains is the FIRST tenant's");
 
-            await CleanUpAsync(second);
-        }
-        finally
-        {
-            await CleanUpAsync(first);
-        }
     }
 
     [Fact]
@@ -213,40 +217,33 @@ public sealed class TenantProvisioningTests
         // it chose.
         var command = Command();
 
-        try
-        {
-            var write = () => ProvisionAsync(
-                command,
-                handler: async (services, _) =>
-                {
-                    var unitOfWork = services.GetRequiredService<IUnitOfWork>();
-                    await ExecuteAsync(
-                        unitOfWork,
-                        """
-                        INSERT INTO organizations
-                            (id, tenant_id, slug, display_name, status,
-                             created_at, created_by, row_version)
-                        VALUES (uuidv7(), @tenant, 'smuggled', 'Smuggled', 'Active',
-                                now(), @actor, 0)
-                        """,
-                        ("tenant", SchemaFixture.TenantA),
-                        ("actor", SchemaFixture.Actor));
+        var write = () => ProvisionAsync(
+            command,
+            handler: async (services, _) =>
+            {
+                var unitOfWork = services.GetRequiredService<IUnitOfWork>();
+                await ExecuteAsync(
+                    unitOfWork,
+                    """
+                    INSERT INTO organizations
+                        (id, tenant_id, slug, display_name, status,
+                         created_at, created_by, row_version)
+                    VALUES (uuidv7(), @tenant, 'smuggled', 'Smuggled', 'Active',
+                            now(), @actor, 0)
+                    """,
+                    ("tenant", SchemaFixture.TenantA),
+                    ("actor", SchemaFixture.Actor));
 
-                    return Result.Ok(Provisioned(command));
-                });
+                return Result.Ok(Provisioned(command));
+            });
 
-            (await write.Should().ThrowAsync<PostgresException>())
-                .Which.SqlState.Should().Be("42501",
-                    "the policy compares against the announced tenant, and TenantA is not it");
+        (await write.Should().ThrowAsync<PostgresException>())
+            .Which.SqlState.Should().Be("42501",
+                "the policy compares against the announced tenant, and TenantA is not it");
 
-            (await ScalarAsPlatformAsync(
-                "SELECT count(*) FROM organizations WHERE slug = 'smuggled'"))
-                .Should().Be(0L);
-        }
-        finally
-        {
-            await CleanUpAsync(command);
-        }
+        (await ScalarAsPlatformAsync(
+            "SELECT count(*) FROM organizations WHERE slug = 'smuggled'"))
+            .Should().Be(0L);
     }
 
     [Fact]
@@ -265,33 +262,26 @@ public sealed class TenantProvisioningTests
         // precisely what a PgBouncer in transaction-pooling mode does not do. With the
         // reset suppressed the second borrow is provably the same physical connection,
         // in the state provisioning left it.
-        var builder = new NpgsqlDataSourceBuilder(_schema.Postgres.AppConnectionString);
+        var builder = new NpgsqlDataSourceBuilder(Database.AppConnectionString);
         builder.ConnectionStringBuilder.MaxPoolSize = 1;
         builder.ConnectionStringBuilder.NoResetOnClose = true;
         await using var dataSource = builder.Build();
 
         var command = Command();
 
-        try
+        await using (var provider = BuildProvider(dataSource, command))
         {
-            await using (var provider = BuildProvider(dataSource))
-            {
-                (await ProvisionAsync(provider, command)).IsSuccess.Should().BeTrue();
-            }
-
-            await using var connection = await dataSource.OpenConnectionAsync();
-            await using var read = new NpgsqlCommand(
-                "SELECT NULLIF(current_setting('app.tenant_id', true), '')", connection);
-
-            var leftBehind = await read.ExecuteScalarAsync();
-
-            (leftBehind is null or DBNull).Should().BeTrue(
-                "the announcement was transaction-local and the transaction is over");
+            (await ProvisionAsync(provider, command)).IsSuccess.Should().BeTrue();
         }
-        finally
-        {
-            await CleanUpAsync(command);
-        }
+
+        await using var connection = await dataSource.OpenConnectionAsync();
+        await using var read = new NpgsqlCommand(
+            "SELECT NULLIF(current_setting('app.tenant_id', true), '')", connection);
+
+        var leftBehind = await read.ExecuteScalarAsync();
+
+        (leftBehind is null or DBNull).Should().BeTrue(
+            "the announcement was transaction-local and the transaction is over");
     }
 
     [Fact]
@@ -339,36 +329,48 @@ public sealed class TenantProvisioningTests
     }
 
     [Fact]
-    public async Task A_resolved_caller_cannot_provision_a_tenant_it_did_not_authenticate_for()
+    public async Task The_real_provisioning_guard_refuses_an_already_resolved_caller()
     {
-        // The confused deputy, closed by the database rather than by a check. A caller
-        // authenticated for TenantA who sends a provisioning command naming a new tenant
-        // takes the ORDINARY path — the branch requires !IsResolved — so the transaction
-        // is announced with A, and the insert of the new tenant's row is refused.
+        var command = Command();
+        var refusal = await ProvisionAsync(command,
+            context: new ResolvedContext(SchemaFixture.TenantA, SchemaFixture.OrgA1));
+        refusal.IsFailure.Should().BeTrue();
+        refusal.Error!.Code.Should().Be("business_rule_violation");
+        (await ScalarAsPlatformAsync("SELECT count(*) FROM tenants WHERE id=@id", command.TenantId.Value))
+            .Should().Be(0L, "the real guard refuses before a business write");
+    }
+
+    [Fact]
+    public async Task A_resolved_transaction_cannot_insert_a_tenant_it_did_not_authenticate_for()
+    {
+        // This is a separate raw transaction/RLS counterfactual. The real handler's
+        // earlier guard refusal is proved above; this one-row probe deliberately
+        // attempts the write beneath that guard, under the resolved TenantA owner.
         var command = Command();
 
-        try
-        {
-            var provision = () => ProvisionAsync(
-                command, context: new ResolvedContext(SchemaFixture.TenantA, SchemaFixture.OrgA1));
+        var provision = () => ProvisionAsync(command,
+            context: new ResolvedContext(SchemaFixture.TenantA, SchemaFixture.OrgA1),
+            handler: async (services, request) =>
+            {
+                await ExecuteAsync(services.GetRequiredService<IUnitOfWork>(), """
+                    INSERT INTO tenants(id,slug,display_name,status,created_at,created_by,row_version)
+                    VALUES(@tenant,@slug,'Wrong-tenant probe','Trial',now(),@actor,0)
+                    """, ("tenant", request.TenantId.Value), ("slug", request.Slug), ("actor", SchemaFixture.Actor));
+                return Result.Ok(Provisioned(request));
+            });
 
-            var failure = (await provision.Should().ThrowAsync<Exception>()).Which;
+        var failure = (await provision.Should().ThrowAsync<Exception>()).Which;
 
-            // Unwrapped, because EF wraps a failing SaveChanges in DbUpdateException and
-            // the SQLSTATE is the whole assertion — "some exception" would also pass with
-            // the tenant announced correctly and the schema missing.
-            Unwrap(failure).Should().BeOfType<PostgresException>()
-                .Which.SqlState.Should().Be("42501",
-                    "the announcement is A's, and the tenants policy checks id = app.tenant_id");
+        // Unwrapped, because EF wraps a failing SaveChanges in DbUpdateException and
+        // the SQLSTATE is the whole assertion — "some exception" would also pass with
+        // the tenant announced correctly and the schema missing.
+        Unwrap(failure).Should().BeOfType<PostgresException>()
+            .Which.SqlState.Should().Be("42501",
+                "the announcement is A's, and the tenants policy checks id = app.tenant_id");
 
-            (await ScalarAsPlatformAsync(
-                "SELECT count(*) FROM tenants WHERE id = @id", command.TenantId.Value))
-                .Should().Be(0L);
-        }
-        finally
-        {
-            await CleanUpAsync(command);
-        }
+        (await ScalarAsPlatformAsync(
+            "SELECT count(*) FROM tenants WHERE id = @id", command.TenantId.Value))
+            .Should().Be(0L);
     }
 
     [Fact]
@@ -500,7 +502,9 @@ public sealed class TenantProvisioningTests
         ITenantContext? context = null,
         Func<IServiceProvider, ProvisionTenantCommand, Task<Result<ProvisionedTenantDto>>>? handler = null)
     {
-        await using var provider = BuildProvider();
+        // The declaration is immutable and pinned before dispatch to this exact
+        // authored command; no production source or fixed-seed admission is replaced.
+        await using var provider = BuildProvider(declaration: command, context: context);
         return await ProvisionAsync(provider, command, context, handler);
     }
 
@@ -514,15 +518,20 @@ public sealed class TenantProvisioningTests
         var services = scope.ServiceProvider;
 
         var unit = services.GetRequiredService<IUnitOfWork>();
+        var actualContext = services.GetRequiredService<ITenantContext>();
+        ReferenceEquals(actualContext, context ?? UnresolvedTenantContext.Instance).Should().BeTrue();
+        var authorization = services.GetRequiredService<OperationAuthorizationCoordinator>();
         var behavior = new TransactionBehavior<ProvisionTenantCommand, Result<ProvisionedTenantDto>>(
             new TransactionExecutionCoordinator(
-                unit, context ?? UnresolvedTenantContext.Instance,
+                unit, actualContext,
                 new NoOpAuditStore(), new AuditStateCapture(),
                 services.GetRequiredService<ProducerExecution>(),
                 services.GetRequiredService<DomainEventCollector>(),
-                NullLogger<TransactionExecutionCoordinator>.Instance), BackgroundJobDefinitionRegistry.CreateEmpty(), new ExplicitReadOnlyRequestCatalog([]));
+                NullLogger<TransactionExecutionCoordinator>.Instance, authorization), BackgroundJobDefinitionRegistry.CreateEmpty(), new ExplicitReadOnlyRequestCatalog([]));
 
-        return await behavior.Handle(
+        // Retain the manual transaction proof while the real guard sees a canonical,
+        // exact finite invocation. This does not claim full-pipeline audit coverage.
+        return await authorization.ExecuteRequestAsync<ProvisionTenantCommand, Result<ProvisionedTenantDto>>(command, () => behavior.Handle(
             command,
             () => handler is null
                 ? services
@@ -530,38 +539,42 @@ public sealed class TenantProvisioningTests
                         Result<ProvisionedTenantDto>>>()
                     .Handle(command, CancellationToken.None)
                 : handler(services, command),
-            CancellationToken.None);
+            CancellationToken.None));
     }
 
-    private ServiceProvider BuildProvider(NpgsqlDataSource? dataSource = null)
+    private ServiceProvider BuildProvider(NpgsqlDataSource? dataSource = null,
+        ProvisionTenantCommand? declaration = null, ITenantContext? context = null)
     {
-        // The composition root's shape on the fixture's container: the application
-        // role's data source, the ambient unit of work, the module context enlisted on
-        // it, and the two write stores the handler takes.
-        var services = new ServiceCollection();
-        // A caller-owned data source when a case needs to control pooling; otherwise one
-        // per provider, disposed with it.
-        services.AddSingleton(
-            dataSource ?? NpgsqlDataSource.Create(_schema.Postgres.AppConnectionString));
-        services.AddLogging();
-        services.AddSingleton<ITenantContextAccessor, MutableAccessor>();
-        services.AddTransient<ITenantContext>(sp =>
-            sp.GetRequiredService<ITenantContextAccessor>().Current
-            ?? UnresolvedTenantContext.Instance);
-        services.AddScoped<IUnitOfWork, NpgsqlUnitOfWork>();
-        services.AddScoped<ProducerExecution>();
-        services.AddScoped<DomainEventCollector>();
-        services.AddScoped<ISaveChangesInterceptor, DomainEventSaveChangesInterceptor>();
-        services.AddScoped<IOutbox, PostgresOutbox>();
-        services.AddModuleDbContext<TenancyDbContext>();
-        services.AddScoped<ITenantWriteStore, TenantWriteStore>();
-        services.AddScoped<IOrganizationWriteStore, OrganizationWriteStore>();
-        services.AddSingleton<IClock>(Clock);
-        services.AddSingleton<IGuidFactory, SystemGuidFactory>();
-        services.AddMediatR(configuration => configuration.RegisterServicesFromAssembly(
-            typeof(ITenantWriteStore).Assembly));
-
+        var services = ComponentOperationRegistration.CreateDatabaseServices(
+            dataSource ?? NpgsqlDataSource.Create(Database.AppConnectionString), context);
+        services.Replace(ServiceDescriptor.Singleton<ITenantContextAccessor>(new MutableAccessor { Current = context }));
+        services.Replace(ServiceDescriptor.Singleton<IClock>(Clock));
+        ComponentOperationRegistration.AddExactComponentAuthority(services,
+            OperationPolicy.ForTrusted<ProvisionTenantCommand>("tests.component.provisioning.execute", AuthorizationSourceKind.Seed));
+        if (declaration is not null)
+            services.Replace(ServiceDescriptor.Singleton<ISeedTenantContinuationSource>(new CommandDeclarationSource(declaration)));
+        // The canonical DenyAll prerequisite verifier stays registered. Provisioning
+        // admits INSERT-first creation and never invokes a retained-state read hatch.
         return services.BuildServiceProvider();
+    }
+
+    private sealed class CommandDeclarationSource : ISeedTenantContinuationSource
+    {
+        private readonly SeedTenantContinuationAct _act;
+        private readonly SeedTenantDeclaration _declaration;
+
+        internal CommandDeclarationSource(ProvisionTenantCommand command)
+        {
+            _act = new(SeedTenantContinuationOperation.ProvisionTenant, command.TenantId);
+            var organization = new SeedOrganizationDeclaration(command.DefaultOrganizationId,
+                command.DefaultOrganizationSlug, command.DefaultOrganizationDisplayName);
+            // Unused continuation fields grant nothing: GetDeclaration admits only
+            // this one exact ProvisionTenant act and no later customization/identity act.
+            _declaration = new(command.TenantId, command.Slug, command.DisplayName, organization,
+                organization, [], "provisioning-component.invalid", null, null, null);
+        }
+
+        public SeedTenantDeclaration? GetDeclaration(SeedTenantContinuationAct act) => act == _act ? _declaration : null;
     }
 
     private static ProvisionTenantCommand Command()
@@ -594,32 +607,10 @@ public sealed class TenantProvisioningTests
         return exception;
     }
 
-    private async Task CleanUpAsync(ProvisionTenantCommand command)
-    {
-        // As learnstack_platform: the rows belong to a tenant with no context to
-        // announce, and the organization has to go first — its foreign key names the
-        // tenant, and tenants.default_organization_id names it back.
-        await using var platform = await PostgresFixture.OpenAsync(
-            _schema.Postgres.PlatformConnectionString);
-
-        foreach (var statement in new[]
-        {
-            "DELETE FROM outbox_messages WHERE tenant_id = @tenant",
-            "UPDATE tenants SET default_organization_id = NULL WHERE id = @tenant",
-            "DELETE FROM organizations WHERE tenant_id = @tenant",
-            "DELETE FROM tenants WHERE id = @tenant",
-        })
-        {
-            await using var cleanup = new NpgsqlCommand(statement, (NpgsqlConnection)platform);
-            cleanup.Parameters.AddWithValue("tenant", command.TenantId.Value);
-            await cleanup.ExecuteNonQueryAsync();
-        }
-    }
-
     private async Task<long> ScalarAsPlatformAsync(string sql, Guid? id = null)
     {
         await using var platform = await PostgresFixture.OpenAsync(
-            _schema.Postgres.PlatformConnectionString);
+            Database.PlatformConnectionString);
         await using var query = new NpgsqlCommand(sql, (NpgsqlConnection)platform);
 
         if (id is not null)

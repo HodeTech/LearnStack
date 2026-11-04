@@ -1,5 +1,6 @@
 using LearnStack.Modules.Tenancy.Application.Abstractions;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
+using LearnStack.Modules.Tenancy.Application.Seeding;
 using LearnStack.Modules.Tenancy.Domain;
 using LearnStack.SharedKernel.Errors;
 using LearnStack.SharedKernel.Localization;
@@ -33,7 +34,7 @@ internal sealed class MapHostToTenantCommandHandler(
     IOrganizationScopeValidator organizations,
     IReservedHostRegistry reservedHosts,
     IHostResolutionInvalidator resolutionCache,
-    ITenantContext tenantContext)
+    ITenantContext tenantContext, SeedTenantWriteGuard seedGuard)
     : IRequestHandler<MapHostToTenantCommand, Result<HostMappingDto>>
 {
     public async Task<Result<HostMappingDto>> Handle(
@@ -51,6 +52,9 @@ internal sealed class MapHostToTenantCommandHandler(
         {
             return Result.FailFor<Result<HostMappingDto>>(TenantContextMissing);
         }
+
+        var admission = await seedGuard.AdmitAsync(request, cancellationToken);
+        if (admission.IsFailure) return Result<HostMappingDto>.Fail(admission.Error);
 
         // The organization must be one of this tenant's. Nothing else checks it before
         // the insert: the composite foreign key does, but it raises 23503, which has no
@@ -97,6 +101,8 @@ internal sealed class MapHostToTenantCommandHandler(
                     }));
         }
 
+        if (await seedGuard.VerifyAsync(admission.Value, request, cancellationToken) is { IsFailure: true } changed)
+            return Result<HostMappingDto>.Fail(changed.Error);
         try
         {
             await hosts.AddAsync(mapping, cancellationToken);

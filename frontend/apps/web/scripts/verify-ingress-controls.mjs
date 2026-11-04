@@ -4,11 +4,13 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import {
   copyFileSync,
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { createServer } from 'node:net';
@@ -16,8 +18,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { createFixtureOwner, fixtureEnvironment } from './fixture-support.mjs';
-import { stopTestChild } from './stop-test-child.mjs';
+import {
+  assertNoRetainedFrameworkOwners,
+  createFixtureOwner,
+  fixtureEnvironment,
+} from './fixture-support.mjs';
+import { copyQualifiedFrameworkBuild, prepareFrameworkProof } from './framework-proof-support.mjs';
+import { assertUnforcedTestChildStop, stopTestChild } from './stop-test-child.mjs';
 
 const appRoot = fileURLToPath(new URL('../', import.meta.url));
 const original = readFileSync(join(appRoot, 'scripts/verify-ingress.mjs'), 'utf8');
@@ -101,6 +108,12 @@ try {
     "const appRoot = fileURLToPath(new URL('../', import.meta.url));",
     'const appRoot = ' + JSON.stringify(appRoot) + ';',
   );
+  const templateApp = join(proof, 'prepared/frontend/apps/web');
+  base = replaceOne(
+    base,
+    'const frameworkTemplate = undefined;',
+    'const frameworkTemplate = ' + JSON.stringify(templateApp) + ';',
+  );
   base = replaceOne(
     base,
     "  app = join(fixtureRoot, 'frontend/apps/web');",
@@ -108,8 +121,8 @@ try {
   );
   base = replaceOne(
     base,
-    "  import { Server } from 'node:net';",
-    "  import { Server } from 'node:net';\n  import { connect as connectCleanup } from 'node:net';\n" +
+    "import { Server } from 'node:net';",
+    "import { Server } from 'node:net';\nimport { connect as connectCleanup } from 'node:net';\n" +
       "  const cleanupControl = connectCleanup({ host: '127.0.0.1', port: " +
       rescuePort +
       ' });\n' +
@@ -127,13 +140,29 @@ try {
       "process.on('message', (message) => { if (message?.kind === 'output') process.stdout.write('p'.repeat(1024 * 1024)); });",
   );
 
-  async function runCase(name, source, { stage, action, expectedCode = 1, expectedMessage } = {}) {
+  async function runCase(
+    name,
+    source,
+    { stage, action, expectedCode = 1, expectedMessage, deadlineMilliseconds = 40000 } = {},
+  ) {
     owner.assertActive();
     currentCase = name;
     const directory = join(proof, String(++caseNumber));
     mkdirSync(directory);
-    for (const file of ['fixture-support.mjs', 'stop-test-child.mjs', 'ingress-readiness.mjs'])
+    for (const file of [
+      'fixture-support.mjs',
+      'ingress-readiness.mjs',
+      'framework-proof-ingress-source.mjs',
+    ])
       copyFileSync(join(appRoot, 'scripts', file), join(directory, file));
+    // Resolve guard-dependent helpers from their qualified source root. The
+    // copied fixture and canonical broker must also share the same stop map.
+    for (const file of [
+      'framework-proof-support.mjs',
+      'framework-proof-host-broker.mjs',
+      'stop-test-child.mjs',
+    ])
+      symlinkSync(join(appRoot, 'scripts', file), join(directory, file), 'file');
     const script = join(directory, 'fixture.mjs');
     writeFileSync(script, source);
     const runner = owner.ownChild(
@@ -154,6 +183,9 @@ try {
     );
     let root;
     let pids = [];
+    let caseFailure;
+    let caseFailed = false;
+    let caseResult;
     let diagnostics = '';
     let triggered = false;
     let timer;
@@ -171,7 +203,7 @@ try {
       if (message.stage === stage) {
         triggered = true;
         Promise.resolve()
-          .then(() => action(runner))
+          .then(() => action(runner, { root }))
           .catch((error) => {
             actionError = error;
             runner.disconnect();
@@ -180,7 +212,10 @@ try {
     });
     try {
       const result = await new Promise((resolve, reject) => {
-        timer = setTimeout(() => reject(new Error('Ingress control deadline: ' + name)), 40000);
+        timer = setTimeout(
+          () => reject(new Error('Ingress control deadline: ' + name)),
+          deadlineMilliseconds,
+        );
         runner.once('error', reject);
         runner.once('exit', (code, signal) => resolve({ code, signal }));
       });
@@ -219,19 +254,72 @@ try {
       assert.equal(existsSync(root), false, 'Temporary fixture tree survived');
       for (const pid of pids) absent(pid);
       if (caseNumber % 5 === 0) console.warn('Ingress controls checked: ' + caseNumber);
-      return { root, pids };
+      caseResult = { root, pids };
+    } catch (error) {
+      caseFailed = true;
+      caseFailure = error;
     } finally {
       clearTimeout(timer);
       // The handle remains live until confirmed absent; no saved PID authorizes
       // any later signal. Nested children also hold the finally-only rescue pipe.
+      const failures = [];
       try {
-        await stopTestChild(runner);
-      } finally {
-        for (const socket of rescueSockets) socket.destroy();
-        if (root) rmSync(root, { recursive: true, force: true });
+        assertUnforcedTestChildStop(runner, await stopTestChild(runner));
+      } catch (error) {
+        failures.push(error);
+      }
+      for (const socket of rescueSockets) {
+        try {
+          socket.destroy();
+        } catch (error) {
+          failures.push(error);
+        }
+      }
+      if (!failures.length && root) {
+        try {
+          assertNoRetainedFrameworkOwners(root);
+          rmSync(root, { recursive: true, force: true });
+        } catch (error) {
+          failures.push(error);
+        }
+      }
+      if (failures.length) {
+        if (!caseFailed) {
+          caseFailed = true;
+          caseFailure = new AggregateError(failures, 'Ingress fixture cleanup unconfirmed');
+        } else console.warn('Ingress fixture cleanup unconfirmed; private files retained');
       }
     }
+    if (caseFailed) throw caseFailure;
+    return caseResult;
   }
+
+  // Build the actual instrumented baseline once under the normal producer.
+  // Its original manifest is copied unchanged; each consumer independently
+  // validates its actual post-instrumentation input/output graph before reuse.
+  await runCase(
+    'qualified immutable template preparation',
+    replaceOne(base, "  await checkpoint('built');", "  await checkpoint('built');\n  return;"),
+    {
+      stage: 'built',
+      expectedCode: 0,
+      deadlineMilliseconds: 180000,
+      action: (runner, { root }) => {
+        assert.equal(existsSync(templateApp), false, 'Template is produced only once');
+        const sourceAppRoot = join(root, 'frontend/apps/web');
+        cpSync(sourceAppRoot, templateApp, {
+          recursive: true,
+          filter: (path) =>
+            !['.next', '.server', '.framework-state', 'node_modules'].some(
+              (name) => path === join(sourceAppRoot, name),
+            ),
+        });
+        prepareFrameworkProof({ sourceApp: appRoot, app: templateApp, profile: 'ingress' });
+        copyQualifiedFrameworkBuild({ sourceAppRoot, targetAppRoot: templateApp });
+        runner.send({ kind: 'continue', stage: 'built' });
+      },
+    },
+  );
 
   const opensslFailure = replaceOne(
     base,
@@ -304,29 +392,35 @@ try {
     expectedMessage: 'TLS must reject untrusted CA and wrong hostname',
   });
 
-  function emitted(source, expression) {
-    return replaceOne(
-      source,
-      'const configuration = publicServerConfiguration(values, root);',
-      'const configuration = publicServerConfiguration(values, root);\n' +
-        '  const emitted = ' +
-        expression +
-        ';\n' +
-        '  process.stderr.write(emitted.slice(0, 13));\n' +
-        "  setTimeout(() => process.stderr.write(emitted.slice(13) + '\\n' + 'z'.repeat(70000)), 10);",
-    );
+  // Apply the fixed mutant to the actual copied launcher before its producer.
+  function launcherMutant(source, replacements) {
+    const anchor =
+      "  writeFileSync(launcher, instrumentCopiedIngressRuntime(readFileSync(launcher, 'utf8')));";
+    const injected =
+      "  { let copied = readFileSync(launcher, 'utf8');\n" +
+      '    for (const [before, after] of ' +
+      JSON.stringify(replacements) +
+      ') {\n' +
+      "      assert.equal(copied.split(before).length, 2, 'Planted launcher anchor refused');\n" +
+      '      copied = copied.replace(before, after);\n' +
+      '    }\n' +
+      '    writeFileSync(launcher, instrumentCopiedIngressRuntime(copied)); }';
+    return replaceOne(source, anchor, injected);
   }
-  // Patch the disposable launcher source, leaving every fixture check intact.
   function launcherOutput(source, expression) {
-    return replaceOne(
-      source,
-      "const launcher = readFileSync(join(appRoot, 'scripts/public-server.mjs'), 'utf8');",
-      'const launcher = ' +
-        JSON.stringify(
-          emitted(readFileSync(join(appRoot, 'scripts/public-server.mjs'), 'utf8'), expression),
-        ) +
-        ';',
-    );
+    const anchor = 'const configuration = publicServerConfiguration(values, root);';
+    return launcherMutant(source, [
+      [
+        anchor,
+        anchor +
+          '\n' +
+          '  const emitted = ' +
+          expression +
+          ';\n' +
+          '  process.stderr.write(emitted.slice(0, 13));\n' +
+          "  setTimeout(() => process.stderr.write(emitted.slice(13) + '\\n' + 'z'.repeat(70000)), 10);",
+      ],
+    ]);
   }
   await runCase(
     'benign version text and large output clean control',
@@ -347,21 +441,22 @@ try {
     { expectedMessage: 'Private material entered diagnostics' },
   );
 
-  const shutdownLauncher = replaceOne(
-    readFileSync(join(appRoot, 'scripts/public-server.mjs'), 'utf8'),
-    'const configuration = publicServerConfiguration(values, root);',
-    'const configuration = publicServerConfiguration(values, root);\n' +
-      "  process.prependOnceListener('SIGTERM', () => process.stderr.write(configuration.secret + '\\n'));",
-  );
-  await runCase(
-    'shutdown-only secret mutant',
-    replaceOne(
-      shortTls,
-      "const launcher = readFileSync(join(appRoot, 'scripts/public-server.mjs'), 'utf8');",
-      'const launcher = ' + JSON.stringify(shutdownLauncher) + ';',
-    ),
-    { expectedMessage: 'Private material entered shutdown diagnostics' },
-  );
+  const shutdownConfiguration = 'const configuration = publicServerConfiguration(values, root);';
+  const shutdownLauncher = launcherMutant(shortTls, [
+    ['  let shutdownPromise;', '  let shutdownPromise;\n  let shutdownDiagnostic = () => {};'],
+    [
+      '    if (shutdownPromise) return shutdownPromise;',
+      '    if (shutdownPromise) return shutdownPromise;\n    shutdownDiagnostic();',
+    ],
+    [
+      shutdownConfiguration,
+      shutdownConfiguration +
+        "\n  shutdownDiagnostic = () => process.stderr.write(configuration.secret + '\\n');",
+    ],
+  ]);
+  await runCase('shutdown-only secret mutant', shutdownLauncher, {
+    expectedMessage: 'Private material entered shutdown diagnostics',
+  });
 
   // A stale healthy listener must be left alone and must never satisfy readiness.
   const foreign = owner.ownServer(
@@ -405,16 +500,17 @@ try {
     "  await callUpgrade('Host: localhost:3000');\n  await observe(native);\n  return;\n  const nativeState",
   );
   await runCase('unsupported upgrade clean closure', upgradeOnly, { expectedCode: 0 });
-  const unclosedLauncher = replaceOne(
-    readFileSync(join(appRoot, 'scripts/public-server.mjs'), 'utf8'),
-    'if (!dev || !admitIncomingRequest(request, configuration.secret)) return socket.destroy();',
-    'if (!dev || !admitIncomingRequest(request, configuration.secret)) return;',
-  );
-  const unclosedUpgrade = replaceOne(
-    upgradeOnly,
-    "const launcher = readFileSync(join(appRoot, 'scripts/public-server.mjs'), 'utf8');",
-    'const launcher = ' + JSON.stringify(unclosedLauncher) + ';',
-  );
+  const rejectedUpgrade =
+    '      if (\n' +
+    '        stopping ||\n' +
+    '        control.stopRequested() ||\n' +
+    '        !dev ||\n' +
+    '        !admitIncomingRequest(request, configuration.secret)\n' +
+    '      )\n' +
+    '        return socket.destroy();';
+  const unclosedUpgrade = launcherMutant(upgradeOnly, [
+    [rejectedUpgrade, rejectedUpgrade.replace('return socket.destroy();', 'return;')],
+  ]);
   await runCase('unclosed upgrade mutant', unclosedUpgrade, {
     expectedMessage: 'Server did not close unsupported upgrade',
   });

@@ -55,17 +55,18 @@ public sealed partial class GlobalIdentitySchemaTests(GlobalIdentitySchemaFixtur
     }
 
     [Fact]
-    public async Task Applied_census_has_fifty_five_tables_and_exactly_five_Identity_definers()
+    public async Task Applied_census_has_fifty_six_tables_and_exactly_eight_Identity_definers()
     {
         await using var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(fixture.Postgres.MigrationConnectionString);
         await SchemaTableClasses.AssertCompleteAsync(owner);
-        (await SchemaTableClasses.ReadAsync(owner)).Should().HaveCount(55);
+        (await SchemaTableClasses.ReadAsync(owner)).Should().HaveCount(56);
         var names = await SchemaQueries.ReadStringsAsync(owner, """
             SELECT p.proname FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
             WHERE n.nspname='public' AND p.prosecdef ORDER BY p.proname
             """, null);
         names.Should().Equal("fn_identity_admin_admission_state", "fn_identity_audit_creation_guard", "fn_identity_audit_evidence",
-            "fn_identity_membership_admission_guard", "fn_identity_user_creation_audit_guard");
+            "fn_identity_creation_attempt_admission", "fn_identity_membership_admission_guard",
+            "fn_identity_self_membership_scopes", "fn_identity_user_capacity_guard", "fn_identity_user_creation_audit_guard");
         (await ScalarAsync<long>(owner, null, """
             SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
             JOIN pg_roles r ON r.oid=p.proowner
@@ -73,7 +74,7 @@ public sealed partial class GlobalIdentitySchemaTests(GlobalIdentitySchemaFixtur
               AND r.rolname='learnstack_migration' AND NOT r.rolbypassrls
               AND 'search_path=pg_catalog'=ANY(p.proconfig)
               AND NOT EXISTS (SELECT 1 FROM aclexplode(p.proacl) acl WHERE acl.grantee=0)
-            """)).Should().Be(5);
+            """)).Should().Be(8);
         (await ScalarAsync<long>(owner, null, """
             SELECT count(*) FROM pg_class WHERE oid IN ('public.users'::regclass,'public.identity_authority'::regclass)
               AND relrowsecurity AND relforcerowsecurity
@@ -357,10 +358,8 @@ public sealed class GlobalIdentitySchemaFixture : IAsyncLifetime
         await Postgres.InitializeAsync();
         await MigrationChains.ApplyAllAsync(Postgres.MigrationConnectionString);
         await using var owner = (NpgsqlConnection)await PostgresFixture.OpenAsync(Postgres.MigrationConnectionString);
-        await using var command = new NpgsqlCommand("INSERT INTO public.identity_authority(id,authority_id,issuer) VALUES(1,@authority,@issuer)", owner);
-        command.Parameters.AddWithValue("authority", Authority.Value);
-        command.Parameters.AddWithValue("issuer", Issuer);
-        await command.ExecuteNonQueryAsync();
+        await LearnStack.Modules.Identity.Infrastructure.Bindings.IdentityAuthorityDeploymentInstaller.InstallAsync(
+            owner, new(Authority, Issuer));
     }
 
     public Task DisposeAsync() => Postgres.DisposeAsync();

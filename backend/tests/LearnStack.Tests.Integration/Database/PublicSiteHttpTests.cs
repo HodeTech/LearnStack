@@ -171,13 +171,17 @@ public sealed class PublicSiteHttpTests(PublicReadFixture fixture)
     [InlineData("deleted")]
     public async Task Organization_host_checks_the_mapped_organization_live_state(string state)
     {
-        using var client = fixture.ClientFor(Yoga.Host);
+        // The host remains mapped to the original branch. A separate Active branch
+        // becomes the default before withdrawal; Archived is terminal, so this case
+        // owns its database rather than reviving it in shared-fixture cleanup.
+        await using var isolated = await PublicReadFixture.CreateIsolatedAsync(fixture);
+        using var client = isolated.ClientFor(Yoga.Host);
         (await client.GetAsync(Path)).StatusCode.Should().Be(HttpStatusCode.OK);
-        await fixture.ExecuteAsync(Yoga, state == "deleted"
+        await isolated.ExecuteLifecycleAsync(Yoga, state == "deleted"
             ? "UPDATE organizations SET deleted_at=now(), deleted_by=@actor WHERE tenant_id=@tenant AND id=@organization"
-            : $"UPDATE organizations SET status='{state}' WHERE tenant_id=@tenant AND id=@organization");
-        try { await GetAndHeadError(client, HttpStatusCode.NotFound, "not_found"); }
-        finally { await fixture.ExecuteAsync(Yoga, "UPDATE organizations SET status='Active', deleted_at=NULL, deleted_by=NULL WHERE tenant_id=@tenant AND id=@organization"); }
+            : $"UPDATE organizations SET status='{state}' WHERE tenant_id=@tenant AND id=@organization",
+            selectAlternateDefault: true);
+        await GetAndHeadError(client, HttpStatusCode.NotFound, "not_found");
     }
 
     [Theory]

@@ -56,6 +56,26 @@ public sealed class OperationAuthorizationCoordinatorTests
         Assert.Equal(0, authorizer.Calls);
     }
 
+    [Fact]
+    public async Task Own_membership_coverage_read_does_not_borrow_AccountSite_host_authority_or_a_Tenant_witness()
+    {
+        using var source = new CandidateSource();
+        var authorizer = new Authorizer();
+        using var owner = Owner(Context(), authorizer, [source]);
+        Assert.Null(Context().HostScope);
+        var result = await owner.ExecuteRequestAsync<OwnProfile, Result<None>>(new(), () =>
+        {
+            Assert.Equal(OperationPolicyKind.OwnMembershipRead, owner.CurrentInvocation!.Policy.Kind);
+            Assert.Null(owner.CurrentReadWitness);
+            Assert.Null(owner.CurrentDecision!.MatchedClause);
+            return Success();
+        });
+        Assert.True(result.IsSuccess);
+        Assert.Equal(1, authorizer.Calls);
+        Assert.Null(owner.CurrentInvocation);
+        Assert.False(authorizer.LastInvocation!.IsActive);
+    }
+
     [Theory]
     [InlineData(ProtectedOperationOutcome.NotCovered, "not_found")]
     [InlineData(ProtectedOperationOutcome.Forbidden, "forbidden")]
@@ -227,6 +247,7 @@ public sealed class OperationAuthorizationCoordinatorTests
     private sealed record Wide : IRequest<Result<None>>;
     private sealed record Public : IRequest<Result<None>>;
     private sealed record Account : IRequest<Result<None>>;
+    private sealed record OwnProfile : IRequest<Result<None>>;
     private sealed record Seed : IRequest<Result<None>>;
     private sealed record Unknown : IRequest<Result<None>>;
 
@@ -239,6 +260,7 @@ public sealed class OperationAuthorizationCoordinatorTests
             OperationPolicy.ForProtected<Wide>("identity.example.wide", Pair, OperationReadScope.Tenant),
             OperationPolicy.ForPublic<Public>("tenancy.example.read", PublicPair),
             OperationPolicy.ForAccount<Account>("tenancy.example.account"),
+            OperationPolicy.ForOwnMembershipRead<OwnProfile>("identity.example.own_profile"),
             OperationPolicy.ForTrusted<Seed>("tenancy.example.seed", AuthorizationSourceKind.Seed),
         ];
     }

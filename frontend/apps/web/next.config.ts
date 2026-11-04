@@ -1,6 +1,8 @@
 import type { NextConfig } from 'next';
 import createNextIntlPlugin from 'next-intl/plugin';
 
+import { createFrameworkDevelopmentPlugin } from '../../scripts/framework-development.mjs';
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
@@ -12,7 +14,15 @@ const nextConfig: NextConfig = {
   skipMiddlewareUrlNormalize: true,
   skipTrailingSlashRedirect: true,
   experimental: { serverComponentsHmrCache: false },
-  webpack(configuration) {
+  webpack(configuration, context) {
+    if (context.dev) {
+      configuration.plugins.push(
+        createFrameworkDevelopmentPlugin({
+          appRoot: process.cwd(),
+          kind: context.nextRuntime === 'edge' ? 'edge' : context.isServer ? 'server' : 'client',
+        }),
+      );
+    }
     // Shared native/Next modules use NodeNext .js specifiers for emitted files.
     configuration.resolve.extensionAlias = {
       ...configuration.resolve.extensionAlias,

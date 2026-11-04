@@ -146,6 +146,8 @@ public sealed class SchemaFixture : IAsyncLifetime
         // platform read exposes no User row without its exact self announcement.
         RowsVisibleToTenantA["identity_authority"] = 1;
         RowsVisibleToTenantB["identity_authority"] = 1;
+        RowsVisibleToTenantA["identity_creation_capacity"] = SchemaTableClasses.SelectDenied;
+        RowsVisibleToTenantB["identity_creation_capacity"] = SchemaTableClasses.SelectDenied;
         foreach (var table in SchemaTableClasses.IdentityContextual)
         {
             RowsVisibleToTenantA[table] = table == "roles" ? 8 : table == "role_permission_grants" ? 7 : 2;

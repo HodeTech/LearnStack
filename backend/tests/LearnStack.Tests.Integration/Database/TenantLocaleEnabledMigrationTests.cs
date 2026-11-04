@@ -14,6 +14,7 @@ namespace LearnStack.Tests.Integration.Database;
 public sealed class TenantLocaleEnabledMigrationTests(SchemaFixture schema)
 {
     private const string Predecessor = "20260914114306_org_insert_scope_and_keyless_guard";
+    private const string Correction = "20261002001839_tenant_locale_default_enabled";
 
     [Fact]
     public async Task Invalid_legacy_default_blocks_migration_without_repair_and_valid_rows_survive_down_reapply()
@@ -40,7 +41,7 @@ public sealed class TenantLocaleEnabledMigrationTests(SchemaFixture schema)
         }
 
         var invalid = await SnapshotAsync(database.AppConnectionString);
-        var apply = async () => await migration.Database.MigrateAsync();
+        var apply = async () => await migration.GetService<IMigrator>().MigrateAsync(Correction);
         var refused = (await apply.Should().ThrowAsync<PostgresException>()).Which;
         refused.SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
         refused.ConstraintName.Should().Be("ck_tenant_locales_default_enabled");
@@ -60,7 +61,7 @@ public sealed class TenantLocaleEnabledMigrationTests(SchemaFixture schema)
         }
 
         var valid = await SnapshotAsync(database.AppConnectionString);
-        await migration.Database.MigrateAsync();
+        await migration.GetService<IMigrator>().MigrateAsync(Correction);
         (await SnapshotAsync(database.AppConnectionString)).Should().Be(valid);
         migration.Database.HasPendingModelChanges().Should().BeFalse();
         await migration.GetService<IMigrator>().MigrateAsync(Predecessor);
@@ -68,7 +69,7 @@ public sealed class TenantLocaleEnabledMigrationTests(SchemaFixture schema)
         await using (var check = new NpgsqlCommand("SELECT count(*) FROM pg_constraint WHERE conrelid = 'tenant_locales'::regclass AND conname = 'ck_tenant_locales_default_enabled'", (NpgsqlConnection)owner))
             (await check.ExecuteScalarAsync()).Should().Be(0L, "Down must actually remove the new CHECK before reapply");
         (await SnapshotAsync(database.AppConnectionString)).Should().Be(valid);
-        await migration.Database.MigrateAsync();
+        await migration.GetService<IMigrator>().MigrateAsync(Correction);
         (await SnapshotAsync(database.AppConnectionString)).Should().Be(valid);
         await using var connection = await PostgresFixture.OpenAsync(database.AppConnectionString);
         await using var transaction = await connection.BeginTransactionAsync();

@@ -145,6 +145,7 @@ public sealed partial class PostgresAuditStore : IAuditStore
     {
         JobApplicationSourceOwner.RefuseExternalEntry();
         ArgumentNullException.ThrowIfNull(unitOfWork);
+        if (unitOfWork is IUnitOfWorkWriteGuard writeGuard) writeGuard.RequireWriteAllowed();
 
         if (_globalEnrollment.IsActive || unitOfWork is IGlobalIdentityUnitOfWork { IsGlobalIdentityTransaction: true }
             || _capture.Intents.Any(intent => intent.GlobalIdentity is not null
@@ -200,6 +201,7 @@ public sealed partial class PostgresAuditStore : IAuditStore
                 batch.BatchCommands.Add(insert);
             }
 
+            if (unitOfWork is IUnitOfWorkWriteGuard finalWriteGuard) finalWriteGuard.RequireWriteAllowed();
             await batch.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (DbException failure)

@@ -8,6 +8,8 @@ public interface IRoleWriteStore : IAggregateWriteStore<Role, RoleId>
 {
     /// <summary>Fresh tracked complete graph, including tombstones; repeated post-wait reads must not reuse stale tracked values.</summary>
     Task<Role?> FindAsync(RoleId roleId, CancellationToken cancellationToken = default);
+    /// <summary>Retains the actual root lock after the canonical tenant fence; a separate fresh read follows.</summary>
+    Task LockAsync(RoleId roleId, CancellationToken cancellationToken = default);
     Task<bool> HasMembershipHistoryAsync(CancellationToken cancellationToken = default);
     Task ValidateGraphAsync(CancellationToken cancellationToken = default);
 }
@@ -15,11 +17,17 @@ public interface IRoleWriteStore : IAggregateWriteStore<Role, RoleId>
 public interface IRoleReadStore
 {
     Task<Role?> ReadAsync(RoleId roleId, CancellationToken cancellationToken = default);
+    /// <summary>Retains a referenced Role root on the existing owner after the canonical tenant fence.</summary>
+    Task LockAsync(RoleId roleId, CancellationToken cancellationToken = default);
+    /// <summary>Fresh detached complete graphs for at most eight references on the current owner.</summary>
+    Task<IReadOnlyList<Role>> ReadManyAsync(IReadOnlyCollection<RoleId> roleIds, CancellationToken cancellationToken = default);
 }
 
 public interface IMembershipWriteStore : IAggregateWriteStore<Membership, MembershipId>
 {
     Task<Membership?> FindAsync(MembershipId membershipId, CancellationToken cancellationToken = default);
+    /// <summary>Retains the exact scoped root after the complete User/tenant plan; reread before mutation.</summary>
+    Task LockAsync(MembershipId membershipId, CancellationToken cancellationToken = default);
     Task<bool> HasMembershipHistoryAsync(CancellationToken cancellationToken = default);
     Task ValidateGraphAsync(CancellationToken cancellationToken = default);
 }

@@ -19,6 +19,15 @@ export function claimRoot(claim) {
 }
 
 export function validateEffectiveMappers(mappers, stage = 'plan') {
+  validateIdentityMappers(mappers, identityClaims, stage);
+}
+
+/** Native web grants carry optional actor compatibility, never provider scope. */
+export function validateNativeSessionMappers(mappers, stage = 'plan') {
+  validateIdentityMappers(mappers, ['user_id'], stage);
+}
+
+function validateIdentityMappers(mappers, requiredClaims, stage) {
   const fail = () => refuse(stage, 'mapper_conflict');
   for (const mapper of mappers) {
     if (!mapper || mapper.protocol !== 'openid-connect' || !knownTypes.has(mapper.protocolMapper)) fail();
@@ -36,7 +45,8 @@ export function validateEffectiveMappers(mappers, stage = 'plan') {
     }
   }
   for (const claim of identityClaims)
-    if (mappers.filter(mapper => claimRoot(mapper.config?.['claim.name']) === claim).length !== 1) fail();
+    if (mappers.filter(mapper => claimRoot(mapper.config?.['claim.name']) === claim).length
+      !== (requiredClaims.includes(claim) ? 1 : 0)) fail();
   for (const type of ['oidc-sub-mapper', 'oidc-audience-mapper', 'oidc-audience-resolve-mapper'])
     if (mappers.filter(mapper => mapper.protocolMapper === type).length !== 1) fail();
   const subject = mappers.find(mapper => mapper.protocolMapper === 'oidc-sub-mapper');

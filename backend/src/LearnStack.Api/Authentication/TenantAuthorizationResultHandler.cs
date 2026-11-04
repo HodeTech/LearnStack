@@ -19,7 +19,8 @@ internal sealed class TenantAuthorizationResultHandler : IAuthorizationMiddlewar
         if (authorizeResult.Challenged
             && context.Features.Get<TenantCredentialFeature>()?.Identity is null
             && context.Features.Get<HostClassification>() is not null
-            && TenantSurfaceAdmissionMiddleware.IsAccountSiteEndpoint(context))
+            && (TenantSurfaceAdmissionMiddleware.IsAccountSiteEndpoint(context)
+                || TenantSurfaceAdmissionMiddleware.IsNativeSessionAdmissionEndpoint(context)))
         {
             // Invalid present credentials have already returned 401 at the
             // credential gate. Do not invoke the stock missing-token challenge.

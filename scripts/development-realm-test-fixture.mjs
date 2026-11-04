@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { nativeWebScopeDetachmentPath } from './development-realm-plan.mjs';
 
 // Test-only in-memory provider; production entry points never import this module.
 export const desired = JSON.parse(await readFile(new URL('../infra/keycloak/realms/learnstack.json', import.meta.url), 'utf8'));
@@ -268,7 +269,17 @@ export function provider() {
     } else throw new Error('unhandled fixture POST');
     return { status: 201 };
   };
-  return { state, writes, reads, admin: { get, put, post } };
+  const remove = async path => {
+    const web = state.clients.find(client => client.clientId === 'learnstack-web');
+    const legacy = state.scopes.find(scope => scope.name === 'learnstack-tenant-api');
+    assert.equal(path, `clients/${encodeURIComponent(web.id)}/default-client-scopes/${encodeURIComponent(legacy.id)}`);
+    assert.ok(web.defaultClientScopes.includes(legacy.name));
+    web.defaultClientScopes = web.defaultClientScopes.filter(name => name !== legacy.name);
+    writes.push({ method: 'DELETE', path });
+    return 204;
+  };
+  return { state, writes, reads, admin: { get, put, post, delete: remove,
+    detachNativeWebScope: binding => remove(nativeWebScopeDetachmentPath(binding)) } };
 }
 
 /** Exercise the real core and planner against the same independent test state. */

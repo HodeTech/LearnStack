@@ -39,8 +39,8 @@ public sealed class TenancyAuditCatalogSource : IAuditCatalogSource
     /// <inheritdoc />
     public void Describe(IAuditCatalogBuilder builder)
     {
-        builder.DeclareOffPath("tenancy.assertion.reject_claim_context", OperationType.SecurityEvent, OperationClass.Must, entityType: null);
         ArgumentNullException.ThrowIfNull(builder);
+        builder.DeclareOffPath("tenancy.assertion.reject_claim_context", OperationType.SecurityEvent, OperationClass.Must, entityType: null);
 
         builder.Off<GetTenantSeedStateQuery>();
         builder.Off<GetOrganizationSeedStateQuery>();
@@ -50,6 +50,19 @@ public sealed class TenancyAuditCatalogSource : IAuditCatalogSource
         builder.Off<GetAccountSiteQuery>();
 
         builder
+            .MustAudit<ListOrganizationsQuery>("tenancy.organization.list", OperationType.ReadSensitive, typeof(Organization))
+            .MustAudit<GetOrganizationDetailQuery>("tenancy.organization.read", OperationType.ReadSensitive, typeof(Organization))
+            .MustAudit<ReadOrganizationReceiptQuery>("tenancy.organization.read_receipt", OperationType.ReadSensitive, typeof(Organization))
+            .MustAudit<ReadDefaultOrganizationReceiptQuery>("tenancy.organization.read_receipt", OperationType.ReadSensitive, typeof(Domain.Tenant))
+            .MustAudit<CreateManagedOrganizationCommand>("tenancy.organization.create", OperationType.Create, typeof(Organization))
+            .ShouldAudit<RenameOrganizationCommand>("tenancy.organization.rename", OperationType.Update, typeof(Organization))
+            .MustAudit<ArchiveOrganizationCommand>("tenancy.organization.archive", OperationType.Update, typeof(Organization))
+            .MustAudit<SelectDefaultOrganizationCommand>("tenancy.organization.select_default", OperationType.Update, typeof(Domain.Tenant))
+            .ShouldAudit<AddManagedTenantLocaleCommand>("tenancy.locale.write", OperationType.Update, typeof(Domain.Tenant))
+            .ShouldAudit<SetManagedDefaultTenantLocaleCommand>("tenancy.locale.write", OperationType.Update, typeof(Domain.Tenant))
+            .ShouldAudit<SetTenantLocaleEnabledCommand>("tenancy.locale.write", OperationType.Update, typeof(Domain.Tenant))
+            .ShouldAudit<RemoveTenantLocaleCommand>("tenancy.locale.write", OperationType.Update, typeof(Domain.Tenant))
+            .MustAudit<SetManagedTenantBrandingCommand>("tenancy.setting.write", OperationType.Update, typeof(TenantSetting))
             .ShouldAudit<AddTenantLocaleCommand>("tenancy.locale.write", OperationType.Update, typeof(Domain.Tenant))
             .ShouldAudit<SetDefaultTenantLocaleCommand>("tenancy.locale.write", OperationType.Update, typeof(Domain.Tenant))
             .MustAudit<SetTenantBrandingCommand>("tenancy.setting.write", OperationType.Update, typeof(TenantSetting))
@@ -69,6 +82,10 @@ public sealed class TenancyAuditCatalogSource : IAuditCatalogSource
                 "tenancy.organization.create", OperationType.Create, typeof(Organization))
 
             .MustAudit<MapHostToTenantCommand>(
+                "tenancy.hostmapping.write", OperationType.Create, typeof(PlatformHostMapping))
+            .MustAudit<AdoptSeedAdministrationOriginCommand>(
+                "tenancy.tenant.adopt_seed_origin", OperationType.SecurityEvent, typeof(Domain.Tenant))
+            .MustAudit<AdoptSeedAdministrationOriginCommand>(
                 "tenancy.hostmapping.write", OperationType.Create, typeof(PlatformHostMapping))
 
             // Off-path, by slug. Each is written by something that is not a handler, so

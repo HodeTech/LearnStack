@@ -1,3 +1,4 @@
+using LearnStack.Modules.Customization.Application.Seeding;
 using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Customization.Application.Contracts.Customization;
 using LearnStack.Modules.Customization.Domain;
@@ -31,7 +32,8 @@ internal sealed class RegisterTenantLevelTaxonomyCommandHandler(
     ITenantLevelTaxonomyStore taxonomies,
     ICustomizationGenerationStore generations,
     ITenantContext tenantContext,
-    IClock clock)
+    IClock clock,
+    ISeedCustomizationWriteGuard seedGuard)
     : IRequestHandler<RegisterTenantLevelTaxonomyCommand, Result<TenantLevelTaxonomyDto>>
 {
     public async Task<Result<TenantLevelTaxonomyDto>> Handle(
@@ -43,6 +45,8 @@ internal sealed class RegisterTenantLevelTaxonomyCommandHandler(
         {
             return CustomizationFailures.Unresolved<TenantLevelTaxonomyDto>();
         }
+
+        if (!await seedGuard.PrepareAsync(request, cancellationToken)) return Result<TenantLevelTaxonomyDto>.Fail(seedGuard.Failure);
 
         var actor = tenantContext.UserId ?? UserId.SystemActor;
 
@@ -59,6 +63,7 @@ internal sealed class RegisterTenantLevelTaxonomyCommandHandler(
                 duplicate);
         }
 
+        if (!seedGuard.IsCurrent(request)) return CustomizationFailures.BusinessRule<TenantLevelTaxonomyDto>("Seed", "lockey_business_rule_violation");
         var taxonomy = TenantLevelTaxonomy.Create(
             TenantLevelTaxonomyId.From(request.TaxonomyId),
             tenantContext.TenantId,
@@ -81,7 +86,6 @@ internal sealed class RegisterTenantLevelTaxonomyCommandHandler(
 
         try
         {
-            await taxonomies.LockConceptAsync(request.Key, cancellationToken);
             await taxonomies.AddAsync(taxonomy, cancellationToken);
         }
         catch (AggregateConflictException conflict)

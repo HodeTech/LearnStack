@@ -11,9 +11,10 @@ public sealed partial class BackgroundJobStorageMigrationTests
     [Fact]
     public async Task Terminal_history_guard_down_restores_only_the_preceding_effective_function_and_reapplies_exactly()
     {
-        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using var database = await DisposableSchemaDatabase.CreateAtPlatformMigrationAsync(schema.Postgres,
+            "20261017163051_add_external_job_terminal_history_guard");
         await using var context = Platform(database);
-        var latest = await BackgroundJobSchemaInventory.ReadAsync(database.MigrationConnectionString);
+        var latest = await BackgroundJobSchemaInventory.ReadAsync(schema.Postgres.MigrationConnectionString);
         var migrator = context.GetService<IMigrator>();
         const string target = "20261017163051_add_external_job_terminal_history_guard";
         await migrator.MigrateAsync(target);

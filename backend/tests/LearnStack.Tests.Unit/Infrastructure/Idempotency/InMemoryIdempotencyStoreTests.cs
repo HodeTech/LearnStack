@@ -36,6 +36,29 @@ public sealed class InMemoryIdempotencyStoreTests
     private const string Fingerprint = "fingerprint-a";
 
     [Fact]
+    public async Task Completed_lookup_is_detached_and_does_not_extend_retention_or_create_a_claim()
+    {
+        var (store, clock) = NewStore();
+        (await store.ReadCompletedAsync(Tenant, Key, Fingerprint, default)).Should().BeNull();
+        var claim = await store.TryClaimAsync(Tenant, Key, Fingerprint, default);
+        (await store.ReadCompletedAsync(Tenant, Key, Fingerprint, default)).Should().BeNull();
+        await store.CompleteAsync(Tenant, Key, claim.Token, Response(200), default);
+        (await store.ReadCompletedAsync(OtherTenant, Key, Fingerprint, default)).Should().BeNull();
+        (await store.ReadCompletedAsync(Tenant, Key, "different", default)).Should().BeNull();
+        clock.Advance(InMemoryIdempotencyStore.Retention - TimeSpan.FromSeconds(1));
+        var first = await store.ReadCompletedAsync(Tenant, Key, Fingerprint, default);
+        first.Should().NotBeNull();
+        first!.Body[0] = 99;
+        (await store.ReadCompletedAsync(Tenant, Key, Fingerprint, default))!.Body[0].Should().Be(1);
+        clock.Advance(TimeSpan.FromSeconds(1));
+        (await store.ReadCompletedAsync(Tenant, Key, Fingerprint, default)).Should().BeNull();
+        var next = await store.TryClaimAsync(Tenant, Key, Fingerprint, default);
+        next.Outcome.Should().Be(IdempotencyClaim.Acquired);
+        await store.CompleteAsync(Tenant, Key, next.Token, null, default);
+        (await store.ReadCompletedAsync(Tenant, Key, Fingerprint, default)).Should().BeNull();
+    }
+
+    [Fact]
     public async Task A_Fresh_Key_Is_Acquired_With_A_Token()
     {
         var (store, _) = NewStore();
@@ -117,6 +140,17 @@ public sealed class InMemoryIdempotencyStoreTests
     }
 
     // ---- fingerprint -------------------------------------------------------
+    [Fact]
+    public async Task The_platform_sentinel_is_refused_by_every_key_operation()
+    {
+        var (store, _) = NewStore();
+        Func<Task> claim = async () => await store.TryClaimAsync(TenantId.PlatformSentinel, Key, Fingerprint, default);
+        Func<Task> read = async () => await store.ReadCompletedAsync(TenantId.PlatformSentinel, Key, Fingerprint, default);
+        Func<Task> complete = async () => await store.CompleteAsync(TenantId.PlatformSentinel, Key, Guid.NewGuid(), Response(200), default);
+        Func<Task> abandon = async () => await store.AbandonAsync(TenantId.PlatformSentinel, Key, Guid.NewGuid(), default);
+        foreach (var operation in new[] { claim, read, complete, abandon })
+            await operation.Should().ThrowAsync<ArgumentException>().WithParameterName("tenantId");
+    }
 
     [Fact]
     public async Task The_Same_Key_For_A_Different_Request_Is_Mismatched_Not_Replayed()

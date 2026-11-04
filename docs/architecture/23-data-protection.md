@@ -243,7 +243,7 @@ Exclusion from this asynchronous inventory is not an erasure exemption.
 <!-- async-store-exclusions:start -->
 | Excluded table | Scope boundary |
 |---|---|
-| `idempotency_keys` | Synchronous HTTP request replay, outside asynchronous transport scope; cached body/headers can still contain personal data |
+| `idempotency_keys` | Synchronous HTTP replay, outside asynchronous transport scope; cached body/headers and ADR-0079's protected target metadata can retain personal linkage. The Accepted extension below names its fulfillment boundary. |
 <!-- async-store-exclusions:end -->
 
 Other module tables remain explicit scope exclusions, so a new table cannot
@@ -273,6 +273,7 @@ govern personal data; exclusion here grants no erasure exemption.
 | `audit_config` | Audit coverage configuration |
 | `users` | Synchronous global identity binding/tombstone; retained raw subject, digest and creation-audit linkage follow the Identity contract and P03-10 closure owner |
 | `identity_authority` | Deployment-owned stable authority registration, not a per-person profile; installation and rebind remain separately confined |
+| `identity_creation_capacity` | Synchronous authority-wide allocation control; aggregate UTC windows/counts contain no subject, actor, IP or payload. Creation/closure does not refund spent attempts or permanent allocation; linked User/audit rows keep their separate personal classification |
 | `memberships` | Synchronous contextual identity relation; its lifecycle and personal linkage remain with Identity and P03-10 closure |
 | `membership_profiles` | Synchronous tenant/organization personal profile; classification and fulfillment remain with Identity, without an asynchronous delivery copy |
 | `membership_role_assignments` | Synchronous authorization links; exclusion from the asynchronous inventory grants no personal-data retention or erasure exemption |
@@ -347,6 +348,80 @@ P03-10's Audit participant locates authorization references through retained
 actor/subject attribution and reports surviving metadata under the fulfillment
 contract below. Removing a Membership or redacting the six permitted columns
 does not establish removal of these references.
+
+### Accepted native entry and protected receipt inventory
+
+Jointly Accepted [ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md)
+and [ADR-0079](../decisions/0079-bounded-identity-administration.md) add these
+purposes and copies. This inventory adopts the contract; the
+[phase Status block](../roadmap/phase-03-identity-admin.md) owns runtime activation
+and qualification. Canonical encoding, function/ACL owners, budgets and cleanup
+remain in [Database Standards](../standards/05-database.md#p03-3-storage-and-replay-contract)
+and [Security](../standards/11-security.md#native-scope-and-global-self-admission).
+
+| Copy or control | Purpose, classification and fulfillment boundary |
+|---|---|
+| Association witness | Authority, subject digest, actor and applicable context bind independently validated provider identity to API facts. The digest and actor/context linkage remain PII-Identity, not anonymous data or a displayed account identifier. Custody ends with its owning entry/session revision; it grants no independent authority. |
+| Self-context discovery and cursors | Own Membership relationships, Tenant/Organization labels and verified destinations support navigation only. Their association with the person is PII-Identity. The read is Off/no-store, self-only and excluded from diagnostics; no profile, role graph or other person's relationship is disclosed. Cursor input supplies no subject authority. |
+| Entry continuation custody | The API's subject-bound cursor remains private. One volatile cursor-only key produces authenticated browser continuation values under the matching entry lifetime; it is cleared at publication/logout/expiry/close. The ciphertext remains personal navigation data, not an anonymous identifier or admission capability. Actual pending work retains its existing ownership after invalidation; no per-page registry is introduced. |
+| Transient account label | Escaped bounded provider display data supports explicit confirmation, never identity comparison or cross-account replacement. It is self-only PII-Identity in the bounded entry owner, with no User email/name mirror. Missing or visually colliding labels do not bypass verified-subject continuity. |
+| Native pre-session and scoped owners | Credentials, verified identity, selected context and transition witnesses remain server-side security/PII custody. Entry and session cookies are opaque. Expiry/logout closes publication; actual work and cleanup govern release. Local invalidation does not erase provider or diagnostic copies. |
+| Protected page snapshots | Authorized member/profile/Role projections and action previews are request-bound personal/authority data, not a shared application cache. Snapshot ownership and actual cleanup bound retention; no-store and history withholding do not make disclosed data anonymous. |
+| Protected idempotency outcomes | The existing replay table adds internal typed original-target metadata beside actor/scope-bound fingerprints and bounded receipts. Membership target IDs remain personal linkage even when a later successor exists. Fresh disclosure authorization/audit precedes replay. The 24-hour replay window is not proof of row deletion; expiry/reclamation, not a new erasure privilege, controls reuse. |
+| Creation attempt/allocation controls | Authority/window counts contain no subject, actor, IP, profile or arbitrary payload. They are nonpersonal allocation controls; account erasure does not reset spent budgets or permanent allocation accounting. Linked User/audit rows keep their separate personal classification. |
+| Seed origin and release markers | Monotonic topology/release versions and fingerprints are nonpersonal configuration/provenance controls. Human actor references in their audit remain personal. Erasure does not reset adoption or authorize host/grant repair. |
+
+Initial selection/explicit switching and actual creation add their declared
+central audit linkages; ordinary refresh and own navigation do not create another
+admission event. The same per-row retention targets and existing metadata UPDATE
+restrictions apply. No new private Identity audit store or blanket metadata
+redaction grant follows.
+
+P03-10's Identity closure coordinator and Audit redaction participant own subject/
+actor/context/receipt locators and truthful retained-copy reporting before their
+first affected writer. They must include these synchronous and volatile copies,
+not infer erasure from a deleted source row or logout. Phase 11 owns automatic
+purge, replay-table maintenance, backups and provider/diagnostic retained-copy
+reconciliation. These are named fulfillment obligations, not a claim that
+P03-3 implements account closure, anonymisation or retention enforcement.
+
+### Accepted fixed-seed prerequisite metadata
+
+[ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md) admits a closed
+temporary prerequisite check on the existing seed writer's ordinary owner.
+Membership/Role relationships and creation/update editor IDs remain personal
+linkage even when used only with lifecycle, version and finite child metadata.
+They stay internal to verification, with no raw DTO, log, telemetry, cache or
+durable receipt disclosure. The check selects no provider subject, email,
+display-name or locale-preference value merely to establish pristine history.
+It adds no personal-data store, profile-value hash or anonymity claim.
+
+The operation is an internal prerequisite of the classified seed mutation, not
+a new independently callable directory or sensitive-read audit class. An
+independently callable or value-disclosing reader requires its own classification
+before activation. Persisted SystemActor/version/history stamps are not
+authenticated provenance: arbitrary SQL with application database credentials
+can forge them without owner or bypass credentials. The check detects violations
+by the closed admitted writer population and does not establish database-tamper
+detection. [Database Standards](../standards/05-database.md#warm-seed-evidence-and-origin-adoption)
+owns the canonical source, metadata projection and lifetime; existing personal
+classification, diagnostic exclusion and fulfillment boundaries continue to
+apply. Acceptance does not claim runtime proof or extend erasure authority.
+
+Accepted [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md)
+adds a separate internal completion purpose for the fixed origin-adoption act.
+Its owning-module readers may compare immutable content pins internally;
+Identity selects retained lifecycle, Membership aggregate version, attribution
+and finite relationship/child facts, without profile values or raw editor
+evidence escaping. No global User/provider row, subject, email, credential or MFA
+state is read. The retained local administrator predicate is not a fresh global
+or provider eligibility attestation; marker 2 records historical qualified
+adoption rather than current mutable-graph proof. No new persisted data category,
+store, profile-value fingerprint or erasure privilege follows. Existing personal
+linkage classification, sink exclusions and forged-history residual apply to
+this separate purpose. [Database Standards](../standards/05-database.md#fixed-seed-completion-read-authority)
+owns its closed projections, same-owner lifetime and repeat boundary; qualification
+remains in the phase Status block.
 
 ### Erasure authority and first-writer prerequisites
 

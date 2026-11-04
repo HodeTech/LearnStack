@@ -214,7 +214,7 @@ wait-postgres: ## Wait for the selected stack's PostgreSQL before migrations.
 	node scripts/wait-compose.mjs --postgres
 
 # ─── Seed ─────────────────────────────────────────────────────────────────
-.PHONY: seed seed-config
+.PHONY: seed seed-config seed-admin-origins
 seed-config: .env
 	./scripts/seed.sh --validate-config
 
@@ -223,11 +223,14 @@ seed: seed-config ## Start the selected stack, migrate, and converge application
 	@# them prerequisites here would leak inherited Keycloak secrets into EF.
 	./scripts/seed.sh
 
+seed-admin-origins: seed-config ## Explicitly adopt the two fixed administration hosts after verified warm seed.
+	./scripts/seed.sh --adopt-admin-origins
+
 # ─── Bootstrap ────────────────────────────────────────────────────────────
 .PHONY: install
 install: .env hooks ## Restore backend NuGet + frontend pnpm deps + activate git hooks.
 	(cd backend && dotnet restore LearnStack.slnx)
-	(cd frontend && pnpm install --frozen-lockfile)
+	node frontend/scripts/install-frontend.mjs
 
 .PHONY: hooks
 hooks: ## Activate the repo's pre-commit hook (.githooks/pre-commit).

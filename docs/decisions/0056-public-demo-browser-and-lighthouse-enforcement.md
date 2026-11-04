@@ -332,6 +332,19 @@ separately records source `d47ef17` and its downloaded successful CI artifacts.
 Subsequent heads remain subject to all seven required checks. This clarification
 changes no decision, tool version, budget or original acceptance metadata.
 
+### Amendment 3 — Public-demo outer-window successor (2026-11-02)
+
+Accepted [ADR-0085](0085-public-demo-ci-execution-window.md) supersedes only
+this record's twenty-minute public-demo CI whole-job ceiling with twenty-two
+minutes and selects a nineteen-minute first-step work deadline. The 180-second
+nominal reserve, internal 720-second proof, operation limits, nine-page/27-audit
+population, serial isolation, admission and owned cleanup remain unchanged.
+This record's body, date and acceptance remain historical. The separate clock
+starts do not guarantee the full reserve remains at every instant. Acceptance
+establishes neither executable implementation nor hosted fit; the
+[Phase 03 acceptance record](../roadmap/phase-03-delivery-log.md#adr-0085-maintainer-corrections-acceptance-and-step-1-2026-11-02)
+owns implementation, reviews and fresh complete final-source A/B qualification.
+
 ## References
 
 - [P02d-7 package](../roadmap/phase-02d-delivery-log.md#p02d-7-decision-package-2026-10-10).

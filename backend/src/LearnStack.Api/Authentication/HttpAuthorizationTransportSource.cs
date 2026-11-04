@@ -16,7 +16,7 @@ internal sealed class HttpAuthorizationTransportSource(IHttpContextAccessor acce
         if (http is null || http.RequestAborted.IsCancellationRequested
             || invocation.Candidate is not { IsActive: true, SourceKind: AuthorizationSourceKind.Http }
             || !invocation.IsActive || http.Features.Get<TenantCredentialFeature>()?.Identity is not { } identity
-            || identity.ActorUserId != invocation.Actor || identity.TenantId != invocation.TenantId
+            || identity.ActorUserId != invocation.Actor || !MatchesScope(http, identity, invocation)
             || classifier.Classify(http.GetEndpoint(), out _) != HttpOperationClassification.Application
             || http.GetEndpoint()?.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName is not { } route)
             return null;
@@ -27,4 +27,10 @@ internal sealed class HttpAuthorizationTransportSource(IHttpContextAccessor acce
         var agent = http.Request.Headers.UserAgent;
         return ForTransport(invocation, route, address, agent.Count == 0 ? null : agent.ToString());
     }
+
+    private static bool MatchesScope(HttpContext http, ValidatedTenantIdentity identity, OperationInvocation invocation) =>
+        http.Features.Get<NativeScopeEvidence>() is { } native
+            ? native.IsCurrent(http) && native.Actor == invocation.Actor && native.Tenant == invocation.TenantId
+                && native.Organization == invocation.OrganizationId
+            : identity.TenantId == invocation.TenantId;
 }

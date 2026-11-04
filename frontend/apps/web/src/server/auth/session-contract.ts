@@ -1,3 +1,16 @@
+import type {
+  NativeBinding,
+  NativeScope,
+  NativeSessionApi,
+  SelfContexts,
+} from './native-contract.js';
+import type {
+  NativeAdministrationCaller,
+  NativeOperation,
+  NativeOperationResult,
+} from './native-operation-contract.js';
+import type { NativeActionPage, NativeEntrySnapshot, NativePageSnapshot } from './page-contract.js';
+import type { NativeSnapshotTicket } from './page-snapshot-contract.js';
 import type { LoginTransaction, ProviderCredentials, ProviderIdentity } from './provider.js';
 import type { SessionProjection } from './session-projection.js';
 export type { SessionProjection } from './session-projection.js';
@@ -33,20 +46,59 @@ export type AccountWitness = Readonly<{
   organizationId: string | null;
   displayName: string;
 }>;
-export type AccountBinding = Readonly<{ host: string; source: string; traceparent?: string }>;
+export type AccountBinding = NativeBinding;
+export type PublishedSessionIdentity = Readonly<NativeScope & { actorId: string }>;
+export type NativeReturnPath =
+  | '/'
+  | '/studio'
+  | '/studio/members'
+  | `/studio/members/${string}`
+  | '/studio/roles'
+  | `/studio/roles/${string}`
+  | '/portal'
+  | '/portal/profile';
+export type EntryProjection = Readonly<{
+  state: 'entry';
+  displayLabel: string | null;
+  csrfToken: string;
+  expiresAt: number;
+  identityState: 'unavailable' | 'missing' | 'active';
+  contexts: SelfContexts | null;
+  contextHint: string | null;
+}>;
 export type SessionActivity = 'passive' | 'read' | 'extend';
+export type PagePreparation =
+  | Readonly<{ kind: 'document'; ticket: NativeSnapshotTicket }>
+  | Readonly<{ kind: 'entry' | 'scopes'; ticket: NativeSnapshotTicket; cursor?: string }>
+  | Readonly<{ kind: 'create'; ticket: NativeSnapshotTicket; csrf: string; signal?: AbortSignal }>
+  | Readonly<{ kind: 'response'; ticket: NativeSnapshotTicket; page: NativeActionPage }>;
 export type LoginStart = Readonly<{
   state: string;
   proof: string;
   browser: string;
   redirectUrl: string;
 }>;
-export type LoginCompletion = Readonly<{
+export type SessionCompletion = Readonly<{
+  kind: 'session';
   handle: string;
   browser: string;
-  returnPath: '/' | '/studio' | '/portal';
+  returnPath: NativeReturnPath;
   session: SessionProjection;
 }>;
+export type LoginCompletion = Readonly<{
+  kind: 'entry';
+  handle: string;
+  browser: string;
+  entry: EntryProjection;
+}>;
+export type SelectionCompletion =
+  | SessionCompletion
+  | Readonly<{
+      kind: 'destination';
+      origin: string;
+      returnPath: NativeReturnPath;
+      contextHint: string;
+    }>;
 export type LogoutStart = Readonly<{ state: string; proof: string; redirectUrl: string | null }>;
 export type SessionFailure =
   | 'source_capacity'
@@ -64,7 +116,10 @@ export type SessionFailure =
   | 'transport'
   | 'response'
   | 'invalid_grant'
-  | 'provider_refused';
+  | 'provider_refused'
+  | 'account_change'
+  | 'reauthenticate'
+  | 'csrf';
 
 export class BffSessionError extends Error {
   constructor(
@@ -80,9 +135,11 @@ export type SessionDependencies = Readonly<{
   provider: SessionProvider;
   account: (
     accessToken: string,
-    binding: AccountBinding,
+    binding: AccountBinding & NativeScope,
     signal: AbortSignal,
   ) => Promise<AccountWitness>;
+  native: NativeSessionApi;
+  administration: NativeAdministrationCaller;
   diagnostic?: (reason: SessionFailure) => void;
   /** Internal deterministic test clock, never deployment configuration. */
   clock?: Readonly<{ monotonic: () => number; utc: () => number }>;
@@ -97,7 +154,8 @@ export interface BffSessionStore {
       browser?: string;
       handle?: string;
       signal?: AbortSignal;
-      returnPath: '/' | '/studio' | '/portal';
+      returnPath: NativeReturnPath;
+      contextHint?: string;
     }>,
   ): Promise<LoginStart>;
   complete(
@@ -112,6 +170,47 @@ export interface BffSessionStore {
       signal?: AbortSignal;
     }>,
   ): Promise<LoginCompletion>;
+  entry(
+    binding: SessionBinding,
+    source: string,
+    cursor?: string,
+    signal?: AbortSignal,
+  ): Promise<EntryProjection>;
+  create(
+    binding: SessionBinding,
+    source: string,
+    csrf: string,
+    signal?: AbortSignal,
+  ): Promise<EntryProjection>;
+  select(
+    binding: SessionBinding,
+    source: string,
+    csrf: string,
+    scope: NativeScope,
+    cursor?: string,
+    signal?: AbortSignal,
+  ): Promise<SelectionCompletion>;
+  switchScope(
+    binding: SessionBinding,
+    source: string,
+    csrf: string,
+    scope: NativeScope,
+    cursor?: string,
+    signal?: AbortSignal,
+  ): Promise<SelectionCompletion>;
+  discardEntry(binding: SessionBinding, csrf: string): LogoutStart;
+  operate(
+    binding: SessionBinding,
+    source: string,
+    operation: NativeOperation,
+    csrf?: string,
+    signal?: AbortSignal,
+  ): Promise<NativeOperationResult>;
+  preparePage(
+    binding: SessionBinding,
+    source: string,
+    input: PagePreparation,
+  ): Promise<NativePageSnapshot | NativeEntrySnapshot>;
   peek(binding: SessionBinding): SessionProjection | null;
   admit(
     binding: SessionBinding,

@@ -52,6 +52,23 @@ internal sealed class DisposableSchemaDatabase : IAsyncDisposable
         }
     }
 
+    /// <summary>Starts an isolated historical Platform proof while retaining every other deployed chain.</summary>
+    public static async Task<DisposableSchemaDatabase> CreateAtPlatformMigrationAsync(
+        PostgresFixture postgres, string platformTargetMigration)
+    {
+        var database = await CreateAsync(postgres, applyMigrations: false);
+        try
+        {
+            await MigrationChains.ApplyThroughPlatformMigrationAsync(database.MigrationConnectionString, platformTargetMigration);
+            return database;
+        }
+        catch
+        {
+            await database.DisposeAsync();
+            throw;
+        }
+    }
+
     public async ValueTask DisposeAsync() =>
         await _postgres.ExecuteAsSuperuserAsync($"DROP DATABASE {_database} WITH (FORCE)");
 

@@ -2,7 +2,7 @@ using LearnStack.SharedKernel.Identifiers;
 
 namespace LearnStack.SharedKernel.Identity;
 
-public enum GlobalIdentityOwnerKind { Lookup = 1, Bootstrap = 2, SeedAdoption = 3 }
+public enum GlobalIdentityOwnerKind { Lookup = 1, Bootstrap = 2, SeedAdoption = 3, CreationAttempt = 4, SelfDiscovery = 5 }
 
 /// <summary>Closed provenance for one internal owner. Only enumerated production minters may derive its source.</summary>
 public sealed class GlobalIdentityOwnerDescriptor
@@ -49,6 +49,12 @@ public sealed class GlobalIdentityOwnerDescriptor
 
         protected static GlobalIdentityOwnerDescriptor ForBootstrap(GlobalIdentitySubject subject,
             Type contextType, Type entityType) => new(subject, GlobalIdentityOwnerKind.Bootstrap, contextType, entityType, null);
+
+        protected static GlobalIdentityOwnerDescriptor ForCreationAttempt(GlobalIdentitySubject subject,
+            Type contextType, Type entityType) => new(subject, GlobalIdentityOwnerKind.CreationAttempt, contextType, entityType, null);
+
+        protected static GlobalIdentityOwnerDescriptor ForSelfDiscovery(GlobalIdentitySubject subject,
+            Type contextType, Type entityType) => new(subject, GlobalIdentityOwnerKind.SelfDiscovery, contextType, entityType, null);
 
         protected static GlobalIdentityOwnerDescriptor ForSeedAdoption(GlobalIdentitySubject subject,
             UserId actor, Type contextType, Type entityType) =>

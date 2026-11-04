@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ADR-0063/0075 attempt-specific API evidence, topology and result validation.
+"""ADR-0063/0075/0082 attempt-specific API evidence, topology and result validation.
 
 Only the two aggregate jobs receive a read-only Actions token. ZIPs are fetched
 by API artifact ID, hash-checked before bounded extraction into separate private
@@ -581,7 +581,8 @@ def verify_receipt(output, context, owner, plan, assignment):
             and type(image.get('cpus')) is int and image['cpus'] > 1
             and isinstance(image.get('kernelRelease'), str)
             and re.fullmatch(r'[A-Za-z0-9._+-]{1,128}', image['kernelRelease'])
-            and image.get('virtualization') in ('microsoft', 'kvm', 'qemu'), 'image_evidence_invalid')
+            and image.get('virtualization') in ('microsoft', 'kvm', 'qemu', 'amazon'),
+            'image_evidence_invalid')
     hashes = result.get('artifacts')
     require(isinstance(hashes, dict) and expected_files <= set(hashes)
             and hashes == OWNER.export_hashes(output), 'artifact_hash_mismatch')

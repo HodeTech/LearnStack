@@ -1,4 +1,4 @@
-import { buildRealmPlan, buildRealmPreparation } from './development-realm-plan.mjs';
+import { buildRealmPlan, buildRealmPreparation, nativeWebScopeDetachmentPath } from './development-realm-plan.mjs';
 import { stockConsoleDetachmentPath } from './development-realm-stock-console.mjs';
 import { realmJson, realmRequest } from './development-realm-http.mjs';
 import { RealmError, refuse } from './development-realm-errors.mjs';
@@ -92,6 +92,11 @@ export async function reconcileRealm({ baseUrl, expectedIssuer, adminUsername, a
       // minted by the complete stock-graph qualifier can name one assignment.
       detachStockConsoleAssignment: async binding => {
         const path = stockConsoleDetachmentPath(binding, stage);
+        const result = await authenticatedRequest(adminPath(path), { method: 'DELETE', stage }, () => { mutations++; });
+        if (result.status !== 204) refuse(stage, 'status');
+      },
+      detachNativeWebScope: async binding => {
+        const path = nativeWebScopeDetachmentPath(binding, stage);
         const result = await authenticatedRequest(adminPath(path), { method: 'DELETE', stage }, () => { mutations++; });
         if (result.status !== 204) refuse(stage, 'status');
       },

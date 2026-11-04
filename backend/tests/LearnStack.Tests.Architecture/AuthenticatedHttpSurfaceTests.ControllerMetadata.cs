@@ -32,6 +32,9 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         var expectedTokens = Endpoints.SelectMany(endpoint => new[] { "LearnStack.Api:" + endpoint.Controller,
             endpoint.Request.Assembly.GetName().Name + ":" + endpoint.Request.FullName }).ToArray();
         if (!tokens.Select(Key).SequenceEqual(expectedTokens, StringComparer.Ordinal)) return false;
+        var literals = method.Body.Instructions.Where(instruction => instruction.OpCode == OpCodes.Ldstr)
+            .Select(instruction => (string)instruction.Operand).ToArray();
+        if (!literals.SequenceEqual(Endpoints.SelectMany(endpoint => new[] { endpoint.Action, endpoint.Operation, endpoint.Verb }), StringComparer.Ordinal)) return false;
         var actual = method.Body.Instructions.Where(instruction => instruction.Operand is MethodReference)
             .Select(instruction => instruction.OpCode.Name + ":" + ((MethodReference)instruction.Operand).FullName).Order(StringComparer.Ordinal);
         var expected = Enumerable.Repeat("call:System.Type System.Type::GetTypeFromHandle(System.RuntimeTypeHandle)", Endpoints.Length * 2)
@@ -48,11 +51,13 @@ public sealed partial class AuthenticatedHttpSurfaceTests
 
     private static void AssertControllerMetadataControls(ModuleDefinition[] modules, CensusFacts facts)
     {
+        var map = Types(modules).ToDictionary(Key, StringComparer.Ordinal);
         var api = modules.Single(module => module.Assembly.Name.Name == "LearnStack.Api");
         var classifier = api.GetType(HttpClassifier);
         var expected = classifier.Methods.Single(method => method.Name == "Expected");
         var account = api.GetType(Account);
         void Dirty() => Violations(modules, facts).Should().Contain(value => value.StartsWith("Nested HTTP dispatch/helper handler:", StringComparison.Ordinal));
+        AssertClassifierKeyMetadataControls(classifier, map, Dirty);
         var field = new FieldDefinition("ActualController", FieldAttributes.Private, account);
         classifier.Fields.Add(field);
         try { Dirty(); } finally { classifier.Fields.Remove(field); }
@@ -81,5 +86,41 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         try { Dirty(); }
         finally { expected.Body.Instructions.Remove(delegated); classifier.Methods.Remove(factory); }
         Violations(modules, facts).Should().BeEmpty("only the original fixed typeof table remains after real controller capabilities are removed");
+    }
+
+    private static void AssertClassifierKeyMetadataControls(TypeDefinition classifier, Dictionary<string, TypeDefinition> map, Action dirty)
+    {
+        ClassifierMetadataReadOnly(classifier).Should().BeTrue("the compiled empty-array fallback is metadata collection code");
+        var method = classifier.Methods.Single(candidate => candidate.Name == "HasCanonicalKeyMetadata");
+        var empty = method.Body.Instructions.Single(instruction => EmptyKeyMetadataArray(instruction));
+        var original = (GenericInstanceMethod)empty.Operand;
+        foreach (var mutation in new[] { "owner", "return", "argument" })
+        {
+            var declaring = mutation == "owner" ? new TypeReference("System", "Array", classifier.Module,
+                new AssemblyNameReference("SurfaceProbe.ForeignArray", new Version(1, 0))) : original.DeclaringType;
+            var replacement = new MethodReference("Empty", classifier.Module.TypeSystem.Void, declaring);
+            var parameter = new GenericParameter("T", replacement);
+            replacement.GenericParameters.Add(parameter);
+            replacement.ReturnType = new ArrayType(mutation == "return" ? classifier.Module.TypeSystem.Object : parameter);
+            if (mutation == "argument") replacement.Parameters.Add(new ParameterDefinition(classifier.Module.TypeSystem.Int32));
+            var call = new GenericInstanceMethod(replacement);
+            call.GenericArguments.Add(original.GenericArguments[0]);
+            empty.Operand = call;
+            try
+            {
+                ClassifierMetadataReadOnly(classifier).Should().BeFalse("only the exact BCL Empty<T> signature qualifies");
+                HandlerReferences(classifier, map).Should().Contain(reference => Key(reference) == "LearnStack.Api:" + IdempotentMetadata);
+            }
+            finally { empty.Operand = original; }
+        }
+        var factory = map["LearnStack.Api:" + IdempotentMetadata].Methods.Single(candidate => candidate.Name == "CreateInstance");
+        foreach (var opcode in new[] { OpCodes.Callvirt, OpCodes.Ldftn })
+        {
+            var invocation = Instruction.Create(opcode, factory);
+            method.Body.Instructions.Add(invocation);
+            try { ClassifierMetadataReadOnly(classifier).Should().BeFalse(); dirty(); }
+            finally { method.Body.Instructions.Remove(invocation); }
+        }
+        ClassifierMetadataReadOnly(classifier).Should().BeTrue();
     }
 }

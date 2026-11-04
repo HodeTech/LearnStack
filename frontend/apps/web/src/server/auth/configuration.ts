@@ -8,10 +8,20 @@ export const BFF_ENV_KEYS = Object.freeze([
   'LEARNSTACK_BFF_ENABLED',
   'LEARNSTACK_BFF_ISSUER',
   'KEYCLOAK_WEB_CLIENT_SECRET',
+  'Identity__AuthorityId',
+  'Identity__NativeSession__CurrentSecret',
+  'LEARNSTACK_PUBLIC_HOP_SECRET',
 ] as const);
 export type BffConfiguration = Readonly<
   | { enabled: false }
-  | { enabled: true; issuer: string; clientSecret: string; allowLoopbackHttp: boolean }
+  | {
+      enabled: true;
+      issuer: string;
+      clientSecret: string;
+      authorityId: string;
+      nativeSourceSecret: string;
+      allowLoopbackHttp: boolean;
+    }
 >;
 export type BffConfigurationIssue =
   | 'activation'
@@ -19,6 +29,8 @@ export type BffConfigurationIssue =
   | 'private_file'
   | 'issuer'
   | 'client_secret'
+  | 'authority'
+  | 'native_source_secret'
   | 'source_file';
 
 /** Closed startup context; contains no source path, setting name or private value. */
@@ -93,6 +105,25 @@ export function bffConfiguration(
     const clientSecret = agree('KEYCLOAK_WEB_CLIENT_SECRET');
     if (!issuer) return refused('issuer');
     if (!clientSecret || /[\r\n\0]/.test(clientSecret)) return refused('client_secret');
+    const authorityId = agree('Identity__AuthorityId');
+    if (
+      !authorityId ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(authorityId) ||
+      authorityId === '00000000-0000-0000-0000-000000000000'
+    )
+      return refused('authority');
+    const nativeSourceSecret = agree('Identity__NativeSession__CurrentSecret');
+    const publicHopSecret = agree('LEARNSTACK_PUBLIC_HOP_SECRET');
+    if (!nativeSourceSecret || !/^[A-Za-z0-9_-]{43}$/.test(nativeSourceSecret))
+      return refused('native_source_secret');
+    const nativeBytes = Buffer.from(nativeSourceSecret, 'base64url');
+    const validNativeSecret =
+      nativeBytes.length === 32 &&
+      nativeBytes.toString('base64url') === nativeSourceSecret &&
+      !nativeBytes.every((value) => value === nativeBytes[0]) &&
+      nativeSourceSecret !== publicHopSecret;
+    nativeBytes.fill(0);
+    if (!validNativeSecret) return refused('native_source_secret');
     let url: URL;
     try {
       url = new URL(issuer);
@@ -115,7 +146,14 @@ export function bffConfiguration(
       )
     )
       return refused('issuer');
-    return Object.freeze({ enabled: true, issuer, clientSecret, allowLoopbackHttp });
+    return Object.freeze({
+      enabled: true,
+      issuer,
+      clientSecret,
+      authorityId,
+      nativeSourceSecret,
+      allowLoopbackHttp,
+    });
   } catch (error) {
     if (error instanceof BffConfigurationError) throw error;
     return refused('source_file');

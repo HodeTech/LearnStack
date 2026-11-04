@@ -823,3 +823,104 @@ owns the exact source/capacity/configuration ledger and
 [Security](../standards/11-security.md) owns placement. Acceptance is not runtime
 implementation; P03-2 proves scope, progress and cleanup before activation.
 Other decisions and historical Accepted body/status/date remain unchanged.
+
+### Amendment 16 — Tenth self-discovery setter and confined owners (2026-10-28)
+
+Accepted [ADR-0078](0078-native-session-scope-and-self-entry.md) adds the tenth
+logical tenant setter, `PreContextSelfDiscoveryScopeReader`. It accepts only the
+captured exact own-Membership witness returned by subject-confined global-self
+discovery, never raw caller-selected User/tenant/org IDs. A fresh physically READ
+ONLY app-role transaction on the ordinary business source announces that scope
+and actual generation for bounded Tenancy label/destination reads. It installs
+no ITenantContext, runs no mutation/audit work and refuses nested ownership.
+
+Global discovery, the existing candidate lane and label owners close sequentially:
+no outer connector is retained while another owner/lane is acquired. Each label
+owner has one five-second total I/O deadline; actual transaction/connection cleanup
+clears the announcement before credit or pooled reuse, including cancellation.
+The four-slot authorization source remains confined to grant/lifecycle reads and
+the two-slot evidence source remains evidence-only. This is not another lane,
+public nested send, context writer or permission to join global/tenant owners.
+
+The definer census expands from five to exactly eight: the subject-derived
+self-membership discovery function, creation-attempt admission function and
+User-INSERT capacity trigger join the existing five. Their exact signatures,
+owner/body/ACL/caller controls and new fixed platform control relation live in
+[Standard 05](../standards/05-database.md#p03-3-storage-and-replay-contract), without
+a new login or generic global User directory. The logical setter census changes
+nine to ten; the four TenantContext writers do not change.
+
+[ADR-0079](0079-bounded-identity-administration.md)'s durable idempotency owners
+use the already enumerated idempotency setter, not an eleventh path. Short claim/
+capacity transactions complete before business ownership; business User/Tenant/
+Role/Membership fences never overlap that capacity fence. Completion/replay owners
+retain their independently defined authority and cleanup boundaries. Standard 05
+owns the lock/source ledger; existing mode, poisoning and common audit rules stay.
+Historical body/status/date and prior amendments remain unchanged. Acceptance is
+not proof that these new owners, functions or setters have been implemented.
+
+### Amendment 17 — Fixed seed scope-only verification (2026-10-29)
+
+Accepted [ADR-0080](0080-fixed-seed-prerequisite-read-scope.md) adds one closed
+temporary prerequisite operation on the existing ordinary ReadWrite owner. Its
+private `SeedPrerequisiteReadWitness` and separate Narrow → Enabling → Verifying → Clearing
+→ Narrow state do not reuse the Protected-human witness or retarget a joined
+owner. The exact active invocation, immutable declaration, complete ordered
+fence/root-lock plan, transaction and generation bind entry and every await.
+
+Dedicated transaction-local enable/clear sites change only `app.scope`; they
+preserve the exact Tenant/organization announcement and generation. The matching
+EF read view widens only while Verifying and returns narrow before usable
+evidence leaves the operation. These scope-only sites enter their own caller
+census; the ten logical Tenant setters, four context writers, eight definers and
+four-role model remain unchanged. No new connection, owner or authorization lane
+is added, and the physical transaction remains ReadWrite.
+
+The common first SaveChanges barrier refuses synchronous/asynchronous and empty
+flushes before audit/domain-event capture, including same-organization writes.
+Entry/exit change detection, the EF
+command guard, owned raw writes including audit/outbox, commit, nested Begin,
+context setters and write/constraint-validation paths enforce the separate
+verification state. Misuse, cancellation, failed enable/clear acknowledgement or
+uncertain cleanup makes the owner sticky rollback-only. Bounded cleanup remains
+independent of caller cancellation and must actually restore/close ownership.
+
+[Database Standards](../standards/05-database.md#warm-seed-evidence-and-origin-adoption)
+owns the canonical transition, barriers and closed caller census. This amendment
+authorizes the bounded source change; P03-3 Step 3 still owes actual lifetime,
+flush/write/commit, isolation, cleanup and competing-commit proofs. Historical
+Accepted bodies, status, date and prior amendments remain unchanged.
+
+### Amendment 18 — Fixed completion operation on the existing owner (2026-10-29)
+
+Accepted [ADR-0081](0081-fixed-seed-completion-before-origin-adoption.md) adds the
+separate sealed `SeedCompletionReadWitness` and closed
+`VerifySeedCompletionAsync(witness, cancellationToken)` entry on the same ordinary
+ReadWrite owner. Exactly the fixed administration-origin command consumes this
+purpose after its exclusive Tenant fence and actual Tenant/mapping preparation.
+Its witness/minter/caller/reader census remains separate from ADR-0080's exact
+eight pristine consumers; neither witness substitutes for the other.
+
+Both closed entries share one private typed transition, ADR-0080's existing
+Narrow → Enabling → Verifying → Clearing → Narrow state and the same two exact
+scope-only enable/clear SQL sites. They preserve the Tenant/organization
+announcement and generation. Acknowledged narrow restoration and continuity
+rechecks precede usable admission or mutation. The existing first-flush, change
+detection, EF-command, owned raw audit/outbox write, commit, nested-Begin and
+context-setter barriers apply unchanged, including sticky fault/rollback-only
+handling and bounded cancellation-independent cleanup until actual restoration
+or ownership closure.
+
+No logical Tenant setter, context writer, physical owner, connector,
+authorization lane, role, grant, definer, table or column is added. The physical
+transaction remains ReadWrite; no arbitrary callback, SQL, general manifest or
+reusable scope lease is exposed. Human read-witness and global/self owner
+contracts remain separate.
+
+[Database Standards](../standards/05-database.md#operation-bound-read-authority)
+owns the exact separate lifetime/source/minter/caller/projection ledgers and
+shared transition/barriers. ADR-0081 supplies this bounded additional operation;
+this amendment discloses it without independently replacing this decision.
+Historical Accepted bytes, status, date, Deciders and prior amendments remain
+unchanged. Acceptance registers the new controls; Step 3 still owes their actual
+owner, isolation, write-refusal and cleanup proof.

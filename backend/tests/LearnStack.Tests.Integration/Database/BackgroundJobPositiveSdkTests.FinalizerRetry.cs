@@ -61,9 +61,10 @@ public sealed partial class BackgroundJobPositiveSdkTests
         {
             using var startup = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             await runtime.StartAsync(startup.Token);
-            await probe.FirstWriteReady.Task.WaitAsync(TimeSpan.FromSeconds(50));
+            using var firstObservation = new CancellationTokenSource(TimeSpan.FromSeconds(50));
+            await probe.FirstWriteReady.Task.WaitAsync(firstObservation.Token);
             var firstControl = NativeFinalizerControl(runtime, job);
-            var firstTask = (Task<JobBusinessExecutionResult>)NativeSdkField(firstControl, "_business");
+            var firstTask = await NativeSdkBusinessAsync(firstControl, firstObservation.Token);
             firstTask.IsCompleted.Should().BeFalse("the real first root is held after its nested business write");
             runtime.Snapshot.Control!.Retries.Should().Be(0);
             var initial = await ReadNativeFinalizerFactsAsync(database, job);
@@ -82,11 +83,12 @@ public sealed partial class BackgroundJobPositiveSdkTests
             construction.ExternalDenial.Should().BeTrue();
 
             probe.AllowFirstReturn.TrySetResult();
-            await probe.SecondEntered.Task.WaitAsync(TimeSpan.FromSeconds(50));
+            using var secondObservation = new CancellationTokenSource(TimeSpan.FromSeconds(50));
+            await probe.SecondEntered.Task.WaitAsync(secondObservation.Token);
             runtime.Snapshot.Control!.Retries.Should().Be(1);
             var secondControl = NativeFinalizerControl(runtime, job);
             secondControl.Should().NotBeSameAs(firstControl);
-            var secondTask = (Task<JobBusinessExecutionResult>)NativeSdkField(secondControl, "_business");
+            var secondTask = await NativeSdkBusinessAsync(secondControl, secondObservation.Token);
             secondTask.IsCompleted.Should().BeFalse("the fresh second root is held before its business write");
             var first = await firstTask.WaitAsync(TimeSpan.FromSeconds(5));
             first.ExecutionIssued.Should().BeTrue();

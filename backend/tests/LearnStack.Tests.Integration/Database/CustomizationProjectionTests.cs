@@ -166,7 +166,7 @@ public sealed partial class CustomizationProjectionTests(SchemaFixture schema, C
         read.Observer.Reset();
         read.Observer.AfterProbe = async () =>
         {
-            await using var provider = SeedComposition.Build(source, context, NullLoggerFactory.Instance);
+            await using var provider = ContentComponentFixture.CreateCustomizationProvider(source, context);
             await using var scope = provider.CreateAsyncScope();
             var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
             await using var frame = await unit.BeginTransactionAsync();
@@ -217,13 +217,12 @@ public sealed partial class CustomizationProjectionTests(SchemaFixture schema, C
     private static async Task<SeedTenantContext> ProvisionAsync(NpgsqlDataSource source)
     {
         var tenant = TenantId.From(Guid.CreateVersion7());
-        (await SendAsync(source, null, new ProvisionTenantCommand(tenant, "projection-proof", "Projection proof",
-            OrganizationId.From(Guid.CreateVersion7()), "main", "Main"))).IsSuccess.Should().BeTrue();
+        await ContentComponentFixture.CreateTenantAsync(source, tenant);
         return new(tenant, null);
     }
-    private static async Task<Result<T>> SendAsync<T>(NpgsqlDataSource source, ITenantContext? context, IRequest<Result<T>> command)
+    private static async Task<Result<T>> SendAsync<T>(NpgsqlDataSource source, ITenantContext context, IRequest<Result<T>> command)
     {
-        await using var provider = SeedComposition.Build(source, context, NullLoggerFactory.Instance);
+        await using var provider = ContentComponentFixture.CreateCustomizationProvider(source, context);
         await using var scope = provider.CreateAsyncScope();
         return await scope.ServiceProvider.GetRequiredService<ISender>().Send(command);
     }
@@ -325,7 +324,7 @@ public sealed partial class CustomizationProjectionTests(SchemaFixture schema, C
         public ICustomizationDefinitionProjectionReader Reader { get; }
         public static async Task<ReadSession> OpenAsync(NpgsqlDataSource source, ITenantContext context, bool announce = true, CacheProbe? cache = null)
         {
-            var provider = SeedComposition.Build(source, context, NullLoggerFactory.Instance);
+            var provider = ContentComponentFixture.CreateCustomizationProvider(source, context);
             var scope = provider.CreateAsyncScope();
             var unit = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
             var frame = await unit.BeginTransactionAsync();

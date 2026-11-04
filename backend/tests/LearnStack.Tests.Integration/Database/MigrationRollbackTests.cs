@@ -15,7 +15,7 @@ using LearnStack.SharedKernel.Tenancy;
 namespace LearnStack.Tests.Integration.Database;
 
 /// <summary>
-/// Every migration chain applied and then reversed against a real database.
+/// Reversible chain prefixes return to an empty schema; current forward-only heads preserve their installed state.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -43,16 +43,16 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
     public MigrationRollbackTests(MigrationRollbackFixture fixture) => _fixture = fixture;
 
     [Fact]
-    public async Task EveryChainReversesToAnEmptySchema()
+    public async Task Reversible_chain_prefixes_reverse_to_empty_and_current_heads_refuse_reversal()
     {
         await using var connection = await PostgresFixture.OpenAsync(
             _fixture.Postgres.MigrationConnectionString);
 
         // Applied state first, so a rollback that reversed nothing because nothing
         // was there cannot pass.
-        (await CountAsync(connection, TablesQuery)).Should().Be(55L,
+        (await CountAsync(connection, TablesQuery)).Should().Be(56L,
             "eight tenancy tables, twenty-four platform tables, four customization tables, "
-            + "two audit tables, four Education tables, seven Identity tables and six history tables");
+            + "two audit tables, four Education tables, eight Identity tables including creation capacity, and six history tables");
         (await CountAsync(connection, FunctionQuery)).Should().Be(1L,
             "fn_organization_id_immutable backs the tenant_settings trigger");
         (await CountAsync(connection, AuditFunctionQuery)).Should().Be(2L,
@@ -62,8 +62,8 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
             "each Education parent relation has its own invoker scope check");
         (await CountAsync(connection, InboxFunctionQuery)).Should().Be(1L,
             "fn_inbox_messages_immutable backs the shared inbox append-only trigger");
-        (await CountAsync(connection, IdentityFunctionQuery)).Should().Be(12L,
-            "Identity installs five global binding/creation/evidence functions and seven contextual functions");
+        (await CountAsync(connection, IdentityFunctionQuery)).Should().Be(15L,
+            "the reversible Identity prefix includes global/contextual functions and all three self-entry functions");
 
         (await CountAsync(connection, JobFunctionQuery)).Should().BeGreaterThan(0,
             "the new job guards must be installed before their reversal is tested");
@@ -89,14 +89,16 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
         (await CountAsync(connection, JobFunctionQuery)).Should().Be(0L);
         (await CountAsync(connection, VendorSequenceQuery)).Should().Be(0L);
 
-        // A successful Down must also leave a state that can be installed again.
+        // Reinstall the complete current chains, including the retained-evidence
+        // heads that intentionally refuse Down under ADR-0079/0081.
         await MigrationChains.ApplyAllAsync(_fixture.Postgres.MigrationConnectionString);
-        (await CountAsync(connection, TablesQuery)).Should().Be(55L);
+        (await CountAsync(connection, TablesQuery)).Should().Be(56L);
         (await CountAsync(connection, FunctionQuery)).Should().Be(1L);
         (await CountAsync(connection, AuditFunctionQuery)).Should().Be(2L);
         (await CountAsync(connection, EducationFunctionQuery)).Should().Be(3L);
         (await CountAsync(connection, InboxFunctionQuery)).Should().Be(1L);
-        (await CountAsync(connection, IdentityFunctionQuery)).Should().Be(12L);
+        (await CountAsync(connection, IdentityFunctionQuery)).Should().Be(16L);
+        await _fixture.AssertCurrentHeadsRefuseReversalAsync();
         await EducationSchemaSeed.SeedAsync(_fixture.Postgres.AppConnectionString);
         await using var app = await PostgresFixture.OpenAsync(_fixture.Postgres.AppConnectionString);
         await using var transaction = await app.BeginTransactionAsync();
@@ -161,17 +163,77 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
     {
         await Postgres.InitializeAsync();
 
-        // The shared applier reaches every chain. The CreateX helpers below stay: the REVERSAL half needs
-        // per-chain control, which is the half that cannot be shared.
-        await MigrationChains.ApplyAllAsync(Postgres.MigrationConnectionString);
+        // Explicit historical prefixes are the reversal subjects. Applying latest
+        // here would ask retained-evidence migrations to erase their authority.
+        await using (var tenancy = CreateTenancy())
+            await tenancy.GetService<IMigrator>().MigrateAsync(TenancyReversibleHead);
+        await using (var platform = CreatePlatform())
+            await platform.GetService<IMigrator>().MigrateAsync(PlatformReversibleHead);
+        await using (var audit = CreateAudit()) await audit.Database.MigrateAsync();
+        await using (var identity = CreateIdentity())
+            await identity.GetService<IMigrator>().MigrateAsync(IdentityReversibleHead);
+        await using (var customization = CreateCustomization()) await customization.Database.MigrateAsync();
+        await using (var education = CreateEducation()) await education.Database.MigrateAsync();
     }
 
     public async Task DisposeAsync() => await Postgres.DisposeAsync();
 
+    private const string TenancyReversibleHead = "20261017210806_grant_job_lifecycle_projection";
+    private const string PlatformReversibleHead = "20261017231821_index_background_job_control_quarantines";
+    private const string IdentityReversibleHead = "20261028155736_add_identity_self_entry";
+
+    public async Task AssertCurrentHeadsRefuseReversalAsync()
+    {
+        await using var tenancy = CreateTenancy();
+        await using var platform = CreatePlatform();
+        await using var identity = CreateIdentity();
+        foreach (var (context, previous, head, reason) in new (DbContext, string, string, string)[]
+        {
+            (tenancy, TenancyReversibleHead, "20261029112940_guard_retained_tenancy_defaults", "Retained default fencing requires a reviewed forward migration."),
+            (platform, PlatformReversibleHead, "20261029120715_add_protected_idempotency_targets", "Protected replay metadata requires a reviewed forward migration."),
+            (identity, IdentityReversibleHead, "20261028194039_add_role_release_v2", "Role release adoption requires a reviewed forward migration."),
+        })
+        {
+            (await context.Database.GetAppliedMigrationsAsync()).Last().Should().Be(head);
+            var before = await SchemaStateAsync();
+            Func<Task> reverse = () => context.GetService<IMigrator>().MigrateAsync(previous);
+            (await reverse.Should().ThrowAsync<NotSupportedException>()).Which.Message.Should().Be(reason);
+            (await SchemaStateAsync()).Should().Be(before, "a refused reversal must preserve definitions, grants, policies, triggers and every migration history");
+        }
+    }
+
+    private async Task<string> SchemaStateAsync()
+    {
+        await using var connection = (NpgsqlConnection)await PostgresFixture.OpenAsync(Postgres.MigrationConnectionString);
+        await using var command = new NpgsqlCommand("""
+            SELECT jsonb_build_object(
+                'relations',(SELECT jsonb_agg(jsonb_build_array(c.relname,c.relkind,c.relowner,c.relacl,c.relrowsecurity,c.relforcerowsecurity) ORDER BY c.relname)
+                    FROM pg_class c WHERE c.relnamespace='public'::regnamespace),
+                'columns',(SELECT jsonb_agg(jsonb_build_array(c.relname,a.attnum,a.attname,a.atttypid,a.atttypmod,a.attnotnull,a.attidentity,
+                        pg_get_expr(d.adbin,d.adrelid)) ORDER BY c.relname,a.attnum)
+                    FROM pg_attribute a JOIN pg_class c ON c.oid=a.attrelid LEFT JOIN pg_attrdef d ON d.adrelid=a.attrelid AND d.adnum=a.attnum
+                    WHERE c.relnamespace='public'::regnamespace AND a.attnum>0 AND NOT a.attisdropped),
+                'constraints',(SELECT jsonb_agg(jsonb_build_array(c.conname,c.conrelid,pg_get_constraintdef(c.oid)) ORDER BY c.conrelid,c.conname)
+                    FROM pg_constraint c WHERE c.connamespace='public'::regnamespace),
+                'indexes',(SELECT jsonb_agg(to_jsonb(i) ORDER BY i.indexname) FROM pg_indexes i WHERE i.schemaname='public'),
+                'functions',(SELECT jsonb_agg(jsonb_build_array(p.oid,p.proowner,p.proacl,pg_get_functiondef(p.oid)) ORDER BY p.oid)
+                    FROM pg_proc p WHERE p.pronamespace='public'::regnamespace),
+                'triggers',(SELECT jsonb_agg(jsonb_build_array(t.tgrelid,t.tgname,t.tgenabled,pg_get_triggerdef(t.oid)) ORDER BY t.tgrelid,t.tgname)
+                    FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid WHERE c.relnamespace='public'::regnamespace AND NOT t.tgisinternal),
+                'policies',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.tablename,p.policyname) FROM pg_policies p WHERE p.schemaname='public'))::text
+            """, connection);
+        var state = new List<string> { (string)(await command.ExecuteScalarAsync())! };
+        foreach (var history in MigrationChains.HistoryTables)
+        {
+            await using var rows = new NpgsqlCommand($"SELECT COALESCE(jsonb_agg(to_jsonb(h) ORDER BY h.\"MigrationId\"),'[]'::jsonb)::text FROM \"{history}\" h", connection);
+            state.Add((string)(await rows.ExecuteScalarAsync())!);
+        }
+        return string.Join('\n', state);
+    }
+
     /// <summary>
-    /// Reverses every chain in the reverse of the order that applied them — the
-    /// order a developer undoing a packet would use. Dependents release their
-    /// references before the chain owning a shared table or function reverses.
+    /// Reverses the installed historical prefixes in dependency order. Dependents
+    /// release references before the chain owning a shared table or function reverses.
     /// </summary>
     public async Task RollBackAsync()
     {

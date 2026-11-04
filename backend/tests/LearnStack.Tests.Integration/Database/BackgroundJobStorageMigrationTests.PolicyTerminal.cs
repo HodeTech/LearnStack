@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
@@ -95,7 +96,8 @@ public sealed partial class BackgroundJobStorageMigrationTests
     [InlineData("transient_not_repeatable")]
     public async Task Policy_down_refuses_every_governed_failure_and_preserves_grants_and_FORCE(string policy)
     {
-        await using var database = await DisposableSchemaDatabase.CreateAsync(schema.Postgres);
+        await using var database = await DisposableSchemaDatabase.CreateAtPlatformMigrationAsync(schema.Postgres,
+            "20261017032122_add_external_job_failure_policy");
         var job = await PolicyOutcomeAsync(database, "failed", policy, 1);
         await using var context = Platform(database);
         var reverse = async () => await context.GetService<IMigrator>().MigrateAsync(BeforeExternalPolicy);
@@ -115,6 +117,10 @@ public sealed partial class BackgroundJobStorageMigrationTests
             SELECT count(*) WHERE has_column_privilege('learnstack_app','background_job_attempts','failure_policy','UPDATE')
                 AND has_column_privilege('learnstack_outbox_admin','background_job_attempts','failure_policy','SELECT')
             """, read)).Should().Be(1, "a refused reverse cannot partially revoke the policy projection or checkpoint grant");
+        await read.RollbackAsync();
+        await context.Database.MigrateAsync();
+        (await context.Database.GetAppliedMigrationsAsync()).Should().Equal(context.Database.GetMigrations());
+        context.Database.HasPendingModelChanges().Should().BeFalse();
     }
 
     private static async Task<PendingJob> SelectedPolicyFailureAsync(DisposableSchemaDatabase database,

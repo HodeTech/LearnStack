@@ -31,11 +31,11 @@ public sealed partial class IdentityAuditConventionTests
         typeof(GlobalIdentityCreationReference).GetConstructors().Should().BeEmpty();
 
         Callers(typeof(TransactionExecutionCoordinator).FullName!, "PrepareGlobalIdentityOwnerAsync")
-            .Should().Equal(BindingService + ".AdoptAsync");
+            .Should().Equal(BindingService + ".CreateAsync");
         Callers(typeof(TransactionExecutionCoordinator.PreparedGlobalIdentityOwner).FullName!.Replace('+', '/'), "AdmitSerializedAbsence")
-            .Should().Equal(BindingService + ".AdoptAsync");
+            .Should().Equal(BindingService + ".CreateAsync");
         Callers(typeof(TransactionExecutionCoordinator.PreparedGlobalIdentityOwner).FullName!.Replace('+', '/'), "CompleteExistingAsync")
-            .Should().Equal(BindingService + ".AdoptAsync");
+            .Should().Equal(BindingService + ".CreateAsync");
         Callers(typeof(IAuditStore).FullName!, nameof(IAuditStore.WriteGlobalIdentityPendingAsync))
             .Should().Equal(typeof(TransactionExecutionCoordinator).FullName + ".ExecuteFrameAsync");
         Callers(typeof(IAuditStore).FullName!, nameof(IAuditStore.ReconcileGlobalIdentityAsync))

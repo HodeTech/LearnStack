@@ -286,6 +286,17 @@ an abstraction.
   auto-scaled topology above is a target, not multi-process session support.
   Phase 11 supplies a distributed adapter before multiple web processes serve
   one session, with atomic refresh/revocation/interruption qualification.
+  ADR-0078/0079's Accepted native entry, scope and page-snapshot extension keeps
+  that single-process boundary; bounded serialized snapshots are not a process
+  RAM or deployment-wide capacity guarantee. Its implementation and browser proof
+  remain in the [Phase 03 Status block](../roadmap/phase-03-identity-admin.md).
+
+- **Native scope configuration** — Accepted
+  [ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md) requires a
+  separate native-purpose secret, private stable authority projection and exact
+  management-origin/TLS/provider registrations. These do not follow merely from
+  selecting a deployment mode; [Security](../standards/11-security.md#native-scope-and-global-self-admission)
+  owns qualification and bounded current/previous-value retirement.
 
 - **Hub URL** — target: LearnStack-hosted for SaaS / Dedicated / SelfHostedOnline,
   customer-hosted only where separately arranged, or absent for SelfHostedAirGapped.

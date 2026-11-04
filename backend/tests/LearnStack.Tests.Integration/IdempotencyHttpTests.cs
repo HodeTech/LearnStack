@@ -4,6 +4,8 @@ using System.Text.Json;
 using FluentAssertions;
 using LearnStack.Api.Common;
 using LearnStack.Api.Idempotency;
+using LearnStack.Infrastructure.Idempotency;
+using LearnStack.SharedKernel.Idempotency;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.AspNetCore.Hosting;
@@ -460,16 +462,21 @@ public sealed class IdempotencyHttpTests(IdempotencyFixture fixture)
         SideEffectProbeController.CloseGate();
 
         var first = PostAsync("/api/v1/sideeffectprobe?hold=true", key);
-        await SideEffectProbeController.Entered;
-
-        var concurrent = await PostAsync("/api/v1/sideeffectprobe?hold=true", key);
-
-        concurrent.StatusCode.Should().Be(HttpStatusCode.Conflict);
-        (await ReadCodeAsync(concurrent)).Should().Be("request_in_progress",
-            "the client should retry with this same key — the opposite of what a "
-            + "concurrency_conflict asks for, which is why it is a different code");
-
-        SideEffectProbeController.Release();
+        try
+        {
+            await SideEffectProbeController.Entered.WaitAsync(TimeSpan.FromSeconds(10));
+            using var concurrent = await PostAsync("/api/v1/sideeffectprobe?hold=true", key);
+            concurrent.StatusCode.Should().Be(HttpStatusCode.Conflict);
+            (await ReadCodeAsync(concurrent)).Should().Be("request_in_progress",
+                "the client should retry with this same key — the opposite of what a "
+                + "concurrency_conflict asks for, which is why it is a different code");
+        }
+        finally
+        {
+            // Failed assertions and cancelled waits must not strand the request
+            // that the fixture host is required to join during teardown.
+            SideEffectProbeController.Release();
+        }
         (await first).StatusCode.Should().Be(HttpStatusCode.OK);
         SideEffectProbeController.Invocations.Should().Be(1);
     }
@@ -532,7 +539,18 @@ public sealed class IdempotencyFixture : ComponentApiFactory
             services.AddHttpContextAccessor();
             services.RemoveAll<ITenantContext>();
             services.AddScoped<ITenantContext, HeaderTenantContext>();
+            services.RemoveAll<IIdempotencyStore>();
+            services.AddSingleton<IIdempotencyStore, InMemoryIdempotencyStore>();
+            services.RemoveAll<IIdempotencyBusinessOwnerCleanup>();
+            services.AddScoped<IIdempotencyBusinessOwnerCleanup, NoBusinessOwnerCleanup>();
         });
+    }
+
+    // These two component-only controllers never dispatch business work or open
+    // a database owner. Production cleanup remains the real scoped unit seam.
+    private sealed class NoBusinessOwnerCleanup : IIdempotencyBusinessOwnerCleanup
+    {
+        public ValueTask<bool> EndBusinessOwnerAsync() => ValueTask.FromResult(true);
     }
 
     /// <summary>A client whose requests resolve to the given tenant, or to none.</summary>
@@ -618,7 +636,7 @@ public sealed class SideEffectProbeController : ApiControllerBase, ITestOnlyCont
         if (hold)
         {
             _entered.TrySetResult();
-            await _release.Task;
+            await _release.Task.WaitAsync(HttpContext.RequestAborted);
         }
 
         if (fail)

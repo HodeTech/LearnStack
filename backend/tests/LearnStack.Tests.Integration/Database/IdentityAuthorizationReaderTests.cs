@@ -259,13 +259,12 @@ public sealed class IdentityAuthorizationReaderTests(IdentityAuthorizationReader
         using var minter = new CandidateSource();
         try
         {
-            await MutateAsync(null, null, "UPDATE public.tenants SET status=@status WHERE id=@tenant",
-                ("status", status), ("tenant", SchemaFixture.TenantA));
+            await MutateTenantLifecycleAsync(status);
             (await harness.Reader.ReadAsync(minter.For(PersonA, SchemaFixture.TenantA))).Covers.Should().Be(covers);
         }
         finally
         {
-            await MutateAsync(null, null, "UPDATE public.tenants SET status='Trial' WHERE id=@tenant", ("tenant", SchemaFixture.TenantA));
+            await MutateTenantLifecycleAsync("Trial");
         }
     }
 
@@ -275,27 +274,42 @@ public sealed class IdentityAuthorizationReaderTests(IdentityAuthorizationReader
     [InlineData("Archived", false)]
     public async Task Requested_organization_must_currently_allow_work(string status, bool covers)
     {
-        await using var harness = await AuthorizationReaderHarness.CreateAsync(fixture);
-        using var minter = new CandidateSource();
+        // Keep the exact seeded actor/branch Memberships, but give each terminal
+        // lifecycle case its own database. No later proof inherits an archived A1.
+        var isolated = new IdentityAuthorizationReaderFixture();
         try
         {
-            await MutateAsync(SchemaFixture.OrgA1, null, "UPDATE public.organizations SET status=@status WHERE id=@organization",
-                ("status", status), ("organization", SchemaFixture.OrgA1));
-            (await harness.Reader.ReadAsync(minter.For(PersonA, SchemaFixture.TenantA, SchemaFixture.OrgA1))).Covers.Should().Be(covers);
+            await isolated.InitializeAsync();
+            await using var harness = await AuthorizationReaderHarness.CreateAsync(isolated);
+            using var minter = new CandidateSource();
+            // Confirm real branch coverage before its lifecycle changes, rather than
+            // passing an ineligible case because its Membership was absent already.
+            (await harness.Reader.ReadAsync(minter.For(PersonA, SchemaFixture.TenantA, SchemaFixture.OrgA1)))
+                .Covers.Should().BeTrue();
+            await using (var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(isolated.AppConnectionString))
+            await using (var transaction = await app.BeginTransactionAsync())
+            {
+                await ScopeAsync(app, transaction, SchemaFixture.TenantA);
+                await TenancyLifecycleFixture.LockAsync(app, transaction, SchemaFixture.TenantA);
+                // This fixture begins in incomplete provisioning state. Establish a
+                // valid retained default before withdrawing the requested branch.
+                await TenancyLifecycleFixture.SelectDefaultAsync(app, transaction, SchemaFixture.TenantA, SchemaFixture.OrgA2);
+                await ExecuteAsync(app, transaction,
+                    "UPDATE public.organizations SET status=@status WHERE tenant_id=@tenant AND id=@organization",
+                    ("status", status), ("tenant", SchemaFixture.TenantA), ("organization", SchemaFixture.OrgA1));
+                await transaction.CommitAsync();
+            }
+            (await harness.Reader.ReadAsync(minter.For(PersonA, SchemaFixture.TenantA, SchemaFixture.OrgA1)))
+                .Covers.Should().Be(covers);
         }
-        finally
-        {
-            await MutateAsync(SchemaFixture.OrgA1, null, "UPDATE public.organizations SET status='Active' WHERE id=@organization",
-                ("organization", SchemaFixture.OrgA1));
-        }
+        finally { await isolated.DisposeAsync(); }
     }
 
     [Fact]
     public async Task Separate_lifecycle_statement_observes_a_commit_after_the_grant_statement()
     {
         await using var harness = await AuthorizationReaderHarness.CreateAsync(fixture, inner => new LifecycleProbe(inner,
-            async (_, _, _) => await MutateAsync(null, null, "UPDATE public.tenants SET status='Suspended' WHERE id=@tenant",
-                ("tenant", SchemaFixture.TenantA))));
+            async (_, _, _) => await MutateTenantLifecycleAsync("Suspended")));
         using var minter = new CandidateSource();
         try
         {
@@ -303,7 +317,7 @@ public sealed class IdentityAuthorizationReaderTests(IdentityAuthorizationReader
         }
         finally
         {
-            await MutateAsync(null, null, "UPDATE public.tenants SET status='Trial' WHERE id=@tenant", ("tenant", SchemaFixture.TenantA));
+            await MutateTenantLifecycleAsync("Trial");
         }
     }
 
@@ -495,6 +509,19 @@ public sealed class IdentityAuthorizationReaderTests(IdentityAuthorizationReader
         await frame.CompleteAsync();
         await FluentActions.Awaiting(() => reader.ReadAuthorizationAsync(unit, minter.For(PersonA, SchemaFixture.TenantA)))
             .Should().ThrowAsync<IdentityScopeLifecycleReadException>();
+    }
+
+    private async Task MutateTenantLifecycleAsync(string status)
+    {
+        await using var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(fixture.AppConnectionString);
+        await using var transaction = await app.BeginTransactionAsync();
+        await ScopeAsync(app, transaction, SchemaFixture.TenantA);
+        // This fixture retains an incomplete NULL-default root. Every UPDATE,
+        // including status setup/restoration, must obey its exclusive fence.
+        await TenancyLifecycleFixture.LockAsync(app, transaction, SchemaFixture.TenantA);
+        await ExecuteAsync(app, transaction, "UPDATE public.tenants SET status=@status WHERE id=@tenant",
+            ("status", status), ("tenant", SchemaFixture.TenantA));
+        await transaction.CommitAsync();
     }
 
     private async Task MutateAsync(Guid? organization, Guid? actor, string sql, params (string Name, object? Value)[] values)

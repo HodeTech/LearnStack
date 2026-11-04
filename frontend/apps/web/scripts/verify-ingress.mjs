@@ -3,14 +3,13 @@ import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import {
-  copyFileSync,
   cpSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
-  rmSync,
+  readdirSync,
   symlinkSync,
-  unlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { createServer, request as httpRequest } from 'node:http';
@@ -27,6 +26,9 @@ import {
   createPrivateScanner,
   fixtureEnvironment,
 } from './fixture-support.mjs';
+import { createCopiedRuntimeHostBroker } from './framework-proof-host-broker.mjs';
+import { instrumentCopiedIngressRuntime } from './framework-proof-ingress-source.mjs';
+import { frameworkProofBuildArguments, prepareFrameworkProof } from './framework-proof-support.mjs';
 import { createIngressReadiness, isReadinessNotification } from './ingress-readiness.mjs';
 import { stopTestChild } from './stop-test-child.mjs';
 
@@ -41,21 +43,84 @@ let api;
 let WebSocket;
 let sharp;
 let optimizerPixels;
-const optimizerImagePath = '/_next/static/media/ingress-optimizer-proof.png';
-const optimizerPath = '/_next/image?url=' + encodeURIComponent(optimizerImagePath) + '&w=64&q=75';
+let optimizerImagePath;
+let optimizerPath;
 const secret = randomBytes(32).toString('base64url');
 const scanners = [];
+// Only the owning ingress-control parent supplies this exact verified artifact.
+const frameworkTemplate = undefined;
 let verificationFailed = false;
 const responseScanner = createPrivateScanner([secret]);
 const diagnosticsLeaked = () => scanners.some((scanner) => scanner.leaked);
 const fence = randomBytes(16).toString('hex');
 const children = [];
 const readiness = new WeakMap();
+const runtimeBrokers = new WeakMap();
+const brokerFor = (child) => runtimeBrokers.get(child);
 const upgrades = [];
+const upgradeEvidence = createUpgradeEvidence();
 const observations = new Map();
 let observationId = 0;
 let bootstrapCalls = 0;
 let listenerFailed = false;
+
+/** Consume every validated relay observation in the fixed order of this proof. */
+function createUpgradeEvidence() {
+  const native = { surface: 'native', sanitized: false };
+  const sink = { surface: 'sink', sanitized: true };
+  const phases = [
+    ['production', Array.from({ length: 6 }, () => native)],
+    ['development', Array.from({ length: 4 }, () => native)],
+    ['hmr', [native, sink]],
+    ['hmr', [native, sink]],
+  ];
+  let cursor = 0;
+  let index = 0;
+  const refuse = () => {
+    throw new Error('Ingress upgrade observations refused');
+  };
+  const matches = (actual, expected) => {
+    if (actual.length !== expected.length) return false;
+    for (let ordinal = 0; ordinal < expected.length; ordinal++) {
+      if (!Object.hasOwn(actual, ordinal)) return false;
+      const row = actual[ordinal];
+      const item = expected[ordinal];
+      if (
+        !row ||
+        typeof row !== 'object' ||
+        Array.isArray(row) ||
+        Object.keys(row).sort().join(',') !== 'sanitized,surface' ||
+        row.surface !== item.surface ||
+        row.sanitized !== item.sanitized
+      )
+        return false;
+    }
+    return true;
+  };
+  return Object.freeze({
+    consume(phase, messages) {
+      const selected = phases[index];
+      if (!selected || selected[0] !== phase || !Array.isArray(messages)) refuse();
+      const expected = selected[1];
+      const actual = messages.slice(cursor);
+      if (!matches(actual, expected)) refuse();
+      cursor = messages.length;
+      index++;
+    },
+    complete(messages) {
+      if (
+        !Array.isArray(messages) ||
+        index !== phases.length ||
+        cursor !== messages.length ||
+        !matches(
+          messages,
+          phases.flatMap((phase) => phase[1]),
+        )
+      )
+        refuse();
+    },
+  });
+}
 
 try {
   fixtureRoot = owner.ownRoot(mkdtempSync(join(tmpdir(), 'learnstack-production-ingress-')));
@@ -180,115 +245,70 @@ try {
     ].join('\n'),
     { mode: 0o600 },
   );
-  // Both the image fixture/cache and the later mutant belong to this copy.
-  // Never write into the caller's production build through a symlink.
-  cpSync(join(appRoot, '.next'), join(app, '.next'), {
-    recursive: true,
-    filter: (path) => path !== join(appRoot, '.next/cache'),
-  });
+  // Current sources and native output belong to this copy; no generated tree
+  // from another build can satisfy the guarded producer or native launch.
+  for (const name of [
+    'src',
+    'scripts',
+    'package.json',
+    'next.config.ts',
+    'next-env.d.ts',
+    'tsconfig.json',
+    'tsconfig.server.json',
+    'postcss.config.cjs',
+    'tailwind.config.ts',
+    '.eslintrc.cjs',
+  ])
+    cpSync(join(appRoot, name), join(app, name), {
+      recursive: true,
+      filter: (path) =>
+        !/\.test\.[jt]sx?$/.test(path) &&
+        path !== join(appRoot, 'src/test') &&
+        !path.startsWith(join(appRoot, 'src/test/')),
+    });
+  if (existsSync(join(appRoot, 'public')))
+    cpSync(join(appRoot, 'public'), join(app, 'public'), { recursive: true });
+  symlinkSync(join(appRoot, 'node_modules'), join(app, 'node_modules'), 'dir');
+  prepareFrameworkProof({ sourceApp: appRoot, app, profile: 'ingress' });
   const optimizerImage = await sharp({
     create: { width: 2, height: 2, channels: 4, background: '#216ba5' },
   })
     .png()
     .toBuffer();
   optimizerPixels = await sharp(optimizerImage).ensureAlpha().raw().toBuffer();
-  mkdirSync(join(app, '.next/static/media'), { recursive: true });
-  writeFileSync(join(app, '.next/static/media/ingress-optimizer-proof.png'), optimizerImage);
-  for (const name of ['.server', 'node_modules', 'src']) {
-    symlinkSync(join(appRoot, name), join(app, name), 'dir');
-  }
-  for (const name of ['package.json', 'next.config.ts', 'tsconfig.json']) {
-    copyFileSync(join(appRoot, name), join(app, name));
-  }
-  copyFileSync(
-    join(appRoot, 'scripts/development-hmr.mjs'),
-    join(app, 'scripts/development-hmr.mjs'),
-  );
-  copyFileSync(
-    join(appRoot, 'scripts/ingress-readiness.mjs'),
-    join(app, 'scripts/ingress-readiness.mjs'),
+  // A real static import makes Next emit the owned image before its build
+  // identity is sealed. Never add an unbound file into an admitted .next tree.
+  const imageSource = join(app, 'src/app/ingress-image-control');
+  mkdirSync(imageSource, { recursive: true });
+  writeFileSync(join(imageSource, 'ingress-optimizer-proof.png'), optimizerImage);
+  writeFileSync(
+    join(imageSource, 'route.ts'),
+    "import image from './ingress-optimizer-proof.png';\n" +
+      "export const dynamic = 'force-dynamic';\n" +
+      'export function GET() { return Response.json({src: image.src}); }\n',
   );
   writeFileSync(join(app, '.env.production.local'), 'DEBUG=next:*\n');
   writeFileSync(join(app, '.env.development.local'), 'DEBUG=next:*\n');
+  // Stock Next comparisons retain this distinct preload; the native copied
+  // child installs its literal listener observer after private validation.
   writeFileSync(
     join(app, 'scripts/bind-proof.mjs'),
     `
-  import { Server } from 'node:net';
-  const listen = Server.prototype.listen;
-  Server.prototype.listen = function (...args) {
-    this.once('listening', () => {
-      const address = this.address();
-      if (address && typeof address === 'object') process.send?.({ kind: 'bound', pid: process.pid, port: address.port, address: address.address });
-    });
-    return listen.apply(this, args);
-  };
-  `,
+import { Server } from 'node:net';
+const listen = Server.prototype.listen;
+Server.prototype.listen = function (...args) {
+  this.once('listening', () => {
+    const address = this.address();
+    if (address && typeof address === 'object') process.send?.({ kind: 'bound', pid: process.pid, port: address.port, address: address.address });
+  });
+  return Reflect.apply(listen, this, args);
+};
+`,
   );
   // Observe automatic Next upgrade registrations in the disposable fixture only.
   // No diagnostic route, request value or probe is added to the shipped launcher.
-  const launcher = readFileSync(join(appRoot, 'scripts/public-server.mjs'), 'utf8');
-  const handlerAnchor = '  const handle = app.getRequestHandler();';
-  const listenerAnchor = "  server.listen(PUBLIC_HTTPS_PORT, '127.0.0.1',";
-  const prepareAnchor = '  await app.prepare();';
-  const importAnchor = "  const { default: next } = await import('next');";
-  for (const anchor of [handlerAnchor, listenerAnchor, prepareAnchor, importAnchor])
-    assert.equal(launcher.split(anchor).length, 2, 'Ingress instrumentation anchor must be unique');
-  writeFileSync(
-    join(app, 'scripts/public-server.mjs'),
-    launcher
-      .replace(
-        importAnchor,
-        `  if (process.argv.includes('--dev')) {
-    const { boundNextVersionFetch } = await import('./ingress-readiness.mjs');
-    globalThis.fetch = boundNextVersionFetch(globalThis.fetch, (observation) => {
-      if (process.connected) process.send({ kind: 'version-fetch', pid: process.pid, ...observation }, () => {});
-    });
-  }
-${importAnchor}`,
-      )
-      .replace(
-        prepareAnchor,
-        `  process.send?.({ kind: 'readiness', pid: process.pid, phase: 'preparing' });
-  await app.prepare();
-  process.send?.({ kind: 'readiness', pid: process.pid, phase: 'prepared' });`,
-      )
-      .replace(
-        handlerAnchor,
-        `  let nextCalls = 0;
-    let sinkCalls = 0;
-    const nextHandle = app.getRequestHandler();
-    const handle = (...args) => { nextCalls++; return nextHandle(...args); };
-    const emit = upgradeSink.emit.bind(upgradeSink);
-    upgradeSink.emit = (event, ...args) => {
-      if (event === 'upgrade') sinkCalls++;
-      return emit(event, ...args);
-    };
-    process.on('message', async (message) => {
-      if (message?.kind !== 'observe') return;
-      const marker = message.fence + ':' + message.id + ':end\\n';
-      await Promise.all([process.stdout, process.stderr].map((stream) =>
-        new Promise((resolve) => stream.write(marker, resolve))));
-      process.send?.({ id: message.id, nextCalls, sinkCalls, debugDisabled: process.env.DEBUG === '-*', environmentSafe: process.env.NODE_TLS_REJECT_UNAUTHORIZED === '1' && ['NODE_OPTIONS', 'NODE_EXTRA_CA_CERTS', 'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'INGRESS_ENV_CANARY'].every((key) => process.env[key] === undefined) });
-    });`,
-      )
-      .replace(
-        listenerAnchor,
-        `  for (const [surface, target] of [['native', server], ['sink', upgradeSink]]) {
-      const register = target.on.bind(target);
-      target.on = (event, listener) => register(event, event !== 'upgrade' ? listener :
-        (request, socket, head) => {
-          process.send?.({ surface, sanitized:
-            !request.headers['x-matched-path'] &&
-            !request.headers['x-middleware-subrequest'] &&
-            request.rawHeaders.filter((value, index) => index % 2 === 0 &&
-              value.toLowerCase() === 'host').length === 1 });
-          return listener(request, socket, head);
-        });
-    }
-    ${listenerAnchor.trimStart()}`,
-      ),
-  );
-  assert.notEqual(readFileSync(join(app, 'scripts/public-server.mjs'), 'utf8'), launcher);
+  const launcher = join(app, 'scripts/public-server-runtime.mjs');
+  writeFileSync(launcher, instrumentCopiedIngressRuntime(readFileSync(launcher, 'utf8')));
 
   await checkpoint('setup');
   await run();
@@ -301,24 +321,39 @@ ${importAnchor}`,
     assert.equal(diagnosticsLeaked(), false, 'Private material entered shutdown diagnostics');
 }
 
-function start(argv, dev = false) {
+function start(argv, dev = false, observeBinding = true) {
   owner.assertActive();
+  const nativeRuntime = argv[0] === join(app, 'scripts/public-server.mjs');
   const env = fixtureEnvironment({
     root: fixtureRoot,
     nodeEnv: dev ? 'development' : 'production',
     debug: argv.some((argument) => argument.endsWith('public-server.mjs')) ? 'next:*' : '',
   });
   const child = owner.ownChild(
-    spawn(process.execPath, ['--import', join(app, 'scripts/bind-proof.mjs'), ...argv], {
-      cwd: app,
-      env,
-      stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
-      detached: process.platform !== 'win32',
-    }),
+    spawn(
+      process.execPath,
+      [
+        ...(observeBinding && !nativeRuntime
+          ? ['--import', join(app, 'scripts/bind-proof.mjs')]
+          : []),
+        ...argv,
+      ],
+      {
+        cwd: app,
+        env,
+        stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+        detached: process.platform !== 'win32',
+      },
+    ),
   );
-  const childReadiness = createIngressReadiness(child);
+  const broker = nativeRuntime
+    ? createCopiedRuntimeHostBroker(child, { app, profile: 'ingress' })
+    : null;
+  if (broker) runtimeBrokers.set(child, broker);
+  const proofChannel = broker?.proof ?? child;
+  const childReadiness = createIngressReadiness(proofChannel);
   readiness.set(child, childReadiness);
-  child.on('message', (message) => {
+  proofChannel.on('message', (message) => {
     if (isReadinessNotification(message)) return;
     if (message.id) observations.get(message.id)?.receive(message);
     else upgrades.push(message);
@@ -364,7 +399,18 @@ function observe(child) {
         resolve(result);
       },
     });
-    child.send({ kind: 'observe', id, fence }, (error) => {
+    const command = { kind: 'observe', id, fence };
+    if (brokerFor(child)) {
+      try {
+        brokerFor(child).send(command);
+      } catch (error) {
+        clearTimeout(timer);
+        observations.delete(id);
+        reject(error);
+      }
+      return;
+    }
+    child.send(command, (error) => {
       if (!error) return;
       clearTimeout(timer);
       observations.delete(id);
@@ -487,7 +533,70 @@ async function ready(child, tls, port) {
     probe: () => call(tls, port, '/api/healthz'),
     assertActive: owner.assertActive,
   });
+  if (brokerFor(child))
+    assert.ok(brokerFor(child).capture.family(), 'Native runtime family captured before readiness');
   console.warn('Ingress readiness observation: ' + JSON.stringify(observation));
+}
+
+async function reuseCopiedFramework() {
+  const helper = start(
+    [join(app, 'scripts/framework-proof-reuse.mjs'), app, frameworkTemplate],
+    false,
+    false,
+  );
+  let failed = false;
+  let output = false;
+  helper.once('error', () => {
+    failed = true;
+  });
+  for (const stream of [helper.stdout, helper.stderr])
+    stream.on('data', () => {
+      output = true;
+    });
+  const result = await new Promise((resolve) =>
+    helper.once('close', (code, signal) => resolve({ code, signal })),
+  );
+  const stopped = await stopTestChild(helper);
+  if (
+    failed ||
+    output ||
+    stopped.forced ||
+    result.signal !== null ||
+    ![0, 10].includes(result.code)
+  )
+    throw new Error('Fixture template reuse refused');
+  return result.code === 0;
+}
+
+async function buildCopiedFramework() {
+  const reused =
+    frameworkTemplate && existsSync(frameworkTemplate) ? await reuseCopiedFramework() : false;
+  if (!reused) {
+    // The bind/rescue probe owns long-lived server observations, not a compiler
+    // process: its rescue socket would otherwise keep a completed build alive.
+    const build = start(frameworkProofBuildArguments(app), false, false);
+    const code = await new Promise((resolve, reject) => {
+      const deadline = setTimeout(
+        () => reject(new Error('Owned production build deadline')),
+        180_000,
+      );
+      build.once('error', () => {
+        clearTimeout(deadline);
+        reject(new Error('Owned build startup'));
+      });
+      build.once('close', (code) => {
+        clearTimeout(deadline);
+        resolve(code);
+      });
+    });
+    assert.equal(code, 0, 'Owned current-source production build');
+  }
+  const candidates = readdirSync(join(app, '.next/static/media')).filter((name) =>
+    /^ingress-optimizer-proof\.[a-f0-9]+\.png$/.test(name),
+  );
+  assert.equal(candidates.length, 1, 'Owned imported optimizer image is unambiguous');
+  optimizerImagePath = '/_next/static/media/' + candidates[0];
+  optimizerPath = '/_next/image?url=' + encodeURIComponent(optimizerImagePath) + '&w=64&q=75';
 }
 
 async function run() {
@@ -506,6 +615,8 @@ async function run() {
     ),
     { mode: 0o600 },
   );
+  await buildCopiedFramework();
+  await checkpoint('built');
   const native = start([join(app, 'scripts/public-server.mjs')]);
   await ready(native, true, 3000);
   await checkpoint('native');
@@ -532,8 +643,14 @@ async function run() {
   for (const path of ['/_next/webpack-hmr', '/unmatched', '/studio', '/api/healthz'])
     await callUpgrade('Host: localhost:3000', path);
   await callUpgrade('Host: localhost:3000', '/_next/webpack-hmr', 'POST');
-  assert.equal((await observe(native)).sinkCalls, 0, 'Production upgrades reached Next');
-  assert.deepEqual(upgrades, [], 'Production upgrades reached an automatic sink listener');
+  const productionUpgrades = await observe(native);
+  assert.equal(productionUpgrades.sinkCalls, 0, 'Production upgrades reached Next');
+  assert.equal(
+    productionUpgrades.nextCalls,
+    nativeState.nextCalls,
+    'Production upgrades reached Next',
+  );
+  upgradeEvidence.consume('production', upgrades);
   assert.equal(bootstrapCalls, 0, 'Production upgrades reached bootstrap');
 
   await assertOptimizerImage(
@@ -544,9 +661,7 @@ async function run() {
     assertOptimizerDisabled(response, method);
   }
 
-  const buildManifest = JSON.parse(
-    readFileSync(join(appRoot, '.next/build-manifest.json'), 'utf8'),
-  );
+  const buildManifest = JSON.parse(readFileSync(join(app, '.next/build-manifest.json'), 'utf8'));
   const asset = buildManifest.rootMainFiles.find((path) => path.endsWith('.js'));
   assert(asset, 'Built asset control must be nonempty');
   const assetPath = '/_next/' + asset;
@@ -728,10 +843,11 @@ async function run() {
   assert.equal(diagnosticsLeaked(), false, 'Private material entered diagnostics');
 
   await stopTestChild(stock);
-  await stopTestChild(native);
-  // Next 15.5.28 loads next.config.ts for this custom production server; its
-  // serialized build config contributes only isExperimentalCompile. Mutate the
-  // copied runtime configuration and restart, without touching shared output.
+  const nativeStopped = await stopTestChild(native);
+  assert.equal(nativeStopped.ownerCode, 0, 'Native owner joined its runtime family');
+  assert.equal(nativeStopped.ownerSignal, null);
+  // The configuration mutant gets a fresh normal build. Re-labelling an old
+  // .next after changing next.config.ts cannot qualify the guarded launcher.
   const configPath = join(app, 'next.config.ts');
   const disabledConfig = readFileSync(configPath, 'utf8');
   const enabledConfig = disabledConfig.replace(
@@ -740,6 +856,7 @@ async function run() {
   );
   assert.notEqual(enabledConfig, disabledConfig, 'Optimizer configuration mutant was not planted');
   writeFileSync(configPath, enabledConfig);
+  await buildCopiedFramework();
   const optimizerMutant = start([join(app, 'scripts/public-server.mjs')]);
   await ready(optimizerMutant, true, 3000);
   for (const method of ['GET', 'HEAD']) {
@@ -760,18 +877,18 @@ async function run() {
   }
   await observe(optimizerMutant);
   assert.equal(diagnosticsLeaked(), false, 'Private material entered optimizer diagnostics');
-  await stopTestChild(optimizerMutant);
+  const optimizerStopped = await stopTestChild(optimizerMutant);
+  assert.equal(optimizerStopped.ownerCode, 0, 'Optimizer mutant owner joined its runtime family');
+  assert.equal(optimizerStopped.ownerSignal, null);
   writeFileSync(configPath, disabledConfig);
 
-  // Development gets a fresh owned build directory.
-  rmSync(join(app, '.next'), { recursive: true, force: true });
-  // Next's development route discovery does not traverse a symlinked src tree.
-  unlinkSync(join(app, 'src'));
-  cpSync(join(appRoot, 'src'), join(app, 'src'), { recursive: true });
+  // The normal development producer owns the clean compiler/cache lifecycle.
   const development = start([join(app, 'scripts/public-server.mjs'), '--dev'], true);
   await ready(development, true, 3000);
+  const beforeDevelopmentUpgrades = await observe(development);
+  const beforeDevelopmentBootstrap = bootstrapCalls;
   assert.equal(
-    (await observe(development)).debugDisabled,
+    beforeDevelopmentUpgrades.debugDisabled,
     true,
     'Development dotenv re-enabled DEBUG',
   );
@@ -782,11 +899,23 @@ async function run() {
     ['/_next/webpack-hmr', 'POST'],
   ])
     await callUpgrade('Host: localhost:3000', path, method);
+  const afterDevelopmentUpgrades = await observe(development);
   assert.equal(
-    (await observe(development)).sinkCalls,
+    afterDevelopmentUpgrades.sinkCalls,
     0,
     'Unsupported development upgrade reached Next',
   );
+  assert.equal(
+    afterDevelopmentUpgrades.nextCalls,
+    beforeDevelopmentUpgrades.nextCalls,
+    'Unsupported development upgrade reached Next',
+  );
+  assert.equal(
+    bootstrapCalls,
+    beforeDevelopmentBootstrap,
+    'Unsupported development upgrades reached bootstrap',
+  );
+  upgradeEvidence.consume('development', upgrades);
   for (const signal of ['SIGTERM', 'SIGINT']) {
     const child =
       signal === 'SIGTERM'
@@ -795,13 +924,12 @@ async function run() {
     if (child !== development) await ready(child, true, 3000);
     await verifyHmrShutdown(child, signal);
   }
-  assert.deepEqual(upgrades, [
-    { surface: 'sink', sanitized: true },
-    { surface: 'sink', sanitized: true },
-  ]);
+  upgradeEvidence.complete(upgrades);
   assert.equal(diagnosticsLeaked(), false, 'Private material entered development diagnostics');
 
   async function verifyHmrShutdown(child, signal) {
+    const incarnation = brokerFor(child)?.capture.family()?.incarnation;
+    assert.match(incarnation, /^[0-9a-f]{32}$/, 'Actual development incarnation captured');
     const client = new WebSocket('wss://127.0.0.1:3000/_next/webpack-hmr', {
       ca: certificate,
       servername: 'localhost',
@@ -852,8 +980,9 @@ async function run() {
         1,
         'Exactly the accepted HMR upgrade must reach Next',
       );
+      upgradeEvidence.consume('hmr', upgrades);
       assert.equal(client.readyState, WebSocket.OPEN, 'HMR must remain open when shutdown begins');
-      // No stopTestChild here: its SIGKILL escalation would hide a hung launcher.
+      assert.equal(brokerFor(child).capture.family().incarnation, incarnation);
       await new Promise((resolve, reject) => {
         let exited = false;
         let closed = false;
@@ -889,6 +1018,9 @@ async function run() {
         client.once('close', onClose);
         child.kill(signal);
       });
+      const stopped = await stopTestChild(child);
+      assert.equal(stopped.ownerCode, 0, 'Development owner joined its runtime family');
+      assert.equal(stopped.ownerSignal, null);
     } finally {
       client.terminate();
     }

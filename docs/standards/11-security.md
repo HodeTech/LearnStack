@@ -27,6 +27,11 @@ model, and session-variable placement**),
 [ADR-0035 Demand-Gated Infrastructure](../decisions/0035-demand-gated-infrastructure.md),
 [ADR-0044 The Audit Write Path](../decisions/0044-audit-write-path.md)
 (the audit row's tenant, capture, redaction, and the append-only layers).
+Fixed-seed scope-only verification derives from
+[ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md); its separate
+completion purpose derives from [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md).
+Exact frontend dependency maintenance derives from
+[ADR-0083](../decisions/0083-owned-next-response-compression-cleanup.md).
 Public-read additions derive from
 [ADR-0052](../decisions/0052-anonymous-public-read-boundary.md); the private web
 ingress/caller and anonymous visitor budgets derive from
@@ -226,8 +231,8 @@ Use 256-bit random opaque `__Host-` session cookies: HttpOnly, Secure,
 SameSite=Lax, Path=/, no Domain. Credentials and raw profiles enter no browser
 projection. Verified host, browser binding, epoch and server state are required.
 The delivered opaque session/browser cookie format uses an eight-hour Max-Age;
-the standalone form-CSRF and login/logout proof cookies use 300 seconds, with
-Max-Age zero for an authorized deletion. These browser retention bounds never
+the entry, standalone form-CSRF and login/logout proof cookies use 300 seconds,
+with Max-Age zero for an authorized deletion. These browser retention bounds never
 extend server idle, provider or absolute authority and do not make restart
 survivable. The real cookie controls compare emitted headers, not browser defaults.
 
@@ -240,8 +245,8 @@ survivable. The real cookie controls compare emitted headers, not browser defaul
   provider returns an unchanged deadline. Full document navigation and the
   protected-document history veil require fresh network admission on return.
 - Retain 1,024 total owners, including unsettled work; 128 pending for five minutes,
-  16 pending per verified visitor IP, eight session/logout-return owners per
-  validated issuer/subject. Same-browser replacement settles old work first.
+  16 pending per verified visitor IP, eight verified entry/session/logout-return
+  owners per validated issuer/subject. Same-browser replacement settles old work first.
   No live other-device eviction or capacity bypass; source/subject refusal is
   429 and global capacity refusal is 503. Full expiry scans precede global refusal.
   AccountSite also remains subject to the API's shared peer/visitor limits under
@@ -265,22 +270,26 @@ survivable. The real cookie controls compare emitted headers, not browser defaul
   The [route failure classification](../decisions/0070-owned-tenant-bff-sessions.md#amendment-3--implementation-controls-and-diagnostic-scope-2026-10-24)
   separates malformed input from unavailable upstream/server work; it does not
   change grant-publication or revocation rules.
-- Return destinations are the closed local set `/`, `/studio` and `/portal`.
+- Return destinations are `/` and the exact local
+  [protected document set](07-frontend-architecture.md#native-entry-and-administration),
+  with canonical detail IDs and no query or fragment.
   No browser URL, unverified Host/forwarded header, provider error or callback
   query chooses the issuer, API origin, provider endpoint or post-logout authority.
   Callback/logout origins use only the independently verified native host/port.
   Fixed discovery/token/JWKS purposes use the private issuer, no redirects, one
   operation-wide deadline through body consumption and a decoded-byte bound.
-- Only the native AccountSite caller attaches its owned bearer to the fixed
-  authenticated endpoint. The public caller stays credential-free; neither
-  forwards browser Authorization or tenant/organization selectors. Source
+- Only the native configured callers attach owned bearers to the exact
+  AccountSite, self/admission and bounded administration operations. The public
+  caller stays credential-free; none forwards browser Authorization or
+  tenant/organization selectors. Source
   admission uses the verified socket provenance, not a browser-supplied address.
   Proxy deployment requires Phase 11's provenance qualification first.
 - BFF diagnostics emit only their closed lifecycle/failure categories. Do not
   expose raw provider exceptions, responses, URLs, subjects, handles or tokens.
   A category such as `provider_refused` is an observation, not a causal verdict,
   proof of settled cleanup or a durable application session-audit record.
-- Explicit BFF opt-in validates issuer/secret together. Disabled mode keeps public
+- Explicit BFF opt-in validates issuer/client secret, stable AuthorityId and the
+  separate native source secret together. Disabled mode keeps public
   requests independent of Keycloak; auth paths are 404 and protected shells 503.
   Restart signs sessions out. Multiple web processes require Phase 11's distributed
   adapter and actual refresh/revocation/interruption qualification first.
@@ -502,9 +511,9 @@ Every institution public read dispatches a marked request through ISender, audit
 Off and GET/HEAD only. Factory HostScope is an independent host ceiling intersected
 with normal reconciliation, query filters and RLS; it cannot widen through claims
 or the tenant-scope read hatch. Publication, access and lifecycle remain explicit
-application predicates. The four context writers and eight tenant setters are
-unchanged. Host resolution, flag-loader connections and rejected-assertion audit
-keep their separately sanctioned paths.
+application predicates. The four context writers remain unchanged; the current
+closed contract has ten logical Tenant setters below. Host resolution, flag-loader
+connections and rejected-assertion audit keep their separately sanctioned paths.
 
 READ ONLY protects the enlisted ambient transaction. Structural guards detect
 controller/helper/independent-connection bypasses; real app-role HTTP/database
@@ -532,6 +541,29 @@ ITenantContext member may manufacture it. The
 [Phase 03 Status block](../roadmap/phase-03-identity-admin.md) owns current
 qualification and review state. HostScope remains an independent narrowing ceiling.
 
+ADR-0080 separately admits fixed-seed prerequisite verification through the
+[canonical common-owner contract](05-database.md#fixed-seed-prerequisite-read-authority).
+Only its separately witnessed, closed operation may enable and clear `app.scope`
+temporarily on the already-announced ordinary ReadWrite owner. These scope-only
+SQL sites preserve Tenant/organization values and announcement generation; they
+are separately enumerated callers, not Tenant setters or context writers. Human
+`OperationReadWitness` minting remains Protected-only. The fixed source adds no
+SQL owner, connection, role, definer, permission or independently callable reader.
+
+ADR-0081 reuses that transition/barrier/cleanup machinery through a **separate
+single-consumer completion census**, leaving ADR-0080's exactly eight pristine
+consumers/source/projection unchanged. Its typed completion witness admits only
+the fixed origin command, actual locked immutable target preparation and current
+scoped console provenance. The [completion contract](05-database.md#fixed-seed-completion-read-authority)
+owns narrow Tenancy/Customization versus wide Education/Identity reads, qualified
+marker 2 and recovery. Its local current-state predicate grants no global/provider
+eligibility or historical profile-initializer claim. The fixed runner handles
+marker-2 exact-mapping repeats before command dispatch, MUST intents, witness or
+temporary scope; the command itself refuses completed markers. No new Tenant
+setter/context writer or physical owner follows. Separate exact minter/caller
+controls preserve Protected-human authority and the two existing scope-only SQL
+sites in one private transition.
+
 P02b-1 Step 1 adds a read-only announcement snapshot through
 `IUnitOfWork.GetTenantContextAnnouncement(DbTransaction?)`, under
 [ADR-0057](../decisions/0057-transactional-event-production-and-completion.md).
@@ -545,15 +577,16 @@ context writer, factory privilege or tenant retargeting authority.
 ### The out-of-band setters
 
 `TransactionBehavior` delegates the general announcement path to
-`TransactionExecutionCoordinator`. The baseline eight logical setter paths are
-enumerated below. The Accepted [candidate-reader extension](#owner-and-setter-census)
-adds the ninth; the API registers its confined live membership reader. ADR-0077's confined
-evidence methods extend central audit ownership, not the logical setter count. The current set is closed
+`TransactionExecutionCoordinator`. The current ten logical setter paths are
+enumerated below. ADR-0076 adds the ninth candidate reader and ADR-0078 the tenth
+own-context discovery reader; their source bounds are in the
+[owner census](#owner-and-setter-census). ADR-0077's confined evidence methods and
+ADR-0080's scope-only enable/clear sites do not add logical Tenant setters. The set
+is closed
 ([ADR-0040 § Who sets `app.tenant_id`, completely](../decisions/0040-ambient-unit-of-work.md),
-with its Amendments 3 and 7, is the authority; it is reproduced here because this section
-is the placement authority). Two set it on the **ambient** transaction; six own a **short
-transaction of their own**, because they run where no ambient transaction exists
-yet:
+with its dated Amendments, is the authority; it is reproduced here because this
+section is the placement authority). Two set it on the **ambient** transaction;
+eight own a **short transaction of their own** under their exact source contract:
 
 | Setter | Transaction | Why it is not `TransactionBehavior` |
 |---|---|---|
@@ -565,6 +598,8 @@ yet:
 | `IAuditStore.WriteBestEffortAsync` | its own short one | Same shape, SHOULD/MAY class; failures are logged and dropped |
 | The `AuditConfig` override loader | its own short read-only one | An out-of-band cached projection, never a request-path query |
 | The tenant-flag loader (`FeatureFlags`) | its own short read-only one | A cached projection of `tenant_feature_flags`, read on a cache miss wherever `IFeatureFlags` is asked — inside a request's transaction or outside any ([ADR-0045 § 2](../decisions/0045-entitlement-and-feature-flag-socket.md), [ADR-0040 Amendment 7](../decisions/0040-ambient-unit-of-work.md)) |
+| `PreContextIdentityAuthorizationReader` | its isolated physical READ ONLY child | Exact verified candidate coverage/grant and Tenancy lifecycle reads; never parent business state or ambient TenantContext |
+| `PreContextSelfDiscoveryScopeReader` | its own short physical READ ONLY one | Single-use captured own-Membership scope witness, followed only by bounded Tenancy label/destination reads |
 
 > **`IOrganizationScopeValidator` performs row-7 organization narrowing after
 > affirmative live Membership admission.** `TenantAssertionMiddleware` separately
@@ -589,7 +624,7 @@ variable is unset fails `WITH CHECK`
 ([ADR-0033 Amendment 2 § 5](../decisions/0033-audit-durability-model.md),
 [ADR-0044 § 9](../decisions/0044-audit-write-path.md)).
 
-Every one of the eight setters connects as `learnstack_app`. A setter that reached
+Every one of the ten setters connects as `learnstack_app`. A setter that reached
 for `learnstack_platform` would be invisible to the isolation suite, which is the
 failure mode [ADR-0003](../decisions/0003-tenant-isolation-defense-in-depth.md)
 names by hand.
@@ -606,25 +641,28 @@ runs on it.
 unit's announcement seam. Matching `[TenantOwned]` table names would put a parser
 between every query and the database to decide something the transaction already
 answers.
-Of the eight logical paths, the MediatR transaction owner and P02b-3's integration
+Of the ten logical paths, the MediatR transaction owner and P02b-3's integration
 transport mark the ambient transaction through sanctioned `IUnitOfWork`
 announcement methods. Durable acceptance and prepared subscriber execution both
 announce before their first app-role command; the production call-site census
-closes these implementations without adding a ninth logical setter. The durable
-idempotency store remains unimplemented. The five other paths,
+closes these implementations without adding another logical setter. Durable
+idempotency activation/proof belongs to the
+[phase Status block](../roadmap/phase-03-identity-admin.md). The five original raw paths,
 `OrganizationScopeValidator`,
 the two standalone audit writers and the two cached-projection loaders, issue raw
-`NpgsqlCommand`s on connections of their own, which EF interception never sees. `CachedHostToTenantResolver` is not in this set at all: it sets
+`NpgsqlCommand`s on connections of their own, which EF interception never sees.
+The ninth and tenth use their confined common-owner announcement seams and exact
+source/generation guards. `CachedHostToTenantResolver` is not in this set at all: it sets
 `app.resolving_host`, not `app.tenant_id`. That is also why the
 exemption list is empty, and why `PlatformAdminScope`, whose `BYPASSRLS` connection
 announces no tenant by design, is invisible to the guard by construction rather than by a
 hand-written exception. The concern the earlier wording had — that naming
 `TransactionBehavior` alone would reject legitimate transport and audit writes,
-and the future idempotency store's writes on its own short transaction — is real,
+and the durable idempotency store's writes on its own short transaction — is real,
 and is answered by the guard reading a marker rather than a behavior's name:
 a setter marks the transaction it
 opens if and only if it reaches EF. The audit store's writers have landed and reach none;
-the durable idempotency store will mark its own if it does. It throws
+the durable idempotency store must mark its own whenever it does. It throws
 `TenantContextMissingException` when it has not, which
 [`Tenant_Context_Guard_Fires_Only_On_An_Unmarked_Transaction`](21-architecture-tests-catalogue.md)
 asserts in both directions. **Packet 7 owns it**: Packet 6 ships
@@ -756,7 +794,9 @@ for the native controls and their delivery/review boundary.
 - Cookie sessions use `SameSite=Lax`.
 - BFF sign-in POST requires exact Origin and a random host-only double-submit
   proof; authenticated sign-out/extension requires exact Origin and a random
-  constant-time checked session-bound token. Apply admission before allocation.
+  constant-time checked session-bound token. Entry creation/selection/sign-out
+  uses the current entry-bound token; switch and administration forms use the
+  current session token. Apply admission before allocation or API work.
 - Sign-in HTML uses `same-origin` referrer policy so native forms retain that
   Origin proof. Provider redirects and the ID-token-hint logout exception retain
   `no-referrer`. Missing or `null` Origin remains a refusal.
@@ -766,7 +806,8 @@ for the native controls and their delivery/review boundary.
   auth POST admission requires a bounded Content-Length and no transfer encoding
   before Next can clone a body; the form parser independently bounds actual bytes,
   UTF-8, declared scalar fields and duplicates.
-- Only the exact auth POST set is open. SameSite and implicit framework checks
+- Only the [exact native auth/administration POST set](07-frontend-architecture.md#native-entry-and-administration)
+  is open. SameSite and implicit framework checks
   authorize neither sibling origins nor Server Actions.
 - Webhook endpoints verify signatures, not CSRF tokens.
 
@@ -929,6 +970,11 @@ and the edge has no way to know it.
   advisory of **any** severity anywhere in the graph, transitive packages included, and CI
   fails on it (`NuGetAuditMode` `all`, `NuGetAuditLevel` `low`, warnings as errors under
   CI) — so the seven days are a deadline for a fix, never for noticing.
+- [ADR-0083](../decisions/0083-owned-next-response-compression-cleanup.md)'s exact
+  frontend pin neither suspends this fix deadline nor exempts a security update
+  from qualification. Its maintainer prioritizes the reviewed replacement path;
+  likely inability to meet the deadline reopens the choice immediately. No
+  unqualified release or emergency bypass is authorized by that decision.
 - Lockfiles committed — `frontend/pnpm-lock.yaml` today. The backend has no NuGet lock
   files yet; they arrive in [Phase 11](../roadmap/phase-11-production-hardening.md).
 - No transitive dependency mismatch — `pnpm install --frozen-lockfile` in CI today, and
@@ -1056,8 +1102,10 @@ admission and live membership execution are implemented.** Derived from
 [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md),
 [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md) and
 [ADR-0074](../decisions/0074-membership-admission-under-ordered-locks.md).
-The bounded global owner does not activate new-user HTTP creation. The API
-uses the live membership adapter and the nine-setter census below. The
+The bounded P03-1 global owner alone does not activate new-user HTTP creation.
+The API uses the live membership adapter. The Accepted
+[native/global-self extension](#native-scope-and-global-self-admission) expands
+the nine-setter implementation baseline to a ten-setter contract. The
 [adopted database contract](05-database.md#identity-storage-contract)
 owns the global class, authority anchor, subject-key encoding, exact policies,
 owner functions and lock/snapshot rules; they are not duplicated here.
@@ -1074,12 +1122,14 @@ only a successful existing binding lookup creates that identity on P03-1's HTTP
 path. Neither raw claims nor a supplied UserId substitutes for either proof.
 Present malformed/reserved/duplicate actor or scope claims still refuse; absence
 of the compatibility actor claim permits only resolution of an existing Active
-binding. Ordinary HTTP never allocates or adopts a User.
+binding. Ordinary HTTP never allocates or adopts a User. The three exact
+global-self descriptors below are the only Accepted endpoint-dependent exception.
 
 Qualify the authority anchor and configuration before enabling identity admission;
 requests use that immutable admitted pair, with no anchor lookup before the quota.
 A mismatch refuses without deriving a new authority, repairing the anchor or
-using an email. The classified HTTP pipeline remains route-independent:
+using an email. The baseline classified HTTP pipeline remains route-independent
+outside that closed global-self exception:
 
 | Stage | P03-1 handoff |
 |---|---|
@@ -1125,10 +1175,11 @@ withhold authenticated content, retain the ordinary live owner without idle
 renewal, and add no automatic retry/refresh. Initial and refreshed publication
 still require the independently verified ID-token identity and matching positive
 AccountSite actor/scope witness, with existing late-publication fences. A failed
-post-refresh check revokes. The native provider identity still requires complete
-actor/tenant claims, and `LoginCompletion` still represents a published session.
-Align native opaque subject validation to the API's 255-character bound; no
-pre-session optional-actor/tenant projection is introduced here.
+post-refresh check revokes. The original P03-1 boundary required complete native
+actor/tenant claims and immediate session completion. ADR-0078 supersedes that
+projection with the separate verified-provider, entry and published-session
+types in [Native entry and publication](#native-entry-and-publication).
+Native opaque subject validation retains the API's 255-character bound.
 
 P03-1 adds no POST, SDK operation or endpoint-census entry. Its source changes
 must cover the actual handoffs rather than only relaxing a claim parser:
@@ -1143,8 +1194,9 @@ must cover the actual handoffs rather than only relaxing a claim parser:
 
 ### P03-3 new-user HTTP and native activation gate
 
-P03-3/G1/G6 owns the following decisions before adding a bootstrap HTTP caller.
-They are prerequisites, not policies selected or activated by this annex:
+ADR-0078/0079 select the following P03-3/G1/G6 contracts in the
+[native/global-self extension](#native-scope-and-global-self-admission).
+Implementation must qualify these prerequisites before adding the HTTP caller:
 
 - Provider signup/admission policy and the durable User/creation-audit budget.
   The retained subject registry and per-subject quota do not bound lifetime
@@ -1203,12 +1255,15 @@ or new global User/profile/directory projection. It closes before ordinary
 business continuation, including when a nested/post-lock parent already exists.
 Tenancy's lifecycle reader uses this same physical child owner/generation.
 
-Nine is the Accepted logical setter set. The pre-existing eight-path census
-above remains the baseline; its durable idempotency path is still unimplemented.
+Ten is the existing Accepted logical setter set under ADR-0078. The
+[phase Status block](../roadmap/phase-03-identity-admin.md) owns current
+implementation, activation and proof for those paths.
 The ninth's reader/owner has source, database and exact trusted-source controls.
 Global subject owners and the
 confined central denial-event methods add no tenant-context writer or logical
-setter. Standard 05 owns the source/configuration/retained-cleanup ledger.
+setter. ADR-0080's fixed-seed scope-only sites preserve those ten setters and four
+context writers; Standard 05 owns their distinct source/caller census and
+temporary state/write barriers as well as the source/configuration/retained-cleanup ledger.
 
 <a id="proposed-bounded-contention-and-proof"></a>
 
@@ -1235,7 +1290,8 @@ every binding read, unchanged anonymous/AccountSite method behavior and uniform
 401 during store failure. Existing seed provider/native sessions retain their
 complete identity and independent AccountSite witness. Standard 05 owns the
 creation/audit, RLS, race, reconciliation and owner-cleanup proof obligations;
-P03-3 owns new-user HTTP/native qualification above.
+new-user HTTP/native entry follows the [native admission contract](#native-scope-and-global-self-admission).
+[Phase 03](../roadmap/phase-03-identity-admin.md) owns qualification and packet status.
 
 Uncached binding admission adds a database dependency to every authenticated
 request, including credential-bearing public reads. Qualify actual app-role lookup
@@ -1291,7 +1347,8 @@ pipeline slot 5; the administrative directory is the sole added HTTP route.
   see committed state; they are not one atomic cross-module snapshot. A revocation
   committed before the act's grant query affects admission; already-admitted work
   may finish. Earlier subject binding remains the global User eligibility check.
-  P03-3 owns lifecycle-transition races and P03-10 closure fences before writers.
+  Lifecycle transitions retain the [P03-3 administration contract](#native-scope-and-global-self-admission);
+  P03-10 owns closure fences before writers.
 - Authorization storage unavailability is `503 dependency_unavailable`, never
   false noncoverage or invalid-token 401. Binding lookup retains its separate
   uniform 401 contract. Cancellation propagates through owned cleanup. No cache,
@@ -1323,6 +1380,189 @@ Event evidence never proves an uncertain business COMMIT. Successful
 ClaimAndMembership resolution followed by a conflicting assertion has its own
 Membership-confirmed event, outside the host allowance. Existing row-7/10/refused-14,
 anonymous/tenantless and earlier refusal evidence boundaries remain unchanged.
+
+## Native scope and global-self admission
+
+**Derives from:** [ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md)
+and [ADR-0079](../decisions/0079-bounded-identity-administration.md).
+**Accepted contract; activation proof pending.** The
+[phase Status block](../roadmap/phase-03-identity-admin.md) records implementation.
+The [database extension](05-database.md#p03-3-storage-and-replay-contract) owns
+function/ACL/policy/counter/setter and seed/idempotency lock details.
+
+### Source and pipeline
+
+The public host hop and native scope source are distinct purposes. Require the
+existing trusted network/host-hop proof plus a separate random 32-byte canonical
+43-character base64url `X-LearnStack-Native-Session-Secret`. Public-hop credentials
+alone never select scope. Native strips browser headers and constructs the exact
+held bearer, captured host/visitor and native headers itself. SDK/public callers
+gain no arbitrary bearer, selector or header escape hatch.
+
+Scoped calls carry one canonical lowercase nonreserved Tenant UUID in
+`X-LearnStack-Native-Tenant-Id` and optional Organization UUID in
+`X-LearnStack-Native-Organization-Id`; absence means explicitly orgless. The exact
+global-self set forbids both selectors. Empty, duplicate, malformed or partial
+families fail without fallback. Existing `X-Tenant-Id`/`X-Organization-Id` remain
+assertions against the final resolved context and never fill a native field.
+
+API secret acceptance is current plus at most one previous value, compared in
+constant time. A previous value needs an absolute UTC retirement instant at most
+15 minutes after qualification; restart never renews it and expiry adds no skew
+grace. Native sends current only. Reject placeholders, malformed/equal public and
+native values and incomplete rotation. Public-only mode needs no native key.
+Secrets remain behind the existing secret-provider boundary, outside logs,
+artifacts, DTOs, cookies and client code.
+
+The API reads current/previous credentials from secret-provider keys
+`Identity:NativeSession:CurrentSecret` and `Identity:NativeSession:PreviousSecret`;
+`Identity:NativeSession:PreviousRetiresAt` supplies the absolute retirement time.
+`Identity:SelfBootstrap:Enabled` defaults to false. Enabling creation without a
+qualified native source fails startup. Self-discovery destinations use the
+independently stored normalized host and deployment setting
+`Identity:NativeSession:HttpsPort` (443 by default, canonical decimal 1–65535).
+The local HTTPS web owner uses 3000. No submitted URL, forwarding port or query
+parameter can select this origin. Unrelated traffic and early source/shape
+refusals never resolve the lazy global-self SQL ports merely to traverse this
+middleware. Binding-dependent outcomes require their confined lookup.
+
+| Order | Boundary |
+|---|---|
+| 1 | Existing peer/visitor/body admission and independent real-host classification. Unknown-host precedence remains. |
+| 2 | Stock provider validation produces immutable `VerifiedProviderSubject`; credential gate preserves invalid-present 401. |
+| 3 | Existing once-per-request issuer/sub quota, before any identity SQL. |
+| 4 | Validate native-purpose credential and exact source/header shape; this grants no scope. |
+| 5a | Only the three exact global-self descriptors below branch; no generic unresolved MediatR entry or TenantContext. |
+| 5b | All other authenticated calls resolve the existing Active binding; retain provider/binding facts in `ValidatedTenantIdentity`. |
+| 6 | Admit a separate immutable `NativeScopeEvidence` bound to the actual request/credential/host/provenance; live candidate checks confirm Membership and lifecycle. |
+| 7 | Resolver creates `HostAndNativeSessionScope`; legacy assertion, surface classification and independent HTTP/application/resource policy checks remain. |
+
+Stored actor always comes from the Active binding. Provider tenant/org remain
+provider evidence, never rewritten as native evidence. For tenantless issuance,
+the full candidate tuple comes from native ownership. If provider tenant is also
+present, its entire tuple, including absent organization, must exactly match;
+an optional actor claim must match the stored actor. No source wins a conflict.
+Tenant host admits its own tenant and valid covered branches; Organization host
+requires the exact tenant/org and rejects orgless selection. Platform hosts
+(`localhost`/configured platform entry) have no native scoped AccountSite or
+Studio/Portal authority. Existing direct-bearer/platform-host rules remain.
+Native Studio/Portal use independently mapped Tenant/Organization origins;
+`manage.*` development origins are Tenant hosts with NULL org, not Platform hosts.
+
+The new origin permits only independently declared protected scoped operations,
+the existing read-only tenant-read witness where its Tenant clause succeeds,
+and actual-host-backed AccountSite. An Organization clause never mints tenant
+read authority. It adds no Platform authority, provisioning exception, SQL write
+hatch or `[PublicSurface]` admission. Extend the enum comment, factories,
+candidate minters, resolver, surface middleware and exact caller/operation tests
+together; an origin enum member alone is not authority.
+
+### Global-self outcomes and association
+
+| Descriptor | Closed result contract |
+|---|---|
+| GET `/api/v1/identity/self` | Off/no-store own Active binding witness or genuinely missing. Closing/Closed/conflict/collision is fixed 401, never missing; unavailable/indeterminate storage is 503. |
+| POST `/api/v1/identity/self/bootstrap` | Empty JSON, at most 512 bytes; explicit person-confirmed opt-in. Acknowledged new allocation 201 with exact self Location; matching Existing 200. No Membership or tenant session is implied. |
+| GET `/api/v1/identity/self/contexts` | Off/no-store own relationship navigation, 20 default/100 maximum and 1,024-character cursor; no supplied actor, profile, grant or global directory. |
+
+These require a known Tenant/Organization host, verified provider subject and
+native source. Missing bearer/source is masked 404; present invalid credential is
+fixed 401. Wrong method after admission is 405 with exact Allow. Malformed input
+is 400. Creation disabled is 403, disclosed only to this admitted subject; spent
+attempt windows are 429 with integer-seconds `Retry-After` in 1–86,400. Permanent
+capacity/unavailable/unknown creation result is 503, with no invented time hint.
+No token/source value or internal failure reason appears in the error body.
+
+Bootstrap is a tenantless natural-key convergent create, not a tenant-keyed
+Idempotent endpoint and not an external-side-effect operation. Reject an
+`Idempotency-Key` rather than inventing an unscoped namespace. The prepared
+subject-key owner serializes creation. A concurrent admitted loser returns 200
+Existing without another creation intent; the winner returns 201 only after
+acknowledged commit. A 503 or lost response establishes neither rollback nor
+success. A deliberate retry reads 200 if creation committed, or may attempt a new
+201 if still absent and all budgets admit; it never replays a fabricated audit
+success. Actual declared failed/indeterminate creation attempts retain central
+reconciliation. Existing binding reads declare no new creation intent.
+
+The server-only association witness contains stable AuthorityId, canonical subject
+digest, stored actor and applicable context. Native computes the existing
+[canonical digest](05-database.md#global-class-and-authority-anchor) from its
+independently validated ID-token subject and configured authority; exact issuer
+must also match that authority's admitted current issuer. It never hashes the
+issuer URI in place of the stable AuthorityId or trusts decoded access claims.
+Keep the witness only in the corresponding entry/credential revision; clear it
+with actual owner cleanup, refresh replacement, expiry and logout. It remains
+linkable personal data, not a browser projection or anonymous identifier.
+
+ADR-0078's server-only boundary also covers identity material embedded in an
+upstream cursor: reversible encoding does not make it a browser projection.
+Native entry continuations use authenticated confidentiality under one fresh,
+server-only entry key, bound to the actual owner, host, epoch and paging purpose.
+The key is independent of cookies/handles/CSRF and is cleared on publication,
+logout, expiry and close; actual work still governs owner release. This adds no
+configured credential, page registry or admission authority. The existing browser
+cursor bound and original entry lifetime remain. Validate canonical input and
+authentication before any discovery call or selection transition; malformed or
+foreign continuations are 400, not configuration/availability failures. API
+cursor/response validation remains strict.
+
+Entry selection freshly checks global-self `/identity/self/contexts`. A published
+same-host switch instead freshly reads `/identity/me/contexts` with the old held
+credential and immutable current scope, so tenant-wide coverage can suggest its
+eligible derived branches. Each API retains its own opaque cursor binding; a
+scoped refusal never falls back to global discovery. Destination hints remain
+non-authorizing suggestions and never bypass destination discovery/confirmation.
+
+Initial selection/explicit switch uses ordinary ReadWrite
+`POST /api/v1/identity/session-scope/admissions`, with MUST
+`identity.membership.admit_session_scope` before its witness and positive
+AccountSite. Unknown commit cannot publish success or prove browser delivery.
+Ordinary refresh instead runs internal `ValidateRefreshedScope`: Off GET self
+with the new held token and no selectors, then Off AccountSite with that same
+token and unchanged native context. It writes no new admission event, creates
+no User and changes no scope. Existing stricter post-refresh failure/revoke,
+single-flight, epoch and original lifetime rules remain.
+
+### Native entry and publication
+
+`ProviderIdentity`, the pre-session projection, separates verified issuer/sub and
+optional compatibility actor from `PublishedSessionIdentity`'s stored actor and API-admitted tenant/org.
+`LoginCompletion` carries only an entry; `SessionCompletion` requires explicit
+selection and positive API authority. Callback reserves the verified subject's
+owner capacity before self-discovery and publishes only the separate opaque
+`__Host-ls-entry` handle, never a tenant session. Credentials stay in existing
+bounded server owners; browser receives only opaque host cookies and
+entry/session-bound CSRF. RSC projections and immutable page snapshots carry no
+bearer, provider subject or association
+witness. Snapshot admission is 128 global/eight per owner and at most 256 KiB each;
+retain reservations through actual request/render/body cleanup, not timeout.
+
+An escaped transient provider label is advisory, never account continuity proof.
+Two subjects with the same name, truncation or Unicode presentation cannot
+authorize replacement: a live destination session is replaceable only by exact
+verified issuer/sub equality. A different subject keeps the old owner and uses
+explicit sign-out/re-entry recovery. Cross-host navigation supplies no
+source-person continuity or credential transfer. Same-host switching retains
+the original verified subject and absolute/provider deadlines.
+
+Entry sign-out uses the current entry CSRF and the held ID token to start provider
+logout, clearing only the entry cookie and setting an independent bounded logout
+proof. It preserves the old live session, sibling login transactions and their
+epoch. Actual selection work is aborted and joined; the entry/logout owner keeps
+its capacity until cleanup and return/expiry settle. If provider logout URL
+construction fails, return only to local `/api/auth/signin`; do not restore the
+discarded credentials. Provider SSO logout may affect other institution tabs, so
+localized recovery explains that scope without promising their continued login.
+
+An Off capability preview supplies nine finite Booleans with the exact predicates
+in the Identity specification. False previews produce no denial event and do
+not replace fresh mutation checks. Role/permission configuration reads remain
+MUST; aggregate ETags never silently cover independent capability state.
+
+Activation requires actual actorless/tenantless code+refresh, wrong association,
+terminal binding, held-work/switch/logout, source rotation, native HTTPS and
+same-label/different-subject browser controls. Gate acceptance and document lint
+establish none of those runtime outcomes.
 
 ## Incident Response
 

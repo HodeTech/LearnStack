@@ -1,7 +1,13 @@
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.Modules.Tenancy.Application.Abstractions;
 using LearnStack.Modules.Tenancy.Domain;
+using LearnStack.SharedKernel.Tenancy;
+using LearnStack.SharedKernel.Identifiers;
+using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Permissions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
+using Npgsql;
 using static LearnStack.Infrastructure.Persistence.WriteStoreTracking;
 using static LearnStack.Modules.Tenancy.Infrastructure.Persistence.TenancyWriteStoreTracking;
 
@@ -45,8 +51,26 @@ namespace LearnStack.Modules.Tenancy.Infrastructure.Persistence;
 /// registration; nothing outside that line should. The port is the type callers depend
 /// on.
 /// </remarks>
-public sealed class TenantWriteStore(TenancyDbContext db) : ITenantWriteStore
+public sealed class TenantWriteStore(TenancyDbContext db, IUnitOfWork? unit = null, IOperationInvocationContext? invocations = null) : ITenantWriteStore
 {
+    public async Task<Tenant?> FindForUpdateAsync(LearnStack.SharedKernel.Identifiers.TenantId id,
+        CancellationToken cancellationToken = default)
+    {
+        Tenant? result = null;
+        await TenancyAdministrationStorageBoundary.WriteAsync(db, unit, invocations, async () =>
+        {
+            PrepareLockedRead(db);
+            if (id != db.CurrentTenantId) throw new InvalidOperationException("Tenant root lock scope is invalid.");
+            await using var command = new NpgsqlCommand("SELECT id FROM public.tenants WHERE id=@id FOR NO KEY UPDATE",
+                (NpgsqlConnection)db.Database.GetDbConnection(), (NpgsqlTransaction)db.Database.CurrentTransaction!.GetDbTransaction())
+            { CommandTimeout = 10 };
+            command.Parameters.AddWithValue("id", id.Value);
+            if (await command.ExecuteScalarAsync(cancellationToken) is null) return;
+            result = await FindAsync(id, cancellationToken);
+        });
+        return result;
+    }
+
     public Task<Tenant?> FindAsync(LearnStack.SharedKernel.Identifiers.TenantId id,
         CancellationToken cancellationToken = default) => db.Tenants.AsSingleQuery()
         .Include(tenant => tenant.Locales).Include(tenant => tenant.FeatureFlags)
@@ -54,20 +78,67 @@ public sealed class TenantWriteStore(TenancyDbContext db) : ITenantWriteStore
 
     public Task AddAsync(Tenant aggregate, CancellationToken cancellationToken = default)
     {
-        db.Tenants.Add(aggregate);
-        return SaveTranslatingConflictsAsync(db, cancellationToken);
+        return TenancyAdministrationStorageBoundary.WriteAsync(db, unit, invocations, () =>
+        {
+            db.Tenants.Add(aggregate);
+            return SaveTranslatingConflictsAsync(db, cancellationToken);
+        });
     }
 
     public async Task UpdateAsync(Tenant aggregate, CancellationToken cancellationToken = default)
     {
-        EnsureTracked(db, aggregate);
-        await SaveDefaultLocaleInTwoPassesAsync(db, cancellationToken);
+        // Restrict is deliberate in the model. Mark removed contained rows Deleted
+        // before DetectChanges can interpret a severed required relationship as a null FK.
+        var detectChanges = db.ChangeTracker.AutoDetectChangesEnabled;
+        db.ChangeTracker.AutoDetectChangesEnabled = false;
+        try
+        {
+            EnsureTracked(db, aggregate);
+            var retained = aggregate.Locales.ToHashSet();
+            foreach (var locale in db.ChangeTracker.Entries<TenantLocale>()
+                .Where(entry => entry.Entity.TenantId == aggregate.Id && !retained.Contains(entry.Entity)).ToArray())
+                locale.State = EntityState.Deleted;
+        }
+        finally { db.ChangeTracker.AutoDetectChangesEnabled = detectChanges; }
+        try
+        {
+            await TenancyAdministrationStorageBoundary.WriteAsync(db, unit, invocations,
+                () => SaveDefaultLocaleInTwoPassesAsync(db, cancellationToken));
+        }
+        catch
+        {
+            // Two internal saves are one aggregate act, even when an outer caller absorbs the failure.
+            unit?.MarkRollbackOnly();
+            throw;
+        }
     }
 }
 
 /// <summary>One tracked setting root, on the same announced ambient context.</summary>
-public sealed class TenantSettingWriteStore(TenancyDbContext db) : ITenantSettingWriteStore
+public sealed class TenantSettingWriteStore(TenancyDbContext db, IUnitOfWork? unit = null, IOperationInvocationContext? invocations = null) : ITenantSettingWriteStore
 {
+    public async Task<TenantSetting?> FindForUpdateAsync(TenantSettingId id, CancellationToken cancellationToken = default)
+    {
+        TenantSetting? result = null;
+        await TenancyAdministrationStorageBoundary.WriteAsync(db, unit, invocations, async () =>
+        {
+            PrepareLockedRead(db);
+            await using var command = new NpgsqlCommand("""
+                SELECT id FROM public.tenant_settings WHERE tenant_id=@tenant AND id=@id
+                    AND organization_id IS NOT DISTINCT FROM @organization FOR NO KEY UPDATE
+                """, (NpgsqlConnection)db.Database.GetDbConnection(),
+                (NpgsqlTransaction)db.Database.CurrentTransaction!.GetDbTransaction())
+            { CommandTimeout = 10 };
+            command.Parameters.AddWithValue("tenant", db.CurrentTenantId.Value);
+            command.Parameters.AddWithValue("id", id.Value);
+            command.Parameters.AddWithValue("organization", NpgsqlTypes.NpgsqlDbType.Uuid,
+                db.CurrentOrganizationId is { } organization ? organization.Value : DBNull.Value);
+            if (await command.ExecuteScalarAsync(cancellationToken) is null) return;
+            result = await FindAsync(id, cancellationToken);
+        });
+        return result;
+    }
+
     private static readonly HashSet<string> OwnedConstraints = new(StringComparer.Ordinal)
     {
         "pk_tenant_settings", "ux_tenant_settings_tenant_id_organization_id_key",
@@ -77,14 +148,18 @@ public sealed class TenantSettingWriteStore(TenancyDbContext db) : ITenantSettin
 
     public Task AddAsync(TenantSetting aggregate, CancellationToken cancellationToken = default)
     {
-        db.TenantSettings.Add(aggregate);
-        return SaveTranslatingConflictsAsync(db, cancellationToken, OwnedConstraints);
+        return TenancyAdministrationStorageBoundary.WriteAsync(db, unit, invocations, () =>
+        {
+            db.TenantSettings.Add(aggregate);
+            return SaveTranslatingConflictsAsync(db, cancellationToken, OwnedConstraints);
+        });
     }
 
     public Task UpdateAsync(TenantSetting aggregate, CancellationToken cancellationToken = default)
     {
         EnsureTracked(db, aggregate);
-        return SaveTranslatingConflictsAsync(db, cancellationToken, OwnedConstraints);
+        return TenancyAdministrationStorageBoundary.WriteAsync(db, unit, invocations,
+            () => SaveTranslatingConflictsAsync(db, cancellationToken, OwnedConstraints));
     }
 }
 
@@ -93,19 +168,51 @@ public sealed class TenantSettingWriteStore(TenancyDbContext db) : ITenantSettin
 /// Same shape and the same three reasons as <see cref="TenantWriteStore"/>, which
 /// carries them: save per call, no <c>DbSet.Update</c>, tracked aggregates only.
 /// </remarks>
-public sealed class OrganizationWriteStore(TenancyDbContext db) : IOrganizationWriteStore
+public sealed class OrganizationWriteStore(TenancyDbContext db, IUnitOfWork? unit = null, IOperationInvocationContext? invocations = null) : IOrganizationWriteStore
 {
+    private static readonly HashSet<string> OwnedConstraints = new(StringComparer.Ordinal)
+    {
+        "pk_organizations", "ux_organizations_tenant_id_id", "ux_organizations_tenant_id_slug",
+    };
+
+    public async Task<Organization?> FindForUpdateAsync(OrganizationId id, CancellationToken cancellationToken = default)
+    {
+        Organization? result = null;
+        await TenancyAdministrationStorageBoundary.WriteAsync(db, unit, invocations, async () =>
+        {
+            PrepareLockedRead(db);
+            await using var command = new NpgsqlCommand("""
+                SELECT id FROM public.organizations WHERE tenant_id=@tenant AND id=@id FOR NO KEY UPDATE
+                """, (NpgsqlConnection)db.Database.GetDbConnection(),
+                (NpgsqlTransaction)db.Database.CurrentTransaction!.GetDbTransaction())
+            { CommandTimeout = 10 };
+            command.Parameters.AddWithValue("tenant", db.CurrentTenantId.Value);
+            command.Parameters.AddWithValue("id", id.Value);
+            if (await command.ExecuteScalarAsync(cancellationToken) is null) return;
+            // Lock acquisition and materialization are separate READ COMMITTED statements.
+            result = await db.Organizations.SingleOrDefaultAsync(row => row.Id == id && row.TenantId == db.CurrentTenantId,
+                cancellationToken);
+        });
+        return result;
+    }
+
     public Task AddAsync(Organization aggregate, CancellationToken cancellationToken = default)
     {
-        db.Organizations.Add(aggregate);
-        return SaveTranslatingConflictsAsync(db, cancellationToken);
+        return TenancyAdministrationStorageBoundary.WriteAsync(db, unit, invocations, () =>
+        {
+            db.Organizations.Add(aggregate);
+            return SaveTranslatingConflictsAsync(db, cancellationToken,
+                TenancyAdministrationStorageScope.IsHumanWrite(invocations) ? OwnedConstraints : null);
+        });
     }
 
     public Task UpdateAsync(
         Organization aggregate, CancellationToken cancellationToken = default)
     {
         EnsureTracked(db, aggregate);
-        return SaveTranslatingConflictsAsync(db, cancellationToken);
+        return TenancyAdministrationStorageBoundary.WriteAsync(db, unit, invocations,
+            () => SaveTranslatingConflictsAsync(db, cancellationToken,
+                TenancyAdministrationStorageScope.IsHumanWrite(invocations) ? OwnedConstraints : null));
     }
 }
 
@@ -118,6 +225,24 @@ public sealed class OrganizationWriteStore(TenancyDbContext db) : IOrganizationW
 /// </remarks>
 public sealed class PlatformHostMappingStore(TenancyDbContext db) : IPlatformHostMappingStore
 {
+    public async Task<PlatformHostMapping?> FindForUpdateAsync(string host, CancellationToken cancellationToken = default)
+    {
+        if (EffectiveHost.Normalize(host) != host) throw new ArgumentException("Projection host is not canonical.", nameof(host));
+        PrepareLockedRead(db, clearTracked: false);
+        foreach (var entry in db.ChangeTracker.Entries<PlatformHostMapping>().ToArray())
+            entry.State = EntityState.Detached;
+        await using var command = new NpgsqlCommand("""
+            SELECT host FROM public.platform_host_to_tenant WHERE tenant_id=@tenant AND host=@host FOR UPDATE
+            """, (NpgsqlConnection)db.Database.GetDbConnection(),
+            (NpgsqlTransaction)db.Database.CurrentTransaction!.GetDbTransaction())
+        { CommandTimeout = 10 };
+        command.Parameters.AddWithValue("tenant", db.CurrentTenantId.Value);
+        command.Parameters.AddWithValue("host", host);
+        if (await command.ExecuteScalarAsync(cancellationToken) is null) return null;
+        return await db.PlatformHostMappings.SingleOrDefaultAsync(mapping => mapping.Host == host
+            && mapping.TenantId == db.CurrentTenantId, cancellationToken);
+    }
+
     public Task AddAsync(
         PlatformHostMapping mapping, CancellationToken cancellationToken = default)
     {
@@ -136,6 +261,16 @@ public sealed class PlatformHostMappingStore(TenancyDbContext db) : IPlatformHos
 /// </remarks>
 internal static class TenancyWriteStoreTracking
 {
+    internal static void PrepareLockedRead(TenancyDbContext db, bool clearTracked = true)
+    {
+        if (db.Database.CurrentTransaction is null || db.ChangeTracker.Entries().Any(entry =>
+            entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted))
+            throw new InvalidOperationException("A retained Tenancy read needs its clean announced owner.");
+        // Fresh materialization after a wait must not reuse an earlier clean EF instance.
+        // The context guard validates the actual announcement on each SQL command.
+        if (clearTracked) db.ChangeTracker.Clear();
+    }
+
     private static readonly HashSet<string> LocaleConstraints = new(StringComparer.Ordinal)
     {
         "pk_tenant_locales", "ux_tenant_locales_tenant_id_is_default",

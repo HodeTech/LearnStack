@@ -11,10 +11,21 @@ The seeded browser/audit proof derives from
 [ADR-0056](../decisions/0056-public-demo-browser-and-lighthouse-enforcement.md).
 Native admission, stock-browser fallback and HMR proof controls derive from
 [ADR-0055](../decisions/0055-public-renderer-bootstrap-failures.md).
-The ordinary CI window derives from
+The current CI execution windows derive from
+[ADR-0082](../decisions/0082-current-source-ci-execution-windows.md), which
+narrowly supersedes the predecessor window clauses in
 [ADR-0075](../decisions/0075-ordinary-ci-job-window.md).
+The public-demo outer-window exception derives from
+[ADR-0085](../decisions/0085-public-demo-ci-execution-window.md); its implementation
+and complete hosted qualification remain separate gates.
+Version-qualified framework cleanup and generated-output proofs derive from
+[ADR-0083](../decisions/0083-owned-next-response-compression-cleanup.md).
 UI localization controls derive from [ADR-0027](../decisions/0027-frontend-i18n.md)
 and the [Accepted P02d-6 package](../roadmap/phase-02d-delivery-log.md#p02d-6-decision-package-2026-10-09).
+Protected native page/form lifetime and scoped UI controls derive from
+[ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md) and
+[ADR-0079](../decisions/0079-bounded-identity-administration.md). Their qualification
+and packet status live in [Phase 03](../roadmap/phase-03-identity-admin.md).
 
 Test pyramid, conventions, and what every change must cover.
 
@@ -27,7 +38,13 @@ alone proves no BFF session; Phase 06 retains the full browser OIDC journey.
 `verify-bff-session.mjs` through a bounded private pipe. Its separate stock-browser
 case invokes `verify-bff-browser.mjs` against native HTTPS with fake grants/API;
 natural BFCache observations and the explicit persisted-event counter remain
-distinct. Every fixture compiles the copied current native/Next sources, joins
+distinct. ADR-0078's separate real entry-pagination case uses more than twenty
+actual app-role Membership records and the real API; a stock browser imports the
+real callback's owned entry cookies, follows continuation links and Back, and
+observes HTML/URL/history confidentiality before second-page selection. This
+proves navigation after the real code flow, not browser execution of that flow.
+Only closed scalar observations leave its browser action. Every fixture compiles
+the copied current native/Next sources, joins
 owned processes/listeners and exports no raw tokens, cookies, callback/logout
 URLs, provider text or HTML. Ordinary CI compiles native web/authenticated SDK
 entries before test discovery/execution within its existing whole-job budget.
@@ -221,19 +238,51 @@ Base/Architecture use only the approved non-root child and owned systemd/cgroup
 boundary on exclusive Ubuntu 24.04 VMs: no Docker census/disposal, collector
 access or crash inventory. Ordinary retains Docker ownership; native alone
 retains collector provisioning and independent crash assertions.
-[ADR-0075](../decisions/0075-ordinary-ci-job-window.md) gives only verified ordinary
-producers a twenty-five-minute whole-job ceiling. Base/Architecture/native keep
-twenty minutes, both aggregates five minutes, and meta five minutes. The
-203-second cleanup/export/upload reserve and test-specific deadlines stay fixed.
-Expected verified producer identity selects API, receipt and enclosing
-measurement bounds; a receipt partition or global observation-limit increase
-cannot grant ordinary authority. The four disjoint receipt intervals sum below
-that producer's ceiling; nested workload/project observations are not additional
-disjoint time. The offline plan/result controls share one thirty-second
-allocation in meta.
+The existing positive-VM predicate recognizes GitHub's documented standard
+AWS/Azure pool as clarified by [ADR-0062 Amendment 4](../decisions/0062-native-crash-proof-ci-provisioning.md#amendment-4--standard-hosted-multi-cloud-vm-signatures-2026-11-04);
+container/identity/topology and authority checks remain mandatory.
+[ADR-0082](../decisions/0082-current-source-ci-execution-windows.md) gives verified
+Architecture producers a twenty-five-minute whole-job ceiling and verified
+ordinary Docker producers thirty minutes. Base/native remain twenty minutes,
+both aggregates five and meta five. [ADR-0085](../decisions/0085-public-demo-ci-execution-window.md)
+selects only the public-demo exception: a 22-minute job and 19-minute first-step
+work deadline, with its separate 180-second nominal reserve and internal
+720-second proof unchanged. All other jobs retain their existing ceilings.
+The backend 203-second reserve and all test-specific deadlines stay fixed.
+The closed `(mode, expected job, plan counts)` policy selects API, receipt and
+enclosing workload/project observation bounds: 1,500 Architecture, 1,800 ordinary,
+1,200 base/native seconds. Receipt partitions and global limit expansion confer
+no authority. Individual observations allow the inclusive ceiling; disjoint
+receipt intervals sum strictly below it. Nested observations are not additional
+disjoint time. Offline plan/result controls retain their shared thirty-second
+meta allocation (27-second TERM plus three-second kill); extensions must be
+re-measured against that unchanged allocation.
 Actual SDK/console/loaded-adapter hashes, disjoint phase intervals, first-result
 gaps and scoped resource observations accompany every successful execution.
 Uninstrumented fixture/container measurements remain unknown.
+
+**Native inventory allocations — derives from
+[ADR-0091](../decisions/0091-native-inventory-phase-allocations.md).**
+The verified native owner selects the initial phase before owned-test launch;
+cleanup selects the final default. Exact private phase strings are `preflight`
+and `final`; unknown shapes refuse. No environment/receipt/CLI selects a duration.
+
+| Inventory owner | Allocation / sublimit |
+|---|---:|
+| Native preflight file/image inventory | 60 s |
+| Native final file/image inventory | 20 s total |
+| `image_layer_snapshot` read-only commands, both phases and all rechecks | 10 s each |
+| Other commands, including the file-format probe | existing bounds; default 5 s |
+
+Each phase keeps one absolute shared deadline clipped by the execution/cleanup
+owner; every command is also clipped by its sublimit. Final metadata uses ten
+seconds per command within twenty seconds total. Neither sums of inner maxima
+nor actual retirement are reserved. Preflight consumes execution allowance, with
+`SCAN_SECONDS=20` still in the unchanged 203-second reserve ledger. Positive
+current image provenance, exact proved-directory pruning, complete rescan and
+fresh consistency checks remain mandatory. No filename/format, partial query or
+unreadable/changed/timed-out evidence supplies a clean inventory. Actual final
+fit remains the phase's source-bound hosted qualification obligation.
 
 Use **Re-run all jobs**, not failed-job or single-job reruns. All producer
 siblings must belong to the current run attempt. Before rerunning, retain the
@@ -380,6 +429,76 @@ Rules:
 - Playwright covers the same golden flows the backend E2E covers, from the user's perspective.
 - Visual regression covers the public renderer and page-builder block output.
 
+Protected page and form proofs follow
+[Frontend Architecture § Native Entry and Administration](07-frontend-architecture.md#native-entry-and-administration).
+Keep the following evidence distinct:
+
+- Pure/component controls cover all seven selected views, current capability and
+  exact-target scope, string versions, independent form keys, complete-array
+  Role/grant buttons, kernel restrictions and release adoption. Missing exact own
+  profile and disabled preferences use the declared fallback; a viewed member's
+  locale never changes the editor's UI. Stale/key-reuse recovery preserves bounded
+  original intent without a resubmit form or visible internal IDs. Unknown-outcome
+  recovery preserves the exact original retry body/key. Escaping and private-field
+  absence are assertions, not snapshot-review assumptions.
+- Actual native/Next HTML and Flight controls assert the finite page-read set,
+  no-store behavior and nonempty authorized documents across hosts/locales.
+  Exercise a passive GET separately from HEAD and captured prefetch: the former
+  still prepares page data without idle/refresh activity; the latter produce no
+  private page snapshot. Null passive reads emit no private page/title, not a
+  fabricated fallback. A passing blank speculative render cannot stand in for a
+  positive full-document proof.
+- Lifetime controls reserve actual snapshot credits and hold provider/API task
+  promises, the handler, registered `waitUntil` work and native write callbacks.
+  Exercise disconnect, timeout, expiry, logout/scope/revision change, concurrent
+  hosts, overflow and shutdown. Credits remain held until actual registered
+  cleanup settles, including nested registrations. Assert refusal before headers
+  and connection closure after headers without invented backpressure or completed
+  callbacks. Native entry and mutation/account-change recovery documents use the
+  same output fence; test late recovery output as well as successful page output.
+  Real HTTP `ServerResponse` controls destroy its socket before `close` and attempt
+  immediate write/end: no new callback credit may strand. An earlier issued
+  callback held separately must still retain the frame/snapshot until released.
+  A fake transport that always invokes remembered callbacks cannot refute this
+  Node behavior.
+- The source fence refutes added application awaits, schedulers, API/IO aliases,
+  transitive imports and framework background hooks in the selected RSC closure.
+  It permits only the passive page/provenance seam. This is bounded source analysis;
+  the lifetime owner joins registered work and does not claim to discover arbitrary
+  detached asynchronous work. Keep planted dirty twins alongside each exception.
+- DOM-local dirty-form controls assert a visible localized notice and a cancellable
+  navigation warning only while an editable form is dirty. Submitting one edited
+  form must not erase another form's warning; sign-out, cancelled submission,
+  expiry, replacement and unmount have separate controls. No field-value cache or
+  automatic submission is introduced by the warning mechanism.
+
+The native HTTPS stock-browser proof uses separate host cookie jars and the real
+five new page routes, native forms and session/history controls with fake grants
+and API responses. Each page requires its exact ready view and visible specific
+content; the shared protected wrapper and h1 are insufficient. An unavailable-view
+counter retains that wrapper/heading and must fail the same positive guard.
+Its JavaScript-disabled context visits both hosts/locales, observes visible profile
+controls, submits the native form, follows its fresh GET and signs out. Assert the
+visible no-script notice by a DOM locator and exact text; a text-selector engine
+that excludes `noscript` is not evidence that the browser hid that notice. This
+fixture proves browser behavior, not the real provider/API chain or manual
+assistive-technology conformance.
+An unavailable stored profile preference has no preselected replacement: test
+name-only invalidity and absent locale form data, deliberate empty/default or
+enabled choice, and preservation when that language becomes available again.
+The no-script journey also exercises the required choice through the native form;
+its closed receipt distinguishes this witness from ordinary enabled/default input.
+
+Keep natural Back navigation and the explicit persisted-event counter separate.
+A stock browser can perform fresh network navigation with zero natural BFCache
+restores. Do not report the synthetic event as a natural restore. Native POST error
+history must navigate to its checked GET recovery rather than repeat the POST;
+the GET history dirty twin must still exercise the actual reload branch. No-script
+success establishes usable forms/recovery, not script-based expiry/history
+withholding. Record actual browser/version and observed counters with the owning
+phase evidence. Keyboard/focus, reflow/zoom, contrast and real assistive-technology
+checks retain their separate evidence requirements below.
+
 **P02d-6 G38(b,c)/G43 — Steps 1–4 implemented, 2026-10-10.** Vitest
 covers synchronous views and pure mappings; all 31 active recommended JSX
 accessibility rules have blocking actual-config dirty/clean controls. Async pages
@@ -401,10 +520,11 @@ inventory exceeds the page bound; test-owned enabled RTL content proves directio
 and labelled UI fallback without rewriting historical seed inventory. Verify the
 approved local 307→404 chain, changed status URL, no direct internal bypass and
 HTTP 200 noindex known content-failure states. Under ADR-0055, completed product
-documents cost two API calls, fixed status/scaffold documents one and followed
+documents cost two API calls, fixed public status documents one and followed
 missing documents three. Metadata/layout/page/UI reuse adds no bootstrap; the next
 document re-reads. HEAD/RSC/prefetch and Flight fallback need separately proven
-counts. The
+counts. Protected native snapshots have their own finite read sets and are not
+covered by the public Education call budget. The
 [Step 3 record](../roadmap/phase-02d-delivery-log.md#adr-0055-step-3--production-admission-proof-and-closeout)
 records passing production replacement proofs; both independent Step 3 review
 rounds are complete. These HTTP/HTML/RSC proofs are not browser E2E evidence.
@@ -429,6 +549,109 @@ environment, both hosts/locales and assistive technology. If pending, P6 complet
 is not claimed. Full Playwright Test/axe remains Phase 06; the narrow seeded
 demo/browser/Lighthouse proof is delivered by P02d-7. G38(a)'s transport proofs and
 G38(d)'s guarded runner are already delivered.
+
+### Version-qualified Next response cleanup
+
+[ADR-0083](../decisions/0083-owned-next-response-compression-cleanup.md),
+[ADR-0084](../decisions/0084-owned-frontend-runtime-process-families.md) and
+[Standard 07](07-frontend-architecture.md#version-qualified-next-response-cleanup)
+require distinct installation, generated-output and actual-owner evidence.
+Acceptance registers these obligations; it does not establish their execution.
+
+- Verify the actual Node and selected pnpm executables at their supported
+  boundaries. Wrong patch/major versions, correct declarations paired with wrong
+  executables, missing or partial patches, changed census bytes and stale maps
+  must refuse. Verify equivalent semantics in every transformed copy and execute
+  actual supported development/production runtime families; an unused copy is no
+  exemption.
+- Prove clean generation and its input/output manifest. Old or changed `.next`
+  beside a corrected package, changed generated native output, mismatched sources
+  or producer, and unsupported development cache/compile paths refuse before
+  runtime import or listener creation. Copied fixtures consume the same verified
+  correction and generation provenance without broader live-source exemptions.
+- Use real healthy and peer-close HTTP/HTTPS controls with identity/gzip/deflate,
+  HEAD, empty, 204/304, static/direct-end and streamed responses. Include early
+  header flush with unknown length and an empty producer. Observe actual encoding
+  selection, compressor allocation/close, handler settlement, headers and wire
+  bytes separately. Zero body bytes or a bodyless status cannot certify no encoder.
+  Include actual native fence refusal after middleware allocation: preserve the
+  empty no-store 503 and removed encoding headers, observe real finish then close,
+  and join even a never-ended encoder. Final headers or prior finish cannot erase
+  allocation. A premature-close-only owner must fail this retained-resource case.
+  Preserve healthy encoding, bytes and backpressure. The terminal-only dirty
+  control must expose retained compression after its pipe settles.
+- Exercise a real initialized router and actual pipe rejection before headers or
+  encoding selection, abort before selection, synchronous construction failure,
+  early stream fault and rejected end work with an existing stream. Each boundary
+  transitions before joining, seals late allocation and joins every real resource
+  without waiting for its caller's future error response. Primary error identity
+  and separate cleanup faults survive, including combined failure and faults after
+  headers/finish; no unhandled rejection, second response or rollback is permitted.
+  Duplicate, missing or late required owner registration refuses; duplicate
+  installation cannot allocate another compressor.
+- Cover already-terminal attachment, close during blocked write/end, separately
+  held real write/end callbacks, drain and exact listener retirement. Actual finish
+  or close resolves terminal observation; premature close preserves expected-abort
+  classification without certifying delivery. No invented event, callback, timeout
+  or diagnostic disposal supplies positive cleanup.
+- Hold actual end work and independent native handler, registered framework,
+  provider/API and snapshot-pool work through transport/compressor closure.
+  Reservations remain held until their own required work settles. Preserve native
+  publication fences, refusal before headers, cancellation after headers and the
+  existing shutdown failure boundary. Observe actual native development/production
+  browser journeys separately from direct framework controls.
+
+- Under ADR-0084, prove owner and child startup stop latches before handshake,
+  before shutdown registration, between producer stages and during held real
+  `app.prepare()`, with SIGTERM, SIGINT and parent disconnect/death. No late
+  start/ready clears stop or permits listen. The one five-second watchdog starts
+  at the first stop, even before registration; neither registration nor a later
+  stop resets it. Expiry fails child and retains parent ownership until actual
+  family retirement; existing ten-second operation/body bounds remain unchanged.
+- Hold a real descendant after normal, failed and SIGKILL direct-child exit.
+  Refuse replacement until actual group absence. Prove initialized development
+  static-paths worker retirement and normal production/development restart.
+  Preserve actual admission/request/session/Next shutdown order. Runtime generic
+  broadcast-preload and group-kill mutants fail. Compiler/installer cancellation
+  still fails, including existing SDK cancellation controls and child-zero stop.
+- Check the distinct runtime result matrix: only actual listener-ready plus
+  requested graceful child-zero/no-signal stop and actual group absence succeeds.
+  Pre-ready/unsolicited zero, signal exits, faults, forged ready without binding
+  and parent loss fail. Handshake/IPC/log output never substitutes for bind plus
+  real HTTP/TLS checks. No new startup timeout is introduced.
+- Verify exact parent records and independent child graph/cache metadata without
+  child lease acquisition or cache preparation. Challenge/record/incarnation
+  confusion, wrong parent/mode, stale record, missing channel and direct child
+  entry refuse. Check owner builtins import closure and all boundary input
+  mutations, including copied literal child instrumentation before genuine build.
+- Capture immutable positive owner/runtime/producer family handles before proof
+  readiness. Owner-group absence alone does not release runtime roots. Exercise
+  parent loss, missing/stale handles, changed records, observation uncertainty,
+  preserved failure and positive all-family fixture reconciliation. No cached
+  group signal, forced cleanup, timer or receipt replaces actual retirement.
+- Migrate ingress/BFF bind, preparation, version-fetch, observe, advance,
+  render-control, sanitized native/sink upgrade, proof-listener and bounded
+  proof-shutdown schemas through the copied finite relay. Deliver each schema to
+  its existing host and retain forged/malformed/omitted/lost-frame, wrong-sender,
+  never-binds and runtime-replacement negatives. HMR/freshness/publication/session
+  proofs compare actual child incarnation, not only unchanged outer PID.
+
+- Deliver the public-admission copied profile's seven fixed modes, observe and
+  settled requests, exact correlated count/immutability replies and one actual
+  admission-shutdown count frame through its own closed relay. `settled` awaits
+  the real native completion observer. Test malformed/wrong-profile/replayed
+  values and ensure a fabricated reply cannot satisfy actual completion. Preserve
+  wire/context/late/HEAD/abort/active-shutdown/browser/HMR witnesses; no BFF count
+  clamp or new production capacity bound is inferred for admission counters.
+
+Frontend type/lint/full guarded tests and public browser/Lighthouse proofs remain
+required. Complete final-source hosted A followed by full B uses the same source,
+toolchain, plan and discovered population: all 27 successful jobs, 20 natural VM
+owners, 25 original ZIPs and exact zero-skip unions. The existing CI windows,
+203-second reserve and per-test deadlines remain unchanged. Retain and audit A
+before B; local controls, failed subsets and diagnostic disposal replace neither.
+Manual accessibility evidence retains its separate maintainer-owned disposition
+in [Phase 03](../roadmap/phase-03-identity-admin.md).
 
 ## Tenant Isolation Tests
 
@@ -504,6 +727,72 @@ If a test gets slow, fix the test before the suite.
   omitted discovered files. Symlinked workspace packages and test sources fail
 explicitly rather than disappearing from discovery. Real clean/planted runner
 controls prove refusal.
+
+### Frontend guarded execution
+
+**Derives from:** [ADR-0092](../decisions/0092-sdk-completion-and-frontend-job-windows.md),
+[ADR-0090](../decisions/0090-sdk-cold-prefix-proof-settings.md),
+[ADR-0089](../decisions/0089-provenance-control-timer-settings.md),
+[ADR-0088](../decisions/0088-frontend-ci-completion-windows.md),
+[ADR-0087](../decisions/0087-native-frontend-proof-windows.md),
+[ADR-0086 evidence erratum](../decisions/0086-native-web-test-package-window.md#amendment-1--frontend-evidence-scope-correction-2026-11-03).
+
+The frontend guard reconciles discovered test-file paths with reported files.
+It verifies nonempty, internally consistent Vitest counters and all reported
+cases Passed, with zero skipped/todo outcomes. It does not independently
+enumerate expected scenario IDs or detect a case conditionally never registered
+inside a reported file. Native registration/callback source controls provide
+separate narrower checks. Backend case-ID discovery/reconciliation is unchanged.
+
+| Test owner | Timer / observation setting |
+|---|---:|
+| Canonical `apps/web` aggregate, two file workers | 900 s |
+| Canonical `packages/sdk` aggregate | 360 s |
+| Other package aggregates | 180 s |
+| SDK cold typecheck/lint stop-request timer | 150 s |
+| Its asynchronous Vitest failure threshold | 160 s |
+| Selected ownership matrix outer and private group timers | 180 s each, distinct starts |
+| `runFrameworkOwnershipGroupCore` subprocess | 210 s |
+| Startup/workers/recovery Vitest cases | 220 s |
+| Per-runtime event observation schema | inclusive 0–120,000 ms from that process's start |
+| Closed 31-control router Node subprocess signal threshold | 20 s; five siblings retain 10 s |
+| Its combined synchronous Vitest failure threshold | 90 s |
+| Provenance 112-case Node subprocess signal threshold | 90 s |
+| Its synchronous Vitest failure threshold | 100 s |
+| Two sequential pnpm discovery probe signal thresholds | 15 s each |
+| Frontend CI job cancellation allowance | 30 min |
+
+`execFileSync`/`spawnSync` timeout settings request a signal and may keep waiting
+for child exit; they are not synchronous return-time maxima. Vitest cannot
+preempt a blocked synchronous callback. Its setting is a failure threshold;
+20 + 5 × 10 + 20 explains the combined allowance without guaranteeing a
+reserved interval or completion. The separate asynchronous package runner and
+workflow job retain outer expiry/cancellation ownership, without granting
+physical-cleanup credit. No hard inner watchdog is implied.
+
+The SDK cold-prefix stop request begins after private preparation; Vitest counts
+the whole case. Two stop settings total 300 seconds and two case thresholds total
+320 before preparation, joins and other work. The SDK aggregate of 360 seconds
+reserves neither sum nor a forty-second cleanup interval. With today's two tested
+packages, 900 + 360 = 1,260 leaves 540 nominal seconds inside the 1,800-second
+frontend job for setup/build/other proofs; neither sum guarantees fit. The uncached guard must accept; the cache-enabled counterfactual
+must refuse `output_unowned`, with the same source/ownership/cleanup assertions
+([direct control owner](21-architecture-tests-catalogue.md#next_response_cleanup_is_installed_and_owned)).
+
+All unlisted settings remain, including other Node controls, initialized-router
+proofs, separate initial/router 120-second drivers, provider startup and runtime
+HTTP/readiness/shutdown. Three 180-second group settings sum to 540 before
+router/source controls and wrapper work; 900 seconds is not a reservation of
+every nested maximum or a hosted-fit claim. Canonical paths select the package
+setting, not manifest names/environment.
+
+Package expiry invokes its existing owned-process-group SIGKILL and fails.
+Neither this invocation nor its child-process-double control proves retirement
+of independently detached native families, reservation release or root deletion.
+Actual native family handles/receipts/absence checks remain separate; uncertain
+physical cleanup receives no credit. This is not a claim that every timeout
+leaks. These aggregate native-proof runs are distinct from the pure-unit speed
+target above.
 
 ## Live Classroom Testing
 

@@ -58,6 +58,23 @@ public sealed class IdentityOperationAuthorizerTests
         Assert.Null(decision.ReadWitness);
     }
 
+    [Fact]
+    public async Task Own_profile_coverage_needs_no_profile_grant_and_never_mints_a_directory_witness()
+    {
+        using var fixture = new Fixture(own: true);
+        fixture.Facts(new AuthorizationMembershipFacts(Member, Branch, []));
+        var allowed = await fixture.AuthorizeAsync();
+        Assert.Equal(ProtectedOperationOutcome.Allowed, allowed.Outcome);
+        Assert.Equal(Member, Assert.Single(allowed.MembershipIds));
+        Assert.Empty(allowed.RoleIds);
+        Assert.Null(allowed.MatchedClause);
+        Assert.Null(allowed.ReadWitness);
+        fixture.Reader.ReadAsync(fixture.Candidate, Arg.Any<CancellationToken>()).Returns(
+            new IdentityAuthorizationResult(IdentityAuthorizationOutcome.NotCovered, Actor, Tenant, Branch, []));
+        Assert.Equal(ProtectedOperationOutcome.NotCovered, (await fixture.AuthorizeAsync()).Outcome);
+        await fixture.Reader.Received(2).ReadAsync(fixture.Candidate, Arg.Any<CancellationToken>());
+    }
+
     [Theory]
     [InlineData(IdentityAuthorizationOutcome.NotCovered, ProtectedOperationOutcome.NotCovered)]
     [InlineData(IdentityAuthorizationOutcome.Unavailable, ProtectedOperationOutcome.Unavailable)]
@@ -179,7 +196,7 @@ public sealed class IdentityOperationAuthorizerTests
     {
         private readonly InvocationSource _invocations = new();
         public Fixture(bool account = false, PermissionDefinition? permission = null, bool registerPermission = true,
-            OperationReadScope scope = OperationReadScope.Tenant, bool orgless = false)
+            OperationReadScope scope = OperationReadScope.Tenant, bool orgless = false, bool own = false)
         {
             Context = Substitute.For<ITenantContext>();
             Context.IsResolved.Returns(true);
@@ -188,7 +205,8 @@ public sealed class IdentityOperationAuthorizerTests
             Context.UserId.Returns(Actor);
             Context.Origin.Returns(TenantContextOrigin.HostAndClaim);
             Candidate = Source.Mint();
-            Policy = account ? OperationPolicy.ForAccount<Operation>("identity.test.account")
+            Policy = own ? OperationPolicy.ForOwnMembershipRead<Operation>("identity.test.own_profile")
+                : account ? OperationPolicy.ForAccount<Operation>("identity.test.account")
                 : OperationPolicy.ForProtected<Operation>("identity.test.read", permission ?? TenantAdmin, scope, orgless);
             Invocation = _invocations.Mint(new Operation(), Policy, Context, Candidate);
             var catalog = Substitute.For<IOperationPolicyCatalog>();

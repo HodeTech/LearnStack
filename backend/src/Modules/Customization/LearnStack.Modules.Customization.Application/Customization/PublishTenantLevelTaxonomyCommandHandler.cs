@@ -1,3 +1,4 @@
+using LearnStack.Modules.Customization.Application.Seeding;
 using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Customization.Application.Contracts.Customization;
 using LearnStack.Modules.Customization.Domain;
@@ -29,7 +30,8 @@ internal sealed class PublishTenantLevelTaxonomyCommandHandler(
     IUnitOfWork unitOfWork,
     ITenantContext tenantContext,
     IAuditSubject auditSubject,
-    IClock clock)
+    IClock clock,
+    ISeedCustomizationWriteGuard seedGuard)
     : IRequestHandler<PublishTenantLevelTaxonomyCommand, Result<TenantLevelTaxonomyDto>>
 {
     public async Task<Result<TenantLevelTaxonomyDto>> Handle(
@@ -41,6 +43,8 @@ internal sealed class PublishTenantLevelTaxonomyCommandHandler(
         {
             return CustomizationFailures.Unresolved<TenantLevelTaxonomyDto>();
         }
+
+        if (!await seedGuard.PrepareAsync(request, cancellationToken)) return Result<TenantLevelTaxonomyDto>.Fail(seedGuard.Failure);
 
         var successor = await taxonomies.FindAsync(TenantLevelTaxonomyId.From(request.TaxonomyId), cancellationToken);
 
@@ -101,6 +105,7 @@ internal sealed class PublishTenantLevelTaxonomyCommandHandler(
             }
         }
 
+        if (!seedGuard.IsCurrent(request)) return CustomizationFailures.BusinessRule<TenantLevelTaxonomyDto>("Seed", "lockey_business_rule_violation");
         successor.Publish(clock, actor);
 
         try

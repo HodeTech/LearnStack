@@ -100,7 +100,19 @@ public sealed partial class TenantRealmReconciliationTests(KeycloakFixture fresh
         AssertFailure(partial, "apply", "cancelled");
         partial.Mutations.Should().Be(1);
         var resumed = await KeycloakReconciliationDriver.RunAsync(fixture);
-        resumed.Success.Should().BeTrue("closed outcome: {0}/{1} after {2} mutating calls", resumed.Stage, resumed.Reason, resumed.Mutations);
+        var readbackWeb = await admin.ClientAsync("learnstack-web");
+        var readbackUris = readbackWeb.GetProperty("redirectUris").EnumerateArray().Select(value => value.GetString()).ToArray();
+        using var desiredRealm = JsonDocument.Parse(await File.ReadAllTextAsync(KeycloakFixture.RealmPath("learnstack")));
+        var desiredUris = desiredRealm.RootElement.GetProperty("clients").EnumerateArray()
+            .Single(client => client.GetProperty("clientId").GetString() == "learnstack-web")
+            .GetProperty("redirectUris").EnumerateArray().Select(value => value.GetString()).ToArray();
+        var uniqueCardinality = readbackUris.Length == desiredUris.Length
+            && readbackUris.Distinct(StringComparer.Ordinal).Count() == readbackUris.Length
+            && desiredUris.Distinct(StringComparer.Ordinal).Count() == desiredUris.Length;
+        var sameExactUriSet = uniqueCardinality && readbackUris.ToHashSet(StringComparer.Ordinal).SetEquals(desiredUris);
+        var sameOrder = readbackUris.SequenceEqual(desiredUris, StringComparer.Ordinal);
+        resumed.Success.Should().BeTrue("closed outcome: {0}/{1} after {2} mutating calls; SameExactURISet={3}; SameOrder={4}; UniqueCardinality={5}",
+            resumed.Stage, resumed.Reason, resumed.Mutations, sameExactUriSet, sameOrder, uniqueCardinality);
         resumed.Mutations.Should().BeGreaterThan(0);
         await AssertOwnedScopeAndMapperRepairAsync(admin, fixture);
         var second = await KeycloakReconciliationDriver.RunAsync(fixture);
@@ -232,6 +244,12 @@ public sealed partial class TenantRealmReconciliationTests(KeycloakFixture fresh
         (await admin.PutAsync("users/" + userId + "/groups/" + groupId, new { })).Should().Be(HttpStatusCode.NoContent);
         var scopes = await admin.GetAsync("client-scopes");
         var scopeId = Id(scopes.EnumerateArray().Single(value => value.GetProperty("name").GetString() == "learnstack-tenant-api"));
+        var web = await admin.ClientAsync("learnstack-web");
+        var nativeId = Id(scopes.EnumerateArray().Single(value => value.GetProperty("name").GetString() == "learnstack-native-session"));
+        // Preserve the original legacy-graph negative control: its inherited
+        // context is the reason migration must refuse before detaching anything.
+        (await admin.DeleteAsync("clients/" + Id(web) + "/default-client-scopes/" + nativeId)).Should().Be(HttpStatusCode.NoContent);
+        (await admin.PutAsync("clients/" + Id(web) + "/default-client-scopes/" + scopeId, new { })).Should().Be(HttpStatusCode.NoContent);
         var mapperPath = "client-scopes/" + scopeId + "/protocol-mappers/models";
         var mappers = await admin.GetAsync(mapperPath);
         var claim = aggregateActor ? "user_id" : "organization_id";
@@ -346,7 +364,7 @@ public sealed partial class TenantRealmReconciliationTests(KeycloakFixture fresh
         enabledExchange.StatusCode.Should().Be(HttpStatusCode.OK);
         var enabledToken = await KeycloakTokenVerifier.ValidateAsync(fixture, enabledExchange.AccessToken, "learnstack-api");
         (enabledToken.GetProperty("user_id").GetString() == identity.UserId.Value.ToString("D")).Should().BeTrue();
-        (enabledToken.GetProperty("tenant_id").GetString() == identity.Tenant.TenantId.Value.ToString("D")).Should().BeTrue();
+        enabledToken.TryGetProperty("tenant_id", out _).Should().BeFalse();
         enabledToken.TryGetProperty("organization_id", out _).Should().BeFalse();
         (enabledToken.GetProperty("sub").GetString() == userId).Should().BeTrue();
         enabledExchange.Window.AcceptsFresh(enabledToken, 900).Should().BeTrue();
@@ -628,12 +646,9 @@ public sealed partial class TenantRealmReconciliationTests(KeycloakFixture fresh
         exchange.StatusCode.Should().Be(HttpStatusCode.OK);
         var access = await KeycloakTokenVerifier.ValidateAsync(fixture, exchange.AccessToken, "learnstack-api");
         (access.GetProperty("user_id").GetString() == identity.UserId.Value.ToString("D")).Should().BeTrue();
-        (access.GetProperty("tenant_id").GetString() == identity.Tenant.TenantId.Value.ToString("D")).Should().BeTrue();
+        access.TryGetProperty("tenant_id", out _).Should().BeFalse("native web grants carry no provider context");
+        access.TryGetProperty("organization_id", out _).Should().BeFalse();
         if (subject is not null) (access.GetProperty("sub").GetString() == subject).Should().BeTrue("the existing provider subject is preserved");
-        if (identity.Tenant.MapHostToDefaultOrganization)
-            (access.GetProperty("organization_id").GetString() == identity.Tenant.DefaultOrganization.OrganizationId.Value.ToString("D"))
-                .Should().BeTrue();
-        else access.TryGetProperty("organization_id", out _).Should().BeFalse();
         exchange.Window.AcceptsFresh(access, 900).Should().BeTrue();
     }
 
@@ -647,18 +662,20 @@ public sealed partial class TenantRealmReconciliationTests(KeycloakFixture fresh
             (client.GetProperty("clientAuthenticatorType").GetString() == "client-secret").Should().BeTrue();
             client.GetProperty("standardFlowEnabled").GetBoolean().Should().Be(clientId == "learnstack-web");
             var expectedRedirects = clientId == "learnstack-web"
-                ? SeedData.All.Select(tenant => "https://" + tenant.Host + ":3000/api/auth/callback/keycloak") : [];
+                ? SeedData.All.SelectMany(tenant => new[] { tenant.Host, "manage." + tenant.Host })
+                    .Select(host => "https://" + host + ":3000/api/auth/callback/keycloak") : [];
             client.GetProperty("redirectUris").EnumerateArray().Select(value => value.GetString())
                 .Should().BeEquivalentTo(expectedRedirects);
             if (clientId == "learnstack-web")
                 client.GetProperty("attributes").GetProperty("post.logout.redirect.uris").GetString()!.Split("##")
-                    .Should().BeEquivalentTo(SeedData.All.Select(tenant => "https://" + tenant.Host + ":3000/"));
+                    .Should().BeEquivalentTo(SeedData.All.SelectMany(tenant => new[] { tenant.Host, "manage." + tenant.Host })
+                        .Select(host => "https://" + host + ":3000/"));
             client.GetProperty("webOrigins").GetArrayLength().Should().Be(0,
                 "the declared empty origin list survives redirect changes without provider-derived origins");
             client.GetProperty("attributes").TryGetProperty("access.token.lifespan", out _).Should().BeFalse();
             var defaults = await admin.GetAsync("clients/" + Id(client) + "/default-client-scopes");
             defaults.EnumerateArray().Select(value => value.GetProperty("name").GetString())
-                .Should().Contain(["basic", "learnstack-tenant-api", "unrelated-fixture-scope"]);
+                .Should().Contain(["basic", clientId == "learnstack-web" ? "learnstack-native-session" : "learnstack-tenant-api", "unrelated-fixture-scope"]);
         }
         var profile = await admin.GetAsync("users/profile");
         foreach (var name in new[] { "user_id", "tenant_id", "organization_id" })
@@ -798,7 +815,8 @@ public sealed partial class TenantRealmReconciliationTests(KeycloakFixture fresh
         realm["displayName"] = "Preserved warm-realm name";
         realm["ssoSessionMaxLifespan"] = 43200;
         var scopes = realm["clientScopes"]!.AsArray();
-        scopes.Remove(scopes.Single(value => value!["name"]!.GetValue<string>() == "learnstack-tenant-api"));
+        foreach (var name in new[] { "learnstack-tenant-api", "learnstack-native-session" })
+            scopes.Remove(scopes.Single(value => value!["name"]!.GetValue<string>() == name));
         scopes.Add(new JsonObject
         {
             ["name"] = "unrelated-fixture-scope",
@@ -831,7 +849,8 @@ public sealed partial class TenantRealmReconciliationTests(KeycloakFixture fresh
             client["attributes"]!["access.token.lifespan"] = "1800";
             client["attributes"]!["unrelated.fixture.key"] = "preserved";
             var defaults = client["defaultClientScopes"]!.AsArray();
-            defaults.Remove(defaults.Single(value => value!.GetValue<string>() == "learnstack-tenant-api"));
+            defaults.Remove(defaults.Single(value => value!.GetValue<string>() ==
+                (name == "learnstack-web" ? "learnstack-native-session" : "learnstack-tenant-api")));
             defaults.Add("unrelated-fixture-scope");
             if (name == "learnstack-web")
             {

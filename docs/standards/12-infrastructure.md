@@ -255,6 +255,12 @@ wiring or deployment proof.
   actual production topology, total instance capacity and operational controls
   before production activation; it cannot replace those P03-2 correctness proofs.
 
+ADR-0078's Accepted self-discovery extension uses sequential short global and
+ordinary-business contextual owners. It does not widen either auxiliary lane or
+retain an outer connector while waiting for another source. The
+[P03-3 source/function contract](05-database.md#p03-3-storage-and-replay-contract)
+owns its exact census and cleanup; production capacity remains Phase 11's.
+
 ## Object Storage Operations
 
 - SeaweedFS local; S3-compatible cloud storage in production.
@@ -295,6 +301,13 @@ See [10-observability.md](10-observability.md).
   rotated. The [accepted package](../roadmap/phase-02b-delivery-log.md#p02b-6-decision-package-2026-10-20)
   owns bounded tooling, selected-target validation and the no-credential-output
   contract; the [realm guide](../../infra/keycloak/README.md) owns local setup.
+- Accepted [ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md)
+  adds a separate native-purpose secret for API/native scope, never the public
+  hop or Keycloak client secret. Native also needs a private stable AuthorityId
+  matching the installed API authority; that identifier is configuration, not a
+  credential or browser projection. [Security's contract](11-security.md#native-scope-and-global-self-admission)
+  owns encoding, current/previous values and absolute retirement. Existing
+  startup-only secret-provider behavior remains; acceptance adds no hot reload.
 - **Development-only defaults in `infra/compose/*.yml` are not committed secrets.** A
   `${VAR:-literal}` fallback that only ever reaches a container in `Development` mode is
   exempt from [Standards 17 § Blockers](17-code-review.md)'s committed-secret rule, and

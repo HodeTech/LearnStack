@@ -4,6 +4,18 @@
 and its schema-level isolation suite; commands, host resolution and the request-level
 isolation suite shipped in Packet 7). P02d-2 Step 1 adds contextual verification/locale
 reads; Step 2 implements locale/branding writers, with both review rounds complete.
+The [ADR-0078](../../decisions/0078-native-session-scope-and-self-entry.md) /
+[ADR-0079](../../decisions/0079-bounded-identity-administration.md) native admission,
+administration and warm-preservation contracts are Accepted. The
+[phase Status block](../../roadmap/phase-03-identity-admin.md) owns implementation
+and qualification state for the native read core and subsequent administration,
+seed preservation and provider/browser consumers.
+The separate fixed-seed prerequisite source derives from
+[ADR-0080](../../decisions/0080-fixed-seed-prerequisite-read-scope.md); acceptance
+does not qualify its owner transition or races.
+The separate fixed-origin completion contract derives from Accepted
+[ADR-0081](../../decisions/0081-fixed-seed-completion-before-origin-adoption.md);
+its implementation and proofs remain governed by the phase Status block.
 
 The first module spec in the repository, per
 [Documentation Standards § Per-Module Specifications](../../standards/13-documentation.md).
@@ -114,11 +126,17 @@ choose a locale automatically. The CHECK cannot detect enabled-without-default;
 reader/writer validation does. Arbitrary raw deletes do not gain an exactly-one
 database guarantee.
 
-The shipped authoring-only `ITenantLocaleEligibilityReader` returns canonical
+`ITenantLocaleEligibilityReader` returns canonical
 enabled membership in the announced tenant, uncached in the caller's ambient frame.
 It rejects invalid legacy configuration with a bounded configuration failure; it
-does not invent `en`. A missing/disabled requested member gives Education bounded
-`validation_failed`. Content URL/body lookup has no label fallback. Phase 03 owns
+does not invent `en`. Education authoring and contextual Identity profile writers
+consume this contract. A missing/disabled requested member gives bounded
+`validation_failed`. Provider/time-out failures become the fixed
+`TenantLocaleEligibilityReadException`, without an inner payload; cancellation
+and programming failures retain their own semantics. The owning locale call
+filters its EF query-failure payload and emits a fixed signal; its marked EF
+error spans pass through the source boundary before export. Other Tenancy reads
+retain their diagnostics. Content URL/body lookup has no label fallback. Phase 03 owns
 locale removal/disable commands; those retain Education translations and public
 readers recheck enabled membership rather than cascading across modules.
 
@@ -166,9 +184,13 @@ It accepts no scope selector and returns `AccountSite`: the context's stable
 `PublicSite` projection. It discloses no permission-sensitive configuration and
 adds no permission key; Phase 03 owns membership and permissions.
 
-Before any configuration, settings or feature read, its own guard requires
-`HostAndClaim`, a real non-system actor and matching real resolved/host scope.
-Missing provenance and `ClaimAndMembership` return `not_found`, including future
+Before any configuration, settings or feature read, its implemented guard requires
+`HostAndClaim` or independently validated `HostAndNativeSessionScope`, a real
+non-system actor and matching real resolved/host scope. The native origin retains
+the same actual-host ceiling under ADR-0078; the
+[phase Status block](../../roadmap/phase-03-identity-admin.md) owns later native
+provider/browser qualification. Missing provenance and `ClaimAndMembership` return
+`not_found`, including future
 membership-confirmed platform contexts with an apparently matching host scope.
 Both site handlers call the same projection directly within the pipeline-owned
 physical READ ONLY frame. The live configuration reader independently retains
@@ -260,6 +282,139 @@ records implementation; the
 [merge closeout](../../roadmap/phase-02b-delivery-log.md#p02b-4-merge-and-closeout-2026-10-19)
 records its complete source-bound qualification.
 
+### Bounded Organization and settings administration
+
+Internal handlers implement [ADR-0079](../../decisions/0079-bounded-identity-administration.md).
+[Phase 03](../../roadmap/phase-03-identity-admin.md) owns packet state and remaining transport proofs.
+[Tenancy permissions](permissions.md#bounded-human-administration-contract) owns
+the exact three Tenant pairs and separate human request bindings. Seed commands
+remain Seed-only; human handlers share module business logic without dispatching
+those requests or fabricating seed provenance. Organization CRUD/default API and
+SDK consumers ship in P03-3; full Organization/locale/theme editors and first
+reporting-parent authoring belong to Phase 06. ReportingParentId remains an unused
+additive field outside P03-3 DTOs, authorization and resolution.
+
+Organization create/rename/archive each writes that one Organization root.
+Explicit default selection writes only Tenant's default reference, with its
+expected/returned version; it is a sub-operation of Tenant
+`tenancy.organization.admin`. Current target checks require an Active/nondeleted
+Organization belonging to that Tenant. Archive refuses the current default or
+last Active Organization; select another default in its own transaction first.
+No automatic multi-root switch, cascade or new ADR-0042 aggregate exception is
+introduced. Archived Organization history, mappings, memberships and content stay
+retained, while live lifecycle checks withdraw ordinary branch work. There is no
+per-organization last-admin invariant or silent archived-tenant exemption.
+
+Locale add/default/enable/remove acts use one Tenant root/version and preserve
+translations. Missing/invalid configuration or default removal/disable refuses;
+select another enabled default first. `branding.theme` remains one complete
+TenantSetting root/version and its existing safe palette grammar. Organization
+settings/branding overrides and generic settings power remain outside this set.
+All human writes require orgless context and live post-lock authority/target
+checks. [Standard 05](../../standards/05-database.md#p03-3-storage-and-replay-contract)
+owns the strongest complete fences, fresh lifecycle reads and invoker guards.
+
+Organization list/detail use bounded detached projections with default metadata
+from one SQL snapshot, stable contextual keyset cursors and MUST read evidence.
+Writes retain their actual root after lock waits. Removed locales are explicitly
+deleted as contained Tenant rows; a two-save failure poisons the owner even when
+an outer caller absorbs it. No-op human edits preserve root version/stamps.
+Known slug collisions return the fixed `Slug`/`slug_taken` field refusal. Human
+storage failures pass through a source-owned diagnostic boundary; cancellation
+and programming failures keep their semantics. Existing Seed store behavior is
+separate from that human boundary.
+
+Original-outcome receipt reads authorize the retained Organization or Tenant ID
+under current organization-admin disclosure capability, then commit a fresh MUST
+read event. A default-selection receipt designates the original Tenant root,
+not the selected Organization. These exact-ID reads may observe a retained
+terminal target for this receipt; ordinary list/detail filters remain unchanged.
+They do not rerun the mutation or require its former write/adoption eligibility.
+The [phase Status block](../../roadmap/phase-03-identity-admin.md) owns transport
+activation and qualification.
+
+The closed Organization/default HTTP actions use these human handlers and
+receipt reads; generated OpenAPI and SDK shapes preserve exact IDs, string
+versions, conditional writes and creation Location. Own-current-Tenant navigation
+uses the separate `IOwnTenantNavigationReader` contract on the existing ReadOnly
+owner. [Identity's own-navigation boundary](../identity/README.md#bounded-entry-and-administration-contract)
+owns its invocation-bound coverage, cursor and branch derivation; it grants no
+general Organization enumeration or additional context setter.
+
+### Warm seed and administration origins
+
+**Accepted contract.** Ordinary warm seed
+verifies immutable installed root identities and current valid graphs rather than
+original mutable showcase values. Legitimate names, status/default, locales,
+theme and Identity administration remain unchanged. Removed locales or child
+grants are not evidence of never-installed state; retired roots are not recreated.
+Only a provable pristine incomplete prefix can resume. Edited partial or foreign
+state refuses before remaining writes. Each potential write rechecks its trusted
+evidence and target version under the same tenant fence used by administration;
+a read taken before a competing administrator commits is not authority to repair.
+The [canonical contract](../../standards/05-database.md#p03-3-storage-and-replay-contract)
+owns exact witnesses and held-seed locale/profile/grant race proofs. Its
+[complete writer census](../../standards/05-database.md#every-tenant-bound-seed-write)
+also governs all twelve Customization/Education writers in ordinary scope. No new
+seed receipt table or reset mode is introduced.
+
+Four original Tenancy continuation writers use the
+[closed temporary prerequisite operation](../../standards/05-database.md#fixed-seed-prerequisite-read-authority)
+after their complete exclusive Tenant plan and applicable target locks;
+`ProvisionTenant` retains INSERT-first without a widened pre-insert read. Owning
+Tenancy prerequisite contracts run narrow before the separate Identity metadata
+projection enters the hatch. The common owner clears it before a usable result
+or mutation. Tenancy's contracts remain separate from Identity's metadata reader;
+closed composition joins them without a dependency cycle or nested dispatch.
+Standard 05 owns exact source binding, consumer population, barriers and cleanup.
+
+The fixed new administration origins are `manage.demo-english.learnstack.local`
+and `manage.demo-yoga.learnstack.local`, each mapping to its existing Tenant with
+NULL organization. Existing public mappings remain unchanged. Fresh installation
+uses the same confined adoption act as the explicit one-time completed-warm
+upgrade, `make seed-admin-origins`. This closed Seed act advances Tenant's
+`adopted_seed_origin_version` from 0 or 1 to 2 and installs/verifies only its exact
+owned mapping projection on that same announced unit of work.
+`AdoptSeedAdministrationOriginCommand` handles one Tenant per invocation; the two
+Tenants commit independently. Its common audit frame declares two MUST intents:
+`tenancy.tenant.adopt_seed_origin` for the Tenant marker and existing
+`tenancy.hostmapping.write` for the mapping projection.
+The projection is not a second aggregate root or a new provisioning exception.
+An exact existing mapping is designated as an unchanged audit projection without
+an UPDATE. No v2 Role grant is adopted by this act.
+
+After the exclusive Tenant plan and actual Tenant/mapping preparation, a separate
+[closed completion operation](../../standards/05-database.md#fixed-seed-completion-read-authority)
+checks the retained foundation through owning Application.Contracts on that
+owner. Tenancy verifies its original Tenant/Organization identities and history,
+valid current default/locale topology, original public mapping association and
+retained theme root/key/scope with a valid current palette, in narrow scope.
+Customization also reads narrow; only fixed Education/Identity branch readers
+use the temporary hatch. Narrow restoration precedes any usable result or
+mapping/marker mutation. This is a distinct one-consumer purpose; the eight
+pristine consumers remain unchanged. Standard 05 owns the exact source,
+immutable prepared snapshot, completion facts and common-owner guards.
+
+The runner's marker branches are explicit: 0 dispatches and requires 2; 1 first
+requires the exact live mapping, dispatches full completion qualification and
+requires 2; 2 requires the exact live mapping and skips dispatch; every other
+value refuses. The marker-2 branch mints no witness, opens no hatch and creates
+no MUST intent. Missing/disabled/conflicting mapping refuses without repair.
+Marker 2 records historical qualified adoption, not current mutable-graph or
+provider eligibility. Warm `make seed` accepts and preserves that marker.
+Its wrapper selects newly created and already marker-2 Tenants from the successful
+seed process result, so retained qualified mappings still reach this narrow
+runner verification. That result is selection data, not completion evidence.
+Ordinary completed warm seed requires the explicit upgrade for marker 0 or
+legacy marker 1; it never silently creates or repairs the origin. Standard 05
+owns the forward transition guards and unknown-COMMIT recovery contract.
+
+Local demo destinations/readiness derive from actual live scope and locales.
+An intentionally archived public branch is reported unavailable without retargeting
+its host; its tenant administration origin remains the recovery destination.
+Fresh CI still requires its original complete nine-page/27-audit population;
+edited local state does not replace that source-bound qualification.
+
 ## Entity-relationship diagram
 
 Aggregate roots in the shipped code are `Tenant`, `Organization`, `TenantDomain` and
@@ -267,7 +422,8 @@ Aggregate roots in the shipped code are `Tenant`, `Organization`, `TenantDomain`
 promotion below. `SetTenantBrandingCommand` writes `TenantSetting`; no command
 writes `TenantDomain` yet.
 `PlatformHostMapping` and `PlatformEntitlement` are projections rather than
-aggregates: nothing in this module mutates them through a root.
+aggregate roots. The accepted fixed seed-origin act writes its mapping projection
+under the Tenant owner's transaction without a second aggregate root.
 
 **The other four split two ways, and Packet 7 settled the split.** `TenantDomain` and
 `TenantSetting` are root-shaped — a surrogate Vogen id, `AuditableEntity`, their own
@@ -408,9 +564,10 @@ which commits. One transaction, one connection, one commit point.
 `TransactionBehavior`, and the distinction is not stylistic. A
 `BeginTransactionAsync` from inside a handler is a *joiner* — [ADR-0040](../../decisions/0040-ambient-unit-of-work.md)
 returns a nested frame on the same transaction, so it would be a no-op that
-reads like a boundary. An announcement from inside a handler would be a ninth
-setter of `app.tenant_id` against a set ADR-0040 closes at eight, and would hand
-every handler in the solution the ability to move the ambient tenant.
+reads like a boundary. An announcement from inside a handler would be an unlisted
+setter of `app.tenant_id` outside the
+[closed census](../../standards/11-security.md#tenant-context), and would hand every
+handler in the solution the ability to move the ambient tenant.
 
 Three statements, one transaction. The tenant id is **never minted in the
 handler**: the registry assigns it, and the behavior announces it *before* the

@@ -84,15 +84,28 @@ public sealed class OperationAuthorizationCoordinator(
                 else trusted = captured[0];
                 break;
             case OperationPolicyKind.AccountRead:
+            case OperationPolicyKind.NativeSessionAdmission:
+            case OperationPolicyKind.OwnMembershipRead:
             case OperationPolicyKind.Protected:
-                if (!HasProtectedContext() || (policy.Kind == OperationPolicyKind.AccountRead && !HasMatchingHostScope(allowAnonymous: false)))
+                if (!HasProtectedContext()
+                    || (policy.Kind is OperationPolicyKind.AccountRead or OperationPolicyKind.NativeSessionAdmission
+                        && !HasMatchingHostScope(allowAnonymous: false))
+                    || (policy.Kind == OperationPolicyKind.NativeSessionAdmission
+                        && context.Origin != TenantContextOrigin.HostAndNativeSessionScope))
                 {
                     sourceFailure = TenantContextFactory.Refused;
                     break;
                 }
+                if (policy.RequiresOrganization && context.OrganizationId is null)
+                {
+                    sourceFailure = Forbidden;
+                    break;
+                }
                 var candidates = _candidateSources.Select(source => source.ForValidatedScope(context.TenantId, context.OrganizationId))
                     .Where(value => value is not null).Cast<AuthorizationCandidate>().Take(2).ToArray();
-                if (candidates.Length != 1 || !Matches(candidates[0])) sourceFailure = TenantContextFactory.Refused;
+                if (candidates.Length != 1 || !Matches(candidates[0])
+                    || (policy.Kind == OperationPolicyKind.NativeSessionAdmission
+                        && candidates[0].SourceKind != AuthorizationSourceKind.Http)) sourceFailure = TenantContextFactory.Refused;
                 else candidate = candidates[0];
                 break;
             default:
@@ -116,14 +129,13 @@ public sealed class OperationAuthorizationCoordinator(
             {
                 var decision = await authorizer.AuthorizeAsync(invocation, policy, candidate, cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
-                if (decision is null || !ReferenceEquals(decision.Invocation, invocation) || !decision.IsActive)
+                if (decision is null || !ReferenceEquals(decision.Invocation, invocation) || !decision.IsActive
+                    || !HasMatchingDecisionAuthority(invocation, decision))
                     return Result.FailFor<TResponse>(Unavailable);
                 frame.Decision = decision;
                 evidence.Observe(invocation, decision);
                 var error = decision.Outcome switch
                 {
-                    ProtectedOperationOutcome.Allowed when policy.ReadScope == OperationReadScope.Tenant
-                        && decision.ReadWitness is null => Unavailable,
                     ProtectedOperationOutcome.Allowed => null,
                     ProtectedOperationOutcome.NotCovered => TenantContextFactory.Refused,
                     ProtectedOperationOutcome.Forbidden => Forbidden,
@@ -134,7 +146,8 @@ public sealed class OperationAuthorizationCoordinator(
                     evidence.RecordPolicyRefusal(invocation, decision, error);
                     return Result.FailFor<TResponse>(error);
                 }
-                if (policy.RequiresOrglessWrite && context.OrganizationId is not null)
+                if (policy.RequiresOrglessWrite && context.OrganizationId is not null
+                    || policy.RequiresOrganization && context.OrganizationId is null)
                 {
                     evidence.RecordPolicyRefusal(invocation, decision, Forbidden);
                     return Result.FailFor<TResponse>(Forbidden);
@@ -182,6 +195,20 @@ public sealed class OperationAuthorizationCoordinator(
         GC.SuppressFinalize(this);
     }
 
+    private static bool HasMatchingDecisionAuthority(OperationInvocation invocation, ProtectedOperationDecision decision)
+    {
+        if (decision.Outcome != ProtectedOperationOutcome.Allowed || invocation.Policy.Kind != OperationPolicyKind.Protected)
+            return decision.MatchedClause is null && decision.ReadWitness is null;
+        if (decision.MatchedClause is not { } clause
+            || !invocation.Policy.Alternatives.Any(alternative => ReferenceEquals(alternative, clause))) return false;
+        if (clause.ReadScope == OperationReadScope.Scoped) return decision.ReadWitness is null;
+        return decision.ReadWitness is { IsActive: true } witness
+            && ReferenceEquals(witness.Invocation, invocation) && ReferenceEquals(witness.Policy, invocation.Policy)
+            && ReferenceEquals(witness.MatchedClause, clause)
+            && witness.Actor == invocation.Actor && witness.TenantId == invocation.TenantId
+            && witness.OrganizationId == invocation.OrganizationId;
+    }
+
     private bool Matches(AuthorizationCandidate candidate) => candidate.IsActive
         && candidate.Actor == context.UserId && candidate.TenantId == context.TenantId
         && candidate.OrganizationId == context.OrganizationId;
@@ -189,11 +216,12 @@ public sealed class OperationAuthorizationCoordinator(
     private bool HasProtectedContext() => context.IsResolved && StronglyTypedId.IsAssigned(context.TenantId)
         && context.TenantId != TenantId.PlatformSentinel && context.UserId is { } actor
         && StronglyTypedId.IsAssigned(actor) && actor != UserId.SystemActor
-        && context.Origin is TenantContextOrigin.HostAndClaim or TenantContextOrigin.ClaimAndMembership;
+        && context.Origin is TenantContextOrigin.HostAndClaim or TenantContextOrigin.ClaimAndMembership
+            or TenantContextOrigin.HostAndNativeSessionScope;
 
     private bool HasMatchingHostScope(bool allowAnonymous) => context.IsResolved
         && (allowAnonymous ? context.Origin is TenantContextOrigin.HostOnly or TenantContextOrigin.HostAndClaim
-            : context.Origin == TenantContextOrigin.HostAndClaim)
+            : context.Origin is TenantContextOrigin.HostAndClaim or TenantContextOrigin.HostAndNativeSessionScope)
         && context.HostScope is { } host && StronglyTypedId.IsAssigned(host.TenantId)
         && host.TenantId != TenantId.PlatformSentinel && host.TenantId == context.TenantId
         && (host.OrganizationId is null || (StronglyTypedId.IsAssigned(host.OrganizationId.Value)

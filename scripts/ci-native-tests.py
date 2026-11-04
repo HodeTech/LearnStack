@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Closed ADR-0062/0063/0075 execution owner. No command/path CLI overrides.
+"""Closed ADR-0062/0063/0075/0082 execution owner. No command/path CLI overrides.
 
 The delegated work cgroup is retained by a live supervisor sibling. RemainAfterExit
 alone does not retain an empty cgroup: systemd prunes it on SERVICE_EXITED. Only
@@ -46,16 +46,19 @@ HOST_CRASH_ROOTS = ('/var/crash', '/var/lib/systemd/coredump', '/var/lib/docker'
 # Sole duration owner. These are bounded path allocations, not a hosted fit
 # claim. Qualification must measure setup, complete execution and failure tails.
 JOB_SECONDS = 20 * 60
-ORDINARY_JOB_SECONDS = 25 * 60
+ARCHITECTURE_JOB_SECONDS = 25 * 60
+ORDINARY_JOB_SECONDS = 30 * 60
 UPLOAD_SECONDS = 60
 UNIT_STOP_SECONDS = 20
 JOIN_SECONDS = 15
 PROCESS_JOIN_SECONDS = 3
 DOCKER_SECONDS = 45
 SCAN_SECONDS = 20
+PREFLIGHT_SCAN_SECONDS = 60
 EXPORT_SECONDS = 20
 MARGIN_SECONDS = 20
 COMMAND_SECONDS = 5
+IMAGE_METADATA_COMMAND_SECONDS = 10
 STARTUP_SECONDS = 30
 POLL_SECONDS = 0.1
 UNIT_POLL_SECONDS = 0.5
@@ -87,6 +90,8 @@ FAILURE_SOURCES = {
     'OutboxProcessorTests.cs': 'outbox_processor',
     'BffNativeDriver.cs': 'bff_native_driver',
     'TenantBffSessionTests.cs': 'bff_session',
+    'FrameworkOwnershipDriver.cs': 'framework_ownership_driver',
+    'TenantBffSessionTests.FrameworkOwnership.cs': 'framework_ownership_test',
     'TenantRealmApiTests.WarmQualification.cs': 'realm_warm_qualification',
     'BackgroundJobPositiveSdkTests.CausalRestart.cs': 'positive_sdk_causal_restart',
     'BackgroundJobPositiveSdkTests.CausalRestartObservations.cs': 'positive_sdk_causal_observation',
@@ -167,6 +172,21 @@ KEYCLOAK_FAILURE_REASONS = {
     'docker_network_error', 'docker_runtime_task',
 }
 KEYCLOAK_FAILURE_CLEANUP = {'completed', 'failed'}
+KEYCLOAK_STARTUP_MILESTONES = (
+    'certificate', 'network', 'database', 'database_create_request', 'database_start',
+    'database_readiness', 'database_started', 'import_input', 'provider_start', 'provider_created',
+    'provider_starting', 'provider_started', 'mapped_endpoint', 'loopback_bindings', 'discovery',
+)
+KEYCLOAK_READINESS_OUTCOMES = {
+    'not_attempted', 'pending', 'http_ok', 'http_other_success', 'http_redirect', 'http_client_error',
+    'http_server_error', 'http_other', 'cancelled', 'tls', 'connect', 'dns', 'transport', 'other',
+}
+KEYCLOAK_CACHED_PROVIDER_STATES = {
+    'not_created', 'undefined', 'created', 'restarting', 'running', 'paused', 'exited', 'dead', 'unknown',
+}
+KEYCLOAK_OBSERVATION_MARKER = 'Keycloak startup observation '
+KEYCLOAK_OBSERVATION_MAX_COUNT = 1000000
+KEYCLOAK_OBSERVATION_MAX_MS = 600000
 FAILURE_EXCEPTION_LABELS = {
     'System.TimeoutException': 'timeout',
     'System.OperationCanceledException': 'cancellation',
@@ -851,31 +871,92 @@ def closed_native_recovery_details(raw):
 
 BFF_BROWSER_FAILURE_CASE = ('LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests.'
     'Native_https_browser_stores_host_cookies_and_revalidates_logout_history_with_a_live_counter_control')
+FRAMEWORK_OWNERSHIP_FAILURE_CASES = {
+    'LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests.'
+    'Parent_EOF_during_actual_Next_prepare_joins_its_family_and_removes_the_private_tree',
+    'LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests.'
+    'Parent_EOF_bridge_refuses_false_retirement_extra_output_and_retained_private_work',
+}
+FRAMEWORK_OWNERSHIP_FIXED_FAILURES = {
+    'Framework ownership fixture source is unavailable.': 'source',
+    'Framework ownership fixture could not start.': 'spawn',
+    'Framework ownership fixture start input failed.': 'input',
+    'Framework ownership fixture EOF input failed.': 'eof_input',
+    'Framework ownership fixture rejected its prepare-held frame.': 'prepare_frame',
+    'Framework ownership fixture rejected its closed frame.': 'closed_frame',
+    'Framework ownership fixture lacked a live held preparation.': 'held_preparation',
+    'Framework ownership fixture exceeded its EOF grace.': 'eof_grace',
+    'Framework ownership fixture exceeded its overall deadline.': 'overall_deadline',
+    'Framework ownership fixture had an unexpected exit.': 'exit',
+    'Framework ownership fixture emitted an unexpected extra frame.': 'extra_frame',
+    'Framework ownership fixture output transport failed.': 'output_transport',
+    'Framework ownership fixture emitted unexpected stderr.': 'stderr',
+    'Framework ownership fixture retained its private tree.': 'retained_tree',
+    'Framework ownership fixture private tree could not be inspected.': 'tree_inspection',
+    'Framework ownership fixture frame exceeded its bound.': 'frame_bound',
+    'Framework ownership fixture frame was truncated.': 'truncated_frame',
+    'Framework ownership fixture required forced cleanup.': 'forced_cleanup',
+    'Framework ownership fixture lost its expected failed exit.': 'lost_exit',
+    'Framework ownership fixture cleanup could not be confirmed.': 'cleanup_deadline',
+}
+
+
+def closed_framework_ownership_details(raw):
+    message = raw.get('ErrorMessage')
+    if not isinstance(message, str) or len(message) > 512:
+        return None
+    prefix = 'System.InvalidOperationException : '
+    if message.startswith(prefix):
+        message = message[len(prefix):]
+    reason = FRAMEWORK_OWNERSHIP_FIXED_FAILURES.get(message)
+    return {'stage': 'framework_ownership', 'reason': reason} if reason else None
+
 BFF_BROWSER_FAILURE_STAGES = {
     'input', 'input-issuer', 'input-api', 'input-secrets', 'input-sites', 'setup', 'compile', 'build',
     'start', 'command', 'request', 'request-deadline', 'request-connect', 'request-tls', 'request-socket',
     'response-json', 'cleanup', 'privacy', 'native-stop',
+    'cleanup-cdp', 'cleanup-disconnect', 'cleanup-browser-wait', 'cleanup-browser-stop', 'cleanup-browser-forced',
+    'cleanup-native-shutdown', 'cleanup-native-wait',
+    'cleanup-browser-exit', 'cleanup-browser-signal', 'cleanup-native-stop', 'cleanup-native-forced',
+    'cleanup-owner', 'cleanup-native-exit', 'cleanup-native-signal',
     'browser-executable', 'browser-spawn', 'browser-devtools', 'browser-devtools-inactive',
     'browser-devtools-unreadable', 'browser-devtools-missing', 'browser-devtools-empty', 'browser-devtools-malformed',
     'browser-not-live', 'browser-connect', 'browser-context',
     'browser-launch', 'browser-anonymous', 'browser-signin-document', 'browser-submit',
+    'browser-entry-confirmation', 'browser-administration-pages', 'browser-no-script',
+    'browser-no-script-hidden-render', 'browser-no-script-missing-form', 'browser-no-script-invisible-form',
+    'browser-no-script-native-buttons', 'browser-no-script-native-profile-form',
+    'browser-no-script-anonymous', 'browser-no-script-signin', 'browser-no-script-confirm',
+    'browser-no-script-select', 'browser-no-script-controls', 'browser-no-script-submit',
+    'browser-no-script-origin', 'browser-no-script-result', 'browser-no-script-cache',
+    'browser-no-script-saved', 'browser-no-script-privacy', 'browser-no-script-signout',
+    'browser-no-script-headers',
     'browser-origin-null', 'browser-origin-absent', 'browser-origin-other', 'browser-storage',
     'browser-extension', 'browser-logout-submit', 'browser-logout-origin', 'browser-logout-origin-null',
     'browser-logout-origin-other', 'browser-logout-response', 'browser-logout-location',
     'browser-logout-navigation', 'browser-logout-cookie-header', 'browser-logout-cookie',
     'browser-back-revalidation', 'browser-history-setup', 'browser-history-revalidation', 'browser-headers',
 } | {prefix + code for prefix in ('browser-callback-', 'browser-authorize-', 'browser-logout-status-')
-     for code in ('0', '200', '303', '400', '403', '404', '429', '503', 'other')}
+     for code in ('0', '200', '303', '400', '403', '404', '429', '503', 'other')} | {
+    'browser-administration-counter-' + reason for reason in
+    ('progress', 'status', 'cache', 'wrapper', 'heading', 'view', 'alert', 'observer', 'private-output')
+}
 BFF_BROWSER_FAILURE_REASONS = BFF_BROWSER_FAILURE_STAGES | {
     stage + '_unexpected_output' for stage in BFF_BROWSER_FAILURE_STAGES
 } | {
     stage + '_cleanup_failed' for stage in BFF_BROWSER_FAILURE_STAGES
+} | {
+    stage + '_cleanup_' + cleanup for stage in BFF_BROWSER_FAILURE_STAGES
+    for cleanup in BFF_BROWSER_FAILURE_STAGES if cleanup.startswith('cleanup-')
 } | {'response', 'deadline_input', 'exit', 'output', 'node_module_missing', 'node_syntax', 'node_abort',
      'node_permission', 'unexpected_output'}
 BFF_BROWSER_FIXED_FAILURES = {
     'BFF native fixture could not start.': 'spawn',
     'BFF native fixture private input failed.': 'input',
     'BFF browser fixture lacks its complete positive/counter witness.': 'witness',
+    'BFF browser fixture receipt has an invalid closed shape.': 'receipt_shape',
+    "BFF browser fixture lacks both hosts' complete page/no-script witnesses.": 'pages_witness',
+    'BFF browser counter has no closed unavailable-page witness.': 'pages_counter_witness',
     'BFF browser restore count is outside its bound.': 'restore_count',
     'BFF browser counter has no closed restoration witness.': 'counter_witness',
     'BFF native fixture emitted an unexpected extra receipt.': 'extra_receipt',
@@ -904,7 +985,7 @@ def closed_bff_browser_details(raw):
             continue
         lines = [line for item in messages if item['Category'] == 'StdOutMsgs'
                  for line in item['Text'].splitlines() if marker in line]
-        pattern = re.escape(marker) + r'journey=(positive|counter)' + (r';state=failed\.' if kind == 'cleanup' else r'\.')
+        pattern = re.escape(marker) + r'journey=(positive|counter|unavailable_pages)' + (r';state=failed\.' if kind == 'cleanup' else r'\.')
         match = re.fullmatch(pattern, lines[0]) if count == 1 and len(lines) == 1 else None
         if match is None or kind == 'cleanup' and result.get('journey') != match[1]:
             return None
@@ -912,17 +993,118 @@ def closed_bff_browser_details(raw):
             result['journey'] = match[1]
         else:
             result['secondaryCleanup'] = 'failed'
+    marker = 'BFF browser shutdown;'
+    count = sum(item['Text'].count(marker) for item in messages)
+    if count:
+        lines = [line for item in messages if item['Category'] == 'StdOutMsgs'
+                 for line in item['Text'].splitlines() if marker in line]
+        pattern = (re.escape(marker) + r'journey=(positive|counter|unavailable_pages);state='
+            r'(valid|invalid|absent),([01]),([01]),([pfr]),([pfr]),([pfr]),([pfr]),'
+            r'(live|zero|nonzero|signal),([01]),(open|ended|closed|absent),(open|ended|closed|absent)\.')
+        match = re.fullmatch(pattern, lines[0]) if count == 1 and len(lines) == 1 else None
+        if match is None or result.get('journey') != match[1]:
+            return None
+        joins = {'p': 'pending', 'f': 'fulfilled', 'r': 'rejected'}
+        result['nativeShutdown'] = {
+            'ipc': match[2], 'entered': match[3] == '1', 'watchdog': match[4] == '1',
+            **{key: joins[match[index]] for key, index in
+                (('listener', 5), ('next', 6), ('sessions', 7), ('requests', 8))},
+            'leader': match[9], 'close': match[10] == '1', 'stdout': match[11], 'stderr': match[12],
+        }
+    marker = 'BFF browser observation;'
+    count = sum(item['Text'].count(marker) for item in messages)
+    if count:
+        lines = [line for item in messages if item['Category'] == 'StdOutMsgs'
+                 for line in item['Text'].splitlines() if marker in line]
+        number = r'(?:0|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-6])'
+        pattern = (re.escape(marker) + r'journey=(positive|counter|unavailable_pages);state='
+            r'(absent|invalid|valid,(?:entered|listener|next|sessions|requests|watchdog),'
+            + ','.join([number] * 5) + r');(not_run|true|false|error);'
+            r'(none|natural_back|persisted_dispatch|persisted_wait|persisted_count)\.')
+        match = re.fullmatch(pattern, lines[0]) if count == 1 and len(lines) == 1 else None
+        if match is None or result.get('journey') != match[1]:
+            return None
+        sample, probe, operation = match[2], match[3], match[4]
+        if ((probe == 'not_run') != (operation == 'none') or
+                probe != 'not_run' and match[1] != 'counter' or
+                sample != 'absent' and 'nativeShutdown' not in result):
+            return None
+        observation = {'probe': probe, 'operation': operation}
+        if sample.startswith('valid,'):
+            _, milestone, *counts = sample.split(',')
+            shutdown = result['nativeShutdown']
+            if (shutdown['ipc'] != 'valid' or not shutdown['entered'] or
+                    milestone == 'watchdog' and not shutdown['watchdog'] or
+                    milestone in ('listener', 'next', 'sessions', 'requests') and shutdown[milestone] == 'pending'):
+                return None
+            observation['sample'] = {'status': 'valid', 'milestone': milestone, **dict(zip(
+                ('handlerPending', 'terminalPending', 'issuedWrites', 'frameworkWaitUntil', 'poolHeld'),
+                map(int, counts)))}
+        else:
+            observation['sample'] = {'status': sample}
+        result['observation'] = observation
+
+    def finish(reason):
+        observation = result.get('observation')
+        if observation and observation['probe'] != 'not_run':
+            expected = 'browser-back-revalidation' if observation['operation'] == 'natural_back' else 'browser-history-revalidation'
+            if reason != expected and not reason.startswith(expected + '_cleanup_') and reason != expected + '_cleanup_failed':
+                return None
+        return {**result, 'reason': reason}
     # xUnit's exact exception prefix is stripped; arbitrary trailing text,
     # nested exceptions and credentials never become a diagnostic dimension.
     prefix = 'System.InvalidOperationException : '
     if message.startswith(prefix):
         message = message[len(prefix):]
     if message in BFF_BROWSER_FIXED_FAILURES:
-        return {**result, 'reason': BFF_BROWSER_FIXED_FAILURES[message]}
+        return finish(BFF_BROWSER_FIXED_FAILURES[message])
     match = re.fullmatch(r'BFF native fixture did not reach the closed browser_result/([a-z_0-9-]{1,96}) phase\.', message)
     if match and match[1] in BFF_BROWSER_FAILURE_REASONS:
-        return {**result, 'reason': match[1]}
-    return {**result, 'reason': 'other'} if 'journey' in result else None
+        return finish(match[1])
+    return finish('other') if 'journey' in result else None
+
+
+def closed_keycloak_startup_observation(message):
+    """Decode bounded local context, never a live-state, root-cause or ownership witness."""
+    if (not isinstance(message, str) or len(message) > 65536
+            or message.count(KEYCLOAK_OBSERVATION_MARKER) != 1):
+        return None
+    number = r'(?:0|[1-9][0-9]{0,6})'
+    milestone = r'(?:-1|' + number + ')'
+    match = re.search(r'(?<!\S)' + re.escape(KEYCLOAK_OBSERVATION_MARKER)
+        + r'v1; fixture=(' + number + r'); elapsedMs=(' + number + r'); milestones=('
+        + milestone + r'(?:,' + milestone + r'){' + str(len(KEYCLOAK_STARTUP_MILESTONES) - 1)
+        + r'}); attempts=(' + number + r'); completed=(' + number
+        + r'); readiness=([a-z_]{1,32}); cachedProvider=([a-z_]{1,32})\.(?=$|\r?\n)', message)
+    if match is None:
+        return None
+    ordinal, elapsed, attempts, completed = (int(match[index]) for index in (1, 2, 4, 5))
+    milliseconds = [int(value) for value in match[3].split(',')]
+    outcome, state = match[6], match[7]
+    if (not 1 <= ordinal <= KEYCLOAK_OBSERVATION_MAX_COUNT
+            or not 0 <= elapsed <= KEYCLOAK_OBSERVATION_MAX_MS
+            or not 0 <= completed <= attempts <= KEYCLOAK_OBSERVATION_MAX_COUNT
+            or any(not -1 <= value <= elapsed for value in milliseconds)
+            or outcome not in KEYCLOAK_READINESS_OUTCOMES or state not in KEYCLOAK_CACHED_PROVIDER_STATES
+            or (outcome == 'not_attempted') != (attempts == 0)
+            or (outcome not in ('not_attempted', 'pending') and completed == 0)
+            or (outcome == 'pending' and completed == attempts < KEYCLOAK_OBSERVATION_MAX_COUNT)):
+        return None
+    return {'fixtureOrdinal': ordinal, 'elapsedMilliseconds': elapsed,
+        'milestoneMilliseconds': dict(zip(KEYCLOAK_STARTUP_MILESTONES, milliseconds)),
+        'readinessAttempts': attempts, 'readinessCompleted': completed,
+        'readinessOutcome': outcome, 'cachedProviderState': state}
+
+
+def keycloak_startup_observation_sentence(observation):
+    # Render only the validated finite projection, never a slice of raw error text.
+    return (KEYCLOAK_OBSERVATION_MARKER + 'v1; fixture=' + str(observation['fixtureOrdinal'])
+        + '; elapsedMs=' + str(observation['elapsedMilliseconds']) + '; milestones='
+        + ','.join(str(observation['milestoneMilliseconds'][stage]) for stage in KEYCLOAK_STARTUP_MILESTONES)
+        + '; attempts=' + str(observation['readinessAttempts'])
+        + '; completed=' + str(observation['readinessCompleted'])
+        + '; readiness=' + observation['readinessOutcome']
+        + '; cachedProvider=' + observation['cachedProviderState'] + '.')
 
 
 def closed_failure_details(case, raw):
@@ -933,6 +1115,8 @@ def closed_failure_details(case, raw):
         return closed_native_recovery_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
     if case['name'] == NATIVE_HANDOFF_FAILURE_CASE:
         return closed_native_handoff_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
+    if case['name'] in FRAMEWORK_OWNERSHIP_FAILURE_CASES:
+        return closed_framework_ownership_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
     if case['name'] == BFF_BROWSER_FAILURE_CASE:
         return closed_bff_browser_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
     if case['name'] in OUTBOX_STARTUP_FAILURE_CASES:
@@ -980,6 +1164,13 @@ def closed_failure_details(case, raw):
             details = {'stage': match[1], 'reason': match[2], 'cleanup': match[3]}
             if match[4] is not None:
                 details['startupCancellationRequested'] = match[4] == 'true'
+            if KEYCLOAK_OBSERVATION_MARKER in message:
+                if not message[match.end():].startswith(' ' + KEYCLOAK_OBSERVATION_MARKER):
+                    return None
+                observation = closed_keycloak_startup_observation(message)
+                if observation is None:
+                    return None
+                details['startupObservation'] = observation
             return details
         return None
     message = message[:65536]
@@ -1089,10 +1280,12 @@ def job_seconds(mode, job, counts):
     require(isinstance(mode, str) and mode in SHARD_JOBS, 'mode_refused')
     require(job == SHARD_JOBS[mode], 'job_identity_mismatch')
     require(isinstance(counts, dict), 'shard_index_invalid')
-    if mode not in ('base', 'native-shard'):
-        scope, _, index = mode.rpartition('-')
-        require(type(counts.get(scope)) is int and int(index) < counts[scope], 'shard_index_invalid')
-    return ORDINARY_JOB_SECONDS if job == 'backend-integration-tests' else JOB_SECONDS
+    if mode in ('base', 'native-shard'):
+        return JOB_SECONDS
+    scope, _, index = mode.rpartition('-')
+    require(type(counts.get(scope)) is int and int(index) < counts[scope], 'shard_index_invalid')
+    # Validation above establishes the exact mode; job topology cannot choose its window.
+    return {'architecture': ARCHITECTURE_JOB_SECONDS, 'ordinary': ORDINARY_JOB_SECONDS}[scope]
 
 
 def deadlines(mode):
@@ -1240,7 +1433,7 @@ def diagnostic_command(argv, deadline, reason, cap):
     return bytes(stdout)
 
 
-def command(argv, deadline, reason, *, cap=COMMAND_SECONDS, diagnose=False):
+def command(argv, deadline, reason, *, cap=COMMAND_SECONDS, diagnose=False, classify=False):
     if diagnose:
         return diagnostic_command(argv, deadline, reason, cap)
     try:
@@ -1250,9 +1443,14 @@ def command(argv, deadline, reason, *, cap=COMMAND_SECONDS, diagnose=False):
                                      'LC_ALL': 'C.UTF-8', 'HOME': os.environ.get('HOME', ''),
                                      'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': '/dev/null'},
                                 check=False)
-    except (subprocess.TimeoutExpired, OSError):
-        raise Refusal(reason) from None
-    require(result.returncode == 0 and len(result.stdout) <= MAX_BYTES, reason)
+    except subprocess.TimeoutExpired:
+        raise Refusal(reason + ('_timeout' if classify else '')) from None
+    except OSError:
+        raise Refusal(reason + ('_os_error' if classify else '')) from None
+    # Fixed metadata reads opt into closed failure kinds; argv, budgets, private
+    # stdout and discarded stderr are unchanged. No provider text is decoded.
+    require(result.returncode == 0, reason + ('_exit' if classify else ''))
+    require(len(result.stdout) <= MAX_BYTES, reason + ('_output_bound' if classify else ''))
     return result.stdout
 
 
@@ -1596,8 +1794,9 @@ class ExecutionProgress:
     """Tail the private pinned VSTest protocol, retaining only actual result IDs."""
     marker = b'TestRequestSender.OnExecutionMessageReceived: Received message: '
 
-    def __init__(self, path, assembly, expected, stream):
+    def __init__(self, path, assembly, expected, stream, *, checkpoint_failure=None):
         self.path, self.assembly, self.stream = path, assembly, stream
+        self.checkpoint_failure = checkpoint_failure
         self.expected = {key(case) for case in expected}
         require(len(self.expected) == len(expected), 'duplicate_discovery_identity')
         self.expected_cases = {key(case): {name: case[name] for name in ('assembly', 'id', 'name')}
@@ -1705,6 +1904,10 @@ class ExecutionProgress:
                 if details is not None:
                     diagnostic['details'] = details
                 self.failure_locations.append(diagnostic)
+                # Publish only the existing finite projection, before the failed
+                # result. A later hard stop cannot run the workload's finally.
+                if self.checkpoint_failure is not None:
+                    self.checkpoint_failure(self.failure_locations)
             else:
                 details = closed_causal_restart_counts(case, raw)
                 if details is not None:
@@ -1809,7 +2012,7 @@ def trx_cases(path, *, sanitize=False):
         test_id = definition.get('id')
         require(test_id not in definitions, 'trx_duplicate_definition')
         definitions[test_id] = Path(definition.get('storage', '')).stem.casefold()
-    cases, ids = [], set()
+    cases, ids, keycloak_observations = [], set(), {}
     for result in root.findall('t:Results/t:UnitTestResult', NS):
         test_id = result.get('testId')
         require(test_id in definitions and test_id not in ids, 'trx_identity_invalid')
@@ -1819,6 +2022,21 @@ def trx_cases(path, *, sanitize=False):
         require(re.fullmatch(r'[0-9]+:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?', duration), 'trx_duration_invalid')
         cases.append({'assembly': definitions[test_id], 'id': test_id, 'name': result.get('testName'),
                       'outcome': result.get('outcome'), 'duration': duration})
+        if (sanitize and result.get('outcome') == 'Failed'
+                and definitions[test_id] == 'learnstack.tests.integration'
+                and isinstance(cases[-1]['name'], str)
+                and any(cases[-1]['name'].startswith('LearnStack.Tests.Integration.TenancyIdentity.' + name + '.')
+                        for name in KEYCLOAK_FAILURE_CLASSES)):
+            message = result.findtext('t:Output/t:ErrorInfo/t:Message', namespaces=NS)
+            details = closed_failure_details(cases[-1], {'ErrorMessage': message})
+            if details is not None and 'startupObservation' in details:
+                keycloak_observations[test_id] = details['startupObservation']
+            elif message is None:
+                # Re-sanitization accepts only our entire canonical receipt, never arbitrary test output.
+                receipt = result.findtext('t:Output/t:StdOut', namespaces=NS)
+                observation = closed_keycloak_startup_observation(receipt)
+                if observation is not None and receipt == keycloak_startup_observation_sentence(observation):
+                    keycloak_observations[test_id] = observation
     required = {'total', 'executed', 'passed', 'failed', 'notExecuted'}
     require(required <= set(counts.attrib) and all(re.fullmatch(r'[0-9]+', value)
             and int(value) <= MAX_CASES for value in counts.attrib.values()), 'trx_counters_invalid')
@@ -1833,13 +2051,17 @@ def trx_cases(path, *, sanitize=False):
     if sanitize:
         # Preserve test IDs, assembly, outcome and measured duration. Raw failure
         # messages, captured environment, stack traces and provider output never
-        # enter the explicit export, even when a test fails.
+        # enter the explicit export. Only a reconstructed finite Keycloak startup
+        # observation survives; it has no completion or authority meaning.
         tag = lambda name: '{' + NS['t'] + '}' + name
         clean = ET.Element(tag('TestRun'))
         results, defs = ET.SubElement(clean, tag('Results')), ET.SubElement(clean, tag('TestDefinitions'))
         for case in cases:
-            ET.SubElement(results, tag('UnitTestResult'), testId=case['id'], testName=case['name'],
-                          outcome=case['outcome'], duration=case['duration'])
+            result = ET.SubElement(results, tag('UnitTestResult'), testId=case['id'], testName=case['name'],
+                                   outcome=case['outcome'], duration=case['duration'])
+            if case['id'] in keycloak_observations:
+                ET.SubElement(ET.SubElement(result, tag('Output')), tag('StdOut')).text = (
+                    keycloak_startup_observation_sentence(keycloak_observations[case['id']]))
             ET.SubElement(defs, tag('UnitTest'), id=case['id'], name=case['name'], storage=case['assembly'] + '.dll')
         cleaned_summary = ET.SubElement(clean, tag('ResultSummary'), outcome=summary.get('outcome', 'Failed'))
         ET.SubElement(cleaned_summary, tag('Counters'), total=str(len(cases)),
@@ -2036,11 +2258,17 @@ def shard_workload(mode, context, private, output, deadline, work):
             for project, assembly, expression, expected in selected:
                 began = time.monotonic()
                 diagnostic = private / (assembly + '-execution.diag')
-                progress = ExecutionProgress(diagnostic, assembly, expected, stream)
                 item = {'assembly': assembly.casefold(), 'cases': len(expected), 'adapter': None,
                         'firstResultSeconds': None, 'testProcessSeconds': None, 'failureLocations': [],
                         'successObservations': []}
                 measurements['projects'].append(item)
+                def checkpoint_failure(locations):
+                    # Timing and adapter facts remain unknown until the actual
+                    # process returns. This snapshot never asserts completion.
+                    item['failureLocations'] = locations
+                    write_json(output / 'measurements.json', measurements)
+                progress = ExecutionProgress(diagnostic, assembly, expected, stream,
+                                             checkpoint_failure=checkpoint_failure)
                 try:
                     argv = ['test', project, '--configuration', 'Release', '--no-build', '--no-restore',
                             '--disable-build-servers', '--filter', expression, '--logger', 'console;verbosity=normal',
@@ -2324,73 +2552,90 @@ def docker_complete(deadline, *, forced):
 def image_layer_snapshot(candidate, deadline):
     """Private positive image provenance, never a filename/content allowance."""
     docker = [DOCKER, '--host', 'unix:///var/run/docker.sock']
+    stage = 'info_parse'
 
     def inventory():
+        nonlocal stage
         info = command([*docker, 'info', '--format',
                         '{"driver":{{json .Driver}},"root":{{json .DockerRootDir}}}'],
-                       deadline, 'image_metadata_unavailable')
+                       deadline, 'image_metadata_unavailable_info_command', cap=IMAGE_METADATA_COMMAND_SECONDS, classify=True)
+        stage = 'info_parse'
         require(json.loads(info) == {'driver': 'overlay2', 'root': '/var/lib/docker'},
-                'image_metadata_unavailable')
+                'image_metadata_unavailable_info_shape')
         raw = command([*docker, 'image', 'ls', '--all', '--quiet', '--no-trunc'],
-                      deadline, 'image_metadata_unavailable')
-        require(len(raw) <= 256 * 72, 'image_metadata_unavailable')
+                      deadline, 'image_metadata_unavailable_image_list_command', cap=IMAGE_METADATA_COMMAND_SECONDS, classify=True)
+        require(len(raw) <= 256 * 72, 'image_metadata_unavailable_image_list_bound')
+        stage = 'image_list_parse'
         ids = raw.decode('ascii').splitlines()
         require(len(ids) <= 256 and all(re.fullmatch(r'sha256:[0-9a-f]{64}', value)
-                                       for value in ids), 'image_metadata_unavailable')
+                                       for value in ids), 'image_metadata_unavailable_image_list_shape')
         ids = sorted(set(ids))  # Multiple tags may list the same image ID.
         if not ids:
             return (), ()
         raw = command([*docker, 'image', 'inspect', '--format',
                        '{"id":{{json .Id}},"driver":{{json .GraphDriver}}}', *ids],
-                      deadline, 'image_metadata_unavailable')
-        require(len(raw) <= 512 * 1024, 'image_metadata_unavailable')
+                      deadline, 'image_metadata_unavailable_image_inspect_command', cap=IMAGE_METADATA_COMMAND_SECONDS, classify=True)
+        require(len(raw) <= 512 * 1024, 'image_metadata_unavailable_image_inspect_bound')
+        stage = 'image_inspect_parse'
         records = [json.loads(line) for line in raw.splitlines()]
-        require(len(records) == len(ids), 'image_metadata_unavailable')
+        require(len(records) == len(ids), 'image_metadata_unavailable_image_inspect_count')
         paths = set()
         for expected, record in zip(ids, records):
             require(isinstance(record, dict) and record.get('id') == expected,
-                    'image_metadata_unavailable')
+                    'image_metadata_unavailable_image_identity')
             driver = record.get('driver')
             require(isinstance(driver, dict) and driver.get('Name') == 'overlay2'
-                    and isinstance(driver.get('Data'), dict), 'image_metadata_unavailable')
+                    and isinstance(driver.get('Data'), dict), 'image_metadata_unavailable_graph_driver_shape')
             data = driver['Data']
             upper, lower = data.get('UpperDir'), data.get('LowerDir', '')
-            require(isinstance(upper, str) and isinstance(lower, str), 'image_metadata_unavailable')
+            require(isinstance(upper, str) and isinstance(lower, str), 'image_metadata_unavailable_layer_fields')
             for path in [upper, *(lower.split(':') if lower else [])]:
                 require(re.fullmatch(r'/var/lib/docker/overlay2/(?:[0-9a-f]{64}/diff|l/[A-Z0-9]{26})',
-                                     path), 'image_metadata_unavailable')
+                                     path), 'image_metadata_unavailable_layer_path')
                 paths.add(path)
-        require(len(paths) <= 512, 'image_metadata_unavailable')
+        require(len(paths) <= 512, 'image_metadata_unavailable_layer_bound')
         return tuple(ids), tuple(sorted(paths))
 
     try:
         before = inventory()
         require(before[1], 'image_metadata_no_match')
+        stage = 'candidate_shape'
         require(candidate.startswith('/var/lib/docker/overlay2/') and len(candidate) <= 4096,
-                'image_metadata_unavailable')
+                'image_metadata_unavailable_candidate_shape')
         raw = command([SUDO, '-n', REALPATH, '-e', '--', *before[1], candidate],
-                      deadline, 'image_metadata_unavailable')
-        require(len(raw) <= 512 * 1024, 'image_metadata_unavailable')
+                      deadline, 'image_metadata_unavailable_canonical_command', cap=IMAGE_METADATA_COMMAND_SECONDS, classify=True)
+        require(len(raw) <= 512 * 1024, 'image_metadata_unavailable_canonical_bound')
+        stage = 'canonical_parse'
         canonical = raw.decode('utf-8').splitlines()
         require(len(canonical) == len(before[1]) + 1
                 and all(re.fullmatch(r'/var/lib/docker/overlay2/[0-9a-f]{64}/diff', path)
-                        for path in canonical[:-1]), 'image_metadata_unavailable')
+                        for path in canonical[:-1]), 'image_metadata_unavailable_canonical_shape')
         layers = sorted(set(canonical[:-1]))
+        stage = 'layer_stat_parse'
         kinds = command([SUDO, '-n', STAT, '--format=%F', '--', *layers],
-                        deadline, 'image_metadata_unavailable').decode('ascii').splitlines()
-        require(kinds == ['directory'] * len(layers), 'image_metadata_unavailable')
+                        deadline, 'image_metadata_unavailable_layer_stat_command', cap=IMAGE_METADATA_COMMAND_SECONDS, classify=True).decode('ascii').splitlines()
+        require(kinds == ['directory'] * len(layers), 'image_metadata_unavailable_layer_kind')
         require(any(canonical[-1].startswith(path + '/') for path in layers), 'image_metadata_no_match')
-        require(inventory() == before, 'image_metadata_unavailable')
+        require(inventory() == before, 'image_metadata_unavailable_inventory_changed')
         require(command([SUDO, '-n', REALPATH, '-e', '--', *before[1], candidate],
-                        deadline, 'image_metadata_unavailable') == raw, 'image_metadata_unavailable')
+                        deadline, 'image_metadata_unavailable_canonical_recheck_command', cap=IMAGE_METADATA_COMMAND_SECONDS, classify=True) == raw,
+                'image_metadata_unavailable_canonical_changed')
         return before, tuple(canonical)
     except Refusal:
         raise
     except (ValueError, UnicodeError, TypeError):
-        raise Refusal('image_metadata_unavailable') from None
+        # Stage is a fixed source label. Never publish metadata, paths, IDs,
+        # candidate contents or parser/provider exception text.
+        raise Refusal('image_metadata_unavailable_' + stage) from None
 
 
-def find_crash_candidate(roots, deadline, image_layers=()):
+def crash_scan_seconds(phase):
+    require(type(phase) is str and phase in ('preflight', 'final'), 'crash_scan_phase_invalid')
+    return PREFLIGHT_SCAN_SECONDS if phase == 'preflight' else SCAN_SECONDS
+
+
+def find_crash_candidate(roots, deadline, image_layers=(), *, phase='final'):
+    seconds = crash_scan_seconds(phase)
     # Exact metadata-proved diff directories only; never overlay parents or a
     # writable container layer. Keep default no-symlink-follow and -xdev.
     require(len(image_layers) <= 512 and all(re.fullmatch(
@@ -2408,11 +2653,12 @@ def find_crash_candidate(roots, deadline, image_layers=()):
         predicate = ['(', '-type', 'd', '(', *paths, ')', '-prune', ')', '-o', '(', *predicate, ')']
     argv = [SUDO, '-n', FIND, *roots, '-xdev', *predicate]
     require(sum(len(os.fsencode(arg)) + 1 for arg in argv) <= 128 * 1024, 'crash_prune_bound')
-    return command(argv, deadline, 'crash_inventory_unreadable', cap=SCAN_SECONDS)
+    return command(argv, deadline, 'crash_inventory_unreadable', cap=seconds, classify=True)
 
 
-def crash_scan(deadline):
-    end = min(deadline, time.monotonic() + SCAN_SECONDS)
+def crash_scan(deadline, *, phase='final'):
+    seconds = crash_scan_seconds(phase)
+    end = min(deadline, time.monotonic() + seconds)
     locations = [(str(ROOT), 'workspace'), (os.environ['RUNNER_TEMP'], 'runner_temp')]
     locations.extend(zip(HOST_CRASH_ROOTS, ('apport', 'systemd', 'docker', 'tmp', 'var_tmp')))
     roots = [path for path, _ in locations if Path(path).exists()]
@@ -2422,7 +2668,7 @@ def crash_scan(deadline):
         ('containerd', 'containerd'), ('containers', 'containers'), ('volumes', 'volumes')))
     # Read-only, fixed predicates. Container scratch proofs remain in the native
     # tests; this additionally inspects actual host file-collector destinations.
-    value = find_crash_candidate(roots, end)
+    value = find_crash_candidate(roots, end, phase=phase)
     image_count, provenance = 0, ''
     if value:
         candidate = os.fsdecode(value[:-1]) if value.endswith(b'\0') and value.count(b'\0') == 1 else ''
@@ -2435,7 +2681,7 @@ def crash_scan(deadline):
                 # The first hit alone never supplies a clean scan. Search all
                 # original roots again, excluding only proved read-only images.
                 layers = tuple(sorted(set(before[1][:-1])))
-                value = find_crash_candidate(roots, end, layers)
+                value = find_crash_candidate(roots, end, layers, phase=phase)
                 try:
                     require(image_layer_snapshot(candidate, end) == before, 'crash_image_metadata_changed')
                 except Refusal:
@@ -2614,7 +2860,7 @@ def execute(mode):
             # even read-only sudo or the transient unit's privilege. Provisioning
             # independently repeats qualification, drift and write/readback checks.
             prevalidate_native(provisioner, execution)
-            receipt['crashInventoryBefore'] = crash_scan(execution)
+            receipt['crashInventoryBefore'] = crash_scan(execution, phase='preflight')
         elif mode in SHARD_JOBS:
             receipt['runtime'] = qualify_shard_vm(mode, execution)
         require(not command([SYSTEMCTL, 'list-units', '--all', '--plain', '--no-legend', unit],

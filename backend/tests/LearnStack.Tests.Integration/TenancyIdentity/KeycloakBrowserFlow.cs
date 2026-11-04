@@ -19,6 +19,9 @@ internal sealed partial class KeycloakBrowserFlow : IDisposable
     private readonly HttpClient _client;
     private readonly string _realm;
 
+    internal int BffFormCallbacks { get; private set; }
+    internal int BffSsoCallbacks { get; private set; }
+
     internal KeycloakBrowserFlow(Uri baseAddress, X509Certificate2 rootCertificate, string realm = "learnstack")
     {
         _baseAddress = baseAddress;
@@ -37,7 +40,7 @@ internal sealed partial class KeycloakBrowserFlow : IDisposable
         var callbackText = query.GetValueOrDefault("redirect_uri").ToString();
         if (!Uri.TryCreate(callbackText, UriKind.Absolute, out var callback)
             || callback.Scheme != "https" || callback.Port != 3000
-            || !LearnStack.Tools.Seeder.SeedData.All.Any(tenant => tenant.Host == callback.Host)
+            || !KnownBffHost(callback.Host)
             || callback.AbsolutePath != "/api/auth/callback/keycloak" || callback.Query.Length != 0
             || callback.Fragment.Length != 0 || callback.UserInfo.Length != 0
             || query.GetValueOrDefault("client_id") != "learnstack-web"
@@ -45,8 +48,14 @@ internal sealed partial class KeycloakBrowserFlow : IDisposable
             || query.Any(pair => pair.Value.Count != 1))
             throw new InvalidOperationException("BFF fixture authorization does not use the delivered callback/S256 contract.");
         using var page = await KeycloakHttp.SendAsync(_client, HttpMethod.Get, authorization.AbsoluteUri);
+        if (page.StatusCode is HttpStatusCode.Found or HttpStatusCode.SeeOther)
+        {
+            var ssoCallback = ValidateCallback(page);
+            BffSsoCallbacks++;
+            return ssoCallback;
+        }
         if (page.StatusCode != HttpStatusCode.OK)
-            throw new InvalidOperationException("BFF fixture expected a fresh provider login form.");
+            throw new InvalidOperationException("BFF fixture expected a provider login form or owned SSO callback.");
         var action = LoginAction(await KeycloakHttp.ReadBodyAsync(page));
         using var submitted = await KeycloakHttp.SendAsync(_client, HttpMethod.Post, action,
             new FormUrlEncodedContent(new Dictionary<string, string>
@@ -55,19 +64,31 @@ internal sealed partial class KeycloakBrowserFlow : IDisposable
                 ["password"] = password,
                 ["credentialId"] = "",
             }));
-        var location = submitted.Headers.Location;
-        if (submitted.StatusCode is not (HttpStatusCode.Found or HttpStatusCode.SeeOther)
-            || location is null || !location.IsAbsoluteUri
-            || location.GetLeftPart(UriPartial.Path) != callback.GetLeftPart(UriPartial.Path))
-            throw new InvalidOperationException("BFF fixture provider login did not reach its owned callback.");
-        var returned = QueryHelpers.ParseQuery(location.Query);
-        if (returned.GetValueOrDefault("state") != query.GetValueOrDefault("state")
-            || returned.GetValueOrDefault("code").Count != 1 || returned.ContainsKey("error")
-            || location.Fragment.Length != 0 || location.UserInfo.Length != 0
-            || returned.Any(pair => pair.Value.Count != 1))
-            throw new InvalidOperationException("BFF fixture provider callback lacks its original state or code.");
-        return location;
+        var formCallback = ValidateCallback(submitted);
+        BffFormCallbacks++;
+        return formCallback;
+
+        Uri ValidateCallback(HttpResponseMessage response)
+        {
+            var location = response.Headers.Location;
+            if (response.StatusCode is not (HttpStatusCode.Found or HttpStatusCode.SeeOther)
+                || location is null || !location.IsAbsoluteUri
+                || location.GetLeftPart(UriPartial.Path) != callback.GetLeftPart(UriPartial.Path))
+                throw new InvalidOperationException("BFF fixture provider login did not reach its owned callback.");
+            var returned = QueryHelpers.ParseQuery(location.Query);
+            if (returned.GetValueOrDefault("state") != query.GetValueOrDefault("state")
+                || returned.GetValueOrDefault("code").Count != 1 || returned.ContainsKey("error")
+                || location.Fragment.Length != 0 || location.UserInfo.Length != 0
+                || returned.Any(pair => pair.Value.Count != 1))
+                throw new InvalidOperationException("BFF fixture provider callback lacks its original state or code.");
+            return location;
+        }
     }
+
+    private static bool KnownBffHost(string host) =>
+        LearnStack.Tools.Seeder.SeedData.All.Any(tenant => tenant.Host == host)
+        || LearnStack.Modules.Tenancy.Application.Contracts.Seeding.SeedAdministrationOriginManifest.All
+            .Any(origin => origin.Host == host);
 
     internal async Task<Uri> CompleteBffLogoutAsync(Uri logout)
     {
@@ -79,7 +100,7 @@ internal sealed partial class KeycloakBrowserFlow : IDisposable
             || target.Scheme != "https" || target.Port != 3000 || target.AbsolutePath != "/"
             || target.Query.Length != 0 || target.Fragment.Length != 0 || target.UserInfo.Length != 0
             || query.Any(pair => pair.Value.Count != 1)
-            || !LearnStack.Tools.Seeder.SeedData.All.Any(tenant => tenant.Host == target.Host))
+            || !KnownBffHost(target.Host))
             throw new InvalidOperationException("BFF fixture logout return is outside the delivered hosts.");
         using var response = await KeycloakHttp.SendAsync(_client, HttpMethod.Get, logout.AbsoluteUri);
         var location = response.Headers.Location;

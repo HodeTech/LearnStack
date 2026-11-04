@@ -2,8 +2,10 @@
 import { createTranslator } from 'next-intl';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { getAdministrationCatalogue } from './administration-catalogues';
 import { getAuthCatalogue } from './auth-catalogues';
 import * as catalogues from './catalogues';
+import type { NativePageSnapshot } from '../server/auth/page-contract';
 import en from './messages/en/public.json';
 import tr from './messages/tr/public.json';
 import requestConfig from './request';
@@ -11,6 +13,7 @@ import requestConfig from './request';
 const dependencies = vi.hoisted(() => ({
   request: vi.fn(),
   active: vi.fn(),
+  page: vi.fn(),
   notFound: vi.fn(() => {
     throw new Error('Admission refused');
   }),
@@ -20,6 +23,7 @@ vi.mock('@/server/public-request', () => ({
   assertPublicRequestActive: dependencies.active,
 }));
 vi.mock('next/navigation', () => ({ notFound: dependencies.notFound }));
+vi.mock('@/server/auth/page', () => ({ optionalPreparedPage: dependencies.page }));
 // Execute the production callback directly; next-intl's request cache is outside
 // this unit boundary. The real formatter consumes the returned config below.
 vi.mock('next-intl/server', () => ({ getRequestConfig: (callback: unknown) => callback }));
@@ -29,6 +33,7 @@ const configure = () => requestConfig({ requestLocale: Promise.resolve('forged-l
 beforeEach(() => {
   vi.clearAllMocks();
   dependencies.active.mockReset();
+  dependencies.page.mockReset().mockResolvedValue(null);
 });
 
 describe('verified public next-intl request configuration', () => {
@@ -49,6 +54,7 @@ describe('verified public next-intl request configuration', () => {
       expect(config.messages).toEqual({
         public: messages,
         auth: getAuthCatalogue(String(locale ?? 'en')).messages,
+        ...getAdministrationCatalogue(String(locale ?? 'en')).messages,
       });
       const translate = createTranslator({
         ...config,
@@ -66,6 +72,65 @@ describe('verified public next-intl request configuration', () => {
     await expect(configure()).rejects.toThrow('Admission refused');
     expect(dependencies.notFound).toHaveBeenCalledOnce();
     expect(dependencies.notFound).toHaveBeenCalledWith();
+    expect(select).not.toHaveBeenCalled();
+    expect(dependencies.page).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['available', 'tr', ['en', 'tr'], 'tr'],
+    ['available', 'tr', ['en'], 'en'],
+    ['missing', null, ['en', 'tr'], 'en'],
+    ['unavailable', 'tr', ['en', 'tr'], 'en'],
+  ] as const)(
+    'selects all protected catalogues from exact own profile %s/%s and enabled site locales',
+    async (profileState, preferredLocale, enabledLocales, expected) => {
+      dependencies.request.mockResolvedValue({ locale: 'en' });
+      const snapshot: NativePageSnapshot = {
+        target: '/portal/profile',
+        site: {
+          displayName: 'School',
+          defaultLocale: 'en',
+          enabledLocales,
+          theme: null,
+          showPlatformAttribution: true,
+        },
+        session: {
+          state: 'authenticated',
+          displayName: 'School',
+          expiresAt: 1800000300000,
+          limitedByAbsolute: false,
+          csrfToken: 'A'.repeat(43),
+        },
+        scopeKind: 'organization',
+        capabilities: null,
+        profileState,
+        ownProfile:
+          preferredLocale === null ? null : { displayName: 'Actor', preferredLocale, version: '0' },
+        formKeys: [],
+        outcome: { kind: 'ready', view: { kind: 'profile', canWrite: false } },
+      };
+      const assertActive = vi.fn();
+      dependencies.page.mockResolvedValue({ snapshot, assertActive });
+      const configured = await configure();
+      expect(assertActive).toHaveBeenCalledOnce();
+      expect(configured.locale).toBe(expected);
+      expect(configured.messages).toEqual({
+        public: expected === 'tr' ? tr : en,
+        auth: getAuthCatalogue(expected).messages,
+        ...getAdministrationCatalogue(expected).messages,
+      });
+    },
+  );
+
+  it('withholds catalogue selection if the prepared snapshot is invalidated after its await', async () => {
+    dependencies.request.mockResolvedValue({ locale: 'en' });
+    dependencies.page.mockResolvedValue({
+      assertActive: () => {
+        throw new Error('Prepared page closed');
+      },
+    });
+    const select = vi.spyOn(catalogues, 'getPublicCatalogue');
+    await expect(configure()).rejects.toThrow('Prepared page closed');
     expect(select).not.toHaveBeenCalled();
   });
 

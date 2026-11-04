@@ -10,7 +10,7 @@ public sealed class ChangeRoleGrantsCommandValidator : AbstractValidator<ChangeR
     {
         RuleFor(request => request.RoleId).Must(RoleGrantInput.ValidId).WithErrorCode("lockey_invalid_value");
         RuleFor(request => request.ExpectedRoleVersion).GreaterThanOrEqualTo(0).WithErrorCode("lockey_concurrency_conflict");
-        RuleFor(request => request.Grants).Must(grants => !grants.IsDefault && grants.Length <= IdentityFoundationManifest.Version1.Definitions.Length
+        RuleFor(request => request.Grants).Must(grants => !grants.IsDefault && grants.Length <= IdentityRoleRelease.Version2.Definitions.Length
             && grants.All(definition => definition is not null) && grants.Distinct().Count() == grants.Length)
             .WithErrorCode("lockey_invalid_value");
     }

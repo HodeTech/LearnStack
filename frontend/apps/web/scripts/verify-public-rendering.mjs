@@ -26,6 +26,8 @@ import {
   createPrivateScanner,
   fixtureEnvironment,
 } from './fixture-support.mjs';
+import { createCopiedRuntimeHostBroker } from './framework-proof-host-broker.mjs';
+import { frameworkProofBuildArguments, prepareFrameworkProof } from './framework-proof-support.mjs';
 import {
   absentFromSerializedText,
   absentFromWholeResponse as assertAbsentFromWholeResponse,
@@ -37,6 +39,7 @@ import {
   statusDocument as assertStatusDocument,
   visibleDocument as document,
 } from './public-rendering-assertions.mjs';
+import { stopTestChild } from './stop-test-child.mjs';
 
 const sourceApp = fileURLToPath(new URL('../', import.meta.url));
 const { JSDOM } = createRequire(join(sourceApp, 'package.json'))('jsdom');
@@ -93,14 +96,18 @@ function environment() {
 
 function start(command, args) {
   owner.assertActive();
+  const nativeRuntime =
+    command === process.execPath && args[0] === join(app, 'scripts/public-server.mjs');
   const child = owner.ownChild(
     spawn(command, args, {
       cwd: app,
       env: environment(),
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: ['ignore', 'pipe', 'pipe', ...(nativeRuntime ? ['ipc'] : [])],
       detached: process.platform !== 'win32',
     }),
   );
+  if (nativeRuntime)
+    child.runtimeBroker = createCopiedRuntimeHostBroker(child, { app, profile: 'none' });
   child.failed = false;
   child.on('error', () => {
     child.failed = true;
@@ -203,6 +210,7 @@ async function ready(child, tls, port) {
       if (!bound.test(child.output)) throw new Error('Owned bind pending');
       const response = await call(tls, port, '/api/healthz');
       if (response.status === 200 && JSON.parse(response.body).status === 'healthy') {
+        if (tls) assert.ok(child.runtimeBroker?.capture.family(), 'Native runtime family captured');
         assert.equal(child.exitCode, null, 'Owned listener remains live');
         assert.equal(child.signalCode, null, 'Owned listener remains live');
         return;
@@ -1210,7 +1218,7 @@ async function productMissing(name, tenant, path, locale, hidden) {
 }
 
 async function verifyProductIsolation(native) {
-  const pid = native.pid;
+  const family = native.runtimeBroker.capture.family();
   const lanes = configuration.tenants.flatMap((tenant) =>
     ['en', 'ar'].map((locale) => ({ tenant, details: productDetails(tenant, locale) })),
   );
@@ -1279,12 +1287,12 @@ async function verifyProductIsolation(native) {
       [],
     );
   }
-  assert.equal(native.pid, pid);
+  assert.deepEqual(native.runtimeBroker.capture.family(), family);
   assert.equal(native.exitCode, null, 'The entire product matrix uses one native process');
 }
 
 async function verifyProductFreshness(native) {
-  const pid = native.pid;
+  const family = native.runtimeBroker.capture.family();
   const [first, second] = configuration.tenants;
   const details = productDetails(first, 'ar');
   const catalog = '/ar/courses';
@@ -1418,7 +1426,7 @@ async function verifyProductFreshness(native) {
     await checkpoint(scenario.name);
     await success(scenario.recovery, scenario.tenant, scenario.target, scenario.title);
   }
-  assert.equal(native.pid, pid);
+  assert.deepEqual(native.runtimeBroker.capture.family(), family);
   assert.equal(
     native.exitCode,
     null,
@@ -1497,6 +1505,7 @@ try {
     });
   }
   symlinkSync(join(sourceApp, 'node_modules'), join(app, 'node_modules'), 'dir');
+  prepareFrameworkProof({ sourceApp, app });
   const coursesDirectory = join(app, 'src/app/(public)/[locale]/courses');
   let fixtureClient;
   if (foundation) {
@@ -1535,7 +1544,7 @@ try {
         "import { createConfiguredPublicClient } from '@/server/configured-public-client';\n" +
         'export default function Probe() { return <p>{String(createConfiguredPublicClient(null))}</p>; }\n',
     );
-    const rejected = start(process.execPath, [nextBin, 'build']);
+    const rejected = start(process.execPath, frameworkProofBuildArguments(app));
     assert.notEqual(
       await completion(rejected),
       0,
@@ -1544,7 +1553,6 @@ try {
     assert.match(rejected.output, /server-only/);
     assert.match(rejected.output, /client-import-probe\/page\.tsx/);
     rmSync(dirname(mutant), { recursive: true });
-    rmSync(join(app, '.next'), { recursive: true, force: true });
 
     stage = 'built client canary rejection';
     // This mutant must compile successfully. Only scanning real emitted browser
@@ -1556,7 +1564,7 @@ try {
         '{displayName}{' + JSON.stringify(configuration.secret) + '}</p>',
       ),
     );
-    const canary = start(process.execPath, [nextBin, 'build']);
+    const canary = start(process.execPath, frameworkProofBuildArguments(app));
     assert.equal(await completion(canary), 0, 'Client canary builds successfully');
     assert.throws(
       () => scanClientAssets(join(app, '.next/static'), true),
@@ -1564,17 +1572,10 @@ try {
       'The emitted client canary must be rejected by asset scanning',
     );
     writeFileSync(fixtureClient, clientComponent);
-    rmSync(join(app, '.next'), { recursive: true, force: true });
   }
 
   stage = 'healthy production build';
-  const ingress = start(process.execPath, [
-    join(sourceApp, 'node_modules/typescript/bin/tsc'),
-    '--project',
-    'tsconfig.server.json',
-  ]);
-  assert.equal(await completion(ingress), 0, 'Production ingress compilation');
-  const build = start(process.execPath, [nextBin, 'build']);
+  const build = start(process.execPath, frameworkProofBuildArguments(app));
   assert.equal(await completion(build), 0, 'Healthy production build');
   assert.ok(
     scanClientAssets(join(app, '.next/static'), !foundation).files > 0,
@@ -1734,7 +1735,7 @@ try {
     await checkpoint('stock-after');
 
     stage = 'same process publication freshness';
-    const nativePid = native.pid;
+    const nativeFamily = native.runtimeBroker.capture.family();
     await checkpoint('make-draft');
     for (const rsc of [false, true]) {
       stage = rsc ? 'draft RSC catalog' : 'draft HTML catalog';
@@ -1764,7 +1765,7 @@ try {
     }
     stage = 'unaffected tenant after draft';
     assert.ok((await representation(second, course)).body.includes(second.courseTitle));
-    assert.equal(native.pid, nativePid);
+    assert.deepEqual(native.runtimeBroker.capture.family(), nativeFamily);
     assert.equal(native.exitCode, null, 'Freshness used the same live native process');
     await checkpoint('restore-published');
     stage = 'restored publication';
@@ -1782,6 +1783,9 @@ try {
   );
   assert.ok(scanClientAssets(join(app, '.next/static'), !foundation).files > 0);
   await checkpoint('verified');
+  const stopped = await stopTestChild(native);
+  assert.equal(stopped.ownerCode, 0, 'Native owner completed its actual runtime family join');
+  assert.equal(stopped.ownerSignal, null);
 } catch {
   // Assertions and compiler/provider errors may contain private values. Report
   // only this finite test-owned stage; raw stdout/stderr never leave this process.

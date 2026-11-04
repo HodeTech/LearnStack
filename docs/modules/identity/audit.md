@@ -8,12 +8,19 @@ Derived from jointly Accepted [ADR-0072](../../decisions/0072-application-owned-
 and jointly Accepted [ADR-0076](../../decisions/0076-live-scoped-authorization.md) /
 [ADR-0077](../../decisions/0077-trusted-authorization-evidence.md), with
 [Standard 18](../../standards/18-audit-coverage.md). Part of the [module spec](README.md).
+The internal fixed-seed prerequisite boundary derives from
+[ADR-0080](../../decisions/0080-fixed-seed-prerequisite-read-scope.md); new
+qualification remains in the phase Status block.
+The distinct internal fixed-origin completion purpose derives from Accepted
+[ADR-0081](../../decisions/0081-fixed-seed-completion-before-origin-adoption.md).
 
 The baseline MUST floor applies. `IdentityAuditCatalogSource` declares
 actual operations: catalogue-to-matrix coverage is total. Audit slugs are not
 additional permission keys. The internal `ListMembershipsQuery` has a real MUST
 catalogue entry, ordinary ReadWrite adapter and declared HTTP admission.
 The two grant commands have real MUST catalogue entries and contained Role diffs.
+Membership detail, both profile writers, status and assignment replacement have
+actual typed MUST bindings; exact own-profile reading is separately registered Off.
 `(off-path)` marks a central event without a MediatR request.
 Catalogue → matrix remains total; the reverse request join applies only when
 the request exists, and off-path events register by slug when their writer lands.
@@ -28,13 +35,51 @@ the request exists, and off-path events register by slug when their writer lands
 | Authorization decision | `identity.authorization.deny` `(off-path)` | **MUST** (`security-event`) | Central HTTP/application/resource denial owner; one decided invocation event, separate from ordinary plural resource intents. No tenant override or host suppression budget. |
 | Membership directory | `identity.membership.list` | **MUST** (`read-sensitive`) | Internal `ListMembershipsQuery` under existing Tenant `identity.membership.admin`; ordinary ReadWrite owner commits its row before disclosure. No HTTP activation follows from its catalogue entry. |
 | Role including grants | `identity.role.change_grants` | **MUST** (`security-event`) | `ChangeRoleGrantsCommand`; one Role root and contained grant diff, expected row version and fresh post-lock authority recheck; success/audit share the transaction. |
-| Role including grants | `identity.role.adopt_manifest` | **MUST** (`security-event`) | `AdoptRoleGrantManifestCommand`; separately admitted finite v1 manifest adoption, one Role root and contained grant diff; no automatic registry/seed upgrade. |
+| Role including grants | `identity.role.adopt_manifest` | **MUST** (`security-event`) | `AdoptRoleGrantManifestCommand`; exact first v2 delta, one Role root and contained marker/grant capture; historical v1/repeated adoption refuses, with no automatic registry/seed upgrade. |
+| Current-branch Membership directory | `identity.membership.list_organization` | **MUST** (`read-sensitive`) | Exact branch-scoped member list under an admitted Tenant-or-Organization alternative; no Tenant read hatch on this endpoint. |
+| Membership detail | `identity.membership.read` | **MUST** (`read-sensitive`) | `GetMembershipDetailQuery`; ordinary ReadWrite owner commits before contextual profile/assignment disclosure. Only the matched Tenant clause may widen reads; Organization admission stays scoped. |
+| MembershipProfile, captured under Membership | `identity.membership_profile.write` | **MUST** (`update`) | Separate `SetMembershipProfileCommand` and `SetOwnMembershipProfileCommand` bindings share this slug. Exact Active target, contextual fields and expected version; one Membership root, with contained profile capture on the business transaction. |
+| Membership including assignments | `identity.membership.replace_role_assignments` | **MUST** (`security-event`) | `ReplaceMembershipRoleAssignmentsCommand`; current Role graph/whole-grant delegation, expected version and ordered fences; retained children and actual contained diffs share the transaction. |
+| Membership lifecycle | `identity.membership.change_status` | **MUST** (`security-event`) | `ChangeMembershipStatusCommand`; suspend/reactivate/revoke with fresh authority, actual User admission, exact scope and last-admin guards; Revoked is terminal. |
+| Membership context admission | `identity.membership.admit_session_scope` | **MUST** (`security-event`) | `AdmitNativeSessionScopeCommand`; initial context selection/explicit switch under the native source. The ordinary ReadWrite owner commits before its association witness. Prefer the exact branch Membership when present, otherwise the covering tenant-wide Membership; designate that actual resource. This event proves API admission, not browser cookie delivery. |
+| Role summaries | `identity.role.list` | **MUST** (`read-sensitive`) | Current Role-read admission before finite template disclosure. |
+| Role detail | `identity.role.read` | **MUST** (`read-sensitive`) | Current Role-read admission before grants/release-marker disclosure. |
+| Permission registry and release choices | `identity.role.list_permissions` | **MUST** (`read-sensitive`) | Tenant role-admin admits the exact finite registry/release configuration, separately from own-capability hints. |
+| Original Membership outcome | `identity.membership.read_receipt` | **MUST** (`read-sensitive`) | Current original-target disclosure authority before stored successful bytes; terminal target facts only for this receipt. |
+| Original MembershipProfile outcome | `identity.membership_profile.read_receipt` | **MUST** (`read-sensitive`) | Exact stored original Membership and self/admin predicate; no later successor substitution. |
+| Original Role outcome | `identity.role.read_receipt` | **MUST** (`read-sensitive`) | Fresh Role receipt disclosure admission; does not reexecute grant/adoption mutation. |
 
 **Explicit Off reads.** Contextual seed verification request types are registered
 Off before use; they inspect only the exact bounded declared seed facts, with no
 directory/provider profile. Ordinary existing-binding lookups create no mutation
 intent under ADR-0072. Off request registration is separate from MUST operation
 rows; no Off value is presented as an `OperationClass` or a MUST audit slug.
+`GetOwnMembershipProfileQuery` is registered Off and declared physically ReadOnly
+by Identity. It reads only the actor's exact current Active Membership profile,
+with no supplied target or NULL-org fallback. Its separate writer remains MUST
+and ReadWrite. `GetOwnMembershipContextsQuery` and `GetOwnCapabilitiesQuery` are
+also explicitly Off and physically ReadOnly; their bounded own-navigation
+responses have no ETag. Administration reads and receipts are no-store.
+
+The separate closed prerequisite operation is internal to an already classified
+seed act, rather than a new Off request or externally disclosed sensitive read.
+It returns no raw editor IDs, relationship metadata or profile values. Existing
+seed mutation classifications, MUST floors, failed/denied outcomes and genuine
+unknown-COMMIT reconciliation remain unchanged; no separate successful read event
+or private receipt is added. [Standard 18](../../standards/18-audit-coverage.md#native-entry-and-protected-administration)
+owns the audit boundary; [Standard 05](../../standards/05-database.md#fixed-seed-prerequisite-read-authority)
+owns the metadata-only projection and restoration before results.
+
+The distinct [fixed-origin completion operation](../../standards/05-database.md#fixed-seed-completion-read-authority)
+has one consumer, `AdoptSeedAdministrationOriginCommand`, without joining the
+eight pristine consumers. Identity's retained metadata/relationship checks
+remain internal on that adoption owner, with no profile/global/provider value
+projection or raw editor result. They add no Identity mutation, separate Off
+request, successful sensitive-read event or durable receipt. The adoption act
+retains its plural MUST evidence, refusal and genuine unknown-COMMIT contract;
+marker-2/exact-mapping repeats stop before mutation dispatch or new intents.
+Standard 05 owns source, lifetime and retained-local completion semantics;
+acceptance supplies no runtime qualification.
 
 No seed command mutates a second root. Role grants travel in Role diffs;
 assignments/Profile travel in Membership diffs. Instance-qualified paths
@@ -98,3 +143,40 @@ own [retention target](../../standards/18-audit-coverage.md#retention): Security
 seven years, ReadSensitive two years. Purge remains Phase 11 work; P03-10's Audit
 participant locates/reports surviving actor/subject linkage without metadata
 UPDATE authority. No email mirror or Platform/operator flag population is added.
+
+## Bounded entry and administration classifications
+
+**Accepted under ADR-0078/0079.** Membership administration, current-branch
+directory, Role/registry and receipt consumers have actual catalogue bindings.
+The closed HTTP surface commits each required read event before response bytes;
+replay emits a fresh receipt read rather than another mutation event. The
+[phase Status block](../../roadmap/phase-03-identity-admin.md) owns qualification
+and review state. Existing User creation, Role grant/adoption and denial
+slugs keep their implemented classifications; their new consumers do not invent
+private audit writers. V2 adoption extends the existing Role adoption operation
+with the exact approved delta and same-transaction contained marker/grant capture.
+
+Global-self lookup/context choices, current-tenant own contexts, exact own-profile
+reads and own-capability previews are explicitly Off, no-store self navigation.
+Their request types require Off catalogue registration before dispatch. An
+ordinary refresh's positive new-token association/AccountSite check preserves the
+original scope and remains Off; it does not call the audited admission operation.
+Initial selection/explicit switch alone produces the new admission security event.
+Bootstrap retains the existing central `identity.user.create` owner: actual
+creation/audit commit together, matching existing bindings declare no new creation
+intent, and failed/indeterminate creation follows central reconciliation. No User
+or session is inferred from a failed audit/unknown COMMIT.
+
+Protected completed response replay performs a separately classified current
+receipt read. It checks the stored original target and commits a new MUST read
+event before disclosure; it never repeats the original mutation event or exchange
+headers. Failed read/audit retains the stored completion. The
+[storage contract](../../standards/05-database.md#p03-3-storage-and-replay-contract)
+owns typed target persistence, reclamation and owner/fence lifetime.
+
+Own context choices, association witnesses, stored receipt targets and copied
+page/response bodies remain personal/reference data where linkable. Off means no
+operation event, not anonymous data or diagnostic permission. SecurityEvent and
+ReadSensitive retention remain policy targets; Phase 11 owns automatic purge,
+while P03-10 owns applicable export/closure/linkage location. Acceptance does not
+qualify the new provider, database, browser, race or failure proofs.

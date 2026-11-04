@@ -1,3 +1,4 @@
+using LearnStack.Modules.Customization.Application.Seeding;
 using LearnStack.Modules.Customization.Application.Abstractions;
 using LearnStack.Modules.Customization.Application.Contracts.Customization;
 using LearnStack.Modules.Customization.Domain;
@@ -40,7 +41,8 @@ internal sealed class RegisterTenantContentTypeCommandHandler(
     IJsonSchemaValidator schemas,
     IFeatureFlags features,
     ITenantContext tenantContext,
-    IClock clock)
+    IClock clock,
+    ISeedCustomizationWriteGuard seedGuard)
     : IRequestHandler<RegisterTenantContentTypeCommand, Result<TenantContentTypeDto>>
 {
     public async Task<Result<TenantContentTypeDto>> Handle(
@@ -52,6 +54,8 @@ internal sealed class RegisterTenantContentTypeCommandHandler(
         {
             return CustomizationFailures.Unresolved<TenantContentTypeDto>();
         }
+
+        if (!await seedGuard.PrepareAsync(request, cancellationToken)) return Result<TenantContentTypeDto>.Fail(seedGuard.Failure);
 
         var admitted = schemas.AdmitSchema(request.JsonSchema);
 
@@ -85,6 +89,7 @@ internal sealed class RegisterTenantContentTypeCommandHandler(
         // on its behalf.
         var displayName = LocalizedText.From(request.DisplayName);
 
+        if (!seedGuard.IsCurrent(request)) return CustomizationFailures.BusinessRule<TenantContentTypeDto>("Seed", "lockey_business_rule_violation");
         var contentType = TenantContentType.Create(
             TenantContentTypeId.From(request.ContentTypeId),
             tenantContext.TenantId,
@@ -98,12 +103,9 @@ internal sealed class RegisterTenantContentTypeCommandHandler(
 
         try
         {
-            // All custom-key registrars take the tenant lock before the concept
-            // lock. Different keys otherwise race the same tenant-wide ceiling.
-            // Card does not consume a slot; initialization keeps its history lock.
+            // The guard already holds Tenant, quota and concept locks in that order.
+            // Different custom keys share the tenant-wide ceiling; Card consumes no slot.
             var custom = request.Key != BuiltInCustomizations.Card.Key;
-            if (custom) await contentTypes.LockRegistrationsAsync(cancellationToken);
-            await contentTypes.LockConceptAsync(request.Key, cancellationToken);
             if (custom && !await features.IsEnabledAsync(FeatureKeys.UnlimitedContentTypes, cancellationToken))
             {
                 var limit = await features.GetLimitAsync(LimitKeys.MaxCustomContentTypes, cancellationToken);
@@ -114,6 +116,7 @@ internal sealed class RegisterTenantContentTypeCommandHandler(
                         return CustomizationFailures.ContentTypeLimit<TenantContentTypeDto>(limit);
                 }
             }
+            if (!seedGuard.IsCurrent(request)) return CustomizationFailures.BusinessRule<TenantContentTypeDto>("Seed", "lockey_business_rule_violation");
             await contentTypes.AddAsync(contentType, cancellationToken);
         }
         catch (AggregateConflictException conflict)

@@ -17,7 +17,20 @@ import {
   bffRoute,
 } from '../server/auth/http-input';
 
-const postPaths = ['/api/auth/signin/keycloak', '/api/auth/signout', '/api/auth/extend'];
+const postPaths = [
+  '/api/auth/signin/keycloak',
+  '/api/auth/signout',
+  '/api/auth/extend',
+  '/api/auth/entry/create',
+  '/api/auth/entry/select',
+  '/api/auth/switch',
+  '/api/studio/membership-profile',
+  '/api/studio/membership-roles',
+  '/api/studio/membership-status',
+  '/api/studio/role-grants',
+  '/api/studio/role-manifest-adoption',
+  '/api/account/profile',
+];
 const readPaths = ['/api/auth/signin', '/api/auth/csrf', '/api/auth/session', '/api/auth/error'];
 const methods = [
   'GET',
@@ -50,6 +63,7 @@ describe('Bff_Auth_Admission_And_Csrf_Are_Closed', () => {
       ...readPaths,
       ...postPaths,
       '/api/auth/callback/keycloak',
+      '/api/auth/entry',
       '/api/auth/refresh',
       '/api/auth/providers',
       '/api/auth/signin/arbitrary',
@@ -60,7 +74,8 @@ describe('Bff_Auth_Admission_And_Csrf_Are_Closed', () => {
       for (const method of methods)
         expect(bffRoute(method, path), method + ' ' + path).toBe(
           (method === 'POST' && postPaths.includes(path)) ||
-            (method === 'GET' && path === '/api/auth/callback/keycloak') ||
+            (method === 'GET' &&
+              ['/api/auth/callback/keycloak', '/api/auth/entry'].includes(path)) ||
             (['GET', 'HEAD'].includes(method) && readPaths.includes(path)),
         );
   });
@@ -284,7 +299,16 @@ describe('Bff_Auth_Admission_And_Csrf_Are_Closed', () => {
     expect(f.provider.begin).not.toHaveBeenCalled();
     expect(f.account).not.toHaveBeenCalled();
   });
-  it.each(['/', '/studio', '/portal'])(
+  it.each([
+    '/',
+    '/studio',
+    '/studio/members',
+    '/studio/members/019a154b-0000-7000-8000-000000000011',
+    '/studio/roles',
+    '/studio/roles/019a154b-0000-7000-8000-000000000022',
+    '/portal',
+    '/portal/profile',
+  ])(
     'POST sign-in accepts only the exact local returnTo %s with valid Origin and CSRF',
     async (destination) => {
       const f = fixture();
@@ -305,6 +329,7 @@ describe('Bff_Auth_Admission_And_Csrf_Are_Closed', () => {
     const token = bffOpaque();
     for (const name of [
       BFF_COOKIES.session,
+      BFF_COOKIES.entry,
       BFF_COOKIES.browser,
       BFF_COOKIES.csrf,
       BFF_COOKIES.login + token,

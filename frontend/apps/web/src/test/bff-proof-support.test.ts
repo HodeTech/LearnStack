@@ -1,21 +1,359 @@
 // @vitest-environment node
-import { execFileSync } from 'node:child_process';
+import { ChildProcess, execFileSync, spawn } from 'node:child_process';
+import { PassThrough } from 'node:stream';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { createHeldChildControl, withTestCleanup } from './held-child-control';
 import { waitForBrowserDevTools } from '../../scripts/admission-browser.mjs';
 import {
   assertBffCookieAttributes,
   bffDevToolsFailureStage,
+  bffListenerFailureDetail,
   bffProofCopy,
+  bffPageKind,
   createBffCookieScanner,
   rememberBffCookies,
+  observeBffProofShutdown,
   withProofWaiters,
+  waitForBffProofListener,
 } from '../../scripts/bff-proof-support.mjs';
+import { createFixtureOwner } from '../../scripts/fixture-support.mjs';
+import { stopTestChild } from '../../scripts/stop-test-child.mjs';
 import en from '../i18n/messages/en/auth.json';
 import tr from '../i18n/messages/tr/auth.json';
 
 describe('BFF proof observation ownership', () => {
+  it('distinguishes an actual zero-exit leader from inherited stdout/stderr still held by its descendant', async () => {
+    expect(process.platform).not.toBe('win32');
+    const control = await createHeldChildControl();
+    const owner = createFixtureOwner();
+    const child = owner.ownChild(
+      spawn(
+        process.execPath,
+        [
+          '-e',
+          `
+      const { spawn } = require('node:child_process');
+      const descendant = spawn(process.execPath, ['-e', ${JSON.stringify(control.source())}],
+        { stdio: ['ignore', 1, 2, 'ipc'] });
+      descendant.once('message',()=>{descendant.unref();process.exit(0);});
+    `,
+        ],
+        { detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'] },
+      ),
+    );
+    child.once('error', () => {});
+    const completed = new Promise<void>((resolve) => child.once('close', () => resolve()));
+    const observation = observeBffProofShutdown(child);
+    await withTestCleanup(async () => {
+      await control.ready();
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => finish(new Error('Owned leader exit deadline')), 5000);
+        const failed = () => finish(new Error('Owned leader spawn failed'));
+        const exited = (code: number | null) =>
+          finish(code === 0 ? undefined : new Error('Owned leader exit failed'));
+        function finish(error?: Error) {
+          clearTimeout(timer);
+          child.removeListener('error', failed);
+          child.removeListener('exit', exited);
+          if (error) reject(error);
+          else resolve();
+        }
+        child.once('error', failed);
+        child.once('exit', exited);
+      });
+      expect(observation.snapshot()).toBe('absent,0,0,p,p,p,p,zero,0,open,open');
+      await control.release();
+      expect(await stopTestChild(child)).toEqual({ forced: false });
+      await completed;
+      expect(observation.snapshot()).toBe('absent,0,0,p,p,p,p,zero,1,closed,closed');
+    }, [() => control.dispose(), () => owner.dispose(), () => completed]);
+  }, 10_000);
+  it('observes only finite monotonic shutdown joins and snapshots actual exit versus close', () => {
+    const child = new ChildProcess();
+    const observer = observeBffProofShutdown(child);
+    const frame = {
+      kind: 'proof-shutdown',
+      entered: true,
+      watchdog: false,
+      listener: 'pending',
+      next: 'pending',
+      sessions: 'pending',
+      requests: 'pending',
+      milestone: 'entered',
+      sample: [1, 0, 3, 2, 1],
+    };
+    expect(observer.snapshot()).toBe('absent,0,0,p,p,p,p,live,0,absent,absent');
+    child.emit('message', { kind: 'snapshot', private: 'PRIVATE-CANARY' });
+    expect(observer.snapshot()).toBe('absent,0,0,p,p,p,p,live,0,absent,absent');
+    child.emit('message', frame);
+    child.emit('message', {
+      ...frame,
+      next: 'fulfilled',
+      milestone: 'next',
+      sample: [0, 1, 256, 0, 1],
+    });
+    expect((observer as unknown as { sample(): string }).sample()).toBe('valid,next,0,1,256,0,1');
+    Object.assign(child, { exitCode: 0 });
+    expect(observer.snapshot()).toBe('valid,1,0,p,f,p,p,zero,0,absent,absent');
+    child.emit('close', 0, null);
+    expect(observer.snapshot()).toBe('valid,1,0,p,f,p,p,zero,1,absent,absent');
+    expect(child.listenerCount('message')).toBe(0);
+    expect(child.listenerCount('close')).toBe(0);
+  });
+  it.each(['extra', 'value', 'duplicate', 'regression', 'first', 'overflow'] as const)(
+    'retains only invalid for a malformed %s shutdown sequence',
+    (kind) => {
+      const child = new ChildProcess();
+      const observer = observeBffProofShutdown(child);
+      const frame = {
+        kind: 'proof-shutdown',
+        entered: true,
+        watchdog: false,
+        listener: 'pending',
+        next: 'pending',
+        sessions: 'pending',
+        requests: 'pending',
+        milestone: 'entered',
+        sample: [0, 0, 0, 0, 0],
+      };
+      if (kind !== 'first') child.emit('message', frame);
+      if (kind === 'extra') child.emit('message', { ...frame, private: 'PRIVATE-CANARY' });
+      if (kind === 'value') child.emit('message', { ...frame, next: 'PRIVATE-CANARY' });
+      if (kind === 'duplicate') child.emit('message', frame);
+      if (kind === 'first') child.emit('message', { ...frame, next: 'fulfilled' });
+      if (kind === 'regression') {
+        child.emit('message', { ...frame, next: 'fulfilled' });
+        child.emit('message', frame);
+      }
+      if (kind === 'overflow') for (let index = 0; index < 7; ++index) child.emit('message', frame);
+      expect(observer.snapshot().startsWith('invalid,')).toBe(true);
+      expect(observer.snapshot()).not.toContain('PRIVATE-CANARY');
+      child.emit('close', 0, null);
+    },
+  );
+  it('captures watchdog and local stream states without retaining stream or process values', () => {
+    const child = new ChildProcess();
+    const observer = observeBffProofShutdown(child);
+    const frame = {
+      kind: 'proof-shutdown',
+      entered: true,
+      watchdog: false,
+      listener: 'pending',
+      next: 'pending',
+      sessions: 'pending',
+      requests: 'pending',
+      milestone: 'entered',
+      sample: [0, 0, 0, 0, 0],
+    };
+    child.emit('message', frame);
+    child.emit('message', { ...frame, watchdog: true, milestone: 'watchdog' });
+    Object.assign(child, {
+      signalCode: 'SIGTERM',
+      stdout: { readableEnded: true, closed: false },
+      stderr: { readableEnded: false, closed: true },
+    });
+    expect(observer.snapshot()).toBe('valid,1,1,p,p,p,p,signal,0,ended,closed');
+    child.emit('close', null, 'SIGTERM');
+  });
+  it.each([
+    { sample: [257, 0, 0, 0, 0] },
+    { sample: [0, 'PRIVATE-CANARY', 0, 0, 0] },
+    { sample: [0, 0, 0, 0] },
+  ])('rejects invalid samples without retaining their contents', ({ sample }) => {
+    const child = new ChildProcess();
+    const observer = observeBffProofShutdown(child);
+    const read = () => (observer as unknown as { sample(): string }).sample();
+    expect(read()).toBe('absent');
+    child.emit('message', {
+      kind: 'proof-shutdown',
+      entered: true,
+      watchdog: false,
+      listener: 'pending',
+      next: 'pending',
+      sessions: 'pending',
+      requests: 'pending',
+      milestone: 'entered',
+      sample,
+    });
+    expect(read()).toBe('invalid');
+    expect(observer.snapshot()).not.toContain('PRIVATE-CANARY');
+    child.emit('close', null, 'SIGTERM');
+  });
+  it('accepts only the owned child readiness frame and retires every observer', async () => {
+    vi.useFakeTimers();
+    try {
+      const child = new ChildProcess();
+      const waiting = waitForBffProofListener(child);
+      child.emit('message', { kind: 'proof-listener', port: 49152 });
+      expect(await waiting).toBe(49152);
+      for (const event of ['message', 'close', 'error']) expect(child.listenerCount(event)).toBe(0);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it.each([
+    { kind: 'snapshot', port: 49152 },
+    { kind: 'proof-listener', port: 49152, extra: true },
+    { kind: 'proof-listener', port: 0 },
+    { kind: 'proof-listener', port: 65536 },
+    { kind: 'proof-listener', port: 1.5 },
+    { kind: 'proof-listener', port: '49152' },
+  ])('refuses malformed physical listener readiness %j without a fallback', async (frame) => {
+    vi.useFakeTimers();
+    try {
+      const child = new ChildProcess();
+      const waiting = waitForBffProofListener(child).catch((error: unknown) => error);
+      child.emit('message', frame);
+      expect(await waiting).toEqual(new Error('owned listener readiness shape'));
+      for (const event of ['message', 'close', 'error']) expect(child.listenerCount(event)).toBe(0);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it.each(['close', 'error'] as const)(
+    'refuses child %s before readiness and retires observers',
+    async (event) => {
+      vi.useFakeTimers();
+      try {
+        const child = new ChildProcess();
+        const waiting = waitForBffProofListener(child).catch((error: unknown) => error);
+        child.emit(event, new Error('PRIVATE-CANARY'));
+        const error = await waiting;
+        expect(error).toEqual(
+          new Error(
+            event === 'close'
+              ? 'native listener closed before readiness'
+              : 'native listener startup failed',
+          ),
+        );
+        for (const name of ['message', 'close', 'error']) expect(child.listenerCount(name)).toBe(0);
+        expect(vi.getTimerCount()).toBe(0);
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
+  it('refuses missing readiness at the existing twenty-second startup deadline', async () => {
+    vi.useFakeTimers();
+    try {
+      const child = new ChildProcess();
+      const waiting = waitForBffProofListener(child).catch((error: unknown) => error);
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(await waiting).toEqual(new Error('listener startup deadline'));
+      for (const event of ['message', 'close', 'error']) expect(child.listenerCount(event)).toBe(0);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it.each(['exitCode', 'signalCode'] as const)(
+    'rejects an already closed child with %s',
+    async (field) => {
+      const child = new ChildProcess();
+      Object.defineProperty(child, field, { value: field === 'exitCode' ? 0 : 'SIGTERM' });
+      await expect(waitForBffProofListener(child)).rejects.toThrow(
+        'native listener closed before readiness',
+      );
+      for (const event of ['message', 'close', 'error']) expect(child.listenerCount(event)).toBe(0);
+    },
+  );
+  it('brands only bounded startup facts and retires stderr observation after a closed child', async () => {
+    const child = new ChildProcess();
+    const stderr = new PassThrough();
+    Object.assign(child, { stderr });
+    const waiting = waitForBffProofListener(child).catch((error: unknown) => error);
+    stderr.write('Framework admission refused: ow');
+    stderr.write('ner_busy\n' + 'PRIVATE-CANARY'.repeat(1000));
+    Object.assign(child, { exitCode: 1 });
+    child.emit('close', 1, null);
+    const error = await waiting;
+    const detail = bffListenerFailureDetail(error);
+    expect(detail).toMatchObject({
+      reason: 'closed',
+      exitCode: 1,
+      signal: 'none',
+      frameworkReason: 'owner_busy',
+    });
+    expect(detail!.elapsedMilliseconds).toBeGreaterThanOrEqual(0);
+    expect(detail!.elapsedMilliseconds).toBeLessThanOrEqual(120000);
+    expect(Object.isFrozen(detail)).toBe(true);
+    expect(JSON.stringify(detail)).not.toContain('PRIVATE-CANARY');
+    expect(stderr.listenerCount('data')).toBe(0);
+    expect(bffListenerFailureDetail(Object.assign(new Error('PRIVATE-CANARY'), detail))).toBeNull();
+    expect(bffListenerFailureDetail(null)).toBeNull();
+    stderr.destroy();
+  });
+  it('keeps unknown child diagnostic values out of the startup evidence', async () => {
+    const child = new ChildProcess();
+    const stderr = new PassThrough();
+    Object.assign(child, { stderr });
+    const waiting = waitForBffProofListener(child).catch((error: unknown) => error);
+    stderr.write('Framework admission refused: private_unknown_reason\n');
+    child.emit('message', { kind: 'PRIVATE-CANARY' });
+    const detail = bffListenerFailureDetail(await waiting);
+    expect(detail).toMatchObject({
+      reason: 'shape',
+      exitCode: null,
+      signal: 'none',
+      frameworkReason: 'framework-other',
+    });
+    expect(JSON.stringify(detail)).not.toContain('private_unknown_reason');
+    expect(JSON.stringify(detail)).not.toContain('PRIVATE-CANARY');
+    expect(stderr.listenerCount('data')).toBe(0);
+    stderr.destroy();
+  });
+  it('retires only its own stderr observer on successful listener admission', async () => {
+    const child = new ChildProcess();
+    const stderr = new PassThrough();
+    Object.assign(child, { stderr });
+    let chunks = 0;
+    const independent = () => {
+      chunks++;
+    };
+    stderr.on('data', independent);
+    const waiting = waitForBffProofListener(child);
+    child.emit('message', { kind: 'proof-listener', port: 49152 });
+    expect(await waiting).toBe(49152);
+    stderr.write('ordinary output');
+    expect(chunks).toBe(1);
+    expect(stderr.listenerCount('data')).toBe(1);
+    stderr.removeListener('data', independent);
+    stderr.destroy();
+  });
+  it.each([
+    ['/studio', 'studio'],
+    ['/portal', 'portal'],
+    ['/studio/members', 'members'],
+    ['/studio/roles', 'roles'],
+    ['/portal/profile', 'profile'],
+    ['/studio/members/019a154b-0000-7000-8000-000000000012', 'member'],
+    ['/studio/roles/019a154b-0000-7000-8000-000000000013', 'role'],
+  ])('selects only the closed page kind for %s', (path, kind) => {
+    expect(bffPageKind(path)).toBe(kind);
+  });
+  it.each([
+    '/',
+    '/api/account/profile',
+    '/api/auth/entry',
+    '/en/courses',
+    '/studio/settings',
+    '/studio/members/',
+    '/studio/roles/',
+    '/studio/members?cursor=AA',
+    '/portal/profile/child',
+    '__proto__',
+    '/studio/members/019a154b-0000-4000-8000-000000000012',
+    '/studio/roles/019A154B-0000-7000-8000-000000000013',
+    'https://other.invalid/studio',
+    null,
+    undefined,
+  ])('refuses an unowned page selector %s', (path) => {
+    expect(bffPageKind(path)).toBeNull();
+  });
   it('retains actual branded readiness observations without exporting forged or private error fields', async () => {
     vi.useFakeTimers();
     try {
@@ -146,6 +484,10 @@ describe('BFF proof observation ownership', () => {
       expect(bffProofCopy(locale, 'shell.account')).toBe(catalogue.shell.account);
       expect(bffProofCopy(locale, 'shell.portal')).toBe(catalogue.shell.portal);
       expect(bffProofCopy(locale, 'session.extended')).toBe(catalogue.session.extended);
+      expect(bffProofCopy(locale, 'entry.confirm')).toBe(catalogue.entry.confirm);
+      expect(bffProofCopy(locale, 'session.javascript_required')).toBe(
+        catalogue.session.javascript_required,
+      );
     }
     expect(bffProofCopy('en', 'signin.continue')).not.toBe(bffProofCopy('tr', 'signin.continue'));
     expect(bffProofCopy('en', 'session.extended')).not.toBe(bffProofCopy('tr', 'session.extended'));
@@ -187,12 +529,13 @@ describe('BFF proof observation ownership', () => {
   it('learns session, browser, CSRF and transaction secrets for existing output scanners', () => {
     const canaries: string[] = [];
     const scanner = createBffCookieScanner(canaries);
-    const values = ['A', 'B', 'C', 'D', 'E'].map((value) => value.repeat(43));
+    const values = ['A', 'B', 'C', 'D', 'E', 'F'].map((value) => value.repeat(43));
     rememberBffCookies(
       [
         '__Host-ls-session=' + values[0] + '; HttpOnly; Secure',
         '__Host-ls-browser=' + values[1] + '; HttpOnly; Secure',
         '__Host-ls-csrf=' + values[2] + '; HttpOnly; Secure',
+        '__Host-ls-entry=' + values[5] + '; HttpOnly; Secure',
         '__Host-ls-login-' + values[3] + '=' + values[4] + '; HttpOnly; Secure',
         '__Host-ls-session=; Max-Age=0',
         'ordinary=public',
@@ -206,7 +549,7 @@ describe('BFF proof observation ownership', () => {
     scanner.finish();
     expect(scanner.leaked).toBe(true);
     rememberBffCookies(['__Host-ls-session=' + values[0]], canaries);
-    expect(canaries).toHaveLength(5);
+    expect(canaries).toHaveLength(6);
   });
 
   it('rechecks output emitted before the response disclosed its cookie, beyond the old rolling window', () => {

@@ -396,3 +396,39 @@ and earlier amendments stay historical.
 - [Architecture Tests Catalogue](../standards/21-architecture-tests-catalogue.md)
 - [Frontend Route Workflow](../../.claude/skills/add-frontend-route/SKILL.md)
 - [Phase 11](../roadmap/phase-11-production-hardening.md)
+
+### Amendment 11 — Exact native entry and administration forms (2026-10-28)
+
+Accepted [ADR-0078](0078-native-session-scope-and-self-entry.md) and
+[ADR-0079](0079-bounded-identity-administration.md) narrowly extend Amendment 10's
+native POST allowlist with exactly these paths:
+
+- `/api/auth/entry/create`, `/api/auth/entry/select`, `/api/auth/switch`.
+- `/api/studio/membership-profile`, `/api/studio/membership-roles`,
+  `/api/studio/membership-status`.
+- `/api/studio/role-grants`, `/api/studio/role-manifest-adoption`.
+- `/api/account/profile`.
+
+The existing three sign-in/sign-out/extension POSTs retain their rules. New forms
+require exact verified Origin, current entry/session CSRF and strict UTF-8
+application/x-www-form-urlencoded input of at most 16 KiB, counted before Next;
+fields are single-valued and unknown/duplicate fields refuse. The exact finite
+field/array and destination matrices belong to the P03-3 package and Frontend
+Standards. Successful writes use fixed validated local 303 destinations; no field
+admits an arbitrary method/path, bearer/header, external return URL or ordinary
+admin scope selector. Context selection alone accepts its nonauthorizing candidate.
+
+GET `/api/auth/entry` adds the bounded own-entry document. Protected document
+paths are `/studio`, `/studio/members`, `/studio/members/{MembershipId}`,
+`/studio/roles`, `/studio/roles/{RoleId}`, `/portal` and `/portal/profile`, with
+canonical IDs and only the declared member-list cursor/limit query. They enter
+the native, middleware, public-entry and history censuses atomically; a matcher
+exemption grants no method, source or data authority. Exact provider callback and
+existing auth query contracts remain independently closed.
+
+All other methods/routes, generic auth actions and Server Actions remain closed;
+production upgrades stay refused. No exception exists in disabled BFF mode.
+Public GET/HEAD behavior, raw signed-target identity, anonymous accounting and
+visitor/peer numeric quotas remain unchanged. The original body/metadata and prior
+amendments are preserved. P03-3 must prove real native admission, no-script/history,
+Origin/CSRF, late-response and actual-cleanup behavior before delivery.

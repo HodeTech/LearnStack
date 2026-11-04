@@ -222,6 +222,14 @@ public sealed class AuditStateCapture : IAuditStateCapture, IAuditSubject
         Designate(aggregate.GetType(), aggregate.Id.Value.ToString());
     }
 
+    public void DesignateProjection(IAuditProjectionSubject projection)
+    {
+        ArgumentNullException.ThrowIfNull(projection);
+        if (projection.AuditProjectionKey is not { Length: > 0 and <= 256 } key || key.Any(char.IsControl))
+            throw new ArgumentException("The audit projection key is invalid.", nameof(projection));
+        Designate(projection.GetType(), key);
+    }
+
     /// <summary>
     /// Binds <paramref name="entityId"/> to the innermost frame's intents whose declared
     /// type <paramref name="aggregateType"/> is.

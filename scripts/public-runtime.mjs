@@ -12,6 +12,29 @@ export function publicApiEnvironment(values, configuration, base = process.env) 
     throw new Error('Outbox dispatcher credential is missing');
   for (const key of ['Authentication__Tenant__Issuer', 'Identity__AuthorityId'])
     if (values[key]) environment[key] = values[key];
+  for (const key of [
+    'Identity__NativeSession__CurrentSecret',
+    'Identity__NativeSession__PreviousSecret',
+    'Identity__NativeSession__PreviousRetiresAt',
+    'Identity__NativeSession__HttpsPort',
+    'Identity__SelfBootstrap__Enabled',
+  ]) {
+    const value = values[key];
+    if (value === undefined) continue;
+    // Selection is bounded and explicit; the API owns secret, timestamp,
+    // Boolean and port format validation and their cross-setting invariants.
+    if (
+      typeof value !== 'string' ||
+      !value.trim() ||
+      /[\x00-\x1f\x7f]/.test(value) ||
+      Buffer.byteLength(value) > 256
+    )
+      throw new Error('Invalid API native configuration');
+    environment[key] = value;
+  }
+  // This launcher owns native HTTPS on 3000. The production API retains its
+  // independent default of 443; no secret or bootstrap opt-in is synthesized.
+  environment.Identity__NativeSession__HttpsPort ??= '3000';
   environment.ConnectionStrings__Default = values.ConnectionStrings__Default;
   environment.ConnectionStrings__OutboxDispatcher = values.ConnectionStrings__OutboxDispatcher;
   // The selected pair is atomic. The ambient prerequisite allowlist cannot

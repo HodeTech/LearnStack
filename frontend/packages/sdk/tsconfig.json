@@ -2,6 +2,7 @@
   "extends": "@learnstack/config/tsconfig/base.json",
   "compilerOptions": {
     "outDir": "dist",
+    "incremental": false,
     "noEmit": true
   },
   "include": ["src/**/*"]

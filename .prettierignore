@@ -37,3 +37,12 @@
 
 # Generated native ingress output; format its TypeScript source.
 /frontend/apps/web/.server/
+
+# Match the frontend command boundary for the root-based editor too.
+/frontend/**/.framework-state/**
+/frontend/**/.next/**
+/frontend/**/dist/**
+/frontend/framework/next-response-cleanup/census.json
+/frontend/framework/next-response-cleanup/originals.json
+/frontend/framework/next-response-cleanup/pnpm.json
+/frontend/patches/**

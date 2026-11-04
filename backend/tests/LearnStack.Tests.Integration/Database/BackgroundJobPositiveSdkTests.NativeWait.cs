@@ -326,6 +326,30 @@ public sealed partial class BackgroundJobPositiveSdkTests
                         is BackgroundJobExecutionControl);
     }
 
+    // A handler's own progress signal can precede publication by its outer caller.
+    // Observe only the actual task under the publication lock and caller's existing budget.
+    private static Task<Task<JobBusinessExecutionResult>> NativeSdkBusinessAsync(
+        BackgroundJobExecutionControl execution, CancellationToken cancellationToken)
+    {
+        var field = typeof(BackgroundJobExecutionControl).GetField("_business", BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("The actual native business task field is missing.");
+        if (field.FieldType != typeof(Task<JobBusinessExecutionResult>))
+            throw new InvalidOperationException("The actual native business task field has an unexpected type.");
+        var sync = NativeSdkField(execution, "_sync");
+        return ObserveAsync();
+
+        async Task<Task<JobBusinessExecutionResult>> ObserveAsync()
+        {
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                lock (sync)
+                    if (field.GetValue(execution) is Task<JobBusinessExecutionResult> actual) return actual;
+                await Task.Delay(10, cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
     // Observe the actual identities under their existing lock. No field, task,
     // result, completion capability or timer is replaced or manufactured.
     private static object NativeSdkField(object instance, string name) =>

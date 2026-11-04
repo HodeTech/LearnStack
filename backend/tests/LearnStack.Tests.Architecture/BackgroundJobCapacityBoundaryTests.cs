@@ -61,10 +61,24 @@ public sealed partial class OutboxDispatchConventionTests
         foreach (var subject in required)
             if (!types.ContainsKey(subject)) offenders.Add("Missing closed capacity subject: " + subject.Item2);
         if (offenders.Count != 0) return offenders;
-        var sites = OwnedCallSites(census).ToArray();
         var bodies = OwnedBodies(census).ToArray();
-        var instructions = bodies.SelectMany(item => item.Body.Body.Instructions)
-            .Where(instruction => instruction.Operand is MethodReference).ToArray();
+        // Build only this detector invocation's views from the same fresh body
+        // population. Preserve every operand, its actual owner and its order.
+        var sites = new List<OwnedCallSite>();
+        var instructions = new List<Instruction>();
+        var startStateUses = new List<(MethodDefinition Owner, Instruction Instruction)>();
+        foreach (var item in bodies)
+            foreach (var instruction in item.Body.Body.Instructions)
+            {
+                if (instruction.Operand is MethodReference target)
+                {
+                    sites.Add(new(item.Owner, target));
+                    instructions.Add(instruction);
+                }
+                if (instruction.Operand is FieldReference field && field.DeclaringType.FullName == JobCommitGate
+                    && field.Name == "_started")
+                    startStateUses.Add((item.Owner, instruction));
+            }
         RecordDetachedTargets(offenders, sites);
         // Removed Cecil definitions are already explicit offenders. Their missing
         // declaration cannot safely participate in subsequent identity checks.
@@ -186,7 +200,7 @@ public sealed partial class OutboxDispatchConventionTests
             [Id(InfrastructureAssembly, CapacityOperation, ".ctor")]);
         Guard(InfrastructureAssembly, CapacityOperation, "ObserveWaitAsync", TaskOf("System.Boolean"), ["System.TimeSpan", "System.TimeProvider"], MethodAttributes.Private, false,
             [Id(InfrastructureAssembly, CapacityOperation, ".ctor")]);
-        var callback = CapacityScheduleCallback(census, offenders);
+        var callback = CapacityScheduleCallback(census, offenders, sites);
         Guard(InfrastructureAssembly, JobExecutorType, "ExecuteCapacityCleanupAsync", TaskOf(CapacityResult),
             [CapacityRecovery, CapacityActual, JobCommitGate, BoundaryCancellation], MethodAttributes.Assembly, false,
             [callback is null ? "missing actual checkpoint callback" : MethodId(callback)]);
@@ -206,7 +220,7 @@ public sealed partial class OutboxDispatchConventionTests
             [Id(InfrastructureAssembly, OrchestrationStore, "ProbeCommitAsync")]);
         Guard(DeliveryApplication, JobCommitGate, "TrySealUnusedExecution", "System.Boolean", [], MethodAttributes.Public, false,
             [Id(InfrastructureAssembly, OrchestrationInvocation, "PrepareCapacityCleanupCoreAsync")]);
-        CheckCapacityOrder(census, offenders);
+        CheckCapacityOrder(census, offenders, bodies, startStateUses);
         CheckRecoveryMinterSeams(census, offenders, sitesByName, instructionsByName, bodies);
         return offenders;
 
@@ -257,11 +271,13 @@ public sealed partial class OutboxDispatchConventionTests
 
     private static string TaskOf(string type) => "System.Threading.Tasks.Task`1<" + type + ">";
 
-    private static void CheckCapacityOrder(ProductionCensus census, SortedSet<string> offenders)
+    private static void CheckCapacityOrder(ProductionCensus census, SortedSet<string> offenders,
+        (MethodDefinition Body, MethodDefinition Owner)[] bodies,
+        IEnumerable<(MethodDefinition Owner, Instruction Instruction)> startStateUses)
     {
-        var bodies = OwnedBodies(census).ToArray();
-        Instruction[] Body(string type, string name) => bodies.Where(item => item.Owner.DeclaringType.FullName == type
-                && item.Owner.Name == name && (item.Body.Name == "MoveNext" || item.Body == item.Owner))
+        var bodiesByOwner = bodies.ToLookup(item => (item.Owner.DeclaringType.FullName, item.Owner.Name));
+        Instruction[] Body(string type, string name) => bodiesByOwner[(type, name)]
+            .Where(item => item.Body.Name == "MoveNext" || item.Body == item.Owner)
             .SelectMany(item => item.Body.Body.Instructions).ToArray();
         static int Find(Instruction[] body, string type, string name) => Array.FindIndex(body,
             instruction => instruction.Operand is MethodReference target && target.DeclaringType.FullName == type && target.Name == name);
@@ -342,9 +358,6 @@ public sealed partial class OutboxDispatchConventionTests
             || startField.DeclaringType.FullName != JobCommitGate || entry[enter - 2].OpCode != OpCodes.Ldc_I4_1
             || entry[enter - 1].OpCode != OpCodes.Ldc_I4_0)
             offenders.Add("Business entry atomically consumes only the unused state and cannot reopen a no-start seal");
-        var startStateUses = bodies.SelectMany(item => item.Body.Body.Instructions.Where(instruction =>
-                instruction.Operand is FieldReference target && target.DeclaringType.FullName == JobCommitGate && target.Name == "_started")
-            .Select(instruction => (Owner: item.Owner, Instruction: instruction))).ToArray();
         CheckSet(offenders, "exclusive atomic unused-start owners", startStateUses.Select(item => item.Owner.Name),
             ["TryStartExecution", "TrySealUnusedExecution"]);
         if (startStateUses.Any(item => item.Owner.DeclaringType.FullName != JobCommitGate || item.Instruction.OpCode != OpCodes.Ldflda))
@@ -355,7 +368,8 @@ public sealed partial class OutboxDispatchConventionTests
         && target.Name == "GetResult" && target.DeclaringType.FullName.StartsWith("System.Runtime.CompilerServices.", StringComparison.Ordinal)
         && target.DeclaringType.FullName.Contains("Await", StringComparison.Ordinal);
 
-    private static MethodDefinition? CapacityScheduleCallback(ProductionCensus census, SortedSet<string> offenders)
+    private static MethodDefinition? CapacityScheduleCallback(ProductionCensus census, SortedSet<string> offenders,
+        IEnumerable<OwnedCallSite>? sites = null)
     {
         var type = census.Types[(InfrastructureAssembly, CapacityOperation)];
         var schedulers = type.Methods.Where(method => method.Name == "Schedule").ToArray();
@@ -368,7 +382,7 @@ public sealed partial class OutboxDispatchConventionTests
         { offenders.Add("Capacity scheduling cannot accept another task factory"); return null; }
         var callback = methods[0];
         var callbackId = MethodId(callback);
-        CheckSet(offenders, "actual capacity scheduling callback callers", OwnedCallSites(census)
+        CheckSet(offenders, "actual capacity scheduling callback callers", (sites ?? OwnedCallSites(census))
             .Where(site => site.Target.Name == callback.Name && MethodId(site.Target) == callbackId)
             .Select(site => MethodId(site.Owner)), [MethodId(schedulers[0])]);
         return callback;

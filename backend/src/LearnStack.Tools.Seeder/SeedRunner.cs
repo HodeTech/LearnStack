@@ -1,4 +1,5 @@
 using LearnStack.Modules.Customization.Application.Contracts.Customization;
+using System.Collections.Immutable;
 using LearnStack.Modules.Customization.Application.Contracts.Seeding;
 using LearnStack.Modules.Education.Application.Contracts.Courses;
 using LearnStack.Modules.Education.Application.Contracts.Lessons;
@@ -24,11 +25,22 @@ namespace LearnStack.Tools.Seeder;
 /// </remarks>
 public sealed class SeedRunner(Func<ITenantContext?, ServiceProvider> compose, ILogger<SeedRunner> logger)
 {
+    private readonly List<TenantId> _createdThisRun = [];
+    private readonly List<TenantId> _qualifiedOriginsObserved = [];
+    public ImmutableArray<TenantId> FreshlyCreatedTenantIds { get; private set; } = [];
+    public ImmutableArray<TenantId> QualifiedOriginTenantIds { get; private set; } = [];
+
     public async Task<int> RunAsync(CancellationToken cancellationToken, IReadOnlyList<SeedTenant>? tenants = null)
     {
+        _createdThisRun.Clear();
+        _qualifiedOriginsObserved.Clear();
+        FreshlyCreatedTenantIds = [];
+        QualifiedOriginTenantIds = [];
         var declared = tenants ?? SeedData.All;
         foreach (var tenant in declared) SeedVerification.Declaration(tenant);
         foreach (var tenant in declared) await SeedTenantAsync(tenant, cancellationToken);
+        FreshlyCreatedTenantIds = [.. _createdThisRun.Distinct()];
+        QualifiedOriginTenantIds = [.. _qualifiedOriginsObserved.Distinct()];
         return 0;
     }
 
@@ -36,6 +48,31 @@ public sealed class SeedRunner(Func<ITenantContext?, ServiceProvider> compose, I
     {
         var context = new SeedTenantContext(tenant.TenantId, null);
         async Task<TenantSeedDto?> ReadTenant() => (await ReadAsync(context, new GetTenantSeedStateQuery(), ct)).State;
+        var existingTenant = await ReadTenant();
+        var existingDefault = (await ReadAsync(context, new GetOrganizationSeedStateQuery(tenant.DefaultOrganization.OrganizationId), ct)).State;
+        var existingSecond = (await ReadAsync(context, new GetOrganizationSeedStateQuery(tenant.SecondOrganization.OrganizationId), ct)).State;
+        var existingHost = (await ReadAsync(context, new GetHostMappingSeedStateQuery(tenant.Host), ct)).State;
+        var tenantInstalled = SeedVerification.Tenant(existingTenant, tenant);
+        if (tenantInstalled && existingTenant!.AdoptedSeedOriginVersion == 2)
+            _qualifiedOriginsObserved.Add(tenant.TenantId);
+        var defaultInstalled = SeedVerification.Organization(existingDefault, tenant.DefaultOrganization, tenant, "default organization");
+        var secondInstalled = SeedVerification.Organization(existingSecond, tenant.SecondOrganization, tenant, "second organization");
+        var hostInstalled = SeedVerification.Host(existingHost, tenant);
+        var contentComplete = await VerifyContentCompletionAsync(tenant, context, ct);
+        if (contentComplete)
+        {
+            SeedVerification.Require(tenantInstalled && defaultInstalled && secondInstalled && hostInstalled, tenant, "retained installation");
+            // Mutable Tenancy fields, including removed locales, are preserved only after all
+            // declared content acts prove the original installation finished. No writer is sent.
+            return;
+        }
+        SeedVerification.RequirePristineTenant(existingTenant, tenant);
+        SeedVerification.RequirePristineOrganization(existingDefault, tenant.DefaultOrganization, tenant);
+        SeedVerification.RequirePristineOrganization(existingSecond, tenant.SecondOrganization, tenant);
+        SeedVerification.Require(existingHost is null || existingHost.IsActive && existingHost.IsPubliclyLive, tenant, "pristine host mapping");
+        if (tenant.Curriculum is { } incomplete)
+            _ = SeedVerification.Theme((await ReadAsync(context, new GetSettingSeedStateQuery(incomplete.Theme.Id), ct)).State,
+                incomplete.Theme, tenant);
         await ActAsync(tenant, context, "tenant", ReadTenant, row => SeedVerification.Tenant(row, tenant),
             _ => new ProvisionTenantCommand(tenant.TenantId, tenant.Slug, tenant.DisplayName,
                 tenant.DefaultOrganization.OrganizationId, tenant.DefaultOrganization.Slug, tenant.DefaultOrganization.DisplayName), ct,
@@ -65,6 +102,48 @@ public sealed class SeedRunner(Func<ITenantContext?, ServiceProvider> compose, I
             _ => new SetTenantBrandingCommand(content.Theme.Id, content.Theme.Value, null), ct);
         foreach (var course in content.Courses) await SeedCourseAsync(tenant, course, ct);
         foreach (var course in content.Courses) await PublishCourseAsync(tenant, course, ct);
+    }
+
+    private async Task<bool> VerifyContentCompletionAsync(SeedTenant tenant, ITenantContext context, CancellationToken ct)
+    {
+        var complete = true;
+        var card = (await ReadAsync(context, new GetActiveContentTypeSeedRevisionQuery(BuiltInCustomizations.Card.Key), ct)).State;
+        complete &= SeedVerification.BuiltInContentType(card is null ? null
+            : (await ReadAsync(context, new GetContentTypeSeedStateQuery(card.Id), ct)).State, tenant);
+        var plain = (await ReadAsync(context, new GetActiveTaxonomySeedRevisionQuery(BuiltInCustomizations.Plain.Key), ct)).State;
+        complete &= SeedVerification.BuiltInTaxonomy(plain is null ? null
+            : (await ReadAsync(context, new GetTaxonomySeedStateQuery(plain.Id), ct)).State, tenant);
+        foreach (var type in SeedData.ContentTypes(tenant))
+        {
+            var active = (await ReadAsync(context, new GetActiveContentTypeSeedRevisionQuery(type.Key), ct)).State;
+            SeedVerification.Require(active is null || active.Id == type.Id, tenant, "content type active revision");
+            complete &= SeedVerification.ContentType((await ReadAsync(context, new GetContentTypeSeedStateQuery(type.Id), ct)).State,
+                type, tenant, published: true);
+        }
+        foreach (var taxonomy in SeedData.Taxonomies(tenant))
+        {
+            var active = (await ReadAsync(context, new GetActiveTaxonomySeedRevisionQuery(taxonomy.Key), ct)).State;
+            SeedVerification.Require(active is null || active.Id == taxonomy.Id, tenant, "level taxonomy active revision");
+            complete &= SeedVerification.Taxonomy((await ReadAsync(context, new GetTaxonomySeedStateQuery(taxonomy.Id), ct)).State,
+                taxonomy, tenant, published: true);
+        }
+        if (tenant.Curriculum is not { } content) return complete;
+        complete &= SeedVerification.Theme((await ReadAsync(context, new GetSettingSeedStateQuery(content.Theme.Id), ct)).State,
+            content.Theme, tenant, preserveInstalled: true);
+        foreach (var course in content.Courses)
+        {
+            var courseContext = new SeedTenantContext(tenant.TenantId, course.OrganizationId);
+            var row = (await ReadAsync(courseContext, new GetCourseSeedStateQuery(course.Id), ct)).State;
+            var exists = SeedVerification.Course(row, course, tenant);
+            complete &= exists && row!.Status == course.Status && row.Translations.Length == course.Translations.Length;
+            foreach (var lesson in course.Lessons)
+            {
+                var lessonRow = (await ReadAsync(courseContext, new GetLessonSeedStateQuery(lesson.Id), ct)).State;
+                exists = SeedVerification.Lesson(lessonRow, course, lesson, tenant);
+                complete &= exists && lessonRow!.Status == lesson.Status && lessonRow.Translations.Length == lesson.Translations.Length;
+            }
+        }
+        return complete;
     }
 
     private async Task SeedBuiltInsAsync(SeedTenant tenant, ITenantContext context, CancellationToken ct)
@@ -184,6 +263,7 @@ public sealed class SeedRunner(Func<ITenantContext?, ServiceProvider> compose, I
         // The writer has committed or returned a typed race. Neither outcome proves
         // the declared act completed; read its exact postcondition in a fresh scope.
         SeedVerification.Require(completed(await read()), tenant, act);
+        if (result.IsSuccess && unresolvedWrite && before is null) _createdThisRun.Add(tenant.TenantId);
         if (result.IsSuccess) SeedRunnerLog.Seeded(logger, act, tenant.Slug);
         else SeedRunnerLog.AlreadyPresent(logger, act, tenant.Slug);
     }
