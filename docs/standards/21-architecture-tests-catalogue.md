@@ -173,7 +173,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**331 test methods run in
+**335 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -7154,5 +7154,8 @@ and fixture definitions make the implemented controls non-vacuous.
 - **Type:** registry/source/function/ACL/PII checks plus real PostgreSQL/SMTP
   prepare/send/finalize, dropped-reply/restart/quiescence/key-loss and leakage
   controls with positive twins. **Kind:** both.
-- **Status:** **Registered**; P03-4 production implementation/proofs pending.
+- **Status:** **Registered**. `InvitationSmtpBoundaryTests` and the actual
+  PostgreSQL/SMTP runtime companions implement foundation controls. Production
+  writer integration and final process-owned qualification remain P03-4 work;
+  partial implementation does not promote the complete rule.
 - **Phase:** 03 (P03-4).

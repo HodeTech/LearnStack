@@ -16,6 +16,7 @@ using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using System.Text.Json;
 using LearnStack.Tools.Seeder;
+using LearnStack.Tests.Fixtures;
 using MediatR;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -463,6 +464,7 @@ public sealed class CustomizationDefaultDeliveryTests(SchemaFixture schema)
             protected override void ConfigureWebHost(IWebHostBuilder builder)
             {
                 builder.UseEnvironment(Environments.Development);
+                InvitationEmailFixtureConfiguration.AddTo(builder);
                 builder.UseSetting("ConnectionStrings:Default", database.AppConnectionString);
                 builder.UseSetting("ConnectionStrings:PlatformAdmin", database.PlatformConnectionString);
                 builder.UseSetting("ConnectionStrings:OutboxDispatcher", database.OutboxConnectionString);

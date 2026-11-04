@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 497 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 530 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -355,6 +355,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 2 second review UUID correction (2026-11-04)](#p03-4-step-2-second-review-uuid-correction-2026-11-04) — 18 lines
   - [P03-4 Step 2 review closeout and SMTP continuation (2026-11-04)](#p03-4-step-2-review-closeout-and-smtp-continuation-2026-11-04) — 25 lines
   - [P03-4 Step 3 SMTP foundation and review handoff (2026-11-04)](#p03-4-step-3-smtp-foundation-and-review-handoff-2026-11-04) — 49 lines
+  - [P03-4 Step 3 first review startup correction (2026-11-04)](#p03-4-step-3-first-review-startup-correction-2026-11-04) — 33 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -16247,3 +16248,36 @@ failed-cleanup shutdown, native restart/late-original races and the Identity
 six-NoStart finalizer path, alongside hosted A/B and original-archive proof.
 No current user stack, production credentials/settings or inbox delivery is
 qualified. No existing P03-3 manual deferral is promoted to evidence.
+
+### P03-4 Step 3 first review startup correction (2026-11-04)
+
+Two fresh reviewers inspect implementation commit `583ecd20`. Custody/authority
+approves without findings. Consumer review verifies one Major: the new mandatory
+SMTP/key-ring startup validator exposes missing configuration in existing
+Contract, composition and real-worker fixtures. The served OpenAPI control
+independently fails 1/1 with the fixed custody-unavailable error. A full unit run
+also identifies two affected construction cases and the old request-catalogue
+population, which omits the four newly registered job roots.
+
+The correction supplies one linked test-only synthetic configuration to those
+fixtures. It neither removes the production validator nor replaces the actual
+provider with a success stub. Its invalid DNS destination is never contacted by
+construction. The catalogue discovers the real Identity Application request
+assembly and pins 84 requests/46 finite-trusted policies; protected permissions
+and all previous request subjects remain. The architecture catalogue counts 335
+compiled methods while its new custody rule remains Registered until complete
+in-packet proof; four foundation methods do not establish that whole obligation.
+
+After restoring the new transitive dependency across the complete solution, all
+3,537 unit cases, all nine Contract cases, 36 affected existing integration cases
+and nine corpus/provider architecture cases pass, with zero skips. The actual
+Outbox and Customization worker hosts are included. The earlier stale Contract
+assets run is not qualification. Verification of the review correction and a
+second fresh independent round follow.
+
+One nonblocking integration suggestion is retained inside Step 4: a status-query
+failure aborts its shared owner, so the real admin reader must define and prove
+storage-unavailable/rollback behavior before activation, instead of treating an
+aborted transaction as auditable successful disclosure. No public reader caller
+exists in this foundation. The explicit Step 7 process/full-source obligations
+recorded above remain open.

@@ -7,6 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="../Fixtures/InvitationEmailFixtureConfiguration.cs" Link="Fixtures/InvitationEmailFixtureConfiguration.cs" />
     <ProjectReference Include="..\..\src\LearnStack.SharedKernel\LearnStack.SharedKernel.csproj" />
     <ProjectReference Include="..\..\src\LearnStack.Domain\LearnStack.Domain.csproj" />
     <ProjectReference Include="..\..\src\LearnStack.Application\LearnStack.Application.csproj" />

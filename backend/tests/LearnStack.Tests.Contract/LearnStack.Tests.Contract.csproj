@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\LearnStack.Api\LearnStack.Api.csproj" />
+    <Compile Include="../Fixtures/InvitationEmailFixtureConfiguration.cs" Link="Fixtures/InvitationEmailFixtureConfiguration.cs" />
   </ItemGroup>
 
   <ItemGroup>

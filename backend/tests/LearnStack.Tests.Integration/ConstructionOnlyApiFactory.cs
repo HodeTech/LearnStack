@@ -1,6 +1,7 @@
 using LearnStack.Api.Messaging;
 using LearnStack.Api.Jobs;
 using LearnStack.Api.Authentication;
+using LearnStack.Tests.Fixtures;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -23,14 +24,7 @@ public class ConstructionOnlyApiFactory : WebApplicationFactory<Program>
     protected sealed override void ConfigureWebHost(IWebHostBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        // Owned synthetic configuration validates construction without discovering a workstation SMTP service.
-        builder.UseSetting("InvitationEmail:KeyRing", "{\"active\":\"test\",\"keys\":{\"test\":\"AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=\"}}");
-        builder.UseSetting("InvitationEmail:Smtp:Host", "smtp.example.invalid");
-        builder.UseSetting("InvitationEmail:Smtp:Port", "465");
-        builder.UseSetting("InvitationEmail:Smtp:Sender", "fixture@example.invalid");
-        builder.UseSetting("InvitationEmail:Smtp:Tls", "ImplicitTls");
-        builder.UseSetting("InvitationEmail:Smtp:Username", "synthetic-fixture");
-        builder.UseSetting("InvitationEmail:Smtp:Password", "synthetic-fixture");
+        InvitationEmailFixtureConfiguration.AddTo(builder);
         ConfigureTestHost(builder);
         builder.ConfigureTestServices(services =>
         {
