@@ -344,11 +344,12 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 335 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 350 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
   - [P03-4 Step 1 first review corrections (2026-11-04)](#p03-4-step-1-first-review-corrections-2026-11-04) — 24 lines
+  - [P03-4 Step 1 second review and contract closeout (2026-11-04)](#p03-4-step-1-second-review-and-contract-closeout-2026-11-04) — 15 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -16079,3 +16080,18 @@ The existing runtime distinguishes original attempt identity from fresh recovery
 ownership; implementation must retain that distinction and actual connector/SMTP
 cleanup. No new runtime evidence or completed architecture-rule status follows.
 A second fresh independent review round follows the correction commit.
+
+### P03-4 Step 1 second review and contract closeout (2026-11-04)
+
+The correction commit `4d355fc9` and full Step 1 range receive a second round
+from two different fresh reviewers: authority/contracts and delivery/custody.
+Both approve with no open Blocker or Major. One verified Minor is corrected: the
+planned Tenancy receipt row is joined to its Markdown table without an intervening
+blank line. The stored inviter remains immutable; reissue never transfers it or
+guarantees future acceptance after authority changes.
+
+Document checks resolve 3,378 fragment links, validate roadmap structure and keep
+all three generated indexes current. Accepted historical bodies and shipped log
+records remain intact. No runtime code, provider/browser/database proof or manual
+accessibility is claimed. Step 1 is complete after this closeout commit; Step 2
+starts automatically on `development` under the accepted seven-step plan.

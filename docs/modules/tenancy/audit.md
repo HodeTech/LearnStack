@@ -297,7 +297,6 @@ consumer remains unchanged.
 
 | Resource | Operation | Class | Why |
 |---|---|---|---|
-
 | Original invitation-policy TenantSetting outcome | `tenancy.setting.read_receipt` `(planned)` | **MUST** (`read-sensitive`) | `ReadInvitationPolicyReceiptQuery`; original setting ID/key, current exact orgless authority and committed read evidence before protected replay. |
 
 The internal typed accessor creates no separate request/event. The existing
