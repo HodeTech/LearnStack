@@ -38,7 +38,8 @@ internal static class InvitationSchemaSeed
     }
 
     internal static Task InsertAsync(NpgsqlConnection connection, NpgsqlTransaction transaction,
-        Guid id, Guid tenant, Guid? organization = null, string? email = null, Guid? roleId = null, DateTimeOffset? created = null) =>
+        Guid id, Guid tenant, Guid? organization = null, string? email = null, Guid? roleId = null, DateTimeOffset? created = null,
+        Guid? generation = null, Guid? job = null) =>
         ExecuteAsync(connection, transaction, """
             INSERT INTO public.invitations(id,tenant_id,organization_id,recipient_email,inviter_user_id,role_id,
                 pinned_role_version,status,generation_id,generation,generation_created_at,expires_at,
@@ -50,6 +51,6 @@ internal static class InvitationSchemaSeed
             ("email", email ?? "invitation-" + id.ToString("N") + "@example.invalid"),
             ("inviter", tenant == SchemaFixture.TenantA ? AdminA : AdminB),
             ("role", roleId ?? RoleId(tenant, BuiltInRoleKey.Learner, organization is null ? PermissionScope.Tenant : PermissionScope.Organization)),
-            ("generation", Guid.CreateVersion7()), ("job", Guid.CreateVersion7()), ("digest", Digest(id)),
+            ("generation", generation ?? Guid.CreateVersion7()), ("job", job ?? Guid.CreateVersion7()), ("digest", Digest(id)),
             ("at", created ?? DateTimeOffset.UtcNow));
 }

@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 405 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 423 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -352,6 +352,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 1 second review and contract closeout (2026-11-04)](#p03-4-step-1-second-review-and-contract-closeout-2026-11-04) — 15 lines
   - [P03-4 Step 2 foundation and entry activation boundary (2026-11-04)](#p03-4-step-2-foundation-and-entry-activation-boundary-2026-11-04) — 32 lines
   - [P03-4 Step 2 storage validation and review handoff (2026-11-04)](#p03-4-step-2-storage-validation-and-review-handoff-2026-11-04) — 23 lines
+  - [P03-4 Step 2 second review UUID correction (2026-11-04)](#p03-4-step-2-second-review-uuid-correction-2026-11-04) — 18 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -16152,3 +16153,21 @@ also has the full 3,480/3,480 unit result above. Complete final-source architect
 and required CI/A/B/archive qualification remain Step 7 obligations; the aborted
 full scan is not substituted for them. Formatting and document guards accompany
 the implementation commit. Two fresh independent review rounds follow.
+
+### P03-4 Step 2 second review UUID correction (2026-11-04)
+
+Implementation commit `000d3442` receives two fresh reviewers per round. Both
+first-round reviewers approve with no findings. In the second round, behavior
+approves; integrity verifies one Major: PostgreSQL `uuid_extract_version()` can
+return NULL for non-RFC UUIDs, and a CHECK accepts NULL unless its result is
+explicitly required to be true.
+
+The correction wraps the complete Invitation identifier conjunction in
+`(...) IS TRUE`. A new forward migration updates the constraint and EF snapshot;
+the committed initial migration is preserved. Three actual `learnstack_app`
+negative controls insert a nil offer ID, generation ID and delivery JobId in turn
+and require the named constraint's `23514`, while valid populated controls remain.
+The affected database population passes 190/190; the 48 affected architecture
+cases pass with zero skips. The original domain/application code keeps its full
+3,480-unit result. No aborted full architecture or future HTTP/SMTP evidence is
+claimed. Correction verification and Step 2 closeout follow this commit.

@@ -106,6 +106,25 @@ public sealed class InvitationStorageTests(IdentityMembershipFixture fixture) : 
         (await foreign.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be("23514");
     }
 
+    [Theory]
+    [InlineData("id")]
+    [InlineData("generation_id")]
+    [InlineData("current_delivery_job_id")]
+    public async Task Non_RFC_UUIDs_cannot_pass_a_nullable_version_CHECK(string column)
+    {
+        await using var app = await OpenAsync();
+        await using var transaction = await app.BeginTransactionAsync();
+        await ScopeAsync(app, transaction, SchemaFixture.TenantA);
+        await LockAsync(app, transaction, SchemaFixture.TenantA, null, false);
+        var insert = () => InvitationSchemaSeed.InsertAsync(app, transaction,
+            column == "id" ? Guid.Empty : Guid.CreateVersion7(), SchemaFixture.TenantA,
+            generation: column == "generation_id" ? Guid.Empty : null,
+            job: column == "current_delivery_job_id" ? Guid.Empty : null);
+        var refused = (await insert.Should().ThrowAsync<PostgresException>()).Which;
+        refused.SqlState.Should().Be("23514");
+        refused.ConstraintName.Should().Be("ck_invitations_identifiers");
+    }
+
     [Fact]
     public async Task Exact_function_requires_digest_host_and_active_subject_without_disclosing_mailbox()
     {

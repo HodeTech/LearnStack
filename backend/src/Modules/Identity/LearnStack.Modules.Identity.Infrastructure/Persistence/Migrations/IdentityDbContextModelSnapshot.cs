@@ -285,7 +285,7 @@ namespace LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("ck_invitations_generation", "generation > 0 AND pinned_role_version >= 0");
 
-                            t.HasCheckConstraint("ck_invitations_identifiers", "uuid_extract_version(id)=7 AND uuid_extract_version(generation_id)=7 AND uuid_extract_version(current_delivery_job_id)=7");
+                            t.HasCheckConstraint("ck_invitations_identifiers", "(uuid_extract_version(id)=7 AND uuid_extract_version(generation_id)=7 AND uuid_extract_version(current_delivery_job_id)=7) IS TRUE");
 
                             t.HasCheckConstraint("ck_invitations_lifecycle", "((status='Pending' AND octet_length(verifier_digest)=32 AND consumed_verifier_digest IS NULL\n    AND accepted_by IS NULL AND result_membership_id IS NULL AND acceptance_disposition IS NULL AND accepted_at IS NULL)\nOR (status='Accepted' AND verifier_digest IS NULL AND octet_length(consumed_verifier_digest)=32\n    AND accepted_by IS NOT NULL AND result_membership_id IS NOT NULL\n    AND acceptance_disposition IN ('Created','AlreadyMember') AND accepted_at IS NOT NULL\n    AND isfinite(accepted_at) AND accepted_at >= generation_created_at AND accepted_at < expires_at)\nOR (status='Revoked' AND verifier_digest IS NULL AND consumed_verifier_digest IS NULL\n    AND accepted_by IS NULL AND result_membership_id IS NULL AND acceptance_disposition IS NULL AND accepted_at IS NULL)) IS TRUE");
 

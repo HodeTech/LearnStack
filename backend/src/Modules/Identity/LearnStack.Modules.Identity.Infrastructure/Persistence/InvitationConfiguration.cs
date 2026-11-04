@@ -15,7 +15,7 @@ internal sealed class InvitationConfiguration : IEntityTypeConfiguration<Invitat
     {
         builder.ToTable("invitations", table =>
         {
-            table.HasCheckConstraint("ck_invitations_identifiers", "uuid_extract_version(id)=7 AND uuid_extract_version(generation_id)=7 AND uuid_extract_version(current_delivery_job_id)=7");
+            table.HasCheckConstraint("ck_invitations_identifiers", "(uuid_extract_version(id)=7 AND uuid_extract_version(generation_id)=7 AND uuid_extract_version(current_delivery_job_id)=7) IS TRUE");
             table.HasCheckConstraint("ck_invitations_tenant", "tenant_id NOT IN ('00000000-0000-0000-0000-000000000000'::uuid,'00000000-0000-7000-8000-000000000002'::uuid)");
             table.HasCheckConstraint("ck_invitations_generation", "generation > 0 AND pinned_role_version >= 0");
             table.HasCheckConstraint("ck_invitations_times", "isfinite(created_at) AND isfinite(generation_created_at) AND isfinite(expires_at) AND generation_created_at >= created_at AND expires_at >= generation_created_at + interval '1 day' AND expires_at <= generation_created_at + interval '30 days'");
