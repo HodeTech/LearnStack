@@ -653,3 +653,22 @@ navigate the accepted boundary; ADR-0083 receives its bounded supersession
 amendment while remaining Accepted. This amendment changes none of this record's
 Decision, historical body, status or date. Acceptance is not executed native or
 hosted qualification.
+
+
+### Amendment 8 — Invitation continuation and fixed email verification action (2026-11-04)
+
+Accepted [ADR-0093](0093-verified-invitation-acceptance-and-handoff.md) records the new
+bounded invitation decision selected by the maintainer. ADR-0093 adds only the fixed
+invitation continuation/capture and kc_action=VERIFY_EMAIL purpose under existing
+state/nonce/PKCE/subject/host fences. It includes invitation owners in existing
+pending/source/global and verified-subject ceilings. Membership acceptance and
+post-acceptance session publication remain separate; a different live account cannot be
+replaced by email/display-label equality. Actual cleanup and provider/cookie uncertainty
+remain.
+
+This dated Amendment links the successor; it does not rewrite this record's historical
+Decision, Status, Date, Deciders or earlier rationale. Canonical current
+source/operation/permission/audit/storage details live in Standards
+01/04/05/07/11/18/19/20/21 and the Identity/Tenancy specifications. The [Phase 03
+Status](../roadmap/phase-03-identity-admin.md) owns implementation and source-bound
+qualification; acceptance supplies no runtime proof.

@@ -1483,20 +1483,28 @@ otherwise).
   wrong module.
 - **Phase:** 02a (Packet 6).
 
-#### `Cross_Aggregate_Writes_Are_Confined_To_Tenant_Provisioning`
+<a id="cross_aggregate_writes_are_confined_to_tenant_provisioning"></a>
+
+#### `Cross_Aggregate_Writes_Are_Confined_To_Named_Exceptions`
 
 - **Asserts:** no type implementing `IRequestHandler<,>`, `IRequestHandler<>`,
   `INotificationHandler<>` or `IIntegrationEventHandler<>` can reach more than one
   **distinct aggregate root** through
   its constructor parameters' `IAggregateWriteStore<TRoot, TId>` derivations, except the
-  single exact assembly/type identity — Tenancy's `ProvisionTenantCommandHandler`,
-  which writes
-  `Tenant` and its default `Organization` in one transaction per ADR-0042.
+  two exact assembly/type identities: Tenancy's `ProvisionTenantCommandHandler`
+  writes Tenant/default Organization under ADR-0042; Identity's
+  `AcceptInvitationCommandHandler` writes Invitation/at-most-one Membership under
+  ADR-0093. Contained children do not create another root. No cross-module
+  write or third handler is admitted. The historical
+  `Cross_Aggregate_Writes_Are_Confined_To_Tenant_Provisioning` name resolves here;
+  it is not a second owner of this rule.
 - **Source:** [ADR-0042](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md);
   [Architecture Standards § Aggregate Ownership](01-architecture-standards.md).
 - **Type:** xUnit + reflection. **Kind:** structural.
-- **Status:** **Implemented** (`AggregateWriteTests`).
-- **Phase:** 02a (Packet 7).
+- **Status:** **Registered** P03-4 two-handler extension. The provisioning-only
+  baseline remains implemented in `AggregateWriteTests`; actual invitation
+  production-subject/dirty-control backfill is not yet delivered.
+- **Phase:** 02a baseline; P03-4 extension.
 - **Note:** the rule counts **aggregate roots reached through ports**, not `DbSet`
   use, and the change is not cosmetic. ADR-0042 § Implementation Notes specified a
   source scan for `Add` / `Update` / `Remove` against more than one `DbSet`; under the
@@ -7093,3 +7101,57 @@ and fixture definitions make the implemented controls non-vacuous.
 - [Phase 02a Roadmap § Architecture Tests](../roadmap/phase-02a-kernel-tenancy.md)
 - [Phase 02b Roadmap § Architecture Tests](../roadmap/phase-02b-events-auth.md)
 - [add-architecture-test skill](../../.claude/skills/add-architecture-test/SKILL.md)
+
+
+#### `Invitation_Entry_Is_Offer_And_Subject_Confined`
+
+- **Asserts:** only the exact native authenticated inspection/accept/result
+  consumers may use HostAndInvitationOffer and InvitationEntryScope. Eleven
+  logical setters/four physical context writers and eleven confined definers
+  remain exact; mode/host/subject/operation reuse, arbitrary scope selectors,
+  raw-code SQL parameters and generic external DB access refuse.
+- **Source:** [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md),
+  [Security](11-security.md#verified-invitation-admission),
+  [Database](05-database.md#invitation-entry-and-consumption).
+- **Type:** compiled/source/body/ACL/caller checks and real PostgreSQL/native
+  wrong-purpose, lifetime, isolation and cleanup controls. **Kind:** both.
+- **Status:** **Registered**; P03-4 actual production-subject backfill pending.
+- **Phase:** 03 (P03-4).
+
+#### `Invitation_Consumption_And_Membership_Are_Atomic`
+
+- **Asserts:** one consumed generation and at most one new Membership share
+  strongest actual ordered fences and plural MUST durability. Fresh email,
+  stored-inviter delegation/global admission, compatible pinned Role, original
+  result identity and lifecycle predicates cannot be replaced by cached facts.
+  Already-member disposition lives on captured Invitation; its unchanged
+  Membership event has no fabricated snapshot or result metadata. Accepted
+  reconciliation precedes Pending-only checks and never dispatches mutation
+  intents for an already-observed result.
+- **Source:** [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md),
+  [Audit](18-audit-coverage.md), [Database](05-database.md#invitation-entry-and-consumption).
+- **Type:** architecture invocation/aggregate/audit controls and real app-role
+  accept/revoke/expiry/reissue/closure races, unknown COMMIT and audit rollback.
+  **Kind:** both.
+- **Status:** **Registered**; P03-4 production implementation/proofs pending.
+- **Phase:** 03 (P03-4).
+
+#### `Invitation_Email_Custody_Is_Closed_And_Owned`
+
+- **Asserts:** automatic invitation email uses exact typed identifier-only job
+  definitions, encrypted private provider storage and the attributed four-slot
+  connector. External providers retain ordinary DB/tenant denial. Only the two
+  fixed custody functions may expose encrypted material or immutable per-attempt
+  evidence; no recipient/code/body/ciphertext enters generic jobs or replay.
+  SMTP final 250 is submission acceptance; missing reply is Unknown, not retry or
+  reservation release. Positive pre-send fencing and known completed receipts
+  alone permit their exact runtime transitions; reissue invalidates old grant
+  authority without releasing an old uncertain reservation.
+- **Source:** [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md),
+  [Database](05-database.md#invitation-smtp-provider-storage),
+  [Infrastructure](20-infrastructure-stack.md#bounded-invitation-smtp-consumer).
+- **Type:** registry/source/function/ACL/PII checks plus real PostgreSQL/SMTP
+  prepare/send/finalize, dropped-reply/restart/quiescence/key-loss and leakage
+  controls with positive twins. **Kind:** both.
+- **Status:** **Registered**; P03-4 production implementation/proofs pending.
+- **Phase:** 03 (P03-4).

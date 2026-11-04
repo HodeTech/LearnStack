@@ -49,6 +49,48 @@ the request exists, and off-path events register by slug when their writer lands
 | Original MembershipProfile outcome | `identity.membership_profile.read_receipt` | **MUST** (`read-sensitive`) | Exact stored original Membership and self/admin predicate; no later successor substitution. |
 | Original Role outcome | `identity.role.read_receipt` | **MUST** (`read-sensitive`) | Fresh Role receipt disclosure admission; does not reexecute grant/adoption mutation. |
 
+## Invitation bindings
+
+The P03-4 contract derives from
+[ADR-0093](../../decisions/0093-verified-invitation-acceptance-and-handoff.md).
+All rows below remain `(planned)` until their actual request/event consumers and
+catalogue bindings land; acceptance does not supply implementation evidence.
+The [phase Status](../../roadmap/phase-03-identity-admin.md) owns delivery.
+
+| Resource | Operation | Class | Why |
+|---|---|---|---|
+| Invitation | `identity.invitation.create` `(planned)` | **MUST** (`security-event`) | `CreateInvitationCommand`; offer, generation-1 verifier, encrypted envelope and identifier-only job share the ordinary business transaction and required audit. |
+| Invitation | `identity.invitation.reissue` `(planned)` | **MUST** (`security-event`) | `ReissueInvitationCommand`; new generation/token/envelope/job with current TTL; former verifier invalidates atomically, without raw secret replay. |
+| Invitation | `identity.invitation.revoke` `(planned)` | **MUST** (`security-event`) | `RevokeInvitationCommand`; terminal withdrawal; later Prepare refuses obsolete work, while already-prepared email may still arrive with an invalid link. |
+| Invitation | `identity.invitation.accept` `(planned)` | **MUST** (`security-event`) | `AcceptInvitationCommand`; central capture includes accepted actor, original Membership and `acceptanceDisposition`. The row shares the grant transaction. |
+| Original Membership outcome | `identity.membership.admit_invitation` `(planned)` | **MUST** (`security-event`) | Second central intent on acceptance. New Membership includes tracked children; `already_member` identifies the unchanged original Membership with a subject-only row, no fabricated change or arbitrary handler metadata. |
+| Invitation preparation | `identity.invitation.prepare_email` `(planned)` | **MUST** (`security-event`) | `PrepareInvitationEmailCommand`; ordinary module-owned preparation records the exact current-generation submission intent before the external stage. No SMTP socket is opened inside its business transaction. |
+| Invitation submission outcome | `identity.invitation.email_submission` `(planned)` | **MUST** (`security-event`) | `FinalizeInvitationEmailCommand`; ordinary owner applies validated durable provider evidence to the exact Invitation. SMTP acceptance is submission only; ambiguous outcomes remain uncertain and retain occupancy. No private audit INSERT or provider receipt substitutes for this row. |
+| Invitation directory | `identity.invitation.list` `(planned)` | **MUST** (`read-sensitive`) | Administrative bounded offer list under current exact-scope authority before other-person disclosure. |
+| Invitation detail/status | `identity.invitation.read` `(planned)` | **MUST** (`read-sensitive`) | Administrative detail and bounded normalized current-generation submission evidence, through the owning port; no encrypted body, raw link or another envelope is disclosed. |
+| Delegable Role summaries | `identity.invitation.list_invitable_roles` `(planned)` | **MUST** (`read-sensitive`) | Exact delegation-limited ID/key/scope/version choices; no general Role/registry authority is inferred. |
+| Original Invitation outcome | `identity.invitation.read_receipt` `(planned)` | **MUST** (`read-sensitive`) | Fresh current original-target disclosure admission before protected replay; retained bytes contain no recipient credential/link. |
+
+`InspectInvitationQuery` and `GetOwnInvitationResultQuery` are planned explicit
+Off registrations, not `OperationClass` values or mutation rows. Pending
+inspection performs fresh verified UserInfo; accepted-result recovery checks the
+same Active actor, consumed verifier and original Active Membership, without
+Pending-only email/expiry/Role/inviter checks. Already Accepted is routed to Off
+before declaring mutation intents. A Pending mutation that sees Accepted after a
+race returns conflict with truthful failed-attempt evidence, never another
+successful acceptance row. No provider attempt receipt or UI poll declares a
+successful Membership mutation.
+
+`AcceptInvitationCommandHandler` is the only added two-root exception: central
+plural MUST intents for Invitation and the actual Membership share one ordinary
+unit of work. No User/provider transaction joins it. A missing required row or
+failed audit rolls back the whole grant/consumption outcome. Raw email, token,
+verifier, ciphertext and SMTP response/exception text never enter audit values;
+redacted properties remain present to preserve that a change occurred. Typed
+closed provider outcomes and subject references are evidence, not free metadata.
+Provider claim/complete functions retain immutable operational receipts; the
+common audit composer remains the only audit owner.
+
 **Explicit Off reads.** Contextual seed verification request types are registered
 Off before use; they inspect only the exact bounded declared seed facts, with no
 directory/provider profile. Ordinary existing-binding lookups create no mutation
@@ -104,10 +146,12 @@ census or a reflection/name heuristic.
 | MembershipProfile | Display name and locale preference | Both personal scalars marked for snapshot redaction; fixed diagnostics |
 | Assignment | Membership/person linkage and assignment history | Exact paths under Membership row; never log raw DTOs |
 | Role/Grant | Built-in key, capability scope, scoped keys, tenant and inherited actor references | None only for reviewed nonpersonal metadata; actor/linkage paths stay classified |
+| Invitation (planned) | Recipient email; current/consumed verifier; inviter, acceptor, result Membership, Role/version and generation/job references | Email/verifiers are redacted in snapshots; actor/relationship links remain classified; closed disposition is centrally captured, with no value-bearing diagnostics |
 
-No credentials/token/browser binding, global active scope or dormant custom-field
-blob belongs in these models. Publication does not make arbitrary tenant text
-diagnostically safe. SQL-only/control/vendor inventory remains in canonical
+No provider credentials, raw invitation token, browser binding, global active
+scope or dormant custom-field blob belongs in these models. Invitation verifiers
+remain the explicitly sensitive one-way credential fields described above.
+Publication does not make arbitrary tenant text diagnostically safe. SQL-only/control/vendor inventory remains in canonical
 [Data Protection](../../architecture/23-data-protection.md), not another durable-store list.
 
 Translate expected conflicts/upstream failures to fixed bounded descriptors

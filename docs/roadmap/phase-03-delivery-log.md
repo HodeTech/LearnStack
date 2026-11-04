@@ -344,9 +344,10 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 195 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 311 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
+  - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -15937,3 +15938,119 @@ Accepted ADRs are not rewritten before approval. The optional delivery-preferenc
 question is not itself ADR acceptance; administrator handoff remains the proposed
 recommendation until the maintainer decides. No invitation source, schema,
 endpoint, provider configuration, test timer or CI run changes in this preparation.
+
+### P03-4 automatic-email review corrections and accepted plan (2026-11-04)
+
+**Accepted — @cemil.** The maintainer selects automatic invitation email in this
+packet and directs verified review corrections, ADR acceptance and implementation.
+This record replaces the earlier Proposed manual-sharing/six-step package. Its
+older text and review findings remain dated history, not the current delivery
+choice or runtime qualification. ADR-0093 is the accepted G8 contract; Step 1
+reconciles canonical carriers before the first schema/provider/runtime writer.
+
+#### Verified review actions
+
+- The actual audit composer has no general business-result metadata channel.
+  Persist created/already_member disposition and exact result MembershipId on the
+  tracked Invitation. Its central captured state records that outcome; unchanged
+  Membership gets a truthful designated subject-only event with NULL changes.
+  No generic metadata extension or fabricated Membership creation is introduced.
+- Explicitly expand only Tenant tenancy.setting.write from branding.theme to
+  identity.invitation.ttl_days. Existing holders gain this exact policy operation;
+  v1 without the pair uses 14 days but cannot edit it until explicit v2 adoption.
+  A new permission/release and automatic seed grant are not selected.
+- Keep ADR-0074's complete strongest actual plan: Shared for ordinary effects,
+  Exclusive only for actual protected Tenant Admin effects. Recheck after waiting;
+  a changed mode conflicts, never upgrades. The earlier unconditional Exclusive
+  proposal is discarded, not silently treated as the existing contract.
+- Separate clean browser GET from secret-body POST API inspection/result reads;
+  the former neither sends nor grants. Name exact origin/mode/CSRF/subject owners,
+  all four existing owner ceilings and the operation-bound eleventh setter.
+- Define verifier_digest as application-derived 32-byte digest, not raw secret;
+  SQL indexed equality is not called constant-time. Separate stored inviter
+  global admission from complete current delegation; retain exact Role scope/pin.
+- Preserve valid new/Active/Suspended/Revoked behavior, terminal-result precedence,
+  same actor/original Active Membership and explicit no-disclosure after its loss.
+  Pending expiry/lifecycle/Role/email checks cannot block a committed own-result
+  read or create a second grant.
+- Add automatic encrypted SMTP custody, typed prepare/execute/finalize jobs,
+  immutable per-attempt receipts, truthful queued/accepted/failed/uncertain state,
+  explicit reissue and actual restart/response-loss/cleanup proof. No raw message,
+  code, URL or ciphertext enters generic job/replay/event payloads.
+
+Some external claims do not describe actual defects: a dated Amendment may point
+to a new bounded successor decision without rewriting history; ADR-0041 does not
+require a false-at-entry erratum for a new capability. Correct historical numeric
+statements are not rewritten merely to restate today's census. ADR-0053/0054
+closed native callers/POSTs do need the added successor navigation. ADR-0033/0044
+composition/durability, ADR-0072 binding/budgets and ADR-0074 lock semantics remain;
+no new metadata or global bootstrap exception is smuggled into their names.
+The prior reviewers' no-open-findings result was bounded to the then-Proposed
+surface; these later verified findings and the new delivery selection supersede
+that approval surface. No runtime safety is inferred from either document review.
+
+#### Current contract and first-consumer ownership
+
+[ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md) owns the
+decision. Current finite routes/DTO/preconditions are in
+[Standard 04](../standards/04-api-design.md#verified-invitation-transport), native
+paths/owner/copy are in [Standard 07](../standards/07-frontend-architecture.md#verified-invitation-experience),
+source/evidence in [Security](../standards/11-security.md#verified-invitation-admission),
+root/entry/provider storage in [Standard 05](../standards/05-database.md#invitation-entry-and-consumption),
+and SMTP runtime/source in the [provider contract](../standards/05-database.md#invitation-smtp-provider-storage)
+and [Infrastructure](../standards/20-infrastructure-stack.md#bounded-invitation-smtp-consumer).
+Module matrices own exact planned audit/policy consumers; their planned markers
+are removed only when actual consumers/catalogues land. Architecture controls
+are Registered, not falsely promoted by acceptance.
+
+The first production jobs are Identity's exact TenantWide and Organization email
+definitions. Ordinary staging submits the job first to obtain JobId, then encrypts
+scope/generation/job-bound message custody on the same existing transaction.
+The private provider connector consumes only a validated JobExecutor receipt and
+two fixed functions. It never restores external ordinary UoW/tenant access. Total
+confined definers are eleven; logical tenant setters eleven; physical context
+writers four. SMTP adds two private SQL-only tables and a separate four-slot
+source, not a fifth login role, arbitrary SQL callback or notification module.
+
+A final SMTP 250 proves submission acceptance only. Lost reply/crash before a
+durable receipt remains Unknown, with retained occupancy; reissue does not release
+that old work. The UI and runbook explain this unavoidable limit. Actual positive
+provider evidence, not an absent worker, permits the runtime's existing outcome
+transition. Production SMTP/TLS/keyring and Keycloak verification SMTP are distinct
+configuration prerequisites; local Mailpit is a real dev/test transport. Existing
+creation and five-minute continuation budgets are explicit accepted costs, not
+quietly increased in this packet.
+
+#### Seven-step implementation and review sequence
+
+Every step implements its own meaningful tests and related docs, then commits on
+`development`. Review round 1 uses two fresh independent reviewers; verify/fix
+findings and commit. Review round 2 uses two different fresh reviewers; verify/fix
+and commit before automatically moving on. Read surrounding contracts/source and
+use high reasoning for authority, concurrency, cryptography/provider and native
+ownership seams. A clean report is not a quota or proof that unexecuted tests ran.
+No broad generic runner/proof framework or unrelated refactor is part of P03-4.
+
+| Step | Deliverable | Verification before advancing |
+|---|---|---|
+| 1 | Accepted ADR-0093/G8, dated successor Amendments, canonical API/DB/native/security/audit/permission/provider contracts, module diagrams/inventory, catalogue/glossary/index and this replacement plan. Docs only. | Mechanical document/status/index checks; two fresh independent review rounds against actual seams. No runtime claim. |
+| 2 | Invitation domain/ID/EF schema, lifecycle/constraints/RLS, policy contract, exact preliminary lookup and operation-bound scope foundation. | Domain unit tests; actual app-role two-tenant/two-org isolation, shape/uniqueness/terminal/verifier/role-pin guards; applied function/body/ACL/caller and scope cleanup tests; architecture/build. No incomplete endpoint activation. |
+| 3 | Minimum automatic SMTP: encrypted provider store/migration, stager, attributed external receipt/four-slot connector, exact two functions, MailKit adapter, two typed jobs and bounded status projection. Consumer foundation remains closed to requests until the real administrator writer in Step 4. | Real SMTP/Mailpit positive/rejection/drop-final-reply, stage/audit/job atomicity, positive pre-send fencing, final250 receipt/restart, crash-before-receipt Unknown, immutable late/contradictory evidence, stale generation, retained slots, key rotation/loss/restore and DB/SMTP leakage. Existing external DB denial remains tested. |
+| 4 | Administrator create/list/detail/invitable-Role/revoke/reissue, Tenancy lifetime policy and exact protected replay/SDK contracts. | Independent HTTP/application permission denial, existing-holder/v1 policy cases, version/creation-presence conflicts, fresh scope/Role delegation and concurrency; atomic produced-work/audit rollback, no secret replay. Use the real Step 3 sender/job foundation; no later feature supplies a missing stager. |
+| 5 | Fresh recipient provider adapter, exact nonmember API/application admission and atomic consumption/result reconciliation. | Real current UserInfo/changed/unverified email, actual strongest lock modes, post-wait global eligibility/delegation, Active no-elevation audit, Suspended/Revoked, archived scope; both race orders, unknown COMMIT, original result IDs and plural MUST rollback. |
+| 6 | Full Studio invitation/lifetime UI; native email landing/capture/verification/signin/bootstrap/confirm/recovery and separate session admission; en/tr and no-JavaScript forms. | Actual new/existing/nonseed verified-provider HTTPS journeys, wrong live account and realm edit settings; expired/replaced/revoked codes, restart/cancel/429/503, history/BFCache/late responses/cleanup; full guarded frontend/typecheck/lint and actual human keyboard/reflow/contrast/VoiceOver evidence. |
+| 7 | Complete packet/source-bound proof, review closure and current documentation; prepare PR for the maintainer. | Relevant full backend/frontend/architecture/integration/provider/browser proof, complete required same-source A/B and original-archive reconciliation; two fresh final review rounds, no skipped/claimed manual evidence, no merge. |
+
+Source/workflow ownership remains `implement-task` with the relevant entity,
+handler, migration, background-job, provider-adapter, audit, frontend/i18n,
+integration-test, local-validation and commit/review workflows. Existing provider
+storage semantics, current contracts and known failure policies are reused only
+within their exact named boundaries. A materially incompatible new authority or
+product decision returns to the maintainer before code; ordinary decisions and
+verified fixes proceed under the current authorization without repeated asks.
+
+The maintainer will review the final PR. Earlier P03-3 B/archive and manual
+follow-ups retain their own identity and status; they are neither marked done nor
+silently waived by this acceptance. New human evidence is gathered honestly when
+the screens exist. If an external prerequisite genuinely prevents proof, record
+that precise dependency and continue independent work without inventing a pass.

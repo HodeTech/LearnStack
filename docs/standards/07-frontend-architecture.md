@@ -136,8 +136,9 @@ evidence belongs to the [delivery record](../roadmap/phase-02d-delivery-log.md#r
 
 - Admit GET/HEAD on HTTP paths reaching the native listener callback before
   Next dispatch, including matcher-exempt health/assets and exact scaffolds.
-  The existing ADR-0070 sign-in/sign-out/extend POSTs and the exact ADR-0078/0079
-  [entry/administration form set](#native-entry-and-administration) are the only
+  The existing ADR-0070 sign-in/sign-out/extend POSTs, the exact ADR-0078/0079
+  [entry/administration form set](#native-entry-and-administration) and ADR-0093's
+  [invitation form set](#verified-invitation-experience) are the only
   additional admitted methods, with their closed proof/body rules. All other
   methods receive masked no-store 404 without bootstrap or Next method
   conversion. HEAD is bodyless; Node owns malformed protocol input. Adding the
@@ -292,7 +293,8 @@ native AccountSite/session entry. The source credential, subject association,
 live candidate and exact host ceiling follow Security 11. Public wrappers remain
 anonymous; no browser-controlled header, cookie or hidden field selects authority.
 
-Only these additional native POST paths are admitted:
+The P03-3 additional native POST set is below; ADR-0093 extends it only with the
+[invitation form set](#verified-invitation-experience).
 
 | Path | Fixed operation |
 |---|---|
@@ -324,10 +326,11 @@ GET `/api/auth/entry` serves own-entry confirmation/recovery, or fresh context
 choices for the current session when no entry owner is present. The current
 context is identified without another selection form; other choices use the
 closed switch operation. The
-protected document set is exactly `/studio`, `/studio/members`,
+P03-3 protected document set is `/studio`, `/studio/members`,
 `/studio/members/{MembershipId}`, `/studio/roles`, `/studio/roles/{RoleId}`,
 `/portal` and `/portal/profile`, with canonical resource IDs. Only member-list
-GET accepts cursor/limit; exact route/query/history censuses reject alternatives.
+GET in that set accepts cursor/limit; the invitation documents below extend the
+set. Exact route/query/history censuses reject alternatives.
 An actual native-captured `RSC: 1` request may additionally carry one nonblank
 safe-ASCII `_rsc` transport value of at most 128 characters. Remove only that
 field for route-query validation; keep the signed raw target and the native
@@ -475,6 +478,79 @@ separate evidence, and neither supplies a no-script expiry guarantee.
 Equal en/tr namespaces and actual keyboard/focus/error/reflow/contrast/assistive-
 technology evidence are required. Veiled restoration and no-script recovery need
 real browser proof; a script-disabled browser has no script-based expiry promise.
+
+## Verified Invitation Experience
+
+**Derives from:** [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md).
+This Accepted P03-4 contract requires actual native/API/provider/browser proof
+before activation; acceptance does not add a runtime route. The exact API
+consumer set is [API Standards](04-api-design.md#verified-invitation-transport).
+
+The localized document extension is `/studio/invitations`,
+`/studio/invitations/{InvitationId}` and `/studio/invitation-policy`, plus
+`/invitations` and `/invitations/confirm` for the recipient. Only invitation-list
+GET additionally accepts cursor/limit. Documents and bounded previews are
+no-store; raw credentials never enter RSC, immutable page snapshots, analytics,
+error reporting or generic action-recovery storage. The existing
+`canManageMemberships` flag may expose an admin link; every action reauthorizes.
+
+| Additional exact native POST path | Fixed purpose |
+|---|---|
+| `/api/auth/invitation/capture` | Capture ID/code into the exact host/browser invitation owner |
+| `/api/auth/invitation/inspect` | Fresh current-recipient inspection from owned custody |
+| `/api/auth/invitation/verify` | Fixed `kc_action=VERIFY_EMAIL` continuation only |
+| `/api/auth/invitation/accept` | Deliberate acceptance of the displayed offer/version |
+| `/api/auth/invitation/result` | Same-actor original-result reconciliation only |
+| `/api/auth/invitation/cancel` | Cancel and clean only that invitation continuation |
+| `/api/studio/invitation-create` | Create the offer and automatic email job |
+| `/api/studio/invitation-revoke` | Revoke the exact current offer/version |
+| `/api/studio/invitation-reissue` | Explicit protected replacement with new generation/expiry |
+| `/api/studio/invitation-policy` | Exact orgless lifetime-policy replacement |
+
+Forms retain exact Origin, current invitation/entry/session-bound CSRF, strict
+16 KiB decoding before Next and single-valued named fields. They accept no
+tenant/org authority, bearer, arbitrary OIDC action, URL, proxy path or headers.
+Version and idempotency fields retain canonical string and deliberate-retry
+semantics. Fixed same-host destinations and response ownership precede all
+publication. There is no Server Action or browser bearer.
+
+Automatic email contains the independently admitted stored HTTPS origin and
+fixed localized landing with `#<invitation-id>.<secret>`, plus a separately
+pasteable code. GET renders only a small owned HTML landing before Next/RSC,
+without third-party script or reporter. Its bounded script removes the fragment
+with history replacement before exact-Origin/CSRF capture. No token enters
+path/query, OIDC state, callback or returnTo. Without JavaScript the clean form
+accepts the separately supplied code. Clean confirmation retains `same-origin`
+referrer policy for exact-Origin-compatible no-JavaScript forms; callback/logout
+retain their own policy.
+
+The separate `__Host-ls-invitation` HttpOnly/Secure/SameSite=Lax/Path=/ cookie is
+only an opaque handle. Its preauthentication owner shares the existing 1,024
+total/128 pending/16 per verified source and five-minute pending bounds; after
+subject verification it also counts within eight owners per verified issuer/sub.
+It coexists with a live session and replaces only an earlier invitation owner
+for that host/browser group. Provider credentials remain in their existing
+owner. A different subject cannot replace an established session. Cancellation,
+logout and completion clear contained secrets while unsettled work retains
+capacity until actual cleanup. Restart, lost custody or expiry asks the person
+to reopen the email. No raw link is returned to an administrator or replayed.
+
+Confirmation shows complete escaped current verified email with bidirectional
+isolation and explicit institution/branch/Role labels. Inspection does not
+authorize acceptance: the latter repeats fresh UserInfo evidence. Wrong account,
+unverified/changed email, verification cancellation, expired/revoked/replaced
+link, Suspended Membership and provider outage have localized recovery.
+Accepted-but-no-session recovery performs explicit ordinary session admission;
+a Membership receipt alone is not a tenant cookie.
+
+Administration reports **queued**, **submission accepted**, **failed**,
+**uncertain**, **expired** or **revoked** from actual facts. SMTP acceptance is
+not inbox delivery. Lost/uncertain work is not silently retried or reported as
+rollback. Explicit authorized reissue invalidates the prior verifier; a late old
+email may still arrive but cannot grant access, and its unsettled source retains
+capacity. Actual HTTPS/no-JavaScript, nonseed verification, history/BFCache,
+late-response/cleanup, sink canaries and human accessibility evidence qualify
+these screens; fixture tests do not supply human proof.
 
 ## Version-Qualified Next Response Cleanup
 

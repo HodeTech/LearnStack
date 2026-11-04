@@ -372,3 +372,21 @@ the bounded origin contract; this amendment is its navigation/disclosure, not an
 independent replacement of this decision. Historical Accepted bytes, status,
 date, Deciders and prior amendments remain unchanged. Actual P03-3 Step 3 proof
 remains required.
+
+
+### Amendment 6 — Invitation lifecycle and successor navigation (2026-11-04)
+
+Accepted [ADR-0093](0093-verified-invitation-acceptance-and-handoff.md) records the new
+bounded invitation decision selected by the maintainer. ADR-0093 supplies the separately
+gated P03-4 offer/acceptance/email contract. It preserves this foundation's compatible
+Role scopes, Active/Suspended natural uniqueness, terminal Revoked predecessor and fresh
+successor, current eligibility and total-admin guards. The added same-module two-root
+exception belongs to ADR-0093/0042 successor navigation, not an implicit foundation
+permission.
+
+This dated Amendment links the successor; it does not rewrite this record's historical
+Decision, Status, Date, Deciders or earlier rationale. Canonical current
+source/operation/permission/audit/storage details live in Standards
+01/04/05/07/11/18/19/20/21 and the Identity/Tenancy specifications. The [Phase 03
+Status](../roadmap/phase-03-identity-admin.md) owns implementation and source-bound
+qualification; acceptance supplies no runtime proof.

@@ -1,478 +1,534 @@
-# ADR-0093: Verified Invitation Acceptance and Bounded Handoff
+# ADR-0093: Verified Invitation Acceptance and Durable Email Handoff
 
 ## Status
 
-Proposed
+Accepted
 
 **Date:** 2026-11-04
-**Deciders:** @cemil (approval pending)
+**Deciders:** @cemil
 
-This proposal closes P03-4/G8 only on explicit acceptance. No Invitation schema,
-provider adapter, scope authority or endpoint is implemented by this record.
-The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns delivery state.
+The maintainer selects automatic invitation email, authorizes the verified review
+corrections, accepts this revised decision and directs implementation. This record
+replaces its unaccepted manual-sharing proposal. The [Phase 03 Status](../roadmap/phase-03-identity-admin.md)
+owns implementation and qualification; no runtime behavior is claimed here.
 
-**Bounded supersession on acceptance:** ADR-0003's eight-definer closure gains
-only the exact offer-entry function and Invitation owner visibility described
-below; ordinary application RLS and the four-role model remain. ADR-0042's
-one-operation exception list
-gains exactly `AcceptInvitationCommandHandler`, writing Identity's Invitation
-and Membership roots together. ADR-0042 remains Accepted for provisioning;
-cross-module writes remain forbidden. ADR-0036/0040/0064/0070/0076/0078/0079 retain
-their ordinary paths; their closed entry, setter, policy, native-operation and
-receipt censuses gain only the invitation consumers explicitly named here.
-Accepted bodies remain historical; acceptance appends dated disclosures.
+**Bounded successor decisions:**
+
+- [ADR-0003](0003-tenant-isolation-defense-in-depth.md)'s eight-definer closure gains
+  the exact offer-entry function and two SMTP custody functions: eleven in total.
+  Their named FORCE-RLS owner visibility is not ordinary application isolation.
+- [ADR-0042](0042-tenant-provisioning-cross-aggregate-transaction.md)'s one-exception
+  clause gains exactly `AcceptInvitationCommandHandler`, writing Invitation and
+  Membership inside Identity. Provisioning remains valid; cross-module writes
+  remain forbidden. The literal allowlist has exactly those two handlers.
+- [ADR-0047](0047-transactional-background-job-runtime.md)'s external-provider
+  boundary gains only the named encrypted SMTP custody connector and attributed
+  execution receipt below. Ordinary external application DB/tenant access remains
+  denied. Unknown effects, retained occupancy and six-attempt rules are unchanged.
+- [ADR-0079](0079-bounded-identity-administration.md)'s `tenancy.setting.write`
+  expands from `branding.theme` to also cover only `identity.invitation.ttl_days`.
+  Existing holders gain that bounded operation; no new pair or automatic grant
+  adoption occurs. Version-1 admins without the pair cannot edit the policy.
+- [ADR-0036](0036-tenant-resolution-trusted-inputs.md),
+  [ADR-0040](0040-ambient-unit-of-work.md),
+  [ADR-0053](0053-trusted-public-server-rendering.md),
+  [ADR-0054](0054-bounded-public-renderer-admission.md),
+  [ADR-0064](0064-tenant-api-authentication-boundary.md),
+  [ADR-0070](0070-owned-tenant-bff-sessions.md),
+  [ADR-0076](0076-live-scoped-authorization.md) and
+  [ADR-0078](0078-native-session-scope-and-self-entry.md) gain only the exact
+  invitation scope, policy, native-route and replay consumers named below.
+
+These are new bounded decisions, recorded by dated Amendments linking this
+successor and current canonical carriers. They are not false-at-entry corrections
+under ADR-0041. Earlier Accepted bodies and metadata remain historical; none is
+turned into a whole-record redirect. ADR-0073 receives invitation navigation;
+ADR-0072/0074/0077 remain the binding, lock and evidence baselines. No historical
+numeric census is rewritten merely because this packet adds a later consumer.
 
 ## Decision Drivers
 
-- P03-4 owes a usable new/existing-user invitation journey, current verified
-  email, fresh delegation, revocation/reissue and one authoritative grant outcome.
-- Current native scope admission requires Membership. The three global-self
-  descriptors cannot admit a person who is accepting their first Membership.
-- Provider tokens and the global User model deliberately provide no current
-  email mirror. An old token claim cannot satisfy G8's email-change boundary.
-- An ambient transaction alone licenses neither a second aggregate write nor a
-  new tenant setter. Existing protected receipts cannot safely retain a raw link.
-- Full notification orchestration belongs to Phase 08a. G8 explicitly permits
-  administrator handoff now; the UI must describe what actually happened.
+- P03-4 owes real new/existing-user acceptance, verified current email, fresh
+  delegation, revocation/reissue, usable delivery and a reconciled grant outcome.
+- The maintainer chooses automatic email in this packet. Full Phase 08a templates,
+  preferences and notification orchestration are not prerequisites for its minimum
+  invitation sender; the earlier manual-only recommendation is not selected.
+- Existing native scope requires Membership. Its three global-self descriptors
+  cannot authorize first-Membership acceptance, and token email is not current.
+- One ambient transaction supplies no unrecorded two-root exception. SMTP supplies
+  neither exactly-once delivery nor a reliable lookup after an uncertain send.
+- Secrets in a queued email need durable private custody. Identifier-only job
+  parameters/plans/outcomes and the external ordinary-DB denial must remain true.
 
 ## Considered Options
 
-1. **Verified acceptance with explicit administrator link handoff** (selected
-   proposal). Deliver the complete offer/accept/recovery journey without an
-   automatic invitation sender. Keycloak still owns email verification.
-2. **Bring forward automatic invitation email** (viable, not selected). Requires
-   the minimum provider adapter, durable private delivery custody, typed jobs,
-   effect reconciliation and retry/status UX now. It remains a product choice
-   for the maintainer, not an assumed prerequisite or a fake sent result.
-3. **Eventual Membership creation after consumption** (rejected). Leaves a
-   consumed offer without its grant, or a grant whose offer can still be revoked.
-4. **Trust token email or reuse seed/unresolved scope** (rejected). Supplies
-   neither current provider evidence nor legitimate pre-Membership authority.
-5. **Retain recoverable raw links in replay storage** (rejected). A hashed offer
-   does not protect a plaintext copy in an idempotency receipt or diagnostic.
+1. **Automatic SMTP with typed jobs and private encrypted custody** (selected).
+   Send and track invitations now, preserving explicit uncertain outcomes.
+2. **Administrator-only link sharing** (not selected by the maintainer). Smaller
+   delivery scope, but does not satisfy the selected automatic-email experience.
+3. **Send during the API/business transaction** (rejected). External delay and
+   uncertainty cannot share the database's atomic commit or safely retry it.
+4. **Place email/token/ciphertext in job plans or replay responses** (rejected).
+   Breaks identifier-only contracts or retains a second uncontrolled credential.
+5. **Eventual Membership after invitation consumption** (rejected). Cannot supply
+   the required single consumption/grant outcome.
+6. **New invitation-policy permission/release** (not selected). Adds unnecessary
+   grant migration for one tenant setting. Explicit existing-key expansion is
+   chosen and tested; it is not described as an unchanged permission meaning.
+7. **Unconditional exclusive Tenant lock** (not selected). Preserve ADR-0074's
+   strongest actual-effect plan; do not serialize every invitation unnecessarily.
 
 ## Decision
 
-LearnStack implements tenant/organization-bound, verified-recipient invitations
-with explicit administrator link handoff. A confined nonmember entry derives
-scope from the exact stored offer and independently verified host, checks current
-provider email and stored-inviter delegation, and atomically consumes the offer
-with its Membership outcome. Membership creation grants no native session;
-existing explicit API admission and account-continuity checks still precede
-session publication.
+LearnStack delivers automatic invitation email, verified-recipient acceptance and
+truthful recovery in P03-4. A narrowly admitted offer establishes only its exact
+nonmember scope. Fresh provider email and current inviter delegation precede one
+atomic Invitation/Membership result. Typed external jobs send an encrypted,
+version-bound email through a closed SMTP provider store, preserving uncertain
+submission and retained reservations. Acceptance itself publishes no session;
+normal explicit API admission and account continuity still govern publication.
 
 ## Context
 
-### Offer, recipient and lifecycle
+### Offer and recipient
 
-`Invitation` is an Identity-owned tenant/organization-scoped aggregate with a
-typed UUIDv7 ID, immutable target email, inviter UserId, nullable organization,
-one compatible RoleId and offered Role version. One Role keeps the offer clear;
-later multi-Role administration already has its separate protected operation.
-No caller supplies an invitee UserId. Email identifies the offer's recipient,
-never a global binding or an account-merge target.
+Invitation is an Identity tenant/organization-scoped root with typed UUIDv7 ID,
+immutable normalized recipient email, inviter UserId, nullable organization, one
+compatible RoleId and pinned Role version. No invitee UserId is supplied by an
+administrator. Email is a recipient condition, never an account-merge key.
 
-The accepted mailbox grammar is a bounded ASCII dot-atom local part and DNS
-domain, at most 254 bytes, without display names, comments, quoted local parts,
-whitespace or controls. Comparison lowercases ASCII in the complete address;
-it performs no dot/plus stripping, alias lookup or Unicode compatibility folding.
-This is a deliberate case-insensitive mailbox matching policy, not proof that
-every SMTP server treats case variants alike. Unsupported addresses receive a
-localized validation error before offer creation; provider addresses use the
-same parser. Keycloak realm account uniqueness remains a provider responsibility.
+Use ASCII dot-atom local part and DNS domain, at most 254 bytes, with no display
+name, quoted local part, comment, whitespace or control. Lowercase ASCII across
+that address; perform no alias/dot/plus stripping or Unicode compatibility
+folding. This is a deliberate matching policy, not universal SMTP case semantics.
+The provider address uses the same parser. Provider account uniqueness remains
+separate and is neither changed nor inferred from invitation matching.
 
-| State | Permitted outcome |
+Tenant-capability Role requires NULL organization; Organization-capability Role
+requires non-NULL target organization. The same-key Tenant-to-Organization
+**delegation** bridge never permits assigning an incompatible Role template.
+Current whole grants must fit the stored inviter's live ceiling. A changed pinned
+Role requires revocation/new offer; reissue does not silently repin it.
+
+### Lifecycle, lifetime and resend
+
+| State | Authoritative behavior |
 |---|---|
-| Pending, no link prepared | Administrator can prepare a link or revoke; acceptance refuses. |
-| Pending, unexpired current verifier | Inspect; explicit acceptance; revoke; explicit link replacement. |
-| Pending, expired | Display Expired from database time; acceptance refuses; authorized replacement renews the offer. |
-| Accepted | Immutable actor, original MembershipId and `created`/`already_member` result; no reissue, revoke or second grant. |
-| Revoked | Terminal; no reissue or acceptance. A new offer requires a new ID. |
+| Pending, unexpired | Inspect; explicitly accept; revoke; or explicitly resend by reissue. |
+| Pending, expired | Reject acceptance; show expiry; an authorized reissue renews it. |
+| Accepted | Retain actor, exact result MembershipId and `created`/`already_member` disposition. No reissue, revocation or second grant. |
+| Revoked | Terminal. A replacement offer has a new ID. |
 
-Expiry is an effective state from `expires_at`, not a periodic job that must run
-before refusal. Evaluate it after lock waits using database UTC. A Tenancy-owned
-typed setting supplies a tenant default of 14 days, configurable to 1–30 days by
-an orgless administrator with Tenant `tenancy.setting.write`. Each prepared link
-freezes its expiry; later policy edits do not extend it. Replacement starts a new
-generation and expiry from the current policy. Email/Role changes require revoke
-and a new offer; replacement cannot silently repin a changed Role version.
+Create commits generation 1, its verifier, frozen expiry, queued delivery custody
+and job together. There is no undated `not_prepared` state. One Pending offer per
+null-safe tenant/org/email tuple includes expired offers awaiting reissue. Duplicate
+creation is an authorized conflict, never a hidden resend.
 
-Null-safe uniqueness permits one Pending offer per tenant, organization and
-normalized email, including an expired Pending offer awaiting replacement.
-An authorized duplicate create reports conflict and points to the existing offer;
-it never reissues secretly. Historical Accepted/Revoked offers remain distinct.
+The Tenancy-owned `identity.invitation.ttl_days` setting defaults to 14 days and
+allows 1–30. Only orgless Tenant `tenancy.setting.write` can edit it. Existing v2
+holders gain this operation; v1 without that pair still creates invitations using
+14 days and may explicitly adopt v2 through the existing accepted procedure.
+Registration/seed repetition neither grants nor restores the pair. A new value
+affects future generations only. The absent/default precondition is distinct from
+an existing version-zero setting; first creation uses presence plus version and
+natural uniqueness, not an unconditional upsert.
 
-### Handoff and secret custody
+**Resend means explicit reissue:** create a new generation, secret, expiry,
+encrypted message and job; atomically invalidate the old acceptance verifier.
+It requires current authority/delegation, pinned Role and canonical If-Match plus
+protected idempotency. Repeat of the same key returns its version receipt rather
+than queuing twice. No API returns the raw link. Copying links is not the selected
+administrator delivery workflow.
 
-Creation persists the offer and its explicit `not_prepared` handoff fact, returning
-the ordinary bounded version receipt and Location. A separate deliberate
-`PrepareInvitationHandoffCommand` generates 32 CSPRNG bytes, stores only a
-domain-separated SHA-256 verifier and generation, and returns the raw code once.
-Preparing again atomically invalidates the former generation. No deterministic
-token reconstruction, plaintext database copy or encrypted delivery store exists.
-The verifier is sensitive credential material despite its one-way form.
-Its canonical input is unsigned-32-bit-big-endian length-prefixed UTF-8
-`learnstack.identity.invitation.v1`, Invitation UUID RFC/network-order bytes and
-the 32 raw random bytes, hashed with SHA-256. Constant-time fixed-length equality
-checks the stored value; tenant, exact ID and current generation remain separate
-mandatory predicates. Generation advances only on explicit preparation and
-cannot wrap or decrement.
+Revocation, acceptance and reissue invalidate obsolete acceptance authority in
+their ordinary transaction. Prepare refuses an obsolete generation observed
+before its plan commits. There is no ordinary provider-table cancellation writer:
+a message already prepared or admitted to SMTP can still arrive with an invalid
+link. Neither a new generation nor an expired lease releases an uncertain older
+delivery reservation. Provider recovery cancellation below fences an unclaimed
+external attempt; it is distinct from business withdrawal.
 
-The handoff response is no-store and excluded from generic/protected idempotency
-response storage, RSC, page-snapshot caches, analytics and diagnostics. It requires
-canonical strong If-Match and rejects Idempotency-Key. It performs no external
-send. A lost response is **link unavailable**, not a claimed rollback: read the
-new version and explicitly replace the link. A late former-version request cannot
-replace a newer link. No automatic mutation retry is introduced.
+### Automatic email and private custody
 
-The administrator receives a selectable link, Copy control and separate code
-fallback. Labels say **link prepared**, **link replaced**, **not yet shared**;
-clipboard success is not proof of sending or receipt. The administrator chooses
-the communication channel. Automatic email/templates/preferences remain Phase
-08a work; this handoff is the delivered P03-4 mechanism, not an unfinished sender.
+Identity is the first production job consumer. It registers two external-profile
+keys, `identity.invitation_email_tenant.v1` and
+`identity.invitation_email_organization.v1`, for exact TenantWide/Organization
+routes. Existing external queue/pool counts stay fixed. The shared tenant-wide
+`identity.invitation_email` capacity group has four retained slots; uncertainty
+can fill them and delay that tenant's later mail.
 
-The link uses the stored, independently admitted HTTPS entry origin and fixed
-localized landing path, with `#<invitation-id>.<secret>` in its fragment. No token
-appears in path, query, OIDC state, callback, returnTo or another host's URL.
-The native landing is a small owned HTML response, before Next/RSC, with no
-third-party scripts, analytics or error reporter. Its sole bounded script first
-removes the fragment with history replacement, then captures it through an
-exact-Origin/CSRF POST. Without JavaScript the same page supports pasting the
-separate code. GET creates no offer, Membership, consumption or delivery fact.
+Creation/reissue uses `IInvitationEmailStager` and `IBackgroundJobScheduler` on
+its current announced writable owner. The durable job, Invitation generation and
+private envelope commit together. The provider spool is framework/provider
+control storage, not another business root or a generic notification module.
+`invitation_email_envelopes` and `invitation_email_attempt_receipts` are owned by
+common Infrastructure. Their custody/receipt changes have their own explicit
+capture exclusions and no fabricated business snapshots.
 
-Captured codes live only in the existing bounded native owner infrastructure:
-one invitation continuation per host/browser group, counted within existing
-1,024 owners / 128 pending / 16 per-source limits and five-minute pending
-lifetime. No new registry or capacity allowance is inferred. Its separate opaque
-HttpOnly/Secure/SameSite host cookie binds the continuation; provider credentials
-remain in their existing entry owner. Opening another invite replaces only the
-earlier invitation continuation, never a live session. Epoch, publication and
-actual cleanup rules remain. Expiry/restart/lost custody asks the person to reopen
-the original link. Logout, cancellation and completion clear contained secrets;
-actual unsettled work retains capacity until cleanup ends.
+Encrypt the bounded recipient/subject/body/link message using AES-256-GCM with a
+fresh 12-byte nonce, 16-byte tag and immutable scope/generation/spool/job identity
+as authenticated data. Plaintext is at most 32 KiB. A named keyring of 1–4 keys
+comes only from `ISecretProvider`; ciphertext identifies its key. Active key
+changes do not discard keys required by outstanding ciphertext or restoration.
+Missing keys refuse; they never regenerate links or silently select another key.
+The setup/rotation/restore runbook and key-loss controls ship in this packet.
 
-The clean confirmation document keeps exact-Origin-compatible `same-origin`
-referrer policy for no-JavaScript forms; the token-bearing fragment is already
-removed. Callback/logout retain their existing policy. Browser history, BFCache,
-late responses, canary leakage and owner teardown require actual browser proof.
+Parameters and plan carry only immutable GUID Invitation/generation/spool IDs;
+outcome carries only a provider ReceiptId. Generation ordinals, enums, email,
+URLs, ciphertext, keys and exceptions never enter jobs/outbox/inbox/vendor state.
+Prepare/finalize are exact audited Identity requests. Finalization changes only
+the still-current Invitation generation; stale-generation completion is a truthful
+no-op with its retained provider evidence, not a second send or status overwrite.
 
-### Current verified provider email
+The Identity Contracts port `IInvitationEmailOperation` retains the existing
+Execute/Reconcile shape; `InvitationSmtpOperation` uses shared `IEmailProvider`.
+The SMTP adapter pins MailKit/MimeKit 4.18.2. Provider configuration fixes host,
+port, sender and required TLS; credentials use the secret provider. Only explicit
+Development Mailpit configuration permits unauthenticated plaintext SMTP. Request
+or tenant-authored content supplies no endpoint, TLS downgrade or headers. Render
+bounded localized en/tr text and HTML with escaped tenant labels; the full Phase
+08a template/preference engine later integrates this boundary.
 
-API Infrastructure supplies `ICurrentInvitationRecipientReader`, used only by
-the exact invitation inspection/acceptance admission. It calls the configured
-issuer's fixed `/protocol/openid-connect/userinfo` endpoint with this request's
-stock-validated access token. No realm-admin credential, user search, supplied
-URL, redirect, provider SDK in Application or broad account-management scope is
-added. The existing `openid email` scope/mappers must be qualified.
+SMTP resilience disables automatic send retry. Only the typed job outcome policy
+can admit another attempt; no nested Polly retry repeats an uncertain send.
+A stable Message-ID identifies the same logical operation, without claiming
+SMTP deduplication. Final SMTP 250 means **submission accepted**, not inbox delivery.
+[RFC 5321's final-reply timeout rule](https://www.rfc-editor.org/rfc/rfc5321.html#section-4.5.3.2.6)
+explains why a missing final response cannot establish failure or justify resend.
 
-Each Pending inspection and first acceptance performs a new no-cache call.
-Require exact `sub` equality,
-one well-typed `email`, Boolean `email_verified == true`, and the mailbox match.
-Duplicate/ill-typed properties, wrong subject, token refusal, missing claims or
-malformed response never become trusted evidence. Bound the response to 16 KiB
-and the request to five seconds within the existing ten-second native API
-deadline; no retry extends it. Hold no business locks during provider I/O.
+### Confined external provider source
 
-Immutable evidence binds issuer, subject, token identity, request/invocation and
-observation time; it expires at that request's original deadline and cannot be
-cached/replayed into another act. Confirmed email is shown escaped and complete
-with bidirectional isolation, not a possibly colliding display name. An inspection
-does not authorize the later POST: acceptance repeats the provider observation
-and refuses a changed address, subject or verification state.
+Ordinary external UoW/DbContext/repository/ISender/tenant-setter access remains
+refused. `JobExecutor.InvokeExternalAsync` alone mints a nonserialized immutable
+`InvitationSmtpExecutionReceipt` from the exact registered definition/adapter,
+validated route, job/attempt/operation, immutable plan fingerprint, current fence,
+deadline and Execute/Reconcile purpose. Plain DTO IDs are not this authority.
+The receipt is invocation-bound, closes new acquisitions on invalidation and
+retains already-owned work through actual cleanup.
 
-**Freshness boundary:** current means the provider's fresh UserInfo observation
-for that act. A later provider edit can race the database commit; this is not an
-atomic provider/database snapshot. Existing actor admission still applies and
-the immutable issuer/sub binding never changes because emails match.
+Only a dedicated provider connector consumes it, on a separate app-role source
+with four retained slots including checkout/cleanup and five-second SQL operation
+budgets. No migration credential, fifth login role, ordinary UoW, raw connection
+escape, general callback or tenant GUC writer is added. A timed-out physical owner
+keeps its slot until disposal; lost COMMIT has bounded exact reconciliation.
 
-The pinned Keycloak 26.6.2
-[UserInfo endpoint](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/protocol/oidc/endpoints/UserInfoEndpoint.java)
-loads the valid session's enabled user; its
+Two fixed migration-owned SECURITY DEFINER functions, on this connector only,
+validate actual job/attempt/plan/ExecuteIntent/spool bindings and their narrow
+role-qualified owner visibility before accessing provider storage:
+
+- `fn_invitation_smtp_claim_or_read`: Execute may atomically claim its exact
+  Created attempt as Sending before **any** socket starts. Reconcile reads only
+  immutable evidence; fresh eligible recovery may durably fence Created as
+  CancelledBeforeSend, preventing a paused former Execute. Reconcile never sends.
+- `fn_invitation_smtp_complete_attempt`: write-once terminal observation for an
+  already-issued exact provider claim, including reproducible late evidence
+  after lease loss. It neither starts work, changes Invitation/business state,
+  releases job occupancy nor bypasses the runtime's checkpoint authority.
+
+Functions return encrypted material only to the winning original claim, or
+bounded receipts. No Invitation/User/Membership directory or plaintext projection
+exists. Standard 05 owns the exact SQL signatures, static bodies/search paths,
+policy arms, source/fence/grant/caller census and known/unknown commit rules.
+This is an explicitly enumerated provider-storage exception to ADR-0047's source
+boundary, not permission for other external adapters to access application data.
+
+| Proven SMTP/provider observation | Runtime outcome and UI |
+|---|---|
+| Final 250, actual send/socket cleanup and durable receipt | Succeeded; submission accepted, never delivered/read. |
+| Definite temporary rejection/no acceptance, actual cleanup and durable receipt | Failed/TransientRepeatable; bounded existing retry, same logical operation/generation. |
+| Definite permanent rejection, cleanup and durable receipt | Failed/Permanent; visible failed result/recovery. |
+| Durable cancellation before any socket, former start fenced | Cancelled/TransientRepeatable with positive provider evidence. This is not framework NeverStarted. |
+| Lost final reply, crash after Sending before receipt, unsettled I/O or contradictory evidence | Unknown; visible uncertain/quarantined state, retained reservation, no blind retry. |
+| Exact durable terminal receipt found after restart | Reproduce it; never execute the completed operation again. |
+
+UI separates queued, submission accepted, failed, uncertain, expired and revoked.
+Known failure offers authorized reissue; uncertainty explains possible late old
+mail and the retained-capacity limit. It does not claim that reissue reconciles the
+old effect. No evidence can manufacture a missing SMTP response after an
+unobservable crash. P03-9 owns privileged recovery; this packet supplies the
+provider-specific evidence/runbook, not a bypass or an invented release proof.
+
+### Current provider email and verification
+
+`ICurrentInvitationRecipientReader` calls the configured issuer's fixed UserInfo
+endpoint with this request's stock-validated access token. No supplied URL,
+redirect, realm-admin credential, User email mirror or account search is added.
+For every Pending inspection and first acceptance, independently require the same
+exact `sub`, one typed `email`, Boolean `email_verified == true` and mailbox match.
+Reject duplicate/ill-typed claims. Bound response to 16 KiB and provider I/O to
+five seconds within the existing ten-second API deadline; no business locks or
+retry extending that deadline. Evidence binds request/issuer/subject/token and
+expires with that invocation. Provider and database observations are not atomic.
+
+Show the complete escaped, bidirectionally isolated verified address, not a
+possibly colliding display label. The later accept POST makes its own observation;
+inspection is no authorization cache. Wrong or unverified email yields bounded
+recovery without revealing the expected address.
+
+New people use existing opt-in global-self bootstrap, which commits/disposes
+before tenant acceptance. It keeps the deployment budgets of 10 attempts/minute,
+100/day and 10,000 lifetime allocations; disabled/exhausted creation cannot be
+bypassed by an invitation. Account binding stays authority plus exact subject.
+
+The fixed `kc_action=VERIFY_EMAIL` purpose reuses state/nonce/PKCE and exact callback
+under the original invitation/subject. Cancellation or a different subject never
+verifies or replaces that continuation. Realm-wide `verifyEmail=false` can remain;
+qualification explicitly verifies that the action is enabled/supported and its
+send/cooldown UI works. Existing Mailpit handles development verification email;
+production requires configured Keycloak SMTP. No new LearnStack password/reset or
+verification sender replaces Keycloak. The pinned
+[UserInfo endpoint](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/protocol/oidc/endpoints/UserInfoEndpoint.java),
 [property mapper](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/protocol/oidc/mappers/UserPropertyMapper.java)
-reads current UserModel properties. That source supports this choice but is not
-a substitute for real changed/unverified-email qualification. The
-[OIDC UserInfo subject rule](https://openid.net/specs/openid-connect-core-1_0.html#UserInfoResponse)
-remains mandatory.
+and [VerifyEmail action](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/authentication/requiredactions/VerifyEmail.java)
+support this choice; actual changed-email/nonseed verification proof remains due.
 
-New users complete provider registration and Keycloak-owned email verification;
-P03-4 adds only the fixed `kc_action=VERIFY_EMAIL` authorization purpose under
-the existing state/nonce/PKCE callback transaction. The original invitation and
-verified subject stay bound; cancellation is recovery, not verification, and a
-changed subject cannot replace that continuation or another live session.
-Keycloak's pinned [VerifyEmail action](https://github.com/keycloak/keycloak/blob/26.6.2/services/src/main/java/org/keycloak/authentication/requiredactions/VerifyEmail.java)
-supports application initiation, including its explicit send/cooldown UI.
-No arbitrary required-action, destination or caller-supplied OIDC option enters
-this path. This preserves the realm's global registration policy and reserved
-accounts while providing a usable verification-action continuation and recovery.
-Existing development Mailpit carries those **provider** verification emails.
-Production verification uses the operator-configured provider SMTP. An absent or
-failed verification service is visible and cannot be bypassed by the invitation.
-Actual nonseed verification, not a fixture-set verified flag, qualifies this path.
+### Offer entry, secrets and native ownership
 
-### Exact nonmember entry and scope
+Email contains a stored, live host-mapping-derived HTTPS origin and fixed localized
+landing with `#<invitation-id>.<secret>`. The origin is server-derived/frozen for
+that generation and independently revalidated; no caller-supplied URL, scheme,
+port or return destination is accepted. No secret enters path, query, OIDC state,
+returnTo, callback or another host's URL. A separate code enables manual entry.
 
-Invitation entry is a separate exact-purpose branch after existing visitor/body,
-host, stock credential and issuer/sub quota checks and native-secret validation.
-It does not enlarge the three global-self descriptors or ordinary PublicSurface.
-Only known Tenant/Organization hosts participate; Platform/unknown hosts refuse.
-No browser tenant/org field or legacy assertion supplies a missing scope.
+**Browser GET renders only navigation/inspection UI.** Secret-carrying API
+inspection/result operations are POST with strict bodies, explicitly physically
+ReadOnly and Off where self-only. This clarifies the earlier phase/Architecture
+13 GET wording; no GET accepts, consumes, queues or grants an invitation.
 
-A short physically READ ONLY app-role lookup calls the new confined owner
-function `fn_identity_invitation_entry(invitation_id, verifier, host_tenant,
-authority_id, subject_key)`. The last two values come only from this request's
-verified provider subject and installed authority, after exact-subject existing-
-binding normalization; they are not body/header selectors.
-It returns only exact matching offer ID/version/generation, tenant/org, inviter
-UserId, bound actor ID/admission Boolean, inviter-admitting Boolean and terminal
-reconciliation metadata. Actor eligibility derives only from that verified
-authority/subject binding, never a caller-selected target UserId. It returns
-no email, provider subject, profile, Role graph, directory or arbitrary User state.
-Pending/accepted verifiers have separate meanings; an accepted verifier can only
-support that same actor's result reconciliation, never a new grant.
+The native landing runs before Next/RSC, with no third-party scripts, analytics or
+error reporter. Its first bounded script scrubs the fragment then captures through
+exact-Origin/CSRF POST. Without JavaScript the clean form accepts a pasted code.
+GET allocates the bounded preauthentication continuation/CSRF/browser binding;
+capture verifies that exact host/browser proof and never consumes the offer.
+Clean confirmation forms use existing exact-Origin-compatible same-origin
+referrer policy, not an unqualified no-referrer change.
 
-Standard 05 owns the exact signature/body/ACL/policy: migration-owned, fixed search
-path, static parameterized SQL, no writes, PUBLIC execute revoked and only app
-execute granted. Its narrow body joins only Identity's stored offer and the bound
-actor/stored-inviter User state. The necessary owner visibility arm is limited
-to Invitation. The existing `users_isolation` migration-owner arm already permits
-its confined User reads and is unchanged; the fixed function repeats the exact
-verified-subject/stored-inviter predicates. No additional app SELECT grant,
-ordinary directory visibility or arbitrary-User reader is introduced. Physical
-owner visibility is
-broader than the logical exact projection; closed body/ACL/caller tests and the
-admitted-application-credential threat boundary remain essential.
+One continuation per host/browser group uses the existing 1,024 total/128 pending/
+16 per-source/five-minute limits. After verified issuer/subject association it
+also counts inside the existing eight-owner subject ceiling. It has a separate
+opaque `__Host-ls-invitation` cookie, HttpOnly/Secure/Path=/, SameSite=Lax. It grants
+no session. Replacing a continuation affects only that invitation owner, preserving
+live sessions. Epoch/late-publication/cleanup rules persist. Five-minute expiry or
+restart asks the person to reopen the original email; this cannot consume a second
+grant. Actual cleanup controls retention, not a timeout or cleared cookie.
 
-The lookup closes before the next owner starts. `InvitationEntryScope` becomes
-the eleventh logical tenant setter; it consumes a single-use immutable witness
-binding the actual request, credential, verified subject/actor, native source,
-real host and stored offer tuple. TenantHost caps the tenant; OrganizationHost
-requires exact organization. Optional provider scope and any allowed assertions
-must exactly agree, never win a conflict. Wrong-purpose, missing, reused or changed
-witness refuses before announcement. The separate `HostAndInvitationOffer`
-origin admits only the exact inspection, acceptance and own-result consumers.
-It permits no directory, general protected act, AccountSite, Platform capability,
-public write or SQL read/write hatch. API composition supplies no other producer.
+A 32-byte CSPRNG secret has one domain-separated verifier. Hash unsigned-32-bit
+big-endian length-prefixed UTF-8 `learnstack.identity.invitation.v1`, RFC UUID
+bytes and raw random bytes with SHA-256. The API computes it before SQL; database
+`verifier_digest` input is exactly those 32 digest bytes, never the raw secret.
+Application-held secret/digest comparisons use fixed-time APIs where applicable;
+indexed SQL digest equality is **not claimed constant-time**. High entropy and
+masked outcomes remain separate controls. The consumed digest is the accepted
+generation's verifier hash, retained only for exact same-actor reconciliation.
+Reissue replaces the active verifier; revoke clears it; expiry disables it by
+predicate; Accepted moves it to consumed-verifier custody. No old verifier grants
+new admission. Sensitive digests/SQL parameters stay out of server error/statement
+logs and provider diagnostics; the packet includes DB bind-log configuration and
+actual leakage controls rather than assuming application redaction covers them.
 
-For a new person, deliberate existing global-self bootstrap commits and disposes
-first, under its opt-in policy and current allocation budgets. Invitation entry
-does not enable creation when bootstrap is disabled. Missing/nonadmitting actors
-cannot accept; no User and tenant transaction join or retarget each other.
+After peer/body/host, provider, issuer/sub quota and native-source checks, a
+separate exact invitation branch normalizes the existing Active binding and calls
+`fn_identity_invitation_entry` with ID/digest, independently classified host tenant
+and installed authority/subject key. It returns only offer tuple/version/generation,
+bound actor admission, stored inviter global admission and result identifiers.
+The inviter Boolean is not delegation proof. No email/profile/grants/arbitrary
+User lookup is returned. The short lookup closes before the scoped owner starts.
 
-### Atomic grant, delegation and races
+`InvitationEntryScope` is the eleventh logical setter: one operation-bound witness
+on ReadOnly inspection/result or ordinary ReadWrite acceptance owners. This is
+not classified as a ninth short-ReadOnly-only setter. Both reuse the four existing
+physical context writers. The one-use witness binds exact request, credential,
+subject/actor, native source, real host, stored offer and mode. The new
+`HostAndInvitationOffer` origin admits only `InspectInvitationQuery`,
+`AcceptInvitationCommand` and `GetOwnInvitationResultQuery`. Extend enum/factory,
+minter/resolver, middleware/policy/source and caller tests together. No AccountSite,
+directory, public write, Platform/unknown-host or general protected operation is
+admitted. TenantHost caps the tenant; OrganizationHost requires exact organization.
+Provider scope/assertions must agree and never fill or override missing authority.
 
-`AcceptInvitationCommandHandler` is the only added multi-root writer. It writes
-one Invitation and, when needed, one Membership with its contained Profile and
-single assignment on the ordinary ReadWrite owner. It writes no Role, Tenancy,
-User, provider or private audit row. Central plural MUST intents
-`identity.invitation.accept` and `identity.membership.admit_invitation` share that
-transaction and designate the actual offer/result Membership. The latter is a
-security event: its tracked graph records creation or its declared result records
-`already_member` without a fabricated creation diff. There is no separate invented
-Membership creation event for an unchanged existing member.
+### Atomic acceptance, current authority and audit
 
-Take the complete sorted exclusive User keys for invitee and stored inviter,
-then exclusive Tenant fence, offered Role lock, Invitation row, then any existing
-target Membership row. Never acquire another User key under the Tenant fence or
-upgrade shared mode. All invitation mutations use the exclusive Tenant fence;
-the serialization cost is accepted for this bounded initial surface. Fresh reads
-after waits revalidate token/generation, actual state, lifecycle and immutable
-scope. Repeating the exact offer-derived lookup under both retained User fences
-freshly confirms the bound invitee is Active, including the `already_member`
-case that performs no Membership INSERT and therefore cannot rely on its trigger.
-Then branch on the stored state: Accepted is not mutation-eligible and follows
-the dispatch/race/result-read rules below. Only Pending additionally checks
-expected version, database expiry, Role pin, inviter eligibility and complete
-delegation graph.
+Use existing ordered locks: complete sorted exclusive invitee/inviter User keys,
+then the strongest actual Tenant mode, offered Role, Invitation, and existing
+Membership row. Shared covers nonadministrator effects, including create/revoke/
+reissue and ordinary-member acceptance; actual Tenant Admin eligibility/assignment
+changes select Exclusive. Derive the full plan from prepared OLD/NEW effects and
+revalidate after waiting; changed classification conflicts rather than upgrades.
+Current delegation has ADR-0076's committed per-act snapshot boundary, not a
+promise to cancel work already admitted before a later revocation.
 
-`IInvitationDelegationReader` reads only the locked offer's stored inviter and
-target-scope Membership/Role facts on that same announced owner. It cannot mint
-an HTTP candidate for another person or accept a supplied arbitrary UserId.
-Eligible NULL-org Tenant grants and matching-branch grants compose under the
-existing whole-Role ceiling and same-key Tenant-to-Organization rule. Current
-membership-admin is required. The offered Role's pinned version and whole current
-grants must still fit; changed Role content requires revoke/new offer. No seed,
-realm-role, SystemActor or stale `was_admin` flag supplies delegation. The exact
-offer-derived owner function may recheck its stored inviter's global admission
-Boolean after the complete User/Tenant plan; it adds no general User reader.
+Fresh post-wait state proves both User accounts Active, including the existing
+Active-member case without a Membership INSERT. The offer-derived function
+rechecks only those exact bound/global facts; `IInvitationDelegationReader`
+separately reads current stored-inviter Membership/Role/grant facts on the same
+scope. No invented HTTP candidate, seed/SystemActor flag or `was_admin` authorizes
+it. Trial/Active tenant and Active/nondeleted target organization admit ordinary
+work through `IIdentityScopeLifecycleReader`; Suspended/Archived/deleted scope
+refuses. NULL organization requires eligible tenant work, without a fake branch.
 
-| Exact target Membership | Acceptance outcome |
+| Exact target Membership | Initial acceptance |
 |---|---|
-| None | Create one Active Membership and its children; consume offer. |
-| Active | Consume as `already_member`, retain that exact Membership and all existing Roles/profile unchanged; no silent elevation. |
-| Suspended | Conflict; no consumption or reactivation. Administrator uses the existing explicit status operation. |
-| Only Revoked history | Create one fresh successor ID/children; never resurrect a predecessor. |
+| None | Create one Active Membership/Profile/assignment; consume offer. |
+| Active | Consume as `already_member`; explicitly tell both parties existing Roles/profile are unchanged. |
+| Suspended | Conflict; no reactivation/consumption. Use the existing status operation. |
+| Only Revoked history | Create one fresh successor; never resurrect a predecessor. |
 
-Database natural uniqueness, admission/last-admin constraints and tracked audit
-capture still apply. A failure, MUST audit failure or confirmed rollback leaves
-neither a consumed offer nor a new grant. The entry dispatcher observes Accepted
-before declaring mutation intents and dispatches the exact Off
-`GetOwnInvitationResultQuery` instead. That query verifies
-the consumed digest, immutable tuple, fresh Active invitee and original current
-Active Membership before returning its bounded result. It precedes Pending-only
-version/expiry/Role-pin/inviter checks: the original version is necessarily stale
-after consumption, and later offer expiry or inviter/Role edits do not undo the
-committed result. It cannot substitute a successor or repeat a mutation. Another
-actor receives no accepted-result disclosure. Unknown COMMIT is indeterminate
-until a fresh authoritative read; absence of a response is never rollback proof.
-This result read does not require current email, inviter delegation, Role pin or
-offer lifetime: it discloses only the same Active actor's already-committed result
-under the original Active Membership. It never offers a new grant. If a Pending
-command loses the race after dispatch and sees Accepted under lock, it returns a
-fixed recoverable conflict and its truthful failed-attempt evidence; the client
-can then perform the result read. It neither declares a second successful
-consumption nor suppresses an already-declared MUST intent.
+Exactly one Invitation and at most one Membership are written by
+`AcceptInvitationCommandHandler`. Central plural MUST
+`identity.invitation.accept` and `identity.membership.admit_invitation` commit on
+that owner with actual subject IDs. **Disposition and result MembershipId live on
+the tracked Invitation**, so its captured after-state/diff provides created versus
+already_member evidence. The unchanged Membership event is subject-only, with
+NULL snapshots/diff; it does not claim a disposition metadata field or a fabricated
+creation. Designating an unchanged subject is supported independently of the
+multiple-instances-of-one-type rule. No generic audit-result channel is added.
+Natural uniqueness, global admission and last-admin guards remain; MUST failure
+rolls back consumption and grant together.
 
-Accept/accept, accept/revoke and accept/replacement serialize on this plan; only
-one winner consumes the current generation. Expiry is checked after waiting,
-before the authoritative conditional transition. Revoke of Accepted refuses and
-never revokes its Membership. No timer claims to erase work already admitted.
+Predispatch Accepted goes to exact Off `GetOwnInvitationResultQuery`, not mutation
+intents. It requires consumed digest, same currently Active actor and original
+current Active Membership, before Pending-only version/expiry/email/inviter/Role
+conditions. Suspended/Revoked/deleted/or successor original Membership gives masked
+404 and no new grant. If a Pending command sees Accepted after lock wait, return
+recoverable conflict with truthful failed-attempt audit; a fresh result read can
+reconcile. Unknown COMMIT stays unknown until authoritative observation. It never
+repeats a successful consumption or substitutes a successor.
 
-### Transport, authorization and evidence
+Only Pending checks expected version, current generation, post-wait database
+expiry, Role pin and fresh email/delegation before its conditional transition.
+Accept/accept, accept/revoke, expiry and reissue races have one locked winner.
+No global/tenant owner joins or retargets; no native session follows merely from
+this result. Explicit API scope admission/AccountSite and same-subject continuity
+still govern publication. Accepted-but-no-session recovery preserves the grant.
 
-The phase decision package owns the finite API/native route and DTO table.
-Administration uses existing applicable `identity.membership.admin`, exact write
-scope and fresh delegation. A separate invitable-Role projection returns only
-delegable RoleId/key/scope/version summaries; it grants no `identity.role.admin`
-or general Role/permission-registry access to an Org Admin.
+### Finite transport, privacy and completion
 
-Ordinary create/revoke/policy writes use canonical preconditions and protected
-durable idempotency. Add Invitation and the exact invitation-policy TenantSetting
-as typed replay targets, each with a current-authority MUST receipt read; never
-retain a handoff secret. `ReadInvitationPolicyReceiptQuery` reads only that
-original setting ID/key in the same orgless tenant, under current own-Membership
-coverage; it exposes no other settings. The policy read returns an explicit
-absent/default version precondition for first creation, then the actual setting
-root's version. Natural key uniqueness and the conditional create refuse a race;
-absence never authorizes an unconditional upsert. Acceptance
-uses the offer/actor/consumed-verifier natural convergence key, rejects arbitrary
-Idempotency-Key and admits no tenantless key namespace. Fresh inspection and
-own-result reads are Off/no-store self navigation; administrative lists/detail/
-receipt and invitable-Role reads are MUST sensitive reads. All actual mutation
-consumers are MUST; no event payload contains email, verifier or raw link.
+The [revised phase package](../roadmap/phase-03-delivery-log.md#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04)
+owns exact routes/steps; Standards 04/05/07/11/18/19 own their canonical DTO,
+precondition, source, permission, audit and storage contracts. Reuse applicable
+membership-admin and exact scope. Invitable-Role summaries expose only currently
+delegable ID/key/scope/version, not general Role-admin/grant configuration.
 
-Malformed input/preconditions are 400; stale canonical version and actionable
-existing-member/scope-configuration conflicts are 409. Missing native/bearer
-admission, invalid link or foreign target are masked 404; invalid-present bearer
-remains 401. An authenticated matching offer with unverified/mismatched provider
-email gets bounded 403 recovery without disclosing the expected mailbox.
-Provider/storage uncertainty is 503, existing spent quotas 429 with their existing
-bounded hints. New surfaces retain standard no-store/body/deadline/Origin/CSRF,
-immutable response ownership, paging and late-publication controls.
+Create/revoke/reissue/policy writes use bounded durable protected receipts, strong
+preconditions as applicable and fresh target disclosure. Add Invitation and exact
+policy TenantSetting receipt kinds; store no raw secret or message. Entry accepts
+strict body-held code/version and rejects a generic Idempotency-Key; offer/actor/
+consumed-digest result convergence is its natural key. Missing/malformed/weak/
+wildcard/list required If-Match is 400 validation_failed; stale canonical version
+is 409 concurrency_conflict. Wrong-purpose/foreign/invalid/expired/revoked/replaced
+link is masked 404 with usable generic reopen/contact-admin recovery. Matching
+unverified/mismatched email is bounded 403; no expected-email disclosure. Existing
+quota 429 and unavailable/indeterminate 503 remain. Standard 09 owns the exact
+finite additional error keys before writer activation; no proposed 428 applies.
 
-### Privacy and completion boundary
-
-Classify every mapped property and volatile/durable copy: recipient email,
-verifier/consumed verifier, inviter/acceptor/Membership linkage, Role pin, expiry,
-replay target, raw handoff and continuation. Sensitive snapshot markers and real
-sink canaries supplement the model census. No raw email/token/link/verifier enters
-logs, spans, error tracking, audit snapshots, validation attempted values,
-diagnostic/test artifacts or identifier-only integration events. Credentials and
-verifiers never enter a DSAR artifact. Recipient email/relationships retain their
-authorized subject/purpose export contract in P03-10; diagnostic exclusion removes
-no access right. Authorized product responses
-necessarily disclose the selected email/link; no-store is not erasure proof.
-
-The canonical Data Protection inventory gains the copies and applicable P03-10
-locators/closure integration. Phase 11 owns retained-copy/purge extensions; this
-record grants no premature erasure privilege or anonymisation claim. No invite
-can admit a Closing/Closed User under the existing User fence. New screen proof
-covers enabled locales, forms, scope/effect labels, wrong-account recovery,
-conflict, verification/outage/429/503, keyboard/no-JavaScript and owner loss.
-Manual accessibility remains actual human evidence, never inferred from tests.
+Classify recipient, inviter/acceptor/Membership linkage, Role pin, verifier,
+consumed verifier, ciphertext/key IDs, provider receipts/job linkage and volatile
+continuations in canonical Data Protection. Snapshot markers and real per-sink
+canaries cover application/Sentry/archive/traces, database bind logs and SMTP
+instrumentation. No credential/email/message leaks into diagnostic/test artifacts,
+audit snapshots, validation attempted values or identifier-only events. Authorized
+recipient email/relationship DSAR remains P03-10; credentials are not exported.
+Phase 11 owns retained-copy/purge extensions, without implying this packet already
+erases or anonymizes those stores. Current actor closure still fences acceptance.
 
 ## Consequences
 
 ### Positive
 
-- New and existing people can join the intended institution/branch without a
-  preexisting Membership, identity merge, stale token-email trust or broad bypass.
-- Consumption, grant and required audit have one database result; lost raw link
-  delivery has an explicit replacement path that cannot replay a secret.
-- The packet delivers useful invitations without a second notification engine.
+- Administrators send and track invitations inside Studio; a real new verified
+  person joins the exact institution/branch through a complete recovery path.
+- Current provider email, fresh delegation, one locked consumption/grant and
+  central audit preserve identity/scope without self-escalation or email merging.
+- Durable encrypted custody and provider evidence survive ordinary restart while
+  generic job payloads, external DB denials and truthful delivery status remain.
 
 ### Negative
 
-- Administrators share links themselves; automatic invitation email is absent.
-- Adds one confined definer, one logical scope setter/origin and one same-module
-  two-root exception, all requiring exact census and real database qualification.
-- Acceptance depends on provider availability/verification SMTP and spends an
-  additional bounded provider call. Provider and database snapshots are separate.
-- Exclusive Tenant serialization can increase contention. Expired/terminal rows
-  retain personal linkage until their separately authorized retention workflow.
-- Volatile loss requires reopening/replacing a link; old messages then contain
-  unusable codes. Matching an unusual address may require correcting its input.
+- SMTP/keyring/TLS/sender setup, two private tables, two provider functions, a
+  dedicated four-slot source and a narrow external execution-receipt seam add
+  maintenance. Total confined definers become eleven; the scope setter count is
+  eleven and physical context writers remain four.
+- SMTP response loss/crash can quarantine delivery and occupy all four tenant
+  slots until positive recovery evidence. No exactly-once/inbox guarantee exists.
+  Reissue does not free unknown old work; old invalid messages can arrive later.
+- Existing setting-write holders gain the invitation policy act. Without v2
+  adoption, administrators can use the default but cannot change it.
+- New-user creation remains opt-in, 10 attempts/minute, 100/day and 10,000 lifetime
+  allocations per authority. Verification depends on SMTP/provider availability;
+  five-minute local/provider continuations may require reopening the email.
+- Provider and DB state have separate observation points; later email/delegation
+  changes cannot retroactively cancel an already admitted operation.
 
 ### Neutral
 
-- Existing CI/test/application windows, owner quotas and Role/grant manifests do
-  not change. A larger test population does not justify automatic timer increases.
-- No new login role, DB connector, notification queue, Hub crossing, global email
-  mirror, invitation-email sender or privilege to change provider identity lands.
-- Acceptance is distinct from implementation, actual qualification and merge.
+- This packet brings forward only invitation email. Phase 08a owns the full engine;
+  no new notification module, tenant template editor or generic sender surface.
+- Existing job attempts, worker counts, owner quotas, API/shutdown/CI/test windows,
+  Role grant manifests, global-self descriptors and four login roles stay fixed.
+- Acceptance, implementation, real qualification and merge remain distinct.
 
 ## Implementation Notes
 
-The [six-step package](../roadmap/phase-03-delivery-log.md#p03-4-document-review-and-proposed-decision-package-2026-11-04)
-owns sequence, carriers, verification and review cadence. Acceptance first
-reconciles Standards 01/04/05/07/11/18/19/21, Identity/Tenancy specs and matrices,
-Architecture 13/23, glossary, decision index and G8. Append the necessary dated
-navigation/supersession disclosures in ADR-0003/0036/0040/0042/0064/0070/0073/0076/
-0078/0079; do not reserve amendment numbers or rewrite Accepted bodies. Name each
-exact function/ACL/caller/setter/origin/policy/receipt consumer in Standard 05/11
-and its enforcing catalogue rule before activation. Scope writers remain closed.
+Before runtime, reconcile current Standards 01/04/05/07/08/09/10/11/13/16/18/19/20/21
+where applicable, Identity/Tenancy module specs/diagrams/matrices/providers,
+Architecture 13 invitation diagram/23 inventory/15 job handoff, glossary and G8.
+Use dated Amendments in ADR-0003/0036/0040/0042/0047/0053/0054/0064/0070/0073/0076/
+0078/0079, each naming this successor and exact changed current carriers. No
+false-at-entry erratum or historical Decision rewrite is selected. Preserve
+ADR-0033/0044 durability/composer behavior and ADR-0072/0074/0077 baseline semantics.
 
-Use `implement-task` with entity, handler, migration, permission/audit, frontend,
-localization and integration-test workflows as applicable. Every implementation
-step includes its meaningful tests, commit and two fresh independent review
-rounds; confirmed findings are fixed and committed before the next step.
+The seven-step package assigns exact provider/caller/source/ACL/precondition/
+privacy/route/error controls before activation. Every step commits, runs two
+fresh independent review rounds, fixes verified findings in new commits and
+continues. The canonical aggregate rule becomes
+`Cross_Aggregate_Writes_Are_Confined_To_Named_Exceptions`, with exactly
+ProvisionTenantCommandHandler and AcceptInvitationCommandHandler; retain a
+navigation alias for its historical name, not duplicate rule ownership.
 
 ## Architecture tests
 
-Extend existing canonical aggregate, context-setter, subject-admission, module,
-classification, audit, permission, native operation and replay rules with actual
-production subjects and planted wrong-purpose/omission controls. The aggregate
-rule's successor name and literal two-handler allowlist are reconciled together;
-no misleading provisioning-only name claims the new exception is absent.
+Extend real nonempty subjects in existing aggregate/context/setter/SQL/permission/
+privacy/audit/native/job/isolation rules. New source exceptions must be executable
+closed lists, not comments. Preserve current rule status until actual tests land.
 
-Mandatory behavioral proof includes:
+Mandatory behavior:
 
-- App-role tenant/two-branch isolation, foreign IDs, malformed/foreign/reused
-  witnesses, exact definer/body/ACL/policy set and setter cleanup/pool reuse.
-- Real nonseed Keycloak signup, email verification and current UserInfo; wrong,
-  unverified, changed, duplicate/ill-typed claims, wrong subject and outage.
-- Fresh inviter revocation, Role version/grant changes, archived scope, suspended
-  invitee, Active no-elevation and Revoked-successor cases after lock waits.
-- Both commit orders for accept/accept, accept/revoke, replacement, expiry and
-  closure fence; MUST rollback, unknown-COMMIT and same-actor exact-result retry.
-- Raw-secret response loss, stale link replacement, no plaintext replay copies,
-  canaries at every real sink and positive redaction controls.
-- Native HTTPS first Membership, existing account, different live account,
-  no-JavaScript code entry/confirmation, canceled verification, owner restart,
-  accepted-but-no-session recovery, history/late-response/cleanup boundaries.
+- Real app-role tenant/two-branch RLS/FK/uniqueness; exact eleven-function body/ACL/
+  owner-policy set, wrong-purpose/mode/host/subject, scope cleanup and pool reuse.
+- Provider signup and actual verification email, current UserInfo change/unverified/
+  wrong subject/duplicate fields/outage; actual committed realm registration,
+  email-edit/username/duplicate-email settings, not presumed account edits.
+- Strongest lock-mode dirty/clean controls, after-wait inviter revocation/Role pins,
+  Trial/Active positive and Suspended/Archived/deleted scope refusal; actual closure
+  before the User fence even for already_member; no compatible-Role shortcut.
+- Both commit orders for accept/revoke/expiry/reissue, Active unchanged-role audit,
+  fresh successor, plural MUST rollback and original-version unknown-COMMIT retry.
+- Real SMTP acceptance/rejection, receive-once normal path, deterministic same
+  operation retry only after known no-effect, pre-send fencing, final-250-before-
+  checkpoint restart, lost-reply/crash Unknown with retained occupancy, stale
+  generation finalization, key rotation/loss/restore and positive leakage controls.
+- Native HTTPS/new/existing/different-account, no-JavaScript code entry, clean
+  token URL/history/BFCache, verification cancellation/expiry/restart, exact subject
+  owner ceiling and accepted-but-no-session recovery; actual human accessibility.
 
-Final packet qualification uses complete required same-source CI and original
-archive checks. Earlier P03-3 proof/manual follow-ups are not silently completed,
-waived or transferred by this proposal. No passing local fixture proves external
-exactly-once sending, full WCAG conformance or production capacity.
+Final same-source required CI/A/B/original-archive proof remains mandatory. No
+local fixture, old P03-3 follow-up or maintainer merge is substituted for it.
 
 ## References
 
-- [Phase 03 invitation scope and G8](../roadmap/phase-03-identity-admin.md#invitation-flow)
-- [Identity module](../modules/identity/README.md),
-  [permissions](../modules/identity/permissions.md),
+- [Phase 03/G8](../roadmap/phase-03-identity-admin.md#invitation-flow),
+  [Identity](../modules/identity/README.md), [permissions](../modules/identity/permissions.md),
   [audit](../modules/identity/audit.md)
-- [ADR-0042](0042-tenant-provisioning-cross-aggregate-transaction.md),
-  [ADR-0072](0072-application-owned-identity-bootstrap.md),
+- [ADR-0072](0072-application-owned-identity-bootstrap.md),
   [ADR-0073](0073-scoped-membership-and-identity-data-foundation.md),
-  [ADR-0074](0074-membership-admission-under-ordered-locks.md)
-- [ADR-0076](0076-live-scoped-authorization.md),
-  [ADR-0077](0077-trusted-authorization-evidence.md),
-  [ADR-0078](0078-native-session-scope-and-self-entry.md),
-  [ADR-0079](0079-bounded-identity-administration.md)
+  [ADR-0074](0074-membership-admission-under-ordered-locks.md),
+  [ADR-0077](0077-trusted-authorization-evidence.md)
+- [ADR-0033](0033-audit-durability-model.md), [ADR-0044](0044-audit-write-path.md),
+  [ADR-0041](0041-correcting-false-statements-in-accepted-adrs.md)
 - [Identity architecture](../architecture/13-identity-and-auth.md#invitations),
-  [Data Protection](../architecture/23-data-protection.md)
-- [Database](../standards/05-database.md#lock-snapshot-and-adoption-conditions),
-  [Security](../standards/11-security.md#native-scope-and-global-self-admission),
-  [Audit](../standards/18-audit-coverage.md),
-  [Permissions](../standards/19-permissions.md)
-- [Phase 08a notifications](../roadmap/phase-08a-assessment-notifications.md#notifications)
+  [Data Protection](../architecture/23-data-protection.md),
+  [Phase 08a](../roadmap/phase-08a-assessment-notifications.md#notifications)
+- [Database](../standards/05-database.md), [Security](../standards/11-security.md),
+  [Audit](../standards/18-audit-coverage.md), [Catalogue](../standards/21-architecture-tests-catalogue.md)
+- [MailKit 4.18.2](https://www.nuget.org/packages/MailKit/4.18.2),
+  [MimeKit 4.18.2](https://www.nuget.org/packages/MimeKit/4.18.2)

@@ -440,3 +440,21 @@ No public cache, public bootstrap, visitor/peer quota, socket-provenance or host
 resolution rule is broadened. The native method allowlist is amended separately
 in ADR-0054. Original body, metadata and earlier delivery notes remain historical;
 P03-3 still owes native/API/browser, cleanup and containment proofs before delivery.
+
+
+### Amendment 13 — Closed invitation caller and mail-link entry (2026-11-04)
+
+Accepted [ADR-0093](0093-verified-invitation-acceptance-and-handoff.md) records the new
+bounded invitation decision selected by the maintainer. ADR-0093 extends only the exact
+native server invitation operations enumerated in Standards 04/07: administration,
+policy, inspection, acceptance and same-actor result recovery. No generic proxy,
+arbitrary URL/header/bearer, browser API credential or RSC operation capability is
+added. Email codes stay in fragment/private custody; clean GET and strict secret-body
+POST have separate roles.
+
+This dated Amendment links the successor; it does not rewrite this record's historical
+Decision, Status, Date, Deciders or earlier rationale. Canonical current
+source/operation/permission/audit/storage details live in Standards
+01/04/05/07/11/18/19/20/21 and the Identity/Tenancy specifications. The [Phase 03
+Status](../roadmap/phase-03-identity-admin.md) owns implementation and source-bound
+qualification; acceptance supplies no runtime proof.

@@ -149,13 +149,16 @@ packages are not in that category: Vogen is the source generator itself, and Pol
 - The aggregate root is the only entry point for state changes inside the aggregate.
 - Repositories return aggregates, not raw entities.
 - Cross-aggregate writes inside a single transaction are forbidden. Use an integration event.
-  **One standing exception, bounded by enumeration:** tenant provisioning writes `Tenant`
-  and its default `Organization` in one transaction, because
-  `tenants.default_organization_id` carries an invariant no eventual-consistency
-  mechanism can deliver
-  ([ADR-0042](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md)).
-  It covers those two roots and that one operation; the allow-list is literal, and
-  `Cross_Aggregate_Writes_Are_Confined_To_Tenant_Provisioning` holds it at one entry.
+  **Two named exceptions, bounded by enumeration:** `ProvisionTenantCommandHandler`
+  writes Tenancy's Tenant/default Organization under
+  [ADR-0042](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md);
+  `AcceptInvitationCommandHandler` writes Identity's Invitation/at-most-one Membership
+  under [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md).
+  Each protects its named atomic invariant, including contained children and central
+  plural MUST evidence. No other root or handler inherits either exception.
+  `Cross_Aggregate_Writes_Are_Confined_To_Named_Exceptions` owns the literal two-handler
+  contract; its [catalogue status](21-architecture-tests-catalogue.md#cross_aggregate_writes_are_confined_to_named_exceptions)
+  distinguishes the implemented provisioning baseline from pending invitation backfill.
   Cross-**module** writes remain forbidden with no exception at all.
 
 ## Cross-Module Communication

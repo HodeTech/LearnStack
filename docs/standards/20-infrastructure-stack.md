@@ -24,6 +24,8 @@ Delivery/recovery additions derive from
 [ADR-0046](../decisions/0046-durable-event-delivery-and-recovery.md).
 Background-job additions derive from
 [ADR-0047](../decisions/0047-transactional-background-job-runtime.md).
+The bounded invitation SMTP provider and custody source derive from
+[ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md).
 Vendor-maintenance configuration and ownership derive from
 [ADR-0058](../decisions/0058-bounded-stock-hangfire-maintenance.md).
 Accepted server lifecycle and its bounded availability qualification derive from
@@ -893,6 +895,48 @@ phase.
   component/filter/pool qualification. Step 9 implements observation/enforcement
   and locally qualifies both extended catalogue obligations; its delivery record
   owns full-review, local packet-closeout and real PR-head CI qualification status.
+
+### Bounded invitation SMTP consumer
+
+**Accepted contract; runtime qualification remains separate.** P03-4 supplies the
+first production external definition through
+`IInvitationEmailOperation : IBackgroundJobExternalOperation<InvitationEmailPlan,
+InvitationEmailOutcome>` in Identity Application.Contracts and
+`InvitationSmtpOperation` in Identity Infrastructure. Common Infrastructure owns
+the SMTP transport and encrypted provider storage; neither is a notification
+aggregate or a new scheduling engine. Phase 08a continues to own the general
+notification feature. The [Identity provider specification](../modules/identity/providers.md)
+owns port/adapter/deployment configuration; [Database Standards](05-database.md#invitation-smtp-provider-storage)
+owns provider tables, encryption, grants, exact functions and source accounting.
+
+- `IInvitationEmailStager` stages an immutable encrypted envelope and the typed job
+  on the invitation writer's existing ordinary owner. Prepare/finalize use the
+  delivered audited MediatR owner; Execute/Reconcile keep ordinary application
+  access denied. Their identifier-only DTOs carry no authored content or secret.
+- The two fixed provider-store functions are the explicit additional external
+  custody capability. A nonserialized receipt from the exact validated
+  `JobExecutor` invocation binds their authority. No adapter receives a sender,
+  UoW, module repository, tenant setter or arbitrary SQL/callback capability.
+- The provider-only data source has four retained owner/connector slots and
+  actual-cleanup lifetime independent of ordinary business and dispatcher
+  sources. SQL timeout/failed cleanup never becomes rollback, quiescence or a
+  released physical slot. The database standard owns its full ledger.
+- Register the tenant-wide capacity group `identity.invitation_email` with
+  operational ceiling **4**, without a new plan limit. Retain the existing
+  `external` queue, pool and worker counts; a capacity ceiling does not create
+  workers. Unknown operations continue occupying their exact reservations.
+- Common `IEmailProvider` uses MailKit/MimeKit **4.18.2** behind
+  `IProviderResilience<IEmailProvider>` with port retry disabled. Definite no-effect
+  transient retries use the existing counted job admissions. Neither Polly nor
+  SMTP reconnection may silently resubmit after possible acceptance.
+- Preserve actual SMTP task, cancellation and socket cleanup ownership when a
+  finite wait ends. Final 250 plus positively completed work supplies submission
+  acceptance; missing final reply or missing durable provider evidence stays
+  Unknown. Restart replays an existing immutable receipt, never another send.
+- Explicit resend creates a new generation/token/job and invalidates the old
+  acceptance secret. It does not release unresolved old provider reservations or
+  claim that an already-started old message cannot arrive. Membership acceptance
+  remains separately fenced against a second grant.
 
 ## Network and Service Topology
 

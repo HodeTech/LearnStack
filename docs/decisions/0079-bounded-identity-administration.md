@@ -656,3 +656,23 @@ owns the canonical completion, marker, runner and recovery contract. All other
 accepted administration, pristine-resume, protected replay and audit decisions
 remain. Historical Accepted bytes, status, date, Deciders and prior amendments
 remain unchanged; acceptance is not P03-3 Step 3 qualification.
+
+
+### Amendment 4 — Invitation policy authority and typed original receipts (2026-11-04)
+
+Accepted [ADR-0093](0093-verified-invitation-acceptance-and-handoff.md) records the new
+bounded invitation decision selected by the maintainer. ADR-0093 explicitly expands
+Tenant tenancy.setting.write beyond branding.theme to the exact orgless
+identity.invitation.ttl_days setting only. Existing holders gain that operation; v1
+without the pair keeps the 14-day default and must explicitly adopt v2 to obtain the
+pair. No new registry pair/release, automatic grant or generic settings authority is
+selected. Protected original-target receipts gain Invitation and that exact
+TenantSetting, with fresh scoped MUST disclosure and no raw email code/message in replay
+storage.
+
+This dated Amendment links the successor; it does not rewrite this record's historical
+Decision, Status, Date, Deciders or earlier rationale. Canonical current
+source/operation/permission/audit/storage details live in Standards
+01/04/05/07/11/18/19/20/21 and the Identity/Tenancy specifications. The [Phase 03
+Status](../roadmap/phase-03-identity-admin.md) owns implementation and source-bound
+qualification; acceptance supplies no runtime proof.

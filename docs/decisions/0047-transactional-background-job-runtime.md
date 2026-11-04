@@ -1010,3 +1010,23 @@ P03-2 implements/proves these tracked lanes and updates actual resource/caller
 censuses before activation. This acceptance supplies no completed shutdown,
 progress, cancellation or production-capacity evidence. Other decisions and the
 historical Accepted body/status/date remain unchanged.
+
+
+### Amendment 6 — Bounded SMTP custody for the first production job consumer (2026-11-04)
+
+Accepted [ADR-0093](0093-verified-invitation-acceptance-and-handoff.md) records the new
+bounded invitation decision selected by the maintainer. ADR-0093 registers the two exact
+Identity invitation-email external definitions on the existing external pool and adds
+only the attributed InvitationSmtpExecutionReceipt and four-slot provider-only
+connector. It stages encrypted custody and identifier-only jobs atomically; the two
+fixed custody functions expose no module data/UoW/tenant setter to external execution.
+Final SMTP 250 is submission acceptance; lost reply is Unknown. Existing six-attempt
+budgets, known-effect/quiescence gates, retained occupancy and checkpoint/late-evidence
+ownership remain. A reissued invitation cannot release an older unknown reservation.
+
+This dated Amendment links the successor; it does not rewrite this record's historical
+Decision, Status, Date, Deciders or earlier rationale. Canonical current
+source/operation/permission/audit/storage details live in Standards
+01/04/05/07/11/18/19/20/21 and the Identity/Tenancy specifications. The [Phase 03
+Status](../roadmap/phase-03-identity-admin.md) owns implementation and source-bound
+qualification; acceptance supplies no runtime proof.

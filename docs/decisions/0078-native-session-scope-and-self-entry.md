@@ -514,3 +514,21 @@ extension is now explicit in
 Standard05 remains the sole canonical policy/function owner. No additional
 function, projection, caller or grant is selected, and this ADR's Accepted body,
 Date and Deciders remain unchanged. Actual isolation proof remains pending.
+
+
+### Amendment 2 — Bounded invitation entry without Membership (2026-11-04)
+
+Accepted [ADR-0093](0093-verified-invitation-acceptance-and-handoff.md) records the new
+bounded invitation decision selected by the maintainer. ADR-0093 adds a separate
+exact-purpose offer-entry function/origin and eleventh logical setter for
+first-Membership acceptance; it does not add a global-self descriptor or bypass opt-in
+creation budgets. Native verification/capture uses the existing bounded owners and exact
+subject continuity. Current provider email is a fresh per-Pending-act UserInfo
+observation, not an identity merge or provider/DB atomicity claim.
+
+This dated Amendment links the successor; it does not rewrite this record's historical
+Decision, Status, Date, Deciders or earlier rationale. Canonical current
+source/operation/permission/audit/storage details live in Standards
+01/04/05/07/11/18/19/20/21 and the Identity/Tenancy specifications. The [Phase 03
+Status](../roadmap/phase-03-identity-admin.md) owns implementation and source-bound
+qualification; acceptance supplies no runtime proof.

@@ -38,6 +38,9 @@ its implementation and proofs remain governed by the phase Status block.
 Identity owns global application bindings, contextual Membership/Profile/
 assignments and tenant-wide Role templates. Keycloak owns credentials/provider
 authentication; Tenancy owns Tenant/Organization lifecycle; Audit owns audit rows.
+Invitations add the scoped offer and its verified acceptance contract under
+[ADR-0093](../../decisions/0093-verified-invitation-acceptance-and-handoff.md);
+its first writers remain subject to the phase Status block.
 Cross-module facts use application contracts, without an Organization FK,
 navigation or database join. Branch-specific Role configuration is not selected.
 
@@ -131,6 +134,100 @@ table. Persisted grants select `(scope,key)` from the registry; unknown/inactive
 entries never authorize. [Standard 19's accepted foundation contract](../../standards/19-permissions.md#proposed-identity-foundation-contract)
 owns the exact registry, version-1 grants and generated kernel artifact.
 
+### Invitation contract
+
+[ADR-0093](../../decisions/0093-verified-invitation-acceptance-and-handoff.md)
+owns the decision. The following is the P03-4 contract, not a claim that its
+schema, provider, jobs or consumers are implemented. The
+[phase Status block](../../roadmap/phase-03-identity-admin.md) owns delivery.
+
+| Subject | Contract |
+|---|---|
+| Invitation root | Tenant-owned, org-scoped typed `InvitationId`; immutable normalized recipient email, inviter `UserId`, nullable OrganizationId, one compatible RoleId and offered Role version; no invitee UserId selector |
+| Pending uniqueness | One Pending offer per tenant/org/normalized email, null-safe, including an expired Pending offer awaiting explicit reissue |
+| Lifecycle | Pending → Accepted or Revoked; expiry is evaluated from database UTC after waits; Accepted/Revoked are terminal |
+| Accepted disposition | Immutable accepted actor, original MembershipId and `created`/`already_member`; retained consumed verifier permits only own-result recovery |
+| Generation | Create stages generation 1; explicit reissue advances generation, token and job, using the current TTL; old codes are invalid immediately |
+| Email and verifier | Email is personal data; current/consumed domain-separated SHA-256 token verifiers are sensitive credential material; all raw values are excluded from audit/diagnostic sinks |
+
+`CreateInvitationCommand` automatically uses `IInvitationEmailStager` to enroll
+its encrypted envelope and identifier-only typed external job on the Invitation's
+ordinary unit of work. Invitation, envelope, job and MUST audit commit together.
+Reissue creates a new generation/envelope/job; it does not repin changed Role
+content. A lost response is resolved through the ordinary bounded receipt,
+without a recoverable link in replay storage. No prepare/handoff or raw-link-read
+API is part of this contract. The private SQL-only delivery tables are common
+Infrastructure custody, not Identity aggregates or a new notification module.
+
+Administrative create/reissue/revoke use existing live Membership-admin
+admission, exact resource scope and current whole-Role delegation. Invitable-Role
+summaries disclose only delegable ID/key/scope/version, without a general
+Role/registry reader. Own inspection and own accepted-result reading are Off;
+other-person offer lists/detail, invitable Roles and protected receipt reads are
+MUST sensitive reads. Mutations remain MUST. [The matrix](audit.md#invitation-bindings)
+owns the planned bindings until their actual consumers land.
+
+`ICurrentInvitationRecipientReader` performs a new configured-issuer UserInfo
+observation for each Pending inspection/acceptance: exact `sub`, one valid email,
+Boolean verified=true, 16 KiB/five-second bound and no business locks during I/O.
+Email is matched under ADR-0093's explicit bounded mailbox policy; it does not
+identify or merge Users. A provider edit can race database commit. Keycloak owns
+registration and verification through the fixed same-subject `VERIFY_EMAIL`
+continuation; actual provider verification is required. No global email mirror
+is added to User.
+
+The confined `fn_identity_invitation_entry` accepts the application-derived
+32-byte verifier digest, independent host tenant and verified authority/subject
+key. It returns only exact offer/actor facts and the stored inviter's global
+admission Boolean; it does not prove delegation or expose arbitrary User state.
+Its disposed read owner precedes `InvitationEntryScope`, the eleventh logical
+tenant setter, whose single-use witness admits only exact inspection/acceptance/
+own-result consumers. This ordinary owner is operation-bound ReadOnly or
+ReadWrite according to the admitted consumer, not a general scope hatch. New User
+bootstrap commits and disposes first. Neither owner joins or retargets the other.
+The [database contract](../../standards/05-database.md) owns the exact closed
+function/setter/source ledger; [Security](../../standards/11-security.md) owns
+host/source and native authority.
+
+`AcceptInvitationCommandHandler` is the sole added two-root exception alongside
+provisioning: one Invitation and at most one Membership with contained Profile
+and assignment, one ordinary transaction, central plural MUST intents. It writes
+no Role, User or Tenancy root. The complete sorted invitee/stored-inviter User
+plan precedes the Tenant fence. Preserve the canonical strongest mode derived
+from actual effects: shared for nonadmin effects, exclusive for actual Tenant
+Admin eligibility/assignment effects, without upgrades or caller exemptions.
+Fresh reads after waits recheck actor, generation, database expiry, lifecycle,
+pinned Role and the stored inviter's complete current delegation. Standard 05
+alone owns lock ordering and retained-reader details.
+
+| Exact target Membership | Outcome |
+|---|---|
+| None | Create one Active Membership with Profile and the offered assignment |
+| Active | Consume as `already_member`; retain that exact Membership and all Roles/profile |
+| Suspended | Conflict without consumption/reactivation |
+| Only Revoked history | Create a fresh successor ID and children; never resurrect history |
+
+The Invitation's accepted disposition is centrally captured. The unchanged
+Membership outcome emits its separately declared subject-only security event,
+without fabricated before/after or arbitrary handler metadata. A required audit
+failure rolls back both roots, envelope/job staging and their state changes.
+
+The dispatcher routes an already Accepted offer to `GetOwnInvitationResultQuery`
+before declaring mutation intents. That Off read requires the same fresh Active
+actor, consumed verifier and original current Active Membership. It precedes
+Pending-only expiry/version/Role/inviter checks and does not require current
+email. A Pending mutation that discovers a raced acceptance returns 409 with
+truthful failed-attempt evidence; it cannot report a duplicate successful grant.
+Unknown COMMIT stays indeterminate until authoritative result recovery.
+
+Native capture and provider sending follow the
+[architecture journey](../../architecture/13-identity-and-auth.md#invitations).
+Revoke/reissue/accept invalidates old codes. Prepare refuses an obsolete
+generation before its plan commits; already-prepared mail may still arrive.
+Business withdrawal adds no ordinary provider-table cancellation writer.
+`250` is accepted submission, not inbox delivery. Queued, submission accepted,
+failed, uncertain, expired and revoked remain distinct product states.
+
 ### Lifecycle, profile and admission
 
 The database requires Active/Suspended Memberships to have NULL deletion fields
@@ -159,7 +256,7 @@ Profile/nonadmin/organization mutations use its shared tenant invariant mode;
 first-admin and tenant-admin eligibility/assignment/kernel transitions use its
 exclusive mode. Actual affected rows bind the mode before acquisition; no
 shared-to-exclusive upgrade or caller-declared nonadmin exemption is admitted.
-Only the admission operations above automatically require the User fence;
+Only the admission operations above, including invitation acceptance, automatically require the User fence;
 profile-only changes and assignment removals retain their existing tenant-lock
 requirements. Standard 05 also owns backend-heldness limits, fixed internal plan
 fault versus target refusal, and the identical outward refusal. No algorithm or
@@ -544,8 +641,10 @@ global/provider adoption remains ADR-0072's confined owner.
 ## Integration-event catalogue
 
 P03-1 publishes no Identity integration event and activates no provider ingress,
-Invitation or closure consumer. P03-4/6/10 decide their first writers separately;
-framework domain-event dispatch does not imply a published contract.
+Invitation or closure consumer. P03-4 defines the bounded invitation writers
+above without an email-bearing integration event; P03-6/10 own later consent/
+closure contracts. Framework domain-event dispatch does not imply a published
+contract.
 
 ## Permission matrix
 

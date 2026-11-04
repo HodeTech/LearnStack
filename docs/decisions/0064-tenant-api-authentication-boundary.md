@@ -685,3 +685,21 @@ ADR-0036's own Amendment extends the matrix/source ceiling. Standards 04/11 and
 the source/SDK/surface censuses adopt these exact exceptions before dependent code.
 Original body/status/date and earlier amendments remain historical; contract
 acceptance supplies no runtime, OpenAPI/SDK or native/browser qualification.
+
+
+### Amendment 7 — Purpose-confined invitation HTTP entry (2026-11-04)
+
+Accepted [ADR-0093](0093-verified-invitation-acceptance-and-handoff.md) records the new
+bounded invitation decision selected by the maintainer. ADR-0093 adds exact native
+invitation inspection/acceptance/result descriptors after stock credential, host and
+issuer/sub quota admission. Their offer-derived scope/witness is separate from ordinary
+Membership admission and the three global-self descriptors. Invalid-present credentials
+keep 401, missing/foreign/invalid link admission is masked; no ordinary route becomes a
+User allocator or gets generic pre-Membership authority.
+
+This dated Amendment links the successor; it does not rewrite this record's historical
+Decision, Status, Date, Deciders or earlier rationale. Canonical current
+source/operation/permission/audit/storage details live in Standards
+01/04/05/07/11/18/19/20/21 and the Identity/Tenancy specifications. The [Phase 03
+Status](../roadmap/phase-03-identity-admin.md) owns implementation and source-bound
+qualification; acceptance supplies no runtime proof.

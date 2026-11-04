@@ -924,3 +924,22 @@ this amendment discloses it without independently replacing this decision.
 Historical Accepted bytes, status, date, Deciders and prior amendments remain
 unchanged. Acceptance registers the new controls; Step 3 still owes their actual
 owner, isolation, write-refusal and cleanup proof.
+
+
+### Amendment 19 — Operation-bound invitation and private provider ownership (2026-11-04)
+
+Accepted [ADR-0093](0093-verified-invitation-acceptance-and-handoff.md) records the new
+bounded invitation decision selected by the maintainer. ADR-0093 adds
+InvitationEntryScope as the eleventh logical tenant setter, on physically ReadOnly
+inspection/result or ordinary ReadWrite acceptance owners, reusing the same four
+physical context writers. The preliminary lookup closes first; global and tenant owners
+never join/retarget. Its separate four-slot SMTP provider source can execute only the
+two named custody functions under validated external receipt authority, without UoW,
+tenant GUC or module repository access.
+
+This dated Amendment links the successor; it does not rewrite this record's historical
+Decision, Status, Date, Deciders or earlier rationale. Canonical current
+source/operation/permission/audit/storage details live in Standards
+01/04/05/07/11/18/19/20/21 and the Identity/Tenancy specifications. The [Phase 03
+Status](../roadmap/phase-03-identity-admin.md) owns implementation and source-bound
+qualification; acceptance supplies no runtime proof.

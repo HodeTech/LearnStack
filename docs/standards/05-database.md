@@ -5418,3 +5418,280 @@ fairness policy requires review rather than a silent reset.
   the corrected policy — silently, because a policy that filters everything looks
   exactly like a table with no matching data.
 - Tenant tables without RLS in production migrations (CI rejects).
+
+## Invitation SMTP provider storage
+
+**Derives from:** [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md).
+This is the Accepted P03-4 storage contract; acceptance does not install its
+tables, grants, functions or source. The [Phase 03 Status
+block](../roadmap/phase-03-identity-admin.md) owns implementation and qualification.
+
+### Provider records and ordinary staging
+
+Common `LearnStack.Infrastructure` owns two SQL-only provider control tables.
+They are neither Identity aggregates nor Invitation children and have no module
+`DbContext` mapping. Invitation remains the business authority; provider records
+cannot grant membership, revoke an offer or establish current delegation.
+
+| Table | Immutable binding / stored facts | Constraints |
+|---|---|---|
+| `invitation_email_envelopes` | Envelope UUID; tenant and nullable organization; Invitation UUID; delivery-generation UUID; JobId; encryption-format version, key version, nonce, ciphertext, tag; database creation time | One envelope per job and per offer/generation; nonempty IDs; exact tenant/job FK; immutable scope and encrypted bytes; finite time; no Invitation/User/Membership FK or person-field projection |
+| `invitation_email_attempt_receipts` | Tenant and nullable organization; EnvelopeId, JobId, AttemptId, stable OperationId, plan fingerprint, immutable claim UUID and original admission fence; provider state; selected completed-report facts and evidence | Unique envelope/AttemptId; exact tenant/job/attempt FK; plan/operation agreement; no overwrite of a selected terminal observation; finite times; no runtime DELETE |
+
+Both tables carry tenant/organization metadata and ENABLE/FORCE RLS through the
+[canonical policy template](#tenant-owned-and-organization-scoped-tables). Explicit role-qualified owner
+arms support only the functions below. The ordinary app INSERT path checks its
+announced exact tenant/organization and the stored job's immutable producer,
+definition and scope. No provider control row supplies tenant authority.
+
+`IInvitationEmailStager` has only the enumerated Identity invitation writers as
+production callers. On their existing enrolled writable owner, it submits the
+typed Identity job through `IBackgroundJobScheduler`, encrypts the immutable
+message bound to that JobId and INSERTs the envelope. Business state, envelope, job
+and required business audit commit together. A refusal after produced work
+retains the existing poisoned-owner/produced-work rules. The stager opens no
+second connection, performs no SMTP and uses no provider-store owner function.
+The job payload/plan carries only identifiers; it contains no address, subject,
+body, token, continuation, ciphertext or encryption key.
+
+| Actor | Direct provider-table privileges | Function privilege |
+|---|---|---|
+| `learnstack_migration` | Owns both tables; NOBYPASSRLS and FORCE RLS remain | Owns the two exact functions |
+| `learnstack_app`, ordinary stager | INSERT of the envelope's declared immutable columns under its announced business owner; no receipt INSERT and no direct SELECT/UPDATE/DELETE | EXECUTE only on the two enumerated functions; application call-site controls confine this to the provider connector |
+| `learnstack_platform`, `learnstack_outbox_admin`, PUBLIC | None | None |
+
+Foreign keys do not cross into Identity business tables. Cross-table guards bind
+the envelope to the exact Identity definition/parameters and, once prepared, its
+canonical identifier plan. Provider functions may read only the matching job and
+attempt metadata needed for that binding. Their owner-read policy arms add no
+module-table visibility or general background-job reader.
+
+### Encryption and custody
+
+- Encrypt at most 32 KiB of UTF-8 plaintext using AES-256-GCM, a fresh random
+  12-byte nonce and a 16-byte tag. Ciphertext has the same byte bound; checked
+  lengths, a supported format and valid key-version syntax are storage guards.
+- The authenticated additional data is a versioned, unambiguous binary encoding
+  of the format/key version, envelope, tenant, nullable-organization marker/value,
+  Invitation, delivery-generation and JobId. UUIDs use RFC byte order and variable
+  components are length-prefixed. All these bindings and the encrypted bytes are
+  immutable; swapping a scope, generation or key version fails authentication.
+- Composition resolves a named key ring of one to four distinct 256-bit keys
+  through `ISecretProvider` at startup, with one active encryption version.
+  Unknown versions, missing keys, invalid key sizes and authentication failure
+  refuse with fixed diagnostics. Key versions are not silently reused or removed
+  while retained envelopes require them. No per-request secret fetch, generated
+  fallback key, plaintext database copy or key material in audit/jobs is admitted.
+- Provider plaintext exists only in the bounded staging/SMTP invocation. SMTP
+  protocol tracing and body/recipient/token logging are disabled. Phase 11 owns
+  production retention/purge; expiry does not delete unresolved provider evidence
+  or release a job reservation.
+
+### Two confined provider functions
+
+The total admitted Identity/invitation SECURITY DEFINER census is **eleven**:
+the existing eight, the exact invitation-entry function and these two provider
+functions. They execute as `learnstack_migration` under FORCE RLS with fixed
+`search_path = pg_catalog`, schema-qualified relations, no dynamic SQL and PUBLIC
+execution revoked in the creating transaction. Owner-policy/body/grant/caller
+controls enumerate their actual reachable reads and writes. Table ownership
+carries column privileges; this is function confinement, not a claim that owner
+column grants prevent wider reads.
+
+`JobExecutor.InvokeExternalAsync` alone mints the immutable, nonserialized
+external provider receipt after validating its stored envelope/plan and exact
+original or recovery authority. It binds the definition/adapter, tenant/org,
+JobId, AttemptId, OperationId, plan fingerprint, fence, deadline and invocation
+purpose. The dedicated connector consumes that receipt; a caller-supplied GUID
+tuple, ambient tenant or public external-context record cannot replace it.
+
+| Function | Permitted effect / projection |
+|---|---|
+| `fn_invitation_smtp_claim_or_read` | Checks the exact receipt against actual job/normal-attempt/ExecuteIntent and envelope metadata. Execute may atomically create/claim one provider attempt as `sending` under live original authority and return that claim's encrypted immutable envelope. Reconcile returns only the exact stored finite receipt; fresh eligible recovery may instead fence an unclaimed attempt as `cancelled_before_send`. Reconcile never claims `sending` or starts SMTP. |
+| `fn_invitation_smtp_complete_attempt` | Against an already issued exact claim, records one immutable completed observation, report state/policy and positive quiescence evidence. Exact repetition verifies the same receipt; conflict refuses. Late actual observations remain recordable after original lease/deadline loss. The function cannot mint a new claim, change a job/attempt/reservation, finalize business state or give a stopped runtime owner checkpoint authority. |
+
+Both functions reject wrong definition, plan, operation, scope, attempt, fence,
+purpose and substituted envelope before returning ciphertext or mutating a row.
+They read no User, Invitation, Membership, tenant content or module repository and
+return no general list, person field, provider text, plaintext message or token.
+They perform no context announcement or `set_config`; SMTP adds neither a logical
+tenant setter nor a physical context writer. The admitted eleventh
+`InvitationEntryScope` setter and four physical context writers remain unchanged.
+
+The provider-attempt state machine is closed: a fresh unclaimed attempt may
+become `sending` or `cancelled_before_send`; a claimed attempt may acquire one
+terminal receipt. Once `sending` is claimed, missing terminal evidence is
+unresolved. Recovery's winning pre-send cancellation CAS prevents the paused old
+Execute from claiming or sending. This is a real cancelled provider operation
+with positive `provider_fenced` evidence, not framework `NeverStarted` after
+ExecuteIntent. A later admitted retry uses the same envelope/OperationId and a
+new AttemptId; every prior attempt's selected facts remain readable unchanged.
+
+### Dedicated provider source and uncertain commits
+
+`InvitationSmtpProviderDataSource` uses the existing guarded `learnstack_app`
+credential through its own provider-only source. It accepts no raw connection
+string from a module and exposes only the two fixed function operations. It
+opens no ordinary `IUnitOfWork`, uses no tenant setter and leaves the external
+ordinary-application denial marker intact.
+
+| Bound | Provider-source contract |
+|---|---|
+| Local capacity | Four retained owners and at most four physical checkouts per API process, including open, SQL, cancellation and actual cleanup; no unbounded admission queue |
+| SQL operation | One shared five-second I/O deadline across open, function call/COMMIT and any sequential verification; positive finite driver/server statement, lock and cancellation bounds; no command override to infinite |
+| Session surface | Reset-safe READ COMMITTED transactions, no tenant/identity GUC announcement, session state or arbitrary SQL; same physical role/reachable-bypass guard as the app credential |
+| Response loss | At most one bounded, sequential locked reconciliation on the same retained owner after actual prior cleanup; a missing acknowledgement, unlocked absence, timeout or failed probe never proves rollback |
+| Source lifetime | Independent shutdown closes fresh admission and joins actual owners before source disposal; elapsed caller waiting cannot free slots, dispose in-use resources or authorize replacement |
+
+These four provider connectors extend the physical-source ledger; they are not
+hidden in the existing application/job floor or privileged dispatcher pool.
+Failed or unconfirmed cleanup retains its concrete owner/connector and makes the
+provider lane unhealthy. Later eligible runtime Reconcile can read durable facts;
+it does not inherit authority to Execute from a failed storage probe.
+
+A durable final-250 receipt means SMTP submission was accepted, not inbox
+delivery. Only definite no-effect temporary failure with actual task/socket
+completion grants a repeatable failure. Durable permanent rejection is permanent;
+runtime cancellation retains its actual closed cancellation meaning. Lost final
+reply, process death after the send claim but before a durable receipt, missing
+evidence and an unresolved SMTP task remain Unknown. Existing job quarantine and
+occupancy retention apply; no expiry, host exit, reissue or message identifier
+releases that reservation. The fresh runtime checkpoint/finalizer alone applies
+the [known-outcome policy](../decisions/0061-known-external-job-failure-policy.md).
+
+## Invitation entry and consumption
+
+**Derives from:** [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md).
+Accepted P03-4 contract; schema, source and runtime backfill remain pending in the
+phase Status block. This section extends the earlier global/contextual contracts;
+the earlier eight-function/ten-setter counts describe their historical slices.
+Current total is eleven confined definers, eleven logical tenant setters and four
+physical context writers. SMTP adds no tenant setter.
+
+### Invitation root and constrained transitions
+
+`invitations` is Identity-owned tenant/organization-scoped storage. Use canonical
+ENABLE/FORCE RLS, one role-qualified isolation policy with explicit WITH CHECK,
+restrictive UPDATE/DELETE organization guards, EF filter and immutable-scope
+triggers. No ordinary tenant read hatch is implied. The separate exact owner
+visibility arm supports only the entry function below.
+
+| Facts | Bound storage contract |
+|---|---|
+| Identity/scope | UUIDv7 InvitationId; full `(tenant_id,id)` reference key; tenant/nullable organization immutable; no cross-module Tenant/Organization FK or join |
+| Recipient/source | Sensitive normalized ASCII email; immutable inviter UserId, RoleId and pinned Role version; same-module User FK and tenant-composite Role FK, supporting indexes; compatible capability scope checked independently of nullable FK behavior |
+| Current generation | Positive monotonic ordinal and fresh UUID generation ID; sensitive 32-byte active verifier, database creation/expiry, frozen server-derived entry origin and current BackgroundJobId by value; no raw token/message column or job-table FK |
+| Terminal result | Accepted actor/User FK, tenant-composite MembershipId FK, `created` or `already_member` disposition, accepted timestamp and consumed-verifier hash; all together only for Accepted |
+| Audit/concurrency | All six canonical audit columns and row_version; explicit personal-data declarations and sensitive snapshot markers; every actual mutation advances root version |
+
+States are Pending, Accepted or Revoked; Expired is effective Pending state at
+database UTC. Terminal states cannot reopen. Revocation is status, not soft
+removal: Invitation deletion columns remain NULL because no deletion owner is
+selected. Thus authorized scoped list/detail can expose terminal state without
+IgnoreQueryFilters or a hidden history directory. Runtime has SELECT/INSERT/UPDATE
+only, no root DELETE/TRUNCATE or arbitrary User update. A later erasure owner
+requires its separately accepted grants/transition before changing this boundary.
+
+A partial unique index enforces Pending `(tenant_id,organization_id,normalized_email)`
+with NULLS NOT DISTINCT, regardless of current clock time. Revoke/Accepted releases
+that slot; expiry alone does not. Root CHECK/guard pairs enforce finite state,
+positive generation, 32-byte verifier shape, finite expiry after creation and
+all-or-none terminal facts. Pending has active verifier and no consumed/result
+facts; Accepted clears active verifier and retains exactly its consumed verifier
+and result; Revoked clears both verifiers and has no accepted result.
+
+Create stages generation 1, policy-frozen expiry, queued payload/job and audit on
+one owner. Reissue increments generation, replaces verifier/expiry/origin/job and
+invalidates the former token atomically; its Role/email pin does not change.
+Expiry is checked using fresh database `clock_timestamp()` after lock waits at
+the conditional Pending-to-Accepted statement. Admission then committing after
+that instant is not retroactively expired. No transaction-start timestamp or
+background expiry task substitutes for this check.
+
+Use sorted exclusive invitee/inviter User keys before the strongest actual Tenant
+mode, then offered Role, Invitation and current Membership row. Shared handles
+ordinary effects; actual protected Tenant Admin eligibility/assignment selects
+Exclusive, with no shared upgrade. Create/revoke/reissue acquire their shared
+Tenant fence and applicable root locks, not an unconditional exclusive override.
+Prepare the complete intended graph/mode and refresh it after waiting; changed
+classification returns conflict and requires a fresh act. Existing membership
+admission/last-admin/Role-scope/deferred constraint guards still run and MUST
+failure rolls the whole business transaction back.
+
+### Exact preliminary function and operation-bound scope
+
+`fn_identity_invitation_entry(invitation_id uuid, verifier_digest bytea,
+host_tenant uuid, authority_id uuid, subject_key bytea)` is migration-owned,
+SECURITY DEFINER, VOLATILE, fixed `search_path=pg_catalog`, static schema-qualified
+SQL, PUBLIC execution revoked and app execution granted only for its closed
+caller. Digest inputs are exactly 32 bytes. The API computes its domain-separated
+verifier from the raw code before SQL; SQL equality is not claimed constant-time.
+The actual bound subject is already normalized against exact issuer/sub and the
+installed authority; body/header authority/User/tenant input is refused.
+
+The body reads only the exact Invitation matching ID/digest/host tenant, the
+verified subject-bound User and that Invitation's immutable stored inviter User.
+It returns offer ID/version/generation, exact tenant/org, bound actor admission,
+stored inviter global admission, state and immutable result identifiers. No raw
+email/provider subject/grants/profile or arbitrary User result is projected. The
+stored-inviter global Boolean never replaces the separate same-scope delegation
+reader. Existing migration-owner `users_isolation` visibility remains; the new
+Invitation arm and fixed function body are explicitly counted/qualified together.
+
+Initial physically ReadOnly lookup uses the ordinary guarded app source, closes
+before the next owner and returns one immutable captured witness. The later
+`InvitationEntryScope` consumes it once: it binds request/invocation, credential,
+verified subject/actor, native source, actual host, offer/version/generation and
+transaction mode. ReadOnly inspection/result and ordinary ReadWrite acceptance
+reuse the existing physical UoW writer. They cannot join/retarget a global owner,
+reuse another purpose/mode or widen app.scope. This is the eleventh logical setter
+(category: operation-bound invitation), not an extra physical context writer.
+
+Within acceptance, the exact function can repeat its bound eligibility observation
+after both User fences. This covers already_member with no Membership INSERT.
+All pending authorization/lifecycle/Role checks then use fresh post-wait facts on
+that owner. The exact User/offer projection does not authorize general queries.
+Known Tenant/Organization host ceiling and HostAndInvitationOffer consumer census
+are defined in [Security](11-security.md#verified-invitation-admission).
+
+Accepted result reads precede Pending version/expiry/email/inviter conditions.
+They require exact consumed digest, same Active actor and original current Active
+Membership. Suspended/Revoked/deleted original Member or another actor yields
+masked no-disclosure, never a successor result. Predispatch result reads are Off;
+a Pending command losing a race cannot drop declared MUST intents or claim a
+second success. Unknown COMMIT requires fresh authoritative observation.
+
+### Policy, replay and provider status reads
+
+The lifetime policy is one Tenancy TenantSetting root with exact immutable key
+`identity.invitation.ttl_days`, NULL organization, integer 1–30 and default 14
+when absent. Presence plus root version distinguish a first conditional create
+from an existing version-zero setting. The existing natural key and checked
+version prevent a racing upsert. Only future generations consume changed values.
+
+Add protected original-target kinds Invitation and TenantSetting only for this
+policy. Retain existing actor/scope fingerprint, 1,000 tenant slots, capacity
+fence/claim-before-business order and 24-hour replay rules. Current exact-target
+receipt reads are separately MUST; no code/link/message/ciphertext enters stored
+response bytes. Keyed reissue creates one generation/job through its actual
+version/produced-work guards even across the commit-to-receipt uncertainty window.
+
+`IInvitationEmailStatusReader` is a bounded common Infrastructure port on the
+current announced owner, called only by authorized current Invitation reads with
+that root's actual CurrentDeliveryJobId. It reads only that exact same-scope job's
+closed phase/outcome/finalization/quarantine metadata, not its payload/plan,
+provider tables, recipient or another job directory. It returns finite status or
+unavailable, never provider messages. This supplies visible uncertainty before a
+module finalizer can run. It uses no second owner or external denied-scope access.
+
+### Qualification obligations
+
+Before activation: real app-role tenant/two-org isolation and foreign-ID/FK/mirror
+controls; applied policies/functions/privileges and caller/owner/witness/mode
+census; raw/digest/response leakage and positive redaction; root-state/pending
+uniqueness; actual lock-mode classification/after-wait changes; Active no-elevation
+and Invitation-disposition versus subject-only Membership audit; Suspended refusal,
+Revoked successor and MUST rollback; both commit orders for revoke/accept/expiry/
+reissue/global closure; stale receipt/result identities and unknown COMMIT; pooled
+reuse/cancellation/cleanup. SMTP custody additionally obeys the preceding separate
+provider-store contract. Acceptance alone qualifies none of these behaviors.

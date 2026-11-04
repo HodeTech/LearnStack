@@ -395,6 +395,57 @@ continuation cursor. The count limit remains an upper bound: escaped labels and
 verified origin expansion may shorten a page to preserve ADR-0079's 256 KiB
 API/SDK response budget, while subsequent pages retain every remaining item.
 
+### Verified invitation transport
+
+**Derives from:** [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md).
+This is the Accepted P03-4 contract; the phase Status block owns runtime delivery
+and qualification. The following finite extension adds no general nonmember API
+or native proxy. All paths below carry `/api/v1`.
+
+| Method and path | Exact consumer / response boundary |
+|---|---|
+| GET `/identity/invitations`, `/identity/invitations/{id}` | `ListInvitationsQuery` / `GetInvitationQuery`; applicable membership-admin in exact current scope, MUST read; email, Role, lifecycle, expiry, version and bounded delivery status only |
+| GET `/identity/invitable-roles` | `ListInvitableRolesQuery`; same capability/scope, MUST read; currently delegable ID/key/scope/version summaries, no Role grant graph |
+| POST `/identity/invitations` | `CreateInvitationCommand`; email and one pinned compatible Role/version; atomically creates generation 1, private encrypted mail custody and typed job; protected keyed 201 version receipt and Location |
+| POST `/identity/invitations/{id}/revocations` | `RevokeInvitationCommand`; current delegation, canonical strong If-Match and protected keyed version receipt |
+| POST `/identity/invitations/{id}/reissues` | `ReissueInvitationCommand`; current delegation and unchanged Role pin, canonical strong If-Match and protected keyed receipt; new verifier/generation/expiry invalidates the old link |
+| GET `/tenancy/settings/invitation-policy` | `GetTenantInvitationPolicyQuery`; own-current-tenant policy only, orgless context, Off; absent/default or stored version precondition |
+| PUT `/tenancy/settings/invitation-policy` | `SetTenantInvitationLifetimeCommand`; Tenant `tenancy.setting.write`, orgless scope, fixed key `identity.invitation.ttl_days`, 1–30 days; conditional creation or canonical If-Match, protected keyed receipt and MUST update |
+| POST `/identity/invitation-entry/inspections` | `InspectInvitationQuery`; body ID/code, exact host/source/subject/offer entry, fresh current verified recipient; Off, physically ReadOnly and no-store |
+| POST `/identity/invitation-entry/acceptances` | `AcceptInvitationCommand`; body ID/code/observed version, fresh recipient proof and locked authority; natural offer/actor convergence; Membership/result/version receipt |
+| POST `/identity/invitation-entry/results` | `GetOwnInvitationResultQuery`; body ID/code, consumed digest, same Active actor and original current Active Membership; Off, physically ReadOnly; no new grant or email/inviter/Role/expiry revalidation |
+
+Administrative writes never return raw codes or links. Create/revoke/reissue use
+the existing bounded protected receipt rules; replays disclose the original
+Invitation through `ReadInvitationReceiptQuery` with fresh membership-admin and
+MUST read audit. Policy replay uses `ReadInvitationPolicyReceiptQuery`, the exact
+original TenantSetting ID/key in the same orgless tenant, own-current-Membership
+coverage and MUST read audit; it requires no old write capability and exposes no
+generic settings directory. No secret enters durable replay bytes. Policy
+absence is a conditional create precondition, never an unconditional upsert.
+
+Entry bodies are strict UTF-8 JSON, at most 8 KiB, with no unknown/duplicate
+fields or actor/tenant/org authority selectors. Inspection and result use POST
+to keep credentials out of URL paths/queries; their consumers remain ReadOnly.
+Acceptance rejects Idempotency-Key and introduces no tenantless replay namespace.
+A preflight Accepted offer dispatches the exact result read before mutation
+intents. A Pending command losing the race returns recoverable 409 with truthful
+failed-attempt evidence; a fresh result read reconciles the committed outcome.
+Unknown COMMIT remains indeterminate until authoritative reconciliation.
+
+The browser landing GET renders only. Its fragment code reaches the API only
+through bounded native capture and these POST bodies; no GET consumes an offer,
+creates Membership or records a send. Admin pages use 20 default/100 maximum,
+actor/scope/operation-bound opaque cursors, no-store and the inherited bounded
+response/deadline rules. Provider observation is limited to 16 KiB/five seconds
+within the existing ten-second native API deadline, with no business locks held.
+Malformed fields/preconditions are 400; stale versions/changed lock plans and
+actionable target conflicts are 409. Missing source/admission, invalid link or
+foreign target is masked 404; an invalid-present bearer remains 401. A matching
+offer with unverified/mismatched recipient gets bounded 403 recovery without the
+expected mailbox. Uncertain storage/provider state is 503; exhausted quotas are
+429. Submission accepted by SMTP is not proof of inbox delivery.
+
 ## Pagination
 
 Cursor pagination by default:

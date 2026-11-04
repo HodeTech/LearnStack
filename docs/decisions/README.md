@@ -135,12 +135,12 @@ records hosted qualification. Phase 11 owns production qualification.
 | 0090 | [SDK Cold Prefix Proof Settings](0090-sdk-cold-prefix-proof-settings.md) | Accepted 2026-11-03 after maintainer review: only the cold-prefix shared stop request 90 seconds and both cases’ Vitest setting 100 seconds; SDK aggregate 180 seconds and distinct accepted/output_unowned controls remain. The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns implementation and qualification. |
 | 0091 | [Native Inventory Phase Allocations](0091-native-inventory-phase-allocations.md) | Accepted 2026-11-03 after maintainer review: preflight inventory 60 seconds, image metadata commands 10 in both phases, final inventory total 20, native job 1,200 and reserve 203 unchanged. The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns implementation and qualification. |
 | 0092 | [SDK Completion and Frontend Job Windows](0092-sdk-completion-and-frontend-job-windows.md) | Accepted 2026-11-04 under maintainer closure delegation: canonical SDK aggregate 360, shared cold-prefix stop 150, both case thresholds 160 seconds and frontend job 30 minutes; exact proof/ownership and complete A/B remain. The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns delivery and qualification. |
+| 0093 | [Verified Invitation Acceptance and Durable Email Handoff](0093-verified-invitation-acceptance-and-handoff.md) | Accepted 2026-11-04 after maintainer selection of automatic email/review corrections: confined verified-recipient entry, atomic Invitation/Membership, encrypted SMTP custody and exact external source; no runtime proof implied. [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns implementation. |
 
 ## Proposed ADRs
 
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
-| 0093 | [Verified Invitation Acceptance and Bounded Handoff](0093-verified-invitation-acceptance-and-handoff.md) | Proposed exact nonmember admission, fresh verified recipient, atomic Invitation/Membership result and explicit administrator handoff; no runtime authority before approval | P03-4/G8, before Invitation schema or writer |
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and
