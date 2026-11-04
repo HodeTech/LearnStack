@@ -28,6 +28,10 @@ function holder(): BffSessionHolder {
     typeof store !== 'object' ||
     !Object.isFrozen(store) ||
     ![
+      'openInvitation',
+      'invitation',
+      'retainInvitation',
+      'invitationEntry',
       'start',
       'complete',
       'entry',

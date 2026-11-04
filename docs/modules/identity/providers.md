@@ -44,6 +44,15 @@ COMMIT handling. The [infrastructure contract](../../standards/20-infrastructure
 owns composition with the existing job runtime. Neither general Phase 08a
 notification orchestration nor a tenant-selectable SMTP provider is introduced.
 
+Create/reissue freezes the actual enabled tenant locale tag in `EntryLocale`.
+Email copy selects the Turkish catalogue for a `tr` language subtag and otherwise
+the English fallback, following the
+[UI/content distinction](../../decisions/0027-frontend-i18n.md). A regional tag
+such as `tr-TR` or `en-US` does not require a separate literal `tr` or `en` tenant
+locale. The frozen tag and enabled content locales are not rewritten by copy
+fallback. Email links use the fixed `/invitations` path, with the code only in
+the fragment; no content-locale prefix selects an invitation route.
+
 ## Deployment configuration
 
 - One operator-configured SMTP host/port and sender apply to this deployment.
@@ -102,6 +111,25 @@ SMTP settings are `InvitationEmail:Smtp:Host`, `Port`, `Sender`, and `Tls`
 `ISecretProvider`. `DevelopmentPlaintext` is admitted only by Development host
 composition. Missing configuration prevents startup. No connection is made by
 configuration validation.
+
+The paired local API launcher selects only these seven email configuration
+keys from matching private-file/process sources. Values are compact single-line
+strings of at most 8 KiB in UTF-8; SMTP credentials may be empty for explicit
+Development plaintext. The API owns key-ring, address, TLS and credential tuple
+validation. API file selection uses one no-follow handle and requires a regular,
+single-link, current-user-owned source with owner-only permissions, valid UTF-8
+and at most 256 KiB. Ordinary web and Seeder child environments receive none of
+these settings. CI public-demo construction uses disposable synthetic settings and
+does not qualify SMTP delivery; local operator configuration has no generated
+fallback key or sender.
+
+For the paired launcher's value-free `Local public configuration or launch
+failed` diagnostic, check the selected source's file properties, UTF-8/size and
+matching settings first. After verifying that the path is your own regular,
+nonsymlink, single-link file, use `chmod 600` on that exact file if permissions
+need correction. Check compact key-ring JSON and the SMTP tuple privately;
+printing the environment is not a diagnostic step. A source-selection fix does
+not establish SMTP connectivity or delivery.
 
 Two active definition keys, `identity.invitation_email_tenant.v1` and
 `identity.invitation_email_organization.v1`, bind four exact ordinary roots:

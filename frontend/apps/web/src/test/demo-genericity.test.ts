@@ -96,11 +96,16 @@ describe('P02d-7 exact demo identity boundary', () => {
       'frontend/apps/web/src/server/auth/session-store.ts',
       'frontend/apps/web/src/server/auth/native-session-client.ts',
       'frontend/apps/web/src/server/auth/native-administration-client.ts',
+      'frontend/apps/web/src/server/auth/native-invitation-client.ts',
+      'frontend/apps/web/src/server/auth/native-invitation-http.ts',
+      'frontend/apps/web/src/server/auth/invitation-html.ts',
       'frontend/apps/web/src/server/configured-public-client.ts',
       'frontend/apps/web/src/components/public/lesson.tsx',
       'frontend/apps/web/src/i18n/messages/en/public.json',
       'frontend/packages/sdk/src/server.ts',
       'frontend/packages/sdk/src/administration-server.ts',
+      'frontend/packages/sdk/src/invitation-entry-server.ts',
+      'frontend/packages/sdk/src/public-server.ts',
       'frontend/apps/web/scripts/public-server.mjs',
       'frontend/apps/web/scripts/public-server-runtime.mjs',
       'frontend/apps/web/scripts/public-runtime-child.mjs',
@@ -139,6 +144,55 @@ describe('P02d-7 exact demo identity boundary', () => {
       expect(demoIdentityFindings(entry, files.get(entry)!, vocabulary)).toEqual(
         value === identity ? [identity] : [],
       );
+    }
+  });
+  it('models only the native invitation catalogue JSON import attributes and scans their sources', () => {
+    const runtime = 'frontend/apps/web/scripts/public-server-runtime.mjs';
+    for (const locale of ['en', 'tr']) {
+      const edge = '../src/i18n/messages/' + locale + '/invitation.json';
+      const catalogue = 'frontend/apps/web/src/i18n/messages/' + locale + '/invitation.json';
+      const source = `await import('${edge}', { with: { type: 'json' } });`;
+      const files = new Map([
+        [runtime, source],
+        [catalogue, JSON.stringify({ title: identity })],
+        ['frontend/apps/web/src/i18n/messages/' + locale + '/public.json', '{}'],
+        ['frontend/apps/web/src/i18n/messages/fr/invitation.json', '{}'],
+      ]);
+      const selected = productionDemoSources(files);
+      expect(selected.has(catalogue)).toBe(true);
+      expect(demoIdentityFindings(catalogue, selected.get(catalogue)!, vocabulary)).toEqual([
+        identity,
+      ]);
+      expect(() => productionDemoSources(new Map([[runtime, source]]))).toThrow(
+        'Unmodeled runtime import',
+      );
+      expect(() =>
+        productionDemoSources(
+          new Map([
+            ['frontend/apps/web/scripts/other-runtime.mjs', source],
+            [catalogue, '{}'],
+          ]),
+        ),
+      ).toThrow('Unmodeled runtime import');
+      for (const dirty of [
+        source.replace('invitation.json', 'public.json'),
+        source.replace(edge, edge.replace('/' + locale + '/', '/fr/')),
+        source.replace('with:', 'assert:'),
+        source.replace("type: 'json'", "type: 'javascript'"),
+        source.replace("type: 'json'", 'type: selectedType'),
+        source.replace("type: 'json'", "type: 'json', extra: true"),
+        source.replace("type: 'json'", "type: 'json', type: 'json'"),
+        source.replace("{ type: 'json' }", 'attributes'),
+        source.replace("{ with: { type: 'json' } }", 'options'),
+        source.replace("{ with: { type: 'json' } }", "{ with: { type: 'json' }, extra: true }"),
+        source.replace("{ with: { type: 'json' } }", "{ ...options, with: { type: 'json' } }"),
+        source.replace('});', '}, {});'),
+      ]) {
+        expect(dirty).not.toBe(source);
+        expect(() => productionDemoSources(new Map(files).set(runtime, dirty))).toThrow(
+          'Unmodeled runtime import',
+        );
+      }
     }
   });
   it.each([
@@ -818,6 +872,15 @@ describe('P02d-7 exact demo identity boundary', () => {
     expect(() =>
       productionDemoSources(new Map(files).set(host, changedInstrumenter), external),
     ).toThrow('Unmodeled runtime import');
+    for (const dirty of [
+      instrumenter.replace("    'native-invitation-http',", "    'unmodeled-http',"),
+      instrumenter.replace("for (const locale of ['en', 'tr'])", "for (const locale of ['en'])"),
+    ]) {
+      expect(dirty).not.toBe(instrumenter);
+      expect(() => productionDemoSources(new Map(files).set(host, dirty), external)).toThrow(
+        'Unmodeled runtime import',
+      );
+    }
     const missingInstrumenter = new Map(files);
     missingInstrumenter.delete(host);
     expect(() => productionDemoSources(missingInstrumenter, external)).toThrow(
@@ -1103,7 +1166,18 @@ describe('P02d-7 exact demo identity boundary', () => {
     const nested = 'frontend/apps/web/src/server/auth/session-runtime.ts';
     const native = 'frontend/apps/web/src/server/auth/native-administration-client.ts';
     const sdk = 'frontend/packages/sdk/src/administration-server.ts';
+    const invitation = 'frontend/apps/web/src/server/auth/native-invitation-client.ts';
+    const invitationHttp = 'frontend/apps/web/src/server/auth/native-invitation-http.ts';
+    const invitationHtml = 'frontend/apps/web/src/server/auth/invitation-html.ts';
+    const invitationSdk = 'frontend/packages/sdk/src/invitation-entry-server.ts';
+    const publicSdk = 'frontend/packages/sdk/src/public-server.ts';
     const helper = 'frontend/apps/web/src/server/auth/owned-helper.ts';
+    const sdkInputs = [
+      'src/authenticated-server.ts',
+      'src/administration-server.ts',
+      'src/invitation-entry-server.ts',
+      'src/public-server.ts',
+    ];
     const config = {
       compilerOptions: { rootDir: 'src/server', outDir: '.server' },
       include: [
@@ -1112,8 +1186,11 @@ describe('P02d-7 exact demo identity boundary', () => {
         'src/server/auth/account-client.ts',
         'src/server/auth/configuration.ts',
         'src/server/auth/http-protocol.ts',
+        'src/server/auth/invitation-html.ts',
         'src/server/auth/logout-response.ts',
         'src/server/auth/native-administration-client.ts',
+        'src/server/auth/native-invitation-client.ts',
+        'src/server/auth/native-invitation-http.ts',
         'src/server/auth/native-session-client.ts',
         'src/server/auth/provider-core.ts',
         'src/server/auth/request-runtime.ts',
@@ -1123,47 +1200,77 @@ describe('P02d-7 exact demo identity boundary', () => {
     const files = new Map([
       [
         entry,
-        "import '../frontend/apps/web/.server/ingress.js'; import '../frontend/apps/web/.server/auth/session-runtime.js'; import '../frontend/apps/web/.server/auth/native-administration-client.js'; import '../frontend/apps/web/src/app/globals.css';",
+        "import '../frontend/apps/web/.server/ingress.js'; import '../frontend/apps/web/.server/auth/session-runtime.js'; import '../frontend/apps/web/.server/auth/native-administration-client.js'; import '../frontend/apps/web/.server/auth/native-invitation-client.js'; import '../frontend/apps/web/.server/auth/native-invitation-http.js'; import '../frontend/apps/web/.server/auth/invitation-html.js'; import '../frontend/apps/web/src/app/globals.css';",
       ],
       [source, 'export const clean = true;'],
       [nested, "import './owned-helper.js';"],
       [helper, 'export const owned = true;'],
       [native, "import '@learnstack/sdk/administration-server';"],
       [sdk, `export const special = ${JSON.stringify(identity)};`],
+      [invitation, "import '@learnstack/sdk/invitation-entry-server';"],
+      [invitationHttp, "import '@learnstack/sdk/public-server';"],
+      [invitationHtml, `export const special = ${JSON.stringify(identity)};`],
+      [invitationSdk, `export const special = ${JSON.stringify(identity)};`],
+      [publicSdk, `export const special = ${JSON.stringify(identity)};`],
       [
         'frontend/packages/sdk/package.json',
         JSON.stringify({
           name: '@learnstack/sdk',
-          exports: { './administration-server': './dist/administration-server.js' },
+          exports: {
+            './administration-server': './dist/administration-server.js',
+            './invitation-entry-server': './dist/invitation-entry-server.js',
+            './public-server': './dist/public-server.js',
+          },
         }),
       ],
       [
         'frontend/packages/sdk/tsconfig.native.json',
         JSON.stringify({
           compilerOptions: { rootDir: 'src', outDir: 'dist' },
-          include: ['src/authenticated-server.ts', 'src/administration-server.ts'],
+          include: sdkInputs,
         }),
       ],
       ['frontend/apps/web/src/app/globals.css', ':root { color: black }'],
       ['frontend/apps/web/tsconfig.server.json', JSON.stringify(config)],
     ]);
     const selected = productionDemoSources(files);
-    for (const input of [source, nested, helper, native, sdk])
+    for (const input of [
+      source,
+      nested,
+      helper,
+      native,
+      sdk,
+      invitation,
+      invitationHttp,
+      invitationHtml,
+      invitationSdk,
+      publicSdk,
+    ])
       expect(selected.has(input)).toBe(true);
-    expect(demoIdentityFindings(sdk, selected.get(sdk)!, vocabulary)).toEqual([identity]);
+    for (const input of [sdk, invitationHtml, invitationSdk, publicSdk])
+      expect(demoIdentityFindings(input, selected.get(input)!, vocabulary)).toEqual([identity]);
+    for (const input of [invitation, invitationHttp, invitationHtml, invitationSdk, publicSdk]) {
+      const missing = new Map(files);
+      missing.delete(input);
+      expect(() => productionDemoSources(missing)).toThrow('Unmodeled runtime import');
+    }
     for (const patch of [
       {
         compilerOptions: { rootDir: 'src', outDir: 'unmodeled' },
-        include: ['src/authenticated-server.ts', 'src/administration-server.ts'],
+        include: sdkInputs,
       },
       {
         compilerOptions: { rootDir: 'src', outDir: 'dist' },
-        include: ['src/authenticated-server.ts', 'src/administration-server.ts', 'src/hidden.ts'],
+        include: [...sdkInputs, 'src/hidden.ts'],
       },
       {
         compilerOptions: { rootDir: 'src', outDir: 'dist' },
         include: ['src/authenticated-server.ts'],
       },
+      ...['src/invitation-entry-server.ts', 'src/public-server.ts'].map((input) => ({
+        compilerOptions: { rootDir: 'src', outDir: 'dist' },
+        include: sdkInputs.filter((value) => value !== input),
+      })),
     ]) {
       const dirty = new Map(files);
       dirty.set('frontend/packages/sdk/tsconfig.native.json', JSON.stringify(patch));
@@ -1177,6 +1284,16 @@ describe('P02d-7 exact demo identity boundary', () => {
       JSON.stringify({ ...config, include: [...config.include, 'src/server/unmodeled.ts'] }),
     );
     expect(() => productionDemoSources(unknown)).toThrow('Unmodeled');
+    for (const input of [invitation, invitationHttp, invitationHtml]) {
+      const missing = new Map(files).set(
+        'frontend/apps/web/tsconfig.server.json',
+        JSON.stringify({
+          ...config,
+          include: config.include.filter((value) => 'frontend/apps/web/' + value !== input),
+        }),
+      );
+      expect(() => productionDemoSources(missing)).toThrow('Unmodeled runtime import');
+    }
     files.set(
       'frontend/apps/web/tsconfig.server.json',
       JSON.stringify({

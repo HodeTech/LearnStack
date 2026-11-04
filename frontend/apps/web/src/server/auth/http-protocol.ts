@@ -11,6 +11,7 @@ import {
 import {
   BFF_ADMIN_FORMS,
   BffProfileInputError,
+  BffInvitationInputError,
   bffAdministrationForm,
   bffContextHint,
   bffCursor,
@@ -313,6 +314,9 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
       const httpSignal = request.signal;
       let postDeadline: AbortSignal | undefined;
       const path = request.target.split('?', 1)[0]!;
+      // Recipient actions belong only to the pre-Next native handler.
+      if (path.startsWith('/api/auth/invitation/'))
+        return result(request, { code: 'not_found' }, 404);
       // An inert public query is not a logout action. Only an owned proof-cookie
       // family selects the root return protocol; unrecognized states touch nothing.
       const rootFields =
@@ -448,6 +452,8 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
             'code',
             'iss',
             'session_state',
+            'kc_action',
+            'kc_action_status',
             'error',
             'error_description',
             'error_uri',
@@ -467,16 +473,31 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
             signal: request.signal,
           });
           if (request.signal.aborted) throw new BffInputError();
-          return redirect(request, '/api/auth/entry', [
-            bffCookie(BFF_COOKIES.entry, completed.handle, 300),
-            bffCookie(BFF_COOKIES.browser, completed.browser, cookieLife),
-            clearBffCookie(BFF_COOKIES.login + state),
-          ]);
+          return redirect(
+            request,
+            completed.invitation ? '/invitations/confirm' : '/api/auth/entry',
+            [
+              bffCookie(BFF_COOKIES.entry, completed.handle, 300),
+              bffCookie(BFF_COOKIES.browser, completed.browser, cookieLife),
+              clearBffCookie(BFF_COOKIES.login + state),
+            ],
+          );
         }
         bffQuery(request.target, []);
         exactBffOrigin(request);
         if (path === '/api/auth/signin/keycloak') {
-          const fields = await bffForm(request, ['csrfToken', 'returnTo', 'contextHint']);
+          const fields = await bffForm(request, [
+            'csrfToken',
+            'returnTo',
+            'contextHint',
+            'invitation',
+          ]);
+          const invitation = fields.get('invitation');
+          if (
+            invitation !== null &&
+            (invitation !== 'continue' || !cookies.has(BFF_COOKIES.invitation))
+          )
+            throw new BffInputError();
           if (!bffSecretEquals(fields.get('csrfToken'), cookies.get(BFF_COOKIES.csrf)))
             return result(request, { code: 'csrf' }, 403);
           const started = await store.start({
@@ -486,6 +507,9 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
             handle: cookies.get(BFF_COOKIES.session),
             returnPath: returnPath(fields.get('returnTo')),
             contextHint: bffContextHint(fields.get('contextHint')),
+            ...(invitation === 'continue'
+              ? { invitation: cookies.get(BFF_COOKIES.invitation)! }
+              : {}),
             signal: request.signal,
           });
           if (request.signal.aborted) throw new BffInputError();
@@ -511,6 +535,11 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
           if (switching && !bffSecretEquals(csrf, store.peek(selectedBinding)?.csrfToken))
             return result(request, { code: 'csrf' }, 403);
           if (creating) {
+            const invitationBinding = binding(request, cookies, BFF_COOKIES.invitation);
+            if (invitationBinding && store.invitationEntry(invitationBinding, selectedBinding)) {
+              await store.create(selectedBinding, request.source, csrf, request.signal);
+              return redirect(request, '/invitations/confirm', []);
+            }
             const snapshot = await store.preparePage(selectedBinding, request.source, {
               kind: 'create',
               ticket: ticket(request),
@@ -573,7 +602,11 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
           try {
             form = bffAdministrationForm(path, fields);
           } catch (error) {
-            if (!(error instanceof BffProfileInputError)) throw error;
+            if (
+              !(error instanceof BffProfileInputError) &&
+              !(error instanceof BffInvitationInputError)
+            )
+              throw error;
             return await actionDocument(
               request,
               render,
@@ -582,9 +615,13 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
                 kind: 'mutation_error',
                 action: path,
                 destination:
-                  path === '/api/account/profile'
-                    ? '/portal/profile'
-                    : '/studio/members/' + fields.get('membershipId')!,
+                  path === '/api/studio/invitation-create'
+                    ? '/studio/invitations'
+                    : path === '/api/studio/invitation-policy'
+                      ? '/studio/invitation-policy'
+                      : path === '/api/account/profile'
+                        ? '/portal/profile'
+                        : '/studio/members/' + fields.get('membershipId')!,
                 fields: [...fields.entries()],
                 reason: 'validation',
                 invalidFields: error.invalidFields,
@@ -635,21 +672,39 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
               503,
             );
           }
-          if (outcome.kind === 'success') return redirect(request, form.destination, []);
+          if (outcome.kind === 'success') {
+            if (path === '/api/studio/invitation-create') {
+              const location = outcome.location;
+              const match =
+                /^\/api\/v1\/identity\/invitations\/([0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/.exec(
+                  location ?? '',
+                );
+              if (!match) throw new BffSessionError('response');
+              return redirect(request, '/studio/invitations/' + match[1], []);
+            }
+            return redirect(request, form.destination, []);
+          }
           const status =
             outcome.kind === 'api-error'
               ? outcome.status
               : outcome.kind === 'invalid-request'
                 ? 400
                 : 503;
-          const code = outcome.kind === 'api-error' ? outcome.error.code : 'unavailable';
+          const code =
+            outcome.kind === 'api-error'
+              ? outcome.error.code
+              : outcome.kind === 'invalid-request' && path.startsWith('/api/studio/invitation-')
+                ? 'validation_failed'
+                : 'unavailable';
           const profileErrors =
             outcome.kind === 'api-error' && outcome.error.code === 'validation_failed'
               ? Object.keys(outcome.error.fieldErrors)
               : [];
           const reason =
             code === 'validation_failed' &&
-            (path === '/api/account/profile' || path === '/api/studio/membership-profile')
+            (path === '/api/account/profile' ||
+              path === '/api/studio/membership-profile' ||
+              path.startsWith('/api/studio/invitation-'))
               ? 'validation'
               : code === 'concurrency_conflict'
                 ? 'stale'
@@ -674,7 +729,9 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
               outcome.kind === 'api-error' &&
               outcome.error.code === 'validation_failed'
                 ? {
-                    invalidFields: (['displayName', 'preferredLocale'] as const).filter((name) =>
+                    invalidFields: (
+                      ['displayName', 'preferredLocale', 'email', 'offeredRole', 'days'] as const
+                    ).filter((name) =>
                       profileErrors.some((key) => key.toLowerCase() === name.toLowerCase()),
                     ),
                   }
@@ -697,6 +754,9 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
           const logout = store.discardEntry(entryBinding, csrf);
           return redirect(request, logout.redirectUrl ?? '/api/auth/signin', [
             clearBffCookie(BFF_COOKIES.entry),
+            ...(cookies.has(BFF_COOKIES.invitation)
+              ? [clearBffCookie(BFF_COOKIES.invitation)]
+              : []),
             bffCookie(BFF_COOKIES.logout + logout.state, logout.proof, 300),
           ]);
         }
@@ -710,6 +770,7 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
         const logout = store.signout(current, fields.get('csrfToken')!);
         const edits = [
           clearBffCookie(BFF_COOKIES.session),
+          ...(cookies.has(BFF_COOKIES.invitation) ? [clearBffCookie(BFF_COOKIES.invitation)] : []),
           ...(cookies.has(BFF_COOKIES.entry) ? [clearBffCookie(BFF_COOKIES.entry)] : []),
           ...[...cookies.keys()]
             .filter((name) => name.startsWith(BFF_COOKIES.login))
@@ -718,6 +779,17 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
         ];
         return redirect(request, logout.redirectUrl ?? '/', edits);
       } catch (error) {
+        if (
+          path === '/api/auth/callback/keycloak' &&
+          error instanceof BffSessionError &&
+          error.clearTransaction
+        ) {
+          const cookies = bffCookies(request.headers.get('cookie'));
+          if (cookies.has(BFF_COOKIES.invitation))
+            return redirect(request, '/invitations/confirm', [
+              clearBffCookie(BFF_COOKIES.login + error.clearTransaction),
+            ]);
+        }
         const entryRequest = [
           '/api/auth/entry',
           '/api/auth/entry/create',

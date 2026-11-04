@@ -2,6 +2,16 @@ export const AUTH_INPUT_LIMIT = 16 * 1024;
 
 /** The only native POST exemptions, gated off until the complete BFF is installed. */
 export const BFF_POST_PATHS = Object.freeze([
+  '/api/auth/invitation/capture',
+  '/api/auth/invitation/inspect',
+  '/api/auth/invitation/verify',
+  '/api/auth/invitation/accept',
+  '/api/auth/invitation/result',
+  '/api/auth/invitation/cancel',
+  '/api/studio/invitation-create',
+  '/api/studio/invitation-revoke',
+  '/api/studio/invitation-reissue',
+  '/api/studio/invitation-policy',
   '/api/auth/signin/keycloak',
   '/api/auth/signout',
   '/api/auth/extend',

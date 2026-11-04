@@ -4,7 +4,9 @@
     "members": "Members",
     "roles": "Roles",
     "profile": "My profile",
-    "contexts": "Change account access"
+    "contexts": "Change account access",
+    "invitations": "Invitations",
+    "invitation_policy": "Invitation lifetime"
   },
   "scope": {
     "tenant": "Institution-wide access",
@@ -39,7 +41,11 @@
     "revoke_hint": "Revoking ends this membership permanently. It cannot be reactivated from this page.",
     "suspend_hint": "Suspension pauses access while preserving the membership and its assignments."
   },
-  "status": { "active": "Active", "suspended": "Suspended", "revoked": "Revoked" },
+  "status": {
+    "active": "Active",
+    "suspended": "Suspended",
+    "revoked": "Revoked"
+  },
   "roles": {
     "title": "Roles",
     "detail_title": "Role details",
@@ -86,5 +92,53 @@
     "busy": "Too many requests are in progress. Wait before trying again.",
     "retry": "Check this view again",
     "retry_after": "Seconds to wait before trying again"
+  },
+  "invitations": {
+    "title": "Invitations",
+    "detail_title": "Invitation details",
+    "create": "Invite a person",
+    "create_hint": "Send an invitation to this institution or branch with one offered role. Email is sent automatically.",
+    "recipient": "Recipient email",
+    "email_hint": "Use the email address the person will verify on their account.",
+    "offered_role": "Offered role",
+    "choose_role": "Choose an offered role",
+    "send": "Create and email invitation",
+    "no_roles": "No roles are currently available to offer with your access.",
+    "list": "Invitation history",
+    "empty": "No invitations are available in this view.",
+    "next": "Next invitations",
+    "back": "Back to invitations",
+    "scope": "Membership scope",
+    "state": "Invitation status",
+    "expires": "Expires at (UTC)",
+    "delivery": "Email submission status",
+    "pending": "Pending acceptance",
+    "accepted": "Accepted",
+    "revoked": "Revoked",
+    "expired": "Expired",
+    "queued": "Queued",
+    "submission_accepted": "Submission accepted by the mail server",
+    "failed": "Submission failed",
+    "uncertain": "Submission uncertain",
+    "unavailable": "Submission status unavailable",
+    "delivery_hint": "Mail server acceptance does not confirm inbox delivery or that the email was read.",
+    "uncertain_hint": "The email may still arrive. Unfinished work continues to use delivery capacity; an unknown result is not a confirmed failure.",
+    "already_member": "The person already had an active membership. Their existing roles and profile were preserved; the offered role was not added.",
+    "created_member": "A new membership was created with the offered role.",
+    "role_unavailable": "Offered role label is no longer available with your access.",
+    "role_changed": "The offered role is no longer available with its original version. Revoke this offer and create a new invitation to choose the current role.",
+    "other_scope": "This invitation is outside your current access context. Change account access to manage it.",
+    "reissue": "Replace and email invitation",
+    "reissue_hint": "This replaces the current code and expiry. An older email can still arrive, but its code will no longer work. Unfinished earlier email work retains its delivery slot.",
+    "revoke": "Revoke invitation",
+    "revoke_hint": "This ends the offer. An email already in progress may still arrive, but it cannot grant membership.",
+    "policy_title": "Invitation lifetime",
+    "policy_hint": "Choose the lifetime for future invitations and explicit replacements. Existing invitation expiry times stay unchanged.",
+    "policy_stored": "This institution has a saved lifetime policy.",
+    "policy_default": "No policy has been saved. The default lifetime is 14 days.",
+    "policy_days": "Lifetime in days",
+    "policy_range": "Enter a whole number from 1 to 30.",
+    "policy_save": "Save invitation lifetime",
+    "policy_read_only": "You can view this policy. Editing requires institution-wide settings permission."
   }
 }

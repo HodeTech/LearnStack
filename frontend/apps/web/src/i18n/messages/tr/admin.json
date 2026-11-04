@@ -4,7 +4,9 @@
     "members": "Üyeler",
     "roles": "Roller",
     "profile": "Profilim",
-    "contexts": "Hesap erişimini değiştir"
+    "contexts": "Hesap erişimini değiştir",
+    "invitations": "Davetler",
+    "invitation_policy": "Davet geçerlilik süresi"
   },
   "scope": {
     "tenant": "Kurum genelinde erişim",
@@ -39,7 +41,11 @@
     "revoke_hint": "Sonlandırma bu üyeliği kalıcı olarak bitirir. Üyelik bu sayfadan yeniden etkinleştirilemez.",
     "suspend_hint": "Askıya alma, üyeliği ve rol atamalarını koruyarak erişimi duraklatır."
   },
-  "status": { "active": "Etkin", "suspended": "Askıda", "revoked": "Sonlandırılmış" },
+  "status": {
+    "active": "Etkin",
+    "suspended": "Askıda",
+    "revoked": "Sonlandırılmış"
+  },
   "roles": {
     "title": "Roller",
     "detail_title": "Rol ayrıntıları",
@@ -86,5 +92,53 @@
     "busy": "Çok fazla istek işleniyor. Tekrar denemeden önce bekleyin.",
     "retry": "Bu görünümü tekrar kontrol et",
     "retry_after": "Tekrar denemeden önce beklenecek saniye"
+  },
+  "invitations": {
+    "title": "Davetler",
+    "detail_title": "Davet ayrıntıları",
+    "create": "Bir kişiyi davet et",
+    "create_hint": "Bu kurum veya şube için tek bir rol teklif ederek davet oluşturun. E-posta otomatik gönderilir.",
+    "recipient": "Alıcının e-posta adresi",
+    "email_hint": "Kişinin hesabında doğrulayacağı e-posta adresini kullanın.",
+    "offered_role": "Teklif edilen rol",
+    "choose_role": "Teklif edilecek rolü seçin",
+    "send": "Daveti oluştur ve e-posta gönder",
+    "no_roles": "Mevcut erişiminizle teklif edebileceğiniz bir rol bulunmuyor.",
+    "list": "Davet geçmişi",
+    "empty": "Bu görünümde davet bulunmuyor.",
+    "next": "Sonraki davetler",
+    "back": "Davetlere dön",
+    "scope": "Üyelik kapsamı",
+    "state": "Davet durumu",
+    "expires": "Bitiş zamanı (UTC)",
+    "delivery": "E-posta gönderim durumu",
+    "pending": "Kabul bekliyor",
+    "accepted": "Kabul edildi",
+    "revoked": "İptal edildi",
+    "expired": "Süresi doldu",
+    "queued": "Sırada",
+    "submission_accepted": "Posta sunucusu gönderimi kabul etti",
+    "failed": "Gönderim başarısız",
+    "uncertain": "Gönderim sonucu belirsiz",
+    "unavailable": "Gönderim durumu alınamadı",
+    "delivery_hint": "Posta sunucusunun kabulü, e-postanın gelen kutusuna ulaştığını veya okunduğunu doğrulamaz.",
+    "uncertain_hint": "E-posta yine de ulaşabilir. Tamamlanmamış işlem gönderim kapasitesini kullanmaya devam eder; bilinmeyen sonuç kesinleşmiş başarısızlık değildir.",
+    "already_member": "Kişinin zaten etkin bir üyeliği vardı. Mevcut rolleri ve profili korundu; teklif edilen rol eklenmedi.",
+    "created_member": "Teklif edilen rolle yeni bir üyelik oluşturuldu.",
+    "role_unavailable": "Teklif edilen rolün adı mevcut erişiminizle artık görüntülenemiyor.",
+    "role_changed": "Teklif edilen rolün özgün sürümü artık kullanılamıyor. Güncel rolü seçmek için bu daveti iptal edip yeni bir davet oluşturun.",
+    "other_scope": "Bu davet mevcut erişim bağlamınızın dışında. Yönetmek için hesap erişiminizi değiştirin.",
+    "reissue": "Daveti yenile ve e-posta gönder",
+    "reissue_hint": "Bu işlem mevcut kodu ve bitiş zamanını değiştirir. Eski bir e-posta yine de ulaşabilir ancak kodu artık çalışmaz. Tamamlanmamış eski e-posta işlemi gönderim kapasitesindeki yerini korur.",
+    "revoke": "Daveti iptal et",
+    "revoke_hint": "Bu işlem teklifi sonlandırır. Gönderimi başlamış bir e-posta yine de ulaşabilir ancak üyelik sağlayamaz.",
+    "policy_title": "Davet geçerlilik süresi",
+    "policy_hint": "Yeni ve açıkça yenilenen davetlerin geçerlilik süresini seçin. Mevcut davetlerin bitiş zamanları değişmez.",
+    "policy_stored": "Bu kurumun kayıtlı bir geçerlilik süresi kuralı var.",
+    "policy_default": "Kayıtlı bir kural yok. Varsayılan geçerlilik süresi 14 gündür.",
+    "policy_days": "Gün olarak geçerlilik süresi",
+    "policy_range": "1 ile 30 arasında bir tam sayı girin.",
+    "policy_save": "Davet geçerlilik süresini kaydet",
+    "policy_read_only": "Bu kuralı görüntüleyebilirsiniz. Düzenlemek için kurum genelinde ayar yetkisi gerekir."
   }
 }

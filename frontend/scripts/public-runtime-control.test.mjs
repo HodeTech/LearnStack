@@ -140,12 +140,24 @@ async function fixture(options = {}) {
       export const createAccountSiteCaller = () => ({});
       export const createNativeSessionApi = () => ({});
       export const createNativeAdministrationCaller = () => ({});
+      export const createNativeInvitationApi = () => ({});
+      export const nativeInvitationTarget = () => false;
+      export function createInvitationRenderer({en, tr}) {
+        if (en.fixture !== 'en' || tr.fixture !== 'tr') throw new Error('Fixture catalogue wiring failed');
+        return () => '';
+      }
+      export function createNativeInvitationHandler({store, responseLease, render}) {
+        if (!store || typeof responseLease !== 'function' || typeof render !== 'function') throw new Error('Fixture invitation wiring failed');
+        return () => {};
+      }
     `,
+    'invitation-en.json': JSON.stringify({ fixture: 'en' }),
+    'invitation-tr.json': JSON.stringify({ fixture: 'tr' }),
     'requests.mjs': `
       import { state } from './state.mjs';
       export function installBffRequestRuntime() {
         state.event('requests-created');
-        return {preparation: {}, run(_binding, _request, _response, work) { return work(); }, async stop() { state.event('requests-stop'); if (state.options.holdRequests) await state.requestsGate.promise; state.event('requests-joined'); }};
+        return {preparation: {}, nativeResponse() { throw new Error('Unused fixture response lease'); }, run(_binding, _request, _response, work) { return work(); }, async stop() { state.event('requests-stop'); if (state.options.holdRequests) await state.requestsGate.promise; state.event('requests-joined'); }};
       }
     `,
     'sessions.mjs': `
@@ -153,7 +165,7 @@ async function fixture(options = {}) {
       export function installBffSessionRuntime() {
         state.event('sessions-created');
         if (state.options.rejectSessions) throw new Error('credential-redaction-marker');
-        return {async stop() { state.event('sessions-stop'); if (state.options.holdSessions) await state.sessionsGate.promise; state.event('sessions-joined'); }};
+        return {store: {}, async stop() { state.event('sessions-stop'); if (state.options.holdSessions) await state.sessionsGate.promise; state.event('sessions-joined'); }};
       }
     `,
     'next.mjs': `
@@ -219,6 +231,11 @@ async function fixture(options = {}) {
     ['../.server/auth/account-client.js', './dependencies.mjs'],
     ['../.server/auth/native-session-client.js', './dependencies.mjs'],
     ['../.server/auth/native-administration-client.js', './dependencies.mjs'],
+    ['../.server/auth/native-invitation-client.js', './dependencies.mjs'],
+    ['../.server/auth/native-invitation-http.js', './dependencies.mjs'],
+    ['../.server/auth/invitation-html.js', './dependencies.mjs'],
+    ['../src/i18n/messages/en/invitation.json', './invitation-en.json'],
+    ['../src/i18n/messages/tr/invitation.json', './invitation-tr.json'],
     ['../.server/auth/session-runtime.js', './sessions.mjs'],
     ['../.server/auth/request-runtime.js', './requests.mjs'],
     ['next', './next.mjs'],

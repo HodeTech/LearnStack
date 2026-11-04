@@ -62,7 +62,7 @@ public sealed class InvitationPolicyReader(TenancyDbContext db, IUnitOfWork unit
                 && (admittedHost == null || row.Host == admittedHost)
                 && (row.OrganizationId == context.OrganizationId || row.OrganizationId == null))
                 .OrderByDescending(row => row.OrganizationId != null).ThenBy(row => row.Host).Select(row => row.Host).FirstOrDefaultAsync(cancellationToken);
-            var locale = tenant.Locales.Where(row => row.IsEnabled && (row.Locale == "en" || row.Locale == "tr"))
+            var locale = tenant.Locales.Where(row => row.IsEnabled)
                 .OrderByDescending(row => row.IsDefault).ThenBy(row => row.Sort).Select(row => row.Locale).FirstOrDefault();
             var organization = context.OrganizationId is { } org ? await db.Organizations.AsNoTracking()
                 .Where(row => row.TenantId == context.TenantId && row.Id == org && row.DeletedAt == null && row.DeletedBy == null)

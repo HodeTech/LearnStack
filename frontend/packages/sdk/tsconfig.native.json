@@ -12,6 +12,7 @@
   "include": [
     "src/authenticated-server.ts",
     "src/administration-server.ts",
-    "src/invitation-entry-server.ts"
+    "src/invitation-entry-server.ts",
+    "src/public-server.ts"
   ]
 }

@@ -29,8 +29,8 @@ test(
         },
       );
       for (const [field, expected] of [
-        ['tests', 3],
-        ['pass', 3],
+        ['tests', 4],
+        ['pass', 4],
         ['fail', 0],
         ['cancelled', 0],
         ['skipped', 0],

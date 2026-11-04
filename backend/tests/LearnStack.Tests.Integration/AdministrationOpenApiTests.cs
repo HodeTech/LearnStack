@@ -44,7 +44,7 @@ public sealed class AdministrationOpenApiTests(ProductionHostFixture fixture) : 
         OwnNavigationWireProof.AssertSdkReadable(OwnNavigationWireProof.Serialize(full, info, options), 100);
     }
 
-    private static readonly string[] InvitationFields = ["deliveryStatus", "email", "expiresAt", "invitationId", "organizationId", "roleId", "roleVersion", "status", "version"];
+    private static readonly string[] InvitationFields = ["acceptanceDisposition", "deliveryStatus", "email", "expiresAt", "invitationId", "organizationId", "roleId", "roleVersion", "status", "version"];
     private static readonly string[] InvitationStates = ["Pending", "Accepted", "Revoked", "Expired"];
     private static readonly string[] InvitationDeliveryStates = ["Queued", "SubmissionAccepted", "Failed", "Unresolved", "Unavailable"];
     private static readonly string[] InvitationPolicyFields = ["canEdit", "days", "present", "version"];
@@ -162,6 +162,10 @@ public sealed class AdministrationOpenApiTests(ProductionHostFixture fixture) : 
         Assert.Equal(InvitationFields,
             invitation.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal));
         Assert.Equal("string", invitation.GetProperty("roleVersion").GetProperty("type").GetString());
+        Assert.Equal(NullableVersionTypes, invitation.GetProperty("acceptanceDisposition").GetProperty("type")
+            .EnumerateArray().Select(value => value.GetString()).Order(StringComparer.Ordinal));
+        Assert.Equal(new string?[] { "created", "already_member", null }, invitation.GetProperty("acceptanceDisposition")
+            .GetProperty("enum").EnumerateArray().Select(value => value.GetString()));
         Assert.Equal(InvitationStates, invitation.GetProperty("status").GetProperty("enum").EnumerateArray().Select(value => value.GetString()));
         Assert.Equal(InvitationDeliveryStates, invitation.GetProperty("deliveryStatus").GetProperty("enum").EnumerateArray().Select(value => value.GetString()));
         Assert.Equal(100, schemas.GetProperty("InvitationPage").GetProperty("properties").GetProperty("items").GetProperty("maxItems").GetInt32());

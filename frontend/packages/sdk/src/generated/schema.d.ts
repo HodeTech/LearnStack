@@ -782,6 +782,8 @@ export interface components {
             version: string;
             /** @enum {string} */
             deliveryStatus: "Queued" | "SubmissionAccepted" | "Failed" | "Unresolved" | "Unavailable";
+            /** @enum {null|string} */
+            acceptanceDisposition: "created" | "already_member" | null;
         };
         MembershipDetailResponse: {
             /** Format: uuid */

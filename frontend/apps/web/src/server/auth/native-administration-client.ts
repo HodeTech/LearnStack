@@ -7,7 +7,7 @@ import type {
   NativeOperationResult,
 } from './native-operation-contract.js';
 
-/** One explicit dispatcher over the generated SDK's 21 operations; no generic HTTP capability escapes. */
+/** One explicit dispatcher over the generated SDK's finite operations; no generic HTTP capability escapes. */
 export function createNativeAdministrationCaller(
   configuration: NativeApiConfiguration,
   transport: typeof fetch,
@@ -44,6 +44,47 @@ export function createNativeAdministrationCaller(
           ...read,
           cursor: operation.cursor,
           limit: operation.limit,
+        });
+        break;
+      case 'listInvitations':
+        result = await sdk.listInvitations({
+          ...read,
+          cursor: operation.cursor,
+          limit: operation.limit,
+        });
+        break;
+      case 'getInvitation':
+        result = await sdk.getInvitation(operation.id, read);
+        break;
+      case 'listInvitableRoles':
+        result = await sdk.listInvitableRoles(read);
+        break;
+      case 'getInvitationPolicy':
+        result = await sdk.getInvitationPolicy(read);
+        break;
+      case 'createInvitation':
+        result = await sdk.createInvitation(operation.invitation, {
+          idempotencyKey: operation.idempotencyKey,
+          signal,
+        });
+        break;
+      case 'revokeInvitation':
+        result = await sdk.revokeInvitation(
+          operation.id,
+          write(operation.version, operation.idempotencyKey),
+        );
+        break;
+      case 'reissueInvitation':
+        result = await sdk.reissueInvitation(
+          operation.id,
+          write(operation.version, operation.idempotencyKey),
+        );
+        break;
+      case 'setInvitationLifetime':
+        result = await sdk.setInvitationLifetime(operation.days, {
+          precondition: operation.precondition,
+          idempotencyKey: operation.idempotencyKey,
+          signal,
         });
         break;
       case 'getMembership':

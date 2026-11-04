@@ -111,12 +111,24 @@ function mutationEdits(
     roleIds: copy('mutation.edit_role_ids'),
     grants: copy('mutation.edit_grants'),
     manifestVersion: copy('mutation.edit_manifest_version'),
+    email: admin('invitations.recipient'),
+    offeredRole: admin('invitations.offered_role'),
+    days: admin('invitations.policy_days'),
+    presence: admin('invitations.policy_title'),
   };
   const edits = page.fields
     .filter(([name]) => Object.hasOwn(labels, name))
     .map(([name, value]) => {
       let visible = value;
-      if (name === 'roleIds') {
+      if (name === 'offeredRole') {
+        const role = page.roleLabels?.find((role) => role.roleId === value.split('.', 1)[0]);
+        visible = role ? roleLabel(role, admin) : admin('invitations.role_unavailable');
+      } else if (name === 'presence') {
+        visible =
+          value === 'absent'
+            ? admin('invitations.policy_default')
+            : admin('invitations.policy_stored');
+      } else if (name === 'roleIds') {
         const ids: unknown = JSON.parse(value);
         const named = Array.isArray(ids)
           ? ids.map((id) => page.roleLabels?.find((role) => role.roleId === id))
@@ -149,6 +161,9 @@ function mutationContent(
   locale: string,
   site: PageSite,
 ): string {
+  if (page.reason === 'validation' && page.action.startsWith('/api/studio/invitation-')) {
+    return `<p role="alert">${escape(copy('mutation.validation'))}</p>${mutationEdits(page, copy, locale)}<p><a href="${escape(page.destination)}">${escape(copy('mutation.lookup'))}</a></p>`;
+  }
   if (page.reason === 'validation') {
     const { profile } = createAdministrationTranslator(locale);
     const values = new Map(page.fields);

@@ -71,7 +71,7 @@ public sealed class InvitationsController(ISender sender, ITenantContext tenant)
     }
     private static InvitationResponse Project(InvitationDto row) => new(row.InvitationId.ToString("D"), row.Email, row.OrganizationId?.Value.ToString("D"),
         row.RoleId.ToString("D"), AdministrationHttpInput.Version(row.RoleVersion), row.Status, row.ExpiresAt.ToString("O", CultureInfo.InvariantCulture),
-        AdministrationHttpInput.Version(row.Version), row.DeliveryStatus);
+        AdministrationHttpInput.Version(row.Version), row.DeliveryStatus, row.AcceptanceDisposition);
 }
 
 [Route("identity/invitable-roles")]

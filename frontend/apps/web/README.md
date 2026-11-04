@@ -147,6 +147,40 @@ There is **no `extensions/` folder for vertical-provided components** — per
 tenant-specific renderers are composite renderer keys resolved by
 [`src/lib/customization/`](src/lib/customization/) against a closed set.
 
+## Invitations
+
+[ADR-0093](../../../docs/decisions/0093-verified-invitation-acceptance-and-handoff.md)
+adds the bounded invitation experience to the native owner. The
+[Phase 03 Status block](../../../docs/roadmap/phase-03-identity-admin.md) records
+implementation and qualification. Its exact routes, private custody and
+publication rules live in
+[Frontend Architecture](../../../docs/standards/07-frontend-architecture.md#verified-invitation-experience).
+
+- Studio invitation forms use the current admitted tenant or branch. Create
+  queues automatic email; it does not return a link for the administrator to
+  share. Reissue explicitly replaces the code. An old message may still arrive
+  and unresolved old work retains capacity.
+- Queueing, SMTP submission acceptance and membership acceptance are different
+  outcomes. SMTP acceptance does not mean inbox delivery. Already-member
+  acceptance preserves the existing Roles and profile; the displayed Role is
+  the offered Role, not evidence of an assignment change.
+- The email opens `/invitations` with its code only in the fragment. The minimal
+  native landing removes the fragment before capture and precedes Next/RSC.
+  For JavaScript-disabled use, open the clean `/invitations` address and paste
+  the separately supplied code. No-JavaScript navigation cannot itself scrub
+  an existing fragment.
+- Signin, explicit application-account creation, email verification, invitation
+  acceptance and tenant-session admission are separate steps. A wrong live
+  account is not silently replaced. After a lost result, use the explicit
+  original-result recovery; reopening the email recovers lost volatile custody.
+
+The API requires the operator-configured
+[invitation SMTP settings and key ring](../../../docs/modules/identity/providers.md#configuration-surface-and-source-bindings).
+Keycloak's verification sender is separate; complete its
+[verification setup](../../../infra/keycloak/README.md#invitation-email-and-recipient-verification)
+as well. A working login with an unverified seed account or a configured
+invitation sender does not qualify a real new-user verification journey.
+
 ## Customization Runtime (ADR-0018)
 
 [`src/lib/customization/`](src/lib/customization/) holds the runtime resolver for

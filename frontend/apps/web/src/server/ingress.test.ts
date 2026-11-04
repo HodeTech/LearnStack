@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { IncomingMessage } from 'node:http';
 import { createServer, request } from 'node:https';
 import { Socket } from 'node:net';
@@ -294,8 +294,10 @@ describe('private local configuration', () => {
     const projectionDirectory = join(directory, 'frontend/apps/web');
     mkdirSync(projectionDirectory, { recursive: true });
     const projectionPath = join(projectionDirectory, '.env.local');
-    writeFileSync(join(directory, '.env'), identitySource);
-    writeFileSync(projectionPath, identitySource);
+    writeFileSync(join(directory, '.env'), identitySource, { mode: 0o600 });
+    writeFileSync(projectionPath, identitySource, { mode: 0o600 });
+    chmodSync(join(directory, '.env'), 0o600);
+    chmodSync(projectionPath, 0o600);
     expect(loadLocalEnvironment(directory, identityPair, options)).toMatchObject(identityPair);
     for (const key of Object.keys(identityPair)) {
       expect(() =>
@@ -322,13 +324,17 @@ describe('private local configuration', () => {
         partial === 'root'
           ? 'Identity__AuthorityId=' + identityPair.Identity__AuthorityId
           : identitySource,
+        { mode: 0o600 },
       );
       writeFileSync(
         projectionPath,
         partial === 'projection'
           ? 'Authentication__Tenant__Issuer=' + identityPair.Authentication__Tenant__Issuer
           : '',
+        { mode: 0o600 },
       );
+      chmodSync(rootPath, 0o600);
+      chmodSync(projectionPath, 0o600);
       const ambient =
         partial === 'ambient' ? { Identity__AuthorityId: identityPair.Identity__AuthorityId } : {};
       expect(() => loadLocalEnvironment(directory, ambient, { apiAuthentication: true })).toThrow(

@@ -57,7 +57,9 @@ export async function admitBffHttp(
     if (location?.startsWith('/')) {
       if (
         !isNativeReturnPath(location) &&
-        !['/api/auth/entry', '/api/auth/signin'].includes(location)
+        !['/api/auth/entry', '/api/auth/signin', '/invitations', '/invitations/confirm'].includes(
+          location,
+        )
       )
         throw new Error('BFF response destination unavailable');
       headers.set('location', 'https://' + context.host + location);

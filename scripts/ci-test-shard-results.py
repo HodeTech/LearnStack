@@ -51,6 +51,8 @@ _FIXTURE_IMAGE_COMPONENTS = (
     ('keycloak', 'quay.io/keycloak/keycloak:26.6.2'),
     ('postgres', 'postgres:18.4-alpine'),
     ('pgbouncer', 'edoburu/pgbouncer:v1.26.0-p0'),
+    # ADR-0093's nonseed verification fixture uses real SMTP before its journey.
+    ('mailpit', 'axllent/mailpit:v1.29.7'),
 )
 FIXTURE_IMAGES = tuple(image for _, image in _FIXTURE_IMAGE_COMPONENTS)
 

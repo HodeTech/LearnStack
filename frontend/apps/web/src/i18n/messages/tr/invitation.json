@@ -1,0 +1,59 @@
+{
+  "common": {
+    "title": "Davet",
+    "skip": "İçeriğe geç",
+    "cancel": "Daveti iptal et",
+    "home": "Kurum sitesine dön",
+    "signout": "Başka bir hesap kullanmak için çıkış yap"
+  },
+  "landing": {
+    "title": "Davetinizi açın",
+    "description": "E-postanızdaki davetle devam edin veya aynı e-postadaki kodun tamamını aşağıya yapıştırın.",
+    "code_label": "Davet kodu",
+    "continue": "Devam et",
+    "no_script": "JavaScript kapalı. Temiz /invitations adresini açıp e-postadaki ayrı kodu yapıştırın. Adresteki parça, JavaScript olmadan otomatik olarak kaldırılamaz.",
+    "invalid": "Bu davet kodu geçerli değil. İlk e-postadaki kodun tamamını yapıştırın."
+  },
+  "confirm": {
+    "signin": "Davetin gönderildiği hesapla giriş yapın. Giriş sayfasından yeni bir hesap da oluşturabilirsiniz.",
+    "signin_action": "Giriş yap veya hesap oluştur",
+    "bootstrap": "Devam etmek için LearnStack kimliğinizi oluşturun. Bu işlem henüz kuruma üye olmanızı sağlamaz.",
+    "bootstrap_action": "LearnStack kimliğimi oluştur",
+    "inspect": "Daveti hesabınızın güncel, doğrulanmış e-posta adresiyle kontrol edin.",
+    "inspect_action": "Daveti kontrol et",
+    "forbidden": "Bu hesap şu anda daveti doğrulayamıyor. E-postanızı doğrulayın veya çıkış yapıp davetin gönderildiği hesabı kullanın.",
+    "verify_action": "E-postamı doğrula",
+    "verification_hint": "E-posta doğrulamasını tamamladıktan sonra buraya dönüp daveti yeniden kontrol edin. E-posta doğrulaması tek başına daveti kabul etmez.",
+    "ready": "Kabul etmeden önce doğrulanmış hesabınızı ve sunulan üyeliği kontrol edin.",
+    "email": "Doğrulanmış e-posta adresiniz",
+    "institution": "Kurum",
+    "branch": "Şube",
+    "tenant_scope": "Kurum genelinde",
+    "offered_role": "Sunulan rol",
+    "expires": "Davetin son geçerlilik zamanı",
+    "accept": "Daveti kabul et",
+    "accepted": "Davetiniz kabul edildi ve üyeliğiniz oluşturuldu.",
+    "already_member": "Bu kapsamda zaten etkin bir üyeliğiniz var. Davet kabul edildi; mevcut rolleriniz ve profiliniz değişmedi.",
+    "session_ready": "Oturumunuz hazır. Kurum sitesinden devam edebilirsiniz.",
+    "session_unavailable": "Üyeliğiniz onaylandı ancak oturum açılamadı. Oturum açmayı yeniden denemek için kabul sonucunu kontrol edin.",
+    "result_action": "Kabul sonucunu kontrol et",
+    "continue": "Hesabınıza devam edin"
+  },
+  "failure": {
+    "unknown": "Kabul işleminin sonucu doğrulanamadı. Başka bir işlem yapmadan önce sonucu kontrol edin; bu işlem yeni bir kabul isteği göndermez.",
+    "unavailable": "Davet hizmeti geçici olarak kullanılamıyor. Hazır olduğunuzda yeniden deneyin.",
+    "expired": "Bu davete devam etme süresi sona erdi. Yeniden başlamak için ilk e-postayı açın. Süresi dolan veya yenilenen bir davet için kurumdan yeni bir e-posta gerekir.",
+    "account_change": "Giriş yapılan hesap değişti. Mevcut oturumunuz korundu. Başka bir hesapla devam etmeden önce açıkça çıkış yapın.",
+    "restart": "Yeni bir davet aç",
+    "retry": "Yeniden dene"
+  },
+  "roles": {
+    "tenant_admin": "Kurum yöneticisi",
+    "instructor": "Eğitmen",
+    "learner": "Öğrenci",
+    "guardian": "Veli",
+    "editor": "Editör",
+    "org_admin": "Şube yöneticisi",
+    "org_instructor": "Şube eğitmeni"
+  }
+}

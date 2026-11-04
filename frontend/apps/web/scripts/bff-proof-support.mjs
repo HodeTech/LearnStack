@@ -242,9 +242,13 @@ export function rememberBffCookies(headers, canaries) {
     const transaction = /^(?:__Host-ls-login-|__Host-ls-logout-)([A-Za-z0-9_-]{43})$/.exec(name);
     assert.ok(
       transaction ||
-        ['__Host-ls-session', '__Host-ls-browser', '__Host-ls-csrf', '__Host-ls-entry'].includes(
-          name,
-        ),
+        [
+          '__Host-ls-session',
+          '__Host-ls-browser',
+          '__Host-ls-csrf',
+          '__Host-ls-entry',
+          '__Host-ls-invitation',
+        ].includes(name),
     );
     for (const secret of transaction ? [transaction[1], value] : [value]) {
       if (canaries.includes(secret)) continue;

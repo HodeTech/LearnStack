@@ -678,7 +678,8 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
         }
     }
 
-    private static ApiHost StartApi(IdentityPublicReadFixture database, string secret, string nativeSourceSecret, KeycloakFixture provider)
+    private static ApiHost StartApi(IdentityPublicReadFixture database, string secret, string nativeSourceSecret, KeycloakFixture provider,
+        bool invitationMail = false)
     {
         var observation = new TenantRealmApiObservation();
         var accountResponses = new AccountResponseObservation();
@@ -691,11 +692,22 @@ public sealed partial class TenantBffSessionTests(PublicReadFixture publicDataba
             builder.UseSetting("Identity:NativeSession:CurrentSecret", nativeSourceSecret);
             builder.UseSetting("Identity:NativeSession:HttpsPort", "3000");
             builder.UseSetting("Identity:SelfBootstrap:Enabled", "true");
+            if (invitationMail)
+            {
+                builder.UseSetting("InvitationEmail:Smtp:Host", "127.0.0.1");
+                builder.UseSetting("InvitationEmail:Smtp:Port", provider.InvitationSmtpPort.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                builder.UseSetting("InvitationEmail:Smtp:Sender", "invitations@example.test");
+                builder.UseSetting("InvitationEmail:Smtp:Tls", "DevelopmentPlaintext");
+                builder.UseSetting("InvitationEmail:Smtp:Username", "");
+                builder.UseSetting("InvitationEmail:Smtp:Password", "");
+            }
             builder.ConfigureTestServices(services =>
             {
                 services.AddSingleton<IStartupFilter>(accountResponses);
                 services.AddSingleton<IStartupFilter>(faults);
                 services.Replace(ServiceDescriptor.Singleton(_ => new TenantAuthenticationBackchannel(KeycloakHttp.CreateHandler(provider.RootCertificate))));
+                if (invitationMail)
+                    services.Replace(ServiceDescriptor.Singleton(_ => new CurrentInvitationRecipientBackchannel(KeycloakHttp.CreateHandler(provider.RootCertificate))));
                 services.AddScoped<ObservedPublicConfigurationReader>();
                 services.AddScoped<IPublicTenantConfigurationReader>(scope => new TenantRealmContextReader(
                     scope.GetRequiredService<ObservedPublicConfigurationReader>(), scope.GetRequiredService<ITenantContext>(),

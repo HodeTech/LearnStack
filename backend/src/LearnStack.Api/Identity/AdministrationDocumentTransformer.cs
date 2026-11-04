@@ -254,11 +254,15 @@ internal sealed class AdministrationDocumentTransformer : IOpenApiDocumentTransf
         schemas["InvitationAcceptanceResponse"] = Object(("invitationId", Uuid()), ("version", Version()),
             ("membershipId", Uuid()), ("disposition", Enum("created", "already_member")),
             ("tenantId", Uuid()), ("organizationId", Uuid(true)));
+        var acceptanceDisposition = Enum("created", "already_member");
+        acceptanceDisposition.Type = JsonSchemaType.String | JsonSchemaType.Null;
+        acceptanceDisposition.Enum!.Add(null!);
         schemas["InvitationResponse"] = Object(("invitationId", Uuid()), ("email", Text(false, 254)),
             ("organizationId", Uuid(true)), ("roleId", Uuid()), ("roleVersion", Version()),
             ("status", Enum("Pending", "Accepted", "Revoked", "Expired")),
             ("expiresAt", new OpenApiSchema { Type = JsonSchemaType.String, Format = "date-time" }),
-            ("version", Version()), ("deliveryStatus", Enum("Queued", "SubmissionAccepted", "Failed", "Unresolved", "Unavailable")));
+            ("version", Version()), ("deliveryStatus", Enum("Queued", "SubmissionAccepted", "Failed", "Unresolved", "Unavailable")),
+            ("acceptanceDisposition", acceptanceDisposition));
         schemas["InvitationPage"] = Object(("items", Array(Ref("InvitationResponse"), 100)), ("pageInfo", Ref("PageInfo")));
         schemas["InvitableRoleDirectory"] = Object(("items", Array(Ref("RoleSummaryResponse"), 8)));
         var nullableVersion = Version();

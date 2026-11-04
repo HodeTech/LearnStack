@@ -234,7 +234,9 @@ export function createTenantProvider(input: ProviderInput, transport: typeof fet
   }
 
   return Object.freeze({
-    async begin(callbackUri: string, signal?: AbortSignal) {
+    async begin(callbackUri: string, signal?: AbortSignal, purpose?: 'verify_email') {
+      if (purpose !== undefined && purpose !== 'verify_email')
+        throw new BffProviderError('configuration');
       browserReturn(callbackUri, '/api/auth/callback/keycloak');
       return perform(signal, async (operation) => {
         const config = await configuration(operation);
@@ -247,6 +249,7 @@ export function createTenantProvider(input: ProviderInput, transport: typeof fet
         const url = oidc.buildAuthorizationUrl(config, {
           redirect_uri: callbackUri,
           scope: 'openid profile email',
+          ...(purpose === 'verify_email' ? { kc_action: 'VERIFY_EMAIL' } : {}),
           code_challenge_method: 'S256',
           code_challenge: await oidc.calculatePKCECodeChallenge(transaction.verifier),
           state: transaction.state,

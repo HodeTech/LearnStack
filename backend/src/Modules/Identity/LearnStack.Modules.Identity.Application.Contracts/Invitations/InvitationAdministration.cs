@@ -8,7 +8,7 @@ using MediatR;
 namespace LearnStack.Modules.Identity.Application.Contracts.Invitations;
 
 public sealed record InvitationDto(Guid InvitationId, [property: PiiSensitive] string Email, OrganizationId? OrganizationId,
-    Guid RoleId, long RoleVersion, string Status, DateTimeOffset ExpiresAt, long Version, string DeliveryStatus)
+    Guid RoleId, long RoleVersion, string Status, DateTimeOffset ExpiresAt, long Version, string DeliveryStatus, string? AcceptanceDisposition)
 {
     public override string ToString() => nameof(InvitationDto);
 }

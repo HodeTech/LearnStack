@@ -166,6 +166,7 @@ function invitation(value: unknown): boolean {
       'expiresAt',
       'version',
       'deliveryStatus',
+      'acceptanceDisposition',
     ]) &&
     identifier(value.invitationId) &&
     invitationEmail(value.email) &&
@@ -180,7 +181,11 @@ function invitation(value: unknown): boolean {
     typeof value.deliveryStatus === 'string' &&
     ['Queued', 'SubmissionAccepted', 'Failed', 'Unresolved', 'Unavailable'].includes(
       value.deliveryStatus,
-    )
+    ) &&
+    (value.status === 'Accepted'
+      ? value.acceptanceDisposition === 'created' ||
+        value.acceptanceDisposition === 'already_member'
+      : value.acceptanceDisposition === null)
   );
 }
 function pageInfo(value: unknown): boolean {

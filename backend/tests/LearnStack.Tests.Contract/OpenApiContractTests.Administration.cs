@@ -102,7 +102,12 @@ public sealed partial class OpenApiContractTests
             ("organizationId", AdminUuid(true)), ("roleId", AdminUuid()), ("roleVersion", AdminVersion()),
             ("status", AdminEnum("Pending", "Accepted", "Revoked", "Expired")),
             ("expiresAt", new JsonObject { ["type"] = "string", ["format"] = "date-time" }), ("version", AdminVersion()),
-            ("deliveryStatus", AdminEnum("Queued", "SubmissionAccepted", "Failed", "Unresolved", "Unavailable"))),
+            ("deliveryStatus", AdminEnum("Queued", "SubmissionAccepted", "Failed", "Unresolved", "Unavailable")),
+            ("acceptanceDisposition", new JsonObject
+            {
+                ["type"] = new JsonArray("string", "null"),
+                ["enum"] = new JsonArray("created", "already_member", null)
+            })),
         ["InvitationPage"] = AdminObject(("items", AdminArray(AdminRef("InvitationResponse"), 100)), ("pageInfo", AdminRef("PageInfo"))),
         ["InvitableRoleDirectory"] = AdminObject(("items", AdminArray(AdminRef("RoleSummaryResponse"), 8))),
         ["InvitationPolicyResponse"] = AdminObject(("days", AdminLifetimeDays()), ("present", AdminBoolean()),

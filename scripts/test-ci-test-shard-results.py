@@ -338,34 +338,42 @@ class AggregateControls(unittest.TestCase):
                 self.refuses('assignment_not_distinct', RESULTS.validate_outputs,
                              paths, self.context(), self.plan, scope)
 
-    def fixture_images(self, provider, database, pooler):
+    def fixture_images(self, provider, database, pooler, mail):
         provider_images = re.findall(r'\bconst string Image = "([^"\n]+)";', provider)
         database_images = re.findall(r'new PostgreSqlBuilder\("([^"\n]+)"\)', database)
         provider_databases = re.findall(r'new PostgreSqlBuilder\("([^"\n]+)"\)', provider)
         pooler_images = re.findall(r'\bconst string PgBouncerImage = "([^"\n]+)";', pooler)
+        mail_images = re.findall(r'_invitationMail = new ContainerBuilder\("([^"\n]+)"\)', mail)
         self.assertEqual(1, len(provider_images))
         self.assertEqual(1, len(re.findall(r'new ContainerBuilder\(Image\)', provider)))
         self.assertEqual(1, len(database_images))
         self.assertEqual(database_images, provider_databases)
         self.assertEqual(1, len(pooler_images))
         self.assertEqual(1, len(re.findall(r'new ContainerBuilder\(PgBouncerImage\)', pooler)))
-        return tuple(provider_images + database_images + pooler_images)
+        self.assertEqual(1, len(mail_images))
+        return tuple(provider_images + database_images + pooler_images + mail_images)
 
-    def test_prepared_images_match_actual_provider_database_and_pooler_constructor_inputs(self):
+    def test_prepared_images_match_actual_provider_database_pooler_and_mail_constructor_inputs(self):
         provider = (ROOT / 'backend/tests/LearnStack.Tests.Integration/TenancyIdentity/KeycloakFixture.cs').read_text()
         database = (ROOT / 'backend/tests/LearnStack.Tests.Integration/Database/PostgresFixture.cs').read_text()
         pooler = (ROOT / 'backend/tests/LearnStack.Tests.Integration/Database/AuthorizationPoolProgressFixture.cs').read_text()
-        self.assertEqual(self.fixture_images(provider, database, pooler), RESULTS.FIXTURE_IMAGES)
+        mail = (ROOT / 'backend/tests/LearnStack.Tests.Integration/TenancyIdentity/KeycloakFixture.InvitationMail.cs').read_text()
+        self.assertEqual(self.fixture_images(provider, database, pooler, mail), RESULTS.FIXTURE_IMAGES)
         with self.assertRaises(AssertionError):
             self.fixture_images(provider.replace('new ContainerBuilder(Image)',
-                'new ContainerBuilder("unapproved:latest")'), database, pooler)
+                'new ContainerBuilder("unapproved:latest")'), database, pooler, mail)
         for changed in (
                 pooler.replace('const string PgBouncerImage =', 'const string UnusedImage ='),
                 pooler.replace('new ContainerBuilder(PgBouncerImage)', 'new ContainerBuilder("unapproved:latest")')):
             with self.subTest(source='missing_const_or_actual_argument'), self.assertRaises(AssertionError):
-                self.fixture_images(provider, database, changed)
+                self.fixture_images(provider, database, changed, mail)
         changed = pooler.replace('edoburu/pgbouncer:v1.26.0-p0', 'edoburu/pgbouncer:latest')
-        self.assertNotEqual(self.fixture_images(provider, database, changed), RESULTS.FIXTURE_IMAGES)
+        self.assertNotEqual(self.fixture_images(provider, database, changed, mail), RESULTS.FIXTURE_IMAGES)
+        changed = mail.replace('_invitationMail = new ContainerBuilder(', '_unusedMail = new ContainerBuilder(')
+        with self.assertRaises(AssertionError):
+            self.fixture_images(provider, database, pooler, changed)
+        changed = mail.replace('axllent/mailpit:v1.29.7', 'axllent/mailpit:latest')
+        self.assertNotEqual(self.fixture_images(provider, database, pooler, changed), RESULTS.FIXTURE_IMAGES)
 
     def assert_sidecar_inventory(self, solution, integration, name, directory):
         relative = f'tests/LearnStack.Tests.{name}/LearnStack.Tests.{name}.csproj'
@@ -457,17 +465,17 @@ class AggregateControls(unittest.TestCase):
         with self.fixture_preparation() as (command, output):
             self.assertEqual(0, RESULTS.prepare_fixture_images('ordinary-0'))
         self.assertEqual(('quay.io/keycloak/keycloak:26.6.2', 'postgres:18.4-alpine',
-                          'edoburu/pgbouncer:v1.26.0-p0'), RESULTS.FIXTURE_IMAGES)
+                          'edoburu/pgbouncer:v1.26.0-p0', 'axllent/mailpit:v1.29.7'), RESULTS.FIXTURE_IMAGES)
         pulls = [call for call in command.call_args_list if call.args[0][0] == RESULTS.OWNER.DOCKER]
         self.assertEqual([mock.call(['/usr/bin/docker', 'pull', image], 610,
                                     'fixture_image_pull_failed_' + component, cap=55, diagnose=True)
-                          for component, image in zip(('keycloak', 'postgres', 'pgbouncer'), RESULTS.FIXTURE_IMAGES)], pulls)
+                          for component, image in zip(('keycloak', 'postgres', 'pgbouncer', 'mailpit'), RESULTS.FIXTURE_IMAGES)], pulls)
         self.assertEqual(RESULTS.OWNER.GIT, command.call_args_list[0].args[0][0])
         self.assertEqual({'protocol': 1, 'fixtureImagePreparationSeconds': 0,
             'images': [{'image': image, 'pullSeconds': 0} for image in RESULTS.FIXTURE_IMAGES]},
             json.loads(output.getvalue()))
         self.assertNotIn('PRIVATE-CANARY', output.getvalue())
-        for index, component in enumerate(('keycloak', 'postgres', 'pgbouncer')):
+        for index, component in enumerate(('keycloak', 'postgres', 'pgbouncer', 'mailpit')):
             reason = 'fixture_image_pull_failed_' + component + '_rate_limit'
             responses = iter([b'PRIVATE-CANARY'] * index + [RESULTS.OWNER.Refusal(reason)])
             def pull(*args, **kwargs):
@@ -486,14 +494,15 @@ class AggregateControls(unittest.TestCase):
             with self.fixture_preparation(elapsed=elapsed) as (command, _):
                 self.assertEqual(0, RESULTS.prepare_fixture_images('ordinary-0'))
                 pulls = [call for call in command.call_args_list if call.args[0][0] == RESULTS.OWNER.DOCKER]
-                self.assertEqual(3, len(pulls))
+                self.assertEqual(4, len(pulls))
                 self.assertTrue(all(call.args[1] == 500 + min(110,
                     RESULTS.OWNER.ORDINARY_JOB_SECONDS - RESULTS.OWNER.RESERVE_SECONDS - elapsed) for call in pulls))
                 self.assertTrue(all(call.kwargs == {'cap': 55, 'diagnose': True} for call in pulls))
-        for images in ((), RESULTS.FIXTURE_IMAGES[:2], RESULTS.FIXTURE_IMAGES[1:], RESULTS.FIXTURE_IMAGES[::2],
+        for images in ((), RESULTS.FIXTURE_IMAGES[:2], RESULTS.FIXTURE_IMAGES[:3], RESULTS.FIXTURE_IMAGES[1:], RESULTS.FIXTURE_IMAGES[::2],
                 tuple(reversed(RESULTS.FIXTURE_IMAGES)), RESULTS.FIXTURE_IMAGES + ('unapproved:latest',),
                 ('one', 'two', 'three'), (*RESULTS.FIXTURE_IMAGES[:2], RESULTS.FIXTURE_IMAGES[1]),
-                (*RESULTS.FIXTURE_IMAGES[:2], 'edoburu/pgbouncer:latest'), list(RESULTS.FIXTURE_IMAGES)):
+                (*RESULTS.FIXTURE_IMAGES[:2], 'edoburu/pgbouncer:latest'),
+                (*RESULTS.FIXTURE_IMAGES[:3], 'axllent/mailpit:latest'), list(RESULTS.FIXTURE_IMAGES)):
             with self.fixture_preparation() as (command, _), mock.patch.object(RESULTS, 'FIXTURE_IMAGES', images):
                 self.refuses('fixture_setup_images_invalid', RESULTS.prepare_fixture_images, 'ordinary-0')
                 self.assertFalse(any(call.args[0][0] == RESULTS.OWNER.DOCKER for call in command.call_args_list))
@@ -501,9 +510,9 @@ class AggregateControls(unittest.TestCase):
             self.refuses('fixture_setup_deadline_exhausted', RESULTS.prepare_fixture_images, 'ordinary-0')
             self.assertFalse(any(call.args[0][0] == RESULTS.OWNER.DOCKER for call in command.call_args_list))
 
-    def test_three_pull_calls_publish_exact_metadata_under_one_unchanged_total_deadline(self):
+    def test_four_pull_calls_publish_exact_metadata_under_one_unchanged_total_deadline(self):
         state = {'now': 500, 'pulls': []}
-        durations = (12.125, 0.25, 40)
+        durations = (12.125, 0.25, 40, 3.5)
         def pull(argv, deadline, reason, **kwargs):
             state['pulls'].append((argv, deadline, reason, kwargs))
             state['now'] += durations[len(state['pulls']) - 1]
@@ -513,7 +522,7 @@ class AggregateControls(unittest.TestCase):
         self.assertEqual({'protocol': 1, 'fixtureImagePreparationSeconds': sum(durations),
             'images': [{'image': image, 'pullSeconds': seconds}
                        for image, seconds in zip(RESULTS.FIXTURE_IMAGES, durations)]}, json.loads(output.getvalue()))
-        self.assertEqual([610, 610, 610], [call[1] for call in state['pulls']])
+        self.assertEqual([610, 610, 610, 610], [call[1] for call in state['pulls']])
         self.assertTrue(all(call[3] == {'cap': 55, 'diagnose': True} for call in state['pulls']))
         self.assertNotIn('PRIVATE-CANARY', output.getvalue())
         def exhaust(*args, **kwargs):
@@ -521,7 +530,7 @@ class AggregateControls(unittest.TestCase):
         state['now'] = 500
         with self.fixture_preparation(pull=exhaust, monotonic=lambda: state['now']) as (_, output):
             self.refuses('fixture_setup_deadline_exhausted', RESULTS.prepare_fixture_images, 'ordinary-0')
-        self.assertEqual('', output.getvalue(), 'an incomplete three-image preparation publishes no success metadata')
+        self.assertEqual('', output.getvalue(), 'an incomplete four-image preparation publishes no success metadata')
 
     def test_fixture_preparation_verifies_closed_mode_source_and_runner_before_any_pull(self):
         for mode in ('base', 'native-shard', 'ordinary', 'ordinary-00', 'ordinary--1',

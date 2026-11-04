@@ -4,7 +4,7 @@ using LearnStack.SharedKernel.Pagination;
 namespace LearnStack.Api.Identity;
 
 public sealed record InvitationResponse(string InvitationId, [property: PiiSensitive] string Email, string? OrganizationId,
-    string RoleId, string RoleVersion, string Status, string ExpiresAt, string Version, string DeliveryStatus)
+    string RoleId, string RoleVersion, string Status, string ExpiresAt, string Version, string DeliveryStatus, string? AcceptanceDisposition)
 {
     public override string ToString() => nameof(InvitationResponse);
 }

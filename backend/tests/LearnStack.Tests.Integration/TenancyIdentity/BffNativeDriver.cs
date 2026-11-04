@@ -7,11 +7,13 @@ namespace LearnStack.Tests.Integration.TenancyIdentity;
 internal sealed class BffNativeDriver : IAsyncDisposable
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+    private static readonly string[] InvitationBrowserWitnesses = ["script", "noScript", "exactOrigin", "networkPrivateFree", "browserPrivateFree", "historyPrivateFree"];
     private static readonly string[] ErrorStages = (new[] { "input", "input-issuer", "input-api", "input-secrets", "input-sites", "setup", "compile", "build", "start", "command", "request", "request-deadline", "request-connect", "request-tls", "request-socket", "response-json", "cleanup", "privacy", "native-stop",
                      "cleanup-cdp", "cleanup-disconnect", "cleanup-browser-wait", "cleanup-browser-stop", "cleanup-browser-forced", "cleanup-browser-exit", "cleanup-browser-signal", "cleanup-native-shutdown", "cleanup-native-wait", "cleanup-native-stop", "cleanup-native-forced", "cleanup-owner", "cleanup-native-exit", "cleanup-native-signal",
                      "browser-administration-pages", "browser-no-script",
                      "browser-no-script-hidden-render", "browser-no-script-missing-form", "browser-no-script-invisible-form", "browser-no-script-native-buttons", "browser-no-script-native-profile-form",
                      "browser-no-script-anonymous", "browser-no-script-signin", "browser-no-script-confirm", "browser-no-script-select", "browser-no-script-controls", "browser-no-script-submit", "browser-no-script-origin", "browser-no-script-result", "browser-no-script-cache", "browser-no-script-saved", "browser-no-script-privacy", "browser-no-script-signout", "browser-no-script-headers", "browser-launch", "browser-anonymous", "browser-signin-document", "browser-submit", "browser-entry-confirmation", "browser-origin-null", "browser-origin-absent", "browser-origin-other", "browser-storage", "browser-extension", "browser-logout-submit", "browser-logout-origin", "browser-logout-origin-null", "browser-logout-origin-other", "browser-logout-response", "browser-logout-location", "browser-logout-navigation", "browser-logout-cookie-header", "browser-logout-cookie", "browser-back-revalidation", "browser-history-setup", "browser-history-revalidation", "browser-headers",
+                     "browser-invitation-capture", "browser-invitation-noscript", "browser-invitation-origin", "browser-invitation-confirm", "browser-invitation-history", "browser-invitation-cancel",
                      "browser-executable", "browser-spawn", "browser-devtools", "browser-devtools-inactive",
                      "browser-devtools-unreadable", "browser-devtools-missing", "browser-devtools-empty", "browser-devtools-malformed",
                      "browser-not-live", "browser-connect", "browser-context" }
@@ -204,6 +206,21 @@ internal sealed class BffNativeDriver : IAsyncDisposable
         catch { throw new InvalidOperationException("BFF entry browser receipt has an invalid closed shape."); }
     }
 
+    internal async Task InvitationBrowserAsync(string host, string code)
+    {
+        await WriteAsync(new { protocol = 1, action = "invitation-browser", host, cookie = "", code });
+        var reply = await ReadAsync("invitation_browser");
+        try
+        {
+            if (string.Join(',', reply.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal))
+                != "browserPrivateFree,captures,exactOrigin,historyPrivateFree,networkPrivateFree,noScript,phase,protocol,script"
+                || reply.GetProperty("captures").GetInt32() != 2
+                || InvitationBrowserWitnesses.Any(key => !reply.GetProperty(key).GetBoolean()))
+                throw new InvalidOperationException();
+        }
+        catch { throw new InvalidOperationException("BFF invitation browser receipt lacks its closed positive witnesses."); }
+    }
+
     private async Task WriteAsync(object value)
     {
         try
@@ -218,7 +235,7 @@ internal sealed class BffNativeDriver : IAsyncDisposable
     {
         var lastStage = "input";
         using var responseBudget = CancellationTokenSource.CreateLinkedTokenSource(_deadline.Token);
-        responseBudget.CancelAfter(TimeSpan.FromSeconds(phase is "ready" or "held-build" or "entry_browser" ? 90 : phase == "browser_result" ? 150 : 40));
+        responseBudget.CancelAfter(TimeSpan.FromSeconds(phase is "ready" or "held-build" or "entry_browser" or "invitation_browser" ? 90 : phase == "browser_result" ? 150 : 40));
         try
         {
             for (var count = 0; count < 8; ++count)

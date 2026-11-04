@@ -22,6 +22,7 @@ const row = {
   expiresAt: '2026-11-18T12:00:00.0000000+00:00',
   version,
   deliveryStatus: 'Queued',
+  acceptanceDisposition: null,
 };
 const pageInfo = { nextCursor: null, previousCursor: null, hasNext: false, hasPrevious: false };
 
@@ -196,6 +197,9 @@ describe('bounded invitation administration SDK', () => {
       { ...row, email: 'PERSON@example.invalid' },
       { ...row, status: 'Delivered' },
       { ...row, deliveryStatus: 'Delivered' },
+      { ...row, acceptanceDisposition: 'already_member' },
+      { ...row, status: 'Accepted', acceptanceDisposition: null },
+      { ...row, status: 'Accepted', acceptanceDisposition: 'replaced' },
       { ...row, expiresAt: '2026-02-30T12:00:00Z' },
       { ...row, roleVersion: 1 },
       { ...row, version: 1 },
@@ -204,6 +208,28 @@ describe('bounded invitation administration SDK', () => {
       expect((await sdk.getInvitation(invitationId)).kind).toBe('invalid-response');
     }
   });
+
+  it.each(['created', 'already_member'])(
+    'retains the accepted %s disposition without membership authority',
+    async (acceptanceDisposition) => {
+      const body = { ...row, status: 'Accepted', acceptanceDisposition };
+      const transport = vi.fn<AdministrationFetch>(async () =>
+        json(body, 200, { ETag: '"' + version + '"' }),
+      );
+      expect(
+        await createAdministrationServerSdk(transport).getInvitation(invitationId),
+      ).toMatchObject({
+        kind: 'success',
+        data: { status: 'Accepted', acceptanceDisposition },
+      });
+      transport.mockImplementation(async () =>
+        json({ ...body, membershipId: invitationId }, 200, { ETag: '"' + version + '"' }),
+      );
+      expect(
+        (await createAdministrationServerSdk(transport).getInvitation(invitationId)).kind,
+      ).toBe('invalid-response');
+    },
+  );
 
   it('accepts a delegation-limited Role subset and rejects duplicate or expanded grant summaries', async () => {
     const role = { roleId, builtInKey: 'Learner', capabilityScope: 'Organization', version };

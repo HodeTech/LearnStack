@@ -12,6 +12,7 @@ using LearnStack.SharedKernel.Email;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Persistence;
+using LearnStack.SharedKernel.Localization;
 
 namespace LearnStack.Modules.Identity.Infrastructure.Invitations;
 
@@ -29,7 +30,8 @@ public sealed class InvitationEmailStager(IUnitOfWork unit, ProducerExecution pr
             || !InvitationMailbox.TryNormalize(recipient, out var mailbox)
             || !Uri.TryCreate(entryOrigin, UriKind.Absolute, out var uri) || uri.Scheme != "https"
             || uri.GetLeftPart(UriPartial.Authority) != entryOrigin || uri.UserInfo.Length != 0
-            || locale is not ("en" or "tr") || tenantLabel.Length is < 1 or > 200 || tenantLabel.Any(char.IsControl)
+            || locale is not { Length: > 0 and <= LocaleTag.MaxLength } || !LocaleTag.IsWellFormed(locale)
+            || tenantLabel.Length is < 1 or > 200 || tenantLabel.Any(char.IsControl)
             || lifetimeDays is < 1 or > 30)
             throw new InvalidOperationException("Invitation email staging refused.");
         try { await privacy.RequireAsync(cancellationToken).ConfigureAwait(false); }
@@ -49,10 +51,13 @@ public sealed class InvitationEmailStager(IUnitOfWork unit, ProducerExecution pr
             try { digest = Convert.ToHexStringLower(digestBytes); }
             finally { CryptographicOperations.ZeroMemory(digestBytes); }
             var code = invitationId.Value.ToString("D") + "." + secret;
-            var cleanLink = entryOrigin + "/" + locale + "/invitations";
+            var cleanLink = entryOrigin + "/invitations";
             var link = cleanLink + "#" + code;
-            var title = locale == "tr" ? "LearnStack daveti" : "LearnStack invitation";
-            var lead = locale == "tr" ? "Daveti inceleyin:" : "Review your invitation:";
+            // Mail copy falls back independently; delivery retains the tenant's enabled content tag.
+            var turkish = locale.Equals("tr", StringComparison.OrdinalIgnoreCase)
+                || locale.StartsWith("tr-", StringComparison.OrdinalIgnoreCase);
+            var title = turkish ? "LearnStack daveti" : "LearnStack invitation";
+            var lead = turkish ? "Daveti inceleyin:" : "Review your invitation:";
             var text = tenantLabel + "\n" + lead + "\n" + link + "\n\n" + cleanLink + "\n" + code;
             var html = "<p>" + WebUtility.HtmlEncode(tenantLabel) + "</p><p>" + lead + "</p><p><a href=\""
                 + WebUtility.HtmlEncode(link) + "\">" + title + "</a></p><p>" + WebUtility.HtmlEncode(cleanLink)

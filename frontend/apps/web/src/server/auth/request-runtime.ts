@@ -7,6 +7,7 @@ import type { IngressContext } from '../ingress.js';
 import type { PublicAdmissionHolder, PublicAdmissionRead } from '../public-admission-runtime.js';
 import { BFF_POST_PATHS, bffActivity } from './http-input.js';
 import { bffActionDocumentTarget } from './http-paths.js';
+import type { InvitationResponseLease } from './invitation-session.js';
 import type { NativePageSnapshot, PageSite } from './page-contract.js';
 import { protectPageResponse } from './page-response.js';
 import type { NativePagePreparation, NativeSnapshotTicket } from './page-snapshot-contract.js';
@@ -49,6 +50,7 @@ type Frame = {
   controller: AbortController;
   lease: ResponsePageLease | undefined;
   outputStarted: boolean;
+  nativeAssert?: () => void;
   guarded: boolean;
   cleaned: Promise<void>;
   invalidate: () => void;
@@ -352,6 +354,7 @@ export function createBffRequestRuntime(admission?: Pick<PublicAdmissionHolder, 
         fence = protectPageResponse(
           response as ServerResponse,
           () => {
+            frame.nativeAssert?.();
             if (frame.lease) frame.lease.assertOutput();
             else if (frame.phase === 'closed') unavailable();
             if (frame.page && frame.phase !== 'ready') unavailable();
@@ -411,6 +414,23 @@ export function createBffRequestRuntime(admission?: Pick<PublicAdmissionHolder, 
       return active.size;
     },
     snapshotCounts: pool.counts,
+    nativeResponse(binding: IngressContext): InvitationResponseLease {
+      const frame = current(binding, 'pending');
+      if (!admission || !frame.guarded || frame.outputStarted || frame.lease) return unavailable();
+      const publicRead = admission.read(binding);
+      publicRead.assertActive();
+      return Object.freeze({
+        signal: AbortSignal.any([publicRead.signal, frame.controller.signal]),
+        cleaned: frame.cleaned,
+        pin(assert: () => void) {
+          frame.assertCurrent();
+          publicRead.assertActive();
+          if (frame.outputStarted) return unavailable();
+          frame.nativeAssert = assert;
+          assert();
+        },
+      });
+    },
   });
 }
 

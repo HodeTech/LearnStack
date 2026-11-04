@@ -6,6 +6,7 @@ export { AUTH_INPUT_LIMIT } from './http-paths.js';
 export const BFF_COOKIES = Object.freeze({
   session: '__Host-ls-session',
   entry: '__Host-ls-entry',
+  invitation: '__Host-ls-invitation',
   browser: '__Host-ls-browser',
   csrf: '__Host-ls-csrf',
   login: '__Host-ls-login-',
@@ -15,6 +16,7 @@ const prefix = '__Host-ls-';
 const fixed = new Set<string>([
   BFF_COOKIES.session,
   BFF_COOKIES.entry,
+  BFF_COOKIES.invitation,
   BFF_COOKIES.browser,
   BFF_COOKIES.csrf,
 ]);

@@ -73,6 +73,27 @@ export type PageMemberDetail = PageMember &
     canChangeStatus: boolean;
     canReplaceRoles: boolean;
   }>;
+export type PageInvitation = Readonly<{
+  invitationId: string;
+  email: string;
+  organizationScoped: boolean;
+  inCurrentScope: boolean;
+  offeredRole: PageRole | null;
+  roleVersion: string;
+  version: string;
+  status: 'Pending' | 'Accepted' | 'Revoked' | 'Expired';
+  expiresAt: string;
+  deliveryStatus: 'Queued' | 'SubmissionAccepted' | 'Failed' | 'Unresolved' | 'Unavailable';
+  acceptanceDisposition: 'created' | 'already_member' | null;
+  canReissue: boolean;
+  canRevoke: boolean;
+}>;
+export type PageInvitationPolicy = Readonly<{
+  days: number;
+  present: boolean;
+  version: string | null;
+  canEdit: boolean;
+}>;
 export type PageView =
   | Readonly<{ kind: 'studio' | 'portal' }>
   | Readonly<{
@@ -96,7 +117,17 @@ export type PageView =
       canChangeGrants: boolean;
       canAdoptRelease: boolean;
     }>
-  | Readonly<{ kind: 'profile'; canWrite: boolean }>;
+  | Readonly<{ kind: 'profile'; canWrite: boolean }>
+  | Readonly<{
+      kind: 'invitations';
+      items: readonly PageInvitation[];
+      roles: readonly PageRole[];
+      endCursor: string | null;
+      hasNextPage: boolean;
+      limit: number;
+    }>
+  | Readonly<{ kind: 'invitation'; invitation: PageInvitation }>
+  | Readonly<{ kind: 'invitation_policy'; policy: PageInvitationPolicy }>;
 
 export type NativePageSnapshot = Readonly<{
   target: NativeReturnPath;
@@ -143,7 +174,13 @@ export type NativeActionPage = Readonly<
       destination: string;
       fields: readonly (readonly [string, string])[];
       reason: 'denied' | 'stale' | 'in_progress' | 'key_reuse' | 'unavailable' | 'validation';
-      invalidFields?: readonly ('displayName' | 'preferredLocale')[];
+      invalidFields?: readonly (
+        | 'displayName'
+        | 'preferredLocale'
+        | 'email'
+        | 'offeredRole'
+        | 'days'
+      )[];
       retryable: boolean;
       roleLabels?: readonly Pick<PageRole, 'roleId' | 'builtInKey' | 'capabilityScope'>[];
     }

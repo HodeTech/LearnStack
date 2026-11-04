@@ -20,6 +20,8 @@ import {
   createPrivateScanner,
   fixtureEnvironment,
 } from './fixture-support.mjs';
+import { observeInvitationCapture } from './invitation-proof-browser.mjs';
+import { invitationProofView } from './invitation-proof-view.mjs';
 import { stopTestChild } from './stop-test-child.mjs';
 
 const owner = createFixtureOwner();
@@ -88,14 +90,21 @@ const send = (value) =>
 // This is one fixed browser observation of the real entry endpoint, not a browser
 // command proxy. Its native server, certificate, API and cookie all belong to the
 // same real-provider fixture. Every child remains under the existing EOF owner.
-async function observeEntryBrowser(host, config, command, privateValues) {
+async function observeNativeBrowser(host, config, command, privateValues) {
   const site = config.sites.find((candidate) => candidate.host === command.host);
   assert.ok(site);
-  assert.match(command.subjectKey, /^[0-9a-f]{64}$/);
+  const invitation = command.action === 'invitation-browser';
+  if (invitation) {
+    assert.match(
+      command.code,
+      /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.[A-Za-z0-9_-]{43}$/,
+    );
+    privateValues.push(command.code);
+  } else assert.match(command.subjectKey, /^[0-9a-f]{64}$/);
   assert.ok(typeof command.cookie === 'string' && command.cookie.length <= 16384);
   const origin = 'https://' + site.host;
   const entryUrl = origin + '/api/auth/entry';
-  privateValues.push(command.subjectKey, config.authorityId);
+  if (!invitation) privateValues.push(command.subjectKey, config.authorityId);
   const scanner = createPrivateScanner(privateValues);
   const privateFree = (value) => {
     assert.ok(typeof value === 'string' && Buffer.byteLength(value) <= 256 * 1024);
@@ -120,7 +129,7 @@ async function observeEntryBrowser(host, config, command, privateValues) {
     );
     return url.href;
   };
-  const cookies = command.cookie.split('; ').map((pair) => {
+  const cookies = (invitation ? [] : command.cookie.split('; ')).map((pair) => {
     const separator = pair.indexOf('=');
     const name = pair.slice(0, separator);
     const value = pair.slice(separator + 1);
@@ -129,25 +138,30 @@ async function observeEntryBrowser(host, config, command, privateValues) {
     if (!host.cookieCanaries.includes(value)) host.cookieCanaries.push(value);
     return { name, value, url: origin + '/', secure: true, httpOnly: true, sameSite: 'Lax' };
   });
-  assert.ok(cookies.length >= 2 && cookies.length <= 3);
-  assert.equal(new Set(cookies.map((cookie) => cookie.name)).size, cookies.length);
-  assert.ok(cookies.some((cookie) => cookie.name === '__Host-ls-entry'));
-  assert.ok(cookies.some((cookie) => cookie.name === '__Host-ls-browser'));
-  stage = 'browser-entry-confirmation';
-  const html = await host.get('/api/auth/entry', command.cookie, {
-    headers: { host: site.host, accept: 'text/html', 'sec-fetch-dest': 'document' },
-  });
-  assert.equal(html.status, 200);
-  assert.ok(html.headers['content-type']?.includes('text/html'));
-  assert.equal(html.headers['cache-control'], 'no-store');
-  assert.equal(
-    [...html.body.matchAll(/<form action="\/api\/auth\/entry\/select" method="post">/g)].length,
-    20,
-  );
-  const htmlLinks = [...html.body.matchAll(/href="(\/api\/auth\/entry\?cursor=[A-Za-z0-9_-]+)"/g)];
-  assert.equal(htmlLinks.length, 1);
-  entryLocation(htmlLinks[0][1]);
-  const htmlPrivateFree = privateFree(html.body) && privateFree(htmlLinks[0][1]);
+  let htmlPrivateFree = true;
+  if (!invitation) {
+    assert.ok(cookies.length >= 2 && cookies.length <= 3);
+    assert.equal(new Set(cookies.map((cookie) => cookie.name)).size, cookies.length);
+    assert.ok(cookies.some((cookie) => cookie.name === '__Host-ls-entry'));
+    assert.ok(cookies.some((cookie) => cookie.name === '__Host-ls-browser'));
+    stage = 'browser-entry-confirmation';
+    const html = await host.get('/api/auth/entry', command.cookie, {
+      headers: { host: site.host, accept: 'text/html', 'sec-fetch-dest': 'document' },
+    });
+    assert.equal(html.status, 200);
+    assert.ok(html.headers['content-type']?.includes('text/html'));
+    assert.equal(html.headers['cache-control'], 'no-store');
+    assert.equal(
+      [...html.body.matchAll(/<form action="\/api\/auth\/entry\/select" method="post">/g)].length,
+      20,
+    );
+    const htmlLinks = [
+      ...html.body.matchAll(/href="(\/api\/auth\/entry\?cursor=[A-Za-z0-9_-]+)"/g),
+    ];
+    assert.equal(htmlLinks.length, 1);
+    entryLocation(htmlLinks[0][1]);
+    htmlPrivateFree = privateFree(html.body) && privateFree(htmlLinks[0][1]);
+  }
 
   stage = 'browser-executable';
   const candidates =
@@ -198,7 +212,7 @@ async function observeEntryBrowser(host, config, command, privateValues) {
         '--password-store=basic',
         '--use-mock-keychain',
         '--no-proxy-server',
-        '--host-resolver-rules=MAP ' + site.host.split(':')[0] + ' 127.0.0.1',
+        '--host-resolver-rules=MAP ' + site.host + ' 127.0.0.1:' + host.listenerPort(),
         '--ignore-certificate-errors-spki-list=' + fingerprint,
         'about:blank',
       ],
@@ -242,6 +256,10 @@ async function observeEntryBrowser(host, config, command, privateValues) {
         artifactsDir: artifacts,
       });
       stage = 'browser-context';
+      if (invitation)
+        return observeInvitationCapture(browser, origin, command.code, privateFree, (value) => {
+          stage = value;
+        });
       const context = await browser.newContext();
       context.setDefaultTimeout(10000);
       context.setDefaultNavigationTimeout(10000);
@@ -430,6 +448,7 @@ try {
     uiMode: true,
     sites: config.sites,
     external: config,
+    randomListener: true,
     mutation: shutdownCounter ? 'shutdown' : heldBuild ? 'held-build' : undefined,
     mark: (value) => {
       stage = value;
@@ -443,6 +462,7 @@ try {
   await send({ protocol: 1, phase: 'ready' });
   let finished = false;
   let entryBrowserUsed = false;
+  let invitationBrowserUsed = false;
   let count = 0;
   for await (const command of input) {
     stage = 'command';
@@ -452,11 +472,20 @@ try {
       finished = true;
       break;
     }
+    if (command.action === 'invitation-browser') {
+      assert.equal(Object.keys(command).sort().join(','), 'action,code,cookie,host,protocol');
+      assert.equal(command.cookie, '');
+      assert.equal(invitationBrowserUsed, false);
+      invitationBrowserUsed = true;
+      const receipt = await observeNativeBrowser(host, config, command, privateValues);
+      await send({ protocol: 1, phase: 'invitation_browser', ...receipt });
+      continue;
+    }
     if (command.action === 'entry-browser') {
       assert.equal(Object.keys(command).sort().join(','), 'action,cookie,host,protocol,subjectKey');
       assert.equal(entryBrowserUsed, false);
       entryBrowserUsed = true;
-      const receipt = await observeEntryBrowser(host, config, command, privateValues);
+      const receipt = await observeNativeBrowser(host, config, command, privateValues);
       await send({ protocol: 1, phase: 'entry_browser', ...receipt });
       continue;
     }
@@ -492,6 +521,14 @@ try {
         '/api/auth/entry/select',
         '/api/auth/switch',
         '/api/account/profile',
+        '/invitations',
+        '/invitations/confirm',
+        '/api/auth/invitation/capture',
+        '/api/auth/invitation/inspect',
+        '/api/auth/invitation/verify',
+        '/api/auth/invitation/accept',
+        '/api/auth/invitation/result',
+        '/api/auth/invitation/cancel',
       ].includes(path.pathname) || bffPageKind(path.pathname) !== null,
     );
     assert.ok(
@@ -500,6 +537,10 @@ try {
         !/[\r\n]/.test(command.cookie),
     );
     assert.ok(typeof command.body === 'string' && Buffer.byteLength(command.body) <= 16384);
+    if (path.pathname === '/api/auth/invitation/capture') {
+      const code = new URLSearchParams(command.body).get('code');
+      if (code) privateValues.push(code);
+    }
     for (const key of ['code', 'state', 'error_description']) {
       const value = path.searchParams.get(key);
       if (value) privateValues.push(value);
@@ -551,7 +592,10 @@ try {
       command.method !== 'HEAD' &&
       response.headers['content-type']?.includes('application/json')
         ? JSON.parse(response.body)
-        : null;
+        : response.headers['content-type']?.includes('text/html') &&
+            response.body.includes('data-invitation-state="')
+          ? invitationProofView(response.body)
+          : null;
     await send({
       protocol: 1,
       phase: 'response',

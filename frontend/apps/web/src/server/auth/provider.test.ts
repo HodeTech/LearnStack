@@ -163,6 +163,36 @@ async function fixture(issuer = 'https://identity.example.test/realms/learnstack
 }
 
 describe('inactive tenant RP boundary', () => {
+  it('builds only the fixed VERIFY_EMAIL action with the existing callback and fresh PKCE', async () => {
+    const f = await fixture();
+    const started = await f.provider.begin(callback, undefined, 'verify_email');
+    const authorization = new URL(started.redirectUrl);
+    expect(authorization.searchParams.get('kc_action')).toBe('VERIFY_EMAIL');
+    expect(authorization.searchParams.get('redirect_uri')).toBe(callback);
+    expect(authorization.searchParams.get('code_challenge_method')).toBe('S256');
+    expect(authorization.searchParams.get('code_challenge')).toBe(
+      createHash('sha256').update(started.transaction.verifier).digest('base64url'),
+    );
+    expect(authorization.searchParams.get('state')).toBe(started.transaction.state);
+    expect(authorization.searchParams.get('nonce')).toBe(started.transaction.nonce);
+    expect([...authorization.searchParams.keys()].sort()).toEqual([
+      'client_id',
+      'code_challenge',
+      'code_challenge_method',
+      'kc_action',
+      'nonce',
+      'redirect_uri',
+      'response_type',
+      'scope',
+      'state',
+    ]);
+    const before = f.calls.length;
+    await expect(
+      f.provider.begin(callback, undefined, 'DELETE_ACCOUNT' as 'verify_email'),
+    ).rejects.toMatchObject({ reason: 'configuration' });
+    expect(f.calls).toHaveLength(before);
+  });
+
   it('contacts nothing at construction; real pinned code/refresh validate signed ID tokens and return server-only credentials', async () => {
     const f = await fixture();
     expect(f.calls).toHaveLength(0);

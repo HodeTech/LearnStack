@@ -53,6 +53,7 @@ public sealed partial class BoundedAdministrationHttpTests
             Assert.Equal("writer@example.test", value.GetProperty("email").GetString());
             Assert.Equal("Queued", value.GetProperty("deliveryStatus").GetString());
             Assert.Equal("Pending", value.GetProperty("status").GetString());
+            Assert.Equal(JsonValueKind.Null, value.GetProperty("acceptanceDisposition").ValueKind);
             originalExpiry = value.GetProperty("expiresAt").GetString()!;
             Assert.DoesNotContain("verifier", value.GetRawText(), StringComparison.OrdinalIgnoreCase);
         }

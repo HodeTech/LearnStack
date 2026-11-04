@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 872 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 962 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -364,7 +364,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 5 recipient admission and atomic acceptance review handoff (2026-11-05)](#p03-4-step-5-recipient-admission-and-atomic-acceptance-review-handoff-2026-11-05) — 70 lines
   - [P03-4 Step 5 first review diagnostic correction (2026-11-05)](#p03-4-step-5-first-review-diagnostic-correction-2026-11-05) — 32 lines
   - [P03-4 Step 5 second review delegation and transport corrections (2026-11-05)](#p03-4-step-5-second-review-delegation-and-transport-corrections-2026-11-05) — 40 lines
-  - [P03-4 Step 5 review closeout and Step 6 continuation (2026-11-05)](#p03-4-step-5-review-closeout-and-step-6-continuation-2026-11-05) — 27 lines
+  - [P03-4 Step 5 review closeout and Step 6 continuation (2026-11-05)](#p03-4-step-5-review-closeout-and-step-6-continuation-2026-11-05) — 28 lines
+  - [P03-4 Step 6 Studio and native invitation implementation (2026-11-05)](#p03-4-step-6-studio-and-native-invitation-implementation-2026-11-05) — 89 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -16632,3 +16633,93 @@ Membership identifier or directory authority. Actual nonseed provider journeys
 and human accessibility evidence retain their planned verification obligations.
 The human checklist remains unexecuted until a person records the checks on the
 working screens. No new decision or maintainer approval is pending.
+
+
+### P03-4 Step 6 Studio and native invitation implementation (2026-11-05)
+
+The Studio lists and explains invitations, shows their offered Role and UTC
+expiry, creates, revokes and explicitly reissues them, and edits the existing
+Tenant lifetime policy. Absent-default and stored-version-zero policy writes
+remain distinct. Forms preserve validation edits; unknown protected outcomes
+retain their original preconditions and idempotency material for recovery.
+Administrator and recipient surfaces distinguish created from already-member
+acceptance without exposing a Membership identifier to the administrator or
+silently changing an active member's Role.
+
+The fixed native `/invitations` landing and confirmation run before Next. The
+first nonce-bound script removes the fragment before UI or network work; the
+no-JavaScript alternative accepts a deliberately pasted code through an
+Origin/CSRF-protected POST. Six closed recipient POST operations use the existing
+native owner store, shared quotas, sweep and physical cleanup accounting. The
+private continuation has its own revision and original pending deadline. Raw
+codes do not enter URLs, provider state, return targets, generic drafts, RSC,
+logs or public response output. Cancel revokes server custody immediately;
+late cancellation or recovery replies do not delete a newer opaque invitation
+cookie. A clean landing replaces an obsolete handle.
+
+The fixed Keycloak verification purpose retains state, nonce, S256 and current
+subject binding. Only that owned transaction accepts the complete
+`kc_action=VERIFY_EMAIL` and known status tuple; incomplete, duplicate or wrong
+purpose values refuse without consuming it. Callback status is not verification
+proof. Fresh API inspection and explicit acceptance/result recovery precede
+separate normal session admission. Same-scope already-member admission preserves
+the live cookie, CSRF and lifetime; a different-scope admission inherits the
+existing session's absolute lifetime. Committed Membership truth survives a
+subsequent session-admission refusal. English and Turkish copy covers both
+parties, verification, recovery and no-JavaScript paths.
+
+The API launcher selects exactly the seven SMTP/key-ring settings from matching
+sources, never arbitrary ambient credentials. Its API-only private-file reader
+uses one no-follow handle, regular/single-link/current-owner/private permissions,
+bounded UTF-8 input and cleared buffers. Web and Seeder environments receive none
+of those settings. Public CI construction uses explicit disposable synthetic
+configuration; this is not SMTP delivery. Setup guides distinguish LearnStack
+invitation SMTP from Keycloak verification SMTP and explain the stock **Send
+email** action. The ordinary fixture pre-pull inventory now includes pinned
+Mailpit, with its existing total allowance unchanged. Four missing current
+shared-fixture classes join the exact sorted shard inventory; no partition count,
+resource policy, deadline or reserve changes.
+
+Create/reissue also preserves an enabled regional content tag such as `tr-TR`
+or `en-US`. Turkish mail copy follows primary `tr`; other tags use the existing
+English fallback independently of content membership, as ADR-0027 requires.
+Links use the fixed native path rather than a locale-prefixed content route.
+An actual red run exposed 404 for regional-only locales before the correction.
+Four actual app-role HTTP cases now pass after both create and reissue, asserting
+persisted tags, unchanged locale membership and decrypted staged subject/text/
+HTML. Staged-copy assertions do not themselves prove SMTP submission.
+
+Verification before the implementation commit:
+
+- The canonical guarded frontend runner passes 3,903 cases across both packages,
+  with zero skips/todo: web 3,712 across 119 files in 313 seconds; SDK 191 across
+  11 files in 94 seconds, within the unchanged 900/360-second allowances.
+  Whole-workspace typecheck and lint pass. The initial full run's eleven copied
+  fixture/census failures are retained and corrected without broader exemptions.
+- Thirteen focused owner/verification-tuple/lifetime cases pass. Six actual
+  native HTTP controls pass, including a red/green held cancellation reply that
+  previously erased a newer cookie. A held inspection reply did not reproduce
+  that erasure and is not presented as a second reproduced defect.
+- Three actual PublicLocalLaunch controls pass; 87 canonical offline CI controls
+  pass in 6.46 seconds, below the unchanged 27-second TERM allocation. The four
+  regional cases, two actual staging/idempotency/MUST-rollback regressions and
+  nine invitation architecture controls pass with zero skips. Release build and
+  scoped formatting pass with zero warnings/errors.
+- Two real nonseed journeys pass on the final backend source, with zero skips,
+  in 49.66 and 35.78 seconds under unchanged 180-second individual wrappers.
+  Fresh owned PostgreSQL, pinned Keycloak and Mailpit run actual invitation jobs,
+  stock registration/login, explicit global bootstrap, unverified refusal,
+  provider **Send email**, delivered verification links, fresh inspection,
+  acceptance and separate session admission. The existing-account path also
+  proves already-member behavior, unchanged live session and wrong-recipient
+  refusal without grant/disclosure. Actual realm/action settings are read back.
+  The new-account fixture additionally exercises stock Chromium fragment
+  removal/history/storage and no-JavaScript Origin/form capture. These are
+  automated provider/browser observations, not human accessibility evidence.
+
+The implementation enters two fresh independent two-reviewer rounds. The human
+keyboard, focus, reflow, contrast and VoiceOver checklist remains unexecuted
+until a person reports observations on the working screens. Step 7 still owns
+SMTP saturation/retained-cleanup/restart/late-receipt/native-finalizer proofs,
+complete final-source suites, hosted A/B and original-archive qualification.
+Neither these bounded receipts nor review approval completes those obligations.

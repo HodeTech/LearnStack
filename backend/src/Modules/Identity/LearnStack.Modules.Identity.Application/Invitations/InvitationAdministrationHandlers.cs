@@ -172,7 +172,13 @@ public sealed class InvitationAdministrationHandlers(IInvitationAdministrationSt
     private async Task<InvitationDto> ProjectAsync(Invitation target, CancellationToken cancellationToken) => new(target.Id.Value,
         target.RecipientEmail, target.OrganizationId, target.RoleId.Value, target.PinnedRoleVersion,
         target.IsExpired(clock.UtcNow) ? "Expired" : target.Status.ToString(), target.ExpiresAt, target.Version,
-        (await status.ReadAsync(target.CurrentDeliveryJobId, cancellationToken)).ToString());
+        (await status.ReadAsync(target.CurrentDeliveryJobId, cancellationToken)).ToString(),
+        target.AcceptanceDisposition switch
+        {
+            InvitationAcceptanceDisposition.Created => "created",
+            InvitationAcceptanceDisposition.AlreadyMember => "already_member",
+            _ => null
+        });
     private async Task<bool> AvailableAsync(CancellationToken cancellationToken)
     {
         var current = await lifecycle.ReadAsync(context.TenantId, context.OrganizationId, cancellationToken);

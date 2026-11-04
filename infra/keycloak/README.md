@@ -110,6 +110,46 @@ belong to Phase 11 and [Infrastructure Standards](../../docs/standards/12-infras
 Do not reuse local secrets in production or put them in command arguments,
 URLs, logs or public configuration.
 
+## Invitation email and recipient verification
+
+[ADR-0093](../../docs/decisions/0093-verified-invitation-acceptance-and-handoff.md)
+keeps two senders separate. LearnStack queues the invitation through its own
+[SMTP adapter and encrypted key ring](../../docs/modules/identity/providers.md#configuration-surface-and-source-bindings).
+Keycloak sends account-verification email using the tenant realm's SMTP
+configuration. Configuring one sender does not configure or qualify the other.
+
+The local tenant export uses `mailpit:1025` from inside the Compose network;
+the Mailpit UI is the separate development capture service. This plaintext
+configuration is local-only. Production provider SMTP/TLS configuration belongs
+to Phase 11. Do not copy captured messages, action links or invitation codes into
+logs, screenshots, reports or tickets.
+
+The native verification purpose fixes `kc_action=VERIFY_EMAIL` and uses the
+existing exact web callback with state, nonce and PKCE. The operator must qualify
+that the tenant realm's `VERIFY_EMAIL` required action is enabled and SMTP can
+submit mail. On the pinned provider, the initial action screen does not send
+mail automatically: use its **Send email** button and follow the message link.
+Use the provider's resend control when needed. Opening an invitation or
+returning from the provider is not verification proof.
+LearnStack rechecks the current verified email at the API before acceptance.
+Realm `verifyEmail: false` does not itself disable this explicit action and is
+not an application verification bypass.
+
+Keep the selected realm's registration, email-as-username, duplicate-email and
+username-edit settings explicit. The local export permits registration, uses
+email as username, rejects duplicate emails and disables username editing.
+LearnStack's offer-recipient mailbox matching does not change provider account
+uniqueness. Use a newly registered, nonseed account and the actual verification
+mail for qualification; setting `emailVerified` through Admin REST supplies no
+replacement evidence. The five-minute sign-in/action lifetime can expire during
+registration or mail handling; reopen the original invitation to start again.
+Application account creation remains separately opt-in and subject to its
+[existing allocation limits](../../docs/standards/11-security.md#native-scope-and-global-self-admission).
+
+The [Phase 03 Status block](../../docs/roadmap/phase-03-identity-admin.md) owns
+current implementation and source-bound verification evidence. These setup
+requirements do not claim that either production sender has been qualified.
+
 ## Secret continuity and recovery
 
 `KEYCLOAK_WEB_CLIENT_SECRET` is create-once local state, not a new value on every
@@ -386,5 +426,6 @@ with no ordinary mutation. Every ordinary write requires the complete bounded pl
   local fixtures, not a production source of truth.
 - Application `User`, membership, role, permission and invitation state: Phase 03
   owns it in LearnStack; the provider export supplies authentication only.
-- BFF cookie/session custody, CSRF, callback and logout implementation: P02b-7.
-  Full browser OIDC journeys belong to Phase 06.
+- BFF cookie/session custody, CSRF, callback and logout implementation: P02b-7,
+  extended by Phase 03's bounded invitation journey. Phase 06 owns the broader
+  browser automation suite.

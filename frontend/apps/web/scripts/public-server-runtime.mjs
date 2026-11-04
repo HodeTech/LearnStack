@@ -8,6 +8,8 @@ export async function startPublicRuntime(control) {
   let admission;
   let bffRequests;
   let bffSessions;
+  let invitationHandler;
+  let nativeInvitationTarget;
   let upgradeSink;
   let app;
   let server;
@@ -187,6 +189,11 @@ export async function startPublicRuntime(control) {
         { createNativeAdministrationCaller },
         { installBffSessionRuntime },
         { installBffRequestRuntime },
+        { createNativeInvitationApi },
+        { createNativeInvitationHandler, nativeInvitationTarget: invitationTarget },
+        { createInvitationRenderer },
+        { default: invitationEn },
+        { default: invitationTr },
       ] = await Promise.all([
         ownSetup(import('../.server/auth/provider-core.js')),
         ownSetup(import('../.server/auth/account-client.js')),
@@ -194,6 +201,11 @@ export async function startPublicRuntime(control) {
         ownSetup(import('../.server/auth/native-administration-client.js')),
         ownSetup(import('../.server/auth/session-runtime.js')),
         ownSetup(import('../.server/auth/request-runtime.js')),
+        ownSetup(import('../.server/auth/native-invitation-client.js')),
+        ownSetup(import('../.server/auth/native-invitation-http.js')),
+        ownSetup(import('../.server/auth/invitation-html.js')),
+        ownSetup(import('../src/i18n/messages/en/invitation.json', { with: { type: 'json' } })),
+        ownSetup(import('../src/i18n/messages/tr/invitation.json', { with: { type: 'json' } })),
       ]);
       assertStarting();
       const nativeConfiguration = {
@@ -218,12 +230,23 @@ export async function startPublicRuntime(control) {
         account,
         native,
         administration,
+        invitations: createNativeInvitationApi(nativeConfiguration, globalThis.fetch),
         diagnostic: (reason) => console.warn('BFF session lifecycle', { reason }),
       };
       assertStarting();
       bffRequests = installBffRequestRuntime(admission.holder);
       assertStarting();
       bffSessions = installBffSessionRuntime(dependencies, bffRequests.preparation);
+      nativeInvitationTarget = invitationTarget;
+      invitationHandler = createNativeInvitationHandler({
+        configuration,
+        admission: admission.holder,
+        store: bffSessions.store,
+        responseLease: bffRequests.nativeResponse,
+        render: createInvitationRenderer({ en: invitationEn, tr: invitationTr }),
+        providerOrigin: new URL(bff.issuer).origin,
+        transport: globalThis.fetch,
+      });
       assertStarting();
     }
     // Next reads the same values; root/projection conflicts were refused before prepare.
@@ -265,7 +288,11 @@ export async function startPublicRuntime(control) {
           .then(() =>
             admission.run(binding, request, response, () =>
               bffRequests
-                ? bffRequests.run(binding, request, response, () => handle(request, response))
+                ? bffRequests.run(binding, request, response, () =>
+                    nativeInvitationTarget(binding.target)
+                      ? invitationHandler(binding, request, response)
+                      : handle(request, response),
+                  )
                 : handle(request, response),
             ),
           )

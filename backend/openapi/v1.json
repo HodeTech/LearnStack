@@ -13287,7 +13287,8 @@
           "status",
           "expiresAt",
           "version",
-          "deliveryStatus"
+          "deliveryStatus",
+          "acceptanceDisposition"
         ],
         "type": "object",
         "properties": {
@@ -13349,6 +13350,17 @@
               "Unavailable"
             ],
             "type": "string"
+          },
+          "acceptanceDisposition": {
+            "enum": [
+              "created",
+              "already_member",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "additionalProperties": false

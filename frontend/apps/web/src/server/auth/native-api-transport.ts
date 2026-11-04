@@ -113,7 +113,9 @@ export function createNativeApiTransport(
     };
     const outgoing = new Headers(init.headers);
     for (const [name] of outgoing)
-      if (!['accept', 'content-type', 'idempotency-key', 'if-match'].includes(name))
+      if (
+        !['accept', 'content-type', 'idempotency-key', 'if-match', 'if-none-match'].includes(name)
+      )
         throw new NativeApiError('configuration');
     outgoing.set('Accept', 'application/json');
     outgoing.set('Authorization', 'Bearer ' + token);
@@ -156,6 +158,7 @@ export function createNativeApiTransport(
       const media = response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase();
       if (
         response.redirected ||
+        response.headers.has('set-cookie') ||
         (response.status < 400 && ![200, 201].includes(response.status)) ||
         media !== (response.status < 400 ? 'application/json' : 'application/problem+json')
       )

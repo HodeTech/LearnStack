@@ -1,9 +1,16 @@
 import type {
+  InvitationCommand,
+  InvitationContinuation,
+  InvitationOpening,
+  InvitationResponseLease,
+} from './invitation-session.js';
+import type {
   NativeBinding,
   NativeScope,
   NativeSessionApi,
   SelfContexts,
 } from './native-contract.js';
+import type { NativeInvitationApi } from './native-invitation-contract.js';
 import type {
   NativeAdministrationCaller,
   NativeOperation,
@@ -20,6 +27,7 @@ export type SessionProvider = {
   begin: (
     uri: string,
     signal?: AbortSignal,
+    purpose?: 'verify_email',
   ) => Promise<Readonly<{ transaction: LoginTransaction; redirectUrl: string }>>;
   redeem: (
     transaction: LoginTransaction,
@@ -53,6 +61,9 @@ export type NativeReturnPath =
   | '/studio'
   | '/studio/members'
   | `/studio/members/${string}`
+  | '/studio/invitations'
+  | `/studio/invitations/${string}`
+  | '/studio/invitation-policy'
   | '/studio/roles'
   | `/studio/roles/${string}`
   | '/portal'
@@ -87,6 +98,7 @@ export type SessionCompletion = Readonly<{
 }>;
 export type LoginCompletion = Readonly<{
   kind: 'entry';
+  invitation?: string;
   handle: string;
   browser: string;
   entry: EntryProjection;
@@ -140,6 +152,7 @@ export type SessionDependencies = Readonly<{
   ) => Promise<AccountWitness>;
   native: NativeSessionApi;
   administration: NativeAdministrationCaller;
+  invitations?: NativeInvitationApi;
   diagnostic?: (reason: SessionFailure) => void;
   /** Internal deterministic test clock, never deployment configuration. */
   clock?: Readonly<{ monotonic: () => number; utc: () => number }>;
@@ -147,6 +160,24 @@ export type SessionDependencies = Readonly<{
 
 /** Phase 11 replaces this native default before multiple web processes serve a session. */
 export interface BffSessionStore {
+  openInvitation(
+    input: Readonly<{
+      host: string;
+      source: string;
+      browser?: string;
+      handle?: string;
+      sessionHandle?: string;
+      entryHandle?: string;
+    }>,
+  ): InvitationOpening;
+  invitation(
+    binding: SessionBinding,
+    source: string,
+    command?: InvitationCommand,
+    signal?: AbortSignal,
+  ): Promise<InvitationContinuation>;
+  retainInvitation(binding: SessionBinding, lease: InvitationResponseLease): void;
+  invitationEntry(binding: SessionBinding, entry: SessionBinding): boolean;
   start(
     input: Readonly<{
       host: string;
@@ -156,6 +187,8 @@ export interface BffSessionStore {
       signal?: AbortSignal;
       returnPath: NativeReturnPath;
       contextHint?: string;
+      invitation?: string;
+      verification?: boolean;
     }>,
   ): Promise<LoginStart>;
   complete(

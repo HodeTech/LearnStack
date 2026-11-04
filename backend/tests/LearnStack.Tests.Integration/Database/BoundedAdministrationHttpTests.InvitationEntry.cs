@@ -54,6 +54,15 @@ public sealed partial class BoundedAdministrationHttpTests
         Assert.Equal(2, audit.Count);
         Assert.Contains(audit, row => row.Operation == "identity.invitation.accept" && row.Outcome == "success");
         Assert.Contains(audit, row => row.Operation == "identity.membership.admit_invitation" && row.Outcome == "success");
+        using (var adminClient = proof.Client())
+        using (var adminDetail = await SendAsync(adminClient, proof.Token(EnglishAdmin, Tenant),
+            "/api/v1/identity/invitations/" + offer.Id.ToString("D")))
+        {
+            var administered = await JsonAsync(adminDetail);
+            Assert.Equal("Accepted", administered.GetProperty("status").GetString());
+            Assert.Equal(existing ? "already_member" : "created", administered.GetProperty("acceptanceDisposition").GetString());
+            Assert.False(administered.TryGetProperty("membershipId", out _));
+        }
         Assert.False(accepted.Headers.Contains("Set-Cookie"));
         Assert.Null(accepted.Headers.Location);
         proof.Issuer.UserInfoStatusCode = 503;
