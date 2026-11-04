@@ -139,6 +139,10 @@ public sealed class InvitationWriteStore(IdentityDbContext db, IUnitOfWork unit,
         // trigger uses bare 23514; no other graph or physical COMMIT reaches this translation.
         catch (DbUpdateException failure) when (failure.InnerException is PostgresException { SqlState: "23514" or "23505" or "23503" })
         { unit.MarkRollbackOnly(); throw new IdentityFoundationStorageException(IdentityFoundationStorageFailure.Conflict); }
+        catch (InvalidOperationException failure) when (failure.InnerException is
+            DbUpdateException { InnerException: NpgsqlException { IsTransient: true } or TimeoutException }
+            or NpgsqlException { IsTransient: true } or TimeoutException)
+        { unit.MarkRollbackOnly(); throw new IdentityStorageProviderException(); }
         catch (Exception failure) when (failure is DbUpdateException or NpgsqlException or TimeoutException)
         { unit.MarkRollbackOnly(); throw new IdentityStorageProviderException(); }
         finally { db.Database.AutoSavepointsEnabled = savepoints; }

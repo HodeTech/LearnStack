@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 773 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 805 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -362,6 +362,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 4 first review correction (2026-11-04)](#p03-4-step-4-first-review-correction-2026-11-04) — 23 lines
   - [P03-4 Step 4 second review closeout and Step 5 start (2026-11-04)](#p03-4-step-4-second-review-closeout-and-step-5-start-2026-11-04) — 28 lines
   - [P03-4 Step 5 recipient admission and atomic acceptance review handoff (2026-11-05)](#p03-4-step-5-recipient-admission-and-atomic-acceptance-review-handoff-2026-11-05) — 70 lines
+  - [P03-4 Step 5 first review diagnostic correction (2026-11-05)](#p03-4-step-5-first-review-diagnostic-correction-2026-11-05) — 32 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -16530,3 +16531,35 @@ acceptance-disposition projection needed to explain already-member outcomes to
 both parties. Step 7 owns complete final-source suites, actual provider/native
 process proof, hosted A/B and original archives. No manual or production-provider
 qualification is inferred from these bounded receipts.
+
+### P03-4 Step 5 first review diagnostic correction (2026-11-05)
+
+Two fresh independent reviews cover authority/owner/atomicity and provider/
+HTTP/SDK/privacy. The transport review finds no verified defect. The authority
+review finds one Major: the new Invitation statement-save adapter omits the
+nonretrying Npgsql strategy's transient InvalidOperationException wrapper,
+although the existing Identity graph writer sanitizes that exact shape.
+
+A real API/PostgreSQL regression reproduces 500 before the correction. The
+bounded sibling pattern now marks the owner rollback-only and throws the fixed
+identity-storage exception without retaining the provider inner payload. It
+changes only statement-save translation; direct invariants and physical
+COMMIT/unknown-outcome behavior remain unchanged. No retry is introduced.
+
+Six focused tests pass with zero skips: the new invitation regression, four
+existing immediate/deferred transient/nontransient profile-failure controls and
+the actual post-validation graph-seal control. A stored-recipient canary trigger
+executes exactly once only after observing the new Active result Membership.
+The corrected response is 503, with no result DTO or success audit; authoritative
+reads show Pending/version zero, no acceptance result and no Membership in the
+target scope. Existing real diagnostic serializers/exporters exclude the canary
+from logs, local archive, Sentry, response and traces; positive controls remain.
+Formatting and verification pass.
+
+A provenance comment is also narrowed to actual private construction/live-source
+binding. It no longer claims an independent provider-evidence minter census that
+has not been implemented; no present alternative producer or bypass is found,
+and no generic proof framework is added. The compiled architecture count remains
+340. The finding reviewer checks closure, followed by two different fresh
+second-round reviewers of the complete Step 5 range. All broader qualification
+and Step 6 boundaries in the implementation handoff remain explicit.

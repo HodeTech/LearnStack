@@ -34,7 +34,7 @@ public sealed class CurrentInvitationRecipientEvidence
         && invocation.IsActive && _source.IsCurrent(_observation, invocation);
     public override string ToString() => nameof(CurrentInvitationRecipientEvidence);
 
-#pragma warning disable CA1034 // Private construction and the exact provider-source census confine this evidence.
+#pragma warning disable CA1034 // Private construction and live provider-source binding confine this evidence.
     [SuppressMessage("Design", "CA1063:Implement IDisposable Correctly",
         Justification = "Disposal closes the evidence source and cannot be overridden.")]
     public abstract class MintingSource : IDisposable
