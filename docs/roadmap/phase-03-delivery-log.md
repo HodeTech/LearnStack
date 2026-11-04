@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 845 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 872 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -364,6 +364,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 5 recipient admission and atomic acceptance review handoff (2026-11-05)](#p03-4-step-5-recipient-admission-and-atomic-acceptance-review-handoff-2026-11-05) — 70 lines
   - [P03-4 Step 5 first review diagnostic correction (2026-11-05)](#p03-4-step-5-first-review-diagnostic-correction-2026-11-05) — 32 lines
   - [P03-4 Step 5 second review delegation and transport corrections (2026-11-05)](#p03-4-step-5-second-review-delegation-and-transport-corrections-2026-11-05) — 40 lines
+  - [P03-4 Step 5 review closeout and Step 6 continuation (2026-11-05)](#p03-4-step-5-review-closeout-and-step-6-continuation-2026-11-05) — 27 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -16604,3 +16605,30 @@ These are bounded correction receipts, not a new full-suite or packet
 qualification. Finding reviewers verify closure after the correction commit;
 Step 6 retains the full recipient/Studio experience and Step 7 the final-source
 qualification already recorded above. No additional authority or ADR is added.
+
+### P03-4 Step 5 review closeout and Step 6 continuation (2026-11-05)
+
+Step 5 closes after implementation `222d17eb`, first-review correction `84c10444`
+and second-review correction `53b59b06`. Four independent reviewers complete the
+two planned rounds. Both second-round finding owners inspect the committed
+corrections and direct red/green receipts, confirming closure with no verified
+residual. The authority correction preserves one committed delegation graph;
+the transport correction preserves the published 8 KiB/413 boundary. Document
+fragment, roadmap and generated-index controls pass. No review approval supplies
+unexecuted runtime or manual evidence.
+
+The earlier full Unit/Contract/SDK receipts, bounded HTTP/architecture outcomes
+and separate focused correction receipts keep their exact source and scope.
+Forty-four invitation-entry HTTP cases now exist; no single combined all-green
+44-case run is claimed here. The final-source full suites remain Step 7.
+
+Step 6 proceeds automatically under the Accepted seven-step plan: Studio
+invitation and lifetime forms; pre-Next landing and private native custody;
+signin, explicit bootstrap and fixed email verification; deliberate acceptance,
+original-result recovery and separate session admission; English/Turkish and
+no-JavaScript paths. The minimal administrator disposition projection exposes
+created versus already-member truthfully to both parties without adding a
+Membership identifier or directory authority. Actual nonseed provider journeys
+and human accessibility evidence retain their planned verification obligations.
+The human checklist remains unexecuted until a person records the checks on the
+working screens. No new decision or maintainer approval is pending.
