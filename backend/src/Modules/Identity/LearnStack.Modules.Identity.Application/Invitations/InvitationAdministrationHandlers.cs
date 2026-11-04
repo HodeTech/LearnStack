@@ -56,7 +56,12 @@ public sealed class InvitationAdministrationHandlers(IInvitationAdministrationSt
             if (!await AvailableAsync(cancellationToken)) return Fail<InvitationMutationResult>("lockey_not_found");
             if (!withdrawal && role is null) return Fail<InvitationMutationResult>("lockey_not_found");
             if (!withdrawal && role!.Version != roleVersion) return Fail<InvitationMutationResult>("lockey_concurrency_conflict");
-            if (!withdrawal && !await authorization.CanDelegateAsync(request, admission.Value, role!, cancellationToken)) return Fail<InvitationMutationResult>("lockey_forbidden");
+            if (!withdrawal)
+            {
+                var delegation = await authorization.CanDelegateAsync(request, admission.Value, role!, cancellationToken);
+                if (delegation.IsFailure) return Result<InvitationMutationResult>.Fail(delegation.Error);
+                if (!delegation.Value) return Fail<InvitationMutationResult>("lockey_forbidden");
+            }
             if (create is null && (target is null || target.TenantId != context.TenantId || target.OrganizationId != context.OrganizationId)) return Fail<InvitationMutationResult>("lockey_not_found");
             if (target is not null && (target.Version != expected || target.RoleId != roleId || target.PinnedRoleVersion != roleVersion
                 || target.Status != InvitationStatus.Pending)) return Fail<InvitationMutationResult>("lockey_concurrency_conflict");
@@ -145,8 +150,11 @@ public sealed class InvitationAdministrationHandlers(IInvitationAdministrationSt
         if (graph.Count > IdentityFoundationManifest.Version1.Templates.Length) return Fail<InvitableRoleDirectory>("lockey_dependency_unavailable");
         var result = new List<InvitableRoleDto>();
         foreach (var role in graph)
-            if (await authorization.CanDelegateAsync(request, admission.Value, role, cancellationToken))
-                result.Add(new(role.Id.Value, role.BuiltInKey.ToString(), role.PermissionScope.ToString(), role.Version));
+        {
+            var delegation = await authorization.CanDelegateAsync(request, admission.Value, role, cancellationToken);
+            if (delegation.IsFailure) return Result<InvitableRoleDirectory>.Fail(delegation.Error);
+            if (delegation.Value) result.Add(new(role.Id.Value, role.BuiltInKey.ToString(), role.PermissionScope.ToString(), role.Version));
+        }
         var check = await authorization.RecheckAsync(request, admission.Value, cancellationToken);
         return check.IsFailure ? Result<InvitableRoleDirectory>.Fail(check.Error) : Result.Ok(new InvitableRoleDirectory(result));
     }

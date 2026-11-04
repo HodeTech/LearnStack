@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 652 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 675 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -359,6 +359,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 3 second review privacy inventory correction (2026-11-04)](#p03-4-step-3-second-review-privacy-inventory-correction-2026-11-04) — 24 lines
   - [P03-4 Step 3 review closeout and administrator continuation (2026-11-04)](#p03-4-step-3-review-closeout-and-administrator-continuation-2026-11-04) — 30 lines
   - [P03-4 Step 4 administration and producer review handoff (2026-11-04)](#p03-4-step-4-administration-and-producer-review-handoff-2026-11-04) — 68 lines
+  - [P03-4 Step 4 first review correction (2026-11-04)](#p03-4-step-4-first-review-correction-2026-11-04) — 23 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -16406,3 +16407,26 @@ Studio/native/Keycloak activation remain Steps 5–6. Complete final-source suit
 native process/cleanup/race qualification, hosted A/B and original archives
 remain Step 7. No production inbox delivery or manual accessibility evidence is
 claimed by this administrative implementation handoff.
+
+### P03-4 Step 4 first review correction (2026-11-04)
+
+Two fresh independent reviews examine administration authority/atomicity and
+protected replay/HTTP/SDK. The replay review has no verified finding. The
+authority review finds one Major: unavailable committed delegation facts were
+collapsed into Boolean false, producing a permission refusal or a successful
+incomplete invitable-Role directory after a recovered final check.
+
+Delegation now preserves failure separately from actual nondelegability.
+Unavailable facts or lost invocation continuity return dependency-unavailable;
+create/reissue propagates that failure and the directory aborts its whole result.
+Actual insufficient grants still deny grant-bearing mutations and omit only
+nondelegable Roles. Cancellation remains cancellation; withdrawal is unchanged.
+
+Four real HTTP/pipeline regression subjects pass without skips. They inject the
+one-shot delegation failure after successful admission/rechecks, require 503 and
+no successful read audit or partial directory, verify unchanged target versions,
+and then observe a recovered complete directory. A genuine actor-grant removal
+independently proves mutation denial and selective Role omission remain intact.
+The original full-suite receipt limits in the handoff remain unchanged; this is
+focused correction evidence. The verified finding is checked for closure before
+two new independent second-round reviewers examine the complete Step 4 range.

@@ -31,24 +31,27 @@ public sealed class InvitationAdministrationAuthorization(IOperationInvocationCo
         return Fail<None>(decision.Outcome == ProtectedOperationOutcome.Forbidden ? "lockey_forbidden"
             : decision.Outcome == ProtectedOperationOutcome.NotCovered ? "lockey_not_found" : "lockey_dependency_unavailable");
     }
-    internal async Task<bool> CanDelegateAsync(object request, OperationInvocation invocation, Role role, CancellationToken cancellationToken)
+    internal async Task<Result<bool>> CanDelegateAsync(object request, OperationInvocation invocation, Role role, CancellationToken cancellationToken)
     {
-        if (!Matches(request, invocation)) return false;
+        if (!Matches(request, invocation)) return Fail<bool>("lockey_dependency_unavailable");
         var current = await facts.ReadAsync(invocation.Candidate!, cancellationToken);
-        if (!Matches(request, invocation) || !current.Covers || current.Actor != context.UserId || current.TenantId != context.TenantId
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!Matches(request, invocation) || current.Outcome == IdentityAuthorizationOutcome.Unavailable)
+            return Fail<bool>("lockey_dependency_unavailable");
+        if (!current.Covers || current.Actor != context.UserId || current.TenantId != context.TenantId
             || current.OrganizationId != context.OrganizationId || role.TenantId != context.TenantId || role.IsDeleted || role.DeletedBy is not null
-            || role.PermissionScope != (context.OrganizationId is null ? PermissionScope.Tenant : PermissionScope.Organization)) return false;
+            || role.PermissionScope != (context.OrganizationId is null ? PermissionScope.Tenant : PermissionScope.Organization)) return Result.Ok(false);
         var ceiling = current.Memberships.Where(member => member.OrganizationId is null || member.OrganizationId == context.OrganizationId)
             .SelectMany(member => member.Roles.Where(held => held.Scope == PermissionScope.Tenant && member.OrganizationId is null
                 || held.Scope == PermissionScope.Organization && context.OrganizationId is not null && member.OrganizationId == context.OrganizationId))
             .SelectMany(held => held.Grants).Where(pair => IdentityPolicyEvaluation.IsRegistered(pair, catalog)).ToHashSet();
-        return role.Grants.All(grant =>
+        return Result.Ok(role.Grants.All(grant =>
         {
             var pair = new PermissionDefinition(grant.PermissionScope, grant.PermissionKey);
             return pair.Scope == role.PermissionScope && IdentityPolicyEvaluation.IsRegistered(pair, catalog)
                 && ceiling.Any(held => held.Key == pair.Key && (held.Scope == pair.Scope
                     || pair.Scope == PermissionScope.Organization && held.Scope == PermissionScope.Tenant));
-        });
+        }));
     }
     private bool Matches(object request, OperationInvocation invocation) =>
         request is ListInvitationsQuery or GetInvitationQuery or ListInvitableRolesQuery or CreateInvitationCommand
