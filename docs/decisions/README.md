@@ -140,6 +140,7 @@ records hosted qualification. Phase 11 owns production qualification.
 
 | # | Title | Topic | Target phase / decision point |
 |---|---|---|---|
+| 0093 | [Verified Invitation Acceptance and Bounded Handoff](0093-verified-invitation-acceptance-and-handoff.md) | Proposed exact nonmember admission, fresh verified recipient, atomic Invitation/Membership result and explicit administrator handoff; no runtime authority before approval | P03-4/G8, before Invitation schema or writer |
 | 0049 | [Institution Sites and an Optional Course Marketplace](0049-institution-sites-and-course-marketplace.md) | Direction endorsed 2026-10-02; architecture still Proposed, no gate accepted | P02d-2 preparation hold released; remaining contracts before proposed Phase 09a's first consumers |
 
 The maintainer endorsed the marketplace direction and accepted ADR-0050/0051 and

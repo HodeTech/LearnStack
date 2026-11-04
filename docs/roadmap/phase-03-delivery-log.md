@@ -344,6 +344,9 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 195 lines
+  - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
+  - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -15739,3 +15742,198 @@ email matching, one-way single-use token storage, lifecycle/expiry/resend,
 current delegation, atomic membership/consumption, bounded delivery/recovery and
 accept/revoke/expiry races. GET remains inspection-only. This closeout starts
 no invitation implementation and accepts no new decision.
+
+## P03-4 — Invitations and bounded delivery
+
+### P03-4 document review and proposed decision package (2026-11-04)
+
+**Proposed; approval pending.** The maintainer requests `/implement-task` on
+`development`, existing-document review before implementation, up-front decisions
+and a complete step plan. Every implementation step commits, receives two fresh
+independent review rounds, fixes confirmed findings in new commits and then
+continues automatically. New ADRs require explicit approval before their code.
+This package starts no runtime, migration, provider change or CI workload.
+
+Baseline is `e1339a39`, a clean `development` tree after the user-merged PR #40.
+Existing P03-3 final-head B/original-archive and deferred manual evidence remain
+as recorded in its merge closeout. They neither become completed nor authorize
+waiving P03-4's proof. Settings and existing stashes remain untouched.
+
+**Problem and phase fit.** P03-4/D06 completes the path from an administrator's
+scoped offer to a verified new/existing person's Membership in that exact
+institution/branch. It owns C08, its C01 invitation entry and C20 screen proof.
+Keycloak authenticates/verifies accounts; Identity owns the offer and grant;
+Tenancy owns lifecycle and the bounded lifetime setting; central Audit owns
+required evidence. There is no invitation implementation to extend by merely
+turning on a route.
+
+#### Existing-document and source review
+
+Read repository guidance and `implement-task`/its `start-task` dispatch, then the
+README, Platform Vision, MVP Scope, Roadmap, Principles and relevant glossary.
+Review the current phase/G8/criteria, completed 02a/02d/02b boundaries, Identity
+README/permission/audit matrices, Tenancy lifecycle/settings contracts,
+Architecture 13/23 and the Phase 08a notification handoff. Read relevant Accepted
+ADR-0003/0036/0040/0042/0064/0070/0072/0073/0074/0076/0077/0078/0079 decisions and
+amendments and governing Standards 01/04/05/07/08/11/13/16/18/19/21 sections.
+Delivery logs are navigated by index and specific entries, never read wholesale.
+
+Trace the actual native provider/entry/session owners, exact global-self branch,
+source/host/surface admission, operation policy/candidate minters, Membership
+write/delegation/lock adapters, protected idempotency and failure diagnostics.
+The committed realm pins Keycloak 26.6.2, email mappers and SMTP to existing
+Mailpit. Fresh upstream source review checks that version's UserInfo endpoint and
+property mapper; real changed-email/verification proof is still required.
+
+Two independent initial read-only audits cover security/atomicity/data owners
+and native experience/delivery/privacy. Their verified findings are decision
+inputs, not bugs attributed to completed P03-3:
+
+| Confirmed gap or promise | Proposed action / owning carrier |
+|---|---|
+| G8 is Open; ordinary native entry needs existing Membership and global-self has exactly three descriptors | Separate exact invitation admission, host/offer witness and finite consumers; ADR-0093, Standards 05/11, source/caller census |
+| Neither `VerifiedProviderSubject` nor User stores current verified email | New request-bound current UserInfo adapter, exact subject and verified mailbox checks; no mirror or provider admin credential |
+| ADR-0042 permits only Tenant provisioning to write two roots | Enumerated same-module Invitation/Membership acceptance exception; plural MUST evidence and atomic rollback; dated successor disclosure |
+| Inviter is another actor, not the current HTTP candidate | Offer-derived same-owner delegation read; no fabricated HTTP candidate or arbitrary User lookup |
+| Generic/protected replay can retain response bytes; version receipt has no raw-secret slot | One-response handoff outside replay storage; explicit version-checked replacement after lost response |
+| Suspended/Active current uniqueness and terminal Revoked predecessors already exist | No acceptance reactivation/elevation; Active `already_member`; Revoked creates one successor |
+| Token-bearing path/query/returnTo can reach logs/provider/other hosts | Fragment-only native landing, immediate scrub, bounded server custody and manual-code/no-JavaScript fallback |
+| Blanket `no-referrer` can break the existing exact-Origin no-JavaScript forms | Clean confirmation uses the established compatible policy; actual browser controls qualify containment |
+| New registration has email verification disabled; seeds alone are not proof | Bounded Keycloak verification-action continuation, existing SMTP/Mailpit and an actual verified nonseed journey |
+| Architecture 13 promises configurable default 14-day expiry and useful delivery | Typed Tenancy setting, frozen per-generation expiry and explicit administrator sharing; no fake sent state or notification-engine dependency |
+| Branch admin cannot read general Role configuration | Separate current-delegable Role summaries; no general registry/grant disclosure or Role-admin grant |
+
+**Decision vehicle:** [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md)
+settles the coupled boundaries. Until acceptance it is a proposal, including its
+recommended administrator-handoff delivery choice. Automatic invitation email is
+an explicit alternative with additional provider/custody/job/reconciliation work;
+it must be selected before the corresponding implementation plan is finalized.
+
+#### Proposed finite operation surface
+
+These names describe implementation obligations, not existing endpoints. All API
+paths carry `/api/v1`. No arbitrary native proxy, browser bearer or Server Action
+is added. Input bodies are strict and at most 8 KiB; no unknown/duplicate fields
+or supplied actor/tenant/org authority is accepted. Lists use 20 default/100
+maximum, opaque actor/scope/operation-bound cursors and bounded no-store pages.
+The exact serialized DTO/OpenAPI and byte/deadline checks land with each writer.
+
+| API operation | Application consumer / capability and response |
+|---|---|
+| GET `/identity/invitations` and `/{id}` | `ListInvitationsQuery` / `GetInvitationQuery`; applicable membership-admin, exact current write scope, MUST read; email/Role/state/expiry/version, never verifier or raw link |
+| GET `/identity/invitable-roles` | `ListInvitableRolesQuery`; same capability/scope, current-delegable ID/key/scope/version only, MUST read; no grant graph |
+| POST `/identity/invitations` | `CreateInvitationCommand`; normalized email + one Role/version, exact current context, fresh delegation; protected keyed 201 version receipt/Location |
+| POST `/identity/invitations/{id}/revocations` | `RevokeInvitationCommand`; fresh target authority, canonical If-Match, protected keyed bounded receipt |
+| POST `/identity/invitations/{id}/handoffs` | `PrepareInvitationHandoffCommand`; current delegation, fixed Role pin, canonical If-Match; one secret response, rejects Idempotency-Key; explicit replacement renews generation/expiry |
+| GET `/tenancy/settings/invitation-policy` | Tenancy-owned bounded 14-day/default-or-configured policy read through its contract; own-current-tenant coverage, Off; no arbitrary setting value |
+| PUT `/tenancy/settings/invitation-policy` | `SetTenantInvitationLifetimeCommand`; Tenant setting-write and orgless, canonical If-Match/protected replay; one TenantSetting root, 1–30 days, MUST setting update |
+| POST `/identity/invitation-entry/inspections` | `InspectInvitationQuery`; strict body ID/code, exact native/host/subject/offer admission; current verified recipient, Off physically ReadOnly; bounded own offer/Role/scope labels/version |
+| POST `/identity/invitation-entry/acceptances` | `AcceptInvitationCommand`; strict ID/code/observed version, fresh provider proof and locked authority; natural offer/actor convergence, no generic Idempotency-Key; exact Membership/result/version receipt |
+| POST `/identity/invitation-entry/results` | `GetOwnInvitationResultQuery`; strict ID/code, exact same Active actor/original Active Membership and consumed verifier; Off physically ReadOnly. No current-email/inviter/Role/expiry requirement for an already committed result, no new mutation intent. The acceptance dispatcher may select this exact read before mutation dispatch when its preflight already observes Accepted. |
+| Internal original Invitation receipt read | `ReadInvitationReceiptQuery`; fresh exact admin target disclosure and MUST read; no token, mutation replay or successor substitution |
+| Internal original lifetime-policy receipt read | `ReadInvitationPolicyReceiptQuery`; exact original TenantSetting ID and fixed key, orgless own-Membership coverage, MUST read; no generic setting directory or old write-permission requirement |
+
+Native exact routes add localized `/studio/invitations`, invitation detail and
+lifetime controls, plus the fixed localized invitation landing and clean
+confirmation. Closed auth POSTs cover capture/inspect, verification, accept,
+create/revoke/handoff and lifetime changes. They retain exact Origin/CSRF,
+immutable response ownership and current session/scope. The new invitation
+continuation can coexist with a live session, but cannot replace another subject.
+Existing `canManageMemberships` applicability can expose the corresponding link;
+no advisory Boolean becomes a grant. Exact private route/operation census lands
+before activation; provider verification accepts only its fixed action/purpose,
+not arbitrary OIDC parameters or destinations.
+
+#### Six implementation steps after approval
+
+Every step includes relevant tests and docs in its implementation commit. Then
+run review round 1 with two independent fresh reviewers, fix verified findings
+and commit; run round 2 with two different fresh reviewers, fix/commit again.
+Reviewers read contracts and actual adjacent code, assess security, correctness,
+UX/accessibility, failure/concurrency, performance and maintainability, and state
+limits. Source/line/effect/reproduction distinguish confirmed findings from
+preferences. Choose model/effort for the surface; security/transaction/native
+entry reviews use high reasoning. Test workloads remain serialized. Do not add
+a generic orchestration/proof framework or manufacture findings to fill a round.
+
+| Step | Deliverable and main carriers | Required proof before moving on |
+|---|---|---|
+| 1 | Accept G8/ADR-0093; dated disclosures including ADR-0003's owner-execution/definer census, canonical contract/operation/ACL/owner/lock/replay details, module diagrams/matrices, classification inventory, glossary, Status/index/package. Docs only. | Maintainer acceptance; complete carrier reconciliation; fragment/roadmap/index/ADR guards; two independent review rounds. No runtime claim. |
+| 2 | Invitation ID/aggregate/state/policy port, EF mapping, forward migration, canonical RLS/FK/unique/transition/attribution guards, exact offer lookup and scope witness foundation. Identity Domain/Application.Contracts/Infrastructure; Tenancy bounded policy read contracts; SharedKernel context seam only as authorized. | Unit lifecycle/validation; real app-role PostgreSQL tenant/org isolation, uniqueness/expiry/terminal guards, exact applied schema/function/ACL and wrong-purpose controls; compile and architecture census. No exposed half-wired endpoint. |
+| 3 | Admin create/list/detail/invitable-Role/revoke/handoff; Tenancy lifetime writer; audit/policy/replay integration and OpenAPI/SDK operations. Identity/Tenancy Application/Infrastructure, API, generated SDK. | Real authorized/denied HTTP and direct application dispatch, current delegation/Role pin and lock waits, token-free admin/replay, link loss/replacement/unknown COMMIT, policy version conflicts and MUST rollback. |
+| 4 | Fresh recipient adapter, exact pre-Membership HTTP/application admission, invocation-bound scope owner, atomic accept/reconcile and central plural evidence. Infrastructure provider adapter, Identity acceptance application, API closed branch. | Real provider UserInfo/changed email/outage; same-subject binding, User-before-Tenant plan, Active/Suspended/Revoked outcomes, both competing-commit orders, closure fence, unknown COMMIT and failed-audit rollback; wrong-origin/host/purpose and cleanup controls. |
+| 5 | Full native continuation, provider verification action and signup/bootstrap reuse, administrator screens/link copy/policy form, invitee confirmation/recovery and post-acceptance session admission. Native auth/response owner, Studio, generated SDK callers, en/tr messages. | Actual HTTPS/browser and no-JavaScript flows, real nonseed verification via provider SMTP/Mailpit, new/existing/different-account cases, scope and form recovery, token leakage/BFCache/late responses/restart; typecheck/lint/full guarded frontend; actual human keyboard/reflow/contrast/VoiceOver checklist. |
+| 6 | Complete packet qualification, source-bound receipts, final review fixes and D06/C01/C08/C20 documentation closeout; prepare PR for the maintainer. Existing test owners/workflow, no timer-policy change. | Complete required same-source A/B and original-archive reconciliation, regenerated contract, relevant full backend/frontend/architecture/integration and provider/browser proof; two fresh final review rounds; truthful remaining external/manual evidence. No merge. |
+
+Workflow skills selected under `implement-task`: `write-adr`,
+`add-tenant-owned-entity`, `add-mediatr-handler`, `add-ef-migration`,
+`add-audit-coverage`, `add-provider-adapter`, `add-frontend-route`, `add-i18n-key`,
+`add-integration-test`, `run-tests-locally`, `standards-check`, `code-review`,
+`update-glossary` and `commit-and-pr`. Existing permissions are reused; no new
+assignable pair or automatic seed grant is planned. Load each specific workflow
+before its implementation rather than assuming its checklist is satisfied.
+
+#### Up-front maintainer decision and completion boundary
+
+The approval package covers administrator handoff versus automatic invitation
+email; the one-response secret/lost-link policy; case-insensitive bounded mailbox
+matching and current-provider-read boundary; 14-day default/1–30-day tenant policy;
+one pinned Role; Active no-elevation/Suspended refusal/Revoked successor behavior;
+new exact offer scope/definer and same-module two-root exception. No broader
+platform/provider administration, old manual deferral or production-readiness
+claim is implied. Production provider SMTP remains deployment configuration;
+the packet must prove and document its verification/recovery prerequisite.
+
+The user will review the final PR. Human accessibility checks for newly delivered
+screens need actual evidence; prior P03-3 deferral is not copied as a pass or an
+automatic waiver. If an external dependency genuinely prevents proof, report the
+exact dependency and keep that evidence open instead of marking it complete.
+Runtime work waits only for the requested new-ADR decision; independent document
+review/validation can continue. Once accepted, routine step choices and verified
+fixes proceed without repeated permission requests; a materially new authority or
+incompatible product decision returns to the maintainer before implementation.
+
+### P03-4 proposal review corrections and approval readiness (2026-11-04)
+
+**Proposed; no G8 acceptance or runtime implementation.** Two independent initial
+contract/source audits and two proposal review rounds are complete. Each proposal
+round uses two reviewers; round 2 uses different reviewers from round 1. All
+reviewers operate read-only apart from their private reports. This qualifies the
+decision text for the maintainer's decision, not any database/provider/browser
+implementation.
+
+Confirmed round-1 findings are corrected in the unaccepted draft:
+
+- Repeat the authenticated invitee's global admission check after the retained
+  User fence, including Active `already_member` consumption without a Membership
+  INSERT. The offer-derived function binds its actor to the verified subject;
+  trigger-only eligibility functions are not turned into arbitrary probes.
+- Separate Accepted result disclosure from Pending mutation conditions. The exact
+  Off `GetOwnInvitationResultQuery` is named in the finite route table and can be
+  selected before mutation-intent dispatch. It requires the same Active actor,
+  consumed verifier and original current Active Membership, without reapplying
+  old version/expiry/inviter/Role/email conditions. A Pending command losing a
+  race returns truthful conflict/failed-attempt evidence and uses a fresh result
+  read; it cannot invent a second successful consumption or suppress MUST intent.
+- Preserve authorized recipient-email/relationship access/export under P03-10;
+  distinguish that data from credentials/verifiers, which never enter DSAR
+  artifacts. Diagnostic/snapshot/event redaction remains mandatory.
+- Name exact Invitation and invitation-policy TenantSetting replay targets,
+  original-resource receipt reads, conditional first policy creation, fixed
+  verification-action purpose and deterministic verifier encoding. No raw link
+  enters durable receipt storage.
+
+Fresh round 2 confirms no Blocker or Major. Its one Minor carrier omission is
+fixed and rechecked: acceptance must append an ADR-0003 dated disclosure for the
+ninth definer/Invitation owner visibility, alongside the already listed scope,
+aggregate, provider/native/policy/replay carriers. ADR-0003's existing body and
+four-role/ordinary RLS boundary remain unchanged. Final independent security and
+experience verdicts have no open confirmed Blocker, Major or Minor.
+
+The complete approval surface is ADR-0093 and the preceding six-step package,
+including delivery choice, owner/authority costs, exact result/secret recovery,
+verification prerequisites and human proof obligations. Current standards and
+Accepted ADRs are not rewritten before approval. The optional delivery-preference
+question is not itself ADR acceptance; administrator handoff remains the proposed
+recommendation until the maintainer decides. No invitation source, schema,
+endpoint, provider configuration, test timer or CI run changes in this preparation.
