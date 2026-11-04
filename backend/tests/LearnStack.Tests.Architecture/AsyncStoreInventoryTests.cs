@@ -112,7 +112,7 @@ public sealed class AsyncStoreInventoryTests
             (subject.Document.Replace(row, row.TrimEnd('|'), StringComparison.Ordinal), "Malformed first-party table row."),
             // Keeping a removed row in nearby prose must not satisfy the canonical table.
             (subject.Document.Replace(row + "\n", "", StringComparison.Ordinal) + "\n" + row,
-                "Expected 10 first-party rows; found 9."),
+                "Expected 12 first-party rows; found 11."),
             (subject.Document.Replace("| `idempotency_keys` |", "| `unreviewed_exclusion` |", StringComparison.Ordinal),
                 "explicit scope exclusion: unexpected [unreviewed_exclusion]; missing [idempotency_keys]."),
         };

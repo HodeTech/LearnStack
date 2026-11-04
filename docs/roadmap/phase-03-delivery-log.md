@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 530 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 554 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -356,6 +356,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 2 review closeout and SMTP continuation (2026-11-04)](#p03-4-step-2-review-closeout-and-smtp-continuation-2026-11-04) — 25 lines
   - [P03-4 Step 3 SMTP foundation and review handoff (2026-11-04)](#p03-4-step-3-smtp-foundation-and-review-handoff-2026-11-04) — 49 lines
   - [P03-4 Step 3 first review startup correction (2026-11-04)](#p03-4-step-3-first-review-startup-correction-2026-11-04) — 33 lines
+  - [P03-4 Step 3 second review privacy inventory correction (2026-11-04)](#p03-4-step-3-second-review-privacy-inventory-correction-2026-11-04) — 24 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -16281,3 +16282,27 @@ storage-unavailable/rollback behavior before activation, instead of treating an
 aborted transaction as auditable successful disclosure. No public reader caller
 exists in this foundation. The explicit Step 7 process/full-source obligations
 recorded above remain open.
+
+### P03-4 Step 3 second review privacy inventory correction (2026-11-04)
+
+Two new reviewers inspect `42d585a9` independently. Failure/ownership review
+approves without findings. Integration review identifies one Major: the actual
+provider tables are documented only outside Architecture 23's marker-bound
+storage census. Running its existing controls confirms three failures out of 76,
+naming both provider tables and Step 2's Invitation root as unclassified actual
+migration storage. This is a current integration gap, not missing future native
+qualification.
+
+The correction adds both provider tables to the canonical twelve-store
+asynchronous inventory with their encrypted/linkable content and strict custody
+constraints. Invitation joins the explicit synchronous module exclusions without
+an erasure exemption. SMTP server/mailbox/provider-backup custody joins the
+existing external-copy inventory. The selected future-consumer description stays
+separate from actual storage and no longer claims an envelope expiry column.
+The complete migration comparison and every removed/duplicated-row dirty control
+remain strict; explicit expected population and its planted negative are updated.
+
+All 81 inventory/corpus cases now pass with zero skips. Prior full-unit/Contract/
+affected-integration results remain applicable because the correction changes
+classification/document guards only. The finding reviewer verifies the committed
+correction before Step 3 closes and Step 4 activates its actual writers.
