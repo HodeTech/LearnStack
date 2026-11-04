@@ -15,8 +15,8 @@
 > [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md), after
 > maintainer selection of automatic email and verified review corrections.
 > Its [seven-step package](phase-03-delivery-log.md#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04)
-> is in progress: Steps 1–2 and both review rounds are complete; Step 3
-> implements the automatic SMTP foundation.
+> is in progress: Steps 1–2 and both review rounds are complete; Step 3's
+> automatic SMTP foundation is implemented and enters independent review.
 > P03-5 through P03-11 implementation has not started. Phase 03 remains in progress.
 >
 > | Packet | Title | State |
@@ -25,7 +25,7 @@
 > | P03-1 | Identity authority and membership foundation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-1-merge-and-closeout-2026-10-27) |
 > | P03-2 | Live membership and authorization | Complete and merged — [closeout](phase-03-delivery-log.md#p03-2-merge-and-closeout-2026-10-28) |
 > | P03-3 | Protected Studio and membership administration | Complete and merged — [closeout](phase-03-delivery-log.md#p03-3-merge-and-delivery-closeout-2026-11-04); evidence follow-ups remain open |
-> | P03-4 | Invitations and bounded delivery | In progress — G8 Accepted; Steps 1–2 reviewed; Step 3 SMTP foundation |
+> | P03-4 | Invitations and bounded delivery | In progress — G8 Accepted; Steps 1–2 reviewed; Step 3 implementation under review |
 > | P03-5 | Custom fields and privacy classification | Not started |
 > | P03-6 | Provider event ingress and audit mirror | Not started |
 > | P03-7 | Back-channel session revocation | Not started |

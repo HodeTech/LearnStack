@@ -170,6 +170,21 @@ public sealed class InvitationStorageTests(IdentityMembershipFixture fixture) : 
         (await observe.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be("P0301");
     }
 
+    [Fact]
+    public async Task Receiptless_known_failure_is_terminal_and_cannot_be_rewritten_in_its_generation()
+    {
+        await using var app = await OpenAsync();
+        await using var transaction = await app.BeginTransactionAsync();
+        await ScopeAsync(app, transaction, SchemaFixture.TenantA);
+        await LockAsync(app, transaction, SchemaFixture.TenantA, null, false);
+        await MutateAsync(app, transaction, "submission_status='Failed'");
+        (await ScalarAsync<bool>(app, transaction,
+            "SELECT submission_status='Failed' AND submission_receipt_id IS NULL FROM public.invitations WHERE id=@id",
+            ("id", InvitationSchemaSeed.TenantOfferA))).Should().BeTrue();
+        var rewrite = () => MutateAsync(app, transaction, "submission_status='SubmissionAccepted',submission_receipt_id=@receipt", ("receipt", Guid.CreateVersion7()));
+        (await rewrite.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be("23514");
+    }
+
     private async Task<NpgsqlConnection> OpenAsync() => (NpgsqlConnection)await PostgresFixture.OpenAsync(fixture.Postgres.AppConnectionString);
 
     private static Task MutateAsync(NpgsqlConnection app, NpgsqlTransaction transaction, string assignment,

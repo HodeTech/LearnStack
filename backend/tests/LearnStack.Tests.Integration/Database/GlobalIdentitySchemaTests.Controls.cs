@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using FluentAssertions;
 using LearnStack.Modules.Identity.Infrastructure.Persistence;
+using LearnStack.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Identity;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.EntityFrameworkCore;
@@ -351,7 +352,13 @@ public sealed partial class GlobalIdentitySchemaTests
             .Select(pair => string.Join("\n", assembly.CreateMigration(pair.Value, context.Database.ProviderName!).UpOperations
                 .OfType<SqlOperation>().Select(operation => operation.Sql))).ToArray();
         migrationSql.Should().NotBeEmpty("the actual Identity migration assembly is the function census source");
-        var sql = string.Join("\n", migrationSql);
+        using var platform = new PlatformDbContext(new DbContextOptionsBuilder<PlatformDbContext>()
+            .UseNpgsql("Host=model-only;Database=model-only;Username=model-only").Options);
+        var platformMigrations = platform.GetService<IMigrationsAssembly>();
+        var providerMigration = platformMigrations.Migrations.Single(pair => pair.Key == "20261104180000_add_invitation_smtp_custody");
+        var providerSql = string.Join("\n", platformMigrations.CreateMigration(providerMigration.Value, platform.Database.ProviderName!).UpOperations
+            .OfType<SqlOperation>().Select(operation => operation.Sql));
+        var sql = string.Join("\n", migrationSql) + "\n" + providerSql;
         var functions = EffectiveFunctionDeclarations(sql).Select(match =>
         {
             var name = match.Groups["name"].Value.ToLowerInvariant();
@@ -376,15 +383,16 @@ public sealed partial class GlobalIdentitySchemaTests
                     : attributes.Contains("STABLE", StringComparison.Ordinal) ? "s" : "v",
                 attributes.Contains("STRICT", StringComparison.Ordinal));
         }).OrderBy(function => function.Name, StringComparer.Ordinal).ToArray();
-        functions.Should().HaveCount(18, "all applied Identity migrations retain the complete global/contextual/self-entry, Role-release and invitation function set");
-        functions.Count(function => function.Definer).Should().Be(9);
-        functions.SelectMany(function => function.Triggers).Should().HaveCount(24);
+        functions.Should().HaveCount(22, "all applied Identity migrations retain the complete global/contextual/self-entry, Role-release and invitation function set");
+        functions.Count(function => function.Definer).Should().Be(11);
+        functions.SelectMany(function => function.Triggers).Should().HaveCount(26);
         var globalNames = EffectiveFunctionDeclarations(migrationSql[0])
             .Select(match => match.Groups["name"].Value.ToLowerInvariant()).ToHashSet(StringComparer.Ordinal);
         globalNames.Should().NotBeEmpty("the first Identity migration installs its confined global functions");
         foreach (var function in functions)
         {
-            var forbidden = function.Name is "fn_identity_creation_attempt_admission" or "fn_identity_self_membership_scopes" or "fn_identity_invitation_entry"
+            var forbidden = function.Name.StartsWith("fn_invitation_", StringComparison.Ordinal) ? EntryForbiddenFunctionBody()
+                : function.Name is "fn_identity_creation_attempt_admission" or "fn_identity_self_membership_scopes" or "fn_identity_invitation_entry"
                 ? EntryForbiddenFunctionBody()
                 : globalNames.Contains(function.Name) ? ForbiddenFunctionBody() : ContextualForbiddenFunctionBody();
             forbidden.IsMatch(function.Body).Should().BeFalse(

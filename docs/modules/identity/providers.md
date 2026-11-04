@@ -70,3 +70,70 @@ receipt replay/conflict refusal, late original-owner evidence, uncertain provide
 COMMIT, no hidden retry after possible acceptance, retained actual cleanup and
 cross-tenant/org ciphertext/function refusal. Local qualification and production
 SMTP configuration remain separate evidence.
+
+## Configuration surface and source bindings
+
+The API resolves `InvitationEmail:KeyRing` through `ISecretProvider` once at
+startup. Its JSON shape is `{ "active": "version", "keys": { "version":
+"base64-encoded-32-byte-key" } }`; one to four distinct keys and a declared active
+version are required. This is a secret value, never a checked-in example key.
+SMTP settings are `InvitationEmail:Smtp:Host`, `Port`, `Sender`, and `Tls`
+(`RequiredStartTls` or `ImplicitTls`); `Username` and `Password` resolve through
+`ISecretProvider`. `DevelopmentPlaintext` is admitted only by Development host
+composition. Missing configuration prevents startup. No connection is made by
+configuration validation.
+
+Two active definition keys, `identity.invitation_email_tenant.v1` and
+`identity.invitation_email_organization.v1`, bind four exact ordinary roots:
+`PrepareTenantInvitationEmailCommand`, `FinalizeTenantInvitationEmailCommand`,
+`PrepareOrganizationInvitationEmailCommand`, and
+`FinalizeOrganizationInvitationEmailCommand`. Their shared parameters/plan are
+three GUIDs (InvitationId, GenerationId, SpoolId); the outcome is only ReceiptId.
+The scope-specific roots share logical audit operations, not request authority.
+
+The stager and provider admission verify the actual database logging settings
+listed in [Database Standards](../../standards/05-database.md#invitation-smtp-provider-storage).
+The invitation creation/reissue owner must qualify privacy before its first
+person-field write. A clean provider connection does not retroactively protect an
+earlier business INSERT. The staging implementation accepts only those exact
+writer identities; its real production callers and atomic writer/audit proof
+land with the invitation writer step. The foundation exposes no invitation HTTP
+endpoint and supplies no test-only producer exemption.
+
+## Setup, key rotation and restoration runbook
+
+The deployment operator owns these actions through the existing
+[secret configuration](../../standards/12-infrastructure.md#secrets-management)
+boundary. Never place keys, credentials or captured invitation messages in a
+ticket, terminal transcript, repository, test report or deployment log.
+
+1. Generate a cryptographically random 32-byte encryption key in the approved
+   secret store. Give it a new version identifier and configure the key ring and
+   fixed SMTP settings above. The default configuration provider reads these
+   exact configuration keys; environment variables use `__` in place of `:`.
+   Development plaintext requires the Development environment and explicit TLS
+   mode; production uses authenticated required TLS.
+2. Apply the [database privacy settings](../../standards/05-database.md#database-diagnostic-privacy-qualification)
+   before enabling invitation writes. Qualify independent collectors separately.
+   Startup configuration validation makes no SMTP connection and proves neither
+   credentials nor delivery. Use the packet's isolated provider controls before
+   enabling the real invitation producer.
+3. For rotation, retain every old key required by retained envelopes, add a
+   distinct key/version and select it as active. Restart through the normal
+   owned shutdown/startup path because the key ring is fixed for the process.
+   New envelopes use the new version; old envelopes keep their original version.
+   Never reuse a version for different key bytes. Four retained versions are the
+   limit, not permission to discard an older required key to make room.
+4. Retire a version only after an authorized retention assessment proves no
+   retained envelope or required restoration backup needs it. Application
+   credentials intentionally cannot enumerate provider custody. Phase 11 owns
+   the production retention/purge workflow; expiry or a terminal job alone is
+   not key-retirement evidence.
+5. Restore missing keys from the protected backup under their original version
+   identifiers, then restart. Never substitute a new key or regenerate the
+   encrypted link. An unclaimed job can continue through normal admission;
+   already-Sending/Unknown work remains uncertain until authoritative recovery.
+   Restoring a key is not proof that SMTP never accepted an earlier attempt.
+   [P03-9](../../roadmap/phase-03-identity-admin.md) owns privileged unresolved-work
+   recovery. Explicit reissue neither releases that reservation nor prevents
+   already-prepared old mail from arriving.

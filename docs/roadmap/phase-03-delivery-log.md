@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 448 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 497 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -354,6 +354,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 2 storage validation and review handoff (2026-11-04)](#p03-4-step-2-storage-validation-and-review-handoff-2026-11-04) — 23 lines
   - [P03-4 Step 2 second review UUID correction (2026-11-04)](#p03-4-step-2-second-review-uuid-correction-2026-11-04) — 18 lines
   - [P03-4 Step 2 review closeout and SMTP continuation (2026-11-04)](#p03-4-step-2-review-closeout-and-smtp-continuation-2026-11-04) — 25 lines
+  - [P03-4 Step 3 SMTP foundation and review handoff (2026-11-04)](#p03-4-step-3-smtp-foundation-and-review-handoff-2026-11-04) — 49 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -16197,3 +16198,52 @@ create/reissue submission/audit atomicity and nonempty caller census join its
 real writers in Step 4; Step 3 qualifies the closed mechanism with owned fixtures
 and does not invent a test-only production admission exemption. This dependency
 clarification leaves all work inside P03-4.
+
+### P03-4 Step 3 SMTP foundation and review handoff (2026-11-04)
+
+Step 3 implements the accepted automatic-mail mechanism, with no invitation
+administrator or recipient endpoint activated. Two active external definitions
+bind four scope-specific prepare/finalize roots, the existing two external
+workers and the shared four-slot tenant capacity group. Parameters/plan contain
+only the three immutable GUIDs; outcome contains only the provider ReceiptId.
+
+Two SQL-only custody tables, two fixed definer functions and a private four-owner
+app-role source retain the original attempt/fence separately from fresh recovery
+ownership. Actual `JobExecutor` entry alone issues the nonserialized authority.
+Lost COMMIT permits one exact locked verification after actual prior cleanup,
+within the original five-second SQL budget. SMTP runs outside SQL transactions;
+late original completion can preserve evidence without checkpoint authority.
+
+AES-256-GCM custody uses the fixed startup key ring and immutable authenticated
+scope/generation/job bindings. One shared verifier codec matches the accepted
+byte encoding. MailKit transport has no send retry or protocol logger. Final
+250 plus actual cleanup and a durable receipt means submission accepted; missing
+final reply stays Unknown. Unconfirmed physical SMTP cleanup retains concrete
+transport resources, provider owner and connector, closes that lane and blocks
+shutdown instead of returning capacity. The actual database privacy canary
+demonstrates failing-row leakage under dirty settings and suppression under the
+qualified settings. Setup, rotation and restoration are documented in the
+[provider runbook](../modules/identity/providers.md#setup-key-rotation-and-restoration-runbook).
+
+The Invitation's separate receiptless workflow-failure transition accepts only
+the existing runtime-selected known NoStart finalization path. Terminal selected
+delivery status is immutable; stale-generation completion cannot overwrite the
+new generation. Both new forward migrations include generated target models;
+committed Step 2 migrations remain unchanged.
+
+Focused final checks pass with zero skips: 103 unit cases, 10 controlled real
+SMTP cases, 36 runtime/schema cases, 22 composition/database cases and architecture
+runs of 33 and six cases. These populations overlap and are not a unique summed
+count. Actual tenant and organization execution, ordinary external DB denial,
+exact-scope refusal, lost-COMMIT verification, fresh recovery and durable-result
+replay are exercised. Configuration is now mandatory at API startup; construction
+fixtures supply explicit synthetic settings without connecting to SMTP.
+
+This is an implementation handoff, not review or packet qualification. Two fresh
+independent review rounds follow. Step 4 supplies actual create/reissue callers
+and atomic root/job/envelope/MUST-audit proof. Step 7 still owes full final-source
+suites/native fixture compatibility, process-qualified provider saturation and
+failed-cleanup shutdown, native restart/late-original races and the Identity
+six-NoStart finalizer path, alongside hosted A/B and original-archive proof.
+No current user stack, production credentials/settings or inbox delivery is
+qualified. No existing P03-3 manual deferral is promoted to evidence.

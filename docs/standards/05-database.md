@@ -5487,6 +5487,21 @@ module-table visibility or general background-job reader.
   production retention/purge; expiry does not delete unresolved provider evidence
   or release a job reservation.
 
+### Database diagnostic privacy qualification
+
+Before the invitation writer's first person-field INSERT and before provider
+admission, qualify the actual server settings: `log_error_verbosity=terse`,
+`log_min_error_statement=panic`, `log_statement=none`,
+`log_min_duration_statement=-1`, `log_min_duration_sample=-1`,
+`log_transaction_sample_rate=0`, `log_parameter_max_length=0` and
+`log_parameter_max_length_on_error=0`. Bind-parameter logging controls alone do
+not suppress CHECK failing-row or UNIQUE-key DETAIL. PostgreSQL's
+[logging documentation](https://www.postgresql.org/docs/current/runtime-config-logging.html)
+defines the TERSE and sampling behavior. A real-server qualification uses
+synthetic email/verifier canaries for CHECK, UNIQUE and bind failures, plus a
+positive control with default verbosity that demonstrates the leak. Do not print
+or inspect real provider/business logs as a qualification shortcut.
+
 ### Two confined provider functions
 
 The total admitted Identity/invitation SECURITY DEFINER census is **eleven**:
@@ -5558,6 +5573,15 @@ evidence and an unresolved SMTP task remain Unknown. Existing job quarantine and
 occupancy retention apply; no expiry, host exit, reissue or message identifier
 releases that reservation. The fresh runtime checkpoint/finalizer alone applies
 the [known-outcome policy](../decisions/0061-known-external-job-failure-policy.md).
+
+Known workflow failure without a provider receipt is a separate business
+transition: only the actual runtime-selected failed finalization of a prepared
+plan for known NoStart exhaustion/permanent failure may mark the matching
+generation `Failed` with a null provider receipt. It neither fabricates a receipt
+nor asserts SMTP rejection or acceptance. Submission status is a write-once
+terminal marker, including this receiptless failure; Unknown cannot invoke that
+transition or release occupancy. Reissue creates a new generation instead of
+rewriting the selected terminal status.
 
 ## Invitation entry and consumption
 

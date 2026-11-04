@@ -3,6 +3,7 @@ using LearnStack.Modules.Identity.Application.Contracts.Seeding;
 using LearnStack.Modules.Identity.Application.Contracts.Roles;
 using LearnStack.Modules.Identity.Application.Contracts.Entry;
 using LearnStack.Modules.Identity.Domain;
+using LearnStack.Modules.Identity.Application.Invitations;
 using LearnStack.SharedKernel.Permissions;
 
 namespace LearnStack.Modules.Identity.Application;
@@ -35,6 +36,10 @@ public sealed class IdentityOperationPolicySource : IOperationPolicySource
 
     public IEnumerable<OperationPolicy> Policies =>
     [
+        OperationPolicy.ForTrusted<PrepareTenantInvitationEmailCommand>("identity.invitation.prepare_tenant_email", AuthorizationSourceKind.BackgroundJob),
+        OperationPolicy.ForTrusted<PrepareOrganizationInvitationEmailCommand>("identity.invitation.prepare_organization_email", AuthorizationSourceKind.BackgroundJob),
+        OperationPolicy.ForTrusted<FinalizeTenantInvitationEmailCommand>("identity.invitation.tenant_email_submission", AuthorizationSourceKind.BackgroundJob),
+        OperationPolicy.ForTrusted<FinalizeOrganizationInvitationEmailCommand>("identity.invitation.organization_email_submission", AuthorizationSourceKind.BackgroundJob),
         OperationPolicy.ForNativeSessionAdmission<AdmitNativeSessionScopeCommand>(NativeSessionAdmissionOperation),
         OperationPolicy.ForProtected<ListMembershipsQuery>(MembershipDirectoryOperation, MembershipAdministration, OperationReadScope.Tenant),
         OperationPolicy.ForProtected<ListOrganizationMembershipsQuery>(OrganizationMembershipDirectoryOperation,

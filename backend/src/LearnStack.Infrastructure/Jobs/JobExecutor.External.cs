@@ -4,6 +4,7 @@ using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
 using System.Text;
 using LearnStack.Application.Jobs;
+using LearnStack.Infrastructure.Email;
 using LearnStack.SharedKernel.Jobs;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -60,6 +61,7 @@ public sealed partial class JobExecutor
         var previousActivity = Activity.Current;
         AsyncServiceScope? scope = null;
         IDisposable? denial = null;
+        InvitationSmtpExecutionReceipt? smtpReceipt = null;
         Activity? activity = null;
         CancellationTokenRegistration? registration = null;
         BackgroundJobRetainedExternalObservation? observation = null;
@@ -126,6 +128,9 @@ public sealed partial class JobExecutor
                 var context = new BackgroundJobExternalContext(envelope.JobId,
                     original?.AttemptId ?? recovery!.Receipt.AttemptId, snapshot.OperationId!.Value,
                     original?.Deadline ?? recovery!.Receipt.Deadline);
+                if (envelope.DefinitionKey is InvitationSmtpExecutionReceipt.TenantDefinition or InvitationSmtpExecutionReceipt.OrganizationDefinition)
+                    smtpReceipt = new InvitationSmtpExecutionReceipt(envelope, definition, binding, canonical, fingerprint,
+                        snapshot.OperationId.Value, original, recovery, token);
                 Task<BackgroundJobRetainedExternalObservation?> call;
                 try
                 {
@@ -157,6 +162,7 @@ public sealed partial class JobExecutor
         }
         finally
         {
+            smtpReceipt?.Dispose();
             if (scope is { } owned)
                 cleanupFailed |= !await CleanupScopeAsync(owned, null, null, retained).ConfigureAwait(false);
             try { activity?.Dispose(); }

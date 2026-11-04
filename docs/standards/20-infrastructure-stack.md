@@ -911,7 +911,8 @@ owns provider tables, encryption, grants, exact functions and source accounting.
 
 - `IInvitationEmailStager` stages an immutable encrypted envelope and the typed job
   on the invitation writer's existing ordinary owner. Prepare/finalize use the
-  delivered audited MediatR owner; Execute/Reconcile keep ordinary application
+  delivered audited MediatR owner through separate tenant and organization request
+  types with shared logical audit slugs; Execute/Reconcile keep ordinary application
   access denied. Their identifier-only DTOs carry no authored content or secret.
 - The two fixed provider-store functions are the explicit additional external
   custody capability. A nonserialized receipt from the exact validated

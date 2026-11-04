@@ -34,10 +34,11 @@ internal static class SchemaTableClasses
     public static readonly string[] IdentityPlatform = ["identity_authority", "identity_creation_capacity"];
     public static readonly string[] IdentityContextual = ["memberships", "membership_profiles",
         "membership_role_assignments", "roles", "role_permission_grants", "invitations"];
+    public static readonly string[] InvitationProvider = ["invitation_email_envelopes", "invitation_email_attempt_receipts"];
     public static readonly string[] Data = [.. Existing, .. JobTenant, .. Control, .. Vendor,
-        .. GlobalIdentity, .. IdentityPlatform, .. IdentityContextual];
+        .. GlobalIdentity, .. IdentityPlatform, .. IdentityContextual, .. InvitationProvider];
     public static bool AppSelectDenied(string table) => Control.Contains(table) || Vendor.Contains(table)
-        || table == "identity_creation_capacity";
+        || table == "identity_creation_capacity" || InvitationProvider.Contains(table);
 
     internal static Task<List<string>> ReadAsync(DbConnection connection, DbTransaction? transaction = null) =>
         SchemaQueries.ReadStringsAsync(connection, """

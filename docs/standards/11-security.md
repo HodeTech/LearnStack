@@ -1670,9 +1670,15 @@ snapshots, diagnostics or audit. Credentials/verifiers stay outside DSAR
 artifacts; authorized recipient/relationship access remains P03-10's contract.
 The exact SMTP adapter, lease functions, private data source and four-slot
 source admission follow Standard 05. Only `JobExecutor` mints the source witness;
-external SMTP execution owns no application database unit of work. A timeout,
-post-250 disconnect or crash with unknown effect retains the reservation until
-positive quiescence/reconciliation; no elapsed timer releases unsettled work.
+external SMTP execution owns no application database unit of work. A timeout or
+crash with unknown effect retains the reservation until positive
+quiescence/reconciliation; no elapsed timer releases unsettled work. A positively
+observed final 250 survives a subsequent disconnect fault only after actual local
+socket/task cleanup and a durable exact provider receipt. Unconfirmed SMTP
+cleanup retains its concrete transport resources and admitted provider connector,
+marks that lane unhealthy and blocks its disposal; Unknown alone does not prove
+physical cleanup. Actual server DETAIL and sampling qualification follows the
+[database privacy controls](05-database.md#database-diagnostic-privacy-qualification).
 Explicit reissue can cause a late old invalid email but does not release its
 reservation or imply exactly-once external delivery. Report queued/submission
 accepted/failed/uncertain facts; never claim inbox delivery from SMTP acceptance.

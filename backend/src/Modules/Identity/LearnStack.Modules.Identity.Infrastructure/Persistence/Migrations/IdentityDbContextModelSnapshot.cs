@@ -293,7 +293,7 @@ namespace LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("ck_invitations_no_delete", "deleted_at IS NULL AND deleted_by IS NULL");
 
-                            t.HasCheckConstraint("ck_invitations_submission", "((submission_status='Queued' AND submission_receipt_id IS NULL) OR (submission_status IN ('SubmissionAccepted','Failed') AND submission_receipt_id IS NOT NULL AND submission_receipt_id <> '00000000-0000-0000-0000-000000000000'::uuid)) IS TRUE");
+                            t.HasCheckConstraint("ck_invitations_submission", "((submission_status IN ('Queued','Failed') AND submission_receipt_id IS NULL) OR (submission_status IN ('SubmissionAccepted','Failed') AND submission_receipt_id IS NOT NULL AND submission_receipt_id <> '00000000-0000-0000-0000-000000000000'::uuid)) IS TRUE");
 
                             t.HasCheckConstraint("ck_invitations_tenant", "tenant_id NOT IN ('00000000-0000-0000-0000-000000000000'::uuid,'00000000-0000-7000-8000-000000000002'::uuid)");
 

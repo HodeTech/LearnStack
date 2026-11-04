@@ -640,7 +640,8 @@ public sealed class IdentityAuthorizationConventionTests
         var errors = new List<string>();
         Callers(census, errors, RoleGuard, "RefuseBypassRoleAsync", [Owner + ".OpenAsync",
             "LearnStack.Infrastructure.Persistence.DatabaseQualificationProof.OpenAsync",
-            "LearnStack.Infrastructure.Persistence.AuthorizationEvidenceSession.OpenAsync"]);
+            "LearnStack.Infrastructure.Persistence.AuthorizationEvidenceSession.OpenAsync",
+            "LearnStack.Infrastructure.Email.InvitationSmtpProviderDataSource/Owner.OpenPhysicalAsync"]);
         var body = census.Body(Owner, "OpenAsync");
         var guards = Calls(body, RoleGuard, "RefuseBypassRoleAsync").ToArray();
         var begins = Calls(body, "Npgsql.NpgsqlConnection", "BeginTransactionAsync").ToArray();

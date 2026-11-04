@@ -243,6 +243,24 @@ public sealed class InvitationDomainTests
         invitation.Version.Should().Be(1);
     }
 
+    [Fact]
+    public void Known_workflow_failure_is_receiptless_write_once_and_cannot_overwrite_submission()
+    {
+        var role = Role();
+        var invitation = Create(role);
+        invitation.RecordWorkflowFailure(invitation.GenerationId, invitation.CurrentDeliveryJobId, At.AddMinutes(1), Inviter)
+            .IsSuccess.Should().BeTrue();
+        invitation.SubmissionStatus.Should().Be(InvitationSubmissionStatus.Failed);
+        invitation.SubmissionReceiptId.Should().BeNull();
+        invitation.RecordWorkflowFailure(invitation.GenerationId, invitation.CurrentDeliveryJobId, At.AddMinutes(2), Inviter)
+            .IsSuccess.Should().BeTrue();
+        invitation.Version.Should().Be(1);
+        invitation.RecordSubmission(invitation.GenerationId, invitation.CurrentDeliveryJobId, InvitationEmailReceiptId.From(Guid.CreateVersion7()),
+            InvitationSubmissionStatus.SubmissionAccepted, At.AddMinutes(2), Inviter).IsFailure.Should().BeTrue();
+        invitation.Reissue(role, Delivery('b'), At.AddMinutes(3), Inviter).IsSuccess.Should().BeTrue();
+        invitation.SubmissionStatus.Should().Be(InvitationSubmissionStatus.Queued);
+    }
+
     private static Invitation Create(Role role, InvitationDelivery? delivery = null) => Invitation.Create(
         InvitationId.From(Guid.CreateVersion7()), Tenant, null, "Recipient@Example.Invalid", role, delivery ?? Delivery(), At, Inviter).Value!;
 

@@ -1,4 +1,5 @@
 using LearnStack.Modules.Identity.Domain;
+using LearnStack.Modules.Identity.Application.Invitations;
 using LearnStack.Modules.Identity.Application.Contracts.Seeding;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Application.Contracts.Roles;
@@ -14,6 +15,10 @@ public sealed class IdentityAuditCatalogSource : IAuditCatalogSource
     public void Describe(IAuditCatalogBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
+        builder.MustAudit<PrepareTenantInvitationEmailCommand>("identity.invitation.prepare_email", OperationType.SecurityEvent, typeof(Invitation));
+        builder.MustAudit<PrepareOrganizationInvitationEmailCommand>("identity.invitation.prepare_email", OperationType.SecurityEvent, typeof(Invitation));
+        builder.MustAudit<FinalizeTenantInvitationEmailCommand>("identity.invitation.email_submission", OperationType.SecurityEvent, typeof(Invitation));
+        builder.MustAudit<FinalizeOrganizationInvitationEmailCommand>("identity.invitation.email_submission", OperationType.SecurityEvent, typeof(Invitation));
         builder.MustAudit<AdmitNativeSessionScopeCommand>(IdentityOperationPolicySource.NativeSessionAdmissionOperation,
             OperationType.SecurityEvent, typeof(Membership));
         builder.MustAudit<InitializeSeedRoleCommand>("identity.role.initialize", OperationType.SecurityEvent, typeof(Role));

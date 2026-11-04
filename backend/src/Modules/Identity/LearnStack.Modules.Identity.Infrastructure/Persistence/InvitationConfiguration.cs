@@ -31,7 +31,7 @@ internal sealed class InvitationConfiguration : IEntityTypeConfiguration<Invitat
                 OR (status='Revoked' AND verifier_digest IS NULL AND consumed_verifier_digest IS NULL
                     AND accepted_by IS NULL AND result_membership_id IS NULL AND acceptance_disposition IS NULL AND accepted_at IS NULL)) IS TRUE
                 """);
-            table.HasCheckConstraint("ck_invitations_submission", "((submission_status='Queued' AND submission_receipt_id IS NULL) OR (submission_status IN ('SubmissionAccepted','Failed') AND submission_receipt_id IS NOT NULL AND submission_receipt_id <> '00000000-0000-0000-0000-000000000000'::uuid)) IS TRUE");
+            table.HasCheckConstraint("ck_invitations_submission", "((submission_status IN ('Queued','Failed') AND submission_receipt_id IS NULL) OR (submission_status IN ('SubmissionAccepted','Failed') AND submission_receipt_id IS NOT NULL AND submission_receipt_id <> '00000000-0000-0000-0000-000000000000'::uuid)) IS TRUE");
         });
         builder.HasKey(entity => entity.Id).HasName("pk_invitations");
         builder.Property(entity => entity.Id).HasConversion<InvitationId.EfCoreValueConverter, InvitationId.EfCoreValueComparer>().ValueGeneratedNever();

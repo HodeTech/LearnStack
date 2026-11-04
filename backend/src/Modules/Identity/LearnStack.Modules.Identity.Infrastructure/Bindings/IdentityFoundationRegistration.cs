@@ -1,4 +1,5 @@
 using LearnStack.Infrastructure.Persistence;
+using LearnStack.Modules.Identity.Infrastructure.Invitations;
 using LearnStack.Modules.Identity.Application.Abstractions;
 using LearnStack.Modules.Identity.Application.Audit;
 using LearnStack.Modules.Identity.Application.Bindings;
@@ -22,6 +23,7 @@ public static class IdentityFoundationRegistration
     public static IServiceCollection AddIdentityContextualFoundation(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
+        services.AddInvitationEmailJobs();
         services.TryAddScoped<IIdentityMutationLocks, IdentityMutationLocks>();
         services.TryAddSingleton<IFixedSeedPrerequisiteVerifier, DenyAllFixedSeedPrerequisiteVerifier>();
         services.TryAddScoped<ContextualIdentityStorageControl>();

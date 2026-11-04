@@ -281,10 +281,8 @@ public sealed class CrossCuttingFoundationTests
         // ADR-0032 § Sub-decision 5 — provider SDK exception types
         // (LiveKit.NET.LiveKitException, Stripe.StripeException,
         // Meilisearch.MeilisearchApiError, …) never escape
-        // LearnStack.Infrastructure.<Adapter>. Phase 02a has no adapters
-        // yet, so this test asserts the constraint vacuously by walking
-        // the well-known SDK namespaces against every non-adapter
-        // assembly.
+        // LearnStack.Infrastructure.<Adapter>. Walk known SDK namespaces
+        // against every non-adapter assembly, including the invitation SMTP SDKs.
         var nonAdapterAssemblies = ModuleAssemblyShapes
             .Append("LearnStack.SharedKernel")
             .Append("LearnStack.Domain")
@@ -300,6 +298,8 @@ public sealed class CrossCuttingFoundationTests
             "Stripe",
             "Meilisearch",
             "Iyzipay",
+            "MailKit",
+            "MimeKit",
         ];
 
         foreach (var assembly in nonAdapterAssemblies)

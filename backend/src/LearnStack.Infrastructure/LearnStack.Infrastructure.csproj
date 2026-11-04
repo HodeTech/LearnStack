@@ -11,6 +11,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="MailKit" />
+    <PackageReference Include="MimeKit" />
     <PackageReference Include="Hangfire.Core" />
     <PackageReference Include="Hangfire.NetCore" />
     <PackageReference Include="Hangfire.PostgreSql" />

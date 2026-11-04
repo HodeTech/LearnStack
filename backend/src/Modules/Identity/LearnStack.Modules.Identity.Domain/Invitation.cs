@@ -146,10 +146,22 @@ public sealed class Invitation : AuditableEntity<InvitationId>, IAggregateRoot<I
             || !StronglyTypedId.IsAssigned(actor) || at < GenerationCreatedAt || at.Offset != TimeSpan.Zero) return IdentityFailures.BusinessRule();
         if (SubmissionReceiptId is { } selected)
             return selected == receipt && SubmissionStatus == status ? Result<None>.Ok(None.Value) : IdentityFailures.BusinessRule();
-        if (Version == long.MaxValue) return IdentityFailures.BusinessRule();
+        if (Version == long.MaxValue || SubmissionStatus != InvitationSubmissionStatus.Queued) return IdentityFailures.BusinessRule();
         MarkUpdated(at, actor);
         SubmissionReceiptId = receipt;
         SubmissionStatus = status;
+        return Result<None>.Ok(None.Value);
+    }
+
+    /// <summary>Only the selected runtime finalizer applies a known NoStart workflow failure without provider evidence.</summary>
+    public Result<None> RecordWorkflowFailure(InvitationGenerationId generation, BackgroundJobId job, DateTimeOffset at, UserId actor)
+    {
+        if (generation != GenerationId || job != CurrentDeliveryJobId) return Result<None>.Ok(None.Value);
+        if (SubmissionStatus == InvitationSubmissionStatus.Failed && SubmissionReceiptId is null) return Result<None>.Ok(None.Value);
+        if (SubmissionStatus != InvitationSubmissionStatus.Queued || SubmissionReceiptId is not null || Version == long.MaxValue
+            || !StronglyTypedId.IsAssigned(actor) || at < GenerationCreatedAt || at.Offset != TimeSpan.Zero) return IdentityFailures.BusinessRule();
+        MarkUpdated(at, actor);
+        SubmissionStatus = InvitationSubmissionStatus.Failed;
         return Result<None>.Ok(None.Value);
     }
 
