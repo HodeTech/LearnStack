@@ -25,10 +25,11 @@ internal sealed class InvitationEntryHttpInput(Guid invitationId, string code, s
     {
         const int maximum = 8 * 1024;
         if (!operation.Matches(http) || http.Request.Query.Count != 0 || !AdministrationHttpInput.SupportsJsonMedia(http.Request)
-            || http.Request.ContentLength > maximum || http.Request.Headers.ContainsKey("Idempotency-Key")
+            || http.Request.Headers.ContainsKey("Idempotency-Key")
             || http.Request.Headers.ContainsKey("If-None-Match") || http.Request.Headers.ContainsKey("If-Modified-Since")
             || http.Request.Headers.ContainsKey("If-Unmodified-Since")
             || operation.RequestType != typeof(AcceptInvitationCommand) && http.Request.Headers.ContainsKey("If-Match")) return null;
+        if (http.Request.ContentLength > maximum) throw TooLarge();
         var bytes = new byte[maximum + 1];
         try
         {
@@ -39,7 +40,7 @@ internal sealed class InvitationEntryHttpInput(Guid invitationId, string code, s
                 if (read == 0) break;
                 count += read;
             }
-            if (count > maximum) return null;
+            if (count > maximum) throw TooLarge();
             _ = new UTF8Encoding(false, true).GetCharCount(bytes, 0, count);
             using var json = JsonDocument.Parse(bytes.AsMemory(0, count), new JsonDocumentOptions { MaxDepth = 3 });
             if (!AdministrationHttpInput.HasFields(json.RootElement, "invitationId", "code")
@@ -54,5 +55,6 @@ internal sealed class InvitationEntryHttpInput(Guid invitationId, string code, s
         catch (DecoderFallbackException) { return null; }
         finally { CryptographicOperations.ZeroMemory(bytes); }
     }
+    private static BadHttpRequestException TooLarge() => new("Invitation entry request body exceeds its limit.", StatusCodes.Status413PayloadTooLarge);
     public override string ToString() => nameof(InvitationEntryHttpInput);
 }

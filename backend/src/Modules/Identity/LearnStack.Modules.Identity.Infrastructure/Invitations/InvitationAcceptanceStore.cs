@@ -94,21 +94,33 @@ public sealed class InvitationAcceptanceReadStore(IdentityDbContext db, IUnitOfW
         var inviterMatches = await ContextualIdentityStorageControl.ReadAsync(() => Offers.AsNoTracking().AnyAsync(row =>
             row.Id == InvitationId.From(witness.Offer.InvitationId) && row.InviterUserId == storedInviter, cancellationToken));
         if (!inviterMatches) throw new InfrastructureException("Invitation delegation source refused.");
-        var members = await ContextualIdentityStorageControl.ReadAsync(() => db.Memberships.AsNoTracking().Include(row => row.RoleAssignments)
+        // One READ COMMITTED statement binds assignment and grant facts to the
+        // same snapshot; Shared Tenant does not exclude removal-only writers.
+        var members = await ContextualIdentityStorageControl.ReadAsync(() => db.Memberships.AsNoTracking().AsSingleQuery()
             .Where(row => row.TenantId == context.TenantId && row.UserId == storedInviter && row.Status == MembershipStatus.Active
                 && row.DeletedAt == null && row.DeletedBy == null && (row.OrganizationId == null || row.OrganizationId == context.OrganizationId))
-            .ToArrayAsync(cancellationToken));
-        var roleIds = members.SelectMany(row => row.RoleAssignments).Select(row => row.RoleId).Distinct().ToArray();
-        var roles = await ContextualIdentityStorageControl.ReadAsync(() => db.Roles.AsNoTracking().Include(row => row.Grants)
-            .Where(row => row.TenantId == context.TenantId && roleIds.Contains(row.Id) && row.DeletedAt == null && row.DeletedBy == null)
-            .ToArrayAsync(cancellationToken));
-        if (members.Length > 2 || roleIds.Length > 8) throw new InfrastructureException("Invitation delegation graph unavailable.");
+            .Select(member => new
+            {
+                member.Id,
+                member.OrganizationId,
+                AssignmentRoleIds = member.RoleAssignments.Select(assignment => assignment.RoleId).ToArray(),
+                Roles = db.Roles.Where(role => role.TenantId == context.TenantId && role.DeletedAt == null && role.DeletedBy == null
+                        && member.RoleAssignments.Any(assignment => assignment.RoleId == role.Id))
+                    .Select(role => new
+                    {
+                        role.Id,
+                        role.BuiltInKey,
+                        role.PermissionScope,
+                        Grants = role.Grants.Select(grant => new { grant.PermissionScope, grant.PermissionKey }).ToArray()
+                    }).ToArray()
+            }).ToArrayAsync(cancellationToken));
+        if (members.Length > 2 || members.SelectMany(member => member.AssignmentRoleIds).Distinct().Count() > 8)
+            throw new InfrastructureException("Invitation delegation graph unavailable.");
         return new(members.Length == 0 ? IdentityAuthorizationOutcome.NotCovered : IdentityAuthorizationOutcome.Covered,
             storedInviter, context.TenantId, context.OrganizationId,
             [.. members.Select(member => new AuthorizationMembershipFacts(member.Id.Value, member.OrganizationId,
-                [.. roles.Where(role => member.RoleAssignments.Any(assignment => assignment.RoleId == role.Id))
-                    .Select(role => new AuthorizationRoleFacts(role.Id.Value, role.BuiltInKey, role.PermissionScope,
-                        [.. role.Grants.Select(grant => new PermissionDefinition(grant.PermissionScope, grant.PermissionKey))]))]))]);
+                [.. member.Roles.Select(role => new AuthorizationRoleFacts(role.Id.Value, role.BuiltInKey, role.PermissionScope,
+                    [.. role.Grants.Select(grant => new PermissionDefinition(grant.PermissionScope, grant.PermissionKey))]))]))]);
     }
 }
 

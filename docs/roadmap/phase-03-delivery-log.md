@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 805 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 845 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -363,6 +363,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 4 second review closeout and Step 5 start (2026-11-04)](#p03-4-step-4-second-review-closeout-and-step-5-start-2026-11-04) — 28 lines
   - [P03-4 Step 5 recipient admission and atomic acceptance review handoff (2026-11-05)](#p03-4-step-5-recipient-admission-and-atomic-acceptance-review-handoff-2026-11-05) — 70 lines
   - [P03-4 Step 5 first review diagnostic correction (2026-11-05)](#p03-4-step-5-first-review-diagnostic-correction-2026-11-05) — 32 lines
+  - [P03-4 Step 5 second review delegation and transport corrections (2026-11-05)](#p03-4-step-5-second-review-delegation-and-transport-corrections-2026-11-05) — 40 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -16563,3 +16564,43 @@ and no generic proof framework is added. The compiled architecture count remains
 340. The finding reviewer checks closure, followed by two different fresh
 second-round reviewers of the complete Step 5 range. All broader qualification
 and Step 6 boundaries in the implementation handoff remain explicit.
+
+### P03-4 Step 5 second review delegation and transport corrections (2026-11-05)
+
+Two different fresh reviewers examine the complete Step 5 range, including the
+first-review correction. The authority review identifies a Blocker: separate
+READ COMMITTED Membership/assignment and Role/grant reads can combine facts that
+never formed one committed delegation ceiling. Removal-only organization Role
+unassignment does not take the inviter User fence; its Shared Tenant fence also
+permits an unrelated Role's ordinary grant restoration. Holding the offered Role
+does not exclude that interleaving.
+
+An actual app-role regression reproduces successful acceptance before the fix,
+despite the inviter lacking a coherent sufficient ceiling throughout the act.
+The concurrent assignment removal and grant restoration commit with normal
+guards, valid root versions, the actual editor and Shared Tenant fences; no
+User fence or disabled trigger supplies the counterexample. The stored inviter's
+complete delegation facts now use one explicitly single-query EF projection on
+the existing owner. Provenance, fact bounds, isolation level and lock plans stay
+unchanged, following ADR-0076's committed Identity statement contract.
+
+The transport review identifies a Minor mismatch: both declared and counted
+entry bodies above 8 KiB return 400 although the served contract specifies 413.
+Both overflow paths now use the existing bounded payload-too-large response;
+malformed in-limit input retains 400 and owned buffers are still cleared.
+
+Eight focused HTTP tests pass with zero skips. The raced acceptance now returns
+403, leaves the offer Pending and creates no Membership; a coherent delegation
+control still creates one. The test observes exactly one inviter query with
+joined grants. Declared-length and genuinely undeclared/chunked 8,193-byte bodies
+return no-store 413/payload_too_large before provider work, while both exact
+8,192-byte controls succeed. Existing malformed-input, new/unchanged-member,
+result recovery and post-wait delegation-refusal controls also pass.
+Five affected architecture controls pass with zero skips; six changed C# files
+pass formatting and format verification. The compiled architecture count remains
+340, without a catalogue status promotion.
+
+These are bounded correction receipts, not a new full-suite or packet
+qualification. Finding reviewers verify closure after the correction commit;
+Step 6 retains the full recipient/Studio experience and Step 7 the final-source
+qualification already recorded above. No additional authority or ADR is added.

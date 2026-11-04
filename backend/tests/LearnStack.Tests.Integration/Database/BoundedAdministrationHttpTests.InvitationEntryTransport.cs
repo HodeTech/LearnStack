@@ -28,7 +28,7 @@ public sealed partial class BoundedAdministrationHttpTests
             valid[..^1] + ",\"tenantId\":\"" + Tenant.TenantId.Value + "\"}",
             valid[..^1] + ",\"code\":\"" + offer.Code + "\"}",
             valid.Replace("invitationId", "InvitationId", StringComparison.Ordinal),
-            "[]", valid + "{}", new string(' ', 8193) + valid,
+            "[]", valid + "{}",
             JsonSerializer.Serialize(new { invitationId = offer.Id, code = offer.Code + "=" })
         };
         foreach (var body in invalidBodies)

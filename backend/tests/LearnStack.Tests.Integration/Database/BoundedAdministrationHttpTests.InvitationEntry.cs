@@ -135,7 +135,7 @@ public sealed partial class BoundedAdministrationHttpTests
     private sealed record EntryOffer(Guid Id, string Code)
     { public override string ToString() => nameof(EntryOffer); }
     private static async Task<EntryOffer> SeedEntryOfferAsync(IdentityAuthorizationHttpProof proof,
-        OrganizationId? organization = null, BuiltInRoleKey role = BuiltInRoleKey.Learner, string email = EntryEmail, DateTimeOffset? expiresAt = null)
+        OrganizationId? organization = null, BuiltInRoleKey role = BuiltInRoleKey.Learner, string email = EntryEmail, DateTimeOffset? expiresAt = null, UserId? inviter = null)
     {
         var at = expiresAt?.AddDays(-14) ?? DateTimeOffset.UtcNow;
         var id = Guid.CreateVersion7();
@@ -158,7 +158,7 @@ public sealed partial class BoundedAdministrationHttpTests
                 @at+interval '14 days',@digest,@origin,'en',@job,'Queued',@at,@inviter
             FROM roles WHERE id=@role
             """, ("id", id), ("tenant", Tenant.TenantId.Value), ("organization", organization?.Value),
-            ("email", email), ("inviter", EnglishAdmin.Value), ("generation", Guid.CreateVersion7()),
+            ("email", email), ("inviter", (inviter ?? EnglishAdmin).Value), ("generation", Guid.CreateVersion7()),
             ("at", at), ("digest", digest), ("origin", "https://" + Tenant.Host), ("job", Guid.CreateVersion7()), ("role", roleId));
         await tx.CommitAsync();
         CryptographicOperations.ZeroMemory(digest);
