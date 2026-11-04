@@ -5693,7 +5693,9 @@ The lifetime policy is one Tenancy TenantSetting root with exact immutable key
 `identity.invitation.ttl_days`, NULL organization, integer 1–30 and default 14
 when absent. Presence plus root version distinguish a first conditional create
 from an existing version-zero setting. The existing natural key and checked
-version prevent a racing upsert. Only future generations consume changed values.
+version prevent a racing upsert. The wire preconditions are the exact
+[API policy contract](04-api-design.md#verified-invitation-transport).
+Only future generations consume changed values.
 
 Add protected original-target kinds Invitation and TenantSetting only for this
 policy. Retain existing actor/scope fingerprint, 1,000 tenant slots, capacity
@@ -5707,7 +5709,12 @@ current announced owner, called only by authorized current Invitation reads with
 that root's actual CurrentDeliveryJobId. It reads only that exact same-scope job's
 closed phase/outcome/finalization/quarantine metadata, not its payload/plan,
 provider tables, recipient or another job directory. It returns finite status or
-unavailable, never provider messages. This supplies visible uncertainty before a
+unavailable, never provider messages. A successful missing-job read may return
+Unavailable; an actual SQL failure or private five-second timeout marks the
+shared owner rollback-only and fails the complete sensitive read with 503.
+Caller cancellation retains its meaning. A page shares one five-second status
+budget, clipped by its request deadline, rather than one budget per row.
+This supplies visible uncertainty before a
 module finalizer can run. It uses no second owner or external denied-scope access.
 
 ### Qualification obligations

@@ -12,6 +12,10 @@ internal static class AdministrationHttpSurface
         var resource = parts[4].ToLowerInvariant();
         return (module, resource, parts.Length) switch
         {
+            ("identity", "invitations" or "invitable-roles", 5) => true,
+            ("identity", "invitations", 6) => true,
+            ("identity", "invitations", 7) => parts[6].ToLowerInvariant() is "revocations" or "reissues",
+            ("tenancy", "settings", 6) => parts[5].Equals("invitation-policy", StringComparison.OrdinalIgnoreCase),
             ("identity", "organization-memberships" or "permissions" or "roles", 5) => true,
             ("identity", "memberships" or "roles", 6) => true,
             ("identity", "memberships", 7) => parts[6].ToLowerInvariant() is "profile" or "role-assignments" or "status",

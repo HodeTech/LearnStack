@@ -1,4 +1,5 @@
 using LearnStack.SharedKernel.Email;
+using LearnStack.SharedKernel.Errors;
 using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Persistence;
 using Npgsql;
@@ -36,6 +37,10 @@ public sealed class InvitationEmailStatusReader(IUnitOfWork unit) : IInvitationE
                 _ => InvitationEmailDeliveryStatus.Queued,
             };
         }
-        catch (NpgsqlException) { return InvitationEmailDeliveryStatus.Unavailable; }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && budget.IsCancellationRequested)
+        { unit.MarkRollbackOnly(); throw new InfrastructureException("Invitation delivery status unavailable."); }
+        catch (NpgsqlException) when (cancellationToken.IsCancellationRequested)
+        { unit.MarkRollbackOnly(); throw new OperationCanceledException(cancellationToken); }
+        catch (NpgsqlException) { unit.MarkRollbackOnly(); throw new InfrastructureException("Invitation delivery status unavailable."); }
     }
 }

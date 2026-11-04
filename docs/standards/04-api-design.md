@@ -407,7 +407,7 @@ or native proxy. All paths below carry `/api/v1`.
 | GET `/identity/invitations`, `/identity/invitations/{id}` | `ListInvitationsQuery` / `GetInvitationQuery`; applicable membership-admin in exact current scope, MUST read; email, Role, lifecycle, expiry, version and bounded delivery status only |
 | GET `/identity/invitable-roles` | `ListInvitableRolesQuery`; same capability/scope, MUST read; currently delegable ID/key/scope/version summaries, no Role grant graph |
 | POST `/identity/invitations` | `CreateInvitationCommand`; email and one pinned compatible Role/version; atomically creates generation 1, private encrypted mail custody and typed job; protected keyed 201 version receipt and Location |
-| POST `/identity/invitations/{id}/revocations` | `RevokeInvitationCommand`; current delegation, canonical strong If-Match and protected keyed version receipt |
+| POST `/identity/invitations/{id}/revocations` | `RevokeInvitationCommand`; current exact-scope membership-admin withdrawal authority, Pending target and canonical strong If-Match and protected keyed version receipt |
 | POST `/identity/invitations/{id}/reissues` | `ReissueInvitationCommand`; current delegation and unchanged Role pin, canonical strong If-Match and protected keyed receipt; new verifier/generation/expiry invalidates the old link |
 | GET `/tenancy/settings/invitation-policy` | `GetTenantInvitationPolicyQuery`; own-current-tenant policy only, orgless context, Off; absent/default or stored version precondition |
 | PUT `/tenancy/settings/invitation-policy` | `SetTenantInvitationLifetimeCommand`; Tenant `tenancy.setting.write`, orgless scope, fixed key `identity.invitation.ttl_days`, 1–30 days; conditional creation or canonical If-Match, protected keyed receipt and MUST update |
@@ -423,6 +423,21 @@ original TenantSetting ID/key in the same orgless tenant, own-current-Membership
 coverage and MUST read audit; it requires no old write capability and exposes no
 generic settings directory. No secret enters durable replay bytes. Policy
 absence is a conditional create precondition, never an unconditional upsert.
+The policy getter returns `days`, `present`, nullable decimal-string `version`
+and advisory `canEdit`. Absent means 14 days, `present=false`, `version=null`
+and no ETag. A stored version-zero row has `present=true`, `version="0"` and
+ETag `"0"`. PUT accepts only `{days}` and Idempotency-Key, with exactly one
+of `If-None-Match: *` for absence or canonical `If-Match: "N"` for presence.
+Missing, combined, weak or list preconditions are 400; a changed presence/version
+is 409. Both setter branches return the 200 version receipt without Location;
+protected fingerprints bind the presence distinction. The retained receipt
+contains the actual original TenantSetting ID, including first creation.
+
+Revocation withdraws a Pending offer under current exact-scope membership-admin
+and strong root If-Match. It assigns nothing and does not require the obsolete
+offered Role or its pin/grant ceiling to remain usable. Create and reissue retain
+the live compatible Role/version and complete delegation checks; changing that
+pin requires withdrawal and a new offer. Reissue preserves the original inviter.
 
 Entry bodies are strict UTF-8 JSON, at most 8 KiB, with no unknown/duplicate
 fields or actor/tenant/org authority selectors. Inspection and result use POST

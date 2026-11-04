@@ -96,9 +96,13 @@ listed in [Database Standards](../../standards/05-database.md#invitation-smtp-pr
 The invitation creation/reissue owner must qualify privacy before its first
 person-field write. A clean provider connection does not retroactively protect an
 earlier business INSERT. The staging implementation accepts only those exact
-writer identities; its real production callers and atomic writer/audit proof
-land with the invitation writer step. The foundation exposes no invitation HTTP
-endpoint and supplies no test-only producer exemption.
+writer identities. Create and Reissue call the real stager/scheduler/envelope
+writer on their announced business owner. A failed MUST write rolls their work
+back together; no test-only producer exemption supplies production authority.
+Admin status uses only the authorized root's current JobId. Missing-job data is
+finite Unavailable; SQL failure/private timeout fails the whole audited read with
+503 and rollback-only state, while actual caller cancellation remains cancellation.
+A page shares a five-second status budget under the parent request deadline.
 
 ## Setup, key rotation and restoration runbook
 

@@ -1,3 +1,4 @@
+using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
 using LearnStack.Modules.Tenancy.Application.Contracts.Seeding;
 using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
 using LearnStack.Modules.Tenancy.Application.Contracts.Locales;
@@ -40,6 +41,9 @@ public sealed class TenancyAuditCatalogSource : IAuditCatalogSource
     public void Describe(IAuditCatalogBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
+        builder.Off<GetTenantInvitationPolicyQuery>();
+        builder.MustAudit<SetTenantInvitationLifetimeCommand>("tenancy.setting.write", OperationType.Update, typeof(TenantSetting));
+        builder.MustAudit<ReadInvitationPolicyReceiptQuery>("tenancy.setting.read_receipt", OperationType.ReadSensitive, typeof(TenantSetting));
         builder.DeclareOffPath("tenancy.assertion.reject_claim_context", OperationType.SecurityEvent, OperationClass.Must, entityType: null);
 
         builder.Off<GetTenantSeedStateQuery>();

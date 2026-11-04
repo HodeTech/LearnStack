@@ -44,6 +44,12 @@ public sealed class AdministrationOpenApiTests(ProductionHostFixture fixture) : 
         OwnNavigationWireProof.AssertSdkReadable(OwnNavigationWireProof.Serialize(full, info, options), 100);
     }
 
+    private static readonly string[] InvitationFields = ["deliveryStatus", "email", "expiresAt", "invitationId", "organizationId", "roleId", "roleVersion", "status", "version"];
+    private static readonly string[] InvitationStates = ["Pending", "Accepted", "Revoked", "Expired"];
+    private static readonly string[] InvitationDeliveryStates = ["Queued", "SubmissionAccepted", "Failed", "Unresolved", "Unavailable"];
+    private static readonly string[] InvitationPolicyFields = ["canEdit", "days", "present", "version"];
+    private static readonly string[] NullableVersionTypes = ["null", "string"];
+
     private static readonly string[] ProfileFields = ["displayName", "preferredLocale"];
 
     private static readonly (string Path, string Method, string Operation, string? Input)[] Operations =
@@ -68,15 +74,23 @@ public sealed class AdministrationOpenApiTests(ProductionHostFixture fixture) : 
         ("tenancy/organizations/{id}", "put", "RenameOrganization", "OrganizationRenameInput"),
         ("tenancy/organizations/{id}/archive", "post", "ArchiveOrganization", "EmptyAdministrationInput"),
         ("tenancy/default-organization", "put", "SelectDefaultOrganization", "DefaultOrganizationInput"),
+        ("identity/invitations", "get", "ListInvitations", null),
+        ("identity/invitations/{id}", "get", "GetInvitation", null),
+        ("identity/invitable-roles", "get", "ListInvitableRoles", null),
+        ("identity/invitations", "post", "CreateInvitation", "InvitationCreateInput"),
+        ("identity/invitations/{id}/revocations", "post", "RevokeInvitation", "EmptyAdministrationInput"),
+        ("identity/invitations/{id}/reissues", "post", "ReissueInvitation", "EmptyAdministrationInput"),
+        ("tenancy/settings/invitation-policy", "get", "GetTenantInvitationPolicy", null),
+        ("tenancy/settings/invitation-policy", "put", "SetTenantInvitationLifetime", "InvitationLifetimeInput"),
     ];
 
     [Fact]
-    public async Task All_twenty_admitted_actions_publish_exact_identity_security_body_errors_and_success_metadata()
+    public async Task All_twenty_eight_admitted_actions_publish_exact_identity_security_body_errors_and_success_metadata()
     {
         using var client = fixture.CreateClient();
         var document = await client.GetFromJsonAsync<JsonElement>(new Uri("/openapi/v1.json", UriKind.Relative));
         var paths = document.GetProperty("paths");
-        Assert.Equal(20, Operations.Length);
+        Assert.Equal(28, Operations.Length);
         foreach (var declaration in Operations)
         {
             var operation = paths.GetProperty("/api/v1/" + declaration.Path).GetProperty(declaration.Method);
@@ -87,7 +101,7 @@ public sealed class AdministrationOpenApiTests(ProductionHostFixture fixture) : 
             foreach (var status in new[] { "400", "401", "403", "404", "405", "413", "429", "500", "503" })
                 Assert.Equal("#/components/schemas/ProblemDetails", responses.GetProperty(status).GetProperty("content")
                     .GetProperty("application/problem+json").GetProperty("schema").GetProperty("$ref").GetString());
-            var created = declaration.Operation == "CreateManagedOrganization";
+            var created = declaration.Operation is "CreateManagedOrganization" or "CreateInvitation";
             var success = responses.GetProperty(created ? "201" : "200");
             Assert.True(success.GetProperty("headers").GetProperty("Cache-Control").GetProperty("required").GetBoolean());
             if (declaration.Input is null)
@@ -101,9 +115,26 @@ public sealed class AdministrationOpenApiTests(ProductionHostFixture fixture) : 
             Assert.True(Assert.Single(parameters, item => item.GetProperty("name").GetString() == "Idempotency-Key")
                 .GetProperty("required").GetBoolean());
             Assert.Equal(created ? 0 : 1, parameters.Count(item => item.GetProperty("name").GetString() == "If-Match"));
+            var policy = declaration.Operation == "SetTenantInvitationLifetime";
+            Assert.Equal(policy ? 1 : 0, parameters.Count(item => item.GetProperty("name").GetString() == "If-None-Match"));
+            if (policy)
+            {
+                foreach (var name in new[] { "If-Match", "If-None-Match" })
+                {
+                    var header = Assert.Single(parameters, item => item.GetProperty("name").GetString() == name);
+                    Assert.Equal("header", header.GetProperty("in").GetString());
+                    Assert.False(header.TryGetProperty("required", out var required) && required.GetBoolean());
+                }
+                var absent = Assert.Single(parameters, item => item.GetProperty("name").GetString() == "If-None-Match");
+                Assert.Equal("*", Assert.Single(absent.GetProperty("schema").GetProperty("enum").EnumerateArray()).GetString());
+                Assert.Contains("Supplying both or neither is 400", operation.GetProperty("description").GetString());
+                Assert.Contains("Absence differs from stored version zero", operation.GetProperty("description").GetString());
+            }
             Assert.True(success.GetProperty("headers").GetProperty("ETag").GetProperty("required").GetBoolean());
             Assert.True(success.GetProperty("headers").TryGetProperty(IdempotentAttribute.ReplayedHeaderName, out _));
             Assert.Equal(created, success.GetProperty("headers").TryGetProperty("Location", out _));
+            if (declaration.Operation == "CreateInvitation") Assert.StartsWith("^/api/v1/identity/invitations/",
+                success.GetProperty("headers").GetProperty("Location").GetProperty("schema").GetProperty("pattern").GetString());
             Assert.True(responses.TryGetProperty("409", out _));
         }
         Assert.True(paths.TryGetProperty("/api/v1/public/site", out _));
@@ -118,7 +149,7 @@ public sealed class AdministrationOpenApiTests(ProductionHostFixture fixture) : 
         var document = await client.GetFromJsonAsync<JsonElement>(new Uri("/openapi/v1.json", UriKind.Relative));
         var schemas = document.GetProperty("components").GetProperty("schemas");
         foreach (var name in new[] { "AdministrationVersionReceipt", "MembershipDetailResponse", "OwnMembershipProfileResponse",
-            "RoleSummaryResponse", "RoleDetailResponse", "OrganizationResponse" })
+            "RoleSummaryResponse", "RoleDetailResponse", "OrganizationResponse", "InvitationResponse" })
             Assert.Equal("string", schemas.GetProperty(name).GetProperty("properties").GetProperty("version").GetProperty("type").GetString());
         Assert.Equal("string", schemas.GetProperty("OrganizationDirectoryResponse").GetProperty("properties")
             .GetProperty("tenantVersion").GetProperty("type").GetString());
@@ -127,6 +158,22 @@ public sealed class AdministrationOpenApiTests(ProductionHostFixture fixture) : 
         Assert.Equal(ProfileFields, schemas.GetProperty("MembershipProfileInput")
             .GetProperty("required").EnumerateArray().Select(value => value.GetString()).Order(StringComparer.Ordinal));
         Assert.Equal(9, schemas.GetProperty("OwnCapabilitiesDto").GetProperty("properties").EnumerateObject().Count());
+        var invitation = schemas.GetProperty("InvitationResponse").GetProperty("properties");
+        Assert.Equal(InvitationFields,
+            invitation.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal));
+        Assert.Equal("string", invitation.GetProperty("roleVersion").GetProperty("type").GetString());
+        Assert.Equal(InvitationStates, invitation.GetProperty("status").GetProperty("enum").EnumerateArray().Select(value => value.GetString()));
+        Assert.Equal(InvitationDeliveryStates, invitation.GetProperty("deliveryStatus").GetProperty("enum").EnumerateArray().Select(value => value.GetString()));
+        Assert.Equal(100, schemas.GetProperty("InvitationPage").GetProperty("properties").GetProperty("items").GetProperty("maxItems").GetInt32());
+        Assert.Equal(8, schemas.GetProperty("InvitableRoleDirectory").GetProperty("properties").GetProperty("items").GetProperty("maxItems").GetInt32());
+        var invitationPolicy = schemas.GetProperty("InvitationPolicyResponse").GetProperty("properties");
+        Assert.Equal(InvitationPolicyFields, invitationPolicy.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal));
+        Assert.Equal(NullableVersionTypes, invitationPolicy.GetProperty("version").GetProperty("type").EnumerateArray().Select(value => value.GetString()).Order(StringComparer.Ordinal));
+        Assert.Equal(1, invitationPolicy.GetProperty("days").GetProperty("minimum").GetInt32());
+        Assert.Equal(30, invitationPolicy.GetProperty("days").GetProperty("maximum").GetInt32());
+        var getter = document.GetProperty("paths").GetProperty("/api/v1/tenancy/settings/invitation-policy").GetProperty("get")
+            .GetProperty("responses").GetProperty("200").GetProperty("headers").GetProperty("ETag");
+        Assert.False(getter.TryGetProperty("required", out var getterRequired) && getterRequired.GetBoolean());
         var capabilities = document.GetProperty("paths").GetProperty("/api/v1/identity/me/capabilities").GetProperty("get")
             .GetProperty("responses").GetProperty("200").GetProperty("headers");
         Assert.False(capabilities.TryGetProperty("ETag", out _));
@@ -184,6 +231,9 @@ public sealed class AdministrationOpenApiTests(ProductionHostFixture fixture) : 
     [InlineData("identity/permissions")]
     [InlineData("tenancy/organizations")]
     [InlineData("tenancy/default-organization")]
+    [InlineData("identity/invitations")]
+    [InlineData("identity/invitable-roles")]
+    [InlineData("tenancy/settings/invitation-policy")]
     public async Task Unauthenticated_administration_responses_keep_no_store(string path)
     {
         using var client = fixture.CreateClient();

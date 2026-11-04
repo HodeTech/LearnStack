@@ -179,6 +179,47 @@ public sealed class InvitationSmtpRuntimeTests(IdentityMembershipFixture fixture
         smtp.Connections.Should().Be(0);
     }
 
+    [Fact]
+    public async Task Countable_finalizer_update_preserves_a_reissued_current_generation_as_a_tracked_no_op()
+    {
+        await using var database = await OpenDatabaseAsync();
+        await using var smtp = new InvitationSmtpTransportServer(InvitationSmtpTransportBehavior.Accept);
+        await using var host = Host(smtp.Port);
+        var facts = await SeedAsync();
+        var (executor, original, read, arm) = await PrepareAndArmAsync(host.Services, facts.Job);
+        var sent = await executor.ExecuteExternalAsync(read, arm, CancellationToken.None);
+        sent.Observation!.State.Should().Be(BackgroundJobExternalState.Succeeded);
+        (await executor.RecordExternalOutcomeAsync(original, read, original.Run.OpenBoundary(BackgroundJobCheckpointKind.Outcome),
+            sent.Observation, CancellationToken.None)).CommitAcknowledged.Should().BeTrue();
+        var generation = Guid.CreateVersion7(); var newJob = Guid.CreateVersion7();
+        await using (var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(_database!.AppConnectionString))
+        await using (var transaction = await app.BeginTransactionAsync())
+        {
+            await IdentityMembershipFixture.ScopeAsync(app, transaction, SchemaFixture.TenantA, null);
+            await IdentityMembershipFixture.LockAsync(app, transaction, SchemaFixture.TenantA, null, false);
+            await SchemaQueries.ExecuteAsync(app, transaction, """
+                UPDATE invitations SET generation=generation+1,generation_id=@generation,current_delivery_job_id=@job,
+                    verifier_digest=@digest,generation_created_at=clock_timestamp(),expires_at=clock_timestamp()+interval '14 days',
+                    submission_status='Queued',submission_receipt_id=NULL,row_version=row_version+1,
+                    updated_at=clock_timestamp(),updated_by=@actor WHERE id=@id
+                """, ("generation", generation), ("job", newJob), ("digest", InvitationSchemaSeed.Digest(generation)),
+                ("actor", IdentityMembershipFixture.AdminA), ("id", facts.Invitation));
+            await transaction.CommitAsync();
+        }
+        var finalStart = await executor.ExecuteAsync(await RoutingClaim.ClaimAsync(_database!.OutboxConnectionString, facts.Job), BackgroundJobTestRun.Create());
+        finalStart.Outcome.Should().Be(JobStartExecutionOutcome.Started);
+        var final = await executor.ExecuteBusinessAsync(finalStart.Receipt!, finalStart.Receipt!.Run.OpenBoundary(BackgroundJobCheckpointKind.Finalize));
+        final.CommitAcknowledged.Should().BeTrue(); smtp.Messages.Should().Be(1);
+        await using var verify = (NpgsqlConnection)await PostgresFixture.OpenAsync(_database!.AppConnectionString);
+        await using var scope = await verify.BeginTransactionAsync();
+        await IdentityMembershipFixture.ScopeAsync(verify, scope, SchemaFixture.TenantA, null);
+        await using var query = new NpgsqlCommand("SELECT row_version,generation_id,current_delivery_job_id,submission_status,submission_receipt_id FROM invitations WHERE id=@id", verify, scope);
+        query.Parameters.AddWithValue("id", facts.Invitation);
+        await using var row = await query.ExecuteReaderAsync(); (await row.ReadAsync()).Should().BeTrue();
+        row.GetInt64(0).Should().Be(1); row.GetGuid(1).Should().Be(generation); row.GetGuid(2).Should().Be(newJob);
+        row.GetString(3).Should().Be("Queued"); row.IsDBNull(4).Should().BeTrue();
+    }
+
     private async Task<(JobExecutor Executor, ConfirmedStartReceipt Receipt, JobExternalReadHandle Read, JobExternalCheckpointResult Arm)>
         PrepareAndArmAsync(IServiceProvider services, BackgroundJobId job)
     {

@@ -4,6 +4,7 @@ using LearnStack.Modules.Identity.Infrastructure.Bindings;
 using LearnStack.SharedKernel.Persistence;
 using LearnStack.Modules.Tenancy.Application.Contracts.Account;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
+using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
 using LearnStack.Modules.Tenancy.Infrastructure;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
@@ -22,15 +23,18 @@ public sealed partial class PersistenceConventionTests
     private const string OwnProfileRequest = "LearnStack.Modules.Identity.Application.Contracts.Memberships.GetOwnMembershipProfileQuery";
     private const string OwnContextsRequest = "LearnStack.Modules.Identity.Application.Contracts.Memberships.GetOwnMembershipContextsQuery";
     private const string OwnCapabilitiesRequest = "LearnStack.Modules.Identity.Application.Contracts.Memberships.GetOwnCapabilitiesQuery";
+    private const string InvitationPolicyReadOnlyRegistration = "LearnStack.Modules.Tenancy.Infrastructure.TenantSettingsRegistration";
+    private const string InvitationPolicyRequest = "LearnStack.Modules.Tenancy.Application.Contracts.Settings.GetTenantInvitationPolicyQuery";
     private static readonly (string Owner, string Request, string Assembly)[] ReadOnlyProducers =
     [
         (ReadOnlyRegistration + ".AddTenantSiteReads", AccountSiteRequest, "LearnStack.Modules.Tenancy.Application.Contracts"),
         (OwnProfileReadOnlyRegistration + ".AddIdentityContextualFoundation", OwnProfileRequest, "LearnStack.Modules.Identity.Application.Contracts"),
         (OwnProfileReadOnlyRegistration + ".AddIdentityContextualFoundation", OwnContextsRequest, "LearnStack.Modules.Identity.Application.Contracts"),
         (OwnProfileReadOnlyRegistration + ".AddIdentityContextualFoundation", OwnCapabilitiesRequest, "LearnStack.Modules.Identity.Application.Contracts"),
+        (InvitationPolicyReadOnlyRegistration + ".AddTenantSettingsReads", InvitationPolicyRequest, "LearnStack.Modules.Tenancy.Application.Contracts"),
     ];
 
-    // The shared persistence seam stays module-independent. Each of the four exact
+    // The shared persistence seam stays module-independent. Each of the five exact
     // authenticated reads is declared by its owning module, never inferred public.
     private static void AssertExplicitReadOnlyComposition()
     {
@@ -41,7 +45,7 @@ public sealed partial class PersistenceConventionTests
             .Which.SetMethod.Should().BeNull();
         typeof(GetAccountSiteQuery).IsDefined(typeof(LearnStack.SharedKernel.Tenancy.PublicSurfaceAttribute), false)
             .Should().BeFalse("the authenticated read does not acquire anonymous authority");
-        foreach (var request in new[] { typeof(GetOwnMembershipProfileQuery), typeof(GetOwnMembershipContextsQuery), typeof(GetOwnCapabilitiesQuery) })
+        foreach (var request in new[] { typeof(GetOwnMembershipProfileQuery), typeof(GetOwnMembershipContextsQuery), typeof(GetOwnCapabilitiesQuery), typeof(GetTenantInvitationPolicyQuery) })
             request.IsDefined(typeof(LearnStack.SharedKernel.Tenancy.PublicSurfaceAttribute), false)
                 .Should().BeFalse("own Membership coverage does not acquire anonymous authority");
 
@@ -49,12 +53,14 @@ public sealed partial class PersistenceConventionTests
         try
         {
             ExplicitReadOnlyModeOffenders(modules).Should().BeEmpty(
-                "Fix: keep exactly AccountSite in Tenancy and own Membership profile, contexts and capabilities in Identity; the shared transaction owner consumes module-declared exact types only");
+                "Fix: keep exactly AccountSite and the invitation-policy getter in Tenancy and own Membership profile, contexts and capabilities in Identity; receipt reads retain writable audit owners");
             var registration = ReadOnlyTypes(modules).Single(type => type.FullName == ReadOnlyRegistration)
                 .Methods.Single(method => method.Name == nameof(TenantSiteRegistration.AddTenantSiteReads));
             var identityRegistration = ReadOnlyTypes(modules).Single(type => type.FullName == OwnProfileReadOnlyRegistration)
                 .Methods.Single(method => method.Name == nameof(IdentityFoundationRegistration.AddIdentityContextualFoundation));
-            var registrations = new[] { registration, identityRegistration };
+            var policyRegistration = ReadOnlyTypes(modules).Single(type => type.FullName == InvitationPolicyReadOnlyRegistration)
+                .Methods.Single(method => method.Name == nameof(TenantSettingsRegistration.AddTenantSettingsReads));
+            var registrations = new[] { registration, identityRegistration, policyRegistration };
             foreach (var owner in registrations) AssertReadOnlyProducerControls(owner, modules);
             var constructions = registrations.SelectMany(owner => owner.Body.Instructions.Where(instruction =>
                 instruction.Operand is MethodReference target && target.DeclaringType.FullName == ReadOnlyDeclaration
@@ -80,7 +86,7 @@ public sealed partial class PersistenceConventionTests
                 typeof(Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions).GetMethods()
                     .Single(method => method.Name == "GetServices" && method.IsGenericMethodDefinition)));
             getServices.GenericArguments.Add(registration.Module.ImportReference(typeof(ExplicitReadOnlyRequest)));
-            foreach (var owner in new[] { registration, identityRegistration, behaviorConstructor })
+            foreach (var owner in registrations.Append(behaviorConstructor))
             {
                 var acquisition = Instruction.Create(OpCodes.Call, getServices);
                 owner.Body.Instructions.Add(acquisition);
@@ -113,6 +119,7 @@ public sealed partial class PersistenceConventionTests
 
             foreach (var request in new[] { typeof(GetAccountSiteQuery), typeof(GetOwnMembershipProfileQuery),
                          typeof(GetOwnMembershipContextsQuery), typeof(GetOwnCapabilitiesQuery),
+                         typeof(GetTenantInvitationPolicyQuery), typeof(ReadInvitationPolicyReceiptQuery),
                          typeof(ListOrganizationsQuery), typeof(GetOrganizationDetailQuery) })
             {
                 var hardcoded = Instruction.Create(OpCodes.Isinst, behavior.Module.ImportReference(request));
@@ -204,7 +211,9 @@ public sealed partial class PersistenceConventionTests
                              && (target.DeclaringType.FullName == ReadOnlyRegistration
                                  && target.Name == nameof(TenantSiteRegistration.AddTenantSiteReads)
                                  || target.DeclaringType.FullName == OwnProfileReadOnlyRegistration
-                                 && target.Name == nameof(IdentityFoundationRegistration.AddIdentityContextualFoundation))).ToArray())
+                                 && target.Name == nameof(IdentityFoundationRegistration.AddIdentityContextualFoundation)
+                                 || target.DeclaringType.FullName == InvitationPolicyReadOnlyRegistration
+                                 && target.Name == nameof(TenantSettingsRegistration.AddTenantSettingsReads))).ToArray())
             {
                 var original = caller.Operand;
                 caller.Operand = behavior.Module.ImportReference(typeof(object).GetMethod(nameof(ToString), Type.EmptyTypes)!);
@@ -226,7 +235,7 @@ public sealed partial class PersistenceConventionTests
                          catalog.NestedTypes.SelectMany(type => type.Methods).Where(method => method.HasBody)
                              .SelectMany(method => method.Body.Instructions).Select(instruction => instruction.Operand)
                              .OfType<MethodReference>().Single(target => target.DeclaringType.FullName == ReadOnlyDeclaration
-                                 && target.Name == "get_RequestType"), registration, identityRegistration,
+                                 && target.Name == "get_RequestType"), registration, identityRegistration, policyRegistration,
                          (MethodReference)projection.Operand }))
             {
                 extra.Body.Instructions.Add(Instruction.Create(OpCodes.Call, (MethodReference)target));
@@ -279,6 +288,11 @@ public sealed partial class PersistenceConventionTests
             .Select(site => ReadOnlyOwner(site.Method)),
             ["LearnStack.Api.Composition.PersistenceCompositionExtensions.AddLearnStackPersistence", "LearnStack.Tools.Seeder.SeedComposition.Build"],
             "Identity contextual registration callers");
+        Check(sites.Where(site => site.Target.DeclaringType.FullName == InvitationPolicyReadOnlyRegistration
+                && site.Target.Name == "AddTenantSettingsReads")
+            .Select(site => ReadOnlyOwner(site.Method)),
+            ["LearnStack.Api.Composition.PersistenceCompositionExtensions.AddLearnStackPersistence", "LearnStack.Tools.Seeder.SeedComposition.Build"],
+            "Tenancy invitation-policy registration callers");
         Check(sites.Where(site => site.Target.Name == "Contains" && site.Target.DeclaringType.GetElementType().FullName == "System.Collections.Frozen.FrozenSet`1"
                 && ReadOnlyOwner(site.Method).StartsWith(ReadOnlyBehavior + ".", StringComparison.Ordinal))
             .Select(site => ReadOnlyOwner(site.Method)), [ReadOnlyBehavior + ".Handle"], "exact Type mode lookup");

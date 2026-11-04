@@ -288,16 +288,15 @@ phase authority and fixed-diagnostic requirements before activation.
 
 [ADR-0093](../../decisions/0093-verified-invitation-acceptance-and-handoff.md)
 adds the exact tenant-wide `identity.invitation.ttl_days` policy. Its setter is a
-new **planned consumer of the existing** MUST `tenancy.setting.write` operation,
+consumer of the existing MUST `tenancy.setting.write` operation,
 not a second catalogue slug. `SetTenantInvitationLifetimeCommand` writes one
 TenantSetting with tracked whole-value redaction and same-transaction audit;
-conditional first creation/replacement cannot silently upsert. Until that
-consumer lands, its binding remains planned and the implemented branding
-consumer remains unchanged.
+conditional first creation/replacement cannot silently upsert. Branding retains
+its separate typed request and the same established audit operation.
 
 | Resource | Operation | Class | Why |
 |---|---|---|---|
-| Original invitation-policy TenantSetting outcome | `tenancy.setting.read_receipt` `(planned)` | **MUST** (`read-sensitive`) | `ReadInvitationPolicyReceiptQuery`; original setting ID/key, current exact orgless authority and committed read evidence before protected replay. |
+| Original invitation-policy TenantSetting outcome | `tenancy.setting.read_receipt` | **MUST** (`read-sensitive`) | `ReadInvitationPolicyReceiptQuery`; original setting ID/key, current exact orgless authority and committed read evidence before protected replay. |
 
 The internal typed accessor creates no separate request/event. The existing
 Tenant `tenancy.setting.write` pair knowingly covers this exact policy beyond
@@ -363,7 +362,7 @@ navigation uses the separate invocation-bound ordinary ReadOnly contract and
 also adds no independent resource intent. AccountSite remains Off under its
 actual-host ceiling, including the separately validated native-session origin.
 
-`GetTenantInvitationPolicyQuery` is planned explicit Off/physical ReadOnly own-
+`GetTenantInvitationPolicyQuery` is explicit Off/physical ReadOnly own-
 current-tenant navigation in orgless scope. It returns only the fixed policy
-value/version/default-presence precondition; it grants no write authority and
-reads no arbitrary setting. Register Off before the request is dispatched.
+value/version/default-presence precondition and advisory canEdit; it grants no
+write authority and reads no arbitrary setting. Its Off registration precedes dispatch.

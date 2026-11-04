@@ -13,6 +13,7 @@ namespace LearnStack.Modules.Identity.Infrastructure.Invitations;
 
 public sealed class InvitationEmailJobStore(IdentityDbContext db, IUnitOfWork unit, ProducerExecution producer, ITenantContext tenant) : IInvitationEmailJobStore
 {
+    private Invitation? _loaded;
     public BackgroundJobId RequireCurrentJob()
     {
         var origin = producer.CaptureJobOrigin(unit);
@@ -27,6 +28,7 @@ public sealed class InvitationEmailJobStore(IdentityDbContext db, IUnitOfWork un
     public async Task<Invitation?> FindLockedAsync(InvitationId invitationId, CancellationToken cancellationToken)
     {
         _ = RequireCurrentJob();
+        _loaded = null;
         await using var command = new NpgsqlCommand("SELECT id FROM public.invitations WHERE id=@id AND tenant_id=@tenant AND organization_id IS NOT DISTINCT FROM @organization FOR UPDATE",
             (NpgsqlConnection)unit.Connection, (NpgsqlTransaction)unit.Transaction!)
         { CommandTimeout = 5 };
@@ -36,14 +38,22 @@ public sealed class InvitationEmailJobStore(IdentityDbContext db, IUnitOfWork un
         try
         {
             if (await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is null) return null;
-            return await db.Invitations.SingleOrDefaultAsync(invitation => invitation.Id == invitationId && invitation.TenantId == tenant.TenantId
+            _loaded = await db.Invitations.SingleOrDefaultAsync(invitation => invitation.Id == invitationId && invitation.TenantId == tenant.TenantId
                 && invitation.OrganizationId == tenant.OrganizationId, cancellationToken).ConfigureAwait(false);
+            return _loaded;
         }
         catch (NpgsqlException) { throw new InvalidOperationException("Invitation email storage unavailable."); }
     }
-    public async Task SaveAsync(CancellationToken cancellationToken)
+    public Task AddAsync(Invitation aggregate, CancellationToken cancellationToken = default) =>
+        throw new InvalidOperationException("Invitation email jobs cannot create offers.");
+
+    public async Task UpdateAsync(Invitation aggregate, CancellationToken cancellationToken = default)
     {
         _ = RequireCurrentJob();
+        if (!ReferenceEquals(aggregate, _loaded) || aggregate.TenantId != tenant.TenantId || aggregate.OrganizationId != tenant.OrganizationId
+            || db.Entry(aggregate).State == EntityState.Detached)
+            throw new InvalidOperationException("Invitation email update requires its exact loaded root.");
+        // Stale-generation results remain a tracked no-op; never mark the whole root modified.
         try { await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false); }
         catch (DbUpdateException) { unit.MarkRollbackOnly(); throw new InvalidOperationException("Invitation email storage unavailable."); }
     }

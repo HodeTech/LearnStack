@@ -62,6 +62,7 @@ public sealed partial class OutboxDispatchConventionTests
         public void Credential_census_rejects_generic_direct_delegate_async_and_extra_helper_resolution()
         {
             using var census = ProductionCensus.Read();
+            AssertInvitationCredentialMutations(census);
             var application = census.Modules.Single(module => module.Assembly.Name.Name == "LearnStack.Application");
             var extensions = typeof(ServiceProviderKeyedServiceExtensions).GetMethods()
                 .Where(method => method.Name is "GetRequiredKeyedService" or "GetKeyedService" or "GetKeyedServices")
@@ -499,6 +500,7 @@ public sealed partial class OutboxDispatchConventionTests
         var outboxRoot = types[(BoundaryApi, BoundaryComposition)].Methods.Single(method => method.Name == "AddLearnStackOutboxDispatcher");
         var platformRoot = types[(BoundaryApi, BoundaryPersistence)].Methods.Single(method => method.Name == "AddLearnStackPersistence");
         var authorizationRoot = CheckAuthorizationCredentialRegistration(offenders, census, services);
+        var invitationRoot = CheckInvitationCredentialRegistration(offenders, census);
         var runtimeRoot = types[(InfrastructureAssembly, JobRuntimeRegistration)].Methods.Single(method => method.Name == "AddLearnStackBackgroundJobRuntime");
         var roots = new[] { (Root: outboxRoot, Key: OutboxDispatcherDataSource.Key),
             (Root: platformRoot, Key: PlatformAdminScope.PlatformDataSourceKey) };
@@ -596,6 +598,7 @@ public sealed partial class OutboxDispatchConventionTests
             && site.Target.Name == "Validate").Select(site => site.Owner), [MethodId(outboxRoot)]);
         var credentialReaders = new List<string> { MethodId(outboxRoot), MethodId(platformRoot), MethodId(platformRoot) };
         if (authorizationRoot is not null) credentialReaders.AddRange(Enumerable.Repeat(MethodId(authorizationRoot), 3));
+        if (invitationRoot is not null) credentialReaders.Add(MethodId(invitationRoot));
         CheckSet(offenders, "connection-string reader census", sites.Where(site => IsConnectionStringRead(site.Target))
             .Select(site => site.Owner), credentialReaders);
 
@@ -624,6 +627,7 @@ public sealed partial class OutboxDispatchConventionTests
                     var key = instruction.Previous?.Operand as string;
                     var expected = method == outboxRoot ? new[] { "OutboxDispatcher" }
                         : method == platformRoot ? ["Default", "PlatformAdmin"]
+                        : method == invitationRoot ? ["Default"]
                         : method == authorizationRoot ? ["Default", "IdentityAuthorization", "AuthorizationEvidence"] : [];
                     if (key is null || !expected.Contains(key, StringComparer.Ordinal))
                         offenders.Add(MethodId(method) + ": unauthorized connection-string read");

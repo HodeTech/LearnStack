@@ -132,6 +132,30 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         new("LearnStack.Api.Identity.NativeSessionAdmissionController", "Admit", "POST", "identity/session-scope/admissions", null,
             "AdmitNativeSessionScope", typeof(LearnStack.Modules.Identity.Application.Contracts.Entry.AdmitNativeSessionScopeCommand), "LearnStackOperation:identity.membership.admit_session_scope",
             typeof(LearnStack.Modules.Identity.Application.Contracts.Entry.NativeSessionScopeAdmission), 200, null, new(OperationClass.Must, OperationType.SecurityEvent, "identity.membership.admit_session_scope", typeof(LearnStack.Modules.Identity.Domain.Membership))),
+        new("LearnStack.Api.Identity.InvitationsController", "List", "GET", "identity/invitations", null,
+            "ListInvitations", typeof(LearnStack.Modules.Identity.Application.Contracts.Invitations.ListInvitationsQuery), "LearnStackOperation:identity.invitation.list",
+            typeof(LearnStack.Api.Identity.InvitationPage), 200, null, new(OperationClass.Must, OperationType.ReadSensitive, "identity.invitation.list", typeof(LearnStack.Modules.Identity.Domain.Invitation))),
+        new("LearnStack.Api.Identity.InvitationsController", "Get", "GET", "identity/invitations", "{id}",
+            "GetInvitation", typeof(LearnStack.Modules.Identity.Application.Contracts.Invitations.GetInvitationQuery), "LearnStackOperation:identity.invitation.read",
+            typeof(LearnStack.Api.Identity.InvitationResponse), 200, null, new(OperationClass.Must, OperationType.ReadSensitive, "identity.invitation.read", typeof(LearnStack.Modules.Identity.Domain.Invitation))),
+        new("LearnStack.Api.Identity.InvitationsController", "Create", "POST", "identity/invitations", null,
+            "CreateInvitation", typeof(LearnStack.Modules.Identity.Application.Contracts.Invitations.CreateInvitationCommand), "LearnStackOperation:identity.invitation.create",
+            typeof(LearnStack.Api.Identity.AdministrationVersionReceipt), 201, 11, new(OperationClass.Must, OperationType.SecurityEvent, "identity.invitation.create", typeof(LearnStack.Modules.Identity.Domain.Invitation))),
+        new("LearnStack.Api.Identity.InvitationsController", "Revoke", "POST", "identity/invitations", "{id}/revocations",
+            "RevokeInvitation", typeof(LearnStack.Modules.Identity.Application.Contracts.Invitations.RevokeInvitationCommand), "LearnStackOperation:identity.invitation.revoke",
+            typeof(LearnStack.Api.Identity.AdministrationVersionReceipt), 200, 12, new(OperationClass.Must, OperationType.SecurityEvent, "identity.invitation.revoke", typeof(LearnStack.Modules.Identity.Domain.Invitation))),
+        new("LearnStack.Api.Identity.InvitationsController", "Reissue", "POST", "identity/invitations", "{id}/reissues",
+            "ReissueInvitation", typeof(LearnStack.Modules.Identity.Application.Contracts.Invitations.ReissueInvitationCommand), "LearnStackOperation:identity.invitation.reissue",
+            typeof(LearnStack.Api.Identity.AdministrationVersionReceipt), 200, 13, new(OperationClass.Must, OperationType.SecurityEvent, "identity.invitation.reissue", typeof(LearnStack.Modules.Identity.Domain.Invitation))),
+        new("LearnStack.Api.Identity.InvitableRolesController", "List", "GET", "identity/invitable-roles", null,
+            "ListInvitableRoles", typeof(LearnStack.Modules.Identity.Application.Contracts.Invitations.ListInvitableRolesQuery), "LearnStackOperation:identity.invitation.list_invitable_roles",
+            typeof(LearnStack.Api.Identity.InvitableRoleDirectory), 200, null, new(OperationClass.Must, OperationType.ReadSensitive, "identity.invitation.list_invitable_roles", typeof(LearnStack.Modules.Identity.Domain.Invitation))),
+        new("LearnStack.Api.Tenancy.InvitationPolicyController", "Get", "GET", "tenancy/settings/invitation-policy", null,
+            "GetTenantInvitationPolicy", typeof(LearnStack.Modules.Tenancy.Application.Contracts.Settings.GetTenantInvitationPolicyQuery), "LearnStackOperation:tenancy.setting.read_invitation_policy",
+            typeof(LearnStack.Api.Identity.InvitationPolicyResponse), 200, null, new()),
+        new("LearnStack.Api.Tenancy.InvitationPolicyController", "Set", "PUT", "tenancy/settings/invitation-policy", null,
+            "SetTenantInvitationLifetime", typeof(LearnStack.Modules.Tenancy.Application.Contracts.Settings.SetTenantInvitationLifetimeCommand), "LearnStackOperation:tenancy.setting.write_invitation_lifetime",
+            typeof(LearnStack.Api.Identity.AdministrationVersionReceipt), 200, 14, new(OperationClass.Must, OperationType.Update, "tenancy.setting.write", typeof(LearnStack.Modules.Tenancy.Domain.TenantSetting))),
     ];
 
     // These are mapping call sites, not a path-wide exception. A second health
@@ -302,7 +326,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         var map = Types(modules).ToDictionary(Key, StringComparer.Ordinal);
         var account = map.Values.Single(type => type.FullName == Account);
         var handlers = HandlerRoots(map).ToArray();
-        handlers.Should().HaveCount(27, "all 27 distinct finite HTTP requests have real production handlers");
+        handlers.Should().HaveCount(29, "all finite HTTP requests have real production handlers; the seven invitation operations and three policy operations share two additional handler classes");
         Violations(modules, facts).Should().BeEmpty();
         AssertPolicyMetadataControls(modules, facts);
         AssertControllerMetadataControls(modules, facts);
@@ -357,14 +381,14 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         var send = body.Body.Instructions.Select(instruction => instruction.Operand).OfType<MethodReference>()
             .Single(target => target.DeclaringType.FullName == typeof(ISender).FullName && target.Name == "Send");
         foreach (var owner in handlers)
-        {
-            activeRoot = owner;
-            var method = owner.Methods.Single(candidate => candidate.Name == "Handle");
-            var planted = Instruction.Create(OpCodes.Callvirt, owner.Module.ImportReference(send));
-            method.Body.Instructions.Add(planted);
-            Dirty("Nested HTTP dispatch/helper handler:", "nested dispatch in the actual handler is outside the exact HTTP request set: " + owner.FullName);
-            method.Body.Instructions.Remove(planted);
-        }
+            foreach (var method in owner.Methods.Where(candidate => candidate.Name == "Handle" && candidate.HasBody))
+            {
+                activeRoot = owner;
+                var planted = Instruction.Create(OpCodes.Callvirt, owner.Module.ImportReference(send));
+                method.Body.Instructions.Add(planted);
+                Dirty("Nested HTTP dispatch/helper handler:", "nested dispatch in each actual request handler is outside the exact HTTP request set: " + method.FullName);
+                method.Body.Instructions.Remove(planted);
+            }
 
         // Each approved handler is a root, not a collaborator another root may
         // call directly. Exercise interface and concrete signatures, locals and
@@ -387,18 +411,21 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                 Dirty("Nested HTTP dispatch/helper handler:", "constructor-only handler injection remains a dispatch capability");
                 constructor.Parameters.Remove(parameter);
 
-                var method = owner.Methods.Single(candidate => candidate.Name == "Handle");
-                var local = new VariableDefinition(capability);
-                method.Body.Variables.Add(local);
-                Dirty("Nested HTTP dispatch/helper handler:", "a handler local must not evade the field/constructor census");
-                method.Body.Variables.Remove(local);
+                foreach (var method in owner.Methods.Where(candidate => candidate.Name == "Handle" && candidate.HasBody))
+                {
+                    var local = new VariableDefinition(capability);
+                    method.Body.Variables.Add(local);
+                    Dirty("Nested HTTP dispatch/helper handler:", "each request handler's local must not evade the field/constructor census: " + method.FullName);
+                    method.Body.Variables.Remove(local);
 
-                var handle = new MethodReference("Handle", target.Methods.Single(candidate => candidate.Name == "Handle").ReturnType, capability)
-                { HasThis = true };
-                var direct = Instruction.Create(OpCodes.Callvirt, handle);
-                method.Body.Instructions.Add(direct);
-                Dirty("Nested HTTP dispatch/helper handler:", "direct interface/concrete Handle calls must be rejected");
-                method.Body.Instructions.Remove(direct);
+                    var handle = new MethodReference("Handle", target.Methods.Single(candidate => candidate.Name == "Handle"
+                        && candidate.Parameters.Count == 2 && candidate.Parameters[0].ParameterType.FullName == typeof(GetAccountSiteQuery).FullName).ReturnType, capability)
+                    { HasThis = true };
+                    var direct = Instruction.Create(OpCodes.Callvirt, handle);
+                    method.Body.Instructions.Add(direct);
+                    Dirty("Nested HTTP dispatch/helper handler:", "direct interface/concrete Handle calls must be rejected in each request overload: " + method.FullName);
+                    method.Body.Instructions.Remove(direct);
+                }
             }
         }
 
@@ -421,7 +448,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         Violations(modules, facts).Should().BeEmpty("all planted production capabilities have been removed");
 
         // Each mutation targets this actual root; invoke the same production
-        // predicate without rescanning all 27 independent roots for every probe.
+        // predicate without rescanning all 29 independent handler classes for every probe.
         // Full union checks still bracket the complete mutation sequence.
         IEnumerable<string> CurrentRootOffenders() => activeRoot == account
             ? HttpBypasses(account, map) : NestedDispatchOffenders([activeRoot], map);

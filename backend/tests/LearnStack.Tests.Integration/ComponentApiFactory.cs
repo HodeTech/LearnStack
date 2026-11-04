@@ -1,3 +1,6 @@
+using LearnStack.Api.Authentication;
+using LearnStack.Tests.Fixtures;
+using Microsoft.Extensions.Configuration;
 using LearnStack.Api.Common;
 using LearnStack.Api.Composition;
 using LearnStack.Api.Tenancy;
@@ -77,6 +80,8 @@ public class ComponentApiFactory : IDisposable, IAsyncDisposable
                 ContentRootPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../src/LearnStack.Api")),
             });
             builder.WebHost.UseTestServer();
+            InvitationEmailFixtureConfiguration.AddTo(builder.WebHost);
+            builder.Services.AddSingleton(provider => new NativeEntryOriginOptions(provider.GetRequiredService<IConfiguration>()));
             // These offline component proofs own no network telemetry collector.
             builder.Configuration["Telemetry:OtlpEndpoint"] = null;
             ConfigureComponentSettings(builder);

@@ -59,17 +59,17 @@ The [phase Status](../../roadmap/phase-03-identity-admin.md) owns delivery.
 
 | Resource | Operation | Class | Why |
 |---|---|---|---|
-| Invitation | `identity.invitation.create` `(planned)` | **MUST** (`security-event`) | `CreateInvitationCommand`; offer, generation-1 verifier, encrypted envelope and identifier-only job share the ordinary business transaction and required audit. |
-| Invitation | `identity.invitation.reissue` `(planned)` | **MUST** (`security-event`) | `ReissueInvitationCommand`; new generation/token/envelope/job with current TTL; former verifier invalidates atomically, without raw secret replay. |
-| Invitation | `identity.invitation.revoke` `(planned)` | **MUST** (`security-event`) | `RevokeInvitationCommand`; terminal withdrawal; later Prepare refuses obsolete work, while already-prepared email may still arrive with an invalid link. |
+| Invitation | `identity.invitation.create` | **MUST** (`security-event`) | `CreateInvitationCommand`; offer, generation-1 verifier, encrypted envelope and identifier-only job share the ordinary business transaction and required audit. |
+| Invitation | `identity.invitation.reissue` | **MUST** (`security-event`) | `ReissueInvitationCommand`; new generation/token/envelope/job with current TTL; former verifier invalidates atomically, without raw secret replay. |
+| Invitation | `identity.invitation.revoke` | **MUST** (`security-event`) | `RevokeInvitationCommand`; terminal withdrawal; later Prepare refuses obsolete work, while already-prepared email may still arrive with an invalid link. |
 | Invitation | `identity.invitation.accept` `(planned)` | **MUST** (`security-event`) | `AcceptInvitationCommand`; central capture includes accepted actor, original Membership and `acceptanceDisposition`. The row shares the grant transaction. |
 | Original Membership outcome | `identity.membership.admit_invitation` `(planned)` | **MUST** (`security-event`) | Second central intent on acceptance. New Membership includes tracked children; `already_member` identifies the unchanged original Membership with a subject-only row, no fabricated change or arbitrary handler metadata. |
 | Invitation preparation | `identity.invitation.prepare_email` | **MUST** (`security-event`) | `PrepareTenantInvitationEmailCommand` / `PrepareOrganizationInvitationEmailCommand`; ordinary module-owned preparation records the exact current-generation submission intent before the external stage. No SMTP socket is opened inside its business transaction. |
 | Invitation submission outcome | `identity.invitation.email_submission` | **MUST** (`security-event`) | `FinalizeTenantInvitationEmailCommand` / `FinalizeOrganizationInvitationEmailCommand`; ordinary owner applies validated durable provider evidence to the exact Invitation. SMTP acceptance is submission only; ambiguous outcomes remain uncertain and retain occupancy. No private audit INSERT or provider receipt substitutes for this row. |
-| Invitation directory | `identity.invitation.list` `(planned)` | **MUST** (`read-sensitive`) | Administrative bounded offer list under current exact-scope authority before other-person disclosure. |
-| Invitation detail/status | `identity.invitation.read` `(planned)` | **MUST** (`read-sensitive`) | Administrative detail and bounded normalized current-generation submission evidence, through the owning port; no encrypted body, raw link or another envelope is disclosed. |
-| Delegable Role summaries | `identity.invitation.list_invitable_roles` `(planned)` | **MUST** (`read-sensitive`) | Exact delegation-limited ID/key/scope/version choices; no general Role/registry authority is inferred. |
-| Original Invitation outcome | `identity.invitation.read_receipt` `(planned)` | **MUST** (`read-sensitive`) | Fresh current original-target disclosure admission before protected replay; retained bytes contain no recipient credential/link. |
+| Invitation directory | `identity.invitation.list` | **MUST** (`read-sensitive`) | Administrative bounded offer list under current exact-scope authority before other-person disclosure. |
+| Invitation detail/status | `identity.invitation.read` | **MUST** (`read-sensitive`) | Administrative detail and bounded normalized current-generation submission evidence, through the owning port; no encrypted body, raw link or another envelope is disclosed. |
+| Delegable Role summaries | `identity.invitation.list_invitable_roles` | **MUST** (`read-sensitive`) | Exact delegation-limited ID/key/scope/version choices; no general Role/registry authority is inferred. |
+| Original Invitation outcome | `identity.invitation.read_receipt` | **MUST** (`read-sensitive`) | Fresh current original-target disclosure admission before protected replay; retained bytes contain no recipient credential/link. |
 
 `InspectInvitationQuery` and `GetOwnInvitationResultQuery` are planned explicit
 Off registrations, not `OperationClass` values or mutation rows. Pending

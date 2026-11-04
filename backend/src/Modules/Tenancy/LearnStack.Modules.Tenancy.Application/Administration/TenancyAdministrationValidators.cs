@@ -1,4 +1,5 @@
 using FluentValidation;
+using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
 using LearnStack.Modules.Tenancy.Application.Contracts.Branding;
 using LearnStack.Modules.Tenancy.Application.Contracts.Locales;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
@@ -132,6 +133,7 @@ internal static class TenancyAdministrationInput
         SetManagedDefaultTenantLocaleCommand command => command.ExpectedVersion >= 0 && LocaleInput.IsValid(command.Locale),
         SetTenantLocaleEnabledCommand command => command.ExpectedVersion >= 0 && LocaleInput.IsValid(command.Locale),
         RemoveTenantLocaleCommand command => command.ExpectedVersion >= 0 && LocaleInput.IsValid(command.Locale),
+        SetTenantInvitationLifetimeCommand command => command.Days is >= 1 and <= 30 && command.ExpectedPresent == command.ExpectedVersion.HasValue && command.ExpectedVersion is null or >= 0,
         SetManagedTenantBrandingCommand command => command.ExpectedVersion is null or >= 0 && !string.IsNullOrWhiteSpace(command.Theme),
         _ => false,
     };

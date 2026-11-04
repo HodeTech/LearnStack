@@ -131,6 +131,15 @@ public sealed partial class OutboxDispatchConventionTests
         ObservationRegistrationOffenders(services).Should().BeEmpty();
         var worker = services.Single(descriptor => descriptor.ServiceType == typeof(IHostedService)
             && HostedAliasIdentity(descriptor) == BoundaryWorker);
+        var smtpStartup = services.Single(descriptor => descriptor.ServiceType == typeof(IHostedService)
+            && HostedAliasIdentity(descriptor) == "LearnStack.Api.Composition.InvitationEmailStartupService");
+        services.Remove(smtpStartup);
+        ObservationRegistrationOffenders(services).Should().NotBeEmpty("the mandatory SMTP/keyring qualification startup cannot disappear");
+        services.Add(smtpStartup);
+        services.Add(smtpStartup);
+        ObservationRegistrationOffenders(services).Should().NotBeEmpty("duplicate SMTP startup qualification is not another admitted worker");
+        services.Remove(smtpStartup);
+        ObservationRegistrationOffenders(services).Should().BeEmpty("restoring SMTP qualification restores the clean worker set");
         services.Remove(worker);
         ObservationRegistrationOffenders(services).Should().NotBeEmpty("Fix: missing mandatory execution must be detected");
         services.Add(worker);
@@ -374,6 +383,7 @@ public sealed partial class OutboxDispatchConventionTests
         CheckSet(offenders, "hosted-service descriptor types", workers.Select(HostedAliasIdentity),
             [typeof(OutboxProcessor).FullName!, typeof(DeliveryProcessor).FullName!,
                 JobHostedService,
+                "LearnStack.Api.Composition.InvitationEmailStartupService",
                 "Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckPublisherHostedService"]);
         if (workers.Any(descriptor => descriptor.Lifetime != ServiceLifetime.Singleton)) offenders.Add("Mandatory singleton worker registration");
         foreach (var type in new[] { typeof(OutboxProcessor), typeof(DeliveryProcessor), typeof(LearnStack.Api.Jobs.BackgroundJobHostedService) })

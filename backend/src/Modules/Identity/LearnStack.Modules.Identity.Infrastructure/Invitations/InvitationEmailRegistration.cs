@@ -15,6 +15,16 @@ public static class InvitationEmailRegistration
     public static IServiceCollection AddInvitationEmailJobs(this IServiceCollection services)
     {
         services.Replace(ServiceDescriptor.Singleton(_ => CreateRegistry()));
+        services.TryAddScoped<IInvitationAdministrationStore, InvitationAdministrationStore>();
+        services.TryAddScoped<InvitationAdministrationAuthorization>();
+        services.TryAddScoped<InvitationAdministrationHandlers>();
+        services.TryAddScoped<IRequestHandler<CreateInvitationCommand, Result<InvitationMutationResult>>>(provider => provider.GetRequiredService<InvitationAdministrationHandlers>());
+        services.TryAddScoped<IRequestHandler<RevokeInvitationCommand, Result<InvitationMutationResult>>>(provider => provider.GetRequiredService<InvitationAdministrationHandlers>());
+        services.TryAddScoped<IRequestHandler<ReissueInvitationCommand, Result<InvitationMutationResult>>>(provider => provider.GetRequiredService<InvitationAdministrationHandlers>());
+        services.TryAddScoped<IRequestHandler<GetInvitationQuery, Result<InvitationDto>>>(provider => provider.GetRequiredService<InvitationAdministrationHandlers>());
+        services.TryAddScoped<IRequestHandler<ListInvitationsQuery, Result<LearnStack.SharedKernel.Pagination.Page<InvitationDto>>>>(provider => provider.GetRequiredService<InvitationAdministrationHandlers>());
+        services.TryAddScoped<IRequestHandler<ListInvitableRolesQuery, Result<InvitableRoleDirectory>>>(provider => provider.GetRequiredService<InvitationAdministrationHandlers>());
+        services.TryAddScoped<IRequestHandler<ReadInvitationReceiptQuery, Result<None>>>(provider => provider.GetRequiredService<InvitationAdministrationHandlers>());
         services.TryAddScoped<IInvitationEmailOperation, InvitationSmtpOperation>();
         services.TryAddScoped<IInvitationEmailJobStore, InvitationEmailJobStore>();
         services.TryAddScoped<IInvitationEmailStager, InvitationEmailStager>();

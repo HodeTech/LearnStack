@@ -194,7 +194,7 @@ public sealed class ContextualIdentityStorageControl(IdentityDbContext db, IUnit
         or PostgresErrorCodes.DeadlockDetected or PostgresErrorCodes.QueryCanceled
         || failure.SqlState is "23505" or "23514" or "23503"
             && failure.ConstraintName is { } name
-            && (name.Contains("membership", StringComparison.Ordinal) || name.Contains("roles", StringComparison.Ordinal)
+            && (name.Contains("membership", StringComparison.Ordinal) || name.Contains("invitation", StringComparison.Ordinal) || name.Contains("roles", StringComparison.Ordinal)
                 || name.Contains("role_permission_grants", StringComparison.Ordinal));
 
     private IdentityFoundationStorageException Translate(PostgresException failure)

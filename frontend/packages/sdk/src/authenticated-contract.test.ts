@@ -70,6 +70,10 @@ describe('generated GET contract ownership', () => {
       '/api/v1/identity/permissions': 'GetPermissionRegistry',
       '/api/v1/tenancy/organizations': 'ListOrganizations',
       '/api/v1/tenancy/organizations/{id}': 'GetOrganizationDetail',
+      '/api/v1/identity/invitations': 'ListInvitations',
+      '/api/v1/identity/invitations/{id}': 'GetInvitation',
+      '/api/v1/identity/invitable-roles': 'ListInvitableRoles',
+      '/api/v1/tenancy/settings/invitation-policy': 'GetTenantInvitationPolicy',
     });
     expect(PUBLIC_GET_CONTRACTS).toEqual({
       '/api/v1/public/site': 'GetPublicSite',
@@ -95,6 +99,10 @@ describe('generated GET contract ownership', () => {
       | 'GetPermissionRegistry'
       | 'ListOrganizations'
       | 'GetOrganizationDetail'
+      | 'ListInvitations'
+      | 'GetInvitation'
+      | 'ListInvitableRoles'
+      | 'GetTenantInvitationPolicy'
     >();
     expect(RootContracts).toBe(AUTHENTICATED_GET_CONTRACTS);
     expectTypeOf<RootAccountSite>().toEqualTypeOf<AccountSite>();

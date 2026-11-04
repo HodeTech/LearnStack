@@ -134,7 +134,7 @@ policy census; acceptance does not claim production subjects already exist.
 | `ListInvitationsQuery`, `GetInvitationQuery` | Applicable membership-admin, exact current tenant/nullable organization | MUST sensitive read; no verifier or raw link; no tenant-wide read widening |
 | `ListInvitableRolesQuery` | Same current capability/scope and whole-Role ceiling | MUST sensitive read; delegable ID/key/scope/version summaries only, no role-admin or grant graph |
 | `CreateInvitationCommand` | Applicable membership-admin and fresh whole pinned-Role delegation | MUST create; offer, generation 1, encrypted mail custody and identifier-only typed job staged atomically |
-| `RevokeInvitationCommand` | Same capability, exact target/version and current delegation | MUST update; Accepted/Revoked states remain terminal |
+| `RevokeInvitationCommand` | Current exact-scope membership-admin withdrawal authority and exact Pending target/version; no offered-Role pin or grant-ceiling requirement | MUST update; Accepted/Revoked states remain terminal |
 | `ReissueInvitationCommand` | Same capability, exact target/version, current delegation and unchanged Role pin | MUST update; protected keyed new generation/expiry invalidates old verifier; no raw-code response |
 | `ReadInvitationReceiptQuery` | Fresh applicable membership-admin and original exact Invitation scope | MUST read; no mutation rerun, secret or successor substitution |
 | `InspectInvitationQuery` | Exact native source, host/offer witness, Active bound actor and fresh current verified recipient | Off, physical ReadOnly; only the own matching Pending offer |

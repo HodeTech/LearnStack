@@ -1,3 +1,5 @@
+using LearnStack.Modules.Identity.Application.Contracts.Invitations;
+using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
 using System.Collections.Immutable;
 using System.Text;
 using LearnStack.Api.Common;
@@ -35,6 +37,10 @@ public sealed class ProtectedReceiptTests
     [InlineData(ProtectedAdministrationOperation.RenameOrganization, typeof(ReadOrganizationReceiptQuery))]
     [InlineData(ProtectedAdministrationOperation.ArchiveOrganization, typeof(ReadOrganizationReceiptQuery))]
     [InlineData(ProtectedAdministrationOperation.SelectDefaultOrganization, typeof(ReadDefaultOrganizationReceiptQuery))]
+    [InlineData(ProtectedAdministrationOperation.CreateInvitation, typeof(ReadInvitationReceiptQuery))]
+    [InlineData(ProtectedAdministrationOperation.RevokeInvitation, typeof(ReadInvitationReceiptQuery))]
+    [InlineData(ProtectedAdministrationOperation.ReissueInvitation, typeof(ReadInvitationReceiptQuery))]
+    [InlineData(ProtectedAdministrationOperation.SetTenantInvitationLifetime, typeof(ReadInvitationPolicyReceiptQuery))]
     public async Task Closed_typed_dispatch_captures_the_actual_result_and_replays_the_exact_receipt_read(
         ProtectedAdministrationOperation operation, Type queryType)
     {
@@ -68,6 +74,8 @@ public sealed class ProtectedReceiptTests
             ReadRoleReceiptQuery value => value.RoleId,
             ReadOrganizationReceiptQuery value => value.OrganizationId.Value,
             ReadDefaultOrganizationReceiptQuery value => value.TenantId.Value,
+            ReadInvitationReceiptQuery value => value.InvitationId,
+            ReadInvitationPolicyReceiptQuery value => value.SettingId,
             _ => throw new InvalidOperationException(),
         };
         Assert.Equal(receipt.Target.Id, id);
@@ -175,6 +183,32 @@ public sealed class ProtectedReceiptTests
         Assert.Equal("\"8\"", Assert.Single(headers["ETag"]));
     }
 
+    [Theory]
+    [InlineData(null, null, false)]
+    [InlineData(null, "*", true)]
+    [InlineData("\"0\"", null, true)]
+    [InlineData("\"0\"", "*", false)]
+    [InlineData("*", null, false)]
+    [InlineData(null, "W/\"0\"", false)]
+    public void Policy_preconditions_distinguish_absence_from_existing_zero(string? match, string? absent, bool valid)
+    {
+        var http = new DefaultHttpContext();
+        if (match is not null) http.Request.Headers.IfMatch = match;
+        if (absent is not null) http.Request.Headers.IfNoneMatch = absent;
+        var descriptor = ProtectedAdministrationDescriptor.For(ProtectedAdministrationOperation.SetTenantInvitationLifetime);
+        Assert.Equal(valid, descriptor.TryReadPrecondition(http.Request, out var version));
+        if (valid) Assert.Equal(match is null ? null : (long?)0, version);
+    }
+    [Fact]
+    public async Task Absent_policy_and_stored_zero_have_different_actor_scope_bound_fingerprints()
+    {
+        var context = Context(); var http = new DefaultHttpContext(); http.Request.Body = new MemoryStream("{\"days\":14}"u8.ToArray());
+        http.Request.Path = "/api/v1/tenancy/settings/invitation-policy"; http.Request.Method = "PUT";
+        var descriptor = ProtectedAdministrationDescriptor.For(ProtectedAdministrationOperation.SetTenantInvitationLifetime);
+        Assert.NotEqual(await ProtectedIdempotencyFilter.ComputeFingerprintAsync(http, context, descriptor, null, CancellationToken.None),
+            await ProtectedIdempotencyFilter.ComputeFingerprintAsync(http, context, descriptor, 0, CancellationToken.None));
+    }
+
     private static bool Valid(IdempotentResponse response) => ProtectedIdempotencyFilter.ValidStoredResponse(response,
         ProtectedAdministrationDescriptor.For(ProtectedAdministrationOperation.RenameOrganization), Tenant);
     private static IdempotentResponse Receipt() => new(200, "application/json; charset=utf-8",
@@ -186,6 +220,8 @@ public sealed class ProtectedReceiptTests
         var sender = Substitute.For<ISender>();
         sender.Send(Arg.Any<IRequest<Result<MembershipMutationResult>>>(), Arg.Any<CancellationToken>()).Returns(Result.Ok(new MembershipMutationResult(Target, 8)));
         sender.Send(Arg.Any<IRequest<Result<OrganizationMutationResult>>>(), Arg.Any<CancellationToken>()).Returns(Result.Ok(new OrganizationMutationResult(OrganizationId.From(Target), 8)));
+        sender.Send(Arg.Any<IRequest<Result<InvitationMutationResult>>>(), Arg.Any<CancellationToken>()).Returns(Result.Ok(new InvitationMutationResult(Target, 8)));
+        sender.Send(Arg.Any<IRequest<Result<InvitationPolicyMutationResult>>>(), Arg.Any<CancellationToken>()).Returns(Result.Ok(new InvitationPolicyMutationResult(Target, 8)));
         sender.Send(Arg.Any<IRequest<Result<long>>>(), Arg.Any<CancellationToken>()).Returns(Result.Ok(8L));
         sender.Send(Arg.Any<IRequest<Result<None>>>(), Arg.Any<CancellationToken>()).Returns(Result.Ok(None.Value));
         sender.ClearReceivedCalls();
@@ -203,7 +239,7 @@ public sealed class ProtectedReceiptTests
     {
         var http = new DefaultHttpContext();
         http.SetEndpoint(new Endpoint(null, new EndpointMetadataCollection(new IdempotentAttribute(operation)), "component"));
-        if (operation != ProtectedAdministrationOperation.CreateOrganization) http.Request.Headers.IfMatch = "\"7\"";
+        if (operation is not (ProtectedAdministrationOperation.CreateOrganization or ProtectedAdministrationOperation.CreateInvitation)) http.Request.Headers.IfMatch = "\"7\"";
         http.Response.Body = new MemoryStream();
         return http;
     }
@@ -219,6 +255,10 @@ public sealed class ProtectedReceiptTests
         ProtectedAdministrationOperation.RenameOrganization => new RenameOrganizationCommand(OrganizationId.From(Target), 7, "Private"),
         ProtectedAdministrationOperation.ArchiveOrganization => new ArchiveOrganizationCommand(OrganizationId.From(Target), 7),
         ProtectedAdministrationOperation.SelectDefaultOrganization => new SelectDefaultOrganizationCommand(OrganizationId.From(Target), 7),
+        ProtectedAdministrationOperation.CreateInvitation => new CreateInvitationCommand("recipient@example.test", Target, 7),
+        ProtectedAdministrationOperation.RevokeInvitation => new RevokeInvitationCommand(Target, 7),
+        ProtectedAdministrationOperation.ReissueInvitation => new ReissueInvitationCommand(Target, 7),
+        ProtectedAdministrationOperation.SetTenantInvitationLifetime => new SetTenantInvitationLifetimeCommand(14, true, 7),
         _ => throw new ArgumentOutOfRangeException(nameof(operation)),
     };
 }

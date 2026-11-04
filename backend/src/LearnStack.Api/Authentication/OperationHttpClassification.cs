@@ -1,3 +1,5 @@
+using LearnStack.Modules.Identity.Application.Contracts.Invitations;
+using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
 using LearnStack.Api.Account;
 using LearnStack.Api.Identity;
 using LearnStack.Api.Idempotency;
@@ -158,6 +160,14 @@ internal sealed class OperationHttpClassifier(IOperationPolicyCatalog catalog)
         var pair when pair == (typeof(DefaultOrganizationController), nameof(DefaultOrganizationController.Select)) => (typeof(SelectDefaultOrganizationCommand), "SelectDefaultOrganization", "PUT"),
         var pair when pair == (typeof(NativeSessionAdmissionController), nameof(NativeSessionAdmissionController.Admit)) =>
             (typeof(AdmitNativeSessionScopeCommand), "AdmitNativeSessionScope", "POST"),
+        var pair when pair == (typeof(InvitationsController), nameof(InvitationsController.List)) => (typeof(ListInvitationsQuery), "ListInvitations", "GET"),
+        var pair when pair == (typeof(InvitationsController), nameof(InvitationsController.Get)) => (typeof(GetInvitationQuery), "GetInvitation", "GET"),
+        var pair when pair == (typeof(InvitationsController), nameof(InvitationsController.Create)) => (typeof(CreateInvitationCommand), "CreateInvitation", "POST"),
+        var pair when pair == (typeof(InvitationsController), nameof(InvitationsController.Revoke)) => (typeof(RevokeInvitationCommand), "RevokeInvitation", "POST"),
+        var pair when pair == (typeof(InvitationsController), nameof(InvitationsController.Reissue)) => (typeof(ReissueInvitationCommand), "ReissueInvitation", "POST"),
+        var pair when pair == (typeof(InvitableRolesController), nameof(InvitableRolesController.List)) => (typeof(ListInvitableRolesQuery), "ListInvitableRoles", "GET"),
+        var pair when pair == (typeof(InvitationPolicyController), nameof(InvitationPolicyController.Get)) => (typeof(GetTenantInvitationPolicyQuery), "GetTenantInvitationPolicy", "GET"),
+        var pair when pair == (typeof(InvitationPolicyController), nameof(InvitationPolicyController.Set)) => (typeof(SetTenantInvitationLifetimeCommand), "SetTenantInvitationLifetime", "PUT"),
         _ => null,
     };
 }

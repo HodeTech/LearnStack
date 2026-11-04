@@ -1,3 +1,4 @@
+using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
 using LearnStack.Application.Authorization;
 using LearnStack.Application.Jobs;
 using LearnStack.Modules.Customization.Application.Authorization;
@@ -32,13 +33,13 @@ public sealed class OperationPolicyCatalogTests
             && type.GetInterfaces().Any(contract => contract.IsGenericType && contract.GetGenericTypeDefinition() == typeof(IRequest<>)))
             .OrderBy(type => type.FullName, StringComparer.Ordinal).ToArray();
         Assert.Equal(actual, catalog.All.Select(policy => policy.RequestType));
-        Assert.Equal(84, actual.Length);
+        Assert.Equal(94, actual.Length);
         Assert.Equal(4, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.PublicRead));
         Assert.Single(catalog.All, policy => policy.Kind == OperationPolicyKind.AccountRead);
-        Assert.Equal(28, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.Protected));
+        Assert.Equal(36, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.Protected));
         var ownReads = catalog.All.Where(policy => policy.Kind == OperationPolicyKind.OwnMembershipRead).ToArray();
         Assert.Equal(new[] { typeof(GetOwnMembershipProfileQuery), typeof(ReadOwnMembershipProfileReceiptQuery),
-            typeof(GetOwnMembershipContextsQuery), typeof(GetOwnCapabilitiesQuery) }
+            typeof(GetOwnMembershipContextsQuery), typeof(GetOwnCapabilitiesQuery), typeof(GetTenantInvitationPolicyQuery), typeof(ReadInvitationPolicyReceiptQuery) }
             .OrderBy(type => type.FullName, StringComparer.Ordinal), ownReads.Select(policy => policy.RequestType));
         Assert.All(ownReads, policy =>
         {

@@ -7,6 +7,12 @@ import type {
   AdministrationVersion,
   AdministrationWriteOptions,
   GrantInput,
+  Invitation,
+  InvitationInput,
+  InvitationPage,
+  InvitationPolicy,
+  InvitationPolicyWriteOptions,
+  InvitableRoles,
   MembershipDetail,
   MembershipPage,
   MembershipState,
@@ -25,7 +31,9 @@ import {
   fields,
   grants,
   identifier,
+  invitationEmail,
   isAdministrationSuccess,
+  lifetimeDays,
   object,
   profileInput,
   slug,
@@ -205,7 +213,15 @@ export function createAdministrationServerSdk(transport: AdministrationFetch) {
       shape === 'member' ||
       shape === 'profile' ||
       shape === 'role' ||
-      shape === 'organization';
+      shape === 'organization' ||
+      shape === 'invitation' ||
+      (shape === 'invitationPolicy' && object(value) && value.present === true);
+    const creationPrefix =
+      plan.path === '/api/v1/identity/invitations'
+        ? '/api/v1/identity/invitations/'
+        : plan.path === '/api/v1/tenancy/organizations'
+          ? '/api/v1/tenancy/organizations/'
+          : undefined;
     const contentType = response.headers
       .get('Content-Type')
       ?.split(';', 1)[0]
@@ -216,9 +232,10 @@ export function createAdministrationServerSdk(transport: AdministrationFetch) {
       !isAdministrationSuccess(shape, value) ||
       (versioned ? !object(value) || etag !== '"' + value.version + '"' : etag !== null) ||
       (expected === 201
-        ? location === null ||
-          !/^\/api\/v1\/tenancy\/organizations\/[0-9a-f-]+$/.test(location) ||
-          !identifier(location.slice('/api/v1/tenancy/organizations/'.length))
+        ? creationPrefix === undefined ||
+          location === null ||
+          !location.startsWith(creationPrefix) ||
+          !identifier(location.slice(creationPrefix.length))
         : location !== null) ||
       (replay !== null && (shape !== 'version' || replay !== 'true'))
     )
@@ -251,6 +268,88 @@ export function createAdministrationServerSdk(transport: AdministrationFetch) {
     );
   }
   return Object.freeze({
+    listInvitations: (options?: AdministrationPageOptions) =>
+      request<InvitationPage>(
+        'invitations',
+        () => ({ path: page('/api/v1/identity/invitations', options) }),
+        200,
+        options,
+      ),
+    getInvitation: (id: string, options?: AdministrationReadOptions) =>
+      request<Invitation>(
+        'invitation',
+        () => ({ path: resource('/api/v1/identity/invitations', id) }),
+        200,
+        options,
+      ),
+    listInvitableRoles: (options?: AdministrationReadOptions) =>
+      request<InvitableRoles>(
+        'invitableRoles',
+        () => ({ path: '/api/v1/identity/invitable-roles' }),
+        200,
+        options,
+      ),
+    createInvitation: (input: InvitationInput, options: AdministrationCreateOptions) =>
+      mutation<AdministrationVersion, 201>(
+        '/api/v1/identity/invitations',
+        'POST',
+        input,
+        fields(input, ['email', 'roleId', 'roleVersion']) &&
+          invitationEmail(input.email) &&
+          identifier(input.roleId) &&
+          version(input.roleVersion),
+        options,
+        201,
+      ),
+    revokeInvitation: (id: string, options: AdministrationWriteOptions) =>
+      mutation(
+        resource('/api/v1/identity/invitations', id)?.concat('/revocations'),
+        'POST',
+        {},
+        true,
+        options,
+      ),
+    reissueInvitation: (id: string, options: AdministrationWriteOptions) =>
+      mutation(
+        resource('/api/v1/identity/invitations', id)?.concat('/reissues'),
+        'POST',
+        {},
+        true,
+        options,
+      ),
+    getInvitationPolicy: (options?: AdministrationReadOptions) =>
+      request<InvitationPolicy>(
+        'invitationPolicy',
+        () => ({ path: '/api/v1/tenancy/settings/invitation-policy' }),
+        200,
+        options,
+      ),
+    setInvitationLifetime: (days: number, options: InvitationPolicyWriteOptions) =>
+      request<AdministrationVersion>(
+        'version',
+        () => {
+          const headers = write(options, false);
+          if (!headers || !lifetimeDays(days)) return undefined;
+          const condition = options.precondition;
+          if (fields(condition, ['kind']) && condition.kind === 'absent')
+            headers['If-None-Match'] = '*';
+          else if (
+            fields(condition, ['kind', 'version']) &&
+            condition.kind === 'present' &&
+            version(condition.version)
+          )
+            headers['If-Match'] = '"' + condition.version + '"';
+          else return undefined;
+          return {
+            path: '/api/v1/tenancy/settings/invitation-policy',
+            method: 'PUT',
+            headers,
+            body: { days },
+          };
+        },
+        200,
+        options,
+      ),
     listMemberships: (options?: AdministrationPageOptions) =>
       request<MembershipPage>(
         'members',

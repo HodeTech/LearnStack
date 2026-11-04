@@ -31,6 +31,9 @@ public sealed partial class OutboxDispatchConventionTests
     private const string LifecycleAcceptance = "LearnStack.Infrastructure.Messaging.PostgresDeliveryAcceptance";
     private const string LifecyclePlatform = "LearnStack.Infrastructure.MultiTenancy.PlatformAdminScope";
     private const string LifecycleIdempotencyStore = "LearnStack.Infrastructure.Idempotency.PostgresIdempotencyStore";
+    private const string LifecycleInvitationSmtpOwner = "LearnStack.Infrastructure.Email.InvitationSmtpProviderDataSource/Owner";
+    private static readonly string[] LifecycleInvitationSmtpSqlParameters =
+        ["System.Guid", "System.Guid", "System.Guid", "System.String", "System.Boolean", BoundaryCancellation];
     private const string LifecycleTask = "System.Threading.Tasks.Task";
     private static readonly string[] LifecycleIdempotencyOwnerParameters =
     [
@@ -156,6 +159,8 @@ public sealed partial class OutboxDispatchConventionTests
                              Array.Empty<string>(), "database.CommitAsync"),
                          (InfrastructureAssembly, LifecycleEvidenceOwner, "CompleteAsync",
                              Array.Empty<string>(), "database.CommitAsync"),
+                         (InfrastructureAssembly, LifecycleInvitationSmtpOwner, "ExecuteSqlAsync",
+                             LifecycleInvitationSmtpSqlParameters, "database.CommitAsync"),
                          (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "CommitAsync",
                              new[] { "LearnStack.Infrastructure.Jobs.BackgroundJobControlResources", BoundaryCancellation }, "database.CommitAsync"),
                          (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobTerminalStore", "CommitAsync",
@@ -459,6 +464,9 @@ public sealed partial class OutboxDispatchConventionTests
                 Owner(InfrastructureAssembly, LifecycleIdempotencyStore, "OwnAsync", LifecycleIdempotencyOwnerParameters),
                 Owner(InfrastructureAssembly, LifecycleAuthorizationOwner, "CompleteAsync"),
                 Owner(InfrastructureAssembly, LifecycleEvidenceOwner, "CompleteAsync"),
+                // ADR-0093: the confined provider connector commits only its exact
+                // custody/evidence SQL operation, never business or job completion.
+                Owner(InfrastructureAssembly, LifecycleInvitationSmtpOwner, "ExecuteSqlAsync", LifecycleInvitationSmtpSqlParameters),
                 Owner(InfrastructureAssembly, Store, "AcquireAsync"), Owner(InfrastructureAssembly, Store, "TryTerminalizeAsync"),
                 Owner(InfrastructureAssembly, DeliveryStore, "AcquireAsync"), Owner(InfrastructureAssembly, DeliveryStore, "UpdateAsync"),
                 Owner(InfrastructureAssembly, DeliveryStore, "TryTerminalizeAsync"), Owner(InfrastructureAssembly, DeliveryStore, "ReplayAsync"),

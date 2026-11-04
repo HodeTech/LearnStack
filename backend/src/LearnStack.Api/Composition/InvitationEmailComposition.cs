@@ -1,3 +1,5 @@
+using LearnStack.Api.Authentication;
+using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
 using LearnStack.Infrastructure.Email;
 using LearnStack.Infrastructure.Email.Smtp;
 using LearnStack.Infrastructure.Resilience;
@@ -12,6 +14,7 @@ internal static class InvitationEmailComposition
 {
     internal static IServiceCollection AddInvitationEmailDelivery(this IServiceCollection services, IConfiguration configuration)
     {
+        services.TryAddSingleton<IInvitationEntryOriginPolicy, InvitationEntryOriginPolicy>();
         var defaults = new Dictionary<string, string?>
         {
             ["Resilience:email:Retry:Enabled"] = "false",
@@ -52,4 +55,9 @@ internal static class InvitationEmailComposition
         services.AddHostedService<InvitationEmailStartupService>();
         return services;
     }
+}
+
+internal sealed class InvitationEntryOriginPolicy(NativeEntryOriginOptions origins) : IInvitationEntryOriginPolicy
+{
+    public string ForHost(string normalizedHost) => origins.ForHost(normalizedHost);
 }

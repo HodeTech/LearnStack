@@ -5,6 +5,7 @@ using LearnStack.SharedKernel.Identity;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Jobs;
 using LearnStack.SharedKernel.Results;
+using LearnStack.SharedKernel.Persistence;
 using LearnStack.SharedKernel.Tenancy;
 using LearnStack.SharedKernel.Time;
 using MediatR;
@@ -18,11 +19,10 @@ public sealed record FinalizeTenantInvitationEmailCommand(InvitationEmailParamet
 public sealed record FinalizeOrganizationInvitationEmailCommand(InvitationEmailParameters Parameters,
     BackgroundJobFinalization<InvitationEmailPlan, InvitationEmailOutcome> Finalization) : IRequest<Result<None>>;
 
-public interface IInvitationEmailJobStore
+public interface IInvitationEmailJobStore : IAggregateWriteStore<Invitation, InvitationId>
 {
     BackgroundJobId RequireCurrentJob();
     Task<Invitation?> FindLockedAsync(InvitationId invitationId, CancellationToken cancellationToken);
-    Task SaveAsync(CancellationToken cancellationToken);
 }
 
 /// <summary>Four scope-specific roots share business mechanics, never their scope classification.</summary>
@@ -77,7 +77,7 @@ public sealed class InvitationEmailJobHandlers(IInvitationEmailJobStore store, I
             && finalization.Reason is BackgroundJobFinalizationReason.PermanentFailure or BackgroundJobFinalizationReason.NormalAttemptsExhausted)
             result = invitation.RecordWorkflowFailure(generation, job, clock.UtcNow, tenant.UserId ?? UserId.SystemActor);
         else return Result<None>.Fail(IdentityFailures.Refused());
-        if (result.IsSuccess) await store.SaveAsync(token).ConfigureAwait(false);
+        if (result.IsSuccess) await store.UpdateAsync(invitation, token).ConfigureAwait(false);
         return result;
     }
 }

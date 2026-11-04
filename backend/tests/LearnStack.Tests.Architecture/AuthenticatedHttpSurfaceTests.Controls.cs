@@ -262,39 +262,50 @@ public sealed partial class AuthenticatedHttpSurfaceTests
 
     private static void AssertGeneratedHandlerFieldControls(TypeDefinition[] roots, Dictionary<string, TypeDefinition> map)
     {
-        var owner = roots.First(type => type.Methods.Any(method => method.Name == "Handle" && method.CustomAttributes.Any(attribute =>
-            attribute.AttributeType.FullName == "System.Runtime.CompilerServices.AsyncStateMachineAttribute")));
-        var handle = owner.Methods.Single(method => method.Name == "Handle");
-        var state = (TypeReference)handle.CustomAttributes.Single(attribute =>
-            attribute.AttributeType.FullName == "System.Runtime.CompilerServices.AsyncStateMachineAttribute").ConstructorArguments[0].Value;
-        var generated = map[Key(state)];
-        var target = roots.Single(type => Handles(type, typeof(LearnStack.Modules.Tenancy.Application.Contracts.Account.GetAccountSiteQuery).FullName!));
-        var contract = generated.Module.ImportReference(target.Interfaces.Single().InterfaceType);
-        NestedDispatchOffenders([owner], map).Should().BeEmpty("the actual generated owner's normal self capture remains legal");
-        var unused = new FieldDefinition("UnusedHandlerCapability", FieldAttributes.Private, contract);
-        generated.Fields.Add(unused);
-        try
+        var handles = roots.SelectMany(owner => owner.Methods.Where(method => method.Name == "Handle" && method.HasBody
+            && method.CustomAttributes.Any(attribute => attribute.AttributeType.FullName == "System.Runtime.CompilerServices.AsyncStateMachineAttribute"))
+            .Select(handle => (Owner: owner, Handle: handle))).ToArray();
+        handles.Should().NotBeEmpty("actual async request handlers are the nonempty mutation population");
+        var captures = 0;
+        foreach (var (owner, handle) in handles)
         {
-            NestedDispatchOffenders([owner], map).Should().Contain("Nested HTTP dispatch/helper handler: " + owner.FullName,
-                "an unused handler field on the actual state machine must survive generated-type de-duplication");
+            var state = (TypeReference)handle.CustomAttributes.Single(attribute =>
+                attribute.AttributeType.FullName == "System.Runtime.CompilerServices.AsyncStateMachineAttribute").ConstructorArguments[0].Value;
+            var generated = map[Key(state)];
+            var target = roots.Single(type => Handles(type, typeof(LearnStack.Modules.Tenancy.Application.Contracts.Account.GetAccountSiteQuery).FullName!));
+            var contract = generated.Module.ImportReference(target.Interfaces.Single().InterfaceType);
+            NestedDispatchOffenders([owner], map).Should().BeEmpty("the actual generated owner's normal self capture remains legal");
+            var unused = new FieldDefinition("UnusedHandlerCapability", FieldAttributes.Private, contract);
+            generated.Fields.Add(unused);
+            try
+            {
+                NestedDispatchOffenders([owner], map).Should().Contain("Nested HTTP dispatch/helper handler: " + owner.FullName,
+                    "an unused handler field on the actual state machine must survive generated-type de-duplication");
+            }
+            finally { generated.Fields.Remove(unused); }
+            var selfCaptures = generated.Fields.Where(field => field.Name == "<>4__this").ToArray();
+            selfCaptures.Should().HaveCountLessThanOrEqualTo(1);
+            foreach (var captured in selfCaptures)
+            {
+                captures++;
+                var ownType = captured.FieldType;
+                captured.FieldType = contract;
+                try
+                {
+                    NestedDispatchOffenders([owner], map).Should().Contain("Nested HTTP dispatch/helper handler: " + owner.FullName,
+                        "the compiler capture spelling alone cannot exempt a foreign handler capability");
+                }
+                finally { captured.FieldType = ownType; }
+            }
+            NestedDispatchOffenders([owner], map).Should().BeEmpty("both real generated-field mutations were restored");
         }
-        finally { generated.Fields.Remove(unused); }
-        var captured = generated.Fields.Single(field => field.Name == "<>4__this");
-        var ownType = captured.FieldType;
-        captured.FieldType = contract;
-        try
-        {
-            NestedDispatchOffenders([owner], map).Should().Contain("Nested HTTP dispatch/helper handler: " + owner.FullName,
-                "the compiler capture spelling alone cannot exempt a foreign handler capability");
-        }
-        finally { captured.FieldType = ownType; }
-        NestedDispatchOffenders([owner], map).Should().BeEmpty("both real generated-field mutations were restored");
+        captures.Should().BeGreaterThan(0, "the self-capture mutation has actual generated subjects");
     }
 
     private static void AssertInheritedHandlerControls(TypeDefinition[] roots, Dictionary<string, TypeDefinition> map)
     {
         foreach (var owner in roots.Where(root => root.BaseType is { } parent && map.TryGetValue(Key(parent), out var definition)
-                     && definition.IsAbstract).DistinctBy(root => Key(root.BaseType)))
+                     && definition.IsAbstract))
         {
             var parent = map[Key(owner.BaseType)];
             void Dirty() => NestedDispatchOffenders([owner], map).Should().Contain(error =>
@@ -310,13 +321,15 @@ public sealed partial class AuthenticatedHttpSurfaceTests
             var parameter = new ParameterDefinition("collaborator", ParameterAttributes.None, parent);
             constructor.Parameters.Add(parameter);
             try { Dirty(); } finally { constructor.Parameters.Remove(parameter); }
-            var handle = owner.Methods.Single(method => method.Name == "Handle");
-            var local = new VariableDefinition(parent);
-            handle.Body.Variables.Add(local);
-            try { Dirty(); } finally { handle.Body.Variables.Remove(local); }
-            var token = Instruction.Create(OpCodes.Ldtoken, parent);
-            handle.Body.Instructions.Add(token);
-            try { Dirty(); } finally { handle.Body.Instructions.Remove(token); }
+            foreach (var handle in owner.Methods.Where(method => method.Name == "Handle" && method.HasBody))
+            {
+                var local = new VariableDefinition(parent);
+                handle.Body.Variables.Add(local);
+                try { Dirty(); } finally { handle.Body.Variables.Remove(local); }
+                var token = Instruction.Create(OpCodes.Ldtoken, parent);
+                handle.Body.Instructions.Add(token);
+                try { Dirty(); } finally { handle.Body.Instructions.Remove(token); }
+            }
             var sender = new FieldDefinition("HiddenSender", FieldAttributes.Private, parent.Module.ImportReference(typeof(ISender)));
             parent.Fields.Add(sender);
             try { Dirty(); } finally { parent.Fields.Remove(sender); }

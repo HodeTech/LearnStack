@@ -93,6 +93,7 @@ public sealed class IdentityFoundationConventionTests
     {
         string[] identityWriters =
         [
+            "LearnStack.Modules.Identity.Application.Invitations.InvitationAdministrationHandlers.MutateAsync",
             "LearnStack.Modules.Identity.Application.Roles.RoleGrantCommandHandlerBase.ExecuteAsync",
             "LearnStack.Modules.Identity.Application.Memberships.MembershipAdministrationCommandHandlerBase.ExecuteAsync",
             "LearnStack.Modules.Identity.Application.Seeding.InitializeSeedRoleCommandHandler.Handle",
@@ -105,6 +106,7 @@ public sealed class IdentityFoundationConventionTests
         string[] acquisitions =
         [
             .. identityWriters,
+            "LearnStack.Modules.Identity.Application.Invitations.InvitationEmailJobHandlers.ReadAsync",
             "LearnStack.Modules.Tenancy.Application.Authorization.TenancyAdministrationAuthorization.AdmitWriteAsync",
             "LearnStack.Modules.Customization.Application.Seeding.SeedCustomizationWriteGuard.PrepareAsync",
             "LearnStack.Modules.Education.Application.Seeding.SeedEducationWriteGuard.PrepareAsync",

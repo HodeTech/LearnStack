@@ -6,6 +6,10 @@ using LearnStack.Modules.Tenancy.Application.Contracts.IntegrationEvents;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.Modules.Education.Application.Abstractions;
 using LearnStack.Modules.Education.Domain;
+using LearnStack.Modules.Identity.Application.Invitations;
+using LearnStack.Modules.Identity.Domain;
+using LearnStack.Modules.Identity.Infrastructure.Invitations;
+using LearnStack.Modules.Tenancy.Application.Settings;
 using MediatR;
 using Xunit;
 
@@ -144,6 +148,22 @@ public sealed class AggregateWriteTests
         }
         TakesDomainObject(typeof(ICourseWriteStore), domains).Should().BeTrue();
         WriteStoreConstructions(typeof(ICourseWriteStore)).Should().ContainSingle();
+        var tenancyDomains = new HashSet<Assembly> { typeof(LearnStack.Modules.Tenancy.Domain.TenantSetting).Assembly };
+        var policyRead = typeof(IInvitationPolicyReader).GetMethod(nameof(IInvitationPolicyReader.ReadReceiptAsync))!;
+        TakesDomainObject(typeof(IInvitationPolicyReader), tenancyDomains).Should().BeFalse("the exact fixed-policy typed receipt key is read-only metadata");
+        ReadMethods.Remove(policyRead).Should().BeTrue();
+        try { TakesDomainObject(typeof(IInvitationPolicyReader), tenancyDomains).Should().BeTrue("removing only this read entry exposes its module-local typed key"); }
+        finally { ReadMethods.Add(policyRead); }
+        TakesDomainObject(typeof(IExtraInvitationPolicyWrite), tenancyDomains).Should().BeTrue("an added key-only write is not covered by the original fixed read member");
+
+        InvitationCustodyShapeIsClosed(typeof(IInvitationEmailStager)).Should().BeTrue();
+        TakesDomainObject(typeof(IInvitationEmailStager), identityDomains).Should().BeFalse("ADR-0093 custody takes metadata IDs and returns a delivery value; it does not write a second business root");
+        typeof(InvitationEmailStager).GetConstructors().Should().ContainSingle();
+        AggregatesWrittenBy(typeof(InvitationEmailStager).GetConstructors().Single()).Should().BeEmpty("the actual stager owns encrypted provider custody and scheduler production, not an aggregate write port");
+        foreach (var extra in new[] { typeof(IExtraInvitationCustodyWrite), typeof(IExtraInvitationCustodyKeyWrite), typeof(IUnapprovedInvitationMetadataPort) })
+            TakesDomainObject(extra, identityDomains).Should().BeTrue("an inherited extra root/key write or same-shaped unrelated port cannot borrow the exact metadata exception");
+        WriteStoreConstructions(typeof(IInvitationEmailJobStore)).Should().ContainSingle()
+            .Which.GetGenericArguments()[0].Should().Be<Invitation>();
     }
 
     /// <summary>Exercise the same handler predicate and constructor scan as production.</summary>
@@ -222,9 +242,33 @@ public sealed class AggregateWriteTests
 
     private static bool TakesDomainObject(Type type, HashSet<Assembly> domains) =>
         type.GetInterfaces().Append(type).SelectMany(contract => contract.GetMethods())
+            .Where(method => !IsInvitationCustodyMethod(method))
             .Any(method => method.GetParameters().Any(parameter =>
                 Unwrap(parameter.ParameterType).Any(inner => !inner.HasElementType && domains.Contains(inner.Assembly)
                     && (!IsTypedId(inner) || !ReadMethods.Contains(method)))));
+
+    private static bool IsInvitationCustodyMethod(MethodInfo method) => method.DeclaringType == typeof(IInvitationEmailStager)
+        && InvitationCustodyShapeIsClosed(method.DeclaringType) && method.Name == nameof(IInvitationEmailStager.StageAsync);
+
+    private static bool InvitationCustodyShapeIsClosed(Type port)
+    {
+        if (port != typeof(IInvitationEmailStager) || !port.IsInterface || port.GetInterfaces().Length != 0) return false;
+        var methods = port.GetMethods();
+        if (methods.Length != 1 || methods[0].Name != nameof(IInvitationEmailStager.StageAsync)
+            || methods[0].ReturnType != typeof(Task<InvitationDelivery>)
+            || !methods[0].GetParameters().Select(parameter => parameter.ParameterType).SequenceEqual(new[]
+            {
+                typeof(InvitationId), typeof(InvitationGenerationId), typeof(string), typeof(string), typeof(string),
+                typeof(string), typeof(int), typeof(CancellationToken),
+            })) return false;
+        (string Name, Type Type)[] values =
+        [
+            ("GenerationId", typeof(InvitationGenerationId)), ("JobId", typeof(LearnStack.SharedKernel.Jobs.BackgroundJobId)),
+            ("VerifierDigest", typeof(string)), ("EntryOrigin", typeof(string)), ("EntryLocale", typeof(string)), ("LifetimeDays", typeof(int)),
+        ];
+        var properties = typeof(InvitationDelivery).GetProperties(BindingFlags.Public | BindingFlags.Instance);
+        return properties.Length == values.Length && values.All(value => properties.Count(property => property.Name == value.Name && property.PropertyType == value.Type) == 1);
+    }
 
     private static bool IsTypedId(Type type) => type.GetInterfaces().Any(contract =>
         contract.IsGenericType && contract.GetGenericTypeDefinition() == typeof(IStronglyTypedId<>));
@@ -253,10 +297,15 @@ public sealed class AggregateWriteTests
         typeof(LearnStack.Modules.Identity.Application.Abstractions.IMembershipDirectoryReader).GetMethod("ReadAsync")!,
         typeof(LearnStack.Modules.Identity.Application.Abstractions.ISeedStateReader).GetMethod("ReadRoleAsync")!,
         typeof(LearnStack.Modules.Identity.Application.Abstractions.ISeedStateReader).GetMethod("ReadMembershipAsync")!,
+        typeof(IInvitationPolicyReader).GetMethod(nameof(IInvitationPolicyReader.ReadReceiptAsync))!,
     ];
 
     private interface IIdOnlyWriteProbe { Task DeleteAsync(CourseId id); }
     private interface IValueReturningKeyWriter { Task<bool> DeleteAsync(CourseId id); }
+    private interface IExtraInvitationCustodyWrite : IInvitationEmailStager { void Apply(Invitation root); }
+    private interface IExtraInvitationCustodyKeyWrite : IInvitationEmailStager { void DeleteAsync(InvitationId id); }
+    private interface IUnapprovedInvitationMetadataPort { Task<InvitationDelivery> StageAsync(InvitationId id, InvitationGenerationId generation, string recipient); }
+    private interface IExtraInvitationPolicyWrite : IInvitationPolicyReader { Task DeleteAsync(LearnStack.Modules.Tenancy.Domain.TenantSettingId id); }
     private interface IFusedWritePort : IAggregateWriteStore<Course, CourseId>, IAggregateWriteStore<Lesson, LessonId>;
     private sealed record CommandProbe : IRequest;
     private sealed record ValueProbe : IRequest<bool>;

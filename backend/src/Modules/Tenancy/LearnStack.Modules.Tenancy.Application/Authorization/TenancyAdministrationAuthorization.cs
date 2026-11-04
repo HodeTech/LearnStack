@@ -1,4 +1,5 @@
 using LearnStack.Modules.Tenancy.Application.Abstractions;
+using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
 using LearnStack.Modules.Tenancy.Application.Contracts.Branding;
 using LearnStack.Modules.Tenancy.Application.Contracts.Locales;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
@@ -141,7 +142,7 @@ public sealed class TenancyAdministrationAuthorization(IOperationPolicyCatalog c
             or ArchiveOrganizationCommand or SelectDefaultOrganizationCommand => BoundedTenancyAdministrationPermissions.OrganizationAdministration,
         AddManagedTenantLocaleCommand or SetManagedDefaultTenantLocaleCommand or SetTenantLocaleEnabledCommand
             or RemoveTenantLocaleCommand => BoundedTenancyAdministrationPermissions.LocaleWrite,
-        SetManagedTenantBrandingCommand => BoundedTenancyAdministrationPermissions.SettingWrite,
+        SetManagedTenantBrandingCommand or SetTenantInvitationLifetimeCommand => BoundedTenancyAdministrationPermissions.SettingWrite,
         _ => null,
     };
 }

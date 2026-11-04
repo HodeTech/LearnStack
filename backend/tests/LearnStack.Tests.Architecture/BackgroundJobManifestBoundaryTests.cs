@@ -1,6 +1,11 @@
 using FluentAssertions;
 using LearnStack.Infrastructure.Jobs;
 using LearnStack.SharedKernel.Jobs;
+using LearnStack.Modules.Identity.Infrastructure.Invitations;
+using LearnStack.Modules.Identity.Application.Contracts.Invitations;
+using LearnStack.Modules.Identity.Application.Invitations;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Xunit;
@@ -22,6 +27,9 @@ public sealed partial class OutboxDispatchConventionTests
         ("LearnStack.Api.Identity.RolesController", ["List", "Get", "ChangeGrants", "AdoptManifest"]),
         ("LearnStack.Api.Tenancy.DefaultOrganizationController", ["Select"]),
         ("LearnStack.Api.Tenancy.OrganizationsController", ["List", "Get", "Create", "Rename", "Archive"]),
+        ("LearnStack.Api.Identity.InvitationsController", ["List", "Get", "Create", "Revoke", "Reissue"]),
+        ("LearnStack.Api.Identity.InvitableRolesController", ["List"]),
+        ("LearnStack.Api.Tenancy.InvitationPolicyController", ["Get", "Set"]),
     ];
 
     /// <summary>ADR-0047: disk-discovered modules cannot hide declarations outside the live handler scan.</summary>
@@ -41,6 +49,7 @@ public sealed partial class OutboxDispatchConventionTests
         unrelated.Should().Throw<Xunit.Sdk.XunitException>();
         EvaluateDetector(census, JobManifestOffenders).Should().BeEmpty("restoring production composition restores the manifest");
         CheckJobFrameworkMetadata();
+        CheckInvitationJobManifest();
 
         var scaffold = census.Modules.Single(module => module.Assembly.Name.Name == "LearnStack.Modules.Media.Application");
         AssertMutation(census, "an omitted scaffold module", () =>
@@ -65,7 +74,8 @@ public sealed partial class OutboxDispatchConventionTests
         var create = definition.Methods.Single(method => method.Name == "Create");
         AssertMutation(census, "a foreign registry construction delegate", () =>
             AddCallProbe(scaffold, "HiddenRegistryFactory", create, OpCodes.Ldftn), JobManifestOffenders);
-        var actual = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
+        var actual = OwnedBodies(census).Where(item => item.Owner.DeclaringType.FullName == definition.FullName
+                && item.Owner.Name == "CreateEmpty").SelectMany(item => item.Body.Body.Instructions)
             .Single(instruction => instruction.Operand is MethodReference target && SameType(target.DeclaringType, definition)
                 && target.Name == "Create");
         AssertMutation(census, "a missing actual empty-definition factory", () =>
@@ -146,6 +156,67 @@ public sealed partial class OutboxDispatchConventionTests
         offenders.Should().Contain(error => error.StartsWith(expected, StringComparison.Ordinal), because);
     }
 
+    private static void CheckInvitationJobManifest()
+    {
+        var registry = InvitationEmailRegistration.CreateRegistry();
+        registry.DefinitionKeys.Should().BeEquivalentTo("identity.invitation_email_tenant.v1", "identity.invitation_email_organization.v1");
+        foreach (var (key, scope, prepare, finalize) in new[]
+        {
+            ("identity.invitation_email_tenant.v1", BackgroundJobScope.TenantWide, typeof(PrepareTenantInvitationEmailCommand), typeof(FinalizeTenantInvitationEmailCommand)),
+            ("identity.invitation_email_organization.v1", BackgroundJobScope.Organization, typeof(PrepareOrganizationInvitationEmailCommand), typeof(FinalizeOrganizationInvitationEmailCommand)),
+        })
+        {
+            registry.TryGet(key, out var definition).Should().BeTrue();
+            definition!.OwnerModule.Should().Be("identity");
+            definition.ParameterType.Should().Be<InvitationEmailParameters>();
+            definition.Scope.Should().Be(scope);
+            definition.Readiness.Should().Be(BackgroundJobDefinitionReadiness.Active);
+            definition.Profile.Should().Be(BackgroundJobExecutionProfile.External);
+            definition.Queue.Should().Be("external");
+            definition.CapacityGroup.Should().Be("identity.invitation_email");
+            definition.RootRequestTypes.Should().Equal(prepare, finalize);
+            definition.NestedRequestTypes.Should().BeEmpty();
+            definition.ProfileRegistration.PlanType.Should().Be<InvitationEmailPlan>();
+            definition.ProfileRegistration.OutcomeType.Should().Be<InvitationEmailOutcome>();
+            definition.ProfileRegistration.ExternalPortType.Should().Be<IInvitationEmailOperation>();
+        }
+        var source = File.ReadAllText(Path.Combine(SourceScan.SourceRoot,
+            "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/Invitations/InvitationEmailRegistration.cs"));
+        InvitationManifestSourceIsBound(source).Should().BeTrue();
+        foreach (var (before, after) in new[]
+        {
+            ("identity.invitation_email_tenant.v1", "identity.additional.v1"),
+            ("BackgroundJobScope.TenantWide", "BackgroundJobScope.Organization"),
+            ("BackgroundJobDefinitionReadiness.Active", "BackgroundJobDefinitionReadiness.Pending"),
+            ("capacityGroup: \"identity.invitation_email\"", "capacityGroup: \"another.group\""),
+            ("typeof(InvitationEmailPlan)", "typeof(object)"),
+        })
+        {
+            var dirty = source.Replace(before, after, StringComparison.Ordinal);
+            dirty.Should().NotBe(source);
+            InvitationManifestSourceIsBound(dirty).Should().BeFalse("the two admitted declarations cannot broaden their actual key/scope/profile/contracts");
+        }
+    }
+
+    private static bool InvitationManifestSourceIsBound(string source)
+    {
+        var syntax = CSharpSyntaxTree.ParseText(source).GetRoot();
+        if (syntax.ContainsDiagnostics) return false;
+        var methods = syntax.DescendantNodes().OfType<MethodDeclarationSyntax>().ToArray();
+        var definition = methods.SingleOrDefault(method => method.Identifier.ValueText == "Definition");
+        var create = methods.SingleOrDefault(method => method.Identifier.ValueText == "CreateRegistry");
+        var calls = create?.DescendantNodes().OfType<InvocationExpressionSyntax>().Where(call => call.Expression.ToString() == "Definition").ToArray();
+        var expectedCalls = new[]
+        {
+            "Definition(\"identity.invitation_email_tenant.v1\", BackgroundJobScope.TenantWide, typeof(PrepareTenantInvitationEmailCommand), typeof(FinalizeTenantInvitationEmailCommand))",
+            "Definition(\"identity.invitation_email_organization.v1\", BackgroundJobScope.Organization, typeof(PrepareOrganizationInvitationEmailCommand), typeof(FinalizeOrganizationInvitationEmailCommand))",
+        };
+        return definition?.ExpressionBody is { } body && SyntaxFactory.AreEquivalent(body.Expression, SyntaxFactory.ParseExpression(
+                "new(key, typeof(InvitationEmailJobHandlers), typeof(InvitationEmailParameters), scope, BackgroundJobDefinitionReadiness.Active, \"external\", "
+                + "BackgroundJobProfileRegistration.External(prepare, finalize, typeof(InvitationEmailPlan), typeof(InvitationEmailOutcome), typeof(IInvitationEmailOperation)), capacityGroup: \"identity.invitation_email\")"))
+            && calls is { Length: 2 } && calls.Select((call, index) => SyntaxFactory.AreEquivalent(call, SyntaxFactory.ParseExpression(expectedCalls[index]))).All(equal => equal);
+    }
+
     private static SortedSet<string> JobManifestOffenders(ProductionCensus census)
     {
         var offenders = new SortedSet<string>(StringComparer.Ordinal);
@@ -172,11 +243,17 @@ public sealed partial class OutboxDispatchConventionTests
         var sites = bodies.SelectMany(item => item.Body.Body.Instructions
             .Where(instruction => instruction.Operand is MethodReference)
             .Select(instruction => (item.Owner, Instruction: instruction, Target: (MethodReference)instruction.Operand))).ToArray();
+        var invitation = types[("LearnStack.Modules.Identity.Infrastructure", typeof(InvitationEmailRegistration).FullName!)];
+        var invitationDefinition = invitation.Methods.Single(method => method.Name == "Definition");
 
         foreach (var registration in new[] { typeof(BackgroundJobDefinitionRegistration), typeof(BackgroundJobRecurrenceRegistration) })
         {
             var target = types[(KernelAssembly, registration.FullName!)];
-            foreach (var site in sites.Where(site => SameType(site.Target.DeclaringType, target) && site.Target.Name == ".ctor"))
+            var constructions = sites.Where(site => SameType(site.Target.DeclaringType, target) && site.Target.Name == ".ctor").ToArray();
+            if (registration == typeof(BackgroundJobDefinitionRegistration))
+                CheckSet(offenders, "exact invitation business-definition constructor", constructions.Select(site => MethodId(site.Owner)), [MethodId(invitationDefinition)]);
+            foreach (var site in constructions.Where(site => registration != typeof(BackgroundJobDefinitionRegistration)
+                         || site.Owner != invitationDefinition || site.Instruction.OpCode != OpCodes.Newobj))
                 offenders.Add("Production business/recurrence declaration: " + MethodId(site.Owner));
         }
 
@@ -186,7 +263,8 @@ public sealed partial class OutboxDispatchConventionTests
         var runtime = types[(InfrastructureAssembly, typeof(BackgroundJobRuntimeRegistration).FullName!)];
         var control = types[(InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.BackgroundJobControl")];
         Factory(definitions, ".ctor", [Method(definitions, "Create")], OpCodes.Newobj);
-        Factory(definitions, "Create", [Method(definitions, "CreateEmpty")], OpCodes.Call);
+        Factory(definitions, "Create", [Method(definitions, "CreateEmpty"), Method(invitation, "CreateRegistry")], OpCodes.Call);
+        Factory(invitation, "Definition", [Method(invitation, "CreateRegistry"), Method(invitation, "CreateRegistry")], OpCodes.Call);
         Factory(definitions, "CreateEmpty", [Lambda(contracts, "<AddLearnStackBackgroundJobContracts>b__0_0"),
             Method(recurrences, "CreateEmpty")], OpCodes.Call);
         Factory(recurrences, ".ctor", [Method(recurrences, "Create")], OpCodes.Newobj);

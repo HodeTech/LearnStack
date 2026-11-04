@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 584 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 652 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -358,6 +358,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 3 first review startup correction (2026-11-04)](#p03-4-step-3-first-review-startup-correction-2026-11-04) — 33 lines
   - [P03-4 Step 3 second review privacy inventory correction (2026-11-04)](#p03-4-step-3-second-review-privacy-inventory-correction-2026-11-04) — 24 lines
   - [P03-4 Step 3 review closeout and administrator continuation (2026-11-04)](#p03-4-step-3-review-closeout-and-administrator-continuation-2026-11-04) — 30 lines
+  - [P03-4 Step 4 administration and producer review handoff (2026-11-04)](#p03-4-step-4-administration-and-producer-review-handoff-2026-11-04) — 68 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -16337,3 +16338,71 @@ private query timeout is distinguished from caller cancellation. A successful
 missing-job observation is separate finite data. Real reader/audit tests prove
 this behavior. Actual Create/Reissue invokes the confined stager, scheduler and
 MUST path on one ordinary owner; no test-only producer replaces that proof.
+
+### P03-4 Step 4 administration and producer review handoff (2026-11-04)
+
+Step 4 implements the eight administrative HTTP actions, scoped invitation
+directory/detail and compatible-Role summaries, fixed lifetime policy and strict
+SDK wrappers. Actual create/reissue invokes the confined stager, scheduler and
+encrypted custody on the same audited business owner. Database diagnostic
+qualification precedes the first recipient-bearing root INSERT. Frozen entry
+host/locale/label come from actual live Tenancy projections; the existing
+server-configured HTTPS-port policy formats the origin.
+
+Every target read, retained lock, page and original receipt enforces tenant plus
+exact nullable-organization equality. Current membership-admin is checked at
+HTTP and application boundaries. Create/reissue additionally require compatible
+live Role content, the immutable pin and whole-grant delegation. Withdrawal
+requires current scoped membership-admin, Pending target and strong root version,
+independently of changed/deleted offered Role content. This preserves the
+accepted revoke/new-offer recovery without granting assignment, reissue or
+repinning authority. Positive withdrawal and forbidden-scope/capability/stale-root
+controls exercise the distinction.
+
+Policy absence uses `If-None-Match: *`; an existing version-zero row uses
+`If-Match: "0"`. The fingerprints differ while prior protected-operation framing
+remains unchanged. Getter is own-only Off/physical ReadOnly; original policy
+receipt is own-only, original TenantSetting ID/key and MUST writable audit,
+without the former write grant. Four protected mutations add only Invitation
+and TenantSetting target kinds in a forward Platform migration with generated
+target metadata. The migration's UTC ID follows the committed SMTP migration.
+No raw code/link enters administrative responses or durable replay bytes.
+
+Actual SQL status failure/private timeout poisons the shared owner and returns
+whole-read 503; caller cancellation is distinct. A page shares one five-second
+status budget. Known missing-job data remains separate. Real denial and table-
+lock timeout controls expose no DTO or success audit.
+
+Broader controls also close earlier SMTP source-accounting gaps: its job store
+is an explicitly countable Invitation write port, rejects Add and saves only its
+exact tracked root without forcing Modified state. A real stale-generation
+finalizer preserves the replacement generation, job and root version. Staging
+is a narrowly counted metadata/custody seam with exact production callers.
+Credential, enrollment, audit, framework-list and hosted-source controls retain
+their exact subjects and independent dirty negatives. Pure Location construction
+belongs to descriptor metadata, without a metadata-to-dispatcher dependency.
+
+Validation records 3,548/3,548 full unit cases and all 73 selected integration
+subjects with green final/corrected receipts. The original selected receipt has
+72 passes and one test-only TTL sampling failure; that corrected subject passes
+separately. An additional tightened real Create/Reissue MUST-refusal control
+positively observes rollback/cleanup and expired in-flight claims with no typed
+target, unchanged root/job facts and no success audit. Abandon expires its row;
+state alone is not evidence of uncertainty or deletion.
+
+The original full architecture attempt is 570 passed/38 failed/zero skipped,
+608 cases in 26m15s. It is not a passing final full-source receipt. Its affected
+follow-up is 53 passed/16 failed; all remaining failures and new dirty controls
+then pass 18/18. All five corpus controls pass after reconciling the 337 compiled
+architecture methods; registered whole-packet obligations are not promoted by
+partial control delivery.
+The served API snapshot supplies SDK generation: Contract passes 9/9, guarded
+SDK passes 163/163 across ten discovered files, and SDK lint/typecheck pass.
+Release compilation, changed-file formatting, whitespace and document guards
+accompany the commit.
+
+Two fresh independent review rounds follow. Recipient entry/acceptance and
+Studio/native/Keycloak activation remain Steps 5–6. Complete final-source suites,
+native process/cleanup/race qualification, hosted A/B and original archives
+remain Step 7. No production inbox delivery or manual accessibility evidence is
+claimed by this administrative implementation handoff.

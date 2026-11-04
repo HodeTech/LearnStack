@@ -20,7 +20,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
             var request = endpoint.Request.Assembly.GetName().Name + ":" + endpoint.Request.FullName;
             var value = new RequestValue(request);
             if (EvaluateDescriptor(descriptor, "For", shape.Operation, map) != new Evaluation(true,
-                    new DescriptorValue(shape.Operation, request, shape.Kind, shape.Operation == 7)))
+                    new DescriptorValue(shape.Operation, request, shape.Kind, shape.Operation is 7 or 11)))
                 yield return "Unexpected protected descriptor: exact enum-to-request relation " + shape.Name;
             if (EvaluateDescriptor(descriptor, "OperationFor", value, map) != new Evaluation(true, shape.Operation))
                 yield return "Unexpected protected descriptor: exact request-to-enum relation " + shape.Name;
@@ -218,14 +218,16 @@ public sealed partial class AuthenticatedHttpSurfaceTests
     private static bool VersionGetter(MethodReference call, RequestValue instance, Dictionary<string, TypeDefinition> map)
     {
         if (!OrdinarySignature(call, true) || Key(call.DeclaringType) != instance.Type || call.Parameters.Count != 0
-            || !BclType(call.ReturnType, "System.Int64") || !map.TryGetValue(instance.Type, out var request)) return false;
+            || !(BclType(call.ReturnType, "System.Int64") || DescriptorNullable(call.ReturnType, "ExpectedVersion"))
+            || !map.TryGetValue(instance.Type, out var request)) return false;
         var shape = ProtectedShapes.SingleOrDefault(item => Endpoints.Single(entry => entry.ProtectedOperation == item.Operation)
             .Request.FullName == request.FullName);
         if (shape?.Version is not { } propertyName || call.Name != "get_" + propertyName) return false;
         var property = request.Properties.SingleOrDefault(candidate => candidate.Name == propertyName);
-        return property is { GetMethod: { } getter } && BclType(property.PropertyType, "System.Int64")
+        var expectedType = shape.Operation == 14 ? DescriptorNullable(call.ReturnType, "ExpectedVersion") : BclType(call.ReturnType, "System.Int64");
+        return expectedType && property is { GetMethod: { } getter } && SameType(property.PropertyType, call.ReturnType)
             && getter.IsPublic && getter.IsSpecialName && OrdinarySignature(getter, true) && getter.Parameters.Count == 0
-            && BclType(getter.ReturnType, "System.Int64") && getter.FullName == call.FullName
+            && SameType(getter.ReturnType, call.ReturnType) && getter.FullName == call.FullName
             && Key(getter.DeclaringType) == instance.Type;
     }
 }

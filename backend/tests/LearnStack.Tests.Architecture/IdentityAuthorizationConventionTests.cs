@@ -231,6 +231,8 @@ public sealed class IdentityAuthorizationConventionTests
             "LearnStack.Modules.Identity.Application.Authorization.RoleGrantAuthorization.RecheckAsync",
             "LearnStack.Modules.Identity.Application.Authorization.MembershipAdministrationAuthorization.RecheckAsync",
             "LearnStack.Modules.Identity.Application.Authorization.IdentityAdministrationReadAuthorization.ReadFactsAsync",
+            "LearnStack.Modules.Identity.Application.Invitations.InvitationAdministrationAuthorization.CanDelegateAsync",
+            "LearnStack.Modules.Tenancy.Application.Settings.InvitationPolicyHandlers.Handle",
             "LearnStack.Api.Authentication.LiveTenantMembershipReader.CoversAsync"]);
         Callers(census, errors, LifecyclePort, "ReadAuthorizationAsync", [Orchestrator + ".ReadAsync"]);
         Callers(census, errors, SessionFactoryPort, "OpenAsync", [Orchestrator + ".ReadAsync"]);

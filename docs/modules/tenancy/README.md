@@ -274,8 +274,7 @@ records the tests and step plan.
 
 [ADR-0093](../../decisions/0093-verified-invitation-acceptance-and-handoff.md)
 adds the exact typed tenant-wide setting `identity.invitation.ttl_days`, default
-14 days, integer range 1–30. This P03-4 contract remains pending implementation;
-the [phase Status](../../roadmap/phase-03-identity-admin.md) owns delivery.
+14 days, integer range 1–30. The [phase Status](../../roadmap/phase-03-identity-admin.md) owns delivery.
 Tenancy owns the setting/typed accessor; Identity consumes it through the existing
 application-contract mechanism, not a table query or generic JSON export.
 
@@ -285,8 +284,14 @@ application-contract mechanism, not a table query or generic JSON export.
   setting editor or new permission grant is implied.
 - Existing v1 manifests without that pair cannot edit the policy. The 14-day
   default still permits ordinary invitations; no automatic grant adoption is added.
+- The own-current-tenant orgless getter is Off and physically ReadOnly. It returns
+  `days`, `present`, nullable decimal-string `version` and advisory `canEdit`;
+  write capability is not required to read it. The setter still checks its own
+  current authority independently.
 - Reads return the explicit absent/default creation precondition or actual setting
-  version. Conditional create/replacement plus natural uniqueness refuses races;
+  version. Absence has no ETag and uses `If-None-Match: *`; a stored version-zero
+  setting has ETag `"0"` and requires `If-Match: "0"`. Both successful PUT branches
+  return 200 version receipts. The protected fingerprint distinguishes presence. Conditional create/replacement plus natural uniqueness refuses races;
   no unconditional upsert or blind retry. Protected receipts bind the original
   exact setting ID/key and require a fresh MUST sensitive read before disclosure.
 - The setter uses the canonical effect-derived Tenant fence and fresh lifecycle/

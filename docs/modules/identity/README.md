@@ -137,8 +137,7 @@ owns the exact registry, version-1 grants and generated kernel artifact.
 ### Invitation contract
 
 [ADR-0093](../../decisions/0093-verified-invitation-acceptance-and-handoff.md)
-owns the decision. The following is the P03-4 contract, not a claim that its
-schema, provider, jobs or consumers are implemented. The
+owns the decision. The following defines the P03-4 boundary. The
 [phase Status block](../../roadmap/phase-03-identity-admin.md) owns delivery.
 
 | Subject | Contract |
@@ -159,13 +158,19 @@ without a recoverable link in replay storage. No prepare/handoff or raw-link-rea
 API is part of this contract. The private SQL-only delivery tables are common
 Infrastructure custody, not Identity aggregates or a new notification module.
 
-Administrative create/reissue/revoke use existing live Membership-admin
-admission, exact resource scope and current whole-Role delegation. Invitable-Role
+Administrative create/reissue use existing live Membership-admin admission,
+exact resource scope and current whole-Role delegation. Revocation is withdrawal:
+current exact-scope membership-admin, Pending target and strong root version are
+required; a changed/deleted Role or uncovered offered grant does not prevent
+withdrawal. No Role assignment or reissue authority follows. All admin readers,
+mutations and original receipts additionally compare tenant and exact nullable
+organization; an Organization context must not disclose a tenant-wide offer
+merely because the base EF/RLS filters admit that row. Invitable-Role
 summaries disclose only delegable ID/key/scope/version, without a general
 Role/registry reader. Own inspection and own accepted-result reading are Off;
 other-person offer lists/detail, invitable Roles and protected receipt reads are
 MUST sensitive reads. Mutations remain MUST. [The matrix](audit.md#invitation-bindings)
-owns the planned bindings until their actual consumers land.
+owns each consumer binding; the phase Status owns source-bound qualification.
 
 `ICurrentInvitationRecipientReader` performs a new configured-issuer UserInfo
 observation for each Pending inspection/acceptance: exact `sub`, one valid email,

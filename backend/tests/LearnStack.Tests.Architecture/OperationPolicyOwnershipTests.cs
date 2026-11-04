@@ -24,6 +24,13 @@ public sealed partial class OperationPolicyOwnershipTests
     private const string ReadEvaluator = "LearnStack.Modules.Identity.Application.Authorization.IdentityAdministrationReadAuthorization";
     private const string ReceiptEvaluator = "LearnStack.Modules.Identity.Application.Authorization.IdentityReceiptAuthorization";
     private const string TenancyEvaluator = "LearnStack.Modules.Tenancy.Application.Authorization.TenancyAdministrationAuthorization";
+    private const string InvitationEvaluator = "LearnStack.Modules.Identity.Application.Invitations.InvitationAdministrationAuthorization";
+    private const string InvitationPolicyEvaluator = "LearnStack.Modules.Tenancy.Application.Settings.InvitationPolicyHandlers";
+    private static readonly (string Type, string Method, string Target, string Name)[] InvitationChecks =
+    [
+        (InvitationEvaluator, "RecheckAsync", Permissions + "IProtectedOperationAuthorizer", "AuthorizeAsync"),
+        (InvitationPolicyEvaluator, "OwnAsync", Permissions + "IProtectedOperationAuthorizer", "AuthorizeAsync"),
+    ];
     private static readonly (string Type, string Method, string Target, string Name)[] MemberChecks =
     [
         (MemberEvaluator, "Matches", Invocation, "get_IsActive"),
@@ -138,7 +145,7 @@ public sealed partial class OperationPolicyOwnershipTests
             ("LearnStack.Api.Authentication.LiveTenantMembershipReader", "CoversAsync", HttpSource, "ForValidatedScope"),
             ("LearnStack.Api.Idempotency.ProtectedReplayHttpAdmission", "AuthorizeAsync", HttpSource, "ForValidatedScope"),
         }) Dirty(census, () => RemoveCall(census.Body(type, method), target, name));
-        foreach (var (type, method, target, name) in MemberChecks.Concat(TenancyChecks).Concat(ReceiptChecks).Concat(AdministrationReadChecks))
+        foreach (var (type, method, target, name) in MemberChecks.Concat(TenancyChecks).Concat(ReceiptChecks).Concat(AdministrationReadChecks).Concat(InvitationChecks))
             Dirty(census, () => RemoveCall(census.Body(type, method), target, name));
         foreach (var call in census.Body("LearnStack.Api.Idempotency.ProtectedReplayHttpAdmission", "AuthorizeAsync")
                      .Body.Instructions.Where(instruction => IsCall(instruction, Coordinator, "CheckHttpAsync")).ToArray())
@@ -255,7 +262,8 @@ public sealed partial class OperationPolicyOwnershipTests
             (RoleEvaluator, "RecheckAsync", 2), (MemberEvaluator, "RecheckAsync", 2)]);
         Exact(Witness + "/MintingSource", "ForTenantRead", [(Decision + "/MintingSource", "ForDecision", 1)]);
         Exact(Permissions + "IProtectedOperationAuthorizer", "AuthorizeAsync", [(Coordinator, "ExecuteAsync", 1),
-            (TenancyEvaluator, "RecheckAsync", 1), (ReceiptEvaluator, "RecheckAsync", 1), (ReadEvaluator, "RecheckAsync", 1)]);
+            (TenancyEvaluator, "RecheckAsync", 1), (ReceiptEvaluator, "RecheckAsync", 1), (ReadEvaluator, "RecheckAsync", 1),
+            (InvitationEvaluator, "RecheckAsync", 1), (InvitationPolicyEvaluator, "OwnAsync", 1)]);
         Exact(Permissions + "IAuthorizationCandidateSource", "ForValidatedScope", [(Coordinator, "ExecuteAsync", 1)]);
         Exact(Coordinator, "ExecuteRequestAsync", [(AuthorizationBehavior, "Handle", 1)]);
         Exact(HttpSource, "ForValidatedScope", [(HttpSource, Permissions + "IAuthorizationCandidateSource.ForValidatedScope", 1),
@@ -287,7 +295,7 @@ public sealed partial class OperationPolicyOwnershipTests
         Require(Frame, "Close", "System.Threading.Interlocked", "Exchange");
         Require(Evaluator, "AuthorizeAsync", "LearnStack.Modules.Identity.Application.Contracts.Authorization.IIdentityAuthorizationReader", "ReadAsync");
         Require(RoleEvaluator, "RecheckAsync", "LearnStack.Modules.Identity.Application.Contracts.Authorization.IIdentityAuthorizationReader", "ReadAsync");
-        foreach (var (type, method, target, name) in MemberChecks.Concat(TenancyChecks).Concat(ReceiptChecks).Concat(AdministrationReadChecks)) Require(type, method, target, name);
+        foreach (var (type, method, target, name) in MemberChecks.Concat(TenancyChecks).Concat(ReceiptChecks).Concat(AdministrationReadChecks).Concat(InvitationChecks)) Require(type, method, target, name);
         foreach (var property in new[] { "get_Unit", "get_Transaction", "get_Generation" })
             Require(Invocation, "IsReadBoundTo", Invocation + "/ReadBinding", property);
 

@@ -1,4 +1,5 @@
 using System.Data.Common;
+using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using LearnStack.Modules.Tenancy.Application.Abstractions;
@@ -41,7 +42,7 @@ internal sealed class TenancyAdministrationStorageScope : IDisposable
         && invocation.Policy.RequestType == invocation.Operation.GetType()
         && invocation.Operation is CreateManagedOrganizationCommand or RenameOrganizationCommand or ArchiveOrganizationCommand
             or SelectDefaultOrganizationCommand or AddManagedTenantLocaleCommand or SetManagedDefaultTenantLocaleCommand
-            or SetTenantLocaleEnabledCommand or RemoveTenantLocaleCommand or SetManagedTenantBrandingCommand;
+            or SetTenantLocaleEnabledCommand or RemoveTenantLocaleCommand or SetManagedTenantBrandingCommand or SetTenantInvitationLifetimeCommand;
     public void Dispose() => Current.Value = _previous;
 }
 

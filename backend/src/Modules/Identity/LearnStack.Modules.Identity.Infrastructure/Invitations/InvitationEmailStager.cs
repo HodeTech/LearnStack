@@ -1,3 +1,5 @@
+using LearnStack.SharedKernel.Errors;
+using Npgsql;
 using System.Net;
 using System.Security.Cryptography;
 using LearnStack.SharedKernel.Identity;
@@ -30,7 +32,13 @@ public sealed class InvitationEmailStager(IUnitOfWork unit, ProducerExecution pr
             || locale is not ("en" or "tr") || tenantLabel.Length is < 1 or > 200 || tenantLabel.Any(char.IsControl)
             || lifetimeDays is < 1 or > 30)
             throw new InvalidOperationException("Invitation email staging refused.");
-        await privacy.RequireAsync(cancellationToken).ConfigureAwait(false);
+        try { await privacy.RequireAsync(cancellationToken).ConfigureAwait(false); }
+        catch (Exception failure) when (failure is not (OutOfMemoryException or StackOverflowException))
+        {
+            unit.MarkRollbackOnly();
+            cancellationToken.ThrowIfCancellationRequested();
+            throw new InfrastructureException("Invitation email staging unavailable.");
+        }
         var spool = ids.NewUuidV7();
         var secretBytes = RandomNumberGenerator.GetBytes(32);
         try
@@ -57,6 +65,8 @@ public sealed class InvitationEmailStager(IUnitOfWork unit, ProducerExecution pr
                 invitationId.Value, generationId.Value, job.Value), new EmailSubmission(mailbox, title, text, html, spool.ToString("N") + "@learnstack.invalid"), cancellationToken).ConfigureAwait(false);
             return new(generationId, job, digest, entryOrigin, locale, lifetimeDays);
         }
+        catch (Exception failure) when (failure is NpgsqlException or InvalidOperationException or TimeoutException)
+        { unit.MarkRollbackOnly(); cancellationToken.ThrowIfCancellationRequested(); throw new InfrastructureException("Invitation email staging unavailable."); }
         catch { unit.MarkRollbackOnly(); throw; }
         finally { CryptographicOperations.ZeroMemory(secretBytes); }
     }

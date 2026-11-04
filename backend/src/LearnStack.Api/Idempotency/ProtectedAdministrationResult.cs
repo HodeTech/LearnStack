@@ -1,3 +1,5 @@
+using LearnStack.Modules.Identity.Application.Contracts.Invitations;
+using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
 using System.Globalization;
 using System.Text;
 using LearnStack.Api.Common;
@@ -48,8 +50,7 @@ internal sealed class ProtectedAdministrationResult : IActionResult
             return Failure("lockey_forbidden");
         var descriptor = ProtectedAdministrationDescriptor.For(operation.Value);
         var expected = ProtectedAdministrationDescriptor.ExpectedVersion(request);
-        if (descriptor.Creates ? http.Request.Headers.IfMatch.Count != 0
-            : !ProtectedEntityTag.TryRead(http.Request, out var asserted) || asserted != expected)
+        if (!descriptor.TryReadPrecondition(http.Request, out var asserted) || asserted != expected)
             return new ProblemDetailsActionResult(ProtectedEntityTag.Invalid());
 
         // Explicit typed sends bind each result to its exact verified command.
@@ -66,9 +67,17 @@ internal sealed class ProtectedAdministrationResult : IActionResult
             RenameOrganizationCommand command => Organization(await sender.Send(command, cancellationToken), command.OrganizationId),
             ArchiveOrganizationCommand command => Organization(await sender.Send(command, cancellationToken), command.OrganizationId),
             SelectDefaultOrganizationCommand command => Versioned(await sender.Send(command, cancellationToken), context.TenantId.Value),
+            CreateInvitationCommand command => Invitation(await sender.Send(command, cancellationToken), null),
+            RevokeInvitationCommand command => Invitation(await sender.Send(command, cancellationToken), command.InvitationId),
+            ReissueInvitationCommand command => Invitation(await sender.Send(command, cancellationToken), command.InvitationId),
+            SetTenantInvitationLifetimeCommand command => Policy(await sender.Send(command, cancellationToken)),
             _ => throw new InvalidOperationException("The protected operation is not registered."),
         };
 
+        IActionResult Invitation(Result<InvitationMutationResult> result, Guid? requested) => result.IsFailure
+            ? new ProblemDetailsActionResult(result.Error) : Create(result.Value.InvitationId, result.Value.Version, requested);
+        IActionResult Policy(Result<InvitationPolicyMutationResult> result) => result.IsFailure
+            ? new ProblemDetailsActionResult(result.Error) : Create(result.Value.SettingId, result.Value.Version, null);
         IActionResult Membership(Result<MembershipMutationResult> result, Guid? requested) => result.IsFailure
             ? new ProblemDetailsActionResult(result.Error!)
             : Create(result.Value!.MembershipId, result.Value.Version, requested);
@@ -96,7 +105,7 @@ internal sealed class ProtectedAdministrationResult : IActionResult
 
     internal static byte[] BodyFor(long version) => Encoding.UTF8.GetBytes(
         "{\"version\":\"" + version.ToString(CultureInfo.InvariantCulture) + "\"}");
-    internal static string LocationFor(Guid target) => "/api/v1/tenancy/organizations/" + target.ToString("D");
+    internal static string LocationFor(Guid target) => ProtectedAdministrationDescriptor.OrganizationLocationFor(target);
 
     public async Task ExecuteResultAsync(ActionContext context)
     {
@@ -105,7 +114,7 @@ internal sealed class ProtectedAdministrationResult : IActionResult
         response.StatusCode = Descriptor.Creates ? StatusCodes.Status201Created : StatusCodes.Status200OK;
         response.ContentType = "application/json; charset=utf-8";
         response.Headers.ETag = EntityTag.For(Version);
-        if (Descriptor.Creates) response.Headers.Location = LocationFor(Target.Id);
+        if (Descriptor.Creates) response.Headers.Location = Descriptor.LocationFor(Target.Id);
         // This is the filter's memory capture, not network delivery. A disconnect
         // after business commit must not prevent recording the completed receipt.
         await response.Body.WriteAsync(BodyFor(Version), CancellationToken.None);

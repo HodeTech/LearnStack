@@ -1,3 +1,5 @@
+using LearnStack.Modules.Identity.Application.Contracts.Invitations;
+using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
 using LearnStack.Api.Authentication;
 using LearnStack.Api.Common;
 using LearnStack.Application.Authorization;
@@ -35,9 +37,7 @@ internal static class ProtectedReplayHttpAdmission
                 {
                     [IdempotentAttribute.ErrorsKey] = [LocalizedMessage.Of("lockey_idempotency_key_invalid")],
                 }));
-        long version = 0;
-        if (descriptor.Creates ? http.Request.Headers.IfMatch.Count != 0
-            : !ProtectedEntityTag.TryRead(http.Request, out version)) return Result<None>.Fail(ProtectedEntityTag.Invalid());
+        if (!descriptor.TryReadPrecondition(http.Request, out var expected)) return Result<None>.Fail(ProtectedEntityTag.Invalid());
         if (!context.IsResolved || !StronglyTypedId.IsAssigned(context.TenantId) || context.TenantId == TenantId.PlatformSentinel
             || context.UserId is not { } actor || !StronglyTypedId.IsAssigned(actor) || actor == UserId.SystemActor
             || candidates.ForValidatedScope(context.TenantId, context.OrganizationId) is not { IsActive: true } candidate
@@ -48,7 +48,6 @@ internal static class ProtectedReplayHttpAdmission
         // actual bytes here before fingerprinting, without consuming model input.
         if (!AdministrationHttpInput.SupportsJsonMedia(http.Request)) return Failure("lockey_validation_failed");
         await AdministrationHttpInput.ReadBodyBytesAsync(http);
-        long? expected = descriptor.Creates ? null : version;
         var fingerprint = await ProtectedIdempotencyFilter.ComputeFingerprintAsync(http, context, descriptor, expected, http.RequestAborted);
         var binding = new RequestBinding(http, endpoint!, classifier, declared, descriptor, context, candidate, key, fingerprint, expected);
         IdempotentResponse? stored;
@@ -90,6 +89,8 @@ internal static class ProtectedReplayHttpAdmission
         ProtectedAdministrationOperation.CreateOrganization or ProtectedAdministrationOperation.RenameOrganization
             or ProtectedAdministrationOperation.ArchiveOrganization => typeof(ReadOrganizationReceiptQuery),
         ProtectedAdministrationOperation.SelectDefaultOrganization => typeof(ReadDefaultOrganizationReceiptQuery),
+        ProtectedAdministrationOperation.CreateInvitation or ProtectedAdministrationOperation.RevokeInvitation or ProtectedAdministrationOperation.ReissueInvitation => typeof(ReadInvitationReceiptQuery),
+        ProtectedAdministrationOperation.SetTenantInvitationLifetime => typeof(ReadInvitationPolicyReceiptQuery),
         _ => throw new ArgumentOutOfRangeException(nameof(operation)),
     };
 
