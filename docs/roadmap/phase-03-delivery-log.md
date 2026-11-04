@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 554 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 584 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -357,6 +357,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 3 SMTP foundation and review handoff (2026-11-04)](#p03-4-step-3-smtp-foundation-and-review-handoff-2026-11-04) — 49 lines
   - [P03-4 Step 3 first review startup correction (2026-11-04)](#p03-4-step-3-first-review-startup-correction-2026-11-04) — 33 lines
   - [P03-4 Step 3 second review privacy inventory correction (2026-11-04)](#p03-4-step-3-second-review-privacy-inventory-correction-2026-11-04) — 24 lines
+  - [P03-4 Step 3 review closeout and administrator continuation (2026-11-04)](#p03-4-step-3-review-closeout-and-administrator-continuation-2026-11-04) — 30 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -16306,3 +16307,33 @@ All 81 inventory/corpus cases now pass with zero skips. Prior full-unit/Contract
 affected-integration results remain applicable because the correction changes
 classification/document guards only. The finding reviewer verifies the committed
 correction before Step 3 closes and Step 4 activates its actual writers.
+
+### P03-4 Step 3 review closeout and administrator continuation (2026-11-04)
+
+The first-round consumer reviewer verifies `42d585a9` and closes its startup
+fixture Major. The second-round integration reviewer verifies `b3448ab8`,
+independently reads the 81/81 zero-skip receipt and closes its inventory Major.
+Both other reviewers approve without findings. All four reports now approve;
+no verified Blocker, Major or Minor remains open in this foundation step.
+
+Step 3 is complete as the automatic-email foundation. Its controlled SMTP,
+actual app-role storage/runtime and full unit/Contract evidence remain bounded by
+the recorded proof scope. The custody rule stays Registered overall; complete
+process/native, final-source suites and hosted A/B/archive obligations remain
+inside Step 7. No production inbox, operator configuration or manual browser/
+accessibility check is claimed.
+
+Step 4 proceeds automatically: actual create/list/detail/compatible-Role/revoke/
+reissue operations, the fixed invitation-lifetime policy, original-target
+protected receipts, strict HTTP/OpenAPI/SDK contracts and real producer atomicity.
+The policy distinguishes absent creation from an existing version-zero row.
+Administrative targets enforce exact nullable-organization equality, including
+against tenant-wide rows visible to ordinary branch RLS. Raw links never enter
+administrative responses or stored replay bytes.
+
+Before activating the actual status consumer, SQL failure makes the whole read
+unavailable with rollback and the existing dependency-unavailable response;
+private query timeout is distinguished from caller cancellation. A successful
+missing-job observation is separate finite data. Real reader/audit tests prove
+this behavior. Actual Create/Reissue invokes the confined stager, scheduler and
+MUST path on one ordinary owner; no test-only producer replaces that proof.
