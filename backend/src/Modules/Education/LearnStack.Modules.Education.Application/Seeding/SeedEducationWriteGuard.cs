@@ -198,9 +198,15 @@ public sealed class SeedEducationWriteGuard(ISeedEducationContinuationSource sou
                 previousLessonComplete = lesson.Translations.Count == expectedLesson.Translations.Length;
             }
             predecessorComplete = translationsComplete && previousLessonComplete && children.Length == expected.Lessons.Length;
-            if (row.Status == PublicationStatus.Published && (!predecessorComplete
-                || expected.Lessons.Any(expectedLesson => children.Single(child => child.Id.Value == expectedLesson.Id).Status.ToString() != expectedLesson.Status)))
-                return false;
+            if (row.Status == PublicationStatus.Published)
+            {
+                if (!predecessorComplete || children.Length != expected.Lessons.Length) return false;
+                if (expected.Lessons.Any(expectedLesson =>
+                {
+                    var child = children.SingleOrDefault(value => value.Id.Value == expectedLesson.Id);
+                    return child is null || child.Status.ToString() != expectedLesson.Status;
+                })) return false;
+            }
         }
         return true;
     }

@@ -282,9 +282,10 @@ adopt this foundation contract. The live boundary below enforces each act.
 
 P03-1's five pairs and version-1 grants below are the complete foundation set.
 P03-2 owns the separately admitted finite live-authorization/grant-adoption
-contract, including its administrative GET; P03-3 owns remaining protected
-HTTP operations and UI/scope transitions. Neither a
-later operation nor an older built-in-role example silently expands v1 grants.
+contract, including its administrative GET. Protected HTTP operations and native
+UI/scope transitions follow the [P03-3 frontend contract](07-frontend-architecture.md#native-entry-and-administration);
+[Phase 03](../roadmap/phase-03-identity-admin.md) owns qualification and packet status.
+Neither a later operation nor an older built-in-role example silently expands v1 grants.
 
 ### Capability scope and template ownership
 
@@ -392,8 +393,9 @@ owns ordering and interrupted-run disposition.
 P03-1 Step 4 supplies nonempty actual-command registry, templates, reference/
 scope guards and kernel artifact. P03-2 owns default deny/delegation, per-act
 revocation/freshness, grant adoption and denied controls. P03-2 also owns the one
-administrative directory GET; P03-3 owns new-user
-HTTP/BFF activation, protected UI and explicit scope transitions;
+administrative directory GET. New-user HTTP/BFF activation, protected UI and
+explicit scope transitions follow the [P03-3 frontend contract](07-frontend-architecture.md#native-entry-and-administration);
+[Phase 03](../roadmap/phase-03-identity-admin.md) owns qualification and packet status;
 P03-9/G13 owns production first-admin/recovery before its production provisioner.
 The development seed capability is not that future authority.
 

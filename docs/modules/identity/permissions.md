@@ -73,7 +73,9 @@ new assignable definitions require their own approved finite manifest.
   grants or acting as an upgrade writer.
 - A per-act committed snapshot defines revocation: later admissions see the change;
   already admitted work is not retroactively cancelled. JWT/session/UI caching
-  cannot establish that boundary. P03-3 owns UI freshness/target transitions.
+  cannot establish that boundary. Native UI freshness and target transitions follow
+  the [frontend contract](../../standards/07-frontend-architecture.md#native-entry-and-administration);
+  [Phase 03](../../roadmap/phase-03-identity-admin.md) owns qualification and packet status.
 
 ## Live operation bindings
 

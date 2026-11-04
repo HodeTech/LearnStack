@@ -4707,7 +4707,8 @@ rollback and nested calls cannot retain or retarget them. Global and tenant
 owners cannot join each other's transaction mode.
 
 Internal lookup, seed adoption and reconciliation are implemented. New-user
-bootstrap activation remains P03-3.
+HTTP/native bootstrap follows the [activation contract](11-security.md#p03-3-new-user-http-and-native-activation-gate);
+[Phase 03](../roadmap/phase-03-identity-admin.md) owns qualification and packet status.
 
 | Owner contract | Granted operation and lifetime |
 |---|---|

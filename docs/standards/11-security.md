@@ -1290,7 +1290,8 @@ every binding read, unchanged anonymous/AccountSite method behavior and uniform
 401 during store failure. Existing seed provider/native sessions retain their
 complete identity and independent AccountSite witness. Standard 05 owns the
 creation/audit, RLS, race, reconciliation and owner-cleanup proof obligations;
-P03-3 owns new-user HTTP/native qualification above.
+new-user HTTP/native entry follows the [native admission contract](#native-scope-and-global-self-admission).
+[Phase 03](../roadmap/phase-03-identity-admin.md) owns qualification and packet status.
 
 Uncached binding admission adds a database dependency to every authenticated
 request, including credential-bearing public reads. Qualify actual app-role lookup
@@ -1346,7 +1347,8 @@ pipeline slot 5; the administrative directory is the sole added HTTP route.
   see committed state; they are not one atomic cross-module snapshot. A revocation
   committed before the act's grant query affects admission; already-admitted work
   may finish. Earlier subject binding remains the global User eligibility check.
-  P03-3 owns lifecycle-transition races and P03-10 closure fences before writers.
+  Lifecycle transitions retain the [P03-3 administration contract](#native-scope-and-global-self-admission);
+  P03-10 owns closure fences before writers.
 - Authorization storage unavailability is `503 dependency_unavailable`, never
   false noncoverage or invalid-token 401. Binding lookup retains its separate
   uniform 401 contract. Cancellation propagates through owned cleanup. No cache,

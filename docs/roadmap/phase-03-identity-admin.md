@@ -8,8 +8,7 @@
 > native entry, administration, seed, framework ownership and CI changes; the
 > decision register below links their decisions and proof obligations.
 > ADR-0091's native inventory and [ADR-0092](../decisions/0092-sdk-completion-and-frontend-job-windows.md)
-> SDK settings are implemented. Full frontend 3,577/3,577, typecheck/lint and
-> both fresh reviews pass. The [VM compatibility handoff](phase-03-delivery-log.md#p03-3-hosted-vm-compatibility-validation-and-corrective-ci-handoff-2026-11-04)
+> SDK settings are implemented. The [VM compatibility handoff](phase-03-delivery-log.md#p03-3-hosted-vm-compatibility-validation-and-corrective-ci-handoff-2026-11-04)
 > records the narrow standard-host signature correction, passing 23/41/106
 > offline controls and two fresh reviews.
 > [PR #40](https://github.com/HodeTech/LearnStack/pull/40) owns parallel product
@@ -179,13 +178,15 @@ owns exact tables, keys, lifecycle and contained state:
 - `User` is the permanent global application binding under
   [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md), without an
   email/verification or unused global-profile mirror. P03-1 supplies fixed seed
-  adoption and existing-binding admission; new-user HTTP/BFF entry remains P03-3.
+  adoption and existing-binding admission; new-user HTTP/BFF entry follows the
+  [P03-3 native self-entry contract](../decisions/0078-native-session-scope-and-self-entry.md).
 - `Membership` is a contextual root with a stable ID, current null-safe natural
   uniqueness, a contained profile and assignments. Revoked memberships retire;
   rejoin creates a successor under
   [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md).
-- `MembershipProfile` holds contextual display name and locale preference. P03-3/G6
-  decides self/admin DTOs; P03-5/G9 owns dynamic fields and revision history.
+- `MembershipProfile` holds contextual display name and locale preference.
+  [ADR-0079](../decisions/0079-bounded-identity-administration.md) bounds self/admin
+  DTOs and edits; P03-5/G9 owns dynamic fields and revision history.
   No dormant contact/custom-field column or editable consent Boolean is admitted.
 - `Role` is a tenant-wide template with Tenant or Organization capability scope;
   assignments derive exact organization authority from Membership. Platform
@@ -252,7 +253,7 @@ the table it lives in and who may write it.
 | Global application binding and admission lifecycle | Identity under [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md) | `users` and the deployment authority under the [Database contract](../standards/05-database.md#identity-storage-contract) | Admitted creation owner; global closure remains P03-10/G16 |
 | Canonical provider email/verification mirror, if selected | Provider source | No P03-1 mirror storage; P03-6/G10 or an earlier proven consumer decides fields/source/freshness | Its separately admitted mirror owner; never email-based identity merging |
 | Roles and permissions inside a tenant | Tenant | Membership/role bindings under G3/G5 | Admin within the decided delegation ceiling and scope |
-| Contextual display name and locale preference | Tenant / membership context | Contained `membership_profiles` under the [Identity contract](../modules/identity/README.md#lifecycle-profile-and-admission) | Closed seed owner; P03-3/G6 decides self/admin edits |
+| Contextual display name and locale preference | Tenant / membership context | Contained `membership_profiles` under the [Identity contract](../modules/identity/README.md#lifecycle-profile-and-admission) | Closed seed owner; bounded self/admin edits under [ADR-0079](../decisions/0079-bounded-identity-administration.md) |
 | Consent evidence | The person for the stated purpose | Append-only contract in [Data Protection](../architecture/23-data-protection.md#consent-management) | G3/G9 decide references and authorized capture; a profile edit cannot fabricate consent |
 | Tenant-defined custom fields | Tenant | P03-5/G9 decides revision-aware Membership values; no foundation column | P03-5/G9 decides authorized writers |
 | Learning behaviour (progress, attempts, attendance) | Tenant | per-module tenant-owned tables | The owning module |

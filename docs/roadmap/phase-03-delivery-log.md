@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,768 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,799 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -341,7 +341,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 standard hosted VM compatibility correction (2026-11-04)](#p03-3-standard-hosted-vm-compatibility-correction-2026-11-04) — 32 lines
   - [P03-3 hosted VM compatibility validation and corrective CI handoff (2026-11-04)](#p03-3-hosted-vm-compatibility-validation-and-corrective-ci-handoff-2026-11-04) — 39 lines
   - [P03-3 PR 40 review reconciliation and recovery corrections (2026-11-04)](#p03-3-pr-40-review-reconciliation-and-recovery-corrections-2026-11-04) — 76 lines
-  - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 40 lines
+  - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
+  - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 30 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -15653,3 +15654,34 @@ archive verification remain required; prior successful or failed sources grant
 no replacement credit. The mutable PR proof record owns those observations.
 Preserve all seven pre-existing tracked modifications. Manual keyboard, focus,
 reflow, contrast and VoiceOver checks remain deferred and unexecuted.
+
+
+### P03-3 pending seed safeguard and documentation cleanup (2026-11-04)
+
+The maintainer authorizes review, completion and publication of the seven
+previously unstaged files. Retain explicit refusal when a published seed course
+has an incomplete or mismatched declared lesson graph. The publish admission
+already compares the live lesson version with its declared translation count;
+the pending extra `TranslationIndex` argument is unused and is omitted. This is
+a defensive validation clarification, not a new writer, permission, scope,
+receipt, migration or timeout policy.
+
+Replace stale future-tense transport/profile wording with the owning Accepted
+contracts. Correct links labelled PR #40 that actually target the phase document;
+qualification and packet status remain owned by Phase 03 and its mutable PR
+proof record. Remove the stale frontend case-count restatement from Status.
+Foundation read-only claims remain explicitly scoped to their foundation slice.
+No new feature or deferred packet is claimed complete.
+
+Validation passes: CI=true Release solution build, zero warnings/errors;
+3,434/3,434 unit cases; the one aggregate seed-continuation architecture control;
+and all 46/46 actual PostgreSQL seed-continuation cases, including interrupted
+resume, write-free repeat, missing predecessors and both competing-commit orders.
+All executed cases pass without skips. Documentation guards run before commit.
+
+Head `620fdaf3` has complete same-source A/B evidence in
+[run 41809078251](https://github.com/HodeTech/LearnStack/actions/runs/41809078251),
+27/27 jobs and 25 verified original archives per attempt. That is evidence for
+that head. Publishing this cleanup creates a new head whose CI/qualification is
+tracked separately in the existing unmerged PR #40. Manual keyboard, focus,
+reflow, contrast and VoiceOver remain maintainer-deferred and unexecuted.
