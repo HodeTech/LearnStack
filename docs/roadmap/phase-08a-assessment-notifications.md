@@ -134,10 +134,11 @@ and an unread template store is a schema nobody validates.
 
 This phase owns the full engine and template-driven channel orchestration.
 [Phase 03 G8](phase-03-identity-admin.md#the-decision-register) owns the earlier
-usable bounded invitation delivery/handoff and its privacy/idempotency/recovery
-contract. That first consumer must name any required minimum email slice there;
-it cannot assume this engine is already running. This phase integrates that
-accepted boundary instead of introducing a competing sender or retry policy.
+usable bounded invitation delivery and its privacy/idempotency/recovery contract.
+[ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md) selects
+the minimum automatic SMTP/job/encrypted-custody slice for that first consumer.
+This phase integrates that boundary instead of introducing a competing sender or
+retry policy; P03-4 does not assume the full engine is already running.
 
 - Notification dispatch orchestration in the Notifications module.
 - Channels: email wired through the `IEmailProvider` adapter

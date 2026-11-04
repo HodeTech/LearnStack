@@ -289,7 +289,7 @@ phase authority and fixed-diagnostic requirements before activation.
 [ADR-0093](../../decisions/0093-verified-invitation-acceptance-and-handoff.md)
 adds the exact tenant-wide `identity.invitation.ttl_days` policy. Its setter is a
 new **planned consumer of the existing** MUST `tenancy.setting.write` operation,
-not a second catalogue slug. `SetInvitationPolicyCommand` writes one
+not a second catalogue slug. `SetTenantInvitationLifetimeCommand` writes one
 TenantSetting with tracked whole-value redaction and same-transaction audit;
 conditional first creation/replacement cannot silently upsert. Until that
 consumer lands, its binding remains planned and the implemented branding

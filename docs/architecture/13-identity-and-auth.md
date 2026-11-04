@@ -388,8 +388,10 @@ Membership result and required audit; native session admission is a separate act
   version. Email matches the fresh provider observation; it never merges Users.
 - Creation stages generation 1. Reissue invalidates the old code and stages a new
   generation/job with the current tenant TTL: default 14 days, bounded 1–30 days.
-  Revoke, reissue and acceptance request cancellation before SMTP starts. An
-  already-started message may arrive with an unusable code.
+  Revoke, reissue and acceptance invalidate old codes. Prepare refuses obsolete
+  work before its plan commits; already-prepared mail may still arrive. Provider
+  recovery can fence an unclaimed external attempt; business withdrawal itself
+  adds no provider-table cancellation writer.
 - `IEmailProvider` uses the bounded MailKit/MimeKit adapter. Private encrypted
   delivery custody is not a notification-module root. The
   [provider standard](../standards/20-infrastructure-stack.md) owns its boundary;

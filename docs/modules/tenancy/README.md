@@ -279,7 +279,7 @@ the [phase Status](../../roadmap/phase-03-identity-admin.md) owns delivery.
 Tenancy owns the setting/typed accessor; Identity consumes it through the existing
 application-contract mechanism, not a table query or generic JSON export.
 
-- `SetInvitationPolicyCommand` writes one TenantSetting root in orgless context
+- `SetTenantInvitationLifetimeCommand` writes one TenantSetting root in orgless context
   under the existing Tenant `tenancy.setting.write` pair. The permission knowingly
   gains this exact policy key beyond branding; no organization override, generic
   setting editor or new permission grant is implied.

@@ -915,9 +915,9 @@ an implemented catalogue population.
   race returns 409 with truthful failed-attempt evidence; it cannot emit another
   successful acceptance or silently discard a declared intent.
 - Pending own inspection and accepted own-result navigation are explicitly Off.
-  Administrative list/detail, delegation-limited Role choices, invitation policy
-  and protected receipt disclosure are MUST sensitive reads, committed before
-  bytes. Status detail returns only normalized current-generation submission
+  Administrative list/detail, delegation-limited Role choices and protected
+  receipt disclosure are MUST sensitive reads, committed before bytes. The exact
+  orgless own-current-tenant `GetTenantInvitationPolicyQuery` is Off/ReadOnly. Status detail returns only normalized current-generation submission
   evidence under current administration authority, without a delivery-body read.
 - The existing MUST `tenancy.setting.write` covers the exact tenant-wide TTL
   setting. Its new planned setter uses whole-value TenantSetting redaction;
