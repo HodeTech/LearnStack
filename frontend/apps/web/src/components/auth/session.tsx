@@ -23,6 +23,7 @@ export type SessionLabels = Readonly<{
   retry: string;
   javascript_required: string;
   unsaved: string;
+  extend_unsaved: string;
 }>;
 
 /** Only a safe projection and already translated labels cross this client boundary. */
@@ -150,6 +151,9 @@ export function SessionControls({
   const signin = '/api/auth/signin?returnTo=' + encodeURIComponent(returnTo);
   async function extend() {
     if (inFlight.current) return;
+    // Revalidation must still remove protected controls on failure. Obtain an
+    // explicit choice before risking DOM-local edits; never copy them to storage.
+    if (dirty && !window.confirm(labels.extend_unsaved)) return;
     inFlight.current = true;
     setBusy(true);
     // A failed check withholds protected content until a later positive result.
@@ -221,7 +225,7 @@ export function SessionControls({
               </button>
             )
           )}
-          {children}
+          <div inert={busy}>{children}</div>
         </>
       )}
       {recoveryActions}

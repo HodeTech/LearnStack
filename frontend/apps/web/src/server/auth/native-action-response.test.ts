@@ -63,6 +63,217 @@ afterEach(async () => {
 });
 
 describe('native action recovery response lifetime', () => {
+  it('withholds correction values when logout wins a held preference read and retains the owner until that read ends', async () => {
+    const f = fixture();
+    const active = await f.login();
+    const entered = held();
+    const release = held();
+    const original = f.administration.getMockImplementation()!;
+    f.administration.mockImplementation(async (...args) => {
+      if (args[2].kind === 'getOwnProfile') {
+        entered.finish();
+        await release.promise;
+      }
+      return original(...args);
+    });
+    const output = wire();
+    const protocol = createBffHttpProtocol(f.store, f.requestRuntime.preparation);
+    const running = f.runNative(output, post('/api/account/profile'), () =>
+      protocol.handle(
+        bffRequest('/api/account/profile', {
+          method: 'POST',
+          cookie: active.cookie,
+          form: new URLSearchParams({
+            csrfToken: active.finished.session.csrfToken,
+            version: '7',
+            idempotencyKey,
+            displayName: '   ',
+            preferredLocale: 'tr',
+          }).toString(),
+        }),
+        (page) =>
+          renderBffDocument(
+            {
+              displayName: 'Institution',
+              defaultLocale: 'en',
+              enabledLocales: ['en', 'tr'],
+              theme: null,
+              showPlatformAttribution: true,
+            },
+            page,
+          ),
+      ),
+    );
+    processing.push(running);
+    await entered.promise;
+    f.store.signout(active.binding, active.finished.session.csrfToken);
+    // The locale read precedes publication: no private document has been
+    // admitted or written yet. Logout must prevent that later publication.
+    expect(output.chunks).toEqual([]);
+    expect(f.requestRuntime.snapshotCounts().active).toBe(1);
+    release.finish();
+    const response = await running;
+    const body = await response?.text();
+    expect(body).not.toContain('name="displayName"');
+    expect(body).not.toContain(active.finished.session.csrfToken);
+    if (!output.writableEnded && !output.destroyed) output.native.end(body);
+    output.drainCallbacks();
+    await settle();
+    expect(f.requestRuntime.snapshotCounts().active).toBe(0);
+  });
+
+  it.each(['/api/account/profile', '/api/studio/membership-profile'])(
+    'recovers whitespace validation on the native, JavaScript-free %s form and accepts a corrected POST',
+    async (path) => {
+      const f = fixture();
+      const active = await f.login();
+      const fields = new URLSearchParams({
+        csrfToken: active.finished.session.csrfToken,
+        idempotencyKey,
+        version: '7',
+        displayName: '   ',
+        preferredLocale: 'tr',
+        ...(path.includes('membership-')
+          ? { membershipId: '019a154b-0000-7000-8000-000000000022' }
+          : {}),
+      });
+      const protocol = createBffHttpProtocol(f.store, f.requestRuntime.preparation);
+      const output = wire();
+      const response = await f.runNative(output, post(path), () =>
+        protocol.handle(
+          bffRequest(path, {
+            method: 'POST',
+            cookie: active.cookie,
+            form: fields.toString(),
+            headers: { accept: 'text/html' },
+          }),
+          (page) =>
+            renderBffDocument(
+              {
+                displayName: 'Institution',
+                defaultLocale: 'en',
+                enabledLocales: ['en', 'tr'],
+                theme: null,
+                showPlatformAttribution: true,
+              },
+              page,
+            ),
+        ),
+      );
+      expect(response?.status).toBe(400);
+      expect(response?.headers.get('content-type')).toContain('text/html');
+      expect(response?.headers.get('cache-control')).toBe('no-store');
+      expect(response?.headers.get('location')).toBeNull();
+      const body = await response!.text();
+      expect(body).toContain(`form action="${path}" method="post"`);
+      expect(body).toContain('name="displayName" value="   "');
+      expect(body).toContain('aria-describedby="profile-name-hint profile-name-error"');
+      const correctionKey = /name="idempotencyKey" value="([A-Za-z0-9_-]{43})"/.exec(body)?.[1];
+      expect(correctionKey).toMatch(/^[A-Za-z0-9_-]{43}$/);
+      expect(correctionKey).not.toBe(idempotencyKey);
+      expect(body).not.toContain('script src=');
+      expect(
+        f.administration.mock.calls.some(([, , operation]) => operation.kind.startsWith('set')),
+      ).toBe(false);
+      output.native.end(body);
+      output.drainCallbacks();
+      await settle();
+      fields.set('displayName', 'Corrected name');
+      fields.set('idempotencyKey', correctionKey!);
+      f.administration.mockResolvedValueOnce({
+        kind: 'success',
+        status: 200,
+        data: { version: '8' },
+        etag: '"8"',
+        location: null,
+        replayed: false,
+      });
+      const corrected = await f.runNative(wire(), post(path), () =>
+        protocol.handle(
+          bffRequest(path, { method: 'POST', cookie: active.cookie, form: fields.toString() }),
+        ),
+      );
+      expect(corrected?.status).toBe(303);
+      expect(corrected?.headers.get('location')).toBe(
+        path.includes('membership-')
+          ? '/studio/members/019a154b-0000-7000-8000-000000000022'
+          : '/portal/profile',
+      );
+      const operation = f.administration.mock.calls.at(-1)![2];
+      expect(operation).toMatchObject({
+        profile: { displayName: 'Corrected name', preferredLocale: 'tr' },
+        version: '7',
+        idempotencyKey: correctionKey,
+      });
+    },
+  );
+
+  it.each(['stale', 'unavailable'] as const)(
+    'uses the live actor preference, not submitted values, for %s recovery',
+    async (reason) => {
+      const f = fixture();
+      const active = await f.login();
+      f.administration.mockResolvedValueOnce(
+        reason === 'stale'
+          ? {
+              kind: 'api-error',
+              status: 409,
+              error: { code: 'concurrency_conflict' },
+              problem: {
+                type: 'about:blank',
+                title: 'Conflict',
+                status: 409,
+                instance: '/api/account/profile',
+                code: 'concurrency_conflict',
+                messageKey: 'lockey_concurrency_conflict',
+                correlationId: 'test-conflict',
+              },
+            }
+          : { kind: 'transport-error' },
+      );
+      f.administration.mockResolvedValueOnce({
+        kind: 'success',
+        status: 200,
+        data: { displayName: 'Current actor', preferredLocale: 'tr', version: '8' },
+        etag: '"8"',
+        location: null,
+        replayed: false,
+      });
+      const output = wire();
+      const fields = new URLSearchParams(
+        mutation(active.finished.session.csrfToken).fields.map(([k, v]) => [k, v]),
+      );
+      fields.set('preferredLocale', 'en');
+      const protocol = createBffHttpProtocol(f.store, f.requestRuntime.preparation);
+      const response = await f.runNative(output, post('/api/account/profile'), () =>
+        protocol.handle(
+          bffRequest('/api/account/profile', {
+            method: 'POST',
+            cookie: active.cookie,
+            form: fields.toString(),
+          }),
+          (page) =>
+            renderBffDocument(
+              {
+                displayName: 'Institution',
+                defaultLocale: 'en',
+                enabledLocales: ['en', 'tr'],
+                theme: null,
+                showPlatformAttribution: true,
+              },
+              page,
+            ),
+        ),
+      );
+      expect(response?.status).toBe(reason === 'stale' ? 409 : 503);
+      const body = await response!.text();
+      expect(body).toContain('<html lang="tr"');
+      expect(f.administration.mock.calls.at(-1)![2]).toEqual({ kind: 'getOwnProfile' });
+      output.native.end(body);
+      output.drainCallbacks();
+    },
+  );
+
   it.each([
     ['mutation_error', 'logout'],
     ['mutation_error', 'revision'],

@@ -287,3 +287,17 @@ Accepted [ADR-0087](0087-native-frontend-proof-windows.md) supersedes only
 frontend proof orchestration windows. Response/compression ownership, operation/
 body deadlines, physical cleanup requirements, exact tuple and security-release
 policy remain. This body and its original rationale remain historical.
+
+### Amendment 4 — Architecture test coverage navigation (2026-11-04)
+
+#### Architecture Tests
+
+The historical Implementation Notes already require installed-byte, generated-
+code provenance, pipe/compression/router ownership and actual native/browser
+controls. The missing dedicated test-heading navigation does not mean those
+controls are absent. Their canonical owner is Catalogue 21's
+[`Next_Response_Cleanup_Is_Installed_And_Owned`](../standards/21-architecture-tests-catalogue.md#next_response_cleanup_is_installed_and_owned).
+The [frontend test windows](../standards/06-testing.md#frontend-guarded-execution)
+record current execution settings; this amendment changes no window, rule status,
+cleanup requirement or qualification credit. The Accepted Decision and its
+original rationale remain historical.

@@ -119,6 +119,7 @@ export function PreparedAccountPage({
     retry: copy('session.retry'),
     javascript_required: copy('session.javascript_required'),
     unsaved: copy('session.unsaved'),
+    extend_unsaved: copy('session.extend_unsaved'),
   };
   const failures = {
     denied: admin('failure.denied'),

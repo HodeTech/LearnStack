@@ -155,7 +155,25 @@ describe('DOM-local unsaved edit navigation guard', () => {
     expect(screen.queryByText(en.session.unsaved)).toBeNull();
     expect(leaving()).toBe(false);
   });
-  it('keeps dirty forms during a successful extension and clears them when extension fails closed', async () => {
+  it.each([en.session, tr.session])(
+    'keeps edits and the unload guard when extension is declined',
+    async (labels) => {
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+      render(page(initial(), fields(), labels));
+      editName();
+      const field = screen.getByRole('textbox', { name: 'Display name' });
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: labels.extend }));
+      });
+      expect(confirm).toHaveBeenCalledExactlyOnceWith(labels.extend_unsaved);
+      expect(extendBffSession).not.toHaveBeenCalled();
+      expect(field).toHaveValue('Unsaved private edit');
+      expect(leaving()).toBe(true);
+      expect(screen.getByRole('form', { name: 'Profile' })).not.toHaveAttribute('inert');
+    },
+  );
+  it('keeps confirmed edits during a successful extension and removes them only after a confirmed failed check', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
     const value = initial();
     vi.mocked(extendBffSession)
       .mockResolvedValueOnce({ ...value, expiresAt: value.expiresAt + 60_000 })
@@ -172,6 +190,7 @@ describe('DOM-local unsaved edit navigation guard', () => {
     expect(leaving()).toBe(false);
     expect(screen.queryByText(en.session.unsaved)).toBeNull();
     expect(screen.queryByRole('textbox', { name: 'Display name' })).toBeNull();
+    expect(confirm).toHaveBeenCalledTimes(2);
   });
   it('discards old DOM identities on a newly admitted source projection and on unmount', () => {
     const first = initial();
@@ -205,6 +224,7 @@ describe('DOM-local unsaved edit navigation guard', () => {
   });
 });
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.useRealTimers();
   vi.resetAllMocks();
 });
@@ -287,11 +307,13 @@ describe('session warning, truthful extension and safe expiry', () => {
     expect(button).toHaveAttribute('aria-disabled', 'true');
     expect(button).toBeEnabled();
     expect(button).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByText('Admitted account view').parentElement).toHaveAttribute('inert');
     expect(extendBffSession).toHaveBeenCalledExactlyOnceWith(value.csrfToken);
     await act(async () => {
       complete({ ...value, expiresAt: value.expiresAt + 60_000 });
     });
     expect(screen.getByText(en.session.extended)).toBeInTheDocument();
+    expect(screen.getByText('Admitted account view').parentElement).not.toHaveAttribute('inert');
     expect(document.querySelector('time')).toHaveAttribute(
       'datetime',
       new Date(value.expiresAt + 60_000).toISOString(),

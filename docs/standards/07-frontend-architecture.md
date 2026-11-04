@@ -439,6 +439,13 @@ outside any form. Role names require authorized metadata; absent labels produce 
 truthful unavailable message, not visible resource UUIDs. Current CSRF, internal
 versions, target IDs and idempotency nonces are not displayed as edit copy. A fresh
 GET supplies a new form/version/key; there is no automatic rebase or retry.
+Profile-field validation returns an escaped, editable native correction form
+with field-associated localized errors and the submitted values. Correction gets
+a fresh idempotency key; it never automatically retries a mutation or stores a
+form draft. The response retains the same bounded snapshot and publication
+checks. A current actor-only API profile read selects recovery language from
+enabled Membership preferences, with site-default fallback when unavailable;
+submitted profile values never select that language.
 
 Role and grant Add/Remove buttons submit the complete desired finite array in a
 native form. Existing assignments/grants are preserved when adding another item;
@@ -450,8 +457,12 @@ Session controls track only the DOM identities of edited enabled forms. A locali
 unsaved-edit notice and native `beforeunload` warning remain until that edited
 form submits, or private content expires, is replaced or unmounts. Sign-out and
 unrelated form submission do not clear another form's warning. This guard never
-copies field values into client state, storage, logs or history. Browser-controlled
-prompt wording is not application copy. Without JavaScript, forms still work and the
+copies field values into client state, storage, logs or history. Explicit session
+extension with dirty forms first asks for a localized confirmation that a failed
+check discards those edits. Declining keeps the controls and navigation warning;
+controls are inert while an accepted check is pending. Expiry and failed checks
+still remove protected content. Browser-controlled unload prompt wording is not
+application copy. Without JavaScript, forms still work and the
 document explicitly states that unsaved-edit warnings and session extension need
 JavaScript.
 

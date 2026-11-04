@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,652 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,727 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -340,6 +340,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 ADR-0092 validation and final-source CI handoff (2026-11-04)](#p03-3-adr-0092-validation-and-final-source-ci-handoff-2026-11-04) — 38 lines
   - [P03-3 standard hosted VM compatibility correction (2026-11-04)](#p03-3-standard-hosted-vm-compatibility-correction-2026-11-04) — 32 lines
   - [P03-3 hosted VM compatibility validation and corrective CI handoff (2026-11-04)](#p03-3-hosted-vm-compatibility-validation-and-corrective-ci-handoff-2026-11-04) — 39 lines
+  - [P03-3 PR 40 review reconciliation and recovery corrections (2026-11-04)](#p03-3-pr-40-review-reconciliation-and-recovery-corrections-2026-11-04) — 75 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -15535,3 +15536,78 @@ fresh complete A, canonical original-archive verification, whole-run B and its
 original verification. No duplicate manual workflow, combined partial result
 or merge. Mutable PR evidence owns subsequent observations. Manual accessibility
 remains deferred and unexecuted.
+
+### P03-3 PR 40 review reconciliation and recovery corrections (2026-11-04)
+
+The maintainer supplies two reviews of head `537b97c8` against base `e55aa5d7`.
+Reconcile their concrete claims against actual source/contracts before changing
+code. This follow-up is not a new line-by-line audit of all 955 historical files.
+The reviewed head already has complete A/B in
+[run 41728267483](https://github.com/HodeTech/LearnStack/actions/runs/41728267483),
+27/27 jobs and 25 verified original archives per attempt; that evidence remains
+historical and does not qualify the following correction commit.
+
+Correct three confirmed user-facing defects:
+
+- Dirty session extension asks localized explicit consent before a check can
+  discard DOM-local edits. Declining preserves the form and unload warning;
+  admitted controls are inert while a check is pending. Failure and expiry still
+  remove private content. No draft cache or client storage is introduced.
+- Structurally valid profile-field errors return bounded, escaped, editable
+  native HTML with field-associated localized errors and entered values. Native
+  POST correction works without JavaScript and gets a fresh key. Origin/CSRF,
+  target/version grammar and response publication remain required. Malformed
+  proofs/control input still refuse; unknown retries retain their original body.
+- A response-owned current-actor API profile read selects an enabled recovery UI
+  preference, with site-default fallback. Posted values and a managed target's
+  preference never select language. Revision invalidation withholds late private
+  bytes, and actual held work keeps snapshot credit until cleanup completes.
+
+Also correct the verified Tenancy audit-builder null-guard order, in-memory
+idempotency platform-sentinel refusal, and HTTP fixture finally/request-abort
+cleanup. No permission, endpoint, migration, storage, timeout or architecture
+rule is added. Existing branch Role-choice limitations preserve the approved
+Role-read disclosure ceiling; a bounded choice surface belongs to Phase 06.
+
+The alleged invalid Tenancy factory, null-unsafe org context, migration injection
+and cleanup dereference do not reproduce: the file is valid, the actual base has
+nullable organization context, the historical fingerprint matches its pinned v1
+manifest, permission definitions reject quote-bearing inputs, and disposal
+publishes/joins its completion before use. The SDK claim omits its configured
+public/native bounded transport owners. Expired idempotency slots are recycled
+before physical capacity counting. Release delivery census controls pass without
+broadening compiler-field exclusions. General style/performance suggestions do
+not justify privilege or timing changes. ADR-0083 gets a dated test-navigation
+amendment, preserving its historical Decision; the editable index clarifies
+selected settings versus executed qualification.
+
+The first full frontend run exposes dependent call-count/locale assertions, an
+overspecified new pre-publication test, four generated ignored CPython cache
+files, and one unchanged GC-control timeout. Preserve the failed run; repair the
+controls with exact mutation/read sequences, actual API locale evidence and
+pre-publication invalidation/retention assertions. Privately retain then remove
+only the four exact generated cache files; add no source-census exemption.
+The unchanged GC control and repaired focused set pass 204/204. Both independent
+reviewers acknowledge the initial static omission and approve the narrow final
+supplements; root reads and hash-verifies the full reports.
+
+Final local validation passes: CI=true Release solution build; 3,434/3,434
+unit cases; 105/105 selected PostgreSQL/idempotency HTTP cases; all nine
+Release delivery-census controls; 204/204 repaired focused frontend controls;
+typecheck/lint; and the complete guarded frontend population, 3,586/3,586
+(web 3,432 in 112 files, SDK 154 in nine), zero skips/todos, in 380.871 seconds.
+The existing actual HTTPS browser Fact passes in 60.388 seconds, preserving its
+two-host positive, missing-history and unavailable-page counter journeys while
+adding real extension-consent/failure/retry and no-JavaScript field correction.
+It uses controlled grants/API and does not claim a new live-provider or human
+accessibility execution. R1 report SHA-256 is
+52c6b94fcb0a654b7137d576cc18fcb65f05e8ede656bebd17688531bae8e310;
+R2 is 8cc5cec93e242dffca64a107ef54cc3f129c9962547232ccd7ab4885c015adea.
+No production bytes change after these reviews and final local execution.
+
+Seven tracked pre-task modifications, including the Education guard and six docs,
+are preserved outside this correction commit. Synchronize the existing
+[PR #40](https://github.com/HodeTech/LearnStack/pull/40) once after all checks;
+its mutable proof record owns new complete same-source A/B and canonical
+original-archive verification. Do not merge or combine attempts. Manual keyboard,
+focus, reflow, contrast and VoiceOver remain maintainer-deferred and unexecuted.

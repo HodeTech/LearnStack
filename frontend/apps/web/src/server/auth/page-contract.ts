@@ -142,7 +142,8 @@ export type NativeActionPage = Readonly<
       action: string;
       destination: string;
       fields: readonly (readonly [string, string])[];
-      reason: 'denied' | 'stale' | 'in_progress' | 'key_reuse' | 'unavailable';
+      reason: 'denied' | 'stale' | 'in_progress' | 'key_reuse' | 'unavailable' | 'validation';
+      invalidFields?: readonly ('displayName' | 'preferredLocale')[];
       retryable: boolean;
       roleLabels?: readonly Pick<PageRole, 'roleId' | 'builtInKey' | 'capabilityScope'>[];
     }

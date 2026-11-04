@@ -114,6 +114,13 @@ function grants(raw: string): readonly GrantInput[] {
   return values;
 }
 const common = ['csrfToken', 'version', 'idempotencyKey'];
+export type ProfileField = 'displayName' | 'preferredLocale';
+/** Field validation is recoverable only after the form's proof and target grammar pass. */
+export class BffProfileInputError extends BffInputError {
+  constructor(readonly invalidFields: readonly ProfileField[]) {
+    super();
+  }
+}
 export const BFF_ADMIN_FORMS: Readonly<Record<string, readonly string[]>> = Object.freeze({
   '/api/studio/membership-profile': [...common, 'membershipId', 'displayName', 'preferredLocale'],
   '/api/studio/membership-roles': [...common, 'membershipId', 'roleIds'],
@@ -128,23 +135,25 @@ export const BFF_ADMIN_FORMS: Readonly<Record<string, readonly string[]>> = Obje
   '/api/account/profile': [...common, 'displayName', 'preferredLocale'],
 });
 function profile(fields: URLSearchParams) {
-  const nullable = (key: string, limit: number) => {
+  const invalid: ProfileField[] = [];
+  const nullable = (key: ProfileField, limit: number) => {
     const value = required(fields, key);
     if (
-      value.length > limit ||
-      (value !== '' && !value.trim()) ||
       [...value].some((character) => {
         const point = character.codePointAt(0)!;
         return point < 32 || (point >= 127 && point <= 159) || (point >= 0xd800 && point <= 0xdfff);
       })
     )
       throw new BffInputError();
+    if (value.length > limit || (value !== '' && !value.trim())) invalid.push(key);
     return value === '' ? null : value;
   };
-  return Object.freeze({
+  const result = Object.freeze({
     displayName: nullable('displayName', 128),
     preferredLocale: nullable('preferredLocale', 35),
   });
+  if (invalid.length) throw new BffProfileInputError(Object.freeze(invalid));
+  return result;
 }
 export function bffAdministrationForm(
   path: string,

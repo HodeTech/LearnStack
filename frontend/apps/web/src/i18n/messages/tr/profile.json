@@ -12,5 +12,7 @@
   "read_only": "Profilinizi okuyabilirsiniz. Şu anda düzenleme yetkiniz bulunmuyor.",
   "missing": "Bu hesap erişimi için tam eşleşen bir üyelik profili bulunmuyor. Diğer kullanılabilir görünümleri kullanabilirsiniz.",
   "unavailable": "Üyelik profiliniz kontrol edilemedi. Kurumun varsayılan dili kullanılıyor.",
-  "no_name": "Görünen ad belirtilmemiş"
+  "no_name": "Görünen ad belirtilmemiş",
+  "invalid_display_name": "En fazla 128 karakterlik bir ad girin veya alanı tamamen boş bırakın. Yalnızca boşluk kullanılamaz.",
+  "invalid_preferred_locale": "Kullanılabilir bir tercih edilen dil veya kurumun varsayılan dilini seçin."
 }

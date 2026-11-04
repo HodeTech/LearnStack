@@ -140,6 +140,17 @@ public sealed class InMemoryIdempotencyStoreTests
     }
 
     // ---- fingerprint -------------------------------------------------------
+    [Fact]
+    public async Task The_platform_sentinel_is_refused_by_every_key_operation()
+    {
+        var (store, _) = NewStore();
+        Func<Task> claim = async () => await store.TryClaimAsync(TenantId.PlatformSentinel, Key, Fingerprint, default);
+        Func<Task> read = async () => await store.ReadCompletedAsync(TenantId.PlatformSentinel, Key, Fingerprint, default);
+        Func<Task> complete = async () => await store.CompleteAsync(TenantId.PlatformSentinel, Key, Guid.NewGuid(), Response(200), default);
+        Func<Task> abandon = async () => await store.AbandonAsync(TenantId.PlatformSentinel, Key, Guid.NewGuid(), default);
+        foreach (var operation in new[] { claim, read, complete, abandon })
+            await operation.Should().ThrowAsync<ArgumentException>().WithParameterName("tenantId");
+    }
 
     [Fact]
     public async Task The_Same_Key_For_A_Different_Request_Is_Mismatched_Not_Replayed()

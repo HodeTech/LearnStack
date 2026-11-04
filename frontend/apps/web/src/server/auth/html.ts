@@ -35,7 +35,7 @@ function scopeContent(page: Extract<BffPage, { kind: 'scope_choices' }>, copy: A
   return `${choices ? `<ul>${choices}</ul>` : `<p>${escape(copy('entry.scope_empty'))}</p>`}${next}<p><a href="/portal">${escape(copy('entry.scope_back'))}</a></p><p>${escape(copy('shell.signout_scope'))}</p><form action="/api/auth/signout" method="post">${proof}<button type="submit">${escape(copy('shell.signout'))}</button></form>`;
 }
 
-const css = `:root{--ls-primary:#075985;--ls-bg:#ffffff;--ls-fg:#172033;--ls-muted:#475569}*{box-sizing:border-box}body{margin:0;background:var(--ls-bg);color:var(--ls-fg);font:1rem/1.6 system-ui,sans-serif}main{width:min(100% - 2rem,36rem);margin:8vh auto;padding:2rem;border:1px solid currentColor;border-radius:.75rem;overflow-wrap:anywhere}h1{line-height:1.25}a{color:inherit;text-decoration:underline}button{max-width:100%;font:inherit;white-space:normal;background:var(--ls-bg);color:var(--ls-fg);border:2px solid currentColor;border-radius:.25rem;padding:.75rem 1rem;cursor:pointer}textarea{width:100%;max-width:100%;min-height:4rem;font:inherit;color:inherit;background:var(--ls-bg);border:1px solid currentColor}a:focus-visible,button:focus-visible,textarea:focus-visible,main:focus{outline:3px solid var(--ls-fg);outline-offset:4px}.skip{position:fixed;inset-inline-start:1rem;top:1rem;padding:.75rem;background:var(--ls-bg);transform:translateY(-200%)}.skip:focus{transform:none}`;
+const css = `:root{--ls-primary:#075985;--ls-bg:#ffffff;--ls-fg:#172033;--ls-muted:#475569}*{box-sizing:border-box}body{margin:0;background:var(--ls-bg);color:var(--ls-fg);font:1rem/1.6 system-ui,sans-serif}main{width:min(100% - 2rem,36rem);margin:8vh auto;padding:2rem;border:1px solid currentColor;border-radius:.75rem;overflow-wrap:anywhere}h1{line-height:1.25}a{color:inherit;text-decoration:underline}button{max-width:100%;font:inherit;white-space:normal;background:var(--ls-bg);color:var(--ls-fg);border:2px solid currentColor;border-radius:.25rem;padding:.75rem 1rem;cursor:pointer}textarea{width:100%;max-width:100%;min-height:4rem;font:inherit;color:inherit;background:var(--ls-bg);border:1px solid currentColor}input:not([type=hidden]),select{width:100%;max-width:100%;font:inherit;color:inherit;background:var(--ls-bg);border:1px solid currentColor;padding:.5rem}a:focus-visible,button:focus-visible,textarea:focus-visible,input:focus-visible,select:focus-visible,main:focus{outline:3px solid var(--ls-fg);outline-offset:4px}.skip{position:fixed;inset-inline-start:1rem;top:1rem;padding:.75rem;background:var(--ls-bg);transform:translateY(-200%)}.skip:focus{transform:none}`;
 const escape = (value: string) =>
   value.replace(
     /[&<>"']/g,
@@ -147,7 +147,37 @@ function mutationContent(
   page: Extract<BffPage, { kind: 'mutation_error' }>,
   copy: AuthCopy,
   locale: string,
+  site: PageSite,
 ): string {
+  if (page.reason === 'validation') {
+    const { profile } = createAdministrationTranslator(locale);
+    const values = new Map(page.fields);
+    const invalid = page.invalidFields?.length
+      ? page.invalidFields
+      : ['displayName', 'preferredLocale'];
+    const nameError = invalid.includes('displayName');
+    const localeError = invalid.includes('preferredLocale');
+    const preferred = values.get('preferredLocale') ?? '';
+    const options = [
+      '',
+      ...site.enabledLocales,
+      ...(preferred && !site.enabledLocales.includes(preferred) ? [preferred] : []),
+    ]
+      .map(
+        (tag) =>
+          `<option value="${escape(tag)}"${tag === preferred ? ' selected' : ''}>${escape(tag ? languageLabel(tag, locale) : profile('site_default'))}</option>`,
+      )
+      .join('');
+    const proof = page.fields
+      .filter(([key]) => ['csrfToken', 'version', 'idempotencyKey', 'membershipId'].includes(key))
+      .map(([key, value]) => hidden(key, value))
+      .join('');
+    return `<p role="alert">${escape(copy('mutation.validation'))}</p><form action="${escape(page.action)}" method="post">${proof}
+      <p><label for="profile-display-name">${escape(profile('display_name'))}</label><br><input id="profile-display-name" name="displayName" value="${escape(values.get('displayName') ?? '')}" maxlength="128" aria-invalid="${nameError}" aria-describedby="profile-name-hint${nameError ? ' profile-name-error' : ''}"></p>
+      <p id="profile-name-hint">${escape(profile('display_name_hint'))}</p>${nameError ? `<p id="profile-name-error">${escape(profile('invalid_display_name'))}</p>` : ''}
+      <p><label for="profile-preferred-locale">${escape(profile('preferred_locale'))}</label><br><select id="profile-preferred-locale" name="preferredLocale" aria-invalid="${localeError}"${localeError ? ' aria-describedby="profile-locale-error"' : ''}>${options}</select></p>
+      ${localeError ? `<p id="profile-locale-error">${escape(profile('invalid_preferred_locale'))}</p>` : ''}<button type="submit">${escape(profile('save'))}</button></form><p><a href="${escape(page.destination)}">${escape(copy('mutation.lookup'))}</a></p>`;
+  }
   const retry = page.retryable
     ? `<form action="${escape(page.action)}" method="post">${page.fields.map(([name, value]) => hidden(name, value)).join('')}<button type="submit">${escape(copy('mutation.retry'))}</button></form>`
     : '';
@@ -157,6 +187,7 @@ function mutationContent(
     in_progress: copy('mutation.in_progress'),
     key_reuse: copy('mutation.key_reuse'),
     unavailable: copy('mutation.unavailable'),
+    validation: copy('mutation.validation'),
   };
   const edits =
     page.reason === 'stale' || page.reason === 'key_reuse' ? mutationEdits(page, copy, locale) : '';
@@ -171,8 +202,12 @@ export function renderBffDocument(
     | Readonly<{ kind: 'unavailable' | 'busy' }>
     | Readonly<{ kind: 'account_unavailable'; returnPath: '/studio' | '/portal' }>,
 ): string {
-  const ui = createAuthTranslator(site.defaultLocale);
-  const { t } = createPublicTranslator(site.defaultLocale);
+  const locale =
+    'locale' in page && page.locale && site.enabledLocales.includes(page.locale)
+      ? page.locale
+      : site.defaultLocale;
+  const ui = createAuthTranslator(locale);
+  const { t } = createPublicTranslator(locale);
   const copy = ui.copy;
   const title =
     page.kind === 'account_change'
@@ -200,7 +235,7 @@ export function renderBffDocument(
           : page.kind === 'entry'
             ? entryContent(page, copy)
             : page.kind === 'mutation_error'
-              ? mutationContent(page, copy, ui.locale)
+              ? mutationContent(page, copy, ui.locale, site)
               : page.kind === 'signin'
                 ? `<p>${escape(site.displayName)}</p><p>${escape(copy('signin.description'))}</p>
       <form action="/api/auth/signin/keycloak" method="post">

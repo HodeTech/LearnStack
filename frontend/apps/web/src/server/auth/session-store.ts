@@ -1,5 +1,7 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 
+import type { OwnMembershipProfile } from '@learnstack/sdk/administration-server';
+
 import { canonicalAddress, normalizeHost } from '../ingress.js';
 import { openEntryCursor, sealEntryCursor } from './entry-cursor.js';
 import { bffActionDocumentTarget } from './http-paths.js';
@@ -313,9 +315,34 @@ export class InMemoryBffSessionStore implements BffSessionStore {
         () => this.#pageValid(owner, 'active', revision),
         this.#effective(owner) - this.#now(),
       );
+      // Only the current actor's API-validated preference selects recovery copy.
+      // Posted profile values never select it, including when editing oneself.
+      const localeWork = this.#bounded(owner, lease.signal, async (signal) => {
+        const result = await this.#dependencies.administration(
+          owner.credentials!.accessToken,
+          this.#scoped(binding, source, owner.identity!),
+          { kind: 'getOwnProfile' },
+          signal,
+        );
+        if (!this.#pageValid(owner, 'active', revision)) throw new BffSessionError('revoked');
+        const preferred =
+          result.kind === 'success' ? (result.data as OwnMembershipProfile).preferredLocale : null;
+        return typeof preferred === 'string' && ticket.site.enabledLocales.includes(preferred)
+          ? preferred
+          : ticket.site.defaultLocale;
+      });
+      lease.track(localeWork);
+      let locale = ticket.site.defaultLocale;
+      try {
+        locale = await this.#wait(localeWork, lease.signal);
+      } catch (error) {
+        if (!this.#pageValid(owner, 'active', revision) || lease.signal.aborted) throw error;
+        // A missing/unavailable optional preference keeps the admitted recovery,
+        // in the institution's language; it supplies no replacement authority.
+      }
       return lease.publishEntry({
         site: ticket.site,
-        locale: ticket.site.defaultLocale,
+        locale,
         view: page,
       });
     }

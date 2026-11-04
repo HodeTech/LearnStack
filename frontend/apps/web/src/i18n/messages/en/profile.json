@@ -12,5 +12,7 @@
   "read_only": "Your profile is available to read. You do not currently have permission to edit it.",
   "missing": "No exact membership profile is available for this account access. Other available views can still be used.",
   "unavailable": "Your membership profile could not be checked. The institution's default language is being used.",
-  "no_name": "No display name set"
+  "no_name": "No display name set",
+  "invalid_display_name": "Enter a name of at most 128 characters, or leave the field completely blank. Spaces alone are not a name.",
+  "invalid_preferred_locale": "Choose an available preferred language or the institution default."
 }

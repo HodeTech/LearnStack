@@ -10,6 +10,7 @@ import {
 } from './cookies.js';
 import {
   BFF_ADMIN_FORMS,
+  BffProfileInputError,
   bffAdministrationForm,
   bffContextHint,
   bffCursor,
@@ -38,16 +39,18 @@ import { bffSecretEquals, isBffOpaque } from './session-store.js';
 const opaque = () => randomBytes(32).toString('base64url');
 const cookieLife = 8 * 60 * 60;
 export type BffPage = Readonly<
-  | { kind: 'signin'; csrfToken: string; returnPath: string; contextHint?: string }
-  | { kind: 'entry'; entry: EntryProjection | null; cursor?: string }
-  | { kind: 'scope_choices'; selection: ScopeChoices; cursor?: string }
-  | {
-      kind: 'entry_error';
-      reason: 'reauthenticate' | 'creation_disabled' | 'denied' | 'busy' | 'unavailable';
-      retryAfterSeconds?: number;
-    }
-  | NativeActionPage
-  | { kind: 'error' }
+  (
+    | { kind: 'signin'; csrfToken: string; returnPath: string; contextHint?: string }
+    | { kind: 'entry'; entry: EntryProjection | null; cursor?: string }
+    | { kind: 'scope_choices'; selection: ScopeChoices; cursor?: string }
+    | {
+        kind: 'entry_error';
+        reason: 'reauthenticate' | 'creation_disabled' | 'denied' | 'busy' | 'unavailable';
+        retryAfterSeconds?: number;
+      }
+    | NativeActionPage
+    | { kind: 'error' }
+  ) & { locale?: string }
 >;
 export type BffPageRenderer = (page: BffPage) => string;
 type BffProjection = Readonly<{
@@ -228,14 +231,22 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
     const prepared = await store.preparePage(current, request.source, {
       kind: 'response',
       ticket: ticket(request),
-      page,
+      page:
+        page.kind === 'mutation_error' && page.reason === 'validation'
+          ? {
+              ...page,
+              fields: page.fields.map(
+                ([name, value]) => [name, name === 'idempotencyKey' ? opaque() : value] as const,
+              ),
+            }
+          : page,
     });
     if (
       'session' in prepared ||
       (prepared.view.kind !== 'mutation_error' && prepared.view.kind !== 'account_change')
     )
       throw new SnapshotAdmissionError('unavailable');
-    return document(request, render, prepared.view, value, status);
+    return document(request, render, { ...prepared.view, locale: prepared.locale }, value, status);
   };
   return Object.freeze({
     async project(
@@ -558,7 +569,31 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
           const csrf = fields.get('csrfToken');
           if (!current || !session || !bffSecretEquals(csrf, session.csrfToken))
             return result(request, { code: 'csrf' }, 403);
-          const form = bffAdministrationForm(path, fields);
+          let form: ReturnType<typeof bffAdministrationForm>;
+          try {
+            form = bffAdministrationForm(path, fields);
+          } catch (error) {
+            if (!(error instanceof BffProfileInputError)) throw error;
+            return await actionDocument(
+              request,
+              render,
+              current,
+              {
+                kind: 'mutation_error',
+                action: path,
+                destination:
+                  path === '/api/account/profile'
+                    ? '/portal/profile'
+                    : '/studio/members/' + fields.get('membershipId')!,
+                fields: [...fields.entries()],
+                reason: 'validation',
+                invalidFields: error.invalidFields,
+                retryable: false,
+              },
+              { code: 'validation_failed' },
+              400,
+            );
+          }
           let outcome: NativeOperationResult;
           try {
             outcome = await store.operate(
@@ -608,16 +643,23 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
                 ? 400
                 : 503;
           const code = outcome.kind === 'api-error' ? outcome.error.code : 'unavailable';
+          const profileErrors =
+            outcome.kind === 'api-error' && outcome.error.code === 'validation_failed'
+              ? Object.keys(outcome.error.fieldErrors)
+              : [];
           const reason =
-            code === 'concurrency_conflict'
-              ? 'stale'
-              : code === 'request_in_progress'
-                ? 'in_progress'
-                : code === 'idempotency_key_reuse'
-                  ? 'key_reuse'
-                  : [401, 403, 404].includes(status)
-                    ? 'denied'
-                    : 'unavailable';
+            code === 'validation_failed' &&
+            (path === '/api/account/profile' || path === '/api/studio/membership-profile')
+              ? 'validation'
+              : code === 'concurrency_conflict'
+                ? 'stale'
+                : code === 'request_in_progress'
+                  ? 'in_progress'
+                  : code === 'idempotency_key_reuse'
+                    ? 'key_reuse'
+                    : [401, 403, 404].includes(status)
+                      ? 'denied'
+                      : 'unavailable';
           return await actionDocument(
             request,
             render,
@@ -628,6 +670,15 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
               destination: form.destination,
               fields: [...fields.entries()],
               reason,
+              ...(reason === 'validation' &&
+              outcome.kind === 'api-error' &&
+              outcome.error.code === 'validation_failed'
+                ? {
+                    invalidFields: (['displayName', 'preferredLocale'] as const).filter((name) =>
+                      profileErrors.some((key) => key.toLowerCase() === name.toLowerCase()),
+                    ),
+                  }
+                : {}),
               retryable: reason === 'unavailable' || reason === 'in_progress',
             },
             { code },

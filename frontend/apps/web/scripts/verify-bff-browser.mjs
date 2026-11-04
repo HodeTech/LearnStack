@@ -525,6 +525,42 @@ try {
         await page.locator('html').getAttribute('lang'),
         site.locale === 'tr-TR' ? 'tr' : site.locale,
       );
+      if (kind === 'profile') {
+        // Real browser dialog, DOM-local edits and a one-shot transport failure.
+        // The failed check still withholds private controls; retry needs a
+        // positive server check before the protected view can reappear.
+        await specific.fill('Unsaved browser profile');
+        const beforeChoice = (await host.advance(0)).refreshes;
+        let prompt;
+        page.once('dialog', async (dialog) => {
+          prompt = dialog.message();
+          await dialog.dismiss();
+        });
+        await page
+          .getByRole('button', { name: bffProofCopy(site.locale, 'session.extend'), exact: true })
+          .click();
+        assert.equal(prompt, bffProofCopy(site.locale, 'session.extend_unsaved'));
+        assert.equal(await specific.inputValue(), 'Unsaved browser profile');
+        assert.equal((await host.advance(0)).refreshes, beforeChoice);
+        const extensionUrl = origin(site) + '/api/auth/extend';
+        await page.route(extensionUrl, (route) => route.abort('failed'), { times: 1 });
+        page.once('dialog', async (dialog) => {
+          assert.equal(dialog.message(), bffProofCopy(site.locale, 'session.extend_unsaved'));
+          await dialog.accept();
+        });
+        await page
+          .getByRole('button', { name: bffProofCopy(site.locale, 'session.extend'), exact: true })
+          .click();
+        const retry = page.getByRole('button', {
+          name: bffProofCopy(site.locale, 'session.retry'),
+          exact: true,
+        });
+        await retry.waitFor();
+        assert.equal(await page.locator('input[name="displayName"]').count(), 0);
+        await retry.click();
+        await specific.waitFor();
+        assert.equal(await specific.inputValue(), 'Fixture member');
+      }
     }
     // Preserve the exact existing GET history mutation witness below.
     await page.goto(origin(site) + '/studio');
@@ -733,6 +769,29 @@ try {
     } else {
       assert.equal(await profileForm.locator('select[name="preferredLocale"]').inputValue(), '');
     }
+    stage = 'browser-no-script-profile-validation';
+    await profileForm.locator('input[name="displayName"]').fill('   ');
+    const [invalidProfile] = await withProofWaiters(
+      [
+        nativePage.waitForResponse(
+          (response) =>
+            response.request().method() === 'POST' &&
+            new URL(response.url()).pathname === '/api/account/profile',
+        ),
+      ],
+      () => profileForm.getByRole('button').click(),
+    );
+    assert.equal(invalidProfile.status(), 400);
+    assert.equal(await invalidProfile.headerValue('cache-control'), 'no-store');
+    assert.equal(await profileForm.locator('input[name="displayName"]').inputValue(), '   ');
+    assert.equal(
+      await profileForm.locator('input[name="displayName"]').getAttribute('aria-invalid'),
+      'true',
+    );
+    assert.equal(await nativePage.locator('#profile-name-error').isVisible(), true);
+    await profileForm
+      .locator('input[name="displayName"]')
+      .fill('Saved without JavaScript at ' + site.locale);
     stage = 'browser-no-script-submit';
     const [nativeWrite, nativeResult] = await withProofWaiters(
       [

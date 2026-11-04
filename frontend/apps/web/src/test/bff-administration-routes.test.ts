@@ -355,7 +355,10 @@ describe('exact native administration forms', () => {
       expect(await response!.text()).toBe('{"code":"forbidden"}');
       expect(response!.headers.getSetCookie()).toEqual([]);
       expect(f.store.peek(active.binding)).not.toBeNull();
-      expect(f.administration).toHaveBeenCalledTimes(1);
+      expect(f.administration.mock.calls.map(([, , operation]) => operation.kind)).toEqual([
+        'setOwnProfile',
+        'getOwnProfile',
+      ]);
     },
   );
   it.each(['transport-error', 'invalid-response'] as const)(
@@ -391,7 +394,10 @@ describe('exact native administration forms', () => {
           reason: 'unavailable',
         }),
       );
-      expect(f.administration).toHaveBeenCalledTimes(1);
+      expect(f.administration.mock.calls.map(([, , operation]) => operation.kind)).toEqual([
+        'setOwnProfile',
+        'getOwnProfile',
+      ]);
       expect(f.store.peek(active.binding)).not.toBeNull();
     },
   );
@@ -416,7 +422,10 @@ describe('exact native administration forms', () => {
     expect(response!.status).toBe(503);
     expect(await response!.text()).toBe('retry');
     expect(render).toHaveBeenCalledWith(expect.objectContaining({ retryable: true }));
-    expect(f.administration).toHaveBeenCalledTimes(1);
+    expect(f.administration.mock.calls.map(([, , operation]) => operation.kind)).toEqual([
+      'setOwnProfile',
+      'getOwnProfile',
+    ]);
   });
 
   it.each(['deadline', 'disconnect'] as const)(
@@ -498,7 +507,9 @@ describe('exact native administration forms', () => {
         finishApi.release();
         const response = (await pending)!;
         expect(f.store.counts()).toMatchObject({ owners: 1, operations: 0 });
-        expect(f.administration).toHaveBeenCalledTimes(1);
+        expect(f.administration.mock.calls.map(([, , operation]) => operation.kind)).toEqual(
+          interruption === 'deadline' ? ['setOwnProfile', 'getOwnProfile'] : ['setOwnProfile'],
+        );
         expect(f.provider.refresh).not.toHaveBeenCalled();
         expect(f.store.peek(active.binding)).not.toBeNull();
         if (interruption === 'deadline') {
@@ -552,7 +563,10 @@ describe('exact native administration forms', () => {
       (page) => renderBffDocument(recoverySite, page),
     );
     expect(browser.signal.aborted).toBe(false);
-    expect(f.administration).toHaveBeenCalledTimes(1);
+    expect(f.administration.mock.calls.map(([, , operation]) => operation.kind)).toEqual([
+      'setOwnProfile',
+      'getOwnProfile',
+    ]);
     expect(f.store.peek(active.binding)).not.toBeNull();
     await expectUnknownRecovery(response!, fields);
   });
@@ -595,7 +609,10 @@ describe('exact native administration forms', () => {
       finishApi.release();
       const response = (await pending)!;
       expect(browser.signal.aborted).toBe(false);
-      expect(f.administration).toHaveBeenCalledTimes(1);
+      expect(f.administration.mock.calls.map(([, , operation]) => operation.kind)).toEqual([
+        'setOwnProfile',
+        'getOwnProfile',
+      ]);
       expect(f.store.counts().operations).toBe(0);
       expect(f.store.peek(active.binding)).toEqual(refreshed);
       await expectUnknownRecovery(response, fields);
@@ -615,6 +632,19 @@ describe('exact native administration forms', () => {
     async (locale, code) => {
       const f = fixture();
       const active = await f.login();
+      const originalAdministration = f.administration.getMockImplementation()!;
+      f.administration.mockImplementation(async (...args) =>
+        args[2].kind === 'getOwnProfile'
+          ? {
+              kind: 'success',
+              status: 200,
+              data: { displayName: 'Current actor', preferredLocale: locale, version: '1' },
+              etag: '"1"',
+              location: null,
+              replayed: false,
+            }
+          : originalAdministration(...args),
+      );
       f.administration.mockResolvedValueOnce({
         kind: 'api-error',
         status: 409,
@@ -689,7 +719,10 @@ describe('exact native administration forms', () => {
       } finally {
         dom.window.close();
       }
-      expect(f.administration).toHaveBeenCalledTimes(1);
+      expect(f.administration.mock.calls.map(([, , operation]) => operation.kind)).toEqual([
+        'setOwnProfile',
+        'getOwnProfile',
+      ]);
       expect(f.store.peek(active.binding)).not.toBeNull();
     },
   );
@@ -1123,6 +1156,7 @@ describe('entry and scope HTTP publication', () => {
     expect(render).toHaveBeenCalledWith({
       kind: 'account_change',
       csrfToken: active.finished.session.csrfToken,
+      locale: 'en',
     });
     expect(response!.headers.getSetCookie()).toEqual([]);
     expect(f.store.peek(active.binding)).not.toBeNull();

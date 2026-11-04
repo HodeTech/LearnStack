@@ -238,7 +238,7 @@ public sealed class InMemoryIdempotencyStore(IClock clock) : IIdempotencyStore
         // id type, which is neither this guard's contract nor a message a caller can act
         // on. Both sentinels are refused, because a struct nobody assigned and one
         // assigned the all-zero Guid are the same mistake.
-        if (!tenantId.IsInitialized() || tenantId.Value == Guid.Empty)
+        if (!tenantId.IsInitialized() || tenantId.Value == Guid.Empty || tenantId == TenantId.PlatformSentinel)
         {
             throw new ArgumentException(
                 "An idempotency key is scoped to a tenant; an unassigned id is not one.",

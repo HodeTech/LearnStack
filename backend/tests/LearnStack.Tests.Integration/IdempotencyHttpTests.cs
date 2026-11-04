@@ -462,16 +462,21 @@ public sealed class IdempotencyHttpTests(IdempotencyFixture fixture)
         SideEffectProbeController.CloseGate();
 
         var first = PostAsync("/api/v1/sideeffectprobe?hold=true", key);
-        await SideEffectProbeController.Entered;
-
-        var concurrent = await PostAsync("/api/v1/sideeffectprobe?hold=true", key);
-
-        concurrent.StatusCode.Should().Be(HttpStatusCode.Conflict);
-        (await ReadCodeAsync(concurrent)).Should().Be("request_in_progress",
-            "the client should retry with this same key — the opposite of what a "
-            + "concurrency_conflict asks for, which is why it is a different code");
-
-        SideEffectProbeController.Release();
+        try
+        {
+            await SideEffectProbeController.Entered.WaitAsync(TimeSpan.FromSeconds(10));
+            using var concurrent = await PostAsync("/api/v1/sideeffectprobe?hold=true", key);
+            concurrent.StatusCode.Should().Be(HttpStatusCode.Conflict);
+            (await ReadCodeAsync(concurrent)).Should().Be("request_in_progress",
+                "the client should retry with this same key — the opposite of what a "
+                + "concurrency_conflict asks for, which is why it is a different code");
+        }
+        finally
+        {
+            // Failed assertions and cancelled waits must not strand the request
+            // that the fixture host is required to join during teardown.
+            SideEffectProbeController.Release();
+        }
         (await first).StatusCode.Should().Be(HttpStatusCode.OK);
         SideEffectProbeController.Invocations.Should().Be(1);
     }
@@ -631,7 +636,7 @@ public sealed class SideEffectProbeController : ApiControllerBase, ITestOnlyCont
         if (hold)
         {
             _entered.TrySetResult();
-            await _release.Task;
+            await _release.Task.WaitAsync(HttpContext.RequestAborted);
         }
 
         if (fail)

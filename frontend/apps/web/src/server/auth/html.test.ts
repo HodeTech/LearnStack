@@ -13,6 +13,46 @@ const site = (): PublicSite => ({
 });
 
 describe('bounded localized BFF documents', () => {
+  it.each(['en', 'tr'])(
+    'renders editable escaped profile validation in %s without JavaScript',
+    (locale) => {
+      const name = '"><script>private-edit</script>';
+      const document = new DOMParser().parseFromString(
+        renderBffDocument(site(), {
+          kind: 'mutation_error',
+          locale,
+          action: '/api/account/profile',
+          destination: '/portal/profile',
+          reason: 'validation',
+          retryable: false,
+          invalidFields: ['displayName'],
+          fields: [
+            ['displayName', name],
+            ['preferredLocale', 'tr'],
+            ['csrfToken', 'A'.repeat(43)],
+            ['version', '7'],
+            ['idempotencyKey', 'same-validation-key'],
+          ],
+        }),
+        'text/html',
+      );
+      expect(document.documentElement.lang).toBe(locale);
+      const input = document.querySelector<HTMLInputElement>('[name="displayName"]')!;
+      expect(input.value).toBe(name);
+      expect(input.readOnly).toBe(false);
+      expect(input.getAttribute('aria-invalid')).toBe('true');
+      expect(document.getElementById('profile-name-error')?.textContent).toContain(
+        locale === 'tr' ? 'Yalnızca boşluk' : 'Spaces alone',
+      );
+      expect(document.querySelector<HTMLSelectElement>('[name="preferredLocale"]')?.value).toBe(
+        'tr',
+      );
+      expect(document.querySelector('form')?.method).toBe('post');
+      expect(document.querySelector('form')?.getAttribute('action')).toBe('/api/account/profile');
+      expect(document.querySelector('script:not(#bff-history)')).toBeNull();
+      expect(input.labels?.[0]?.textContent).toBe(locale === 'tr' ? 'Görünen ad' : 'Display name');
+    },
+  );
   it.each([
     ['en', 'Account access unavailable'],
     ['tr', 'Hesap erişimi kullanılamıyor'],
