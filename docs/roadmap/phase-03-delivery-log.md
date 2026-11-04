@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 423 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 448 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -353,6 +353,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 2 foundation and entry activation boundary (2026-11-04)](#p03-4-step-2-foundation-and-entry-activation-boundary-2026-11-04) — 32 lines
   - [P03-4 Step 2 storage validation and review handoff (2026-11-04)](#p03-4-step-2-storage-validation-and-review-handoff-2026-11-04) — 23 lines
   - [P03-4 Step 2 second review UUID correction (2026-11-04)](#p03-4-step-2-second-review-uuid-correction-2026-11-04) — 18 lines
+  - [P03-4 Step 2 review closeout and SMTP continuation (2026-11-04)](#p03-4-step-2-review-closeout-and-smtp-continuation-2026-11-04) — 25 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -16171,3 +16172,28 @@ The affected database population passes 190/190; the 48 affected architecture
 cases pass with zero skips. The original domain/application code keeps its full
 3,480-unit result. No aborted full architecture or future HTTP/SMTP evidence is
 claimed. Correction verification and Step 2 closeout follow this commit.
+
+### P03-4 Step 2 review closeout and SMTP continuation (2026-11-04)
+
+The integrity reviewer rechecks correction commit `1f7ec80c` and closes the sole
+second-round Major. Both rounds now have no open verified finding. Step 2's
+storage foundation is complete: domain/settings tests, real app-role storage/
+policy/FK/constraint controls, mapped snapshot and affected architecture checks
+are recorded above. Full packet proof remains Step 7; no public entry or sender
+is claimed by this closeout.
+
+Step 3 proceeds automatically. Its read-only preparation confirms two exact
+scope definitions require four distinct prepare/finalize request types in the
+existing Type-keyed registry. Use scope-specific roots and shared identifier-only
+parameters/plan/outcome/port; do not weaken that registry or add Domain references
+to Contracts. Known runtime-selected NoStart finalization may have no provider
+outcome: its truthful workflow-failure transition uses a new forward migration,
+never an invented provider ReceiptId or Unknown release.
+
+Before sender activation, qualify actual PostgreSQL logging, including failing-
+row DETAIL and independent statement-sampling paths, as well as application/
+trace/SMTP sinks. Do not modify the running user stack. The stager's actual
+create/reissue submission/audit atomicity and nonempty caller census join its
+real writers in Step 4; Step 3 qualifies the closed mechanism with owned fixtures
+and does not invent a test-only production admission exemption. This dependency
+clarification leaves all work inside P03-4.
