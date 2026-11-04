@@ -344,12 +344,14 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 350 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 405 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
   - [P03-4 Step 1 first review corrections (2026-11-04)](#p03-4-step-1-first-review-corrections-2026-11-04) — 24 lines
   - [P03-4 Step 1 second review and contract closeout (2026-11-04)](#p03-4-step-1-second-review-and-contract-closeout-2026-11-04) — 15 lines
+  - [P03-4 Step 2 foundation and entry activation boundary (2026-11-04)](#p03-4-step-2-foundation-and-entry-activation-boundary-2026-11-04) — 32 lines
+  - [P03-4 Step 2 storage validation and review handoff (2026-11-04)](#p03-4-step-2-storage-validation-and-review-handoff-2026-11-04) — 23 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -16095,3 +16097,58 @@ all three generated indexes current. Accepted historical bodies and shipped log
 records remain intact. No runtime code, provider/browser/database proof or manual
 accessibility is claimed. Step 1 is complete after this closeout commit; Step 2
 starts automatically on `development` under the accepted seven-step plan.
+
+### P03-4 Step 2 foundation and entry activation boundary (2026-11-04)
+
+Step 2 implements the Invitation aggregate/typed identifiers, ASCII mailbox
+parser, versioned delivery generations, finite acceptance/submission state, EF
+mapping and a forward Identity migration. The schema applies canonical tenant/
+organization isolation, same-module reference keys, pending-slot uniqueness,
+immutable pins and terminal facts, actual database expiry and ordered-fence
+backstops. The ninth confined definer is the bounded preliminary entry function;
+the two SMTP functions belong to Step 3. No public endpoint is activated.
+
+Tenancy adds the registered typed `identity.invitation.ttl_days` value and strict
+1–30-day parser behind its existing settings accessor. This adds no writer,
+permission grant, organization override or generic configuration response.
+
+**Sequence refinement within this packet:** the operation-bound witness, native
+origin and TransactionBehavior integration land in Step 5 with the three actual
+recipient request types and current-email/delegation enforcement. The earlier
+Step 2 scope-foundation wording does not authorize a dormant permissive policy,
+placeholder request handler or claim of a qualified setter before those consumers
+exist. Step 2 owns the complete storage/preliminary-function boundary; Step 5 owns
+its real request/caller/witness/mode/cleanup qualification. This changes sequence,
+not ADR-0093's authority contract, and defers nothing outside P03-4.
+
+Targeted controls first pass 45 unit, 13 actual app-role storage and 10 model/
+architecture cases. The full unit population then passes 3,480/3,480. The first
+wider database population identifies three test-inventory backfills, not a
+relaxed runtime rule: the exact grant matrix, an independent clean/dirty
+Invitation WITH CHECK control, and the enlarged FK-safe permanent-User TRUNCATE
+challenge. After those corrections the same database population passes
+186/186, with no skipped cases. Full architecture validation and the Step 2
+commit/review rounds remain in progress; no provider/browser/API proof follows.
+
+### P03-4 Step 2 storage validation and review handoff (2026-11-04)
+
+The full architecture attempt reports three verified failures and is cancelled
+after more than 27 minutes for corrective targeted validation. Its actual owned
+testhost retirement is observed. No full-suite success or complete-case credit
+is claimed. Corrections preserve the implemented aggregate-rule baseline while
+renaming its actual test to the canonical successor; the two-handler extension
+remains Registered until the acceptance handler exists. The pending unique index
+adds the canonical `deleted_at IS NULL` term, equivalent under the root's explicit
+no-delete CHECK; the current unreleased migration/designer/snapshot agree.
+
+The writable eligibility repeat of the exact entry function also requires the
+announced offer scope, real Tenant fence and both exclusive User fences. Its
+initial ReadOnly lookup remains separate. Real app-role controls cover missing
+fences and accepted same-actor reconciliation without exposing recipient data.
+
+Final affected validation before review: 48/48 architecture cases and 187/187
+database cases pass, zero skipped. The unchanged domain/application behavior
+also has the full 3,480/3,480 unit result above. Complete final-source architecture
+and required CI/A/B/archive qualification remain Step 7 obligations; the aborted
+full scan is not substituted for them. Formatting and document guards accompany
+the implementation commit. Two fresh independent review rounds follow.

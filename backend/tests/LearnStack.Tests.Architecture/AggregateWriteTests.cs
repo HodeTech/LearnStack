@@ -33,7 +33,7 @@ public sealed class AggregateWriteTests
     /// permit only provisioning to hold constructor write ports for two roots.
     /// </summary>
     [Fact]
-    public void Cross_Aggregate_Writes_Are_Confined_To_Tenant_Provisioning()
+    public void Cross_Aggregate_Writes_Are_Confined_To_Named_Exceptions()
     {
         // ADR-0042 sanctions ONE operation to write two aggregate roots in one
         // transaction, by enumeration rather than by principle — a tenant whose default

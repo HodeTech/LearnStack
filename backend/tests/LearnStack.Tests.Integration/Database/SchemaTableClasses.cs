@@ -33,7 +33,7 @@ internal static class SchemaTableClasses
     public static readonly string[] GlobalIdentity = ["users"];
     public static readonly string[] IdentityPlatform = ["identity_authority", "identity_creation_capacity"];
     public static readonly string[] IdentityContextual = ["memberships", "membership_profiles",
-        "membership_role_assignments", "roles", "role_permission_grants"];
+        "membership_role_assignments", "roles", "role_permission_grants", "invitations"];
     public static readonly string[] Data = [.. Existing, .. JobTenant, .. Control, .. Vendor,
         .. GlobalIdentity, .. IdentityPlatform, .. IdentityContextual];
     public static bool AppSelectDenied(string table) => Control.Contains(table) || Vendor.Contains(table)

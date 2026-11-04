@@ -5592,7 +5592,7 @@ IgnoreQueryFilters or a hidden history directory. Runtime has SELECT/INSERT/UPDA
 only, no root DELETE/TRUNCATE or arbitrary User update. A later erasure owner
 requires its separately accepted grants/transition before changing this boundary.
 
-A partial unique index enforces Pending `(tenant_id,organization_id,normalized_email)`
+A partial unique index enforces Pending `(tenant_id,organization_id,recipient_email)`
 with NULLS NOT DISTINCT, regardless of current clock time. Revoke/Accepted releases
 that slot; expiry alone does not. Root CHECK/guard pairs enforce finite state,
 positive generation, 32-byte verifier shape, finite expiry after creation and
@@ -5648,7 +5648,9 @@ reuse another purpose/mode or widen app.scope. This is the eleventh logical sett
 (category: operation-bound invitation), not an extra physical context writer.
 
 Within acceptance, the exact function can repeat its bound eligibility observation
-after both User fences. This covers already_member with no Membership INSERT.
+after both User fences. Writable calls independently require the exact announced
+scope, Tenant fence and both exclusive User keys; the initial ReadOnly lookup
+does not require them. This covers already_member with no Membership INSERT.
 All pending authorization/lifecycle/Role checks then use fresh post-wait facts on
 that owner. The exact User/offer projection does not authorize general queries.
 Known Tenant/Organization host ceiling and HostAndInvitationOffer consumer census

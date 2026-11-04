@@ -376,15 +376,15 @@ public sealed partial class GlobalIdentitySchemaTests
                     : attributes.Contains("STABLE", StringComparison.Ordinal) ? "s" : "v",
                 attributes.Contains("STRICT", StringComparison.Ordinal));
         }).OrderBy(function => function.Name, StringComparer.Ordinal).ToArray();
-        functions.Should().HaveCount(16, "all applied Identity migrations retain the complete global/contextual/self-entry and Role-release function set");
-        functions.Count(function => function.Definer).Should().Be(8);
-        functions.SelectMany(function => function.Triggers).Should().HaveCount(23);
+        functions.Should().HaveCount(18, "all applied Identity migrations retain the complete global/contextual/self-entry, Role-release and invitation function set");
+        functions.Count(function => function.Definer).Should().Be(9);
+        functions.SelectMany(function => function.Triggers).Should().HaveCount(24);
         var globalNames = EffectiveFunctionDeclarations(migrationSql[0])
             .Select(match => match.Groups["name"].Value.ToLowerInvariant()).ToHashSet(StringComparer.Ordinal);
         globalNames.Should().NotBeEmpty("the first Identity migration installs its confined global functions");
         foreach (var function in functions)
         {
-            var forbidden = function.Name is "fn_identity_creation_attempt_admission" or "fn_identity_self_membership_scopes"
+            var forbidden = function.Name is "fn_identity_creation_attempt_admission" or "fn_identity_self_membership_scopes" or "fn_identity_invitation_entry"
                 ? EntryForbiddenFunctionBody()
                 : globalNames.Contains(function.Name) ? ForbiddenFunctionBody() : ContextualForbiddenFunctionBody();
             forbidden.IsMatch(function.Body).Should().BeFalse(

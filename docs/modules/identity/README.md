@@ -228,6 +228,23 @@ Business withdrawal adds no ordinary provider-table cancellation writer.
 `250` is accepted submission, not inbox delivery. Queued, submission accepted,
 failed, uncertain, expired and revoked remain distinct product states.
 
+### Invitation storage foundation
+
+The Invitation aggregate and its Identity migration map `invitations` with the
+canonical tenant/org filters, FORCE RLS, same-module reference keys, explicit
+credential redaction and guarded finite transitions. Email is normalized through
+`InvitationMailbox`; invitation authoring and recipient matching reuse that
+parser. SMTP receives the validated staged address and independently enforces
+transport/header safety. The local
+dot-atom is 1–64 ASCII bytes, the full mailbox at most 254, and each ASCII DNS
+label at most 63. No provider identity is selected by email.
+
+The exact preliminary SQL function returns bounded offer/actor facts without
+email or grants. Its operation-bound HTTP/pipeline activation belongs with the
+three actual recipient operations; schema availability grants no public entry.
+The [phase Status](../../roadmap/phase-03-identity-admin.md) owns implementation
+and qualification.
+
 ### Lifecycle, profile and admission
 
 The database requires Active/Suspended Memberships to have NULL deletion fields

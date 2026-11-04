@@ -1501,9 +1501,10 @@ otherwise).
 - **Source:** [ADR-0042](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md);
   [Architecture Standards § Aggregate Ownership](01-architecture-standards.md).
 - **Type:** xUnit + reflection. **Kind:** structural.
-- **Status:** **Registered** P03-4 two-handler extension. The provisioning-only
-  baseline remains implemented in `AggregateWriteTests`; actual invitation
-  production-subject/dirty-control backfill is not yet delivered.
+- **Status:** **Implemented** baseline in `AggregateWriteTests`. P03-4
+  two-handler extension remains Registered; actual invitation production-subject/
+  dirty-control backfill is not yet delivered. The current implementation
+  still requires exactly the shipped provisioning writer.
 - **Phase:** 02a baseline; P03-4 extension.
 - **Note:** the rule counts **aggregate roots reached through ports**, not `DbSet`
   use, and the change is not cosmetic. ADR-0042 § Implementation Notes specified a

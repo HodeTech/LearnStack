@@ -17,6 +17,7 @@ public sealed partial class IdentityMembershipTests
             ["membership_role_assignments"] = nameof(Contextual_WITH_CHECK_rejects_foreign_writes_and_its_dirty_twin_admits_them),
             ["roles"] = nameof(Contextual_WITH_CHECK_rejects_foreign_writes_and_its_dirty_twin_admits_them),
             ["role_permission_grants"] = nameof(Contextual_WITH_CHECK_rejects_foreign_writes_and_its_dirty_twin_admits_them),
+            ["invitations"] = nameof(Contextual_WITH_CHECK_rejects_foreign_writes_and_its_dirty_twin_admits_them),
         };
 
     [Theory]
@@ -25,6 +26,7 @@ public sealed partial class IdentityMembershipTests
     [InlineData("membership_role_assignments")]
     [InlineData("roles")]
     [InlineData("role_permission_grants")]
+    [InlineData("invitations")]
     public async Task Contextual_WITH_CHECK_rejects_foreign_writes_and_its_dirty_twin_admits_them(string table)
     {
         await using var database = await DisposableSchemaDatabase.CreateAsync(fixture.Postgres);
@@ -67,11 +69,13 @@ public sealed partial class IdentityMembershipTests
                 "memberships" => "UPDATE public.memberships SET row_version=row_version+1 WHERE id=@member",
                 "membership_profiles" => "UPDATE public.membership_profiles SET display_name='foreign-policy-control' WHERE membership_id=@member",
                 "roles" => "UPDATE public.roles SET row_version=row_version+1 WHERE id=@role",
+                "invitations" => "UPDATE public.invitations SET row_version=row_version+1 WHERE id=@invitation",
                 "membership_role_assignments" => "INSERT INTO public.membership_role_assignments(tenant_id,membership_id,role_id) VALUES(@tenant,@member,@role)",
                 _ => "INSERT INTO public.role_permission_grants(tenant_id,role_id,permission_scope,permission_key) VALUES(@tenant,@role,'Tenant',@key)",
             };
             (string Name, object? Value)[] values = [("member", AdminMembershipB), ("tenant", SchemaFixture.TenantB),
-                ("role", RoleId(SchemaFixture.TenantB, BuiltInRoleKey.Instructor, PermissionScope.Tenant)), ("key", IdentityFoundationManifest.ProfileWrite)];
+                ("role", RoleId(SchemaFixture.TenantB, BuiltInRoleKey.Instructor, PermissionScope.Tenant)),
+                ("key", IdentityFoundationManifest.ProfileWrite), ("invitation", InvitationSchemaSeed.TenantOfferB)];
             await using (var clean = await app.BeginTransactionAsync())
             {
                 await ScopeAsync(app, clean, SchemaFixture.TenantA);

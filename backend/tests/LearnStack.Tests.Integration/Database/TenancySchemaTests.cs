@@ -1300,6 +1300,7 @@ public sealed class TenancySchemaTests
         ExistingTableGrants.Concat(BackgroundJobGrantExpectations.TableGrants)
             .Concat(["learnstack_app identity_authority SELECT", "learnstack_app users SELECT",
                 "learnstack_app memberships INSERT,SELECT,UPDATE",
+                "learnstack_app invitations INSERT,SELECT,UPDATE",
                 "learnstack_app membership_profiles INSERT,SELECT,UPDATE",
                 "learnstack_app roles INSERT,SELECT,UPDATE",
                 "learnstack_app membership_role_assignments DELETE,INSERT,SELECT",
