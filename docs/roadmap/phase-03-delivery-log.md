@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,715 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,730 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -380,7 +380,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 fourth hosted A and detector-index repair (2026-11-05)](#p03-4-step-7-fourth-hosted-a-and-detector-index-repair-2026-11-05) — 72 lines
   - [P03-4 Step 7 detector-index repair review closeout (2026-11-05)](#p03-4-step-7-detector-index-repair-review-closeout-2026-11-05) — 34 lines
   - [P03-4 maintainer manual accessibility acceptance (2026-11-05)](#p03-4-maintainer-manual-accessibility-acceptance-2026-11-05) — 32 lines
-  - [P03-4 Step 7 entry-browser diagnostic repair (2026-11-06)](#p03-4-step-7-entry-browser-diagnostic-repair-2026-11-06) — 33 lines
+  - [P03-4 Step 7 entry-browser diagnostic repair (2026-11-06)](#p03-4-step-7-entry-browser-diagnostic-repair-2026-11-06) — 34 lines
+  - [P03-4 Step 7 entry-browser diagnostic first reviews (2026-11-06)](#p03-4-step-7-entry-browser-diagnostic-first-reviews-2026-11-06) — 14 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -17491,3 +17492,18 @@ root frontend/SDK output mutation runs for this decoder correction.
 Two fresh independent review rounds follow before the final development push.
 Final-source same-source hosted A/B and original-archive qualification remain
 open before packet delivery/merge; manual accessibility acceptance remains valid.
+
+
+### P03-4 Step 7 entry-browser diagnostic first reviews (2026-11-06)
+
+Two fresh independent R1 reviewers approve correction `8e6e16a4` with no verified
+actionable finding. They inspect exact caller/phase confinement, the current
+driver's finite reasons, private-canary and unknown-suffix refusal, failure-only
+checkpoint custody, raw-TRX sanitization and unchanged result/ownership gates.
+The registered Keycloak fallback class set stays unchanged; the entry fact's
+unregistered startup messages remain unknown. No code correction follows R1.
+
+The existing 111 native-owner and 41 aggregate offline controls remain the source
+validation; reviews do not run .NET/Next/browser or interact with maintainer
+runtime/output. Two different fresh R2 reviewers follow. The original hosted
+cause remains unconfirmed and final-source A/B/archive qualification remains open.
