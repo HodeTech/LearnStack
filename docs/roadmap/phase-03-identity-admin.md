@@ -20,7 +20,7 @@
 > human accessibility evidence remains unexecuted and pending. Step 7
 > implementation and both final review rounds are closed
 > ([PR readiness](phase-03-delivery-log.md#p03-4-step-7-final-reviews-and-pr-readiness-2026-11-05)).
-> P03-4 is in final [CI correction/review](phase-03-delivery-log.md#p03-4-step-7-first-hosted-corrections-2026-11-05) after a failed full A.
+> P03-4's [CI corrections and two review rounds](phase-03-delivery-log.md#p03-4-step-7-correction-review-closeout-and-ci-candidate-2026-11-05) are closed.
 > Complete same-source hosted A/B and original-archive qualification remain mandatory
 > before delivery/merge; actual source-bound results accompany the PR and its
 > [workflow evidence](https://github.com/HodeTech/LearnStack/actions/workflows/ci.yml?query=branch%3Adevelopment).
@@ -32,7 +32,7 @@
 > | P03-1 | Identity authority and membership foundation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-1-merge-and-closeout-2026-10-27) |
 > | P03-2 | Live membership and authorization | Complete and merged — [closeout](phase-03-delivery-log.md#p03-2-merge-and-closeout-2026-10-28) |
 > | P03-3 | Protected Studio and membership administration | Complete and merged — [closeout](phase-03-delivery-log.md#p03-3-merge-and-delivery-closeout-2026-11-04); evidence follow-ups remain open |
-> | P03-4 | Invitations and bounded delivery | In progress — G8 Accepted; first full A failed; scoped corrections under review; fresh source-bound CI/archive gates and human evidence govern delivery |
+> | P03-4 | Invitations and bounded delivery | In progress — G8 Accepted; CI corrections reviewed; fresh source-bound A/B/archive gates and human evidence govern delivery |
 > | P03-5 | Custom fields and privacy classification | Not started |
 > | P03-6 | Provider event ingress and audit mirror | Not started |
 > | P03-7 | Back-channel session revocation | Not started |

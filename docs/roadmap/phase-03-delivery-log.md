@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,312 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,356 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -371,7 +371,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 6 implementation review closeout and Step 7 continuation (2026-11-05)](#p03-4-step-6-implementation-review-closeout-and-step-7-continuation-2026-11-05) — 37 lines
   - [P03-4 Step 7 actual SMTP owner and recovery proof implementation (2026-11-05)](#p03-4-step-7-actual-smtp-owner-and-recovery-proof-implementation-2026-11-05) — 78 lines
   - [P03-4 Step 7 final reviews and PR readiness (2026-11-05)](#p03-4-step-7-final-reviews-and-pr-readiness-2026-11-05) — 52 lines
-  - [P03-4 Step 7 first hosted corrections (2026-11-05)](#p03-4-step-7-first-hosted-corrections-2026-11-05) — 79 lines
+  - [P03-4 Step 7 first hosted corrections (2026-11-05)](#p03-4-step-7-first-hosted-corrections-2026-11-05) — 80 lines
+  - [P03-4 Step 7 correction review closeout and CI candidate (2026-11-05)](#p03-4-step-7-correction-review-closeout-and-ci-candidate-2026-11-05) — 43 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -17079,3 +17080,47 @@ archive/log and independent surface reconciliation remain required. Prior-source
 or failed passing fragments cannot be combined into qualification. Human
 keyboard/focus/reflow/contrast/VoiceOver remains pending and unexecuted. No merge,
 production SMTP/TLS, inbox delivery or P03-3 follow-up closure is claimed.
+
+
+### P03-4 Step 7 correction review closeout and CI candidate (2026-11-05)
+
+Correction commit `501863f8` completes two fresh independent review rounds. The
+first covers authority/schema and contracts/CI; two different second-round
+reviewers cover authority/database and evidence/contracts. All approve within
+their scopes with no verified actionable finding. No source correction is
+required by either round.
+
+Independent source checks match all 38 committed file hashes. Both forward
+migration bodies retain their latest predecessor except for one parent
+`FOR KEY SHARE`, and their generated target models remain unchanged. The second
+round independently recomputes the 23 failed-A original ZIP API byte counts,
+SHA-256 and CRC, the original logs archive, all 184 complete-Passed-group weight
+increases and the original manifest's 291/289 A/B selector moves. It also
+reconstructs the producer-only failure ledger: 330 Failed cases in 17 of 20
+producers, one censored case, and the separate 27-job six-success/21-failure
+outcome. Meta's synthetic negative-fixture row is not a real producer failure.
+These observations preserve the failed attempt's status.
+
+The reviewers inspect the scoped TRXs and final source boundaries recorded in
+[the correction entry](#p03-4-step-7-first-hosted-corrections-2026-11-05); they run
+no tests or hosted qualification. Structural IL and schema checks remain finite
+controls, not general data-flow, external-delivery or complete concurrency proof.
+No timer, count, resource ceiling, general permission or provider authority is
+added by the correction or its advisory plan revision.
+
+The publication candidate adds only this closeout/current status reconciliation
+after the reviewed implementation. Its actual PR head/base/merge tree, plan and
+attempt identities accompany PR #41. A single push starts a fresh automatic A;
+all 27 jobs and complete populations must pass before a whole-run B on the same
+source. Retain original artifacts/logs before rerun, then independently reconcile
+both layouts, exact case unions and every backend/frontend/native/public-demo/
+OpenAPI/SARIF/log surface. No failed, partial or stale-source fragments combine
+into qualification. Actual final-source results belong with the PR; publication
+of this record neither reports a run that has not completed nor changes source
+again merely to narrate a green result.
+
+Human keyboard/focus/reflow/contrast/VoiceOver remains pending and unexecuted.
+The existing external-prerequisite clause permits independent CI/archive work;
+review closure is not a human pass or full packet-delivery claim. No merge,
+production SMTP/TLS, inbox delivery, driver COMMIT-ack fault or P03-3 follow-up
+closure is inferred.
