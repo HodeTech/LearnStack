@@ -14,6 +14,7 @@ public sealed partial class BackgroundJobStorageMigrationTests
         await using var database = await DisposableSchemaDatabase.CreateAtPlatformMigrationAsync(schema.Postgres,
             "20261017231821_index_background_job_control_quarantines");
         await using var context = Platform(database);
+        var head = await BackgroundJobSchemaInventory.ReadAsync(schema.Postgres.MigrationConnectionString);
         var migrations = context.Database.GetMigrations().ToArray();
         var added = migrations.Single(name => name.EndsWith("_index_background_job_control_quarantines", StringComparison.Ordinal));
         var previousMigration = migrations[Array.IndexOf(migrations, added) - 1];
@@ -27,7 +28,7 @@ public sealed partial class BackgroundJobStorageMigrationTests
         await context.GetService<IMigrator>().MigrateAsync(added);
         (await BackgroundJobSchemaInventory.ReadAsync(database.MigrationConnectionString)).Should().Equal(current);
         await context.Database.MigrateAsync();
-        (await BackgroundJobSchemaInventory.ReadAsync(database.MigrationConnectionString)).Should().Equal(current);
+        (await BackgroundJobSchemaInventory.ReadAsync(database.MigrationConnectionString)).Should().Equal(head);
         (await context.Database.GetAppliedMigrationsAsync()).Should().Equal(context.Database.GetMigrations());
         context.Database.HasPendingModelChanges().Should().BeFalse();
     }

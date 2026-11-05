@@ -26,6 +26,9 @@ public sealed partial class AuthenticationAuthorityTests
     private const string Native = Authentication + "NativeScopeEvidence";
     private const string NativeSource = Authentication + "NativeSessionSourceFeature";
     private const string NativeMiddleware = Authentication + "NativeSessionSourceMiddleware";
+    private const string InvitationCredential = Authentication + "ValidatedInvitationCredential";
+    private const string InvitationSource = Authentication + "InvitationEntrySource";
+    private const string RecipientReader = Authentication + "CurrentInvitationRecipientReader";
     private const string SelfAdmission = Authentication + "HttpIdentitySelfEntryAdmission";
     private const string Resolver = "LearnStack.Api.Tenancy.TenantResolverMiddleware";
     private static readonly string[] IdentityProperties = ["ActorUserId", "Issuer", "OrganizationId", "Subject", "TenantId"];
@@ -81,7 +84,7 @@ public sealed partial class AuthenticationAuthorityTests
         foreach (var call in calls.Where(call => (rawReader ?? IsRawAuthorityRead)(call.Target)
                      && !(call.Source.Site == ExpectedSite(Events + ".TokenValidated")
                          && call.Target.FullName == "System.String Microsoft.IdentityModel.JsonWebTokens.JsonWebToken::get_EncodedToken()")
-                     && !IsClosedRolesAbsenceCheck(call)))
+                     && !IsClosedRolesAbsenceCheck(call) && !IsClosedInvitationTokenRead(call, calls, methods)))
             errors.Add("Raw claim/role authority: " + call.Source.Site + " -> " + call.Target.FullName);
         // Object virtual dispatch and generic formatting can export a positional
         // record without an identity-declared call. Close acquisition, holders
@@ -126,12 +129,12 @@ public sealed partial class AuthenticationAuthorityTests
 
         // Issuer/sub may select a private accounting partition, never permission.
         // Scope/actor consumption remains explicit even inside the API assembly.
-        Consumers("Issuer", CandidateSource + ".MatchesIdentity", Native + ".TryMint");
-        Consumers("Subject", CandidateSource + ".MatchesIdentity", Native + ".TryMint");
+        Consumers("Issuer", CandidateSource + ".MatchesIdentity", Native + ".TryMint", RecipientReader + ".Matches", InvitationSource + ".PrepareAsync");
+        Consumers("Subject", CandidateSource + ".MatchesIdentity", Native + ".TryMint", RecipientReader + ".Matches", InvitationSource + ".PrepareAsync");
         VerifiedConsumers("Issuer", Limiter + ".AttemptAcquire", BindingResolver + ".ResolveExistingAsync", BindingAdmission + ".InvokeAsync",
-            CandidateSource + ".MatchesIdentity", Native + ".TryMint", SelfAdmission + ".Allows", SelfAdmission + ".CurrentSubject", SelfAdmission + ".Capture");
+            CandidateSource + ".MatchesIdentity", Native + ".TryMint", SelfAdmission + ".Allows", SelfAdmission + ".CurrentSubject", SelfAdmission + ".Capture", RecipientReader + ".Matches");
         VerifiedConsumers("Subject", Limiter + ".AttemptAcquire", BindingResolver + ".ResolveExistingAsync", BindingAdmission + ".InvokeAsync",
-            CandidateSource + ".MatchesIdentity", Native + ".TryMint", SelfAdmission + ".Allows", SelfAdmission + ".CurrentSubject", SelfAdmission + ".Capture");
+            CandidateSource + ".MatchesIdentity", Native + ".TryMint", SelfAdmission + ".Allows", SelfAdmission + ".CurrentSubject", SelfAdmission + ".Capture", RecipientReader + ".Matches", RecipientReader + ".ReadAsync");
         VerifiedConsumers("ClaimedActor", BindingResolver + ".ResolveExistingAsync", CandidateSource + ".MatchesIdentity",
             Native + ".TryMint", SelfAdmission + ".Allows", SelfAdmission + ".CurrentSubject");
         VerifiedConsumers("TenantId", BindingAdmission + ".InvokeAsync", CandidateSource + ".MatchesIdentity",
@@ -141,12 +144,12 @@ public sealed partial class AuthenticationAuthorityTests
         Consumers("ActorUserId", Resolver + ".BuildAttemptAsync", Resolver + ".RecordRefusalAsync",
             "LearnStack.Api.Tenancy.TenantAssertionMiddleware.InvokeAsync",
             Authentication + "TenantSurfaceAdmissionMiddleware.HasHostAuthority", CandidateSource + ".ForValidatedScope", CandidateSource + ".MatchesIdentity",
-            TransportSource + ".Capture", Native + ".TryMint", Native + ".get_Actor");
+            TransportSource + ".Capture", Native + ".TryMint", Native + ".get_Actor", RecipientReader + ".Matches", InvitationSource + ".PrepareAsync");
         Consumers("TenantId", Resolver + ".BuildAttemptAsync", Resolver + ".InvokeAsync",
             Authentication + "TenantSurfaceAdmissionMiddleware.HasHostAuthority", CandidateSource + ".ForValidatedScope", CandidateSource + ".MatchesIdentity",
-            TransportSource + ".MatchesScope", Native + ".TryMint");
+            TransportSource + ".MatchesScope", Native + ".TryMint", InvitationSource + ".PrepareAsync");
         Consumers("OrganizationId", Resolver + ".BuildAttemptAsync", Authentication + "TenantSurfaceAdmissionMiddleware.HasHostAuthority",
-            CandidateSource + ".ForValidatedScope", CandidateSource + ".MatchesIdentity", Native + ".TryMint");
+            CandidateSource + ".ForValidatedScope", CandidateSource + ".MatchesIdentity", Native + ".TryMint", InvitationSource + ".PrepareAsync");
 
         foreach (var method in methods)
             foreach (var instruction in method.Definition.Body.Instructions)

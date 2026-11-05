@@ -12,6 +12,57 @@ namespace LearnStack.Tests.Architecture;
 
 public sealed partial class AuthenticationAuthorityTests
 {
+    /// <summary>ADR-0093: the invitation exceptions retain their exact object and token provenance.</summary>
+    [Fact]
+    public void Invitation_authority_exceptions_reject_substituted_values() => WithProduction(modules =>
+    {
+        Offenders(modules).Should().BeEmpty();
+        var api = modules.Single(module => module.Assembly.Name.Name == "LearnStack.Api");
+        var methods = Methods(api.Types.SelectMany(Flatten)).ToArray();
+        var token = methods.Single(m => m.Site == ApprovedSites[InvitationCredential + ".Capture"]);
+        var encoded = token.Definition.Body.Instructions.Single(i => i.Operand is MethodReference target
+            && target.FullName == "System.String Microsoft.IdentityModel.JsonWebTokens.JsonWebToken::get_EncodedToken()");
+        Check(encoded.Previous, OpCodes.Ldnull, null, "substituting the validated token");
+
+        var authorize = methods.Single(m => m.Site == Signature(InvitationCredential, "TryAuthorize", "System.Boolean", Http, "System.Net.Http.HttpRequestMessage"));
+        var scheme = authorize.Definition.Body.Instructions.Single(i => i.OpCode == OpCodes.Ldstr && (string)i.Operand == "Bearer");
+        Check(scheme, OpCodes.Ldstr, "Other", "changing the request-bound token sink");
+
+        var foreign = new MethodDefinition("UnexpectedTokenUse", MethodAttributes.Private | MethodAttributes.Static, api.TypeSystem.Void);
+        foreign.Body.Instructions.Add(Instruction.Create(OpCodes.Call, authorize.Definition));
+        foreign.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+        api.GetType(InvitationCredential).Methods.Add(foreign);
+        Offenders(modules).Should().NotBeEmpty("only the fixed UserInfo reader may authorize a request");
+        api.GetType(InvitationCredential).Methods.Remove(foreign);
+        Offenders(modules).Should().BeEmpty();
+
+        var prepare = methods.Single(m => m.Site == ApprovedSites[InvitationSource + ".PrepareAsync"] && m.Definition.Name == "MoveNext");
+        var operation = prepare.Definition.Body.Instructions.Single(i => i.OpCode == OpCodes.Newobj
+            && i.Operand is MethodReference target && target.DeclaringType.Name == "InspectInvitationQuery");
+        Check(operation, OpCodes.Newobj, api.ImportReference(typeof(object).GetConstructor(Type.EmptyTypes)!), "substituting an invitation request");
+
+        var reader = methods.Single(m => m.Site == ApprovedSites[RecipientReader + ".ReadAsync"] && m.Definition.Name == "MoveNext");
+        var observation = reader.Definition.Body.Instructions.Single(i => i.OpCode == OpCodes.Newobj
+            && i.Operand is MethodReference target && target.DeclaringType.FullName == RecipientReader + "/Observation");
+        Check(observation, OpCodes.Newobj, api.ImportReference(typeof(object).GetConstructor(Type.EmptyTypes)!), "substituting recipient evidence");
+        var caught = reader.Definition.Body.Instructions.Single(i => i.OpCode == OpCodes.Stfld
+            && i.Operand is FieldReference field && field.Name == "<>7__wrap10"
+            && i.Previous?.OpCode != OpCodes.Ldnull);
+        Check(caught.Previous, OpCodes.Ldarg_0, null, "storing an arbitrary object in async exception storage");
+
+        void Check(Instruction instruction, OpCode opcode, object? operand, string because)
+        {
+            var originalOpcode = instruction.OpCode;
+            var originalOperand = instruction.Operand;
+            instruction.OpCode = opcode;
+            instruction.Operand = operand;
+            Offenders(modules).Should().NotBeEmpty(because);
+            instruction.OpCode = originalOpcode;
+            instruction.Operand = originalOperand;
+            Offenders(modules).Should().BeEmpty("restoring " + because + " restores the clean graph");
+        }
+    });
+
     /// <summary>ADR-0064: compiled dirty/clean claim readers exercise the complete call-site predicate.</summary>
     [Fact]
     public void Authority_census_rejects_compiled_claim_role_and_projection_bypasses() => WithProduction(modules =>

@@ -1,3 +1,5 @@
+using LearnStack.Modules.Identity.Application.Contracts.Invitations;
+using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
 using System.Reflection;
 using FluentAssertions;
 using LearnStack.Api.Account;
@@ -73,9 +75,20 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         new("tenancy/organizations/{id}", "PUT", typeof(OrganizationsController), "Rename", typeof(RenameOrganizationCommand), typeof(AdministrationVersionReceipt), "tenancy.organization.rename", ProtectedAdministrationOperation.RenameOrganization),
         new("tenancy/organizations/{id}/archive", "POST", typeof(OrganizationsController), "Archive", typeof(ArchiveOrganizationCommand), typeof(AdministrationVersionReceipt), "tenancy.organization.archive", ProtectedAdministrationOperation.ArchiveOrganization),
         new("tenancy/default-organization", "PUT", typeof(DefaultOrganizationController), "Select", typeof(SelectDefaultOrganizationCommand), typeof(AdministrationVersionReceipt), "tenancy.organization.select_default", ProtectedAdministrationOperation.SelectDefaultOrganization),
+        new("identity/invitations", "GET", typeof(InvitationsController), "List", typeof(ListInvitationsQuery), typeof(InvitationPage), "identity.invitation.list"),
+        new("identity/invitations/{id}", "GET", typeof(InvitationsController), "Get", typeof(GetInvitationQuery), typeof(InvitationResponse), "identity.invitation.read"),
+        new("identity/invitations", "POST", typeof(InvitationsController), "Create", typeof(CreateInvitationCommand), typeof(AdministrationVersionReceipt), "identity.invitation.create", ProtectedAdministrationOperation.CreateInvitation),
+        new("identity/invitations/{id}/revocations", "POST", typeof(InvitationsController), "Revoke", typeof(RevokeInvitationCommand), typeof(AdministrationVersionReceipt), "identity.invitation.revoke", ProtectedAdministrationOperation.RevokeInvitation),
+        new("identity/invitations/{id}/reissues", "POST", typeof(InvitationsController), "Reissue", typeof(ReissueInvitationCommand), typeof(AdministrationVersionReceipt), "identity.invitation.reissue", ProtectedAdministrationOperation.ReissueInvitation),
+        new("identity/invitable-roles", "GET", typeof(InvitableRolesController), "List", typeof(ListInvitableRolesQuery), typeof(LearnStack.Api.Identity.InvitableRoleDirectory), "identity.invitation.list_invitable_roles"),
+        new("identity/invitation-entry/inspections", "POST", typeof(InvitationEntryController), "Inspect", typeof(InspectInvitationQuery), typeof(InvitationInspectionResponse), "identity.invitation.inspect"),
+        new("identity/invitation-entry/acceptances", "POST", typeof(InvitationEntryController), "Accept", typeof(AcceptInvitationCommand), typeof(InvitationAcceptanceResponse), "identity.invitation.accept"),
+        new("identity/invitation-entry/results", "POST", typeof(InvitationEntryController), "Result", typeof(GetOwnInvitationResultQuery), typeof(InvitationAcceptanceResponse), "identity.invitation.read_own_result"),
+        new("tenancy/settings/invitation-policy", "GET", typeof(InvitationPolicyController), "Get", typeof(GetTenantInvitationPolicyQuery), typeof(InvitationPolicyResponse), "tenancy.setting.read_invitation_policy"),
+        new("tenancy/settings/invitation-policy", "PUT", typeof(InvitationPolicyController), "Set", typeof(SetTenantInvitationLifetimeCommand), typeof(AdministrationVersionReceipt), "tenancy.setting.write_invitation_lifetime", ProtectedAdministrationOperation.SetTenantInvitationLifetime),
     ];
     private static readonly Type[] ContextControllers =
-        [typeof(MembershipsController), typeof(OwnMembershipController), typeof(RolesController), typeof(OrganizationsController), typeof(DefaultOrganizationController)];
+        [typeof(MembershipsController), typeof(OwnMembershipController), typeof(RolesController), typeof(OrganizationsController), typeof(DefaultOrganizationController), typeof(InvitationsController), typeof(InvitationPolicyController)];
     private const string CensusTarget = "018f4d40-0000-7000-8000-000000000011";
 
     private static SurfaceAction Approved(ControllerActionDescriptor action) => ApprovedActions.Single(expected =>
@@ -208,7 +221,7 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
     private static void AssertActionInventory(IEnumerable<ControllerActionDescriptor> actions)
     {
         var actual = actions.ToArray();
-        actual.Should().HaveCount(31);
+        actual.Should().HaveCount(42);
         actual.Select(action => action.ControllerTypeInfo.FullName + "." + action.MethodInfo.Name).Order(StringComparer.Ordinal)
             .Should().Equal(ApprovedActions.Select(expected => expected.Controller.FullName + "." + expected.Action).Order(StringComparer.Ordinal),
                 "every convention must reach exactly the approved controller/action multiset");
@@ -309,6 +322,17 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         var controller = (ControllerBase)Activator.CreateInstance(controllerType, constructor)!;
         var context = new DefaultHttpContext();
         context.SetEndpoint(endpoint);
+        if (controllerType == typeof(InvitationEntryController))
+        {
+            object request = expected.Action switch
+            {
+                "Inspect" => new InspectInvitationQuery(Guid.Parse(CensusTarget), "census-code"),
+                "Accept" => new AcceptInvitationCommand(Guid.Parse(CensusTarget), "census-code", 7),
+                "Result" => new GetOwnInvitationResultQuery(Guid.Parse(CensusTarget), "census-code"),
+                _ => throw new InvalidOperationException("Unclassified invitation entry action"),
+            };
+            context.Features.Set(new LearnStack.Api.Authentication.InvitationEntryRequest(request));
+        }
         context.Features.Set(HostClassification.Platform("census.invalid"));
         context.Request.Method = expected.Verb;
         context.Request.Path = "/api/v1/" + expected.Path.Replace("{id}", CensusTarget, StringComparison.Ordinal);
@@ -323,7 +347,7 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
             // This census stops at Send: valid closed input and the actual built endpoint
             // let it observe the typed carrier without claiming a live authorization proof.
             context.Request.Headers["Idempotency-Key"] = "census-command-key";
-            if (expected.Protected != ProtectedAdministrationOperation.CreateOrganization) context.Request.Headers.IfMatch = "\"7\"";
+            if (expected.Protected is not (ProtectedAdministrationOperation.CreateOrganization or ProtectedAdministrationOperation.CreateInvitation)) context.Request.Headers.IfMatch = "\"7\"";
         }
         controller.ControllerContext = new ControllerContext { HttpContext = context };
         var arguments = action.MethodInfo.GetParameters().Select(parameter => parameter.ParameterType switch
@@ -350,6 +374,9 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         ProtectedAdministrationOperation.RenameOrganization => "{\"displayName\":\"Census\"}",
         ProtectedAdministrationOperation.ArchiveOrganization => "{}",
         ProtectedAdministrationOperation.SelectDefaultOrganization => "{\"organizationId\":\"" + CensusTarget + "\"}",
+        ProtectedAdministrationOperation.CreateInvitation => "{\"email\":\"census@example.invalid\",\"roleId\":\"" + CensusTarget + "\",\"roleVersion\":\"7\"}",
+        ProtectedAdministrationOperation.RevokeInvitation or ProtectedAdministrationOperation.ReissueInvitation => "{}",
+        ProtectedAdministrationOperation.SetTenantInvitationLifetime => "{\"days\":14}",
         _ => throw new InvalidOperationException("Unclassified protected census input"),
     };
 
@@ -365,8 +392,8 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
 
     private static void AssertUnion(IEnumerable<string> actual)
     {
-        ApprovedActions.Should().HaveCount(31);
-        ApprovedActions.Count(expected => expected.Protected is not null).Should().Be(10);
+        ApprovedActions.Should().HaveCount(42);
+        ApprovedActions.Count(expected => expected.Protected is not null).Should().Be(14);
         var mvc = ApprovedActions.Select(expected => Mvc(expected.Path, expected.Verb, expected.Controller, expected.Action, expected.Request));
         var infrastructure = new[]
         {

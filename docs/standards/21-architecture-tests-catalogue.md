@@ -173,7 +173,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**340 test methods run in
+**341 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -2204,11 +2204,15 @@ diagnostic above row security, not the boundary, as its own note says.
   value-to-NULL transitions. The canonical shape is the shared BEFORE UPDATE trigger;
   `audit_log`'s append-only guard is accepted only with independent proof that it
   refuses the same change. The shared function cannot assume a surrogate `id` exists.
+  ADR-0093's two exact SMTP control-metadata tables use their insert-only and
+  scope-frozen invoker guards, with exact body/trigger/ACL checks and independent
+  app-role mutation controls; no new table inherits this classification by name.
   Scope follows table class: `platform_host_to_tenant` is platform-scoped and
   `outbox_messages`' organization column is tenant-wide event metadata, so those two
   are not subjects. An exemption must not silently exclude a newly introduced
   org-scoped table.
 - **Source:** [ADR-0003 Amendment 6](../decisions/0003-tenant-isolation-defense-in-depth.md#amendment-6--insert-scope-and-parent-mirrors-2026-09-14);
+  [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md);
   [05-database.md § Tenant-Owned and Organization-Scoped Tables](05-database.md#tenant-owned-and-organization-scoped-tables).
 - **Type:** xUnit + applied PostgreSQL schema catalogue, with behavioral companion
   evidence for the append-only alternative. **Kind:** structural.
@@ -2230,9 +2234,15 @@ diagnostic above row security, not the boundary, as its own note says.
   CourseTranslation → Course and LessonTranslation → Lesson. Identity adds
   MembershipProfile → Membership and MembershipRoleAssignment → Membership;
   its combined invoker trigger retains the same parent-scope contract.
+  Invitation's optional original-result Membership is checked at its only
+  admitting transition with the same parent lock. The exact provider-control
+  metadata relations retain their foreign keys and class-specific invoker/owner
+  custody checks under the
+  [SMTP storage contract](05-database.md#provider-records-and-ordinary-staging).
   Subject discovery and declaration coverage must make an omitted relation fail.
 - **Source:** [ADR-0003 Amendment 6](../decisions/0003-tenant-isolation-defense-in-depth.md#amendment-6--insert-scope-and-parent-mirrors-2026-09-14);
   [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md);
+  [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md);
   [05-database.md § Parent organization mirrors](05-database.md#parent-organization-mirrors);
   [Education data model](../modules/education/README.md#data-model-and-invariants).
 - **Type:** xUnit + EF model and applied PostgreSQL schema inspection. **Kind:** structural.
@@ -5549,7 +5559,8 @@ structural test proves — and what it does not.
   membership and permission authority.
 - **Source:** [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md)
   § Access-token profile and § Resolution and attribution; ADR-0004;
-  [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md).
+  [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md);
+  [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md).
 - **Type:** complete production source/IL call-site census with planted compiled
   violations and predicate-mutation controls. **Kind:** structural.
 - **Test owner:**
@@ -5576,6 +5587,13 @@ structural test proves — and what it does not.
   delegates to the separately enumerated protected-replay owner; both adapters
   still reject extra identity formatting. The policy/receipt censuses close the
   replay owner's actual candidate and three HTTP decision branches.
+  ADR-0093 adds exact invitation credential/source/recipient-reader sites and the
+  invitation-aware witness shape. Encoded-token reads retain their validated-token
+  source, pending-token digest comparison, request-local field and sole fixed
+  UserInfo Bearer sink. Request/evidence object forwarding and compiler exception
+  storage have finite provenance checks. Substituted token, sink, caller,
+  operation, observation and exception-storage mutations remain violations;
+  no whole-method or type-wide forwarding exemption is inferred.
 - **Status:** **Implemented** (`AuthenticationAuthorityTests`).
 - **Phase:** P02b-5 Step 1 profile constraints; Step 5 complete production census.
 

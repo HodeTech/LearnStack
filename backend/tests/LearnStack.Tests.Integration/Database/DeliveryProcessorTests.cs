@@ -1,3 +1,4 @@
+using LearnStack.Tests.Fixtures;
 using LearnStack.Infrastructure.Persistence;
 using System.Collections.Concurrent;
 using System.Diagnostics;
@@ -860,6 +861,7 @@ public sealed class DeliveryProcessorTests(SchemaFixture schema)
             protected override void ConfigureWebHost(IWebHostBuilder builder)
             {
                 builder.UseEnvironment(Environments.Development);
+                InvitationEmailFixtureConfiguration.AddTo(builder);
                 builder.UseSetting("ConnectionStrings:Default", appConnection ?? fixture._database.AppConnectionString);
                 builder.UseSetting("ConnectionStrings:PlatformAdmin", fixture._database.PlatformConnectionString);
                 builder.UseSetting("ConnectionStrings:OutboxDispatcher", fixture._database.OutboxConnectionString);

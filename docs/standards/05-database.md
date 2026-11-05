@@ -453,6 +453,11 @@ Rules:
   through its append-only guard, whose refusal of an organization change must be
   proved independently of the role's absent UPDATE privilege.
 
+  The closed invitation SMTP control-metadata class has its own insert-only and
+  scope-frozen guards under [Provider records and ordinary staging](#provider-records-and-ordinary-staging).
+  Its exact bodies, role privileges and independent mutation controls participate
+  in the applied-schema census; a new metadata label is not an exemption.
+
 ### Parent organization mirrors
 
 When a child must share its parent's organization, its factory derives the scope
@@ -2457,7 +2462,9 @@ before implementation qualification.
 ## Background jobs
 
 **Derives from:** [ADR-0047](../decisions/0047-transactional-background-job-runtime.md)
-and [ADR-0058](../decisions/0058-bounded-stock-hangfire-maintenance.md).
+and [ADR-0058](../decisions/0058-bounded-stock-hangfire-maintenance.md);
+[ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md) adds only
+the closed SMTP provider metadata-read arms.
 
 The Platform chain owns seven raw infrastructure tables. Job, attempt and recipient
 rows use the org-scoped class; capacity and reservation rows use the tenant-wide
@@ -2467,7 +2474,9 @@ control access. None receives Platform or PUBLIC privileges. No runtime DELETE o
 TRUNCATE is granted; ordinary owner writes also meet the immutable guards.
 
 Parameters, plans and outcomes preserve canonical JSON text and inclusive UTF-8
-byte bounds. Control SQL never inspects their contents. Strict typed identifier
+byte bounds. Generic runtime control SQL never inspects their contents. The exact
+[provider-custody binding](#provider-records-and-ordinary-staging) separately checks
+its declared identifier tuple. Strict typed identifier
 validation remains the submission/read boundary's obligation. The immutable job
 plan and each attempt's write-once evidence retain history. A final outcome pointer
 selects one normal attempt for all separately counted finalize admissions.
@@ -2499,8 +2508,15 @@ reader; complete caller enrollment and runtime qualification remain its closure 
 
 Eligibility indexes lead with their actual clock/order for the confined global
 scans; tenant and FK indexes remain complete. Clocks are runtime predicates. The
-canonical SQL below is copied verbatim into the additive Platform migration and
-compared against a separately applied database by schema proofs.
+canonical SQL below describes the current additive Platform migration chain and
+is compared against a separately applied database by schema proofs.
+
+The SMTP owner-read arms name only the two fixed Identity definitions, external
+profile/queue and invitation-email capacity group. Row-locking SELECT also checks
+UPDATE USING, so the exact job arm occurs there too. The original job/attempt
+WITH CHECK predicates and DELETE guards remain tenant/scope-bound; the owner gains
+neither arbitrary job mutation nor a general reader. The
+[provider contract](#invitation-smtp-provider-storage) confines the runtime caller.
 
 The quarantine-presence index also serves a confined global status scan. One
 bounded observation runs at the snapshot cadence on the existing serial control
@@ -3915,16 +3931,22 @@ ALTER TABLE background_jobs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE background_jobs FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY background_jobs_isolation ON background_jobs
-            USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
+            USING ((current_user = 'learnstack_migration'
+                    AND definition_key IN ('identity.invitation_email_tenant.v1', 'identity.invitation_email_organization.v1')
+                    AND profile = 'external' AND capacity_group = 'identity.invitation_email' AND queue = 'external')
+                OR (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
                 AND (organization_id IS NULL
                     OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
-                    OR current_setting('app.scope', true) = 'tenant'))
+                    OR current_setting('app.scope', true) = 'tenant')))
             WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
                 AND ((organization_id IS NULL AND NULLIF(current_setting('app.organization_id', true), '') IS NULL)
                     OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid));
         CREATE POLICY background_jobs_org_write_guard ON background_jobs AS RESTRICTIVE FOR UPDATE
-            USING ((organization_id IS NULL AND NULLIF(current_setting('app.organization_id', true), '') IS NULL)
-                OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid);
+            USING ((current_user = 'learnstack_migration'
+                    AND definition_key IN ('identity.invitation_email_tenant.v1', 'identity.invitation_email_organization.v1')
+                    AND profile = 'external' AND capacity_group = 'identity.invitation_email' AND queue = 'external')
+                OR ((organization_id IS NULL AND NULLIF(current_setting('app.organization_id', true), '') IS NULL)
+                    OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid));
         CREATE POLICY background_jobs_org_delete_guard ON background_jobs AS RESTRICTIVE FOR DELETE
             USING ((organization_id IS NULL AND NULLIF(current_setting('app.organization_id', true), '') IS NULL)
                 OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid);
@@ -3935,10 +3957,15 @@ ALTER TABLE background_job_attempts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE background_job_attempts FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY background_job_attempts_isolation ON background_job_attempts
-            USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
+            USING ((current_user = 'learnstack_migration' AND EXISTS (
+                    SELECT 1 FROM public.background_jobs j
+                    WHERE j.id = job_id AND j.tenant_id = background_job_attempts.tenant_id
+                        AND j.definition_key IN ('identity.invitation_email_tenant.v1', 'identity.invitation_email_organization.v1')
+                        AND j.profile = 'external' AND j.capacity_group = 'identity.invitation_email' AND j.queue = 'external'))
+                OR (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
                 AND (organization_id IS NULL
                     OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
-                    OR current_setting('app.scope', true) = 'tenant'))
+                    OR current_setting('app.scope', true) = 'tenant')))
             WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
                 AND ((organization_id IS NULL AND NULLIF(current_setting('app.organization_id', true), '') IS NULL)
                     OR organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid));
@@ -5465,6 +5492,18 @@ the envelope to the exact Identity definition/parameters and, once prepared, its
 canonical identifier plan. Provider functions may read only the matching job and
 attempt metadata needed for that binding. Their owner-read policy arms add no
 module-table visibility or general background-job reader.
+
+This is an exact control-metadata class, not the ordinary module-child class.
+The envelope's invoker INSERT guard locks its exact job with `FOR KEY SHARE` and
+compares nullable organization plus the closed definition/parameter tuple; every
+UPDATE and DELETE refuses. The receipt's invoker mutation guard freezes its
+scope/envelope/job/attempt/claim binding. The runtime can INSERT a receipt only
+through the owning functions after checking the actual locked job and attempt.
+Applied-schema checks retain
+the exact foreign keys, bodies, trigger coverage and grants. Independent
+`learnstack_app` controls isolate WITH CHECK and scope immutability, including
+test-only grants and dirty twins; absent runtime UPDATE privilege is not proof of
+an effective guard. Neither table silently disappears from isolation coverage.
 
 ### Encryption and custody
 

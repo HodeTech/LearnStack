@@ -28,6 +28,7 @@ public sealed partial class OutboxDispatchConventionTests
         ("LearnStack.Api.Tenancy.DefaultOrganizationController", ["Select"]),
         ("LearnStack.Api.Tenancy.OrganizationsController", ["List", "Get", "Create", "Rename", "Archive"]),
         ("LearnStack.Api.Identity.InvitationsController", ["List", "Get", "Create", "Revoke", "Reissue"]),
+        ("LearnStack.Api.Identity.InvitationEntryController", ["Inspect", "Accept", "Result"]),
         ("LearnStack.Api.Identity.InvitableRolesController", ["List"]),
         ("LearnStack.Api.Tenancy.InvitationPolicyController", ["Get", "Set"]),
     ];

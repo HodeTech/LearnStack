@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,232 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,312 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -370,7 +370,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 6 second review original-result and form corrections (2026-11-05)](#p03-4-step-6-second-review-original-result-and-form-corrections-2026-11-05) — 55 lines
   - [P03-4 Step 6 implementation review closeout and Step 7 continuation (2026-11-05)](#p03-4-step-6-implementation-review-closeout-and-step-7-continuation-2026-11-05) — 37 lines
   - [P03-4 Step 7 actual SMTP owner and recovery proof implementation (2026-11-05)](#p03-4-step-7-actual-smtp-owner-and-recovery-proof-implementation-2026-11-05) — 78 lines
-  - [P03-4 Step 7 final reviews and PR readiness (2026-11-05)](#p03-4-step-7-final-reviews-and-pr-readiness-2026-11-05) — 51 lines
+  - [P03-4 Step 7 final reviews and PR readiness (2026-11-05)](#p03-4-step-7-final-reviews-and-pr-readiness-2026-11-05) — 52 lines
+  - [P03-4 Step 7 first hosted corrections (2026-11-05)](#p03-4-step-7-first-hosted-corrections-2026-11-05) — 79 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -16998,3 +16999,83 @@ Implementation review readiness is not a human pass or full packet-delivery
 claim. The Accepted external-prerequisite clause permits independent CI/archive
 work meanwhile. Production SMTP/TLS and inbox delivery are not established by
 local synthetic SMTP. P03-3 evidence/manual follow-ups retain their own identity.
+
+
+### P03-4 Step 7 first hosted corrections (2026-11-05)
+
+PR #41 opens from `a55aa31e`, base `ef344c0f`, actual merge/workflow source
+`3d27263e`. Complete run `41948315873`, attempt 1, finishes with six successful
+and 21 failed jobs. Frontend, public-demo, native crash/cleanup, OpenAPI, secret
+scan and Architecture-2 pass. This is a failed A, not packet qualification.
+All 23 available original artifact ZIPs match their API byte counts/SHA-256 and
+pass CRC; the two failed aggregates produce no archive. The original attempt
+logs ZIP is retained separately with CRC and local SHA-256
+`279d3bdb96a62c21fb433409f04e1774c5e763a2d3465efbfc71ef8b1e95b88b`.
+That hash is not mislabeled as an artifact-API digest.
+
+The finite CI diagnostic vocabulary omitted six existing invitation browser
+stages. The exact existing control reproduces red; the correction adds only
+those literals, retaining unknown/private-input refusal and all timers. A
+component-host registration gap and old endpoint/job inventories reproduce
+locally. The fail-closed test recipient reader cannot mint evidence; exact
+42-action/four-keyed-addition and two scoped Identity definition inventories
+retain their existing dirty controls. All 211 tests in the 18 originally failing
+HTTP class groups pass, with zero skips, covering the 194 failed case identities.
+
+The compiled authority census now closes the exact invitation credential/source/
+recipient-reader consumers, witness/signatures, encoded-token field and fixed
+UserInfo sink. Object forwarding and compiler exception storage have finite
+provenance checks, not whole-type/method exemptions. Substituted token/sink/
+caller/request/evidence/storage mutations and the existing bypass controls pass;
+the complete affected class passes 30 tests. The job-definition/controller test
+passes with its embedded mutants. One additional Fact makes 341 compiled
+Architecture test methods; rule counts/status are unchanged.
+
+Three real PostgreSQL schema censuses reproduce red. The exact SQL-only provider
+metadata class stays in relation, trigger/body/ACL and isolation coverage;
+independent application-role WITH CHECK/immutable-scope clean/dirty controls
+exercise both provider tables. Invitation's nullable original-result relation
+retains its checked admitting transition. Two additive forward migrations add
+only missing parent `FOR KEY SHARE` locks, preserving latest prior bodies,
+function identities/grants and all historical DDL. An old-schema upgrade and
+real application-role BEFORE gates with unlocked twins prove the added locks
+before FK enforcement. Final scoped schema/adjacent storage verification passes
+246 tests; eight affected architecture/trait/chain controls pass, zero skips.
+Standards 05's three canonical job/attempt policy USING clauses now reproduce the
+Accepted SMTP owner-read arms; WITH CHECK/DELETE predicates remain unchanged.
+An independently applied canonical database exactly matches migrated inventory.
+
+Architecture-4 passes 76 of 77 selected cases before its deadline; the unfinished
+credential-census case has no duration or passing credit. A reviewed advisory
+plan revision increases 184 existing method weights only from complete all-Passed
+discovery-ID groups. Original TRXs bind five owners; the censored owner's original
+job-log records match its 76 artifact JSONL records row-for-row and stay inside
+its execution step. Their scope/source/run/artifact identities are recorded in
+the plan. No failed/incomplete group is inferred or known slow weight reduced.
+The original full manifest's A/B assignment diff moves 291/289 selectors and
+separates three concentrated heavy selectors. Counts, algorithms, salt, default,
+selectors, resources and all execution/cleanup clocks remain unchanged. These
+summed case measurements and balanced estimates establish no wall-fit guarantee.
+
+The remaining original database-failure methods pass 46 tests, zero skips:
+eight tenant HTTP, two composed-lifetime, 23 delivery, four job-migration, one
+rollback, one HTTP outbox and seven idempotency variants. Test-owned synthetic
+configuration and throwing recipient readers preserve production fail-closed
+startup. Historical rollback/reapply stays at its exact boundary; current-head
+checks retain the full 59-table/18-Identity-function inventory and explicit
+forward-only refusal. The invalid replay-target control now uses an actually
+unregistered kind, since TenantSetting is deliberately admitted by ADR-0093.
+
+Final local correction controls pass: 106 native-launcher offline controls and
+87 plan/result controls (6.085 seconds for the latter under its unchanged
+27-second TERM/three-second kill CI allocation), Release solution build with
+zero warnings/errors, and all five corpus/count/owner/no-skip controls. These
+scoped receipts do not replace complete new-source qualification. The correction
+commit enters two fresh independent review rounds; prior reviews and source-bound
+results keep their historical scopes.
+
+Fresh correction reviews, complete new-source A followed by whole-run B, original
+archive/log and independent surface reconciliation remain required. Prior-source
+or failed passing fragments cannot be combined into qualification. Human
+keyboard/focus/reflow/contrast/VoiceOver remains pending and unexecuted. No merge,
+production SMTP/TLS, inbox delivery or P03-3 follow-up closure is claimed.

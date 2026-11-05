@@ -18,6 +18,7 @@ public sealed partial class BackgroundJobStorageMigrationTests
         var migrations = (await context.Database.GetAppliedMigrationsAsync()).ToArray();
         var added = migrations.Single(name => name.EndsWith("_add_transactional_job_capacity_cleanup", StringComparison.Ordinal));
         var predecessor = migrations[Array.IndexOf(migrations, added) - 1];
+        var head = await BackgroundJobSchemaInventory.ReadAsync(schema.Postgres.MigrationConnectionString);
         var current = await BackgroundJobSchemaInventory.ReadAsync(database.MigrationConnectionString);
         current.Should().Contain(item => item.Contains("transactional_cleanup_at", StringComparison.Ordinal));
         current.Single(item => item.StartsWith("function:", StringComparison.Ordinal)
@@ -27,7 +28,7 @@ public sealed partial class BackgroundJobStorageMigrationTests
         var before = await BackgroundJobSchemaInventory.ReadAsync(database.MigrationConnectionString);
         before.Should().NotContain(item => item.Contains("transactional_cleanup_at", StringComparison.Ordinal));
         await context.Database.MigrateAsync();
-        AssertCapacityReappliedInventory(await BackgroundJobSchemaInventory.ReadAsync(database.MigrationConnectionString), current);
+        AssertCapacityReappliedInventory(await BackgroundJobSchemaInventory.ReadAsync(database.MigrationConnectionString), head);
         context.Database.HasPendingModelChanges().Should().BeFalse();
     }
 
