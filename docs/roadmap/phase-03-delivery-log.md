@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,180 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,232 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -369,7 +369,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 6 first review recovery and quota corrections (2026-11-05)](#p03-4-step-6-first-review-recovery-and-quota-corrections-2026-11-05) — 48 lines
   - [P03-4 Step 6 second review original-result and form corrections (2026-11-05)](#p03-4-step-6-second-review-original-result-and-form-corrections-2026-11-05) — 55 lines
   - [P03-4 Step 6 implementation review closeout and Step 7 continuation (2026-11-05)](#p03-4-step-6-implementation-review-closeout-and-step-7-continuation-2026-11-05) — 37 lines
-  - [P03-4 Step 7 actual SMTP owner and recovery proof implementation (2026-11-05)](#p03-4-step-7-actual-smtp-owner-and-recovery-proof-implementation-2026-11-05) — 77 lines
+  - [P03-4 Step 7 actual SMTP owner and recovery proof implementation (2026-11-05)](#p03-4-step-7-actual-smtp-owner-and-recovery-proof-implementation-2026-11-05) — 78 lines
+  - [P03-4 Step 7 final reviews and PR readiness (2026-11-05)](#p03-4-step-7-final-reviews-and-pr-readiness-2026-11-05) — 51 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -16945,3 +16946,55 @@ The implementation enters two fresh final review rounds, then complete current
 source/backend/frontend/provider/browser/hosted A/B and original-archive review.
 Human observations remain separately pending; neither this proof nor process
 termination supplies a manual pass, production SMTP/TLS or inbox-delivery guarantee.
+
+
+### P03-4 Step 7 final reviews and PR readiness (2026-11-05)
+
+The Step 7 implementation is committed as `92499308`. Two fresh final reviewers
+cover lifecycle/contracts and whole-packet interactions; two different fresh
+second-round reviewers cover authority/runtime and experience/evidence. All four
+report no verified actionable finding within their stated review scopes. They
+trace actual production callers and independently check source/TRX provenance,
+retaining the distinction between earlier focused snapshots and the final three
+process-case receipt. No review approval replaces unexecuted qualification.
+
+The complete guarded frontend run on that candidate passes 3,932 reported cases
+in both discovered packages, with zero skips/todo: all 119 web files/3,741 cases
+in 304.99 seconds and all eleven SDK files/191 cases in 79.95 seconds. Full Release
+solution build passes with zero warnings/errors; all 3,589 Unit and ten Contract
+tests pass with zero skips. Whole-workspace typecheck and lint pass. The full
+Architecture/Docker/native/provider/public-demo populations still require the
+complete same-source hosted proof; earlier interrupted or partial runs supply
+no substitute.
+
+A bounded status reconciliation by both second-round reviewers confirms the
+three invitation catalogue assertions now have actual source and behavioural
+owners. Registered means no code exists, so keeping it solely for pending packet
+qualification misstates delivered enforcement. Entry and atomic consumption name
+their real integration owners, with structural companions separately listed;
+SMTP retains its exact named architecture owner and runtime/storage/crypto
+companions. The two-handler aggregate extension is also implemented enforcement.
+The catalogue publishes 257 Implemented rules, 150 in the architecture assembly
+and 107 elsewhere, with 340 compiled architecture test methods unchanged. All
+five corpus consistency/owner/count/no-skip controls pass after reconciliation.
+This status promotion establishes enforcement, not hosted, human or production
+SMTP qualification. Atomicity wording distinguishes lost HTTP observation after
+successful COMMIT from the shared owner's indeterminate-COMMIT controls; no
+invitation-specific dropped driver acknowledgement is invented.
+
+The implementation is ready for maintainer PR review. The final publication
+candidate includes these current records; actual PR head/base/merge-source,
+required full A followed by whole-run B, original ZIP API sizes/SHA-256/CRC,
+complete case unions and independent non-backend surface review bind qualification
+to that candidate. Original attempt logs are retained separately; their local
+hash is not mislabeled as a GitHub artifact digest. No passing union of failed,
+cancelled, partial or different-source attempts is admissible. No duplicate
+manual CI runs are needed while the automatic PR workflow runs, and no merge is
+authorized. The PR carries the actual source-bound result links and evidence.
+
+Human keyboard/focus/reflow/contrast/VoiceOver observations remain pending with
+the maintainer and unexecuted; the working checklist was requested explicitly.
+Implementation review readiness is not a human pass or full packet-delivery
+claim. The Accepted external-prerequisite clause permits independent CI/archive
+work meanwhile. Production SMTP/TLS and inbox delivery are not established by
+local synthetic SMTP. P03-3 evidence/manual follow-ups retain their own identity.

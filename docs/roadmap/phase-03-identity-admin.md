@@ -11,16 +11,19 @@
 > establish that proof.
 > [Manual keyboard/focus/reflow/contrast/VoiceOver evidence](phase-03-delivery-log.md#p03-3-maintainer-approved-manual-deferral-and-step-10-continuation-2026-10-30)
 > remains maintainer-deferred and unexecuted.
-> P03-4/G8 is Accepted under
-> [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md), after
-> maintainer selection of automatic email and verified review corrections.
+> P03-4/G8 is Accepted under [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md),
+> after maintainer selection of automatic email and verified review corrections.
 > Its [seven-step package](phase-03-delivery-log.md#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04)
-> is in progress: Steps 1–5 and both review rounds are complete
-> ([Step 5 closeout](phase-03-delivery-log.md#p03-4-step-5-review-closeout-and-step-6-continuation-2026-11-05)).
+> has Steps 1–5 implemented and reviewed.
 > Step 6 implementation and both review rounds are closed
 > ([closeout](phase-03-delivery-log.md#p03-4-step-6-implementation-review-closeout-and-step-7-continuation-2026-11-05));
-> human accessibility evidence remains unexecuted and pending. Independent
-> Step 7 provider/runtime and final-source qualification is in progress.
+> human accessibility evidence remains unexecuted and pending. Step 7
+> implementation and both final review rounds are closed
+> ([PR readiness](phase-03-delivery-log.md#p03-4-step-7-final-reviews-and-pr-readiness-2026-11-05)).
+> P03-4 implementation is ready for maintainer review. Complete same-source hosted
+> A/B and original-archive qualification remain mandatory before delivery/merge;
+> actual source-bound results accompany the PR and its
+> [workflow evidence](https://github.com/HodeTech/LearnStack/actions/workflows/ci.yml?query=branch%3Adevelopment).
 > P03-5 through P03-11 implementation has not started. Phase 03 remains in progress.
 >
 > | Packet | Title | State |
@@ -29,7 +32,7 @@
 > | P03-1 | Identity authority and membership foundation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-1-merge-and-closeout-2026-10-27) |
 > | P03-2 | Live membership and authorization | Complete and merged — [closeout](phase-03-delivery-log.md#p03-2-merge-and-closeout-2026-10-28) |
 > | P03-3 | Protected Studio and membership administration | Complete and merged — [closeout](phase-03-delivery-log.md#p03-3-merge-and-delivery-closeout-2026-11-04); evidence follow-ups remain open |
-> | P03-4 | Invitations and bounded delivery | In progress — G8 Accepted; Steps 1–6 implementation reviewed; Step 6 human evidence pending; Step 7 qualification in progress |
+> | P03-4 | Invitations and bounded delivery | In progress — G8 Accepted; review-ready implementation; final reviews closed; source-bound CI/archive gates and human evidence govern delivery |
 > | P03-5 | Custom fields and privacy classification | Not started |
 > | P03-6 | Provider event ingress and audit mirror | Not started |
 > | P03-7 | Back-channel session revocation | Not started |

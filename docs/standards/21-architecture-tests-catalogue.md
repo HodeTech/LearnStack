@@ -214,8 +214,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**254 rules in this catalogue are Implemented, and 149 of them are in that assembly.**
-The other 105 are no less binding, and most could not live there. The table says where
+**257 rules in this catalogue are Implemented, and 150 of them are in that assembly.**
+The other 107 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -1501,9 +1501,8 @@ otherwise).
 - **Source:** [ADR-0042](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md);
   [Architecture Standards § Aggregate Ownership](01-architecture-standards.md).
 - **Type:** xUnit + reflection. **Kind:** structural.
-- **Status:** **Implemented** baseline in `AggregateWriteTests`. The ADR-0093
-  extension remains **Registered** pending complete P03-4 qualification; its
-  actual two-handler production census and hostile controls are present.
+- **Status:** **Implemented** in `AggregateWriteTests`, including ADR-0093's
+  actual two-handler production census and hostile controls.
   The [phase Status block](../roadmap/phase-03-identity-admin.md) owns that evidence.
   The current implementation requires both exact handler identities.
 - **Phase:** 02a baseline; P03-4 extension.
@@ -7117,9 +7116,14 @@ and fixture definitions make the implemented controls non-vacuous.
   [Database](05-database.md#invitation-entry-and-consumption).
 - **Type:** compiled/source/body/ACL/caller checks and real PostgreSQL/native
   wrong-purpose, lifetime, isolation and cleanup controls. **Kind:** both.
-- **Status:** **Registered**. `InvitationEntryConventionTests` and its actual
-  storage/HTTP companions implement the production-subject controls. Complete
-  final-source qualification remains P03-4; source backfill alone is not that proof.
+- **Status:** **Implemented** — `BoundedAdministrationHttpTests`,
+  `InvitationStorageTests` and `GlobalIdentitySchemaTests` enforce the actual
+  request, owner, applied function/ACL and isolation boundaries.
+- **Structural companions:** `InvitationEntryConventionTests`,
+  `AuthenticatedHttpSurfaceTests` and `PersistenceConventionTests` enforce the
+  nonempty production-source, dispatcher, scope-owner and hostile-call census.
+  The [Phase 03 Status block](../roadmap/phase-03-identity-admin.md) owns complete
+  packet qualification; implemented controls do not establish hosted or human proof.
 - **Phase:** 03 (P03-4).
 
 #### `Invitation_Consumption_And_Membership_Are_Atomic`
@@ -7135,11 +7139,20 @@ and fixture definitions make the implemented controls non-vacuous.
 - **Source:** [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md),
   [Audit](18-audit-coverage.md), [Database](05-database.md#invitation-entry-and-consumption).
 - **Type:** architecture invocation/aggregate/audit controls and real app-role
-  accept/revoke/expiry/reissue/closure races, unknown COMMIT and audit rollback.
+  competing transitions, audit/commit failure and lost-HTTP-response reconciliation,
+  with shared-owner indeterminate-COMMIT controls.
   **Kind:** both.
-- **Status:** **Registered**. The actual invitation invocation/aggregate/audit
-  controls and app-role HTTP companions implement the extension. Complete
-  final-source qualification remains P03-4.
+- **Status:** **Implemented** — `BoundedAdministrationHttpTests` and its
+  invitation companions enforce actual ordered admission, competing transitions,
+  plural MUST rollback, unchanged-member evidence and original-result identity.
+  `TransactionBehaviorTests`, `AuditLogBehaviorTests` and
+  `AuthorizationEvidenceBarrierTests` cover the shared owner's indeterminate
+  commit boundary. Invitation-specific response loss follows successful COMMIT;
+  it is not a claimed dropped driver acknowledgement.
+- **Structural companions:** `AggregateWriteTests`,
+  `IdentityFoundationConventionTests` and invitation audit/dispatch controls
+  enforce the production two-root/owner contract. Complete packet qualification
+  remains with the [Phase 03 Status block](../roadmap/phase-03-identity-admin.md).
 - **Phase:** 03 (P03-4).
 
 #### `Invitation_Email_Custody_Is_Closed_And_Owned`
@@ -7159,9 +7172,13 @@ and fixture definitions make the implemented controls non-vacuous.
 - **Type:** registry/source/function/ACL/PII checks plus real PostgreSQL/SMTP
   prepare/send/finalize, dropped-reply/restart/quiescence/key-loss and leakage
   controls with positive twins. **Kind:** both.
-- **Status:** **Registered**. `InvitationSmtpBoundaryTests` and the actual
-  PostgreSQL/SMTP runtime companions implement the custody and production-writer
-  controls, including process-owned restart and retained-cleanup cases. Complete
-  final-source qualification remains P03-4; bounded implementation receipts do
-  not promote the complete rule.
+- **Status:** **Implemented** — `InvitationSmtpBoundaryTests`,
+  `InvitationSmtpStorageTests`, `InvitationSmtpTransportTests`,
+  `InvitationSmtpRuntimeTests`, `InvitationDatabasePrivacyTests` and
+  `InvitationEmailCipherTests` enforce actual custody, source, crypto and failure
+  boundaries, including process-owned restart and retained cleanup.
+  Production stager/status, credential/payload and applied schema companions
+  preserve the same closed authority. The
+  [Phase 03 Status block](../roadmap/phase-03-identity-admin.md) owns complete
+  packet qualification; SMTP submission acceptance is not inbox delivery.
 - **Phase:** 03 (P03-4).
