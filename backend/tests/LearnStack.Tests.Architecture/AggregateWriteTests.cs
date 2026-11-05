@@ -33,16 +33,17 @@ public sealed class AggregateWriteTests
 
     /// <summary>
     /// <see href="../../../docs/decisions/0042-tenant-provisioning-cross-aggregate-transaction.md">ADR-0042</see>
-    /// and <see href="../../../docs/decisions/0057-transactional-event-production-and-completion.md">ADR-0057</see>
-    /// permit only provisioning to hold constructor write ports for two roots.
+    /// and <see href="../../../docs/decisions/0093-verified-invitation-acceptance-and-handoff.md">ADR-0093</see>
+    /// enumerate provisioning and invitation acceptance as the two constructor-port exceptions.
     /// </summary>
     [Fact]
     public void Cross_Aggregate_Writes_Are_Confined_To_Named_Exceptions()
     {
-        // ADR-0042 sanctions ONE operation to write two aggregate roots in one
+        // ADR-0042 sanctions provisioning to write two aggregate roots in one
         // transaction, by enumeration rather than by principle — a tenant whose default
         // organization failed to commit is a tenant no request can serve, and a second
-        // transaction is a window in which exactly that state exists.
+        // transaction is a window in which exactly that state exists. ADR-0093
+        // adds only invitation acceptance; the compiled census requires both names.
         //
         // Counted by AGGREGATE TYPE, not by parameter and not by name. The catalogue
         // registered this as a scan for DbSet use in handlers, and under the shipped
@@ -66,7 +67,7 @@ public sealed class AggregateWriteTests
         //
         // That exemption is fine; being SILENT about it is not. A second non-deriving port
         // would join the first with nothing to notice it, and the census that keeps
-        // ADR-0042's exception at one entry would stop describing the system. So the
+        // named cross-aggregate exceptions would stop describing the system. So the
         // non-deriving ports are enumerated, and adding one is a reviewed diff.
         //
         // Detected by shape, not by name: an interface whose method takes a type from a

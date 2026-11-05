@@ -23,7 +23,8 @@ using Xunit;
 namespace LearnStack.Tests.Integration.Database;
 
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
-public sealed class InvitationSmtpRuntimeTests(IdentityMembershipFixture fixture) : IClassFixture<IdentityMembershipFixture>
+[Collection(SharedSchema.Name)]
+public sealed partial class InvitationSmtpRuntimeTests(SchemaFixture fixture)
 {
     private const string KeyRing = "{\"active\":\"k1\",\"keys\":{\"k1\":\"AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=\"}}";
 
@@ -244,7 +245,7 @@ public sealed class InvitationSmtpRuntimeTests(IdentityMembershipFixture fixture
         return _database;
     }
 
-    private WebApplicationFactory<Program> Host(int port, string? providerConnection = null) => new ConstructionOnlyApiFactory().WithWebHostBuilder(builder =>
+    private WebApplicationFactory<Program> Host(int port, string? providerConnection = null, Action<IServiceCollection>? configure = null) => new ConstructionOnlyApiFactory().WithWebHostBuilder(builder =>
     {
         builder.UseEnvironment(Environments.Development);
         builder.UseSetting("ConnectionStrings:Default", _database!.AppConnectionString);
@@ -262,29 +263,31 @@ public sealed class InvitationSmtpRuntimeTests(IdentityMembershipFixture fixture
                 services.RemoveAll<InvitationSmtpProviderDataSource>();
                 services.AddSingleton(new InvitationSmtpProviderDataSource(providerConnection));
             });
+        if (configure is not null) builder.ConfigureTestServices(configure);
     });
 
-    private async Task<(BackgroundJobId Job, Guid Invitation)> SeedAsync(Guid? organization = null, bool mismatchedInvitationScope = false)
+    private async Task<(BackgroundJobId Job, Guid Invitation)> SeedAsync(Guid? organization = null, bool mismatchedInvitationScope = false, Guid? tenant = null)
     {
+        var tenantId = tenant ?? SchemaFixture.TenantA;
         var invitation = Guid.CreateVersion7(); var generation = Guid.CreateVersion7(); var spool = Guid.CreateVersion7();
         var parameters = new InvitationEmailParameters(invitation, generation, spool);
         var job = await BackgroundJobRuntimeRows.InsertAsync(_database!.AppConnectionString, organization is null ? "identity.invitation_email_tenant.v1" : "identity.invitation_email_organization.v1",
-            organization: organization, parameters: BackgroundJobPayloadContract.Serialize(parameters, typeof(InvitationEmailParameters), BackgroundJobPayloadKind.Parameters),
+            organization: organization, tenant: tenantId, parameters: BackgroundJobPayloadContract.Serialize(parameters, typeof(InvitationEmailParameters), BackgroundJobPayloadKind.Parameters),
             capacityGroup: "identity.invitation_email", profile: "external");
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["InvitationEmail:KeyRing"] = KeyRing }).Build();
         var encrypted = new InvitationEmailCipher(new ConfigurationSecretProvider(configuration)).Encrypt(
-            new(spool, SchemaFixture.TenantA, organization, invitation, generation, job.Value),
+            new(spool, tenantId, organization, invitation, generation, job.Value),
             new("recipient@example.test", "Invitation", "Synthetic invitation", "<p>Synthetic invitation</p>", "fixture@example.test"));
         await using var app = (NpgsqlConnection)await PostgresFixture.OpenAsync(_database!.AppConnectionString);
         await using var transaction = await app.BeginTransactionAsync();
-        await IdentityMembershipFixture.ScopeAsync(app, transaction, SchemaFixture.TenantA, mismatchedInvitationScope ? null : organization);
-        await IdentityMembershipFixture.LockAsync(app, transaction, SchemaFixture.TenantA, null, false);
-        await InvitationSchemaSeed.InsertAsync(app, transaction, invitation, SchemaFixture.TenantA, mismatchedInvitationScope ? null : organization, generation: generation, job: job.Value);
-        if (mismatchedInvitationScope) await IdentityMembershipFixture.ScopeAsync(app, transaction, SchemaFixture.TenantA, organization);
+        await IdentityMembershipFixture.ScopeAsync(app, transaction, tenantId, mismatchedInvitationScope ? null : organization);
+        await IdentityMembershipFixture.LockAsync(app, transaction, tenantId, null, false);
+        await InvitationSchemaSeed.InsertAsync(app, transaction, invitation, tenantId, mismatchedInvitationScope ? null : organization, generation: generation, job: job.Value);
+        if (mismatchedInvitationScope) await IdentityMembershipFixture.ScopeAsync(app, transaction, tenantId, organization);
         await SchemaQueries.ExecuteAsync(app, transaction, """
             INSERT INTO public.invitation_email_envelopes(id,tenant_id,organization_id,invitation_id,generation_id,job_id,format_version,key_version,nonce,ciphertext,tag)
             VALUES(@spool,@tenant,@organization,@invitation,@generation,@job,1,@key,@nonce,@ciphertext,@tag)
-            """, ("spool", spool), ("tenant", SchemaFixture.TenantA), ("organization", (object?)organization ?? DBNull.Value), ("invitation", invitation), ("generation", generation), ("job", job.Value),
+            """, ("spool", spool), ("tenant", tenantId), ("organization", (object?)organization ?? DBNull.Value), ("invitation", invitation), ("generation", generation), ("job", job.Value),
             ("key", encrypted.KeyVersion), ("nonce", encrypted.Nonce), ("ciphertext", encrypted.Ciphertext), ("tag", encrypted.Tag));
         await transaction.CommitAsync();
         return (job, invitation);

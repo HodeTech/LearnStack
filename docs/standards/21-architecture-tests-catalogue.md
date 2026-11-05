@@ -1501,10 +1501,11 @@ otherwise).
 - **Source:** [ADR-0042](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md);
   [Architecture Standards § Aggregate Ownership](01-architecture-standards.md).
 - **Type:** xUnit + reflection. **Kind:** structural.
-- **Status:** **Implemented** baseline in `AggregateWriteTests`. P03-4
-  two-handler extension remains Registered; actual invitation production-subject/
-  dirty-control backfill is not yet delivered. The current implementation
-  still requires exactly the shipped provisioning writer.
+- **Status:** **Implemented** baseline in `AggregateWriteTests`. The ADR-0093
+  extension remains **Registered** pending complete P03-4 qualification; its
+  actual two-handler production census and hostile controls are present.
+  The [phase Status block](../roadmap/phase-03-identity-admin.md) owns that evidence.
+  The current implementation requires both exact handler identities.
 - **Phase:** 02a baseline; P03-4 extension.
 - **Note:** the rule counts **aggregate roots reached through ports**, not `DbSet`
   use, and the change is not cosmetic. ADR-0042 § Implementation Notes specified a
@@ -7116,7 +7117,9 @@ and fixture definitions make the implemented controls non-vacuous.
   [Database](05-database.md#invitation-entry-and-consumption).
 - **Type:** compiled/source/body/ACL/caller checks and real PostgreSQL/native
   wrong-purpose, lifetime, isolation and cleanup controls. **Kind:** both.
-- **Status:** **Registered**; P03-4 actual production-subject backfill pending.
+- **Status:** **Registered**. `InvitationEntryConventionTests` and its actual
+  storage/HTTP companions implement the production-subject controls. Complete
+  final-source qualification remains P03-4; source backfill alone is not that proof.
 - **Phase:** 03 (P03-4).
 
 #### `Invitation_Consumption_And_Membership_Are_Atomic`
@@ -7134,7 +7137,9 @@ and fixture definitions make the implemented controls non-vacuous.
 - **Type:** architecture invocation/aggregate/audit controls and real app-role
   accept/revoke/expiry/reissue/closure races, unknown COMMIT and audit rollback.
   **Kind:** both.
-- **Status:** **Registered**; P03-4 production implementation/proofs pending.
+- **Status:** **Registered**. The actual invitation invocation/aggregate/audit
+  controls and app-role HTTP companions implement the extension. Complete
+  final-source qualification remains P03-4.
 - **Phase:** 03 (P03-4).
 
 #### `Invitation_Email_Custody_Is_Closed_And_Owned`
@@ -7155,7 +7160,8 @@ and fixture definitions make the implemented controls non-vacuous.
   prepare/send/finalize, dropped-reply/restart/quiescence/key-loss and leakage
   controls with positive twins. **Kind:** both.
 - **Status:** **Registered**. `InvitationSmtpBoundaryTests` and the actual
-  PostgreSQL/SMTP runtime companions implement foundation controls. Production
-  writer integration and final process-owned qualification remain P03-4 work;
-  partial implementation does not promote the complete rule.
+  PostgreSQL/SMTP runtime companions implement the custody and production-writer
+  controls, including process-owned restart and retained-cleanup cases. Complete
+  final-source qualification remains P03-4; bounded implementation receipts do
+  not promote the complete rule.
 - **Phase:** 03 (P03-4).

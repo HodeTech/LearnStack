@@ -263,15 +263,16 @@ internal sealed class InvitationSmtpTransportResilience(ResiliencePipeline pipel
 internal sealed class InvitationSmtpTransportServer : IAsyncDisposable
 {
     private readonly TcpListener _listener = new(IPAddress.Loopback, 0);
-    private readonly CancellationTokenSource _stop = new(TimeSpan.FromSeconds(30));
+    private readonly CancellationTokenSource _stop;
     private readonly Task _owner;
     private readonly InvitationSmtpTransportBehavior _behavior;
     private readonly List<Task> _clients = [];
     private int _connections;
     private int _messages;
 
-    public InvitationSmtpTransportServer(InvitationSmtpTransportBehavior behavior)
+    public InvitationSmtpTransportServer(InvitationSmtpTransportBehavior behavior, TimeSpan? lifetime = null)
     {
+        _stop = new(lifetime ?? TimeSpan.FromSeconds(30));
         _behavior = behavior;
         _listener.Start();
         Port = ((IPEndPoint)_listener.LocalEndpoint).Port;

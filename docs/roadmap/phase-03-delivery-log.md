@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,102 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,180 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -368,7 +368,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 6 Studio and native invitation implementation (2026-11-05)](#p03-4-step-6-studio-and-native-invitation-implementation-2026-11-05) — 90 lines
   - [P03-4 Step 6 first review recovery and quota corrections (2026-11-05)](#p03-4-step-6-first-review-recovery-and-quota-corrections-2026-11-05) — 48 lines
   - [P03-4 Step 6 second review original-result and form corrections (2026-11-05)](#p03-4-step-6-second-review-original-result-and-form-corrections-2026-11-05) — 55 lines
-  - [P03-4 Step 6 implementation review closeout and Step 7 continuation (2026-11-05)](#p03-4-step-6-implementation-review-closeout-and-step-7-continuation-2026-11-05) — 36 lines
+  - [P03-4 Step 6 implementation review closeout and Step 7 continuation (2026-11-05)](#p03-4-step-6-implementation-review-closeout-and-step-7-continuation-2026-11-05) — 37 lines
+  - [P03-4 Step 7 actual SMTP owner and recovery proof implementation (2026-11-05)](#p03-4-step-7-actual-smtp-owner-and-recovery-proof-implementation-2026-11-05) — 77 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -16866,3 +16867,81 @@ architecture/integration/provider/browser checks, both fresh final review rounds
 complete same-source hosted A/B and independent original-archive reconciliation.
 The final PR remains for maintainer review without merge. P03-3's separate
 B/archive/manual follow-ups are not silently completed by this packet.
+
+
+### P03-4 Step 7 actual SMTP owner and recovery proof implementation (2026-11-05)
+
+Eight added cases complete the five finite provider/runtime proof families on
+actual Identity definitions, executor, SMTP adapter/storage and native runtime.
+A narrow two-mode test executable follows the existing portable process-proof
+pattern, with an exact test-only constructor friend and staged build output.
+No product behavior, production function/permission/minter, migration, general
+runner, CI topology or existing test-window policy changes.
+
+- Four real SMTP submissions complete socket cleanup while four distinct provider
+  SQL owners/connectors retain their pending observations. An actually admitted
+  tenant-B fifth job avoids tenant-A reservation masking and refuses before claim
+  or SMTP. After release and join, owners retire and a subsequent submission works.
+  This proves four checked-out provider connectors, not four still-open SMTP sockets.
+- A real MailKit Dispose failure through Identity retains the connected client,
+  sent message, provider, source owner and connector. The unhealthy source refuses
+  an eligible separate-tenant job. Source disposal and actual API root-provider
+  async disposal remain pending. The test positively resolves the live root, then
+  observes the same resolver refuse with ObjectDisposedException after disposal
+  begins; a scheduled-task signal or elapsed wait is not an acknowledgement.
+  Irrecoverable tasks stay inside an owned child that is killed and joined;
+  actual peer closure and unchanged unresolved durable facts follow. The WAF
+  wrapper's own synchronous disposal is not claimed as this proof.
+- Tenant and organization cases kill the real child after SDK final250 and socket
+  cleanup but before durable provider completion. A fresh host/source/run cell
+  and stock native recovery wait for the original lease to elapse, without a
+  fixture expiry UPDATE. They preserve the Sending claim/attempt/operation,
+  quarantine Unknown, retain the reservation and perform no resend, finalizer,
+  invented receipt or NoStart.
+- Both late-original/recovery orders reproduce the same immutable receipt/evidence
+  and refuse contradiction. Recovery-first observes Unknown before its checkpoint;
+  explicit store-fixture eligibility permits a new acquisition after the late
+  receipt commits. This is neither a process restart nor privileged release from
+  an already recorded quarantine. Only the fresh real Outcome checkpoint releases
+  occupancy, followed by actual Identity finalization and its central MUST row.
+- Six real admissions prepare one Identity plan, record five actual setup NoStart
+  checkpoints/releases, then leave the sixth unarmed. Stock native recovery owns
+  its NoStart and receiptless Identity finalizer; no seventh normal attempt or
+  SMTP occurs. A real first MUST INSERT failure rolls back business/job/audit
+  observations, then fresh native finalization succeeds. Four exact fixture
+  observations use pg_current_xact_id for one top-level transaction; mutable tuple
+  xmin and EF child savepoints do not supply that witness. Setup is explicitly
+  not described as six native backoffs.
+
+Children clear inherited configuration, use owned 0700 profile/CWD and explicit
+content roots, emit only fixed markers, and join exit plus stdout/stderr before
+profile deletion. The existing peer keeps its 30-second default; only the new
+long-lived process proofs supply an explicit finite listener lifetime within
+existing wrappers. Runtime tests join the existing SharedSchema collection and
+use its fixture, serializing global Hangfire mutations without a second unused
+fixture/container. Each case still seeds its own disposable database. The CI
+class inventory and all resource/deadline policies stay unchanged.
+
+Verification and source boundaries:
+
+- Combined SMTP/runtime/storage/transport/database-privacy: 43 passed, zero skips,
+  about 84 seconds after the collection correction; all eight new cases included.
+  Unit cipher/key-ring/registry/configuration: 55 passed; affected SMTP/trait
+  architecture: six passed, with the two collection controls repeated afterward.
+- The final positive root-disposal-entry tightening changes only the probe body.
+  All three affected process cases pass again on that source, zero skips, about
+  45 seconds. Earlier combined43/Unit55/Architecture6 retain their earlier source
+  snapshots; this is not falsely presented as a single current full-suite run.
+- Root aggregate/seed architecture controls pass six cases. Their comments and
+  catalogue now describe the actual two-handler allowlist and delivered source
+  companions; no Registered extension is promoted by these bounded receipts.
+  Canonical offline CI controls pass 87 cases in 7.395 seconds under existing
+  allocations. Release builds and scoped formatting pass; the format tool's
+  generic workspace-load warning is retained separately from compiler results.
+
+Initial compile/fixture-output/WAF-wrapper and transaction-witness failures remain
+historical failed evidence. No product regression or pass is invented from them.
+The implementation enters two fresh final review rounds, then complete current
+source/backend/frontend/provider/browser/hosted A/B and original-archive review.
+Human observations remain separately pending; neither this proof nor process
+termination supplies a manual pass, production SMTP/TLS or inbox-delivery guarantee.

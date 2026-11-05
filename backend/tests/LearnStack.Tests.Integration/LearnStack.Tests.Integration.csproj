@@ -25,6 +25,8 @@
                       ReferenceOutputAssembly="false" />
     <ProjectReference Include="../LearnStack.Tests.IdempotencyStoreProbe/LearnStack.Tests.IdempotencyStoreProbe.csproj"
                       ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../LearnStack.Tests.InvitationSmtpProbe/LearnStack.Tests.InvitationSmtpProbe.csproj"
+                      ReferenceOutputAssembly="false" />
     <!-- The tenancy schema tests apply the module's own migration and assert its
          policies, so they need the migration assembly and the persistence model
          directly — not the DI registration. AddLearnStackPersistence does register
@@ -91,6 +93,16 @@
     <Error Condition="'@(_IdempotencyStoreProbeFiles)' == ''" Text="The idempotency store proof sidecar was not built." />
     <Copy SourceFiles="@(_IdempotencyStoreProbeFiles)"
           DestinationFiles="@(_IdempotencyStoreProbeFiles->'$(OutDir)idempotency-store-probe/%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="StageInvitationSmtpProbe" AfterTargets="Build">
+    <ItemGroup>
+      <_InvitationSmtpProbeFiles Include="$(MSBuildThisFileDirectory)../LearnStack.Tests.InvitationSmtpProbe/bin/$(Configuration)/$(TargetFramework)/**/*" />
+    </ItemGroup>
+    <Error Condition="'@(_InvitationSmtpProbeFiles)' == ''" Text="The invitation SMTP proof child was not built." />
+    <Copy SourceFiles="@(_InvitationSmtpProbeFiles)"
+          DestinationFiles="@(_InvitationSmtpProbeFiles->'$(OutDir)invitation-smtp-probe/%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true" />
   </Target>
 
