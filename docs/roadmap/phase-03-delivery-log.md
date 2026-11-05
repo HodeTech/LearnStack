@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,730 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,753 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -381,7 +381,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 detector-index repair review closeout (2026-11-05)](#p03-4-step-7-detector-index-repair-review-closeout-2026-11-05) — 34 lines
   - [P03-4 maintainer manual accessibility acceptance (2026-11-05)](#p03-4-maintainer-manual-accessibility-acceptance-2026-11-05) — 32 lines
   - [P03-4 Step 7 entry-browser diagnostic repair (2026-11-06)](#p03-4-step-7-entry-browser-diagnostic-repair-2026-11-06) — 34 lines
-  - [P03-4 Step 7 entry-browser diagnostic first reviews (2026-11-06)](#p03-4-step-7-entry-browser-diagnostic-first-reviews-2026-11-06) — 14 lines
+  - [P03-4 Step 7 entry-browser diagnostic first reviews (2026-11-06)](#p03-4-step-7-entry-browser-diagnostic-first-reviews-2026-11-06) — 15 lines
+  - [P03-4 Step 7 entry-browser diagnostic review closeout (2026-11-06)](#p03-4-step-7-entry-browser-diagnostic-review-closeout-2026-11-06) — 22 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -17507,3 +17508,26 @@ The existing 111 native-owner and 41 aggregate offline controls remain the sourc
 validation; reviews do not run .NET/Next/browser or interact with maintainer
 runtime/output. Two different fresh R2 reviewers follow. The original hosted
 cause remains unconfirmed and final-source A/B/archive qualification remains open.
+
+
+### P03-4 Step 7 entry-browser diagnostic review closeout (2026-11-06)
+
+Two different fresh independent R2 reviewers approve the correction and R1
+record with no verified actionable finding. Together the two R1 and two R2
+reviews verify exact Fact/assembly/phase scope, source-bound finite reasons,
+private-output exclusion, failed-only checkpoint custody and unchanged
+completion, ownership, result and Keycloak-class gates. No code change follows
+either round; the decoder and offline controls remain those of `8e6e16a4`.
+
+The 111 native-owner and 41 aggregate offline controls pass. Whole-tree fragment,
+ADR-0069 structure and generated-index guards pass after the final record; exact
+diff/source-hash, settings hash-only and unchanged-stash checks accompany the
+candidate. Scoped secret checks pass. The single development push starts normal
+PR CI; no new hosted result is claimed by this local correction/review closeout.
+
+The original entry-pagination failure remains retained and unattributed; its
+unchanged local pass is only a non-reproduction. This repairs future diagnostic
+custody, not a demonstrated original-cause defect. PR #41 remains ready for
+review at the maintainer's request; successful same-source hosted A/B and
+independent original-archive qualification remain open before delivery/merge.
+Manual accessibility acceptance remains valid; user runtime/output is untouched.
