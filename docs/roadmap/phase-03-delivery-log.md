@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,681 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,715 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -379,7 +379,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 census repair review closeout (2026-11-05)](#p03-4-step-7-census-repair-review-closeout-2026-11-05) — 33 lines
   - [P03-4 Step 7 fourth hosted A and detector-index repair (2026-11-05)](#p03-4-step-7-fourth-hosted-a-and-detector-index-repair-2026-11-05) — 72 lines
   - [P03-4 Step 7 detector-index repair review closeout (2026-11-05)](#p03-4-step-7-detector-index-repair-review-closeout-2026-11-05) — 34 lines
-  - [P03-4 maintainer manual accessibility acceptance (2026-11-05)](#p03-4-maintainer-manual-accessibility-acceptance-2026-11-05) — 31 lines
+  - [P03-4 maintainer manual accessibility acceptance (2026-11-05)](#p03-4-maintainer-manual-accessibility-acceptance-2026-11-05) — 32 lines
+  - [P03-4 Step 7 entry-browser diagnostic repair (2026-11-06)](#p03-4-step-7-entry-browser-diagnostic-repair-2026-11-06) — 33 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -17456,3 +17457,37 @@ This acceptance closes the P03-4 human check. Complete successful same-source
 hosted A/B and independent original-archive reconciliation remain open before
 packet delivery/merge. Production SMTP/TLS, inbox delivery, P03-3's separately
 scoped follow-ups and full phase-exit qualification retain their own boundaries.
+
+
+### P03-4 Step 7 entry-browser diagnostic repair (2026-11-06)
+
+[Hosted run 42057464800, attempt 3](https://github.com/HodeTech/LearnStack/actions/runs/42057464800/attempts/3)
+finishes with 25 successful jobs and two failures. Ordinary 7 records one actual
+entry-pagination failure; the integration aggregate refusal is secondary. All
+24 original artifact ZIPs and attempt logs are retained with API size, SHA-256
+and CRC verification before correction. The finite failure projection identifies
+`EntryBrowserAsync`'s response await and closed wrapper, but retains no reason.
+The complete unchanged fact passes one fresh owned local recheck; that is a
+non-reproduction, not a hosted qualification or a demonstrated cause fix.
+
+The correction retains only the exact entry-pagination fact and integration
+assembly's existing `entry_browser` phase and registered session-driver refusal
+reason. Unknown/private suffixes, other phases, cases and assemblies remain
+unadmitted. The existing failed-result checkpoint carries those finite details;
+raw messages, provider/browser output and private values remain excluded. Result,
+ownership, completion, selection, retries and test budgets are unchanged.
+Existing fallback dispatch and its registered Keycloak class set remain intact.
+
+Offline controls pass: native-owner controls 111 tests and aggregate controls
+41 tests. They cover source-bound positive reasons, exact caller/phase scope,
+private-canary and unknown-suffix rejection, failure-only checkpoint custody,
+raw-TRX sanitization and refusal to treat diagnostics as completion. The first
+control invocation exposes an incorrect new fallback expectation and a test-only
+working-directory mismatch; the assertion and invocation are corrected without
+widening production fallback. Original failed control receipts remain retained.
+No actual native CI runner, .NET/Next/browser build, maintainer runtime action or
+root frontend/SDK output mutation runs for this decoder correction.
+
+Two fresh independent review rounds follow before the final development push.
+Final-source same-source hosted A/B and original-archive qualification remain
+open before packet delivery/merge; manual accessibility acceptance remains valid.

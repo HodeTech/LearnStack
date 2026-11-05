@@ -1016,6 +1016,24 @@ def closed_bff_invitation_details(case, raw):
     return {'stage': 'bff_invitation', 'phase': phase, 'reason': reason}
 
 
+BFF_ENTRY_FAILURE_CASE = ('LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests.'
+    'Real_entry_pagination_keeps_subject_and_authority_out_of_JSON_HTML_and_browser_history')
+
+
+def closed_bff_entry_details(raw):
+    """Retain only the existing entry response refusal, never browser/provider text."""
+    message = raw.get('ErrorMessage')
+    if not isinstance(message, str) or len(message) > 65536:
+        return None
+    prefix = 'System.InvalidOperationException : '
+    if message.startswith(prefix):
+        message = message[len(prefix):]
+    match = re.fullmatch(r'BFF native fixture did not reach the closed entry_browser/([a-z_0-9-]{1,96}) phase\.', message)
+    if match is None or match[1] not in BFF_INVITATION_REASONS | {'deadline_input'}:
+        return None
+    return {'stage': 'bff_entry', 'phase': 'entry_browser', 'reason': match[1]}
+
+
 def closed_bff_browser_details(raw):
     message = raw.get('ErrorMessage')
     if not isinstance(message, str) or len(message) > 65536:
@@ -1170,6 +1188,10 @@ def closed_failure_details(case, raw):
         return closed_bff_browser_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
     if case['name'] in BFF_INVITATION_FAILURE_CASES:
         return closed_bff_invitation_details(case, raw) if case['assembly'] == 'learnstack.tests.integration' else None
+    if case['name'] == BFF_ENTRY_FAILURE_CASE and case['assembly'] == 'learnstack.tests.integration':
+        details = closed_bff_entry_details(raw)
+        if details is not None:
+            return details
     if case['name'] in OUTBOX_STARTUP_FAILURE_CASES:
         return closed_outbox_startup_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
     if case['name'] in NATIVE_WAIT_FAILURE_CASES:
