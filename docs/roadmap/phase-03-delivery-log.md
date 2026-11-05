@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,615 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,649 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -377,7 +377,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 second correction review closeout (2026-11-05)](#p03-4-step-7-second-correction-review-closeout-2026-11-05) — 35 lines
   - [P03-4 Step 7 third hosted A and census repair (2026-11-05)](#p03-4-step-7-third-hosted-a-and-census-repair-2026-11-05) — 65 lines
   - [P03-4 Step 7 census repair review closeout (2026-11-05)](#p03-4-step-7-census-repair-review-closeout-2026-11-05) — 33 lines
-  - [P03-4 Step 7 fourth hosted A and detector-index repair (2026-11-05)](#p03-4-step-7-fourth-hosted-a-and-detector-index-repair-2026-11-05) — 71 lines
+  - [P03-4 Step 7 fourth hosted A and detector-index repair (2026-11-05)](#p03-4-step-7-fourth-hosted-a-and-detector-index-repair-2026-11-05) — 72 lines
+  - [P03-4 Step 7 detector-index repair review closeout (2026-11-05)](#p03-4-step-7-detector-index-repair-review-closeout-2026-11-05) — 33 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -17388,3 +17389,37 @@ and independent all-surface reconciliation remain mandatory. Human keyboard/
 focus/reflow/contrast/VoiceOver remains pending and unexecuted; the existing
 external-prerequisite clause permits independent CI/archive work. No merge,
 production SMTP/TLS, inbox delivery or P03-3 follow-up closure is claimed.
+
+
+### P03-4 Step 7 detector-index repair review closeout (2026-11-05)
+
+Correction `dfa0b972` completes two fresh independent review rounds. Both
+first-round reviewers and two different second-round reviewers approve the
+six-file correction with no verified actionable finding. No further source
+correction is required. The reviewers inspect exact predicates, typed ordering,
+identity/multiplicity, scoped/unscoped lifetime, SDK handoff and independent
+raw controls; they run no tests or builds.
+
+Independent raw-TRX/child-receipt reconciliation confirms 57 distinct Passed
+cases across 58 executions, zero skips, all 48 original recurrence identities
+including the nine censored cases, and 153 canonical source paths. Diagnostic
+accounting, byte-exact restoration and subsequent canonical builds agree.
+Reviewers retain the local timing limits and the unchanged browser recheck's
+unknown original startup cause; no natural BFCache, native or human proof is
+inferred from structural tests. No policy, timer, resource, weight, selector
+or test-population changes enter this correction.
+
+The next publication adds only this dated closeout and current Status after the
+reviewed source. A single push starts fresh automatic A on the actual PR merge
+source. All 27 jobs and complete populations must pass before whole-run B on
+the same source. Retain originals before rerun and independently reconcile all
+backend/frontend/native/public/OpenAPI/SARIF/log surfaces. The
+[fourth failed A](#p03-4-step-7-fourth-hosted-a-and-detector-index-repair-2026-11-05)
+retains its own source and outcome; no failed or prior-source fragments combine
+into qualification. Actual final-source results accompany PR #41 without a new
+source change merely to narrate CI. No duplicate manual dispatch or merge.
+
+Human keyboard/focus/reflow/contrast/VoiceOver remains pending and unexecuted.
+The existing external-prerequisite clause permits independent CI/archive work;
+review closure is not full packet delivery, production SMTP/TLS, inbox delivery
+or P03-3 follow-up closure.
