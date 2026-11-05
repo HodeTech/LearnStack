@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,410 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,445 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -373,7 +373,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 final reviews and PR readiness (2026-11-05)](#p03-4-step-7-final-reviews-and-pr-readiness-2026-11-05) — 52 lines
   - [P03-4 Step 7 first hosted corrections (2026-11-05)](#p03-4-step-7-first-hosted-corrections-2026-11-05) — 80 lines
   - [P03-4 Step 7 correction review closeout and CI candidate (2026-11-05)](#p03-4-step-7-correction-review-closeout-and-ci-candidate-2026-11-05) — 44 lines
-  - [P03-4 Step 7 second hosted corrections (2026-11-05)](#p03-4-step-7-second-hosted-corrections-2026-11-05) — 53 lines
+  - [P03-4 Step 7 second hosted corrections (2026-11-05)](#p03-4-step-7-second-hosted-corrections-2026-11-05) — 54 lines
+  - [P03-4 Step 7 second correction review closeout (2026-11-05)](#p03-4-step-7-second-correction-review-closeout-2026-11-05) — 34 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -17179,3 +17180,38 @@ independent surface reconciliation remain required. Human keyboard/focus/reflow/
 contrast/VoiceOver remains pending and unexecuted; the existing external-
 prerequisite clause permits independent CI/archive work. No merge, production
 SMTP/TLS, inbox-delivery or P03-3 follow-up closure is claimed.
+
+
+### P03-4 Step 7 second correction review closeout (2026-11-05)
+
+Correction `8ceb7b37` completes two fresh independent review rounds. Both
+first-round reviewers approve with no actionable finding. Two different
+second-round reviewers inspect the full correction; one identifies a minor
+unreachable fixed diagnostic. Session completion rejects a nonzero exit before
+setting its completed state, so the separate disposal-only exit label cannot
+describe either invitation fact. `6692876b` removes only that invitation mapping,
+adds both-fact rejection and completion-order controls, and preserves the older
+browser decoder. All 108 native offline controls pass again, zero skips. Both
+second-round reviewers inspect the exact follow-up and close it with no remaining
+finding.
+
+Independent source/hash and raw-TRX checks confirm the corrected Platform reader,
+unchanged strict inspector, 77 passing schema/adjacent cases, committed body
+mutants and exact reported red-to-green identity. The finite diagnostic/checkpoint
+and private-canary boundary remain intact. The reviewers run no tests; they
+reconcile retained scoped receipts and source rather than claiming new execution.
+No production, migration, driver, timer or resource policy changes.
+
+The next publication adds only this dated closeout and current Status after the
+reviewed source. A single push starts fresh automatic A on its actual PR merge
+source. Complete same-source A then whole-run B, all original artifacts/logs and
+independent backend/frontend/native/public/OpenAPI/SARIF reconciliation remain
+mandatory. The [second failed A](#p03-4-step-7-second-hosted-corrections-2026-11-05)
+retains its own source and outcome; its passing fragments supply no qualification.
+Actual final-source results accompany PR #41 without another source change just
+to narrate CI. No duplicate manual dispatch or merge is authorized.
+
+Human keyboard/focus/reflow/contrast/VoiceOver remains pending and unexecuted.
+The external-prerequisite clause permits independent CI/archive work; review
+closure is not full packet delivery, production SMTP/TLS, inbox-delivery or
+P03-3 follow-up closure.
