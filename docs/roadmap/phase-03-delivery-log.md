@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,065 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,102 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -367,7 +367,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 5 review closeout and Step 6 continuation (2026-11-05)](#p03-4-step-5-review-closeout-and-step-6-continuation-2026-11-05) — 28 lines
   - [P03-4 Step 6 Studio and native invitation implementation (2026-11-05)](#p03-4-step-6-studio-and-native-invitation-implementation-2026-11-05) — 90 lines
   - [P03-4 Step 6 first review recovery and quota corrections (2026-11-05)](#p03-4-step-6-first-review-recovery-and-quota-corrections-2026-11-05) — 48 lines
-  - [P03-4 Step 6 second review original-result and form corrections (2026-11-05)](#p03-4-step-6-second-review-original-result-and-form-corrections-2026-11-05) — 54 lines
+  - [P03-4 Step 6 second review original-result and form corrections (2026-11-05)](#p03-4-step-6-second-review-original-result-and-form-corrections-2026-11-05) — 55 lines
+  - [P03-4 Step 6 implementation review closeout and Step 7 continuation (2026-11-05)](#p03-4-step-6-implementation-review-closeout-and-step-7-continuation-2026-11-05) — 36 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -16828,3 +16829,40 @@ commit and bounded receipts. Human keyboard/focus/reflow/contrast/VoiceOver
 observations remain unexecuted. The Accepted package permits independent work
 while that external evidence is pending; Step 7's provider/process, full-suite,
 hosted A/B and original-archive obligations are not waived.
+
+
+### P03-4 Step 6 implementation review closeout and Step 7 continuation (2026-11-05)
+
+Step 6 implementation `3440b3bb`, first-review correction `fca08b60` and
+second-review correction `418c6293` complete the planned implementation review
+cycle. Four fresh independent reviewers cover the two rounds. All finding owners
+inspect their committed corrections and scoped red/green evidence, confirming
+closure without a verified residual. The parent also verifies the restored exact
+architecture-barrier census and selected-language skip-link correction.
+
+This closes implementation/review work, not the entire Step 6 human requirement.
+The maintainer has received the working-screen keyboard/focus/reflow/contrast/
+VoiceOver checklist; observations remain unexecuted and pending. Earlier full
+frontend/provider and later focused receipts retain their exact source/scope.
+The interrupted known-failed full Architecture run has no complete-run credit.
+No manual, production SMTP/TLS or whole-packet qualification is inferred.
+
+Independent Step 7 work proceeds automatically under the Accepted package's
+external-prerequisite clause. Its finite provider/runtime additions reuse the
+actual Identity executor, SMTP source and native scheduler: four physical provider
+owners and fifth refusal; actual SDK disposal failure with retained resources
+and blocked shutdown inside an owned, joined child process; real process loss
+after Sending/final250 before durable receipt and fresh Unknown recovery; both
+late-original-receipt/recovery orders; and six real NoStart admissions followed
+by the actual Identity native finalizer, including its MUST rollback control.
+A narrowly staged test executable follows the existing portable process-proof
+pattern; the Linux fatal/native collector fixture keeps its separate purpose.
+Fixture setup, controlled replies, fresh hosts and actual process loss must be
+reported distinctly. No new production authority, timer or general runner is
+selected by this continuation.
+
+After these additions, Step 7 requires complete final-source backend/frontend/
+architecture/integration/provider/browser checks, both fresh final review rounds,
+complete same-source hosted A/B and independent original-archive reconciliation.
+The final PR remains for maintainer review without merge. P03-3's separate
+B/archive/manual follow-ups are not silently completed by this packet.
