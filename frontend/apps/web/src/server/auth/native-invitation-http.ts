@@ -133,6 +133,7 @@ export function createNativeInvitationHandler(
       response.writeHead(status, {
         'content-type': 'text/html; charset=utf-8',
         'cache-control': 'no-store',
+        ...([429, 503].includes(status) ? { 'retry-after': '30' } : {}),
         'referrer-policy': 'same-origin',
         'x-content-type-options': 'nosniff',
         'x-frame-options': 'DENY',
@@ -171,7 +172,11 @@ export function createNativeInvitationHandler(
     admission.assertActive();
     if (admitted.kind !== 'success') {
       admission.refuse();
-      write(admitted.kind === 'api-error' && admitted.status === 404 ? 404 : 503);
+      write(
+        admitted.kind === 'api-error' && [404, 429].includes(admitted.status)
+          ? admitted.status
+          : 503,
+      );
       return;
     }
     admission.publish(admitted.data);
@@ -367,7 +372,12 @@ export function createNativeInvitationHandler(
         write(303, '', [], '/invitations');
         return;
       }
-      write(503);
+      write(
+        error instanceof BffSessionError &&
+          ['source_capacity', 'subject_capacity'].includes(error.reason)
+          ? 429
+          : 503,
+      );
     }
   };
 }

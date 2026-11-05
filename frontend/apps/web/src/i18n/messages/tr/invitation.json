@@ -40,7 +40,7 @@
     "continue": "Hesabınıza devam edin"
   },
   "failure": {
-    "unknown": "Kabul işleminin sonucu doğrulanamadı. Başka bir işlem yapmadan önce sonucu kontrol edin; bu işlem yeni bir kabul isteği göndermez.",
+    "unknown": "Kabul işleminin sonucu doğrulanamadı. Sonucu kontrol edin veya daveti yeniden inceleyin; bu kontroller yeni bir kabul isteği göndermez.",
     "unavailable": "Davet hizmeti geçici olarak kullanılamıyor. Hazır olduğunuzda yeniden deneyin.",
     "expired": "Bu davete devam etme süresi sona erdi. Yeniden başlamak için ilk e-postayı açın. Süresi dolan veya yenilenen bir davet için kurumdan yeni bir e-posta gerekir.",
     "account_change": "Giriş yapılan hesap değişti. Mevcut oturumunuz korundu. Başka bir hesapla devam etmeden önce açıkça çıkış yapın.",

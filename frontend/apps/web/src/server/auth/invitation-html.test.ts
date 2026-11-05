@@ -123,8 +123,10 @@ describe('native invitation documents and complete authored copy', () => {
       expect(document.body.textContent).not.toContain(inspection.verifiedEmail);
       expect(document.body.textContent).not.toContain(inspection.tenantLabel);
       if (state === 'unknown') {
+        expect(
+          document.querySelector('form[action="/api/auth/invitation/inspect"]'),
+        ).not.toBeNull();
         expect(document.querySelector('form[action="/api/auth/invitation/result"]')).not.toBeNull();
-        expect(document.querySelector('form[action="/api/auth/invitation/inspect"]')).toBeNull();
       }
       if (state === 'account_change')
         expect(

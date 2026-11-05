@@ -40,7 +40,7 @@
     "continue": "Continue to your account"
   },
   "failure": {
-    "unknown": "The acceptance outcome could not be confirmed. Check the result before doing anything else; this will not submit a new acceptance.",
+    "unknown": "The acceptance outcome could not be confirmed. Check the result or check the invitation again; neither check submits a new acceptance.",
     "unavailable": "The invitation service is temporarily unavailable. Try again when you are ready.",
     "expired": "This invitation continuation is no longer available. Reopen the original email to start again. An expired or replaced invitation needs a new email from the institution.",
     "account_change": "The signed-in account changed. Your existing session has been preserved. Sign out explicitly before continuing with another account.",

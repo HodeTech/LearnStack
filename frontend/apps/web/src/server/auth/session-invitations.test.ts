@@ -228,6 +228,145 @@ describe('owned invitation continuation', () => {
     expect(result.completion).toBeUndefined();
     expect(f.api.accept).toHaveBeenCalledTimes(1);
   });
+  it.each([404, 503, 403])(
+    'keeps an unconfirmed accept recoverable after result %s and fresh inspection',
+    async (status) => {
+      const f = fixture();
+      const offer = await captured(f);
+      await signin(f, offer);
+      const command = (kind: 'inspect' | 'result') =>
+        f.store.invitation(offer.binding, bffSource, { kind, csrf: offer.opened.csrfToken });
+      await command('inspect');
+      f.api.accept.mockRejectedValueOnce(new Error('private upstream canary'));
+      await f.store.invitation(offer.binding, bffSource, {
+        kind: 'accept',
+        csrf: offer.opened.csrfToken,
+        version: '1',
+      });
+      f.api.result.mockRejectedValueOnce(
+        new NativeInvitationError(
+          status === 403 ? 'forbidden' : status === 404 ? 'not_found' : 'unknown',
+          status,
+        ),
+      );
+      const unresolved = await command('result');
+      expect(unresolved.state).toBe(status === 403 ? 'forbidden' : 'unknown');
+      expect(JSON.stringify(unresolved)).not.toMatch(/private|recipient@example|019a154b/);
+      expect(f.api.accept).toHaveBeenCalledTimes(1);
+      expect((await command('inspect')).state).toBe('ready');
+      expect(f.api.accept).toHaveBeenCalledTimes(1);
+      expect(
+        (
+          await f.store.invitation(offer.binding, bffSource, {
+            kind: 'accept',
+            csrf: offer.opened.csrfToken,
+            version: '1',
+          })
+        ).state,
+      ).toBe('accepted');
+      expect(f.api.accept).toHaveBeenCalledTimes(2);
+    },
+  );
+  it('keeps late commit uncertainty after result404 and a fresh ready snapshot until original result reconciles', async () => {
+    const f = fixture();
+    const offer = await captured(f);
+    await signin(f, offer);
+    const command = (kind: 'inspect' | 'result') =>
+      f.store.invitation(offer.binding, bffSource, { kind, csrf: offer.opened.csrfToken });
+    await command('inspect');
+    f.api.accept.mockRejectedValueOnce(new Error('private transport canary'));
+    await f.store.invitation(offer.binding, bffSource, {
+      kind: 'accept',
+      csrf: offer.opened.csrfToken,
+      version: '1',
+    });
+    f.api.result.mockRejectedValueOnce(new NativeInvitationError('not_found', 404));
+    expect((await command('result')).state).toBe('unknown');
+    // A Pending snapshot does not prove the earlier API acceptance has finished.
+    expect((await command('inspect')).state).toBe('ready');
+    expect(f.api.accept).toHaveBeenCalledTimes(1);
+    let release!: () => void;
+    let began!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const started = new Promise<void>((resolve) => {
+      began = resolve;
+    });
+    f.api.inspect.mockImplementationOnce(async () => {
+      began();
+      await held;
+      throw new NativeInvitationError('not_found', 404);
+    });
+    const inspect = command('inspect');
+    await started;
+    await expect(command('result')).rejects.toMatchObject({ reason: 'transaction' });
+    release();
+    expect((await inspect).state).toBe('unknown');
+    f.api.inspect.mockRejectedValueOnce(new NativeInvitationError('unknown', 503));
+    expect((await command('inspect')).state).toBe('unknown');
+    expect((await command('result')).state).toBe('accepted');
+    expect(f.api.accept).toHaveBeenCalledTimes(1);
+    expect(f.api.result).toHaveBeenLastCalledWith(
+      'private-access-canary',
+      expect.anything(),
+      { invitationId, code: offer.code },
+      expect.any(AbortSignal),
+    );
+  });
+  it('retains uncertainty when an issued acceptance commits after HTTP cancellation', async () => {
+    const f = fixture();
+    const offer = await captured(f);
+    await signin(f, offer);
+    const command = (kind: 'inspect' | 'result') =>
+      f.store.invitation(offer.binding, bffSource, { kind, csrf: offer.opened.csrfToken });
+    await command('inspect');
+    let release!: () => void;
+    let began!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const started = new Promise<void>((resolve) => {
+      began = resolve;
+    });
+    f.api.accept.mockImplementationOnce(async () => {
+      began();
+      await held;
+      return receipt;
+    });
+    const controller = new AbortController();
+    const accepting = f.store.invitation(
+      offer.binding,
+      bffSource,
+      { kind: 'accept', csrf: offer.opened.csrfToken, version: '1' },
+      controller.signal,
+    );
+    const cancelled = expect(accepting).rejects.toMatchObject({ reason: 'cancelled' });
+    await started;
+    controller.abort();
+    release();
+    await cancelled;
+    expect((await f.store.invitation(offer.binding, bffSource)).state).toBe('unknown');
+    f.api.inspect.mockRejectedValueOnce(new NativeInvitationError('not_found', 404));
+    expect((await command('inspect')).state).toBe('unknown');
+    expect((await command('result')).state).toBe('accepted');
+    expect(f.api.accept).toHaveBeenCalledTimes(1);
+  });
+  it('still classifies a fresh inspection404 as expired without an acceptance attempt', async () => {
+    const f = fixture();
+    const offer = await captured(f);
+    await signin(f, offer);
+    f.api.inspect.mockRejectedValueOnce(new NativeInvitationError('not_found', 404));
+    expect(
+      (
+        await f.store.invitation(offer.binding, bffSource, {
+          kind: 'inspect',
+          csrf: offer.opened.csrfToken,
+        })
+      ).state,
+    ).toBe('expired');
+    expect(f.api.accept).not.toHaveBeenCalled();
+  });
   it.each(['success', 'cancelled', 'error'])(
     'binds VERIFY_EMAIL status %s to the owned subject without treating it as verified',
     async (status) => {

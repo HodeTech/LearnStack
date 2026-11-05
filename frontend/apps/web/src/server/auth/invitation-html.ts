@@ -77,7 +77,7 @@ function confirmation(
         return `<p role="alert">${escape(invitation('failure.unavailable'))}</p>${result()}`;
       return `<p role="status">${escape(page.disposition === 'already_member' ? invitation('confirm.already_member') : invitation('confirm.accepted'))}</p><p>${escape(page.sessionAvailable ? invitation('confirm.session_ready') : invitation('confirm.session_unavailable'))}</p>${page.sessionAvailable ? `<p><a href="/portal">${escape(invitation('confirm.continue'))}</a></p>` : result()}`;
     case 'unknown':
-      return `<p role="alert">${escape(invitation('failure.unknown'))}</p>${result()}`;
+      return `<p role="alert">${escape(invitation('failure.unknown'))}</p>${result()}${inspect()}`;
     case 'unavailable':
       return `<p role="alert">${escape(invitation('failure.unavailable'))}</p>${inspect()}${result()}`;
     case 'expired':

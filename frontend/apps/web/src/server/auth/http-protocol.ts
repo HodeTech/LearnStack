@@ -754,9 +754,6 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
           const logout = store.discardEntry(entryBinding, csrf);
           return redirect(request, logout.redirectUrl ?? '/api/auth/signin', [
             clearBffCookie(BFF_COOKIES.entry),
-            ...(cookies.has(BFF_COOKIES.invitation)
-              ? [clearBffCookie(BFF_COOKIES.invitation)]
-              : []),
             bffCookie(BFF_COOKIES.logout + logout.state, logout.proof, 300),
           ]);
         }
@@ -770,7 +767,6 @@ export function createBffHttpProtocol(store: BffSessionStore, preparation?: Nati
         const logout = store.signout(current, fields.get('csrfToken')!);
         const edits = [
           clearBffCookie(BFF_COOKIES.session),
-          ...(cookies.has(BFF_COOKIES.invitation) ? [clearBffCookie(BFF_COOKIES.invitation)] : []),
           ...(cookies.has(BFF_COOKIES.entry) ? [clearBffCookie(BFF_COOKIES.entry)] : []),
           ...[...cookies.keys()]
             .filter((name) => name.startsWith(BFF_COOKIES.login))

@@ -93,6 +93,7 @@ type Owner = {
     credentialsOwner?: Owner;
     inspection?: NativeInvitationInspection;
     result?: NativeInvitationResult;
+    acceptanceUncertain?: boolean;
     state: InvitationContinuation['state'];
   };
   group: Group;
@@ -1001,6 +1002,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       custody.code = command.code;
       custody.inspection = undefined;
       custody.result = undefined;
+      custody.acceptanceUncertain = false;
       custody.state = custody.credentialsOwner ? 'inspect' : 'signin';
       custody.revision = Object.freeze({});
       return Object.freeze({
@@ -1085,6 +1087,12 @@ export class InMemoryBffSessionStore implements BffSessionStore {
               (custody.state !== 'ready' || custody.inspection?.version !== command.version)
             )
               throw new BffSessionError('transaction');
+            if (command.kind === 'accept') {
+              // Issuing the API write creates uncertainty even if this HTTP request is cancelled.
+              custody.acceptanceUncertain = true;
+              custody.inspection = undefined;
+              custody.state = 'unknown';
+            }
             const receipt =
               command.kind === 'accept'
                 ? await api.accept(
@@ -1098,6 +1106,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
             this.#assert(owner, 'invitation');
             if (custody.revision !== revision) throw new BffSessionError('revoked');
             custody.result = receipt;
+            custody.acceptanceUncertain = false;
             custody.inspection = undefined;
             custody.state = 'accepted';
           }
@@ -1119,16 +1128,28 @@ export class InMemoryBffSessionStore implements BffSessionStore {
         this.#assert(owner, 'invitation');
         if (current.aborted) throw error;
         custody.inspection = undefined;
+        // A missing own result is not evidence of expiry: an earlier accept may still commit.
+        if (
+          command.kind === 'result' &&
+          error instanceof NativeInvitationError &&
+          error.status === 404
+        )
+          custody.acceptanceUncertain = true;
         custody.state =
           error instanceof NativeInvitationError && error.status === 403
             ? 'forbidden'
             : error instanceof NativeInvitationError && error.status === 404
-              ? 'expired'
+              ? command.kind === 'result' ||
+                (command.kind === 'inspect' && custody.acceptanceUncertain)
+                ? 'unknown'
+                : 'expired'
               : error instanceof BffSessionError && error.reason === 'account_change'
                 ? 'account_change'
                 : error instanceof BffSessionError && error.reason === 'reauthenticate'
                   ? 'signin'
-                  : command.kind === 'accept' || command.kind === 'result'
+                  : command.kind === 'accept' ||
+                      command.kind === 'result' ||
+                      custody.acceptanceUncertain
                     ? 'unknown'
                     : 'unavailable';
       }

@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 962 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,010 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -365,7 +365,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 5 first review diagnostic correction (2026-11-05)](#p03-4-step-5-first-review-diagnostic-correction-2026-11-05) — 32 lines
   - [P03-4 Step 5 second review delegation and transport corrections (2026-11-05)](#p03-4-step-5-second-review-delegation-and-transport-corrections-2026-11-05) — 40 lines
   - [P03-4 Step 5 review closeout and Step 6 continuation (2026-11-05)](#p03-4-step-5-review-closeout-and-step-6-continuation-2026-11-05) — 28 lines
-  - [P03-4 Step 6 Studio and native invitation implementation (2026-11-05)](#p03-4-step-6-studio-and-native-invitation-implementation-2026-11-05) — 89 lines
+  - [P03-4 Step 6 Studio and native invitation implementation (2026-11-05)](#p03-4-step-6-studio-and-native-invitation-implementation-2026-11-05) — 90 lines
+  - [P03-4 Step 6 first review recovery and quota corrections (2026-11-05)](#p03-4-step-6-first-review-recovery-and-quota-corrections-2026-11-05) — 47 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -16723,3 +16724,51 @@ until a person reports observations on the working screens. Step 7 still owns
 SMTP saturation/retained-cleanup/restart/late-receipt/native-finalizer proofs,
 complete final-source suites, hosted A/B and original-archive qualification.
 Neither these bounded receipts nor review approval completes those obligations.
+
+
+### P03-4 Step 6 first review recovery and quota corrections (2026-11-05)
+
+Two fresh independent reviewers inspect the complete Step 6 implementation at
+`3440b3bb`. They identify three Majors. The product review finds that own-result
+404 after an unconfirmed accept is treated as expiry, even while the offer can
+remain Pending. The owner review finds that delayed entry/session signout replies
+can still delete a newer invitation cookie, and that the native landing collapses
+bootstrap/source quota 429 into 503. The parent verifies all three against the
+actual callers before authorizing bounded corrections.
+
+Both generic signout paths now revoke their original server custody without
+sending an invitation-cookie deletion. Existing session, entry and logout-cookie
+behavior is unchanged. Real HTTP regressions hold the old generic redirect,
+create/capture a newer continuation, emit the old reply and verify the newer
+confirmation remains reachable while old custody is revoked.
+
+A private acceptance-uncertainty marker is set only after state/version validation,
+immediately before the actual accept call. It survives response cancellation and
+fresh Pending inspection; neither proves that prior provider/API work ended.
+Own-result 404 and a later inspection 404 retain uncertainty and expose deliberate
+inspection/result actions. A fresh successful inspection permits explicit user
+acceptance, without an automatic second accept. Only a confirmed original receipt
+or new capture clears the marker. One additional abort-after-start red control
+exposes the earlier placement after the cancellation guard; the corrected ordering
+passes that control, including later original-result convergence.
+
+The native landing preserves public bootstrap 404/429/503 and the existing local
+source/subject 429 versus pending/global 503 distinction. Bounded Retry-After and
+no-store behavior use the existing convention. Actual HTTP tests prove source
+saturation refuses before allocation and the distinct bootstrap responses.
+
+The meaningful red run reports 33 passes and twelve failures across 45 cases;
+these are three defects exercised by multiple controls, not twelve independent
+production findings. The final focused run passes 46 cases across three files,
+with zero skips or unhandled errors. The delayed-commit controls preserve
+uncertainty through result 404, successful Pending inspection, later inspection
+404 and dependency failure, then reconcile the original receipt. No deadline,
+quota, provider authority, general cookie framework or automatic retry is added.
+A further 551 existing authentication/session regressions pass with zero skips;
+workspace typecheck, lint and native emission pass. The earlier 3,903-case full
+frontend and two provider receipts remain explicitly pre-correction evidence.
+The full Release solution build, 3,589 Unit tests and ten Contract tests also pass
+with zero warnings/errors or skipped tests on the unchanged backend source.
+These receipts do not replace Step 7's complete final-source qualification or
+human accessibility observations. Finding-owner closure and two different fresh
+second-round reviewers follow the correction commit.
