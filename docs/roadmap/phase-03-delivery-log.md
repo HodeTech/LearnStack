@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,445 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,510 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -374,7 +374,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 first hosted corrections (2026-11-05)](#p03-4-step-7-first-hosted-corrections-2026-11-05) — 80 lines
   - [P03-4 Step 7 correction review closeout and CI candidate (2026-11-05)](#p03-4-step-7-correction-review-closeout-and-ci-candidate-2026-11-05) — 44 lines
   - [P03-4 Step 7 second hosted corrections (2026-11-05)](#p03-4-step-7-second-hosted-corrections-2026-11-05) — 54 lines
-  - [P03-4 Step 7 second correction review closeout (2026-11-05)](#p03-4-step-7-second-correction-review-closeout-2026-11-05) — 34 lines
+  - [P03-4 Step 7 second correction review closeout (2026-11-05)](#p03-4-step-7-second-correction-review-closeout-2026-11-05) — 35 lines
+  - [P03-4 Step 7 third hosted A and census repair (2026-11-05)](#p03-4-step-7-third-hosted-a-and-census-repair-2026-11-05) — 64 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -17215,3 +17216,68 @@ Human keyboard/focus/reflow/contrast/VoiceOver remains pending and unexecuted.
 The external-prerequisite clause permits independent CI/archive work; review
 closure is not full packet delivery, production SMTP/TLS, inbox-delivery or
 P03-3 follow-up closure.
+
+
+### P03-4 Step 7 third hosted A and census repair (2026-11-05)
+
+Complete automatic A `41963228768`, attempt 1, binds PR head `0e7cf754`,
+base `ef344c0f` and actual merge/workflow source `63958227`. It finishes
+23 successful and four failed jobs. Architecture partition 0 observes 59 of
+60 selected cases, all Passed, before its execution deadline; the authenticated
+HTTP census mutation case has no completed result. Ordinary partition 6 observes
+all 246 cases, with two Failed and 244 Passed. The required backend and
+integration aggregates also fail. All other producers, frontend, public-demo,
+meta, OpenAPI and secret scan pass. The producer ledger contains 8,287 Passed,
+two Failed and one censored case. This is a failed A, not qualification.
+
+All 23 available original artifact ZIPs match their API byte counts/SHA-256 and
+pass CRC before any source edits. Both failed aggregate archives are absent.
+The complete original attempt logs archive is retained separately with its local
+SHA-256 and CRC. Passing fragments and earlier-source results do not supply
+qualification credit.
+
+The exact provider self-service case passes a fresh owned real-provider recheck;
+all four retry-observation theory variants pass their fresh owned PostgreSQL
+recheck, including the failed ACK/capacity variant. Both processes exit after
+fixture disposal, with zero skips. The hosted provider diagnostic records only
+the last readiness outcome as TLS, not every attempt's outcome. Its fixture
+ordinal and cached SDK state do not establish a live provider or unique failure
+location. The cancellation-only retry diagnostic likewise does not locate its
+cause. Neither local recheck establishes or repairs the hosted cause; no
+production, provider, TLS, test-timer or resource policy changes follow from it.
+
+A source-restored diagnostic profile locates repeated graph work in the
+architecture census. Its clean production walk schedules 2,324,123 queue entries
+for 31,934 visited root/type pairs; nested-dispatch analysis consumes about 83%
+of that diagnostic walk. The original exact mutation case passes locally in
+246.187 seconds. A separate table-predicate caching experiment passes the same
+case in 250.748 seconds and demonstrates no gain. Diagnostic instrumentation is
+removed and its source restoration is verified; those runs are not hosted
+qualification or new shard weights.
+
+The repair preserves every full census, predicate, root, assembly/type identity
+and mutation/restoration control. Per-walk scheduling distinguishes the root,
+type and implementation-expansion flag: a later explicit abstract collaborator
+must still expand after an earlier inherited reference. Only redundant queue
+states and duplicate diagnostic paths are eliminated; no cross-walk cache or
+new execution allowance is introduced. The ineffective table-predicate cache
+is removed; its three useful token/literal/opcode mutation controls remain.
+
+A fresh canonical Release rebuild passes the exact previously censored mutation
+case in 133.911 seconds, with zero skips and unchanged source during execution.
+Its case identity matches the earlier local baseline and the missing hosted
+result. This single local comparison is about 46% faster than the 246.187-second
+baseline; it establishes no hosted fit guarantee. The exact case plus the
+remaining class/adjacent run pass 13 distinct cases: all four authenticated-HTTP
+and nine public-surface facts, with zero skips. Their canonical source hashes
+match. A temporary expansion-flag omission fails the new late-acquisition
+control; its diagnostic call-order change and key mutation are restored
+byte-for-byte before the fresh canonical adjacent rebuild. No diagnostic
+instrumentation enters the correction. Two fresh independent review rounds
+govern publication of this repair.
+
+Complete same-source hosted A followed by whole-run B, all original archives/logs
+and independent surface reconciliation remain mandatory. Human keyboard/focus/
+reflow/contrast/VoiceOver remains pending and unexecuted. The existing external-
+prerequisite clause permits independent CI/archive work; no merge, production
+SMTP/TLS, inbox delivery or P03-3 follow-up closure is claimed.

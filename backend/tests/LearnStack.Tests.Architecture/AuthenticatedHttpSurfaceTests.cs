@@ -451,6 +451,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         account.Fields.Remove(nestedEdge);
         map.Remove(Key(nested));
         account.NestedTypes.Remove(nested);
+        AssertNestedDispatchQueueControls();
         AssertRootDispatchControls(map);
         AssertGeneratedHandlerFieldControls(handlers, map);
         AssertInheritedHandlerControls(handlers, map);
@@ -598,6 +599,9 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         var capabilities = new Dictionary<string, bool>(StringComparer.Ordinal);
         var acquisitions = new Dictionary<(string Owner, string Dependency), bool>();
         var expanded = new HashSet<(string Root, string Type)>();
+        // A metadata-only visit must not suppress later explicit acquisition of
+        // the same abstract collaborator. Keep both states, in first-seen order.
+        var scheduled = roots.Select(root => (Key(root), Key(root), true)).ToHashSet();
         var queue = new Queue<(TypeDefinition Root, TypeDefinition Type, bool ExpandImplementations, string Path)>(
             roots.Select(root => (root, root, true, root.FullName)));
         while (queue.TryDequeue(out var current))
@@ -614,7 +618,9 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                 if (!implementationsByType.TryGetValue(typeKey, out var implementations))
                     implementationsByType[typeKey] = implementations = map.Values.Where(candidate => !candidate.IsInterface
                         && PublicSurfaceTests.Implements(candidate, typeKey, map, [])).ToArray();
-                foreach (var implementation in implementations) queue.Enqueue((root, implementation, true, path + " -> " + implementation.FullName));
+                foreach (var implementation in implementations)
+                    if (scheduled.Add((Key(root), Key(implementation), true)))
+                        queue.Enqueue((root, implementation, true, path + " -> " + implementation.FullName));
             }
             if (!visited.Add((Key(root), typeKey))) continue;
             if (!referencesByType.TryGetValue(typeKey, out var references))
@@ -639,9 +645,89 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                     var expand = !ownOrInherited || !(helper.IsInterface || helper.IsAbstract);
                     if (!expand && !acquisitions.TryGetValue((typeKey, Key(reference)), out expand))
                         acquisitions[(typeKey, Key(reference))] = expand = AcquiresHandlerCollaborator(type, Key(reference));
-                    queue.Enqueue((root, helper, expand, path + " -> " + helper.FullName));
+                    if (scheduled.Add((Key(root), Key(helper), expand)))
+                        queue.Enqueue((root, helper, expand, path + " -> " + helper.FullName));
                 }
         }
+    }
+
+    private static void AssertNestedDispatchQueueControls()
+    {
+        using var module = ModuleDefinition.CreateModule("NestedDispatchControls", ModuleKind.Dll);
+        var map = new Dictionary<string, TypeDefinition>(StringComparer.Ordinal);
+        TypeDefinition Type(string name, bool abstractType = false)
+        {
+            var type = new TypeDefinition("SurfaceProbe", name,
+                TypeAttributes.Public | (abstractType ? TypeAttributes.Abstract : TypeAttributes.Sealed), module.TypeSystem.Object);
+            module.Types.Add(type);
+            map.Add(Key(type), type);
+            return type;
+        }
+        static FieldDefinition Edge(TypeDefinition owner, TypeDefinition target)
+        {
+            var field = new FieldDefinition("Dependency" + owner.Fields.Count, FieldAttributes.Private, target);
+            owner.Fields.Add(field);
+            return field;
+        }
+        static string Finding(params TypeDefinition[] path) =>
+            "Nested HTTP dispatch/helper handler: " + string.Join(" -> ", path.Select(type => type.FullName));
+
+        foreach (var acquiredFirst in new[] { false, true })
+        {
+            var root = Type("Root" + acquiredFirst);
+            var otherRoot = Type("OtherRoot" + acquiredFirst);
+            var parent = Type("Abstract" + acquiredFirst, abstractType: true);
+            var inherited = Type("Inherited" + acquiredFirst);
+            inherited.BaseType = parent;
+            var sibling = Type("Sibling" + acquiredFirst);
+            sibling.BaseType = parent;
+            sibling.Fields.Add(new FieldDefinition("Sender", FieldAttributes.Private, module.ImportReference(typeof(ISender))));
+            var bridge = Type("Bridge" + acquiredFirst);
+            var later = Type("Later" + acquiredFirst);
+            Edge(bridge, later);
+            Edge(later, bridge); // A shared cyclic dependency must terminate for each root.
+            foreach (var owner in new[] { root, otherRoot })
+            {
+                Edge(owner, acquiredFirst ? bridge : inherited);
+                Edge(owner, acquiredFirst ? inherited : bridge);
+                Edge(owner, bridge); // Repeated paths preserve their first witness.
+            }
+            NestedDispatchOffenders([root, otherRoot], map).Should().BeEmpty(
+                "inheritance alone does not acquire an abstract sibling's sender");
+            var collaborator = Edge(acquiredFirst ? bridge : later, parent);
+            try
+            {
+                var expected = new[] { root, otherRoot }.Select(owner => acquiredFirst
+                    ? Finding(owner, bridge, parent, sibling) : Finding(owner, bridge, later, parent, sibling));
+                NestedDispatchOffenders([root, otherRoot], map).Should().Equal(expected,
+                    "both expansion orders must retain each root's first sender witness, including acquisition after a metadata-only visit");
+            }
+            finally { collaborator.DeclaringType.Fields.Remove(collaborator); }
+            NestedDispatchOffenders([root, otherRoot], map).Should().BeEmpty(
+                "a fresh walk after restoration must not retain the acquired implementations");
+        }
+
+        var firstRoot = Type("FirstRoot");
+        var secondRoot = Type("SecondRoot");
+        var targetRoot = Type("TargetRoot");
+        var first = Type("FirstPath");
+        var second = Type("SecondPath");
+        foreach (var root in new[] { firstRoot, secondRoot })
+        {
+            Edge(root, first);
+            Edge(root, second);
+        }
+        Edge(first, second);
+        Edge(second, first);
+        var firstTarget = Edge(first, targetRoot);
+        var secondTarget = Edge(second, targetRoot);
+        NestedDispatchOffenders([firstRoot, secondRoot, targetRoot], map).Should().Equal(
+            [Finding(firstRoot, first, targetRoot), Finding(secondRoot, first, targetRoot)],
+            "repeated cross-root paths retain the first violation for each root even though the target is itself an initial root");
+        first.Fields.Remove(firstTarget);
+        second.Fields.Remove(secondTarget);
+        NestedDispatchOffenders([firstRoot, secondRoot, targetRoot], map).Should().BeEmpty(
+            "restoring both cross-root edges leaves the shared cycle clean in a fresh walk");
     }
 
     private static bool AcquiresHandlerCollaborator(TypeDefinition type, string dependency)

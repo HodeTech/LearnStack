@@ -19,8 +19,8 @@
 > human accessibility evidence remains unexecuted and pending. Step 7
 > implementation and both final review rounds are closed
 > ([PR readiness](phase-03-delivery-log.md#p03-4-step-7-final-reviews-and-pr-readiness-2026-11-05)).
-> P03-4's [first CI correction reviews](phase-03-delivery-log.md#p03-4-step-7-correction-review-closeout-and-ci-candidate-2026-11-05) are closed.
-> Its [second correction reviews](phase-03-delivery-log.md#p03-4-step-7-second-correction-review-closeout-2026-11-05) are closed, including the verified diagnostic fix.
+> P03-4's [second correction reviews](phase-03-delivery-log.md#p03-4-step-7-second-correction-review-closeout-2026-11-05) are closed, including the verified diagnostic fix.
+> The [third hosted A and census repair](phase-03-delivery-log.md#p03-4-step-7-third-hosted-a-and-census-repair-2026-11-05) retain the failed attempt and its proof boundaries.
 > Complete same-source hosted A/B and original-archive qualification remain mandatory
 > before delivery/merge; actual source-bound results accompany the PR and its
 > [workflow evidence](https://github.com/HodeTech/LearnStack/actions/workflows/ci.yml?query=branch%3Adevelopment).
@@ -32,7 +32,7 @@
 > | P03-1 | Identity authority and membership foundation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-1-merge-and-closeout-2026-10-27) |
 > | P03-2 | Live membership and authorization | Complete and merged — [closeout](phase-03-delivery-log.md#p03-2-merge-and-closeout-2026-10-28) |
 > | P03-3 | Protected Studio and membership administration | Complete and merged — [closeout](phase-03-delivery-log.md#p03-3-merge-and-delivery-closeout-2026-11-04); evidence follow-ups remain open |
-> | P03-4 | Invitations and bounded delivery | In progress — G8 Accepted; second CI corrections reviewed; final-source A/B/archive gates and human evidence govern delivery |
+> | P03-4 | Invitations and bounded delivery | In progress — G8 Accepted; third hosted A failed; census repair in progress; final-source A/B/archive gates and human evidence govern delivery |
 > | P03-5 | Custom fields and privacy classification | Not started |
 > | P03-6 | Provider event ingress and audit mirror | Not started |
 > | P03-7 | Back-channel session revocation | Not started |
