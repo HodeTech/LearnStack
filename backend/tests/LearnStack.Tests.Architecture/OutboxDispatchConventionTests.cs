@@ -633,6 +633,8 @@ public sealed partial class OutboxDispatchConventionTests
         failingScan.Should().Throw<InvalidOperationException>().Which.Should().BeSameAs(failure);
         ReferenceEquals(census.Types, census.Types).Should().BeFalse("a failed detector must also release its scan");
         ReferenceEquals(OwnedCallSites(census), OwnedCallSites(census)).Should().BeFalse("a failed detector must release typed call sites");
+        ReferenceEquals(census.InstructionSnapshot, census.InstructionSnapshot).Should().BeFalse(
+            "a failed detector must release the ordered instruction snapshot");
     }
 
     private static Action ChangeAttributes<T>(Func<T> read, Action<T> write, T replacement)
@@ -714,11 +716,11 @@ public sealed partial class OutboxDispatchConventionTests
         public IEnumerable<(MethodDefinition Body, MethodDefinition Owner)> ReadOwnedBodies(IEnumerable<(MethodDefinition Body, MethodDefinition Owner)> bodies) =>
             _scan is { } scan ? scan.OwnedBodies ??= Array.AsReadOnly(bodies.ToArray()) : bodies;
 
-        public IEnumerable<DetectorMethodInstruction> MethodInstructions(string name) => Instructions.Methods[name];
-        public IEnumerable<DetectorFieldInstruction> FieldInstructions(string name) => Instructions.Fields[name];
-        public IEnumerable<DetectorFieldInstruction> FieldInstructionsByFullName(string name) => Instructions.FieldsByFullName[name];
+        public IEnumerable<DetectorMethodInstruction> MethodInstructions(string name) => InstructionSnapshot.Methods[name];
+        public IEnumerable<DetectorFieldInstruction> FieldInstructions(string name) => InstructionSnapshot.Fields[name];
+        public IEnumerable<DetectorFieldInstruction> FieldInstructionsByFullName(string name) => InstructionSnapshot.FieldsByFullName[name];
 
-        private DetectorInstructionIndex Instructions =>
+        public DetectorInstructionIndex InstructionSnapshot =>
             _scan is { } scan ? scan.Instructions ??= BuildInstructions() : BuildInstructions();
 
         private DetectorInstructionIndex BuildInstructions()
@@ -739,7 +741,7 @@ public sealed partial class OutboxDispatchConventionTests
             // attached identity/opcode and preserve every occurrence in order.
             return new(methods.ToLookup(item => item.Target.Name, StringComparer.Ordinal),
                 fields.ToLookup(item => item.Target.Name, StringComparer.Ordinal),
-                fields.AsReadOnly());
+                methods.AsReadOnly(), fields.AsReadOnly());
         }
 
         private Dictionary<(string Assembly, string Type), TypeDefinition> BuildTypes() =>

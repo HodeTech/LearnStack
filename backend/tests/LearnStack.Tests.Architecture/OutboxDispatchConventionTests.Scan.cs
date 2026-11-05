@@ -8,7 +8,7 @@ public sealed partial class OutboxDispatchConventionTests
 {
     private sealed record DetectorInstructionIndex(
         ILookup<string, DetectorMethodInstruction> Methods, ILookup<string, DetectorFieldInstruction> Fields,
-        IReadOnlyList<DetectorFieldInstruction> OrderedFields)
+        IReadOnlyList<DetectorMethodInstruction> OrderedMethods, IReadOnlyList<DetectorFieldInstruction> OrderedFields)
     {
         private ILookup<string, DetectorFieldInstruction>? _fieldsByFullName;
         public ILookup<string, DetectorFieldInstruction> FieldsByFullName =>
@@ -56,6 +56,22 @@ public sealed partial class OutboxDispatchConventionTests
 
             Change(() => ReplaceInstruction(call, OpCodes.Callvirt, call.Operand));
             Change(() => ReplaceInstruction(call, OpCodes.Call, module.ImportReference(typeof(object).GetMethod("ToString")!)));
+            Change(() =>
+            {
+                var foreignType = new TypeReference(probe.Namespace, probe.Name, module,
+                    new AssemblyNameReference("InstructionIndex.Foreign", new Version(1, 0)));
+                var foreign = new MethodReference(method.Name, method.ReturnType, foreignType);
+                foreign.FullName.Should().Be(method.FullName);
+                return ReplaceInstruction(call, OpCodes.Call, foreign);
+            });
+            Change(() =>
+            {
+                var declaration = new MethodReference("_genericIndexTarget", module.TypeSystem.Void, probe);
+                declaration.GenericParameters.Add(new GenericParameter("T", declaration));
+                var generic = new GenericInstanceMethod(declaration);
+                generic.GenericArguments.Add(module.TypeSystem.String);
+                return ReplaceInstruction(call, OpCodes.Ldftn, generic);
+            });
             var unique = new MethodReference("_uniqueScanTarget", module.TypeSystem.Void, probe);
             Change(() => ReplaceInstruction(call, OpCodes.Call, unique));
             Change(() =>
@@ -136,9 +152,11 @@ public sealed partial class OutboxDispatchConventionTests
             {
                 var overlap = () => census.BeginDetectorScan();
                 overlap.Should().Throw<InvalidOperationException>();
+                ReferenceEquals(census.InstructionSnapshot, census.InstructionSnapshot).Should().BeTrue();
                 ReferenceEquals(census.MethodInstructions(target.Name), census.MethodInstructions(target.Name)).Should().BeTrue();
                 ReferenceEquals(census.FieldInstructions(field.Name), census.FieldInstructions(field.Name)).Should().BeTrue();
             }
+            ReferenceEquals(census.InstructionSnapshot, census.InstructionSnapshot).Should().BeFalse();
             ReferenceEquals(census.MethodInstructions(target.Name), census.MethodInstructions(target.Name)).Should().BeFalse();
             ReferenceEquals(census.FieldInstructions(field.Name), census.FieldInstructions(field.Name)).Should().BeFalse();
         }
@@ -190,6 +208,11 @@ public sealed partial class OutboxDispatchConventionTests
                 "the real production population must exercise a method and its linked generated body");
             var absentOwner = new MethodDefinition("_absentObservationOwner", MethodAttributes.Private, module.TypeSystem.Void);
             indexedBodies[absentOwner].Should().BeEmpty("an owner absent from the actual current body population cannot acquire another method's body");
+            var snapshot = census.InstructionSnapshot;
+            snapshot.OrderedMethods.SequenceEqual(methods).Should().BeTrue(
+                "the whole method snapshot must retain independent raw body/owner/target/instruction order and duplicates across names");
+            snapshot.OrderedFields.SequenceEqual(fields).Should().BeTrue(
+                "the whole field snapshot must retain independent raw body/owner/target/instruction order and duplicates across names");
             var methodsByName = methods.ToLookup(item => item.Target.Name, StringComparer.Ordinal);
             seenMethodNames.UnionWith(methodsByName.Select(group => group.Key));
             foreach (var name in seenMethodNames)

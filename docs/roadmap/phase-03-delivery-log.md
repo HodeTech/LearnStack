@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,543 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,615 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -376,7 +376,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 second hosted corrections (2026-11-05)](#p03-4-step-7-second-hosted-corrections-2026-11-05) — 54 lines
   - [P03-4 Step 7 second correction review closeout (2026-11-05)](#p03-4-step-7-second-correction-review-closeout-2026-11-05) — 35 lines
   - [P03-4 Step 7 third hosted A and census repair (2026-11-05)](#p03-4-step-7-third-hosted-a-and-census-repair-2026-11-05) — 65 lines
-  - [P03-4 Step 7 census repair review closeout (2026-11-05)](#p03-4-step-7-census-repair-review-closeout-2026-11-05) — 32 lines
+  - [P03-4 Step 7 census repair review closeout (2026-11-05)](#p03-4-step-7-census-repair-review-closeout-2026-11-05) — 33 lines
+  - [P03-4 Step 7 fourth hosted A and detector-index repair (2026-11-05)](#p03-4-step-7-fourth-hosted-a-and-detector-index-repair-2026-11-05) — 71 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -17315,3 +17316,75 @@ Human keyboard/focus/reflow/contrast/VoiceOver remains pending and unexecuted.
 The existing external-prerequisite clause permits independent CI/archive work;
 review closure is not full packet delivery, production SMTP/TLS, inbox delivery
 or P03-3 follow-up closure.
+
+
+### P03-4 Step 7 fourth hosted A and detector-index repair (2026-11-05)
+
+Complete automatic A `41977090425`, attempt 1, binds head `05c5892f`,
+base `ef344c0f`, merge/workflow source `daba186f` and tree `ec349b50`.
+It finishes 23 successful and four failed jobs. The earlier authenticated-HTTP
+census partition and the earlier two failing integration cases pass. Frontend,
+public-demo, native crash/cleanup, base, meta, OpenAPI and secret scan pass.
+Architecture partition 5 and ordinary partition 2 fail, so both required
+aggregates also refuse. The exact producer ledger contains 8,280 Passed,
+one Failed and nine censored cases out of 8,290 selected. This remains a failed A.
+
+All 23 available original artifact ZIPs match their API byte counts/SHA-256 and
+pass CRC; both failed aggregate archives are absent. The original attempt logs
+archive is retained separately with its local SHA-256 and CRC. Retention completes
+before any tracked diagnostic or implementation edit. No successful fragment
+combines with an earlier source or another failed attempt into qualification.
+
+Architecture partition 5 observes 139 of 148 selected cases, all Passed, before
+its deadline. The nine censored cases belong to one 48-case recurrence theory,
+whose other 39 cases complete. Its shared method is not established as the sole
+cause of exhaustion, and the prefix supplies no duration for a complete group.
+The advisory summed-method estimate is not a wall-time bound. The completed
+credential, Hangfire and bridge mutation cases consume substantial observed time;
+no new timer, resource, theory split, selector or weight follows from censoring.
+
+The separate existing browser/session fact records a positive-journey Chromium
+DevTools readiness failure followed by a secondary browser-signal cleanup error.
+The operation probe has not run; this is not evidence of a logout/history
+assertion failure. One unchanged fresh owned recheck passes the complete fact in
+51.137 seconds, including its three two-host journeys, stock Chromium, explicit
+fake provider/API fixtures and normal joined cleanup. Its history counter uses
+the separately labelled persisted event and records zero natural restorations.
+The actual test and runner exit successfully with unchanged source. This local
+pass neither establishes the original startup cause nor qualifies hosted CI.
+
+A fresh canonical three-Fact baseline passes with zero skips. A temporary
+fixed-span profile then preserves those original invocations and separately runs
+one actual recurrence theory row with all clean/dirty/restored evaluations.
+Every span completes with exact accounting. In that scoped row, the main and
+SDK projections consume about 40% of detector time; repeated exact-guard scans
+consume about 42%. Each evaluation projects 150,187 operands twice. The unscoped
+clean recurrence Fact is explicitly distinct from the scoped theory evidence.
+All four instrumented source files restore byte-for-byte; diagnostic timings
+supply neither qualification nor new weights. A fresh canonical rebuild follows.
+
+The repair reuses the existing ordered typed instruction snapshot and exact
+method-name index. Each detector captures the snapshot once, including the
+unscoped caller and SDK handoff; complete identity/opcode/owner predicates,
+duplicate occurrences, original order and generated-owner attribution remain.
+Owner formatting occurs after selection. Every clean/dirty/restored evaluation
+keeps its own scope; no cross-mutation cache or broader capability/observation
+cache is introduced. Same-Fact index controls compare the original raw ordered
+method/field tuples, foreign/generic operands, fresh scopes and exception disposal.
+A fresh canonical exact-row baseline passes in 3.090 seconds; the final
+candidate passes the same row in 2.156 seconds. This is one local per-case
+comparison, about 30% lower. Other clean-Fact and build-inclusive wall timings
+move in both directions, so no whole-command or hosted-fit improvement is
+inferred. Final canonical runs pass 57 distinct cases with zero skips: three
+clean Facts, all 48 recurrence cases, the existing extended index Fact and five
+shared-caller Facts. The extra focused row is already in the 48-case set and is
+not counted twice. All 48 identities match the retained assignment, including
+the nine previously censored cases, and all 153 recorded source paths match
+across candidate runs and final source. No diagnostic code remains. Two fresh
+independent review rounds govern publication of this six-file correction.
+
+Complete same-source hosted A followed by whole-run B, original archives/logs
+and independent all-surface reconciliation remain mandatory. Human keyboard/
+focus/reflow/contrast/VoiceOver remains pending and unexecuted; the existing
+external-prerequisite clause permits independent CI/archive work. No merge,
+production SMTP/TLS, inbox delivery or P03-3 follow-up closure is claimed.
