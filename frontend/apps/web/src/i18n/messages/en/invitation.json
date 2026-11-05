@@ -4,7 +4,8 @@
     "skip": "Skip to content",
     "cancel": "Cancel invitation",
     "home": "Return to institution site",
-    "signout": "Sign out to use another account"
+    "signout": "Sign out to use another account",
+    "required": "Required"
   },
   "landing": {
     "title": "Open your invitation",
@@ -19,9 +20,9 @@
     "signin_action": "Sign in or create an account",
     "bootstrap": "Create your LearnStack identity to continue. This does not yet join the institution.",
     "bootstrap_action": "Create my LearnStack identity",
-    "inspect": "Check this invitation using your account’s current verified email.",
+    "inspect": "Check this invitation using your account’s current verified email. If you already accepted it, check the original result.",
     "inspect_action": "Check invitation",
-    "forbidden": "This account cannot currently confirm the invitation. Verify your email, or sign out and use the account that received the invitation.",
+    "forbidden": "This account cannot currently confirm the invitation. Verify your email, or sign out and use the account that received the invitation. If you accepted it before, check the original result.",
     "verify_action": "Verify my email",
     "verification_hint": "After completing email verification, return here and check the invitation again. Verification alone does not accept it.",
     "ready": "Confirm the verified account and the offered membership before accepting.",
@@ -42,7 +43,7 @@
   "failure": {
     "unknown": "The acceptance outcome could not be confirmed. Check the result or check the invitation again; neither check submits a new acceptance.",
     "unavailable": "The invitation service is temporarily unavailable. Try again when you are ready.",
-    "expired": "This invitation continuation is no longer available. Reopen the original email to start again. An expired or replaced invitation needs a new email from the institution.",
+    "expired": "This invitation could not be inspected. If you already accepted it, check the original result. Otherwise, reopen the original email or ask the institution for a new invitation.",
     "account_change": "The signed-in account changed. Your existing session has been preserved. Sign out explicitly before continuing with another account.",
     "restart": "Open a new invitation",
     "retry": "Try again"

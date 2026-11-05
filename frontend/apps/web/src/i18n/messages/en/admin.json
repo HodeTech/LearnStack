@@ -80,7 +80,7 @@
     "organization_profiles": "Edit branch membership profiles",
     "organizations": "Manage organizations",
     "locales": "Manage institution languages",
-    "settings": "Manage institution appearance",
+    "settings": "Manage institution appearance and invitation lifetime",
     "unavailable": "Permission label unavailable"
   },
   "failure": {
@@ -139,6 +139,7 @@
     "policy_days": "Lifetime in days",
     "policy_range": "Enter a whole number from 1 to 30.",
     "policy_save": "Save invitation lifetime",
-    "policy_read_only": "You can view this policy. Editing requires institution-wide settings permission."
+    "policy_read_only": "You can view this policy. Editing requires institution-wide settings permission.",
+    "required": "Required"
   }
 }

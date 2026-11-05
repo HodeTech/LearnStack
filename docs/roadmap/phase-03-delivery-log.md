@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,010 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,065 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -366,7 +366,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 5 second review delegation and transport corrections (2026-11-05)](#p03-4-step-5-second-review-delegation-and-transport-corrections-2026-11-05) — 40 lines
   - [P03-4 Step 5 review closeout and Step 6 continuation (2026-11-05)](#p03-4-step-5-review-closeout-and-step-6-continuation-2026-11-05) — 28 lines
   - [P03-4 Step 6 Studio and native invitation implementation (2026-11-05)](#p03-4-step-6-studio-and-native-invitation-implementation-2026-11-05) — 90 lines
-  - [P03-4 Step 6 first review recovery and quota corrections (2026-11-05)](#p03-4-step-6-first-review-recovery-and-quota-corrections-2026-11-05) — 47 lines
+  - [P03-4 Step 6 first review recovery and quota corrections (2026-11-05)](#p03-4-step-6-first-review-recovery-and-quota-corrections-2026-11-05) — 48 lines
+  - [P03-4 Step 6 second review original-result and form corrections (2026-11-05)](#p03-4-step-6-second-review-original-result-and-form-corrections-2026-11-05) — 54 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -16772,3 +16773,58 @@ with zero warnings/errors or skipped tests on the unchanged backend source.
 These receipts do not replace Step 7's complete final-source qualification or
 human accessibility observations. Finding-owner closure and two different fresh
 second-round reviewers follow the correction commit.
+
+
+### P03-4 Step 6 second review original-result and form corrections (2026-11-05)
+
+Two different fresh reviewers inspect the complete range through `fca08b60`.
+The protocol reviewer finds one Major: after accepted-response/custody loss,
+reopening the original email offers inspection, whose Accepted-offer 404 leads
+only to another restart. The existing own-result authority remains valid for the
+same actor and original Active Membership, but its action is unreachable.
+
+The native renderer now exposes a deliberate original-result check on fresh
+inspection, masked inspection refusal and account-verification recovery. Localized
+copy explains that possibility without inferring acceptance from 404. The existing
+result command and separate session admission are reused; no new acceptance is
+submitted automatically. Actual native HTTP/renderer/store controls use a controlled
+API to commit acceptance, fail the first admission, expire only native custody,
+recapture the original code, exercise inspection 404 and reconcile the original
+result before separate admission. They assert no second acceptance and preserve
+changed-current-email independence. A masked result-404 UI control keeps the
+original refusal private. These establish UI/protocol reachability; controlled
+replies do not independently prove backend wrong-actor or original-Membership
+authorization, whose real integration qualification remains separately required.
+
+The experience reviewer finds two Minors. The Role permission label still names
+appearance alone although the existing setting-write pair also grants invitation
+lifetime editing. Both catalogues now name those two exact powers. New required
+email, offered-Role, lifetime and manual-code controls gain localized visible
+required wording and explicit aria-required, retaining native validation and
+associated hints. Recovery evidence remains readonly or hidden according to its
+existing grammar; it is not mislabeled as editable required input. A parent
+self-check also labels the skip link with the selected UI language/direction,
+retaining the document's admitted content locale and its independent fallback.
+
+The focused red run reports eleven failures among 116 cases. The final focused
+run passes 118 cases across six files; another 39 existing recovery/catalogue
+regressions pass across two files, all with zero skips/todo. Workspace typecheck,
+lint and native emission pass. These bounded receipts preserve the earlier full
+guard/provider results as earlier-source evidence, rather than a fresh full pass.
+
+A parent full Architecture run also exposes a stale call census from the earlier
+Identity graph-write integration. SaveAsync calls RequireMutableGraph, which
+already invokes RequireWriteAllowed before mutation; the rule still expects a
+direct SaveAsync-to-guard call. The test now requires both exact existing edges,
+with hostile controls independently removing each. No production write barrier
+is changed or duplicate guard inserted to satisfy a test. The exact affected
+architecture test passes, with zero skips. The known-failed full run is
+interrupted for correction and remains incomplete, with no full-suite pass or
+complete population credit; Step 7 reruns the complete final-source suite.
+The architecture rule name/status and compiled method count are unchanged.
+
+Review closure requires both second-round finding owners to check the correction
+commit and bounded receipts. Human keyboard/focus/reflow/contrast/VoiceOver
+observations remain unexecuted. The Accepted package permits independent work
+while that external evidence is pending; Step 7's provider/process, full-suite,
+hosted A/B and original-archive obligations are not waived.

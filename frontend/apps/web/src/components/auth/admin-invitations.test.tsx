@@ -88,6 +88,41 @@ describe('prepared invitation administration', () => {
     },
   );
 
+  it.each(['en', 'tr'])(
+    'marks required invitation and policy controls visibly and semantically in %s',
+    (locale) => {
+      const documents = [
+        documentFor(
+          {
+            kind: 'invitations',
+            items: [],
+            roles: [uiRole],
+            endCursor: null,
+            hasNextPage: false,
+            limit: 20,
+          },
+          { ownProfile: { displayName: null, preferredLocale: locale, version: '1' } },
+        ),
+        documentFor(
+          {
+            kind: 'invitation_policy',
+            policy: { days: 14, present: false, version: null, canEdit: true },
+          },
+          { ownProfile: { displayName: null, preferredLocale: locale, version: '1' } },
+        ),
+      ];
+      const controls = documents.flatMap((document) => [
+        ...document.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[required]'),
+      ]);
+      expect(controls.map((control) => control.name)).toEqual(['email', 'offeredRole', 'days']);
+      for (const control of controls) {
+        expect(control.getAttribute('aria-required')).toBe('true');
+        expect(control.labels?.[0]?.textContent).toContain(
+          locale === 'en' ? 'Required' : 'Zorunlu',
+        );
+      }
+    },
+  );
   it('renders separate lifecycle and submission facts with safe mailbox isolation and issued pagination', () => {
     const document = documentFor({
       kind: 'invitations',

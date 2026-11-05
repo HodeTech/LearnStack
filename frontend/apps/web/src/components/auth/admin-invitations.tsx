@@ -97,13 +97,16 @@ export function InvitationDirectory({
           <form action="/api/studio/invitation-create" method="post">
             <FormIdentityFields snapshot={snapshot} index={0} />
             <div className="auth-field">
-              <label htmlFor="invitation-email">{admin('invitations.recipient')}</label>
+              <label htmlFor="invitation-email">
+                {admin('invitations.recipient')} ({admin('invitations.required')})
+              </label>
               <input
                 id="invitation-email"
                 name="email"
                 type="email"
                 maxLength={254}
                 required
+                aria-required="true"
                 autoComplete="off"
                 spellCheck={false}
                 aria-describedby="invitation-email-hint"
@@ -111,8 +114,16 @@ export function InvitationDirectory({
               <p id="invitation-email-hint">{admin('invitations.email_hint')}</p>
             </div>
             <div className="auth-field">
-              <label htmlFor="invitation-role">{admin('invitations.offered_role')}</label>
-              <select id="invitation-role" name="offeredRole" required defaultValue="">
+              <label htmlFor="invitation-role">
+                {admin('invitations.offered_role')} ({admin('invitations.required')})
+              </label>
+              <select
+                id="invitation-role"
+                name="offeredRole"
+                required
+                aria-required="true"
+                defaultValue=""
+              >
                 <option value="" disabled>
                   {admin('invitations.choose_role')}
                 </option>
@@ -248,7 +259,9 @@ export function InvitationPolicy({
             <input type="hidden" name="version" value={policy.version} />
           )}
           <div className="auth-field">
-            <label htmlFor="invitation-lifetime">{admin('invitations.policy_days')}</label>
+            <label htmlFor="invitation-lifetime">
+              {admin('invitations.policy_days')} ({admin('invitations.required')})
+            </label>
             <input
               id="invitation-lifetime"
               name="days"
@@ -257,6 +270,7 @@ export function InvitationPolicy({
               max={30}
               step={1}
               required
+              aria-required="true"
               defaultValue={policy.days}
               aria-describedby="invitation-lifetime-hint"
             />

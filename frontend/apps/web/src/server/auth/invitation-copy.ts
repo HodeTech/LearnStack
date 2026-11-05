@@ -1,5 +1,6 @@
 export const invitationKeys = [
   'common.title',
+  'common.required',
   'common.skip',
   'common.cancel',
   'common.home',

@@ -221,6 +221,7 @@ describe('native invitation administrator HTTP and actual SDK dispatch', () => {
       const retry = rendered.querySelector<HTMLFormElement>('form[action="' + createPath + '"]')!;
       expect(retry?.method).toBe('post');
       expect(submittedFields(retry)).toEqual(f.create);
+      expect(retry.querySelector('input:not([type="hidden"]), select, textarea')).toBeNull();
       expect(rendered.querySelector('a[href="/studio/invitations"]')).not.toBeNull();
       expect(f.transport).toHaveBeenCalledTimes(1);
       const originalRequest = f.transport.mock.calls[0]![1]!;
@@ -283,6 +284,9 @@ describe('native invitation administrator HTTP and actual SDK dispatch', () => {
       expect(rendered.querySelector<HTMLTextAreaElement>('#mutation-edit-email')?.value).toBe(
         invalidEmail,
       );
+      expect(rendered.querySelector<HTMLTextAreaElement>('#mutation-edit-email')?.readOnly).toBe(
+        true,
+      );
       expect(rendered.querySelector('unsafe')).toBeNull();
       expect(rendered.querySelector('a[href="/studio/invitations"]')).not.toBeNull();
       expect(f.transport).not.toHaveBeenCalled();
@@ -300,6 +304,7 @@ describe('native invitation administrator HTTP and actual SDK dispatch', () => {
     const rendered = await document(response);
     expect(rendered.querySelector('[role="alert"]')).not.toBeNull();
     expect(rendered.querySelector<HTMLTextAreaElement>('#mutation-edit-days')?.value).toBe('31');
+    expect(rendered.querySelector<HTMLTextAreaElement>('#mutation-edit-days')?.readOnly).toBe(true);
     expect(rendered.querySelector<HTMLTextAreaElement>('#mutation-edit-presence')?.value).toContain(
       'default lifetime is 14 days',
     );

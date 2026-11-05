@@ -98,6 +98,25 @@ describe('prepared administration views', () => {
       }
     },
   );
+  it.each(['en', 'tr'])(
+    'names appearance and invitation lifetime in the actual granted settings permission (%s)',
+    (locale) => {
+      const base = roleView();
+      const view: Extract<PageView, { kind: 'role' }> = {
+        ...base,
+        role: { ...base.role, grants: [{ scope: 'Tenant', key: 'tenancy.setting.write' }] },
+      };
+      const { document } = documentFor(view, {
+        ownProfile: { displayName: null, preferredLocale: locale, version: '1' },
+      });
+      const text =
+        locale === 'en'
+          ? 'Manage institution appearance and invitation lifetime'
+          : 'Kurum görünümünü ve davet süresini yönetme';
+      expect(document.body.textContent).toContain(text);
+      expect(document.body.textContent).not.toContain('tenancy.setting.write');
+    },
+  );
   it('uses site fallback for missing/disabled preference and never uses the viewed member preference', () => {
     const view = {
       kind: 'member',

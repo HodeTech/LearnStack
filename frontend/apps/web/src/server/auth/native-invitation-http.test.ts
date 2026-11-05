@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { BFF_COOKIES } from './cookies';
 import { createInvitationRenderer } from './invitation-html';
+import { NativeInvitationError } from './native-invitation-contract';
 import type { NativeInvitationApi } from './native-invitation-contract';
 import { createNativeInvitationHandler, nativeInvitationTarget } from './native-invitation-http';
 import { BffSessionError } from './session-contract';
@@ -478,6 +479,142 @@ describe('native invitation response before Next', () => {
     const current = await f.request('/invitations/confirm', { headers: { cookie: latestCookies } });
     expect(current.status).toBe(200);
     expect(await current.text()).toContain('data-invitation-state="signin"');
+  });
+  it('reopens expired custody for the original accepted result despite changed current email and separately admits a session', async () => {
+    const invitationId = '019a154b-0000-7000-8000-000000000077';
+    const originalCode = invitationId + '.' + bffOpaque();
+    const original = {
+      invitationId,
+      version: '2',
+      membershipId: '019a154b-0000-7000-8000-000000000078',
+      disposition: 'created' as const,
+      tenantId: '10000000-0000-4000-8000-000000000001',
+      organizationId: null,
+    };
+    let committed = false;
+    let currentEmail = 'original@example.test';
+    const api = {
+      inspect: vi.fn<NativeInvitationApi['inspect']>(async () => {
+        if (committed) throw new NativeInvitationError('not_found', 404);
+        return {
+          invitationId,
+          version: '1',
+          expiresAt: '2026-11-06T12:00:00Z',
+          tenantLabel: 'Institution',
+          organizationLabel: null,
+          roleId: '019a154b-0000-7000-8000-000000000088',
+          roleKey: 'Learner',
+          roleScope: 'Tenant',
+          verifiedEmail: currentEmail,
+        };
+      }),
+      accept: vi.fn<NativeInvitationApi['accept']>(async () => {
+        committed = true;
+        return original;
+      }),
+      result: vi.fn<NativeInvitationApi['result']>(async (_token, _binding, input) => {
+        expect(committed).toBe(true);
+        expect(currentEmail).toBe('changed@example.test');
+        expect(input).toEqual({ invitationId, code: originalCode });
+        return original;
+      }),
+    };
+    const f = await fixture(200, api);
+    const reopen = async () => {
+      const landing = await f.request('/invitations');
+      const cookies = cookie(landing);
+      const proof = csrf(await landing.text());
+      const values = new Map(
+        cookies.split('; ').map((pair) => pair.split('=') as [string, string]),
+      );
+      await f.request('/api/auth/invitation/capture', {
+        method: 'POST',
+        headers: { cookie: cookies, origin: 'https://' + bffHost },
+        body: new URLSearchParams({ csrfToken: proof, code: originalCode }),
+      });
+      await f.enter({
+        browser: values.get(BFF_COOKIES.browser)!,
+        invitation: values.get(BFF_COOKIES.invitation)!,
+      });
+      const post = (action: string, version?: string) =>
+        f.request('/api/auth/invitation/' + action, {
+          method: 'POST',
+          headers: { cookie: cookies, origin: 'https://' + bffHost },
+          body: new URLSearchParams({ csrfToken: proof, ...(version ? { version } : {}) }),
+        });
+      return { cookies, post };
+    };
+    const first = await reopen();
+    const inspected = await first.post('inspect');
+    expect(await inspected.text()).toContain('data-invitation-state="ready"');
+    f.account.mockRejectedValueOnce(new Error('controlled admission unavailable'));
+    const accepted = await first.post('accept', '1');
+    expect(await accepted.text()).toContain('data-invitation-session="unavailable"');
+    f.advance(BFF_LIMITS.transactionMs + 1);
+    f.store.sweep();
+    currentEmail = 'changed@example.test';
+    const fresh = await reopen();
+    const confirmation = await f.request('/invitations/confirm', {
+      headers: { cookie: fresh.cookies },
+    });
+    const freshHtml = await confirmation.text();
+    expect(freshHtml).toContain('action="/api/auth/invitation/result"');
+    const masked = await fresh.post('inspect');
+    const maskedHtml = await masked.text();
+    expect(maskedHtml).toContain('data-invitation-state="expired"');
+    expect(maskedHtml).toContain('action="/api/auth/invitation/result"');
+    expect(maskedHtml).not.toContain(originalCode);
+    const recovered = await fresh.post('result');
+    const html = await recovered.text();
+    expect(html).toContain('data-invitation-disposition="created"');
+    expect(html).toContain('data-invitation-session="ready"');
+    expect(
+      recovered.headers.getSetCookie().some((value) => value.startsWith(BFF_COOKIES.session + '=')),
+    ).toBe(true);
+    expect(f.native.admit).toHaveBeenCalledTimes(2);
+    expect(api.accept).toHaveBeenCalledTimes(1);
+    expect(api.result).toHaveBeenCalledTimes(1);
+    expect(html).not.toMatch(/original@example|changed@example|private-access|private-refresh/);
+  });
+  it('keeps the controlled API masked404 for wrong actor, lost original membership or unavailable Pending offers without a grant', async () => {
+    const api = {
+      inspect: vi.fn<NativeInvitationApi['inspect']>(async () => {
+        throw new NativeInvitationError('not_found', 404);
+      }),
+      accept: vi.fn<NativeInvitationApi['accept']>(),
+      result: vi.fn<NativeInvitationApi['result']>(async () => {
+        throw new NativeInvitationError('not_found', 404);
+      }),
+    };
+    const f = await fixture(200, api);
+    const landing = await f.request('/invitations');
+    const cookies = cookie(landing);
+    const proof = csrf(await landing.text());
+    const values = new Map(cookies.split('; ').map((pair) => pair.split('=') as [string, string]));
+    const code = '019a154b-0000-7000-8000-000000000077.' + bffOpaque();
+    const post = (action: string, fields: Record<string, string> = {}) =>
+      f.request('/api/auth/invitation/' + action, {
+        method: 'POST',
+        headers: { cookie: cookies, origin: 'https://' + bffHost },
+        body: new URLSearchParams({ csrfToken: proof, ...fields }),
+      });
+    await post('capture', { code });
+    await f.enter({
+      browser: values.get(BFF_COOKIES.browser)!,
+      invitation: values.get(BFF_COOKIES.invitation)!,
+    });
+    const unavailable = await post('inspect');
+    expect(await unavailable.text()).toContain('action="/api/auth/invitation/result"');
+    const result = await post('result');
+    const html = await result.text();
+    expect(html).toContain('data-invitation-state="unknown"');
+    expect(html).not.toContain(code);
+    expect(html).not.toContain('action="/api/auth/invitation/accept"');
+    expect(
+      result.headers.getSetCookie().some((value) => value.startsWith(BFF_COOKIES.session + '=')),
+    ).toBe(false);
+    expect(api.accept).not.toHaveBeenCalled();
+    expect(f.native.admit).not.toHaveBeenCalled();
   });
   it('refuses query aliases and nonexact recipient routes without Next', async () => {
     const f = await fixture();

@@ -80,7 +80,7 @@
     "organization_profiles": "Şube üyelik profillerini düzenleme",
     "organizations": "Organizasyonları yönetme",
     "locales": "Kurum dillerini yönetme",
-    "settings": "Kurum görünümünü yönetme",
+    "settings": "Kurum görünümünü ve davet süresini yönetme",
     "unavailable": "Yetki adı kullanılamıyor"
   },
   "failure": {
@@ -139,6 +139,7 @@
     "policy_days": "Gün olarak geçerlilik süresi",
     "policy_range": "1 ile 30 arasında bir tam sayı girin.",
     "policy_save": "Davet geçerlilik süresini kaydet",
-    "policy_read_only": "Bu kuralı görüntüleyebilirsiniz. Düzenlemek için kurum genelinde ayar yetkisi gerekir."
+    "policy_read_only": "Bu kuralı görüntüleyebilirsiniz. Düzenlemek için kurum genelinde ayar yetkisi gerekir.",
+    "required": "Zorunlu"
   }
 }

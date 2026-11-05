@@ -52,9 +52,9 @@ function confirmation(
     case 'bootstrap':
       return `<p>${escape(invitation('confirm.bootstrap'))}</p>${form('/api/auth/entry/create', page.entryCsrfToken, invitation('confirm.bootstrap_action'))}${signout()}`;
     case 'inspect':
-      return `<p>${escape(invitation('confirm.inspect'))}</p>${inspect()}${signout()}`;
+      return `<p>${escape(invitation('confirm.inspect'))}</p>${inspect()}${result()}${signout()}`;
     case 'forbidden':
-      return `<p role="status">${escape(invitation('confirm.forbidden'))}</p>${action('verify', invitation('confirm.verify_action'))}<p>${escape(invitation('confirm.verification_hint'))}</p>${inspect()}${signout()}`;
+      return `<p role="status">${escape(invitation('confirm.forbidden'))}</p>${action('verify', invitation('confirm.verify_action'))}<p>${escape(invitation('confirm.verification_hint'))}</p>${inspect()}${result()}${signout()}`;
     case 'ready': {
       const offer = page.inspection;
       if (!offer)
@@ -81,7 +81,7 @@ function confirmation(
     case 'unavailable':
       return `<p role="alert">${escape(invitation('failure.unavailable'))}</p>${inspect()}${result()}`;
     case 'expired':
-      return `<p role="alert">${escape(invitation('failure.expired'))}</p><p><a href="/invitations">${escape(invitation('failure.restart'))}</a></p>`;
+      return `<p role="alert">${escape(invitation('failure.expired'))}</p>${result()}<p><a href="/invitations">${escape(invitation('failure.restart'))}</a></p>`;
     case 'account_change':
       return `<p role="alert">${escape(invitation('failure.account_change'))}</p>${signout()}`;
   }
@@ -101,12 +101,12 @@ export function createInvitationRenderer(catalogues: InvitationCatalogues) {
     const direction = info.getTextInfo?.().direction === 'rtl' ? 'rtl' : 'ltr';
     const landing = page.kind === 'landing';
     const content = landing
-      ? `<p>${escape(invitation('landing.description'))}</p><p id="invitation-invalid" role="alert"${page.invalid ? '' : ' hidden'}>${escape(invitation('landing.invalid'))}</p><form id="invitation-capture" action="/api/auth/invitation/capture" method="post">${hidden('csrfToken', page.csrfToken)}<label for="invitation-code">${escape(invitation('landing.code_label'))}</label><input id="invitation-code" name="code" type="text" required maxlength="80" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="invitation-invalid"${page.invalid ? ' aria-invalid="true"' : ''}><button type="submit">${escape(invitation('landing.continue'))}</button></form><noscript><p>${escape(invitation('landing.no_script'))}</p></noscript>`
+      ? `<p>${escape(invitation('landing.description'))}</p><p id="invitation-invalid" role="alert"${page.invalid ? '' : ' hidden'}>${escape(invitation('landing.invalid'))}</p><form id="invitation-capture" action="/api/auth/invitation/capture" method="post">${hidden('csrfToken', page.csrfToken)}<label for="invitation-code">${escape(invitation('landing.code_label'))} (${escape(invitation('common.required'))})</label><input id="invitation-code" name="code" type="text" required aria-required="true" maxlength="80" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="invitation-invalid"${page.invalid ? ' aria-invalid="true"' : ''}><button type="submit">${escape(invitation('landing.continue'))}</button></form><noscript><p>${escape(invitation('landing.no_script'))}</p></noscript>`
       : confirmation(page, invitation) +
         form('/api/auth/invitation/cancel', page.csrfToken, invitation('common.cancel'));
     const observation = landing
       ? ' data-invitation-state="landing"'
       : ` data-invitation-state="${page.state}"${page.state === 'accepted' && page.disposition ? ` data-invitation-disposition="${page.disposition}" data-invitation-session="${page.sessionAvailable ? 'ready' : 'unavailable'}"` : ''}`;
-    return `<!doctype html><html lang="${escape(language)}" dir="${direction}"><head><meta charset="utf-8"><script${nonce ? ` nonce="${nonce}"` : ''}>${landing ? INVITATION_LANDING_SCRIPT : INVITATION_CONFIRM_SCRIPT}</script><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="same-origin"><title lang="${locale}">${escape(invitation('common.title'))}</title><style>${css}</style></head><body><a class="skip" href="#main">${escape(invitation('common.skip'))}</a><main id="main" tabindex="-1" lang="${locale}" dir="ltr"${observation}><h1>${escape(landing ? invitation('landing.title') : invitation('common.title'))}</h1>${content}<p><a href="/">${escape(invitation('common.home'))}</a></p></main></body></html>`;
+    return `<!doctype html><html lang="${escape(language)}" dir="${direction}"><head><meta charset="utf-8"><script${nonce ? ` nonce="${nonce}"` : ''}>${landing ? INVITATION_LANDING_SCRIPT : INVITATION_CONFIRM_SCRIPT}</script><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="same-origin"><title lang="${locale}">${escape(invitation('common.title'))}</title><style>${css}</style></head><body><a class="skip" href="#main" lang="${locale}" dir="ltr">${escape(invitation('common.skip'))}</a><main id="main" tabindex="-1" lang="${locale}" dir="ltr"${observation}><h1>${escape(landing ? invitation('landing.title') : invitation('common.title'))}</h1>${content}<p><a href="/">${escape(invitation('common.home'))}</a></p></main></body></html>`;
   };
 }

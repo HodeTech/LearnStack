@@ -82,6 +82,39 @@ describe('native invitation documents and complete authored copy', () => {
     ).toBeNull();
   });
 
+  it.each([
+    ['ar', 'en'],
+    ['tr-TR', 'tr'],
+  ])('keeps content language %s while tagging all fallback UI as %s', (locale, uiLocale) => {
+    const document = parse(render({ kind: 'landing', locale, csrfToken }));
+    expect(document.documentElement.lang).toBe(locale);
+    expect(document.querySelector('main')?.lang).toBe(uiLocale);
+    expect(document.querySelector<HTMLAnchorElement>('a.skip')?.lang).toBe(uiLocale);
+    expect(document.querySelector('a.skip')?.getAttribute('dir')).toBe('ltr');
+  });
+  it.each(['en', 'tr'])(
+    'marks the native code visibly and semantically required in %s including invalid recovery',
+    (locale) => {
+      for (const invalid of [false, true]) {
+        const document = parse(render({ kind: 'landing', locale, csrfToken, invalid }));
+        const input = document.querySelector<HTMLInputElement>('#invitation-code')!;
+        expect(input.required).toBe(true);
+        expect(input.getAttribute('aria-required')).toBe('true');
+        expect(document.querySelector('label[for="invitation-code"]')?.textContent).toContain(
+          locale === 'en' ? 'Required' : 'Zorunlu',
+        );
+        expect(input.value).toBe('');
+      }
+    },
+  );
+  it.each(['inspect', 'expired', 'forbidden'] as const)(
+    'offers a deliberate original-result check from %s without assuming acceptance',
+    (state) => {
+      const document = parse(render(page({ state })));
+      expect(document.querySelector('form[action="/api/auth/invitation/result"]')).not.toBeNull();
+      expect(document.querySelector('form[action="/api/auth/invitation/accept"]')).toBeNull();
+    },
+  );
   it('shows full verified email inside bidi isolation and submits only the observed version', () => {
     const html = render(page({ state: 'ready', inspection }));
     const document = parse(html);

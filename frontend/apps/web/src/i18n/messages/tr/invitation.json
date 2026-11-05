@@ -4,7 +4,8 @@
     "skip": "İçeriğe geç",
     "cancel": "Daveti iptal et",
     "home": "Kurum sitesine dön",
-    "signout": "Başka bir hesap kullanmak için çıkış yap"
+    "signout": "Başka bir hesap kullanmak için çıkış yap",
+    "required": "Zorunlu"
   },
   "landing": {
     "title": "Davetinizi açın",
@@ -19,9 +20,9 @@
     "signin_action": "Giriş yap veya hesap oluştur",
     "bootstrap": "Devam etmek için LearnStack kimliğinizi oluşturun. Bu işlem henüz kuruma üye olmanızı sağlamaz.",
     "bootstrap_action": "LearnStack kimliğimi oluştur",
-    "inspect": "Daveti hesabınızın güncel, doğrulanmış e-posta adresiyle kontrol edin.",
+    "inspect": "Daveti hesabınızın güncel doğrulanmış e-posta adresiyle kontrol edin. Daha önce kabul ettiyseniz önceki kabul sonucunu kontrol edin.",
     "inspect_action": "Daveti kontrol et",
-    "forbidden": "Bu hesap şu anda daveti doğrulayamıyor. E-postanızı doğrulayın veya çıkış yapıp davetin gönderildiği hesabı kullanın.",
+    "forbidden": "Bu hesap şu anda daveti doğrulayamıyor. E-postanızı doğrulayın veya çıkış yapıp davetin gönderildiği hesapla giriş yapın. Daha önce kabul ettiyseniz önceki kabul sonucunu kontrol edin.",
     "verify_action": "E-postamı doğrula",
     "verification_hint": "E-posta doğrulamasını tamamladıktan sonra buraya dönüp daveti yeniden kontrol edin. E-posta doğrulaması tek başına daveti kabul etmez.",
     "ready": "Kabul etmeden önce doğrulanmış hesabınızı ve sunulan üyeliği kontrol edin.",
@@ -42,7 +43,7 @@
   "failure": {
     "unknown": "Kabul işleminin sonucu doğrulanamadı. Sonucu kontrol edin veya daveti yeniden inceleyin; bu kontroller yeni bir kabul isteği göndermez.",
     "unavailable": "Davet hizmeti geçici olarak kullanılamıyor. Hazır olduğunuzda yeniden deneyin.",
-    "expired": "Bu davete devam etme süresi sona erdi. Yeniden başlamak için ilk e-postayı açın. Süresi dolan veya yenilenen bir davet için kurumdan yeni bir e-posta gerekir.",
+    "expired": "Bu davet incelenemedi. Daha önce kabul ettiyseniz önceki kabul sonucunu kontrol edin. Aksi durumda ilk e-postayı yeniden açın veya kurumdan yeni bir davet isteyin.",
     "account_change": "Giriş yapılan hesap değişti. Mevcut oturumunuz korundu. Başka bir hesapla devam etmeden önce açıkça çıkış yapın.",
     "restart": "Yeni bir davet aç",
     "retry": "Yeniden dene"
