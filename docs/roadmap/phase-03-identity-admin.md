@@ -16,8 +16,8 @@
 > Its [seven-step package](phase-03-delivery-log.md#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04)
 > has Steps 1–5 implemented and reviewed. Step 6 and both review rounds are closed
 > ([closeout](phase-03-delivery-log.md#p03-4-step-6-implementation-review-closeout-and-step-7-continuation-2026-11-05));
-> human accessibility evidence remains unexecuted and pending. Step 7
-> implementation and both final review rounds are closed
+> [Manual accessibility checks](phase-03-delivery-log.md#p03-4-maintainer-manual-accessibility-acceptance-2026-11-05) are completed and accepted by the maintainer.
+> Step 7 implementation and both final review rounds are closed
 > ([PR readiness](phase-03-delivery-log.md#p03-4-step-7-final-reviews-and-pr-readiness-2026-11-05)).
 > P03-4's [second correction reviews](phase-03-delivery-log.md#p03-4-step-7-second-correction-review-closeout-2026-11-05) are closed, including the verified diagnostic fix.
 > The [detector-index repair reviews](phase-03-delivery-log.md#p03-4-step-7-detector-index-repair-review-closeout-2026-11-05) are closed with no actionable finding; failed-source proof boundaries remain.
@@ -32,7 +32,7 @@
 > | P03-1 | Identity authority and membership foundation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-1-merge-and-closeout-2026-10-27) |
 > | P03-2 | Live membership and authorization | Complete and merged — [closeout](phase-03-delivery-log.md#p03-2-merge-and-closeout-2026-10-28) |
 > | P03-3 | Protected Studio and membership administration | Complete and merged — [closeout](phase-03-delivery-log.md#p03-3-merge-and-delivery-closeout-2026-11-04); evidence follow-ups remain open |
-> | P03-4 | Invitations and bounded delivery | In progress — G8 Accepted; fourth CI correction reviewed; final-source A/B/archive gates and human evidence govern delivery |
+> | P03-4 | Invitations and bounded delivery | In progress — manual checks accepted; final-source A/B/archive qualification remains open |
 > | P03-5 | Custom fields and privacy classification | Not started |
 > | P03-6 | Provider event ingress and audit mirror | Not started |
 > | P03-7 | Back-channel session revocation | Not started |

@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,649 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,681 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -378,7 +378,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 third hosted A and census repair (2026-11-05)](#p03-4-step-7-third-hosted-a-and-census-repair-2026-11-05) — 65 lines
   - [P03-4 Step 7 census repair review closeout (2026-11-05)](#p03-4-step-7-census-repair-review-closeout-2026-11-05) — 33 lines
   - [P03-4 Step 7 fourth hosted A and detector-index repair (2026-11-05)](#p03-4-step-7-fourth-hosted-a-and-detector-index-repair-2026-11-05) — 72 lines
-  - [P03-4 Step 7 detector-index repair review closeout (2026-11-05)](#p03-4-step-7-detector-index-repair-review-closeout-2026-11-05) — 33 lines
+  - [P03-4 Step 7 detector-index repair review closeout (2026-11-05)](#p03-4-step-7-detector-index-repair-review-closeout-2026-11-05) — 34 lines
+  - [P03-4 maintainer manual accessibility acceptance (2026-11-05)](#p03-4-maintainer-manual-accessibility-acceptance-2026-11-05) — 31 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -17423,3 +17424,35 @@ Human keyboard/focus/reflow/contrast/VoiceOver remains pending and unexecuted.
 The existing external-prerequisite clause permits independent CI/archive work;
 review closure is not full packet delivery, production SMTP/TLS, inbox delivery
 or P03-3 follow-up closure.
+
+
+### P03-4 maintainer manual accessibility acceptance (2026-11-05)
+
+The maintainer reports completing every item in the supplied ten-group P03-4
+manual checklist and accepts all results. This closes P03-4's pending human
+accessibility check for the unchanged application source at development head
+`0fcc486ab7285f9d828e48b25511d81f860d3727`.
+
+The accepted scope covers English and Turkish invitation administration and
+recipient flows: keyboard navigation and visible focus; form labels, validation
+and error recovery; VoiceOver; new-recipient registration, email verification
+and explicit acceptance; wrong-account recovery; invitation renewal/revocation
+and status copy; existing-member and original-result recovery; 200%/400% zoom
+and 320 CSS px reflow; contrast; and no-JavaScript use. The maintainer reports
+no remaining issue in these checks.
+
+The prepared local environment uses the current development API/native web,
+trusted local HTTPS, the tenant Keycloak realm and Mailpit. New-account creation
+is explicitly enabled locally. Existing data, account credentials and secrets
+are retained; invitation SMTP/key-ring configuration and the required database
+privacy settings are prepared for this local check.
+
+Evidence is the maintainer's explicit completion and acceptance in the task
+conversation. The agent does not claim to have performed the human observations.
+Exact macOS/browser/VoiceOver versions, individual contrast measurements and
+recordings are not supplied; no such details are invented.
+
+This acceptance closes the P03-4 human check. Complete successful same-source
+hosted A/B and independent original-archive reconciliation remain open before
+packet delivery/merge. Production SMTP/TLS, inbox delivery, P03-3's separately
+scoped follow-ups and full phase-exit qualification retain their own boundaries.
