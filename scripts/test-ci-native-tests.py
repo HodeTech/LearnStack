@@ -1496,6 +1496,10 @@ except launcher.Refusal as failure:
         for literal in self.owner.BFF_INVITATION_FIXED_FAILURES:
             self.assertIn('"' + literal + '"', driver)
         self.assertIn('"' + self.owner.BFF_INVITATION_WITNESS_FAILURE + '"', driver)
+        complete = driver.split('internal async Task CompleteAsync()', 1)[1].split('internal async Task<BffEntryBrowserReceipt>', 1)[0]
+        self.assertLess(complete.index('_child.ExitCode != 0'), complete.index('_complete = true'))
+        self.assertIn('throw new InvalidOperationException("BFF native fixture failed after owned cleanup.")', complete)
+        self.assertNotIn('BFF native fixture completed without a successful exit.', self.owner.BFF_INVITATION_FIXED_FAILURES)
         self.assertIn('driver.ReadAsync(heldBuild ? "held-build" : "ready")', driver)
         for phase in ('response', 'complete', 'invitation_browser'):
             self.assertIn('ReadAsync("' + phase + '")', driver)
@@ -1531,6 +1535,7 @@ except launcher.Refusal as failure:
                         'BFF native fixture did not reach the closed browser_result/deadline_input phase.',
                         'BFF native fixture did not reach the closed ready/PRIVATE-CANARY phase.',
                         'BFF native fixture did not reach the closed ready/browser-spawn_cleanup_cleanup-owner phase.',
+                        'BFF native fixture completed without a successful exit.',
                         'BFF native fixture private input failed.\n'):
                 self.assertIsNone(parse(case, {'ErrorMessage': bad}))
             self.assertIsNone(parse({**case, 'name': name + '_other'}, {'ErrorMessage': 'BFF native fixture private input failed.'}))

@@ -980,7 +980,6 @@ BFF_INVITATION_FIXED_FAILURES = {
     'BFF native fixture failed after owned cleanup.': 'completion',
     'BFF native fixture emitted an unexpected extra receipt.': 'extra_receipt',
     'BFF native fixture required forced cleanup.': 'forced_cleanup',
-    'BFF native fixture completed without a successful exit.': 'nonzero_exit',
     'BFF native fixture retained its private TLS/build tree.': 'retained_tree',
     'BFF native fixture cleanup could not be confirmed.': 'cleanup_deadline',
 }
