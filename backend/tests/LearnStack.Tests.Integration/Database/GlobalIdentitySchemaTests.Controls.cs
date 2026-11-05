@@ -355,9 +355,15 @@ public sealed partial class GlobalIdentitySchemaTests
         using var platform = new PlatformDbContext(new DbContextOptionsBuilder<PlatformDbContext>()
             .UseNpgsql("Host=model-only;Database=model-only;Username=model-only").Options);
         var platformMigrations = platform.GetService<IMigrationsAssembly>();
-        var providerMigration = platformMigrations.Migrations.Single(pair => pair.Key == "20261104180000_add_invitation_smtp_custody");
-        var providerSql = string.Join("\n", platformMigrations.CreateMigration(providerMigration.Value, platform.Database.ProviderName!).UpOperations
-            .OfType<SqlOperation>().Select(operation => operation.Sql));
+        // The custody migration introduces this closed provider function set.
+        // Every later Platform Up operation participates too: retaining only the
+        // initial installer would compare an upgraded database with stale bodies.
+        var providerMigrations = platformMigrations.Migrations.OrderBy(pair => pair.Key, StringComparer.Ordinal)
+            .SkipWhile(pair => pair.Key != "20261104180000_add_invitation_smtp_custody").ToArray();
+        providerMigrations.Should().NotBeEmpty("the exact provider installation boundary must exist in the compiled chain");
+        var providerSql = string.Join("\n", providerMigrations.SelectMany(pair =>
+            platformMigrations.CreateMigration(pair.Value, platform.Database.ProviderName!).UpOperations
+                .OfType<SqlOperation>().Select(operation => operation.Sql)));
         var sql = string.Join("\n", migrationSql) + "\n" + providerSql;
         var functions = EffectiveFunctionDeclarations(sql).Select(match =>
         {

@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,356 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,410 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -372,7 +372,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 actual SMTP owner and recovery proof implementation (2026-11-05)](#p03-4-step-7-actual-smtp-owner-and-recovery-proof-implementation-2026-11-05) — 78 lines
   - [P03-4 Step 7 final reviews and PR readiness (2026-11-05)](#p03-4-step-7-final-reviews-and-pr-readiness-2026-11-05) — 52 lines
   - [P03-4 Step 7 first hosted corrections (2026-11-05)](#p03-4-step-7-first-hosted-corrections-2026-11-05) — 80 lines
-  - [P03-4 Step 7 correction review closeout and CI candidate (2026-11-05)](#p03-4-step-7-correction-review-closeout-and-ci-candidate-2026-11-05) — 43 lines
+  - [P03-4 Step 7 correction review closeout and CI candidate (2026-11-05)](#p03-4-step-7-correction-review-closeout-and-ci-candidate-2026-11-05) — 44 lines
+  - [P03-4 Step 7 second hosted corrections (2026-11-05)](#p03-4-step-7-second-hosted-corrections-2026-11-05) — 53 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -17124,3 +17125,57 @@ The existing external-prerequisite clause permits independent CI/archive work;
 review closure is not a human pass or full packet-delivery claim. No merge,
 production SMTP/TLS, inbox delivery, driver COMMIT-ack fault or P03-3 follow-up
 closure is inferred.
+
+
+### P03-4 Step 7 second hosted corrections (2026-11-05)
+
+Complete automatic A `41957367950`, attempt 1, binds PR head `416951f1`,
+base `ef344c0f`, actual merge/workflow source `17a12276` and the unchanged
+candidate tree. It finishes 22 successful and five failed jobs. All six
+Architecture producers, base, native crash/cleanup, frontend, public-demo,
+meta, OpenAPI and secret scan pass. Four ordinary producers and their required
+integration aggregate fail. The producer ledger contains 8,276 Passed and
+11 Failed cases, with no censored cases. This remains a failed A.
+
+All 24 available original artifact ZIPs match their API byte counts/SHA-256 and
+pass CRC; the failed integration aggregate has no archive. The original attempt
+logs archive is retained separately with its local SHA-256 and CRC. These raw
+originals are retained before changing either CI-validator file. No successful
+fragments or previous-source results establish qualification.
+
+A fresh owned PostgreSQL run reproduces the exact function-census failure:
+`fn_invitation_email_envelope_guard:body`. The Platform expectation reads only
+its original custody migration, ignoring the additive parent-lock replacement;
+the applied production body is current. The test reader now folds compiled
+Platform Up SQL in ordinal migration order from the exact installation boundary.
+The existing strict declaration parser and exact body, signature, owner, ACL,
+execution-property and caller checks remain unchanged: 22 functions, 11 definers
+and 26 trigger callers. Three new regression cases independently inspect the
+latest compiled envelope body and reject committed superseded-body and
+literal-whitespace mutants against clean database twins. The full affected class
+and adjacent parent-lock/upgrade controls pass 77 tests, zero skipped. Production
+migrations and target models are unchanged.
+
+The separately failing seed-observation class passes its fresh current-source
+run, one test with zero skips; it calls the corrected shared inspector. The new
+nonseed invitation journey also passes its actual PostgreSQL/Keycloak/Mailpit/
+Next/browser recheck, one test with zero skips and successful fixture disposal.
+Neither local pass establishes a unique cause for its earlier hosted failure;
+the native journey's failure cause remains unknown. No driver or timer changes.
+
+The CI checkpoint now separately projects existing closed session-driver failures
+for exactly the two invitation facts in the integration assembly. Only finite
+phase/reason labels are published; the older browser-result decoder is unchanged.
+Unknown text, wrong cases/assemblies/phases, oversized messages and private
+canaries are refused or omitted. No email, verifier, URI, cookie, provider text
+or stack enters the projection. Source-census, phase-pairing, privacy and actual
+failure-checkpoint controls pass within 108 native-launcher controls, 87 shared
+shard controls and 41 result controls, zero skips. No execution, cleanup or
+resource allowance changes. The correction enters two fresh independent review
+rounds before a single push and fresh automatic A.
+
+Complete final-source A followed by whole-run B, original archive/log and
+independent surface reconciliation remain required. Human keyboard/focus/reflow/
+contrast/VoiceOver remains pending and unexecuted; the existing external-
+prerequisite clause permits independent CI/archive work. No merge, production
+SMTP/TLS, inbox-delivery or P03-3 follow-up closure is claimed.

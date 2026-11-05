@@ -14,13 +14,13 @@
 > P03-4/G8 is Accepted under [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md),
 > after maintainer selection of automatic email and verified review corrections.
 > Its [seven-step package](phase-03-delivery-log.md#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04)
-> has Steps 1–5 implemented and reviewed.
-> Step 6 implementation and both review rounds are closed
+> has Steps 1–5 implemented and reviewed. Step 6 and both review rounds are closed
 > ([closeout](phase-03-delivery-log.md#p03-4-step-6-implementation-review-closeout-and-step-7-continuation-2026-11-05));
 > human accessibility evidence remains unexecuted and pending. Step 7
 > implementation and both final review rounds are closed
 > ([PR readiness](phase-03-delivery-log.md#p03-4-step-7-final-reviews-and-pr-readiness-2026-11-05)).
-> P03-4's [CI corrections and two review rounds](phase-03-delivery-log.md#p03-4-step-7-correction-review-closeout-and-ci-candidate-2026-11-05) are closed.
+> P03-4's [first CI correction reviews](phase-03-delivery-log.md#p03-4-step-7-correction-review-closeout-and-ci-candidate-2026-11-05) are closed.
+> Its [second hosted corrections](phase-03-delivery-log.md#p03-4-step-7-second-hosted-corrections-2026-11-05) address the stale test census and closed failure diagnostics; fresh reviews remain pending.
 > Complete same-source hosted A/B and original-archive qualification remain mandatory
 > before delivery/merge; actual source-bound results accompany the PR and its
 > [workflow evidence](https://github.com/HodeTech/LearnStack/actions/workflows/ci.yml?query=branch%3Adevelopment).
@@ -32,7 +32,7 @@
 > | P03-1 | Identity authority and membership foundation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-1-merge-and-closeout-2026-10-27) |
 > | P03-2 | Live membership and authorization | Complete and merged — [closeout](phase-03-delivery-log.md#p03-2-merge-and-closeout-2026-10-28) |
 > | P03-3 | Protected Studio and membership administration | Complete and merged — [closeout](phase-03-delivery-log.md#p03-3-merge-and-delivery-closeout-2026-11-04); evidence follow-ups remain open |
-> | P03-4 | Invitations and bounded delivery | In progress — G8 Accepted; CI corrections reviewed; fresh source-bound A/B/archive gates and human evidence govern delivery |
+> | P03-4 | Invitations and bounded delivery | In progress — G8 Accepted; second CI corrections under review; final-source A/B/archive gates and human evidence govern delivery |
 > | P03-5 | Custom fields and privacy classification | Not started |
 > | P03-6 | Provider event ingress and audit mirror | Not started |
 > | P03-7 | Back-channel session revocation | Not started |

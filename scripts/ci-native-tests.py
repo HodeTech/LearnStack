@@ -968,6 +968,54 @@ BFF_BROWSER_FIXED_FAILURES = {
     'BFF native fixture cleanup could not be confirmed.': 'cleanup_deadline',
 }
 
+BFF_INVITATION_REGISTRATION_CASE = ('LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests.'
+    'Native_invitation_new_nonseed_registration_uses_real_verification_mail_then_separate_session')
+BFF_INVITATION_EXISTING_CASE = ('LearnStack.Tests.Integration.TenancyIdentity.TenantBffSessionTests.'
+    'Native_invitation_existing_nonseed_identity_uses_real_verification_mail_and_retains_existing_membership_session')
+BFF_INVITATION_FAILURE_CASES = {BFF_INVITATION_REGISTRATION_CASE, BFF_INVITATION_EXISTING_CASE}
+BFF_INVITATION_FIXED_FAILURES = {
+    'BFF native fixture could not start.': 'spawn',
+    'BFF native fixture private input failed.': 'input',
+    'BFF native fixture response has an invalid closed shape.': 'response_shape',
+    'BFF native fixture failed after owned cleanup.': 'completion',
+    'BFF native fixture emitted an unexpected extra receipt.': 'extra_receipt',
+    'BFF native fixture required forced cleanup.': 'forced_cleanup',
+    'BFF native fixture completed without a successful exit.': 'nonzero_exit',
+    'BFF native fixture retained its private TLS/build tree.': 'retained_tree',
+    'BFF native fixture cleanup could not be confirmed.': 'cleanup_deadline',
+}
+BFF_INVITATION_WITNESS_FAILURE = 'BFF invitation browser receipt lacks its closed positive witnesses.'
+BFF_INVITATION_REASONS = BFF_BROWSER_FAILURE_STAGES | {
+    stage + suffix for stage in BFF_BROWSER_FAILURE_STAGES
+    for suffix in ('_unexpected_output', '_cleanup_failed')
+} | {'response', 'exit', 'output', 'node_module_missing', 'node_syntax', 'node_abort',
+     'node_permission', 'unexpected_output'}
+
+
+def closed_bff_invitation_details(case, raw):
+    """Project only the session driver's finite failure facts, never raw diagnostics."""
+    message = raw.get('ErrorMessage')
+    if not isinstance(message, str) or len(message) > 65536:
+        return None
+    prefix = 'System.InvalidOperationException : '
+    if message.startswith(prefix):
+        message = message[len(prefix):]
+    fixed = BFF_INVITATION_FIXED_FAILURES.get(message)
+    if fixed is not None:
+        return {'stage': 'bff_invitation', 'reason': fixed}
+    if message == BFF_INVITATION_WITNESS_FAILURE and case['name'] == BFF_INVITATION_REGISTRATION_CASE:
+        return {'stage': 'bff_invitation', 'reason': 'invitation_witness'}
+    match = re.fullmatch(r'BFF native fixture did not reach the closed (ready|response|complete|invitation_browser)/([a-z_0-9-]{1,96}) phase\.', message)
+    if match is None:
+        return None
+    phase, reason = match.groups()
+    if phase == 'invitation_browser' and case['name'] != BFF_INVITATION_REGISTRATION_CASE:
+        return None
+    deadlines = {'deadline_input'} | ({'deadline_compile', 'deadline_build', 'deadline_start'} if phase == 'ready' else set())
+    if reason not in BFF_INVITATION_REASONS and reason not in deadlines:
+        return None
+    return {'stage': 'bff_invitation', 'phase': phase, 'reason': reason}
+
 
 def closed_bff_browser_details(raw):
     message = raw.get('ErrorMessage')
@@ -1121,6 +1169,8 @@ def closed_failure_details(case, raw):
         return closed_framework_ownership_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
     if case['name'] == BFF_BROWSER_FAILURE_CASE:
         return closed_bff_browser_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
+    if case['name'] in BFF_INVITATION_FAILURE_CASES:
+        return closed_bff_invitation_details(case, raw) if case['assembly'] == 'learnstack.tests.integration' else None
     if case['name'] in OUTBOX_STARTUP_FAILURE_CASES:
         return closed_outbox_startup_details(raw) if case['assembly'] == 'learnstack.tests.integration' else None
     if case['name'] in NATIVE_WAIT_FAILURE_CASES:
