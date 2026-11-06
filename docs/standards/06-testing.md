@@ -241,16 +241,17 @@ retains collector provisioning and independent crash assertions.
 The existing positive-VM predicate recognizes GitHub's documented standard
 AWS/Azure pool as clarified by [ADR-0062 Amendment 4](../decisions/0062-native-crash-proof-ci-provisioning.md#amendment-4--standard-hosted-multi-cloud-vm-signatures-2026-11-04);
 container/identity/topology and authority checks remain mandatory.
-[ADR-0082](../decisions/0082-current-source-ci-execution-windows.md) gives verified
-Architecture producers a twenty-five-minute whole-job ceiling and verified
-ordinary Docker producers thirty minutes. Base/native remain twenty minutes,
+[ADR-0094](../decisions/0094-forty-five-minute-backend-execution-windows.md) gives
+verified Architecture and ordinary Docker producers a forty-five-minute
+whole-job ceiling ([ADR-0082](../decisions/0082-current-source-ci-execution-windows.md)
+set twenty-five and thirty). Base/native remain twenty minutes,
 both aggregates five and meta five. [ADR-0085](../decisions/0085-public-demo-ci-execution-window.md)
 selects only the public-demo exception: a 22-minute job and 19-minute first-step
 work deadline, with its separate 180-second nominal reserve and internal
 720-second proof unchanged. All other jobs retain their existing ceilings.
 The backend 203-second reserve and all test-specific deadlines stay fixed.
 The closed `(mode, expected job, plan counts)` policy selects API, receipt and
-enclosing workload/project observation bounds: 1,500 Architecture, 1,800 ordinary,
+enclosing workload/project observation bounds: 2,700 Architecture and ordinary,
 1,200 base/native seconds. Receipt partitions and global limit expansion confer
 no authority. Individual observations allow the inclusive ceiling; disjoint
 receipt intervals sum strictly below it. Nested observations are not additional

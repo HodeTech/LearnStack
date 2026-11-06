@@ -344,7 +344,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
   - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
   - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
-- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,818 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 1,871 lines
   - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
   - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
   - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
@@ -383,7 +383,8 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-4 Step 7 entry-browser diagnostic repair (2026-11-06)](#p03-4-step-7-entry-browser-diagnostic-repair-2026-11-06) — 34 lines
   - [P03-4 Step 7 entry-browser diagnostic first reviews (2026-11-06)](#p03-4-step-7-entry-browser-diagnostic-first-reviews-2026-11-06) — 15 lines
   - [P03-4 Step 7 entry-browser diagnostic review closeout (2026-11-06)](#p03-4-step-7-entry-browser-diagnostic-review-closeout-2026-11-06) — 23 lines
-  - [P03-4 Step 7 hosted browser-start and cleanup-masking correction (2026-11-06)](#p03-4-step-7-hosted-browser-start-and-cleanup-masking-correction-2026-11-06) — 64 lines
+  - [P03-4 Step 7 hosted browser-start and cleanup-masking correction (2026-11-06)](#p03-4-step-7-hosted-browser-start-and-cleanup-masking-correction-2026-11-06) — 65 lines
+  - [P03-4 Step 7 forty-five-minute execution windows and parser timeout (2026-11-06)](#p03-4-step-7-forty-five-minute-execution-windows-and-parser-timeout-2026-11-06) — 52 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -17597,3 +17598,56 @@ is held by the maintainer's running dev server, which is untouched.
 
 The stall cause and hosted behaviour remain unproven. Same-source hosted A/B and
 independent original-archive qualification remain open before delivery/merge.
+
+
+### P03-4 Step 7 forty-five-minute execution windows and parser timeout (2026-11-06)
+
+[Hosted run 42204664337, attempt 1](https://github.com/HodeTech/LearnStack/actions/runs/42204664337)
+binds head `ae62cc10` and finishes with 24 successful jobs and three failures:
+ordinary 6, ordinary 8 and the integration aggregate they refuse. No case fails.
+The three cases that start stock Chromium all Pass (63.3, 75.8 and 110.8
+seconds); one pass neither shows whether the replacement ran nor establishes the
+stall cause.
+
+Ordinary 8 records 294 of its 295 selected cases Passed and `deadline_exhausted`;
+one case, `Anonymous_public_reads_and_masked_account_refusals_…`, has no result.
+Its job wall is 26.7 minutes, the enclosing cut-off of the 30-minute window.
+Ordinary 6 stops before any case: `workflow_parser_unavailable` at 5.09 seconds
+after its step starts, with no artifact to upload. The Ruby workflow reader in
+`scripts/ci-test-shard-results.py` carried a fixed five-second subprocess
+timeout, which a cold runner right after a three-minute build can exceed.
+
+The window failure is the recurring class. Four of the last five hosted runs
+lose one shard to its window with every executed case Passed: Architecture 0
+and 5, ordinary 4 and now ordinary 8. The longest passing jobs are 26.4 minutes
+(ordinary 3 in this run) and 21.1 (Architecture), against cut-offs of about 26.7
+and 21.7. Ordinary 8 takes 21.9 minutes in the previous run. The population grew
+from 6,437 (P03-1) to about 8,290 cases under unchanged owner counts and
+windows.
+
+A replay of the committed plan on this run's discovered population gives each
+ordinary owner an equal predicted 1,322 seconds, against measured case sums of
+707 to 1,296 seconds. The 95 selectors without a weight total 1,449 measured
+seconds, while the 60-second default assumes 5,700. Replaying layouts A and B
+with those selectors weighted at 1.25 times their measured maximum lowers the
+heaviest ordinary owner by about 4% and 8% and leaves Architecture unchanged.
+That does not justify a source-bound plan revision, and the default errs on the
+safe side; the plan, counts, salt and weights stay as committed.
+
+[ADR-0094](../decisions/0094-forty-five-minute-backend-execution-windows.md) is
+accepted at maintainer direction and gives verified Architecture and ordinary
+producers 2,700 seconds. The closed `job_seconds` policy, the two workflow
+`timeout-minutes` values and every offline pin move together; base/native,
+aggregates, meta, frontend, public-demo, the 203-second reserve and every
+operation limit are unchanged. Dated amendments land in ADR-0063 and ADR-0082,
+and Testing 06, Infrastructure 20 and the catalogue rule are reconciled. The
+Ruby reader timeout becomes 30 seconds; the refusal, its input bound and the
+safe-load checks are unchanged, so only a reader that does not finish in 30
+seconds still refuses.
+
+The native, shard-result and shard-plan offline suites pass (111, 41 and 87
+cases) after their pins move to 1,200/2,700/2,700 and the boundary values 2,699,
+2,700 and 2,701 are added. This record owns the evidence; no hosted result for
+the new source exists yet. No independent review round has examined this
+correction. Complete same-source hosted A/B and original-archive qualification
+remain open before delivery/merge.

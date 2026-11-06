@@ -7058,8 +7058,10 @@ and fixture definitions make the implemented controls non-vacuous.
   Pending-only API acquisition validates each fresh complete snapshot under
   one finite deadline; it never combines responses or retries terminal,
   malformed, missing, duplicate or identity-invalid evidence.
-  The ADR-0082 extension binds Architecture 1,500-second and ordinary
+  The ADR-0082 extension bound Architecture 1,500-second and ordinary
   1,800-second whole-job/enclosing observation bounds to exact verified mode,
+  and [ADR-0094](../decisions/0094-forty-five-minute-backend-execution-windows.md)
+  moves both to 2,700 seconds under the same binding to exact verified mode,
   expected job and plan count. Base/native retain 1,200 seconds and the reserve
   stays 203. Operation caps remain except ADR-0091's native inventory allocations
   in [Testing 06](06-testing.md#complete-bounded-ci-assignments). Individual observations allow the
@@ -7089,7 +7091,7 @@ and fixture definitions make the implemented controls non-vacuous.
   owns implementation reviews and observed complete hosted A/B; local controls
   alone do not establish fit and later documentation identities remain distinct.
   **ADR-0082 extension implemented** by the same owners and complete offline
-  suites: exact mode/job/index selection of 1,200/1,500/1,800 seconds, inclusive
+  suites: exact mode/job/index selection of 1,200/2,700/2,700 seconds (ADR-0094; ADR-0082 used 1,200/1,500/1,800), inclusive
   expected-owner observations, strict interval sums, image caps and malformed/
   forged/nonfinite/boundary counterexamples. Both fresh review rounds close;
   the [implementation closeout](../roadmap/phase-03-delivery-log.md#adr-0082-step-2-reviews-and-implementation-closeout-2026-11-01)

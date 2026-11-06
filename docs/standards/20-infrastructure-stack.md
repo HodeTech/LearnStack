@@ -806,8 +806,9 @@ job-scoped `actions: read`; executors retain `contents: read`. Base/Architecture
 add only an owned transient systemd/cgroup seam on exclusive hosted Ubuntu 24.04
 VMs, without Docker or collector authority. Native's ADR-0062 authority remains
 exclusive. No application runtime, production infrastructure or local/shared
-host authority follows. [ADR-0082](../decisions/0082-current-source-ci-execution-windows.md)
-sets verified Architecture to twenty-five minutes and ordinary to thirty;
+host authority follows. [ADR-0094](../decisions/0094-forty-five-minute-backend-execution-windows.md)
+sets verified Architecture and ordinary to forty-five minutes
+([ADR-0082](../decisions/0082-current-source-ci-execution-windows.md) set 25/30);
 base/native retain twenty, aggregates and meta five. The testing standard owns
 the closed expected-producer bounds, unchanged reserves and operation caps,
 including [ADR-0091's](../decisions/0091-native-inventory-phase-allocations.md)
