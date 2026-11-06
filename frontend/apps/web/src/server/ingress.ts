@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { closeSync, constants, fstatSync, openSync, readFileSync, readSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { isIP } from 'node:net';
 import { resolve } from 'node:path';
@@ -201,6 +201,8 @@ export function admitIncomingRequest(
     path === '/api/auth' ||
     path?.startsWith('/api/auth/') ||
     (path !== undefined && BFF_POST_PATHS.includes(path)) ||
+    path === '/invitations' ||
+    path === '/invitations/confirm' ||
     path === '/studio' ||
     path?.startsWith('/studio/') ||
     path === '/portal' ||
@@ -277,13 +279,56 @@ function readOptionalEnvironment(path: string): Record<string, string> {
   }
 }
 
+/** API secrets use one bounded owner-private descriptor; no path is reopened after validation. */
+function readOptionalApiEnvironment(path: string): Record<string, string> {
+  let descriptor: number | undefined;
+  let bytes: Buffer | undefined;
+  try {
+    descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+    const stat = fstatSync(descriptor);
+    const maximum = 256 * 1024;
+    if (
+      !stat.isFile() ||
+      stat.uid !== process.getuid?.() ||
+      stat.nlink !== 1 ||
+      (stat.mode & 0o077) !== 0 ||
+      stat.size > maximum
+    )
+      throw new Error('Cannot read local environment');
+    bytes = Buffer.alloc(maximum + 1);
+    let size = 0;
+    while (size < bytes.length) {
+      const count = readSync(descriptor, bytes, size, bytes.length - size, null);
+      if (count === 0) break;
+      size += count;
+    }
+    if (size > maximum) throw new Error('Cannot read local environment');
+    return parseLocalEnvironment(
+      new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, size)),
+    );
+  } catch (error) {
+    if (
+      descriptor === undefined &&
+      error instanceof Error &&
+      'code' in error &&
+      error.code === 'ENOENT'
+    )
+      return {};
+    throw new Error('Cannot read local environment');
+  } finally {
+    bytes?.fill(0);
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+}
+
 export function loadLocalEnvironment(
   root: string,
   environment: Readonly<Record<string, string | undefined>>,
   options: { apiAuthentication?: boolean } = {},
 ): Record<string, string> {
-  const source = readOptionalEnvironment(resolve(root, '.env'));
-  const projection = readOptionalEnvironment(resolve(root, 'frontend/apps/web/.env.local'));
+  const read = options.apiAuthentication ? readOptionalApiEnvironment : readOptionalEnvironment;
+  const source = read(resolve(root, '.env'));
+  const projection = read(resolve(root, 'frontend/apps/web/.env.local'));
   const result = { ...source };
   for (const key of PUBLIC_ENV_KEYS) {
     const values = [source[key], projection[key], environment[key]].filter(
@@ -355,6 +400,37 @@ export function loadLocalEnvironment(
         Buffer.byteLength(value) > 256
       )
         throw new Error('Invalid API native configuration');
+      result[key] = value;
+    }
+  }
+  const invitationKeys = [
+    'InvitationEmail__KeyRing',
+    'InvitationEmail__Smtp__Host',
+    'InvitationEmail__Smtp__Port',
+    'InvitationEmail__Smtp__Sender',
+    'InvitationEmail__Smtp__Tls',
+    'InvitationEmail__Smtp__Username',
+    'InvitationEmail__Smtp__Password',
+  ];
+  for (const key of invitationKeys) delete result[key];
+  if (options.apiAuthentication) {
+    for (const key of invitationKeys) {
+      const values = [source[key], projection[key], environment[key]].filter(
+        (value): value is string => value !== undefined,
+      );
+      if (new Set(values).size > 1)
+        throw new Error('Conflicting API invitation email configuration');
+      const value = values[0];
+      if (value === undefined) continue;
+      const optional =
+        key === 'InvitationEmail__Smtp__Username' || key === 'InvitationEmail__Smtp__Password';
+      if (
+        typeof value !== 'string' ||
+        (!optional && !value.trim()) ||
+        containsControl(value) ||
+        Buffer.byteLength(value) > 8192
+      )
+        throw new Error('Invalid API invitation email configuration');
       result[key] = value;
     }
   }

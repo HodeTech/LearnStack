@@ -111,6 +111,10 @@
     "LearnStack.Tests.Integration.Database.IdentitySelfDiscoveryOwnerTests",
     "LearnStack.Tests.Integration.Database.IdentitySelfEntryHttpTests",
     "LearnStack.Tests.Integration.Database.InboxGuardTests",
+    "LearnStack.Tests.Integration.Database.InvitationApplicationAdmissionTests",
+    "LearnStack.Tests.Integration.Database.InvitationSmtpRuntimeTests",
+    "LearnStack.Tests.Integration.Database.InvitationSmtpStorageTests",
+    "LearnStack.Tests.Integration.Database.InvitationStorageTests",
     "LearnStack.Tests.Integration.Database.KillswitchOverlayTests",
     "LearnStack.Tests.Integration.Database.MembershipAdministrationAssignmentTests",
     "LearnStack.Tests.Integration.Database.MembershipAdministrationDiagnosticTests",
@@ -579,20 +583,62 @@
       "note": "Attempt 2, ordinary-0, artifact ID 12654553778, head dfdf9cab92ab94ed7b882553c8828f1337bac9d4, merge d6a794cd41ddefbffac5fb9f9195ded465d0c358; original interrupted JSONL prefix, full all-Passed groups only; ceil summed case ms/minimum 1; advisory, not wall time.",
       "runId": "40326601181",
       "sourceSha": "d6a794cd41ddefbffac5fb9f9195ded465d0c358"
+    },
+    "p034-a1-architecture-0": {
+      "kind": "hosted_trx",
+      "artifactSha256": "0a56838628640de327fff6f743e0cfa8c35447a0dd5ca3e72f3ebc83efae96b8",
+      "sourceSha": "3d27263e594ebab50d90c5efc0ae4d40b093a885",
+      "runId": "41948315873",
+      "note": "Attempt 1 architecture-0; ZIP 13381191038; hosted_trx exact discovery-ID complete Passed groups; rows match JSONL; ceil summed ms; historical maxima retained. Head a55aa31ec9496aa853825f218a7623109e7b1fb0; advisory only."
+    },
+    "p034-a1-architecture-1": {
+      "kind": "hosted_trx",
+      "artifactSha256": "f7b51750183d9708309310ced6d88f42f6238c3485e40038602edb6573a533ae",
+      "sourceSha": "3d27263e594ebab50d90c5efc0ae4d40b093a885",
+      "runId": "41948315873",
+      "note": "Attempt 1 architecture-1; ZIP 13379913726; hosted_trx exact discovery-ID complete Passed groups; rows match JSONL; ceil summed ms; historical maxima retained. Head a55aa31ec9496aa853825f218a7623109e7b1fb0; advisory only."
+    },
+    "p034-a1-architecture-2": {
+      "kind": "hosted_trx",
+      "artifactSha256": "376401e8694986d9ddebf2c663b91717a7ad5a90c4499221ea0fafe816046f4f",
+      "sourceSha": "3d27263e594ebab50d90c5efc0ae4d40b093a885",
+      "runId": "41948315873",
+      "note": "Attempt 1 architecture-2; ZIP 13380922331; hosted_trx exact discovery-ID complete Passed groups; rows match JSONL; ceil summed ms; historical maxima retained. Head a55aa31ec9496aa853825f218a7623109e7b1fb0; advisory only."
+    },
+    "p034-a1-architecture-3": {
+      "kind": "hosted_trx",
+      "artifactSha256": "8f390c8b1b35c2a87726c0df94faa3aa90e1b2fbc2e409e77a40b736b72daf39",
+      "sourceSha": "3d27263e594ebab50d90c5efc0ae4d40b093a885",
+      "runId": "41948315873",
+      "note": "Attempt 1 architecture-3; ZIP 13380368277; hosted_trx exact discovery-ID complete Passed groups; rows match JSONL; ceil summed ms; historical maxima retained. Head a55aa31ec9496aa853825f218a7623109e7b1fb0; advisory only."
+    },
+    "p034-a1-architecture-4": {
+      "kind": "hosted_console",
+      "artifactSha256": "dae6be440e8b4da4376a4b25a213c07fd1ac9f6d299f3b37beb441bedfa4866d",
+      "sourceSha": "3d27263e594ebab50d90c5efc0ae4d40b093a885",
+      "runId": "41948315873",
+      "note": "Attempt 1 architecture-4; ZIP 13380248380; hosted_console exact discovery-ID complete Passed groups; rows match JSONL; ceil summed ms; historical maxima retained. Head a55aa31ec9496aa853825f218a7623109e7b1fb0; advisory only."
+    },
+    "p034-a1-architecture-5": {
+      "kind": "hosted_trx",
+      "artifactSha256": "d0569753fa196456389054390d3af79996fbda434a2d8bfdc953d296971057e3",
+      "sourceSha": "3d27263e594ebab50d90c5efc0ae4d40b093a885",
+      "runId": "41948315873",
+      "note": "Attempt 1 architecture-5; ZIP 13380801539; hosted_trx exact discovery-ID complete Passed groups; rows match JSONL; ceil summed ms; historical maxima retained. Head a55aa31ec9496aa853825f218a7623109e7b1fb0; advisory only."
     }
   },
   "weights": [
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AggregateWriteTests.Cross_Aggregate_Census_Catches_Fused_Separate_Notification_And_Internal_Constructors",
-      "milliseconds": 4,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 85,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AggregateWriteTests.Cross_Aggregate_Census_Catches_Integration_Handlers_And_Inherited_Contracts",
-      "milliseconds": 7,
-      "source": "p033-77f62-a1-architecture-4"
+      "milliseconds": 32,
+      "source": "p034-a1-architecture-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -621,14 +667,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AnalyzerWiringTests.Production_Projects_Run_The_Bounded_Exception_Analyzers",
-      "milliseconds": 44621,
-      "source": "p033-77f62-a1-architecture-1"
+      "milliseconds": 45659,
+      "source": "p034-a1-architecture-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AnalyzerWiringTests.The_Build_Setting_Control_Rejects_LS0002_Suppression",
-      "milliseconds": 2,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 4,
+      "source": "p034-a1-architecture-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -639,8 +685,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AnalyzerWiringTests.The_Evaluated_Wiring_Control_Rejects_A_Library_Or_Duplicate_Reference",
-      "milliseconds": 2,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 3,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -651,8 +697,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AnalyzerWiringTests.Unrelated_Analyzer_And_Warning_Settings_Are_Allowed",
-      "milliseconds": 1,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 4,
+      "source": "p034-a1-architecture-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -663,26 +709,26 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.ApiConventionTests.Forwarded_Headers_Are_Not_Wired",
-      "milliseconds": 2,
-      "source": "p033-77f62-a1-architecture-4"
+      "milliseconds": 18,
+      "source": "p034-a1-architecture-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.ApiConventionTests.Live_Majors_Are_At_Most_Two_Adjacent",
-      "milliseconds": 10,
-      "source": "p033-77f62-a1-architecture-5"
+      "milliseconds": 15,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.ApiConventionTests.Unversioned_Route_Prefixes_Are_Declared_Once",
-      "milliseconds": 1,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 2,
+      "source": "p034-a1-architecture-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AsyncStoreInventoryTests.Durable_Async_Store_Inventory_Covers_The_Storage_Census",
-      "milliseconds": 377,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 2266,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -693,8 +739,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AsyncStoreInventoryTests.Inventory_coverage_rejects_every_removed_row_and_blank_vendor_classification",
-      "milliseconds": 5070,
-      "source": "p033-77f62-a1-architecture-4"
+      "milliseconds": 9883,
+      "source": "p034-a1-architecture-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -759,8 +805,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuditConventionTests.Every_Module_Has_An_AuditCoverage_Matrix",
-      "milliseconds": 5,
-      "source": "p033-77f62-a1-architecture-1"
+      "milliseconds": 8,
+      "source": "p034-a1-architecture-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -771,32 +817,32 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuditConventionTests.Modules_Do_Not_Write_AuditLog_Directly",
-      "milliseconds": 746,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 1387,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuditConventionTests.No_Set_Based_Write_Bypasses_The_Audit_Capture",
-      "milliseconds": 545,
-      "source": "p033-77f62-a1-architecture-5"
+      "milliseconds": 574,
+      "source": "p034-a1-architecture-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuditConventionTests.OperationType_Enum_Matches_Catalog",
-      "milliseconds": 8,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 11,
+      "source": "p034-a1-architecture-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuditConventionTests.The_AppendOnly_Sweep_Can_Actually_Fail",
-      "milliseconds": 16,
-      "source": "p033-77f62-a1-architecture-4"
+      "milliseconds": 29,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuditConventionTests.The_AuditLog_Write_Scan_Can_Actually_Fail",
-      "milliseconds": 38,
-      "source": "p033-77f62-a1-architecture-0"
+      "milliseconds": 48,
+      "source": "p034-a1-architecture-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -819,8 +865,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuditCoverageTests.An_off_path_marker_has_to_match_how_the_operation_is_registered",
-      "milliseconds": 16,
-      "source": "p033-77f62-a1-architecture-1"
+      "milliseconds": 25,
+      "source": "p034-a1-architecture-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -831,32 +877,32 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuditCoverageTests.Every_Module_With_An_Aggregate_Or_A_Request_Has_A_Matrix",
-      "milliseconds": 20,
-      "source": "p033-77f62-a1-architecture-0"
+      "milliseconds": 22,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuditCoverageTests.Every_Shipped_Request_Is_Registered",
-      "milliseconds": 187,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 921,
+      "source": "p034-a1-architecture-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuditCoverageTests.Every_TenantOwned_Command_HasAuditCoverage",
-      "milliseconds": 33,
-      "source": "p033-77f62-a1-architecture-1"
+      "milliseconds": 59,
+      "source": "p034-a1-architecture-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuditCoverageTests.Integration_Audit_Census_Accepts_Explicit_Off_For_Both_Handlers",
-      "milliseconds": 1,
-      "source": "p033-77f62-a1-architecture-5"
+      "milliseconds": 12,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuditCoverageTests.Integration_Audit_Census_Catches_An_Unregistered_Handler_For_A_Shared_Event",
-      "milliseconds": 14,
-      "source": "p033-77f62-a1-architecture-5"
+      "milliseconds": 47,
+      "source": "p034-a1-architecture-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -873,38 +919,38 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuditCoverageTests.The_Forward_Sweep_Reads_Only_The_Registering_Module_s_Matrix",
-      "milliseconds": 2,
-      "source": "p033-77f62-a1-architecture-1"
+      "milliseconds": 10,
+      "source": "p034-a1-architecture-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuditCoverageTests.The_Forward_Sweep_Rejects_A_Class_Or_A_Type_It_Cannot_Read",
-      "milliseconds": 20,
-      "source": "p033-77f62-a1-architecture-5"
+      "milliseconds": 33,
+      "source": "p034-a1-architecture-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuditCoverageTests.The_Matrix_Sweep_Reads_Every_Slug_And_Can_Actually_Fail",
-      "milliseconds": 11,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 85,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuditCoverageTests.The_Module_Sweep_Can_Actually_Fail",
-      "milliseconds": 2,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 7,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuditCoverageTests.The_Request_Sweep_Can_Actually_Fail",
-      "milliseconds": 2,
-      "source": "p033-77f62-a1-architecture-1"
+      "milliseconds": 4,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuthenticatedHttpSurfaceTests.Authenticated_Http_Surface_Is_Enumerated_And_ReadOnly",
-      "milliseconds": 10296,
-      "source": "p033-77f62-a1-architecture-1"
+      "milliseconds": 15991,
+      "source": "p034-a1-architecture-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -915,8 +961,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.AuthenticatedHttpSurfaceTests.Authenticated_http_census_follows_production_helpers_and_nested_dispatch",
-      "milliseconds": 344893,
-      "source": "p033-77f62-a1-architecture-4"
+      "milliseconds": 610960,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -957,14 +1003,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.CorpusConsistencyTests.Every_Implemented_Rule_Names_A_Test_That_Exists",
-      "milliseconds": 588,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 878,
+      "source": "p034-a1-architecture-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.CorpusConsistencyTests.No_Architecture_Test_Is_Skippable",
-      "milliseconds": 10,
-      "source": "p033-77f62-a1-architecture-4"
+      "milliseconds": 38,
+      "source": "p034-a1-architecture-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -975,8 +1021,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.CorpusConsistencyTests.The_Catalogue_Counts_Its_Own_Rules",
-      "milliseconds": 73,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 110,
+      "source": "p034-a1-architecture-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -987,8 +1033,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.CrossCuttingFoundationTests.Adapters_Wrap_Provider_Exceptions",
-      "milliseconds": 1106,
-      "source": "p033-77f62-a1-architecture-4"
+      "milliseconds": 2646,
+      "source": "p034-a1-architecture-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1005,26 +1051,26 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.CrossCuttingFoundationTests.IErrorTrackingProvider_Is_Singleton",
-      "milliseconds": 111,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 619,
+      "source": "p034-a1-architecture-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.CrossCuttingFoundationTests.IExceptionHandler_Registered_AtStartup",
-      "milliseconds": 14,
-      "source": "p033-77f62-a1-architecture-5"
+      "milliseconds": 770,
+      "source": "p034-a1-architecture-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.CrossCuttingFoundationTests.Integration_Event_TopicNames_FollowConvention",
-      "milliseconds": 2,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 3,
+      "source": "p034-a1-architecture-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.CrossCuttingFoundationTests.JsonSchema_Net_Types_NotImportedOutsideInfrastructure",
-      "milliseconds": 455,
-      "source": "p033-77f62-a1-architecture-1"
+      "milliseconds": 560,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1047,8 +1093,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.CrossCuttingFoundationTests.Modules_Do_Not_Inject_IEventBus_Directly",
-      "milliseconds": 564,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 849,
+      "source": "p034-a1-architecture-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1095,20 +1141,20 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.CustomizationProjectionTests.Customization_Projection_Does_Not_Validate_On_Read",
-      "milliseconds": 58,
-      "source": "p033-77f62-a1-architecture-4"
+      "milliseconds": 73,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.CustomizationProjectionTests.Projection_validator_guard_detects_direct_and_helper_dependencies",
-      "milliseconds": 11,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 24,
+      "source": "p034-a1-architecture-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.CustomizationProjectionTests.Projection_validator_guard_follows_domain_contracts_and_external_production_helpers",
-      "milliseconds": 98,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 166,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1155,14 +1201,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.DataProtectionConventionTests.Production_model_accepts_the_same_neutral_property_with_an_explicit_declaration",
-      "milliseconds": 45,
-      "source": "p033-77f62-a1-architecture-4"
+      "milliseconds": 132,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.DataProtectionConventionTests.Production_model_refuses_a_neutral_property_added_after_normal_customization",
-      "milliseconds": 23,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 70,
+      "source": "p034-a1-architecture-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1185,8 +1231,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.DomainEventHandlerTests.Domain_handler_guard_accepts_translation_and_pure_helpers_without_traversing_outbox_implementations",
-      "milliseconds": 34,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 43,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1197,26 +1243,26 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.DomainEventHandlerTests.Domain_handler_guard_reaches_planted_roots_and_helpers_in_every_production_assembly",
-      "milliseconds": 1172,
-      "source": "p033-77f62-a1-architecture-1"
+      "milliseconds": 2924,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.DomainEventHandlerTests.Domain_handler_guard_rejects_each_forbidden_dependency",
-      "milliseconds": 573,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 1345,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.DomainEventHandlerTests.Domain_handler_guard_rejects_further_raise_and_direct_notification_dispatch",
-      "milliseconds": 30,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 103,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.DomainGenericityTests.Core_Modules_HaveNo_DomainSpecific_Names",
-      "milliseconds": 785,
-      "source": "p033-77f62-a1-architecture-1"
+      "milliseconds": 1825,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1227,14 +1273,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.DomainGenericityTests.Demo_Literal_Fence_Detects_Decoded_Identities_And_Admits_Platform_Data",
-      "milliseconds": 881,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 1379,
+      "source": "p034-a1-architecture-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.DomainGenericityTests.Production_Code_Does_Not_Branch_On_Demo_Tenant_Literals",
-      "milliseconds": 21142,
-      "source": "p033-77f62-a1-architecture-4"
+      "milliseconds": 25567,
+      "source": "p034-a1-architecture-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1257,8 +1303,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.DomainModelTests.Aggregate_Roots_Use_StronglyTypedId",
-      "milliseconds": 16,
-      "source": "p033-77f62-a1-architecture-4"
+      "milliseconds": 197,
+      "source": "p034-a1-architecture-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1287,8 +1333,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.EntitlementKeyTests.FeatureKey_AllReferences_AreInRegistry",
-      "milliseconds": 445,
-      "source": "p033-77f62-a1-architecture-1"
+      "milliseconds": 795,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1299,14 +1345,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.EntitlementKeyTests.The_Entitlement_Key_Scans_Can_Actually_Fail",
-      "milliseconds": 272,
-      "source": "p033-77f62-a1-architecture-4"
+      "milliseconds": 504,
+      "source": "p034-a1-architecture-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.FixedSeedPrerequisiteConventionTests.Fixed_Seed_Prerequisites_Use_A_Closed_Temporary_Read_Scope",
-      "milliseconds": 27101,
-      "source": "p033-77f62-a1-architecture-5"
+      "milliseconds": 35688,
+      "source": "p034-a1-architecture-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1317,14 +1363,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.GlobalIdentityModelTests.Historical_Identity_migrations_retain_their_ordered_SQL_operations",
-      "milliseconds": 16,
-      "source": "p033-77f62-a1-architecture-1"
+      "milliseconds": 168,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.GlobalIdentityModelTests.User_Aggregate_Has_No_TenantScoped_Columns",
-      "milliseconds": 8,
-      "source": "p033-77f62-a1-architecture-4"
+      "milliseconds": 1359,
+      "source": "p034-a1-architecture-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1335,8 +1381,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.IdempotencyConventionTests.Protected_Idempotent_Replay_Reauthorizes_Original_Target",
-      "milliseconds": 1631,
-      "source": "p033-e7-a1-architecture-1"
+      "milliseconds": 1730,
+      "source": "p034-a1-architecture-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1353,44 +1399,44 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.IdentityAuditConventionTests.Authorization_Evidence_Uses_Trusted_Bounded_Provenance",
-      "milliseconds": 125523,
-      "source": "p033-e0-a1-architecture-1"
+      "milliseconds": 189725,
+      "source": "p034-a1-architecture-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.IdentityAuditConventionTests.Global_Identity_Creation_Uses_The_Common_Audit_Owner",
-      "milliseconds": 2724,
-      "source": "p033-77f62-a1-architecture-5"
+      "milliseconds": 2986,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.IdentityAuditConventionTests.Identity_infrastructure_core_edges_are_confined_to_exact_types_and_members",
-      "milliseconds": 932,
-      "source": "p033-77f62-a1-architecture-1"
+      "milliseconds": 1051,
+      "source": "p034-a1-architecture-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.IdentityAuditConventionTests.Live_Authorization_Uses_Bounded_Independent_Owners",
-      "milliseconds": 27275,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 60355,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.IdentityAuditConventionTests.The_enrollment_reader_has_no_public_mutator_and_does_not_allocate_a_unit",
-      "milliseconds": 542,
-      "source": "p033-77f62-a1-architecture-1"
+      "milliseconds": 976,
+      "source": "p034-a1-architecture-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.IdentityAuthorizationConventionTests.Authorization_borrowers_and_lifecycle_callers_are_exact_and_publish_no_raw_source_or_callback",
-      "milliseconds": 146973,
-      "source": "p033-e7-a1-architecture-5"
+      "milliseconds": 172944,
+      "source": "p034-a1-architecture-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.IdentityAuthorizationConventionTests.Authorization_candidates_have_one_verified_minter_and_closed_lifetime_evidence",
-      "milliseconds": 18384,
-      "source": "p032-hosted-architecture-40577851910-1-0"
+      "milliseconds": 20629,
+      "source": "p034-a1-architecture-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1401,8 +1447,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.IdentityAuthorizationConventionTests.Authorization_owner_awaits_the_real_mode_statement_before_exact_candidate_announcement",
-      "milliseconds": 39,
-      "source": "p033-77f62-a1-architecture-1"
+      "milliseconds": 50,
+      "source": "p034-a1-architecture-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1413,8 +1459,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.IdentityFoundationConventionTests.Identity_Membership_Invariants_Use_Fresh_Ordered_Locks",
-      "milliseconds": 1256,
-      "source": "p033-77f62-a1-architecture-4"
+      "milliseconds": 2056,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1425,14 +1471,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.IdentityFoundationConventionTests.Permission_Definitions_DeclareScope",
-      "milliseconds": 25,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 40,
+      "source": "p034-a1-architecture-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.IdentityFoundationConventionTests.Registry_controls_detect_missing_duplicate_inactive_and_wrong_scope_definitions",
-      "milliseconds": 24,
-      "source": "p033-77f62-a1-architecture-0"
+      "milliseconds": 68,
+      "source": "p034-a1-architecture-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1449,8 +1495,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.IntegrationEventContractTests.Integration_Event_Payloads_Contain_Only_Identifiers",
-      "milliseconds": 50,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 369,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1467,14 +1513,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.ModuleDependencyTests.CoreInfrastructure_DoesNotDependOn_AnyModule",
-      "milliseconds": 14,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 44,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.ModuleDependencyTests.Domain_Does_Not_Depend_On_Microsoft_EntityFrameworkCore_Except_Vogen_Emitted_Converters",
-      "milliseconds": 115,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 397,
+      "source": "p034-a1-architecture-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1485,8 +1531,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.ModuleDependencyTests.ModuleApplication_References_Only_Its_Own_Layers_And_Other_Contracts",
-      "milliseconds": 13,
-      "source": "p033-77f62-a1-architecture-0"
+      "milliseconds": 14,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1497,14 +1543,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.ModuleDependencyTests.ModuleContracts_Reference_Only_SharedKernel",
-      "milliseconds": 8,
-      "source": "p033-77f62-a1-architecture-4"
+      "milliseconds": 10,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.ModuleDependencyTests.ModuleDomain_DoesNotDependOn_AnyApplicationOrInfrastructure",
-      "milliseconds": 7,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 22,
+      "source": "p034-a1-architecture-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1515,8 +1561,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.ModuleDependencyTests.ModuleInfrastructure_References_Only_Its_Own_Layers_And_Core_Infrastructure",
-      "milliseconds": 14,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 15,
+      "source": "p034-a1-architecture-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1527,32 +1573,32 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.ModuleDependencyTests.The_Domain_EF_Core_Rule_Can_Actually_Fail",
-      "milliseconds": 700,
-      "source": "p033-77f62-a1-architecture-1"
+      "milliseconds": 759,
+      "source": "p034-a1-architecture-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.NativeScopeAdmissionTests.Global_self_descriptors_and_pipeline_are_a_closed_early_branch",
-      "milliseconds": 14811,
-      "source": "p033-77f62-a1-architecture-4"
+      "milliseconds": 18580,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.NativeScopeAdmissionTests.Native_Scope_Evidence_Is_Separate_And_Host_Bound",
-      "milliseconds": 1363,
-      "source": "p033-77f62-a1-architecture-4"
+      "milliseconds": 2753,
+      "source": "p034-a1-architecture-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.NativeScopeAdmissionTests.Own_scope_discovery_has_one_confined_minter_and_read_only_label_owner",
-      "milliseconds": 9004,
-      "source": "p033-77f62-a1-architecture-4"
+      "milliseconds": 14576,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OperationPermissionConventionTests.Permission_Definitions_DeclareScope",
-      "milliseconds": 2640,
-      "source": "p033-77f62-a1-architecture-0"
+      "milliseconds": 4512,
+      "source": "p034-a1-architecture-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1563,14 +1609,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OperationPermissionConventionTests.Permission_Registry_Has_DeniedTest",
-      "milliseconds": 886,
-      "source": "p033-77f62-a1-architecture-4"
+      "milliseconds": 1235,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OperationPermissionConventionTests.Permission_Scope_Matches_Resource_Scope",
-      "milliseconds": 24,
-      "source": "p033-77f62-a1-architecture-0"
+      "milliseconds": 85,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1581,20 +1627,20 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+BridgeCredentialMutationTests.Bridge_credential_census_rejects_changed_signatures_captures_and_missing_subjects",
-      "milliseconds": 164787,
-      "source": "p033-77f62-a1-architecture-1"
+      "milliseconds": 169033,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+BridgeCredentialMutationTests.Bridge_credential_census_rejects_extra_acquisition_forwarding_and_store_consumers",
-      "milliseconds": 179059,
-      "source": "p033-e0-a1-architecture-1"
+      "milliseconds": 179415,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+CleanupOwnerMutationTests.Cleanup_owner_census_rejects_extra_acquisition_disposal_capture_and_observation_paths",
-      "milliseconds": 152272,
-      "source": "p033-77f62-a1-architecture-4"
+      "milliseconds": 181958,
+      "source": "p034-a1-architecture-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1617,8 +1663,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+DeliveryLifecycleMutationTests.Integration_delivery_lifecycle_census_rejects_typed_helper_async_delegate_and_missing_paths",
-      "milliseconds": 200808,
-      "source": "p033-e0-a1-architecture-3"
+      "milliseconds": 330721,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1629,8 +1675,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+IntegrationInvocationMutationTests.Integration_invocation_census_rejects_all_layer_direct_interface_helper_async_and_delegate_bypasses",
-      "milliseconds": 186979,
-      "source": "p033-e7-a1-architecture-1"
+      "milliseconds": 194890,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1647,8 +1693,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobAuthorityCensusMutationTests.Background_job_admission_rejects_extra_activators_and_removed_privileged_guards",
-      "milliseconds": 34212,
-      "source": "p033-77f62-a1-architecture-5"
+      "milliseconds": 41476,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1659,20 +1705,20 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobAuthorityCensusMutationTests.Background_job_authority_provenance_rejects_forgery_and_missing_publication_gates",
-      "milliseconds": 151354,
-      "source": "p033-e0-a1-architecture-3"
+      "milliseconds": 155879,
+      "source": "p034-a1-architecture-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobAuthorityCensusMutationTests.Background_job_framework_capabilities_reject_extra_dispatch_and_issuance",
-      "milliseconds": 216319,
-      "source": "p033-a1-architecture-1"
+      "milliseconds": 259375,
+      "source": "p034-a1-architecture-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobAuthorityCensusMutationTests.Background_job_generation_binding_rejects_extra_capabilities_and_missing_sites",
-      "milliseconds": 242791,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 304195,
+      "source": "p034-a1-architecture-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1695,8 +1741,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobMetricMutationTests.Background_job_metric_callbacks_follow_the_actual_transitive_memory_graph_and_refuse_persistence_helpers",
-      "milliseconds": 42762,
-      "source": "p033-77f62-a1-architecture-5"
+      "milliseconds": 45848,
+      "source": "p034-a1-architecture-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1713,8 +1759,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobOrchestrationMutationTests.External_job_orchestration_rejects_missing_seams_helpers_delegates_and_signatures",
-      "milliseconds": 421981,
-      "source": "p033-local-four-fact-partition-v2"
+      "milliseconds": 455042,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1725,14 +1771,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobOwnerMutationTests.Background_job_owner_census_detects_actual_removals_extra_subtypes_async_calls_and_delegates",
-      "milliseconds": 299457,
-      "source": "p033-77f62-a1-architecture-5"
+      "milliseconds": 347643,
+      "source": "p034-a1-architecture-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+JobRecipientMutationTests.Background_job_recipient_census_detects_extra_authority_and_missing_real_fences",
-      "milliseconds": 342955,
-      "source": "p033-77f62-a1-architecture-4"
+      "milliseconds": 349276,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1743,20 +1789,20 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests+ResolutionMutationTests.Resolution_walk_detects_loading_construction_async_and_polymorphic_helpers",
-      "milliseconds": 15173,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 34069,
+      "source": "p034-a1-architecture-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.BackgroundJob_Capacity_Is_Tenant_Wide_And_Quiescence_Bound",
-      "milliseconds": 663,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 1033,
+      "source": "p034-a1-architecture-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.BackgroundJob_Completion_Is_Owner_Atomic_And_Fenced",
-      "milliseconds": 872,
-      "source": "p033-77f62-a1-architecture-5"
+      "milliseconds": 1049,
+      "source": "p034-a1-architecture-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1767,20 +1813,20 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.BackgroundJob_External_Work_Has_No_Business_Transaction",
-      "milliseconds": 92127,
-      "source": "p033-e0-a1-architecture-5"
+      "milliseconds": 100395,
+      "source": "p034-a1-architecture-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.BackgroundJob_Fanout_Uses_Recipient_Bound_Tenant_Admission",
-      "milliseconds": 978,
-      "source": "p033-77f62-a1-architecture-4"
+      "milliseconds": 1130,
+      "source": "p034-a1-architecture-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.BackgroundJob_Ordinary_Execution_Has_No_Platform_Authority",
-      "milliseconds": 1219,
-      "source": "p033-77f62-a1-architecture-4"
+      "milliseconds": 2179,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1791,8 +1837,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.BackgroundJob_Terminal_Audit_Is_Row_Bound",
-      "milliseconds": 952,
-      "source": "p033-77f62-a1-architecture-1"
+      "milliseconds": 1059,
+      "source": "p034-a1-architecture-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1803,134 +1849,134 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Background_job_metric_registration_requires_the_actual_singleton_descriptor_and_rejects_substitutions",
-      "milliseconds": 18,
-      "source": "p033-77f62-a1-architecture-5"
+      "milliseconds": 26,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Background_job_recipient_field_and_record_controls_detect_the_exact_owner_and_opcode",
-      "milliseconds": 7623,
-      "source": "p033-77f62-a1-architecture-1"
+      "milliseconds": 8948,
+      "source": "p034-a1-architecture-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Background_job_recipient_history_controls_reject_detached_cleanup_and_unfenced_status",
-      "milliseconds": 6092,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 9200,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Background_job_recipient_shared_insert_controls_preserve_successful_production",
-      "milliseconds": 15860,
-      "source": "p033-77f62-a1-architecture-5"
+      "milliseconds": 18568,
+      "source": "p034-a1-architecture-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Background_job_recurrence_runtime_keeps_exact_concrete_capability_owners",
-      "milliseconds": 2200,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 4440,
+      "source": "p034-a1-architecture-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Boundary_censuses_preserve_unkeyed_services_unrelated_publishers_and_both_real_keys",
-      "milliseconds": 2790,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 3880,
+      "source": "p034-a1-architecture-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Credential_registration_detector_rejects_missing_duplicate_wrong_key_and_non_singleton_sources",
-      "milliseconds": 1,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 53,
+      "source": "p034-a1-architecture-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Delivery_Execution_And_Observation_Are_Bounded",
-      "milliseconds": 912,
-      "source": "p033-77f62-a1-architecture-5"
+      "milliseconds": 1289,
+      "source": "p034-a1-architecture-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Delivery_SQL_census_rejects_quoted_CTE_helper_overload_missing_and_payload_paths",
-      "milliseconds": 9219,
-      "source": "p033-77f62-a1-architecture-5"
+      "milliseconds": 11779,
+      "source": "p034-a1-architecture-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Delivery_SQL_writers_and_dynamic_helpers_are_closed",
-      "milliseconds": 635,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 942,
+      "source": "p034-a1-architecture-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Delivery_Terminal_Audit_Identity_Is_Row_Bound",
-      "milliseconds": 696,
-      "source": "p033-77f62-a1-architecture-1"
+      "milliseconds": 705,
+      "source": "p034-a1-architecture-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Delivery_execution_census_rejects_uncontrolled_direct_delegate_async_and_missing_paths",
-      "milliseconds": 9080,
-      "source": "p033-77f62-a1-architecture-0"
+      "milliseconds": 9117,
+      "source": "p034-a1-architecture-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Delivery_observation_walk_rejects_concrete_interface_inherited_async_and_callback_persistence",
-      "milliseconds": 6419,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 18633,
+      "source": "p034-a1-architecture-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Delivery_owner_and_inbox_capabilities_are_closed",
-      "milliseconds": 514,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 817,
+      "source": "p034-a1-architecture-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Delivery_owner_census_rejects_extra_direct_delegate_async_and_inherited_capabilities",
-      "milliseconds": 14359,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 26007,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Delivery_registration_census_rejects_missing_duplicate_replaced_and_detached_subjects",
-      "milliseconds": 25,
-      "source": "p033-77f62-a1-architecture-5"
+      "milliseconds": 27,
+      "source": "p034-a1-architecture-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Hangfire_Bootstrap_Uses_Pinned_Schema_And_Confined_Role",
-      "milliseconds": 1728,
-      "source": "p033-77f62-a1-architecture-0"
+      "milliseconds": 2475,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Integration_Event_Handlers_Use_InboxGuard",
-      "milliseconds": 1705,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 2820,
+      "source": "p034-a1-architecture-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Integration_delivery_lifecycle_stays_with_its_enumerated_owners",
-      "milliseconds": 1057,
-      "source": "p033-77f62-a1-architecture-5"
+      "milliseconds": 1112,
+      "source": "p034-a1-architecture-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Integration_handler_census_rejects_missing_assemblies_layers_and_production_subjects",
-      "milliseconds": 3835,
-      "source": "p033-77f62-a1-architecture-5"
+      "milliseconds": 4571,
+      "source": "p034-a1-architecture-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Integration_handler_discovery_sees_inherited_generic_and_explicit_contracts",
-      "milliseconds": 56,
-      "source": "p033-77f62-a1-architecture-5"
+      "milliseconds": 72,
+      "source": "p034-a1-architecture-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Integration_invocation_compiled_controls_distinguish_helpers_inheritance_async_and_clean_methods",
-      "milliseconds": 1050,
-      "source": "p033-77f62-a1-architecture-5"
+      "milliseconds": 1538,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1941,20 +1987,20 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Job_terminal_census_detects_missing_subjects_extra_subtypes_factories_and_all_caller_escape_shapes",
-      "milliseconds": 23652,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 38885,
+      "source": "p034-a1-architecture-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Job_trace_source_and_actual_Activity_ownership_refuse_chained_Start_and_hidden_source_creation",
-      "milliseconds": 7840,
-      "source": "p033-77f62-a1-architecture-0"
+      "milliseconds": 8699,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.LearnStack_OutboxAdmin_Role_OnlyUsedBy_OutboxProcessor",
-      "milliseconds": 2860,
-      "source": "p033-77f62-a1-architecture-5"
+      "milliseconds": 3769,
+      "source": "p034-a1-architecture-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1965,8 +2011,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Observation_walk_detects_persistence_locators_async_and_polymorphic_helpers",
-      "milliseconds": 3831,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 8558,
+      "source": "p034-a1-architecture-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1977,8 +2023,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Outbox_Health_And_Metrics_Are_Bounded",
-      "milliseconds": 236,
-      "source": "p033-77f62-a1-architecture-5"
+      "milliseconds": 297,
+      "source": "p034-a1-architecture-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -1995,8 +2041,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Outbox_SQL_census_preserves_reads_and_unrelated_table_writes",
-      "milliseconds": 758,
-      "source": "p033-77f62-a1-architecture-4"
+      "milliseconds": 1216,
+      "source": "p034-a1-architecture-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2007,8 +2053,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Outbox_Type_Resolution_Is_Declared_And_Bounded",
-      "milliseconds": 1064,
-      "source": "p033-77f62-a1-architecture-0"
+      "milliseconds": 1279,
+      "source": "p034-a1-architecture-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2025,14 +2071,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Subscriber_terminal_census_rejects_extra_mint_paths_crossed_owners_and_missing_subjects",
-      "milliseconds": 2245,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 3168,
+      "source": "p034-a1-architecture-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Terminal_census_detects_extra_derivers_constructors_and_mint_callers",
-      "milliseconds": 23923,
-      "source": "p033-77f62-a1-architecture-0"
+      "milliseconds": 33034,
+      "source": "p034-a1-architecture-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2043,26 +2089,26 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.Terminal_census_detects_mutability_accessibility_missing_subjects_and_friend_access",
-      "milliseconds": 5122,
-      "source": "p033-77f62-a1-architecture-5"
+      "milliseconds": 6998,
+      "source": "p034-a1-architecture-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxDispatchConventionTests.The_API_application_source_has_one_owned_lazy_alias_named_factory_and_closed_actual_completion_pin",
-      "milliseconds": 4422,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 10233,
+      "source": "p034-a1-architecture-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxProducerConventionTests.Borrowed_write_guard_boundary_checks_its_implementation_and_every_denial_helper",
-      "milliseconds": 80169,
-      "source": "p033-e0-a1-architecture-3"
+      "milliseconds": 126537,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxProducerConventionTests.Outbox_Enqueue_Uses_The_Announced_Transaction",
-      "milliseconds": 410,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 626,
+      "source": "p034-a1-architecture-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2073,8 +2119,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.OutboxProducerConventionTests.Producer_walk_reaches_helpers_in_other_production_assemblies",
-      "milliseconds": 8074,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 23637,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2085,8 +2131,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PersistenceConventionTests.Every_Database_Test_Carries_The_Docker_Trait",
-      "milliseconds": 15513,
-      "source": "p033-77f62-a1-architecture-1"
+      "milliseconds": 22852,
+      "source": "p034-a1-architecture-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2097,26 +2143,26 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PersistenceConventionTests.Migrate_Target_Covers_Every_Migration_Chain",
-      "milliseconds": 11,
-      "source": "p033-77f62-a1-architecture-1"
+      "milliseconds": 13,
+      "source": "p034-a1-architecture-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PersistenceConventionTests.Migrate_Target_Reads_The_Role_Through_A_Quoted_Value",
-      "milliseconds": 36,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 275,
+      "source": "p034-a1-architecture-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PersistenceConventionTests.Migrate_Target_Redacts_A_Quoted_Value_Whole",
-      "milliseconds": 257,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 423,
+      "source": "p034-a1-architecture-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PersistenceConventionTests.Migrate_Target_Refuses_A_Uri_Without_Echoing_Its_Userinfo",
-      "milliseconds": 154,
-      "source": "p033-77f62-a1-architecture-4"
+      "milliseconds": 170,
+      "source": "p034-a1-architecture-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2139,8 +2185,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PersistenceConventionTests.Modules_Do_Not_Parallelize_Over_The_Ambient_Connection",
-      "milliseconds": 327,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 943,
+      "source": "p034-a1-architecture-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2151,8 +2197,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PersistenceConventionTests.The_Docker_Trait_Sweep_Can_Actually_Fail",
-      "milliseconds": 639,
-      "source": "p033-77f62-a1-architecture-1"
+      "milliseconds": 1319,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2169,8 +2215,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PersistenceConventionTests.The_Soft_Delete_Index_Sweep_Can_Actually_Fail",
-      "milliseconds": 22,
-      "source": "p033-77f62-a1-architecture-0"
+      "milliseconds": 25,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2187,20 +2233,20 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PersistenceConventionTests.TransactionBehavior_Does_Not_Reference_A_Module_Assembly",
-      "milliseconds": 27867,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 105603,
+      "source": "p034-a1-architecture-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PersistenceConventionTests.Unique_Indexes_On_Soft_Deletable_Tables_Exclude_Deleted_Rows",
-      "milliseconds": 12,
-      "source": "p033-77f62-a1-architecture-1"
+      "milliseconds": 404,
+      "source": "p034-a1-architecture-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PlatformAdminScopeConventionTests.No_IgnoreQueryFilters_Outside_PlatformAdminScope",
-      "milliseconds": 176,
-      "source": "p033-77f62-a1-architecture-0"
+      "milliseconds": 213,
+      "source": "p034-a1-architecture-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2211,8 +2257,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PlatformAdminScopeConventionTests.Platform_DataSource_Resolved_Only_By_PlatformAdminScope",
-      "milliseconds": 621,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 1204,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2241,26 +2287,26 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PublicSurfaceTests.Persistence_guard_follows_helpers_concrete_types_and_service_location",
-      "milliseconds": 71,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 192,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PublicSurfaceTests.PublicSurface_Controllers_Do_Not_Access_Persistence",
-      "milliseconds": 157,
-      "source": "p033-77f62-a1-architecture-1"
+      "milliseconds": 164,
+      "source": "p034-a1-architecture-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PublicSurfaceTests.PublicSurface_Endpoints_Dispatch_Through_The_Pipeline",
-      "milliseconds": 435,
-      "source": "p033-a1-architecture-2"
+      "milliseconds": 817,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PublicSurfaceTests.PublicSurface_Reads_Do_Not_Invoke_JsonSchema_Validation",
-      "milliseconds": 1508,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 1965,
+      "source": "p034-a1-architecture-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2277,14 +2323,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.PublicSurfaceTests.Public_validation_guard_uses_the_production_census_across_all_helper_layers",
-      "milliseconds": 3748,
-      "source": "p033-77f62-a1-architecture-1"
+      "milliseconds": 4571,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.RepositoryLayoutTests.Commit_Subject_Grammar_Is_Stated_Once",
-      "milliseconds": 1879,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 3552,
+      "source": "p034-a1-architecture-0"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2307,14 +2353,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.RequestSurfaceTests.PublicSurface_Marker_Set_Is_Enumerated",
-      "milliseconds": 23,
-      "source": "p033-77f62-a1-architecture-4"
+      "milliseconds": 26,
+      "source": "p034-a1-architecture-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.RequestSurfaceTests.PublicSurface_Requests_Are_Never_ReadSensitive",
-      "milliseconds": 19,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 30,
+      "source": "p034-a1-architecture-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2337,26 +2383,26 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.RequestSurfaceTests.The_Sweep_Covers_Every_Production_Assembly",
-      "milliseconds": 9,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 11,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.SeedContinuationConventionTests.Tenant_Bound_Seed_Writes_Recheck_Under_Ordered_Fences",
-      "milliseconds": 20894,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 27047,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.SeedOriginCompletionConventionTests.Fixed_Seed_Origin_Adoption_Requires_Completed_Foundation",
-      "milliseconds": 32768,
-      "source": "p033-a1-architecture-2"
+      "milliseconds": 48426,
+      "source": "p034-a1-architecture-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.SeederConventionTests.Seed_Literal_Source_Is_Complete_And_Readable",
-      "milliseconds": 71,
-      "source": "p033-77f62-a1-architecture-4"
+      "milliseconds": 221,
+      "source": "p034-a1-architecture-1"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2379,14 +2425,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.SeederConventionTests.Seeder_Write_Fence_Catches_Ef_Mutations_And_Ad_Hoc_Commands",
-      "milliseconds": 2,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 4,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.SensitiveExceptionMessageTests.Production_Exception_Messages_Do_Not_Contain_Sensitive_References",
-      "milliseconds": 49883,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 84219,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2397,14 +2443,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenancyConventionTests.Assertion_Budget_Does_Not_Depend_On_ICacheService",
-      "milliseconds": 11,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 74,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenancyConventionTests.Assertion_Recorder_Is_The_Only_Mismatch_Writer",
-      "milliseconds": 1439,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 3928,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2415,8 +2461,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenancyConventionTests.Effective_Host_Computed_In_One_Place",
-      "milliseconds": 34,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 175,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2427,50 +2473,50 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenancyConventionTests.Organization_Aggregate_Declared_In_Tenancy_Domain",
-      "milliseconds": 6,
-      "source": "p033-77f62-a1-architecture-1"
+      "milliseconds": 20,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenancyConventionTests.Out_Of_Band_Setters_Open_Read_Only_Transactions",
-      "milliseconds": 66,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 238,
+      "source": "p034-a1-architecture-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenancyConventionTests.Resolving_Host_Is_Set_In_One_Place",
-      "milliseconds": 86,
-      "source": "p033-77f62-a1-architecture-1"
+      "milliseconds": 154,
+      "source": "p034-a1-architecture-2"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenancyConventionTests.Tenant_Headers_Are_Never_A_Resolution_Source",
-      "milliseconds": 1660,
-      "source": "p033-77f62-a1-architecture-1"
+      "milliseconds": 3692,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenancyConventionTests.Tenant_Scope_Widening_Is_Never_Set_From_Request_Input",
-      "milliseconds": 188,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 424,
+      "source": "p034-a1-architecture-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenancyConventionTests.The_Host_Read_Scan_Can_Actually_Fail",
-      "milliseconds": 2,
-      "source": "p033-77f62-a1-architecture-4"
+      "milliseconds": 6,
+      "source": "p034-a1-architecture-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenancyConventionTests.The_Outbound_Dependency_Scan_Can_Actually_Fail",
-      "milliseconds": 23,
-      "source": "p033-77f62-a1-architecture-4"
+      "milliseconds": 26,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenancyConventionTests.The_Scope_Setter_Scan_Can_Actually_Fail",
-      "milliseconds": 39,
-      "source": "p033-77f62-a1-architecture-4"
+      "milliseconds": 184,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2487,14 +2533,14 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenantContextConstructionTests.HostScope_Is_Constructed_Only_By_The_Factory",
-      "milliseconds": 22,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 36,
+      "source": "p034-a1-architecture-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenantContextConstructionTests.Host_scope_guard_detects_mutable_public_shape_and_a_second_construction_site",
-      "milliseconds": 18,
-      "source": "p033-77f62-a1-architecture-3"
+      "milliseconds": 81,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2505,20 +2551,20 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenantContextConstructionTests.Organizations_Are_Read_By_Composite_Key",
-      "milliseconds": 726,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 1954,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenantContextConstructionTests.SetTenant_Callers_Are_The_Enumerated_Four",
-      "milliseconds": 208,
-      "source": "p033-77f62-a1-architecture-0"
+      "milliseconds": 476,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenantContextConstructionTests.TenantContext_Is_Constructed_Only_By_The_Factory",
-      "milliseconds": 6,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 26,
+      "source": "p034-a1-architecture-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2541,8 +2587,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenantScopingTests.Every_OrgScoped_Entity_HasOrgIdAndFilter",
-      "milliseconds": 142,
-      "source": "p033-77f62-a1-architecture-0"
+      "milliseconds": 1663,
+      "source": "p034-a1-architecture-3"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2553,8 +2599,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenantScopingTests.Every_TenantOwned_Entity_HasFilterAndRlsPolicy",
-      "milliseconds": 1487,
-      "source": "p033-77f62-a1-architecture-1"
+      "milliseconds": 2008,
+      "source": "p034-a1-architecture-5"
     },
     {
       "assembly": "learnstack.tests.architecture",
@@ -2565,8 +2611,8 @@
     {
       "assembly": "learnstack.tests.architecture",
       "method": "LearnStack.Tests.Architecture.TenantScopingTests.The_Tenant_Term_Check_Can_Actually_Fail",
-      "milliseconds": 1,
-      "source": "p033-77f62-a1-architecture-2"
+      "milliseconds": 2,
+      "source": "p034-a1-architecture-4"
     },
     {
       "assembly": "learnstack.tests.architecture",

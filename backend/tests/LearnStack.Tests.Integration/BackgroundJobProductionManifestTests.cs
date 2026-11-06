@@ -1,3 +1,4 @@
+using LearnStack.Modules.Identity.Application.Invitations;
 using System.Reflection;
 using FluentAssertions;
 using LearnStack.Api.Account;
@@ -31,7 +32,7 @@ namespace LearnStack.Tests.Integration;
 public sealed class BackgroundJobProductionManifestTests
 {
     [Fact]
-    public async Task BackgroundJob_Runtime_Has_No_Production_Definitions_Or_Dashboard()
+    public async Task BackgroundJob_Runtime_Has_Only_Approved_Production_Definitions_And_No_Dashboard()
     {
         // ASPNETCORE_ENVIRONMENT remains Development to avoid production adapters;
         // the independently selected Deployment:Mode still reaches Program's early
@@ -177,10 +178,24 @@ public sealed class BackgroundJobProductionManifestTests
     {
         var definitions = services.GetRequiredService<BackgroundJobDefinitionRegistry>();
         var recurrences = services.GetRequiredService<BackgroundJobRecurrenceRegistry>();
-        return definitions.DefinitionKeys.Select(key => "definition:" + key)
+        var expectedDefinitions = new[] { "identity.invitation_email_tenant.v1", "identity.invitation_email_organization.v1" };
+        (Type RequestType, BackgroundJobScope? Scope)[] expectedRequests =
+        {
+            (typeof(PrepareTenantInvitationEmailCommand), BackgroundJobScope.TenantWide),
+            (typeof(PrepareOrganizationInvitationEmailCommand), BackgroundJobScope.Organization),
+            (typeof(FinalizeTenantInvitationEmailCommand), BackgroundJobScope.TenantWide),
+            (typeof(FinalizeOrganizationInvitationEmailCommand), BackgroundJobScope.Organization),
+        };
+        var actualDefinitions = definitions.DefinitionKeys.ToArray();
+        var actualRequests = definitions.All.Where(item => item.Classification == BackgroundJobRequestClassification.Ordinary)
+            .Select(item => (item.RequestType, item.Scope)).ToArray();
+        return actualDefinitions.Except(expectedDefinitions).Concat(expectedDefinitions.Except(actualDefinitions))
+            .Select(key => "definition:" + key)
+            .Concat(actualDefinitions.Length == expectedDefinitions.Length ? Array.Empty<string>() : ["definition:count"])
             .Concat(definitions.RetiredKeys.Select(key => "retired:" + key))
-            .Concat(definitions.All.Where(item => item.Classification == BackgroundJobRequestClassification.Ordinary)
-                .Select(item => "ordinary-request:" + item.RequestType.FullName))
+            .Concat(actualRequests.Except(expectedRequests).Concat(expectedRequests.Except(actualRequests))
+                .Select(item => "ordinary-request:" + item.Item1.FullName + ":" + item.Item2))
+            .Concat(actualRequests.Length == expectedRequests.Length ? Array.Empty<string>() : ["ordinary-request:count"])
             .Concat(recurrences.Keys.Select(key => "recurrence:" + key)).ToList();
     }
 
@@ -196,7 +211,18 @@ public sealed class BackgroundJobProductionManifestTests
         }).Order(StringComparer.Ordinal).ToArray();
         var applicationRoutes = new[]
         {
-            // Approved reads, native admission and bounded administration add no job operator route.
+            // Approved application routes add no job operator route.
+            "identity/invitations|GET|" + typeof(InvitationsController).FullName + ".List",
+            "identity/invitations/{id}|GET|" + typeof(InvitationsController).FullName + ".Get",
+            "identity/invitations|POST|" + typeof(InvitationsController).FullName + ".Create",
+            "identity/invitations/{id}/revocations|POST|" + typeof(InvitationsController).FullName + ".Revoke",
+            "identity/invitations/{id}/reissues|POST|" + typeof(InvitationsController).FullName + ".Reissue",
+            "identity/invitable-roles|GET|" + typeof(InvitableRolesController).FullName + ".List",
+            "identity/invitation-entry/inspections|POST|" + typeof(InvitationEntryController).FullName + ".Inspect",
+            "identity/invitation-entry/acceptances|POST|" + typeof(InvitationEntryController).FullName + ".Accept",
+            "identity/invitation-entry/results|POST|" + typeof(InvitationEntryController).FullName + ".Result",
+            "tenancy/settings/invitation-policy|GET|" + typeof(InvitationPolicyController).FullName + ".Get",
+            "tenancy/settings/invitation-policy|PUT|" + typeof(InvitationPolicyController).FullName + ".Set",
             "account/site|GET|" + typeof(AccountController).FullName + ".GetSite",
             "identity/memberships|GET|" + typeof(MembershipsController).FullName + ".List",
             "identity/memberships/{id}|GET|" + typeof(MembershipsController).FullName + ".Get",

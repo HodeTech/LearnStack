@@ -111,10 +111,15 @@ public sealed class ContextualIdentityStorageControl(IdentityDbContext db, IUnit
         }
     }
 
-    public async Task SaveAsync(CancellationToken cancellationToken)
+    internal void RequireMutableGraph()
     {
         if (unit is IUnitOfWorkWriteGuard writeGuard) writeGuard.RequireWriteAllowed();
         if (_validated) throw new InvalidOperationException("An Identity graph cannot change after validation.");
+    }
+
+    public async Task SaveAsync(CancellationToken cancellationToken)
+    {
+        RequireMutableGraph();
         // The common owner must roll back this complete aggregate act on every
         // failure. A private EF subtransaction supplies no recoverable boundary
         // and gives a new Role a child xmin, defeating the exact first-act proof.
@@ -194,7 +199,7 @@ public sealed class ContextualIdentityStorageControl(IdentityDbContext db, IUnit
         or PostgresErrorCodes.DeadlockDetected or PostgresErrorCodes.QueryCanceled
         || failure.SqlState is "23505" or "23514" or "23503"
             && failure.ConstraintName is { } name
-            && (name.Contains("membership", StringComparison.Ordinal) || name.Contains("roles", StringComparison.Ordinal)
+            && (name.Contains("membership", StringComparison.Ordinal) || name.Contains("invitation", StringComparison.Ordinal) || name.Contains("roles", StringComparison.Ordinal)
                 || name.Contains("role_permission_grants", StringComparison.Ordinal));
 
     private IdentityFoundationStorageException Translate(PostgresException failure)

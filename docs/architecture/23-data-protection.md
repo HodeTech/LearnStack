@@ -217,10 +217,11 @@ values can still identify a person; absence of free text is no erasure exemption
 The inventory records subject locators and existing constraints. It grants no
 erasure authority and selects no retention period or deletion order.
 
-The ten first-party tables are in LearnStack's database. Canonical DDL and grants
+The twelve first-party tables are in LearnStack's database. Canonical DDL and grants
 remain in Database Standards: [Outbox](../standards/05-database.md#outbox),
 [Inbox and delivery ledger](../standards/05-database.md#inbox), and
-[Background jobs](../standards/05-database.md#background-jobs).
+[Background jobs](../standards/05-database.md#background-jobs), including
+[invitation SMTP custody](../standards/05-database.md#invitation-smtp-provider-storage).
 
 <!-- async-store-first-party:start -->
 | Store | Copies and subject linkage | Existing constraint |
@@ -235,6 +236,8 @@ remain in Database Standards: [Outbox](../standards/05-database.md#outbox),
 | `background_job_recurrences` | Finite definition/revision/manifest/target/schedule/recipient-policy metadata; no user or arbitrary parameters | Infrastructure control; no ordinary app access |
 | `background_job_occurrences` | Manifest/slot identity and frozen tenant/org sweep bounds/checkpoints; no person column or arbitrary payload | Preserve occurrence history and monotonic progress |
 | `background_job_recipients` | Immutable tenant/org route, occurrence/manifest/target and accepted child-job receipt | Recipient is a tenant/org route, not a person; reciprocal job links constrain future purge order |
+| `invitation_email_envelopes` | Encrypted recipient/subject/body/fragment link; tenant/org, Invitation/generation/job references, key version, nonce/tag and creation time | Private authenticated custody; application has only immutable-column INSERT and the two fixed provider functions, no directory/read/rewrite/purge grant. Encryption is not anonymisation |
+| `invitation_email_attempt_receipts` | Envelope-to-Invitation/generation linkage plus job/attempt/operation/claim/fence/receipt references, finite submission outcome and timestamps | Terminal evidence is immutable; only the fixed claim/complete functions write it. Unknown does not establish quiescence or release the job reservation |
 <!-- async-store-first-party:end -->
 
 The complete Platform migration census also includes this explicit scope exclusion.
@@ -279,6 +282,7 @@ govern personal data; exclusion here grants no erasure exemption.
 | `membership_role_assignments` | Synchronous authorization links; exclusion from the asynchronous inventory grants no personal-data retention or erasure exemption |
 | `roles` | Synchronous tenant-owned authority templates, not queued payloads |
 | `role_permission_grants` | Synchronous explicit authority definitions, not delivery or diagnostic copies |
+| `invitations` | Synchronous scoped Identity offer and acceptance result, including sensitive recipient/verifier and job linkage; the invitation inventory below owns fulfillment constraints |
 <!-- async-store-module-exclusions:end -->
 
 LearnStack job-table no-delete triggers also bind the owner; BYPASSRLS is not
@@ -319,6 +323,7 @@ The inventory also covers these distinct copies and custody boundaries:
 | External diagnostics and local error files | Log, trace, Sentry and `LocalFileErrorTracker` JSON archives can retain linkable exception/context copies; source-row deletion does not erase them |
 | Database, WAL and backups | Retained copies need backup and post-restore reconciliation; source-row deletion alone does not remove them |
 | Native BFF session custody | `InMemoryBffSessionStore` is volatile process-local custody under ADR-0070, not a durable ledger. Local invalidation does not erase provider events or diagnostic archives |
+| SMTP server, recipient mailbox and provider backups | Recipient address and delivered link/body are external personal/credential copies. Submission acceptance is not inbox delivery or erasure; invalidating a code cannot retract prepared mail or remove provider/backup copies |
 <!-- async-store-custody:end -->
 
 ADR-0072/0073 add identity linkage to the existing `audit_log` boundary above,
@@ -329,6 +334,59 @@ attempts without a User; proposed target and action references remain personal
 data. Existing SecurityEvent retention applies, and metadata stays outside the
 six-column UPDATE grant. P03-10 locates and reports retained linkage under the
 same inventory boundary.
+
+### Invitation offer and automatic email custody
+
+[ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md)
+owns this P03-4 inventory. The offer and both delivery-store migrations now land
+in the complete table census above. Identity owns the offer; common Infrastructure
+owns the two private SQL-only delivery stores. Administrator, recipient and native
+consumer activation follows the [phase Status](../roadmap/phase-03-identity-admin.md);
+the selected copy/fulfillment contract below does not claim every consumer or
+production retention workflow is implemented.
+Canonical schema, grants and source/attempt guards remain in
+[Database Standards](../standards/05-database.md); provider implementation stays
+in [Infrastructure Standards](../standards/20-infrastructure-stack.md).
+
+| Store/copy | Classification and subject locator | Custody / fulfillment constraint |
+|---|---|---|
+| `invitations` | Recipient email is PII-Identity; inviter/acceptor UserId, original MembershipId, tenant/org, Role/version, acceptance disposition and timestamps retain person/relationship linkage. Current and consumed token verifiers are sensitive credential material, even one-way | Identity's scoped root; immutable recipient/inviter/scope/Role pin. P03-10 locates by authorized recipient/actor/Membership relation, including expired/terminal history. Verifiers are never exported |
+| `invitation_email_envelopes` | The first-party row above owns the physical copy/locator census; expiry belongs to the linked Invitation generation | AES-256-GCM bounds and key retention follow Database Standards. P03-10 locates authorized subject linkage; Phase 11 owns provider/backup retention and purge. No generic module/ExternalScope SQL access |
+| `invitation_email_attempt_receipts` | The first-party row above owns direct references and the indirect envelope-to-Invitation locator; no recipient, raw SMTP text, body or token | Exact claim/complete functions do not read User/module tables. P03-10 follows authorized linkage; no generic receipt editor, status payload channel or ordinary purge grant |
+| Existing authoritative job/attempt/reservation tables | Identifier-only invitation/envelope/generation references and existing causal actor; trace/failure/control links remain linkable | Existing typed external-job ownership, six-attempt budget and unresolved reservation rules continue. Erasure cannot prove SMTP quiescence or release uncertain occupancy |
+| Native continuation and browser message link | Raw code/link, captured offer and same-subject verification continuation; volatile credentials under existing native owner custody | Fragment-only link; clean GET landing removes fragment before exact-Origin/CSRF POST. Bounded existing owners and teardown retain no durable link-read or handoff copy. History/BFCache/late-response proof is required |
+| Protected HTTP replay | Typed original Invitation/policy target, bounded nonsecret response and current result linkage | No email link, raw code, verifier, ciphertext or provider payload in stored replay bytes; authority-checked MUST receipt read before disclosure |
+| SMTP server, recipient mailbox and provider backups | The external custody row above owns this copy boundary | Revoke/reissue/accept invalidates codes; Prepare refuses obsolete generations, while prepared mail may still arrive. Recovery fencing is a separate provider action. Phase 11 qualifies retained-provider/backup reconciliation |
+
+Creation atomically stages generation 1, its verifier, encrypted envelope and
+identifier-only job in the ordinary business unit of work. `IInvitationEmailStager`
+is enrolled custody, not a new aggregate. Reissue replaces the usable code with a
+new generation/token/job and current TTL. Before any socket, a provider-attempt
+CAS records Sending; recovery's CancelledBeforeSend CAS fences an old worker.
+Definite temporary no-effect can retry within the existing budget. Ambiguous
+Sending/Unknown retains its reservation and cannot be blindly retried. Stable
+terminal evidence reproduces the same result after restart; no arbitrary SMTP
+exactly-once claim follows. The canonical database contract owns the exact state
+machine and the dedicated four-slot/five-second source limited to two functions.
+
+Classify all mapped properties, SQL-only fields and volatile copies before their
+first writer. Audit snapshots preserve redaction markers for recipient email and
+token verifiers. No raw email, link, code, verifier, ciphertext, provider body or
+SMTP exception text enters logs, spans, Sentry/local archives, audit values,
+validation attempted values, bind-value logging, analytics or proof artifacts.
+Key IDs and immutable receipt/job references are classified controls/linkage;
+they are not safe high-cardinality diagnostic labels. Test each actual sink with
+positive canaries; model classification alone establishes no secrecy guarantee.
+
+Diagnostic exclusion does not remove authorized access rights. P03-10's Identity
+and common Infrastructure participants locate/report recipient email,
+relationships, envelope and attempt/job linkage under subject/purpose authority.
+Authorized recipient-email export is allowed; credentials, verifiers, encrypted
+credential payloads and secret keys never enter DSAR artifacts. P03-10 also owns
+closure fencing so delayed jobs and pending offers cannot recreate admission for
+a Closing/Closed User. Phase 11 owns retained-copy/purge enforcement and key/
+backup/provider retention qualification. This inventory grants no early DELETE,
+metadata UPDATE, ciphertext export or complete anonymisation claim.
 
 ### Accepted authorization evidence linkage
 

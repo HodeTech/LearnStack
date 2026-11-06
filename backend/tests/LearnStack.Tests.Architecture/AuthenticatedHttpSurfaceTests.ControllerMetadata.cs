@@ -57,6 +57,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         var expected = classifier.Methods.Single(method => method.Name == "Expected");
         var account = api.GetType(Account);
         void Dirty() => Violations(modules, facts).Should().Contain(value => value.StartsWith("Nested HTTP dispatch/helper handler:", StringComparison.Ordinal));
+        AssertControllerTableProjectionControls(classifier, map);
         AssertClassifierKeyMetadataControls(classifier, map, Dirty);
         var field = new FieldDefinition("ActualController", FieldAttributes.Private, account);
         classifier.Fields.Add(field);
@@ -86,6 +87,44 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         try { Dirty(); }
         finally { expected.Body.Instructions.Remove(delegated); classifier.Methods.Remove(factory); }
         Violations(modules, facts).Should().BeEmpty("only the original fixed typeof table remains after real controller capabilities are removed");
+    }
+
+    private static void AssertControllerTableProjectionControls(TypeDefinition classifier, Dictionary<string, TypeDefinition> map)
+    {
+        var method = classifier.Methods.Single(candidate => candidate.Name == "Expected");
+        var accountKey = "LearnStack.Api:" + Account;
+        void Clean()
+        {
+            DataOnlyHttpTable(method).Should().BeTrue();
+            HandlerReferences(classifier, map).Should().NotContain(reference => Key(reference) == accountKey,
+                "the restored literal table is descriptive metadata in a fresh projection");
+        }
+        void RejectAndRestore(Instruction instruction, Action mutate)
+        {
+            var opcode = instruction.OpCode;
+            var operand = instruction.Operand;
+            try
+            {
+                mutate();
+                DataOnlyHttpTable(method).Should().BeFalse();
+                HandlerReferences(classifier, map).Should().Contain(reference => Key(reference) == accountKey,
+                    "a previously clean projection must not exempt any controller token after the table changes");
+            }
+            finally { instruction.OpCode = opcode; instruction.Operand = operand; }
+            Clean();
+        }
+
+        Clean();
+        var token = method.Body.Instructions.First(instruction => instruction.OpCode == OpCodes.Ldtoken
+            && instruction.Operand is TypeReference reference && Key(reference) == "LearnStack.Api:" + PublicSite);
+        var controller = (TypeReference)token.Operand;
+        RejectAndRestore(token, () => token.Operand = new TypeReference(controller.Namespace, controller.Name, classifier.Module,
+            new AssemblyNameReference("SurfaceProbe.ForeignController", new Version(1, 0))));
+        var literal = method.Body.Instructions.First(instruction => instruction.OpCode == OpCodes.Ldstr);
+        RejectAndRestore(literal, () => literal.Operand = "UnapprovedControllerTableLiteral");
+        var call = method.Body.Instructions.First(instruction => instruction.OpCode == OpCodes.Call
+            && instruction.Operand is MethodReference { DeclaringType.FullName: "System.Type", Name: "GetTypeFromHandle" });
+        RejectAndRestore(call, () => call.OpCode = OpCodes.Callvirt);
     }
 
     private static void AssertClassifierKeyMetadataControls(TypeDefinition classifier, Dictionary<string, TypeDefinition> map, Action dirty)

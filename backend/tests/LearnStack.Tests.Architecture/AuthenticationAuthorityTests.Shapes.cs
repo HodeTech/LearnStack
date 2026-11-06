@@ -26,6 +26,14 @@ public sealed partial class AuthenticationAuthorityTests
     private static readonly string IdentityCopyConstructor = Signature(Identity, ".ctor", "System.Void", Identity);
     private static readonly Dictionary<string, string> ApprovedSites = new(StringComparer.Ordinal)
     {
+        [InvitationCredential + "..ctor"] = Signature(InvitationCredential, ".ctor", "System.Void", Http, Feature, "Microsoft.IdentityModel.JsonWebTokens.JsonWebToken", Verified, "System.String"),
+        [InvitationCredential + ".Capture"] = Signature(InvitationCredential, "Capture", InvitationCredential, Http, "Microsoft.IdentityModel.JsonWebTokens.JsonWebToken", Verified),
+        [InvitationCredential + ".get_Subject"] = Signature(InvitationCredential, "get_Subject", Verified),
+        [InvitationCredential + ".IsCurrent"] = Signature(InvitationCredential, "IsCurrent", "System.Boolean", Http),
+        [InvitationSource + ".IsCurrent"] = Signature(InvitationSource, "IsCurrent", "System.Boolean", Http),
+        [InvitationSource + ".PrepareAsync"] = Signature(InvitationSource, "PrepareAsync", TaskType + "`1<LearnStack.SharedKernel.Results.Result`1<LearnStack.SharedKernel.Identity.InvitationEntryObservation>>", Http),
+        [RecipientReader + ".Matches"] = Signature(RecipientReader, "Matches", "System.Boolean", Http, InvitationCredential, "LearnStack.SharedKernel.Permissions.OperationInvocation"),
+        [RecipientReader + ".ReadAsync"] = Signature(RecipientReader, "ReadAsync", TaskType + "`1<LearnStack.SharedKernel.Results.Result`1<LearnStack.Modules.Identity.Application.Contracts.Invitations.CurrentInvitationRecipientEvidence>>", "LearnStack.SharedKernel.Permissions.OperationInvocation", "System.Threading.CancellationToken"),
         [Profile + ".TryReadValidated"] = Signature(Profile, "TryReadValidated", "System.Boolean", "System.String", Authentication + "TenantAuthenticationOptions", "System.DateTimeOffset", Verified + "&", Authentication + "TenantTokenFailure&"),
         [Events + ".MessageReceived"] = Signature(Events, "MessageReceived", TaskType, "Microsoft.AspNetCore.Authentication.JwtBearer.MessageReceivedContext"),
         [Events + ".AuthenticationFailed"] = Signature(Events, "AuthenticationFailed", TaskType, "Microsoft.AspNetCore.Authentication.JwtBearer.AuthenticationFailedContext"),
@@ -47,7 +55,7 @@ public sealed partial class AuthenticationAuthorityTests
         [Native + ".get_Actor"] = Signature(Native, "get_Actor", User),
         [NativeSource + "..ctor"] = Signature(NativeSource, ".ctor", "System.Void", Http, Host, Verified,
             Authentication + "SubjectAdmissionDecision", Provenance, Tenant, Organization, Authentication + "GlobalSelfOperation",
-            "LearnStack.Api.Tenancy.EffectiveHostAccessor", Authentication + "NativeSessionSourcePolicy", "LearnStack.SharedKernel.Time.IClock"),
+            "LearnStack.Api.Tenancy.EffectiveHostAccessor", Authentication + "NativeSessionSourcePolicy", "LearnStack.SharedKernel.Time.IClock", Authentication + "InvitationEntryOperation"),
         [NativeSource + ".IsCurrent"] = Signature(NativeSource, "IsCurrent", "System.Boolean", Http),
         [NativeMiddleware + ".InvokeAsync"] = Signature(NativeMiddleware, "InvokeAsync", TaskType, Http,
             "LearnStack.Api.Tenancy.EffectiveHostAccessor", Authentication + "NativeSessionSourcePolicy", "LearnStack.SharedKernel.Time.IClock"),
@@ -62,7 +70,7 @@ public sealed partial class AuthenticationAuthorityTests
         [Authentication + "OperationAuthorizationHandler.HandleAsync"] = Signature(Authentication + "OperationAuthorizationHandler", "HandleAsync", TaskType,
             "Microsoft.AspNetCore.Authorization.AuthorizationHandlerContext"),
         [CredentialWitness + "..ctor"] = Signature(CredentialWitness, ".ctor", "System.Void", Http, Host, Verified, Identity,
-            Authentication + "SubjectAdmissionDecision", Provenance, Native),
+            Authentication + "SubjectAdmissionDecision", Provenance, Native, InvitationSource),
         [CredentialWitness + ".get_Subject"] = Signature(CredentialWitness, "get_Subject", Verified),
         [CredentialWitness + ".get_Identity"] = Signature(CredentialWitness, "get_Identity", Identity),
         [Resolver + ".BuildAttemptAsync"] = Signature(Resolver, "BuildAttemptAsync", TaskType + "`1<" + Attempt + ">", Http, Host, ScopeValidator, Membership, Identity),
@@ -183,7 +191,8 @@ public sealed partial class AuthenticationAuthorityTests
             ["Identity"] = Identity,
             ["Decision"] = Authentication + "SubjectAdmissionDecision",
             ["Provenance"] = Provenance,
-            ["Native"] = Native
+            ["Native"] = Native,
+            ["Invitation"] = InvitationSource
         };
         return witness.IsSealed && witness.IsNestedPrivate && witness.BaseType.FullName == "System.Object"
             && !witness.HasInterfaces && !witness.HasEvents && !witness.HasNestedTypes && !witness.HasGenericParameters
@@ -238,11 +247,98 @@ public sealed partial class AuthenticationAuthorityTests
         // storage, a boxed value or a reference array creates another channel.
         instruction.OpCode.Code is Code.Box or Code.Stelem_Ref
         || instruction.OpCode.Code is Code.Stfld or Code.Stsfld && instruction.Operand is FieldReference field
-            && IsOpaqueProjectionArgument(field.FieldType, owner: field.DeclaringType)
+            && IsOpaqueProjectionArgument(field.FieldType, owner: field.DeclaringType) && !IsClosedExceptionStorage(method, instruction)
         || instruction.Operand is MethodReference target && ExportsProjection(target)
             && !IsClosedWitnessForwarding(method, instruction, target)
             && !IsClosedUserAgentFormatting(method, instruction, target)
-            && !IsClosedHttpEndpointForwarding(method, instruction, target));
+            && !IsClosedHttpEndpointForwarding(method, instruction, target)
+            && !IsClosedInvitationForwarding(method, instruction, target));
+
+    // The token is either hashed for the pending-token equality gate or stored in
+    // the request-local credential. No other encoded-token read is admitted here.
+    private static bool IsClosedInvitationTokenRead(Call call, Call[] calls, Method[] methods)
+    {
+        const string encoded = "System.String Microsoft.IdentityModel.JsonWebTokens.JsonWebToken::get_EncodedToken()";
+        if (call.Target.FullName != encoded || call.Source.Site != ApprovedSites[InvitationCredential + ".Capture"]
+            && call.Source.Site != ApprovedSites[InvitationCredential + "..ctor"]) return false;
+        var fieldUses = methods.SelectMany(m => m.Definition.Body.Instructions.Where(i => i.Operand is FieldReference f
+            && f.DeclaringType.FullName == InvitationCredential && f.Name == "_token").Select(i => (Method: m, Instruction: i))).ToArray();
+        var authorization = methods.SingleOrDefault(m => m.Site == Signature(InvitationCredential, "TryAuthorize", "System.Boolean", Http, "System.Net.Http.HttpRequestMessage"));
+        var authorizeSignature = Signature(InvitationCredential, "TryAuthorize", "System.Boolean", Http, "System.Net.Http.HttpRequestMessage");
+        if (calls.Count(c => c.Target.FullName == authorizeSignature) != 1
+            || calls.Count(c => c.Target.FullName == authorizeSignature && c.Source.Site == ApprovedSites[RecipientReader + ".ReadAsync"]) != 1
+            || fieldUses.Length != 2 || authorization is null
+            || fieldUses.Count(use => use.Method.Site == ApprovedSites[InvitationCredential + "..ctor"] && use.Instruction.OpCode == OpCodes.Stfld) != 1
+            || fieldUses.Count(use => use.Method == authorization && use.Instruction.OpCode == OpCodes.Ldfld) != 1) return false;
+        var body = authorization.Definition.Body.Instructions.Where(i => i.OpCode != OpCodes.Nop).ToArray();
+        if (body.Length != 15 || body[2].Operand is not MethodReference current
+            || current.FullName != ApprovedSites[InvitationCredential + ".IsCurrent"]
+            || body[3].OpCode.Code is not (Code.Brtrue or Code.Brtrue_S) || body[3].Operand != body[6]
+            || body[4].OpCode != OpCodes.Ldc_I4_0 || body[5].OpCode != OpCodes.Ret
+            || body[8].Operand as string != "Bearer" || body[10] != fieldUses.Single(use => use.Method == authorization).Instruction
+            || body[11].Operand is not MethodReference header || header.FullName != "System.Void System.Net.Http.Headers.AuthenticationHeaderValue::.ctor(System.String,System.String)"
+            || body[12].Operand is not MethodReference setter || setter.FullName != "System.Void System.Net.Http.Headers.HttpRequestHeaders::set_Authorization(System.Net.Http.Headers.AuthenticationHeaderValue)"
+            || body[13].OpCode != OpCodes.Ldc_I4_1 || body[14].OpCode != OpCodes.Ret) return false;
+        var reads = call.Source.Definition.Body.Instructions.Where(i => i.Operand is MethodReference m && m.FullName == encoded).ToArray();
+        if (reads.Length != 1 || reads[0].OpCode != OpCodes.Callvirt) return false;
+        var read = reads[0];
+        if (call.Source.Site == ApprovedSites[InvitationCredential + "..ctor"])
+            return read.Previous?.OpCode == OpCodes.Ldarg_3
+                && read.Next is { OpCode.Code: Code.Stfld, Operand: FieldReference field }
+                && field.DeclaringType.FullName == InvitationCredential && field.Name == "_token"
+                && calls.Count(c => c.Target.FullName == ApprovedSites[InvitationCredential + "..ctor"]
+                    && c.Source.Site == ApprovedSites[InvitationCredential + ".Capture"]) == 1
+                && calls.Count(c => c.Target.FullName == ApprovedSites[InvitationCredential + "..ctor"]) == 1;
+        return read.Previous?.OpCode == OpCodes.Ldarg_1
+            && read.Next?.Operand is MethodReference bytes && bytes.FullName == "System.Byte[] System.Text.Encoding::GetBytes(System.String)"
+            && read.Next.Next?.Operand is MethodReference hash && hash.FullName == "System.Byte[] System.Security.Cryptography.SHA256::HashData(System.Byte[])"
+            && read.Next.Next.Next?.Next?.Operand is MethodReference compare
+            && compare.Name == "FixedTimeEquals" && compare.DeclaringType.FullName == "System.Security.Cryptography.CryptographicOperations"
+            && calls.Count(c => c.Target.FullName == ApprovedSites[InvitationCredential + ".Capture"]
+                && c.Source.Site == ApprovedSites[Events + ".TokenValidated"]) == 1
+            && calls.Count(c => c.Target.FullName == ApprovedSites[InvitationCredential + ".Capture"]) == 1;
+    }
+
+    // The compiler's async-disposal catch stores only null or its caught exception.
+    private static bool IsClosedExceptionStorage(Method method, Instruction instruction)
+    {
+        if (method.Site != ApprovedSites[RecipientReader + ".ReadAsync"] || instruction.OpCode != OpCodes.Stfld
+            || instruction.Operand is not FieldReference field || field.Name != "<>7__wrap10"
+            || field.DeclaringType != method.Definition.DeclaringType) return false;
+        if (instruction.Previous?.OpCode == OpCodes.Ldnull) return true;
+        if (instruction.Previous is not { } load || LoadedLocal(method.Definition, load) is not { } local) return false;
+        var stores = method.Definition.Body.Instructions.Where(i => StoresLocal(i, local)).ToArray();
+        return stores.Length == 2 && method.Definition.Body.ExceptionHandlers.Any(handler =>
+                handler.HandlerType == ExceptionHandlerType.Catch && handler.HandlerStart == stores[0])
+            && stores[1].Previous is { OpCode.Code: Code.Ldfld, Operand: FieldReference loaded }
+            && loaded.FullName == field.FullName;
+    }
+
+    // Both object arguments in preparation come from the same local, whose only
+    // assignments construct one of the three invitation operations.
+    private static bool IsClosedInvitationForwarding(Method method, Instruction instruction, MethodReference target)
+    {
+        if (method.Site == ApprovedSites[InvitationSource + ".PrepareAsync"]
+            && target.FullName is "System.Void LearnStack.Api.Authentication.InvitationEntrySource::set_Request(System.Object)"
+                or "System.Void LearnStack.Api.Authentication.InvitationEntryRequest::.ctor(System.Object)"
+            && instruction.Previous is { } load && LoadedLocal(method.Definition, load) is { } local)
+        {
+            var stores = method.Definition.Body.Instructions.Where(i => StoresLocal(i, local)).ToArray();
+            var expected = new[] { "GetOwnInvitationResultQuery", "AcceptInvitationCommand", "InspectInvitationQuery" };
+            return stores.Length == expected.Length && Same(stores.Select(store =>
+                store.Previous is { OpCode.Code: Code.Newobj, Operand: MethodReference ctor }
+                    && ctor.DeclaringType.Namespace == "LearnStack.Modules.Identity.Application.Contracts.Invitations"
+                    ? ctor.DeclaringType.Name : "invalid"), expected);
+        }
+        if (method.Site != ApprovedSites[RecipientReader + ".ReadAsync"]
+            || target.FullName != "LearnStack.Modules.Identity.Application.Contracts.Invitations.CurrentInvitationRecipientEvidence LearnStack.Modules.Identity.Application.Contracts.Invitations.CurrentInvitationRecipientEvidence/MintingSource::Capture(LearnStack.SharedKernel.Permissions.OperationInvocation,System.String,System.Object)"
+            || instruction.Previous is not { } observationLoad || LoadedLocal(method.Definition, observationLoad) is not { } observation
+            || observation.VariableType.FullName != RecipientReader + "/Observation") return false;
+        var assignments = method.Definition.Body.Instructions.Where(i => StoresLocal(i, observation)).ToArray();
+        return assignments.Length == 1 && assignments[0].Previous is { OpCode.Code: Code.Newobj, Operand: MethodReference ctor }
+            && ctor.FullName == Signature(RecipientReader + "/Observation", ".ctor", "System.Void", Http, InvitationCredential,
+                "LearnStack.SharedKernel.Permissions.OperationInvocation", "System.Threading.CancellationToken");
+    }
 
     private static bool IsClosedRolesAbsenceCheck(Call call)
     {
@@ -306,6 +402,7 @@ public sealed partial class AuthenticationAuthorityTests
     private static bool IsClosedHttpEndpointForwarding(Method method, Instruction instruction, MethodReference target)
     {
         if (method.Site != ApprovedSites[Authentication + "OperationClassificationMiddleware.InvokeAsync"]
+            && method.Site != ApprovedSites[Authentication + "OperationAuthorizationHandler.HandleAsync"]
             || instruction.OpCode != OpCodes.Callvirt
             || target.FullName != "System.Threading.Tasks.Task`1<LearnStack.SharedKernel.Results.Result`1<LearnStack.SharedKernel.Results.None>> LearnStack.Application.Authorization.OperationAuthorizationCoordinator::CheckHttpAsync(System.Type,System.Object,System.Threading.CancellationToken)"
             || instruction.Previous?.Operand is not MethodReference cancellation
@@ -317,9 +414,15 @@ public sealed partial class AuthenticationAuthorityTests
             || acquisition.FullName != "Microsoft.AspNetCore.Http.Endpoint Microsoft.AspNetCore.Http.EndpointHttpContextExtensions::GetEndpoint(Microsoft.AspNetCore.Http.HttpContext)"
             || endpoint.Previous is not { OpCode.Code: Code.Ldfld, Operand: FieldReference endpointHttp }
             || endpointHttp.FullName != http.FullName || endpoint.Previous.Previous?.OpCode != OpCodes.Ldarg_0
-            || endpoint.Previous.Previous.Previous?.Operand is not MethodReference policy)
+            || endpoint.Previous.Previous.Previous is not { } policyLoad)
             return false;
-        return policy.FullName == "System.Type LearnStack.SharedKernel.Permissions.OperationPolicy::get_RequestType()";
+        if (policyLoad.Operand is MethodReference policy)
+            return policy.FullName == "System.Type LearnStack.SharedKernel.Permissions.OperationPolicy::get_RequestType()";
+        if (method.Site != ApprovedSites[Authentication + "OperationAuthorizationHandler.HandleAsync"]
+            || LoadedLocal(method.Definition, policyLoad) is not { } local || local.VariableType.FullName != "System.Type") return false;
+        var stores = method.Definition.Body.Instructions.Where(i => StoresLocal(i, local)).ToArray();
+        return stores.Length == 1 && stores[0].Previous?.Operand is MethodReference source
+            && source.FullName == "System.Type LearnStack.Api.Authentication.InvitationEntrySource::get_EffectiveRequestType()";
     }
 
     // Release emits a constrained Object.ToString for the StringValues value.

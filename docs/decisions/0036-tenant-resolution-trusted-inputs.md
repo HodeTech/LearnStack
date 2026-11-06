@@ -1354,3 +1354,21 @@ allocates. [Security Standards](../standards/11-security.md) owns exact placemen
 source features, statuses and current caller ceilings. Other source, assertion,
 host-budget and public rules remain; the historical body/metadata are preserved.
 Acceptance changes the contract, not runtime or matrix-test qualification.
+
+
+### Amendment 18 — Exact offer-derived nonmember invitation scope (2026-11-04)
+
+Accepted [ADR-0093](0093-verified-invitation-acceptance-and-handoff.md) records the new
+bounded invitation decision selected by the maintainer. ADR-0093 adds
+HostAndInvitationOffer only for verified native inspection, acceptance and same-actor
+result reading. The actual host and exact stored offer agree on scope before the one-use
+witness is consumed; the three global-self descriptors and legacy matrix rows retain
+their behavior. Platform/unknown hosts, browser selectors, generic unresolved operations
+and ordinary protected/AccountSite admission gain no authority.
+
+This dated Amendment links the successor; it does not rewrite this record's historical
+Decision, Status, Date, Deciders or earlier rationale. Canonical current
+source/operation/permission/audit/storage details live in Standards
+01/04/05/07/11/18/19/20/21 and the Identity/Tenancy specifications. The [Phase 03
+Status](../roadmap/phase-03-identity-admin.md) owns implementation and source-bound
+qualification; acceptance supplies no runtime proof.

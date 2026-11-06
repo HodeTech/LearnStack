@@ -40,17 +40,23 @@ export function administrationSnapshot(
 ): NativePageSnapshot {
   return {
     target:
-      view.kind === 'member'
-        ? (('/studio/members/' + view.member.membershipId) as `/studio/members/${string}`)
-        : view.kind === 'role'
-          ? (('/studio/roles/' + view.role.roleId) as `/studio/roles/${string}`)
-          : view.kind === 'profile'
-            ? '/portal/profile'
-            : view.kind === 'members'
-              ? '/studio/members'
-              : view.kind === 'roles'
-                ? '/studio/roles'
-                : (('/' + view.kind) as '/studio' | '/portal'),
+      view.kind === 'invitation'
+        ? `/studio/invitations/${view.invitation.invitationId}`
+        : view.kind === 'invitations'
+          ? '/studio/invitations'
+          : view.kind === 'invitation_policy'
+            ? '/studio/invitation-policy'
+            : view.kind === 'member'
+              ? (('/studio/members/' + view.member.membershipId) as `/studio/members/${string}`)
+              : view.kind === 'role'
+                ? (('/studio/roles/' + view.role.roleId) as `/studio/roles/${string}`)
+                : view.kind === 'profile'
+                  ? '/portal/profile'
+                  : view.kind === 'members'
+                    ? '/studio/members'
+                    : view.kind === 'roles'
+                      ? '/studio/roles'
+                      : (('/' + view.kind) as '/studio' | '/portal'),
     site: {
       displayName: 'Institution',
       defaultLocale: 'en',

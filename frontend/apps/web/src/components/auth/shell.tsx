@@ -12,6 +12,7 @@ import { optionalPreparedPage } from '@/server/auth/page';
 import type { NativePageSnapshot, PageView } from '@/server/auth/page-contract';
 
 import { MutationFields, ProfileFields, ProfileValues } from './admin-forms';
+import { InvitationDetails, InvitationDirectory, InvitationPolicy } from './admin-invitations';
 import { MemberDetails, MemberDirectory } from './admin-members';
 import { RoleDetails, RoleDirectory } from './admin-roles';
 import { SessionControls } from './session';
@@ -26,6 +27,9 @@ function title(kind: PageKind, admin: AdminCopy, profile: ProfileCopy, copy: Aut
     roles: admin('roles.title'),
     role: admin('roles.detail_title'),
     profile: profile('title'),
+    invitations: admin('invitations.title'),
+    invitation: admin('invitations.detail_title'),
+    invitation_policy: admin('invitations.policy_title'),
   };
   return titles[kind];
 }
@@ -44,6 +48,12 @@ function PageContents({
   readonly profile: ProfileCopy;
 }) {
   switch (view.kind) {
+    case 'invitations':
+      return <InvitationDirectory snapshot={snapshot} view={view} locale={locale} admin={admin} />;
+    case 'invitation':
+      return <InvitationDetails snapshot={snapshot} view={view} locale={locale} admin={admin} />;
+    case 'invitation_policy':
+      return <InvitationPolicy snapshot={snapshot} view={view} admin={admin} />;
     case 'members':
       return <MemberDirectory view={view} admin={admin} />;
     case 'member':
@@ -165,6 +175,12 @@ export function PreparedAccountPage({
             <a href="/studio/members">{admin('navigation.members')}</a>
           )}
           {capabilities?.canReadRoles && <a href="/studio/roles">{admin('navigation.roles')}</a>}
+          {capabilities?.canManageMemberships && (
+            <a href="/studio/invitations">{admin('navigation.invitations')}</a>
+          )}
+          {snapshot.scopeKind === 'tenant' && (
+            <a href="/studio/invitation-policy">{admin('navigation.invitation_policy')}</a>
+          )}
           <a href="/portal/profile">{admin('navigation.profile')}</a>
           <a href="/api/auth/entry">{admin('navigation.contexts')}</a>
           <a href={'/' + snapshot.site.defaultLocale + '/courses'}>{copy('shell.catalog')}</a>
@@ -184,7 +200,11 @@ export function PreparedAccountPage({
             <p>
               <a
                 href={
-                  snapshot.outcome.reason === 'invalid_cursor' ? '/studio/members' : snapshot.target
+                  snapshot.outcome.reason === 'invalid_cursor'
+                    ? kind === 'invitations'
+                      ? '/studio/invitations'
+                      : '/studio/members'
+                    : snapshot.target
                 }
               >
                 {snapshot.outcome.reason === 'invalid_cursor'

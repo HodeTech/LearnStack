@@ -141,7 +141,7 @@ class AggregateControls(unittest.TestCase):
             (lambda rows: rows[-1].update(steps=['PRIVATE-CANARY']), 'producer_gate_not_successful'),
             (lambda rows: rows[-1]['steps'].pop(), 'producer_gate_not_successful'),
             (lambda rows: rows[-1]['steps'].append(copy.deepcopy(rows[-1]['steps'][0])), 'producer_gate_not_successful'),
-            (lambda rows: rows[-1].update(completed_at='2026-10-19T00:26:02Z'), 'producer_ceiling_exceeded'),
+            (lambda rows: rows[-1].update(completed_at='2026-10-19T00:46:02Z'), 'producer_ceiling_exceeded'),
             (lambda rows: rows[0]['steps'][-1].update(conclusion='cancelled'), 'producer_gate_not_successful'),
             (lambda rows: rows[0]['steps'].pop(), 'producer_gate_not_successful'),
             (lambda rows: (rows[-1]['steps'][0].update(status='in_progress', conclusion=None),
@@ -338,34 +338,42 @@ class AggregateControls(unittest.TestCase):
                 self.refuses('assignment_not_distinct', RESULTS.validate_outputs,
                              paths, self.context(), self.plan, scope)
 
-    def fixture_images(self, provider, database, pooler):
+    def fixture_images(self, provider, database, pooler, mail):
         provider_images = re.findall(r'\bconst string Image = "([^"\n]+)";', provider)
         database_images = re.findall(r'new PostgreSqlBuilder\("([^"\n]+)"\)', database)
         provider_databases = re.findall(r'new PostgreSqlBuilder\("([^"\n]+)"\)', provider)
         pooler_images = re.findall(r'\bconst string PgBouncerImage = "([^"\n]+)";', pooler)
+        mail_images = re.findall(r'_invitationMail = new ContainerBuilder\("([^"\n]+)"\)', mail)
         self.assertEqual(1, len(provider_images))
         self.assertEqual(1, len(re.findall(r'new ContainerBuilder\(Image\)', provider)))
         self.assertEqual(1, len(database_images))
         self.assertEqual(database_images, provider_databases)
         self.assertEqual(1, len(pooler_images))
         self.assertEqual(1, len(re.findall(r'new ContainerBuilder\(PgBouncerImage\)', pooler)))
-        return tuple(provider_images + database_images + pooler_images)
+        self.assertEqual(1, len(mail_images))
+        return tuple(provider_images + database_images + pooler_images + mail_images)
 
-    def test_prepared_images_match_actual_provider_database_and_pooler_constructor_inputs(self):
+    def test_prepared_images_match_actual_provider_database_pooler_and_mail_constructor_inputs(self):
         provider = (ROOT / 'backend/tests/LearnStack.Tests.Integration/TenancyIdentity/KeycloakFixture.cs').read_text()
         database = (ROOT / 'backend/tests/LearnStack.Tests.Integration/Database/PostgresFixture.cs').read_text()
         pooler = (ROOT / 'backend/tests/LearnStack.Tests.Integration/Database/AuthorizationPoolProgressFixture.cs').read_text()
-        self.assertEqual(self.fixture_images(provider, database, pooler), RESULTS.FIXTURE_IMAGES)
+        mail = (ROOT / 'backend/tests/LearnStack.Tests.Integration/TenancyIdentity/KeycloakFixture.InvitationMail.cs').read_text()
+        self.assertEqual(self.fixture_images(provider, database, pooler, mail), RESULTS.FIXTURE_IMAGES)
         with self.assertRaises(AssertionError):
             self.fixture_images(provider.replace('new ContainerBuilder(Image)',
-                'new ContainerBuilder("unapproved:latest")'), database, pooler)
+                'new ContainerBuilder("unapproved:latest")'), database, pooler, mail)
         for changed in (
                 pooler.replace('const string PgBouncerImage =', 'const string UnusedImage ='),
                 pooler.replace('new ContainerBuilder(PgBouncerImage)', 'new ContainerBuilder("unapproved:latest")')):
             with self.subTest(source='missing_const_or_actual_argument'), self.assertRaises(AssertionError):
-                self.fixture_images(provider, database, changed)
+                self.fixture_images(provider, database, changed, mail)
         changed = pooler.replace('edoburu/pgbouncer:v1.26.0-p0', 'edoburu/pgbouncer:latest')
-        self.assertNotEqual(self.fixture_images(provider, database, changed), RESULTS.FIXTURE_IMAGES)
+        self.assertNotEqual(self.fixture_images(provider, database, changed, mail), RESULTS.FIXTURE_IMAGES)
+        changed = mail.replace('_invitationMail = new ContainerBuilder(', '_unusedMail = new ContainerBuilder(')
+        with self.assertRaises(AssertionError):
+            self.fixture_images(provider, database, pooler, changed)
+        changed = mail.replace('axllent/mailpit:v1.29.7', 'axllent/mailpit:latest')
+        self.assertNotEqual(self.fixture_images(provider, database, pooler, changed), RESULTS.FIXTURE_IMAGES)
 
     def assert_sidecar_inventory(self, solution, integration, name, directory):
         relative = f'tests/LearnStack.Tests.{name}/LearnStack.Tests.{name}.csproj'
@@ -457,17 +465,17 @@ class AggregateControls(unittest.TestCase):
         with self.fixture_preparation() as (command, output):
             self.assertEqual(0, RESULTS.prepare_fixture_images('ordinary-0'))
         self.assertEqual(('quay.io/keycloak/keycloak:26.6.2', 'postgres:18.4-alpine',
-                          'edoburu/pgbouncer:v1.26.0-p0'), RESULTS.FIXTURE_IMAGES)
+                          'edoburu/pgbouncer:v1.26.0-p0', 'axllent/mailpit:v1.29.7'), RESULTS.FIXTURE_IMAGES)
         pulls = [call for call in command.call_args_list if call.args[0][0] == RESULTS.OWNER.DOCKER]
         self.assertEqual([mock.call(['/usr/bin/docker', 'pull', image], 610,
                                     'fixture_image_pull_failed_' + component, cap=55, diagnose=True)
-                          for component, image in zip(('keycloak', 'postgres', 'pgbouncer'), RESULTS.FIXTURE_IMAGES)], pulls)
+                          for component, image in zip(('keycloak', 'postgres', 'pgbouncer', 'mailpit'), RESULTS.FIXTURE_IMAGES)], pulls)
         self.assertEqual(RESULTS.OWNER.GIT, command.call_args_list[0].args[0][0])
         self.assertEqual({'protocol': 1, 'fixtureImagePreparationSeconds': 0,
             'images': [{'image': image, 'pullSeconds': 0} for image in RESULTS.FIXTURE_IMAGES]},
             json.loads(output.getvalue()))
         self.assertNotIn('PRIVATE-CANARY', output.getvalue())
-        for index, component in enumerate(('keycloak', 'postgres', 'pgbouncer')):
+        for index, component in enumerate(('keycloak', 'postgres', 'pgbouncer', 'mailpit')):
             reason = 'fixture_image_pull_failed_' + component + '_rate_limit'
             responses = iter([b'PRIVATE-CANARY'] * index + [RESULTS.OWNER.Refusal(reason)])
             def pull(*args, **kwargs):
@@ -480,30 +488,32 @@ class AggregateControls(unittest.TestCase):
             self.assertEqual(index + 1, sum(call.args[0][0] == RESULTS.OWNER.DOCKER
                                           for call in command.call_args_list))
             self.assertEqual('', output.getvalue())
-        # This instant exhausted the old ordinary window. Pulls now share the
-        # longer job window, while their 110/55-second caps remain unchanged.
-        for elapsed in (1000, 1260, 1297, 1560, 1596):
+        # 1,597 and 1,800 seconds exhausted the former 1,800 and 1,500 second
+        # windows. Pulls share the 2,700 second window; their 110/55-second caps
+        # remain unchanged.
+        for elapsed in (1000, 1260, 1297, 1560, 1596, 1597, 1800, 2400, 2496):
             with self.fixture_preparation(elapsed=elapsed) as (command, _):
                 self.assertEqual(0, RESULTS.prepare_fixture_images('ordinary-0'))
                 pulls = [call for call in command.call_args_list if call.args[0][0] == RESULTS.OWNER.DOCKER]
-                self.assertEqual(3, len(pulls))
+                self.assertEqual(4, len(pulls))
                 self.assertTrue(all(call.args[1] == 500 + min(110,
                     RESULTS.OWNER.ORDINARY_JOB_SECONDS - RESULTS.OWNER.RESERVE_SECONDS - elapsed) for call in pulls))
                 self.assertTrue(all(call.kwargs == {'cap': 55, 'diagnose': True} for call in pulls))
-        for images in ((), RESULTS.FIXTURE_IMAGES[:2], RESULTS.FIXTURE_IMAGES[1:], RESULTS.FIXTURE_IMAGES[::2],
+        for images in ((), RESULTS.FIXTURE_IMAGES[:2], RESULTS.FIXTURE_IMAGES[:3], RESULTS.FIXTURE_IMAGES[1:], RESULTS.FIXTURE_IMAGES[::2],
                 tuple(reversed(RESULTS.FIXTURE_IMAGES)), RESULTS.FIXTURE_IMAGES + ('unapproved:latest',),
                 ('one', 'two', 'three'), (*RESULTS.FIXTURE_IMAGES[:2], RESULTS.FIXTURE_IMAGES[1]),
-                (*RESULTS.FIXTURE_IMAGES[:2], 'edoburu/pgbouncer:latest'), list(RESULTS.FIXTURE_IMAGES)):
+                (*RESULTS.FIXTURE_IMAGES[:2], 'edoburu/pgbouncer:latest'),
+                (*RESULTS.FIXTURE_IMAGES[:3], 'axllent/mailpit:latest'), list(RESULTS.FIXTURE_IMAGES)):
             with self.fixture_preparation() as (command, _), mock.patch.object(RESULTS, 'FIXTURE_IMAGES', images):
                 self.refuses('fixture_setup_images_invalid', RESULTS.prepare_fixture_images, 'ordinary-0')
                 self.assertFalse(any(call.args[0][0] == RESULTS.OWNER.DOCKER for call in command.call_args_list))
-        with self.fixture_preparation(elapsed=1597) as (command, _):
+        with self.fixture_preparation(elapsed=2497) as (command, _):
             self.refuses('fixture_setup_deadline_exhausted', RESULTS.prepare_fixture_images, 'ordinary-0')
             self.assertFalse(any(call.args[0][0] == RESULTS.OWNER.DOCKER for call in command.call_args_list))
 
-    def test_three_pull_calls_publish_exact_metadata_under_one_unchanged_total_deadline(self):
+    def test_four_pull_calls_publish_exact_metadata_under_one_unchanged_total_deadline(self):
         state = {'now': 500, 'pulls': []}
-        durations = (12.125, 0.25, 40)
+        durations = (12.125, 0.25, 40, 3.5)
         def pull(argv, deadline, reason, **kwargs):
             state['pulls'].append((argv, deadline, reason, kwargs))
             state['now'] += durations[len(state['pulls']) - 1]
@@ -513,7 +523,7 @@ class AggregateControls(unittest.TestCase):
         self.assertEqual({'protocol': 1, 'fixtureImagePreparationSeconds': sum(durations),
             'images': [{'image': image, 'pullSeconds': seconds}
                        for image, seconds in zip(RESULTS.FIXTURE_IMAGES, durations)]}, json.loads(output.getvalue()))
-        self.assertEqual([610, 610, 610], [call[1] for call in state['pulls']])
+        self.assertEqual([610, 610, 610, 610], [call[1] for call in state['pulls']])
         self.assertTrue(all(call[3] == {'cap': 55, 'diagnose': True} for call in state['pulls']))
         self.assertNotIn('PRIVATE-CANARY', output.getvalue())
         def exhaust(*args, **kwargs):
@@ -521,7 +531,7 @@ class AggregateControls(unittest.TestCase):
         state['now'] = 500
         with self.fixture_preparation(pull=exhaust, monotonic=lambda: state['now']) as (_, output):
             self.refuses('fixture_setup_deadline_exhausted', RESULTS.prepare_fixture_images, 'ordinary-0')
-        self.assertEqual('', output.getvalue(), 'an incomplete three-image preparation publishes no success metadata')
+        self.assertEqual('', output.getvalue(), 'an incomplete four-image preparation publishes no success metadata')
 
     def test_fixture_preparation_verifies_closed_mode_source_and_runner_before_any_pull(self):
         for mode in ('base', 'native-shard', 'ordinary', 'ordinary-00', 'ordinary--1',
@@ -589,6 +599,26 @@ class AggregateControls(unittest.TestCase):
             path.write_text('jobs: {}')
             self.assertEqual({'jobs': {}}, RESULTS.yaml_document(path))
 
+    def test_workflow_reader_allows_a_cold_runner_thirty_seconds_and_still_refuses_a_missing_or_slow_reader(self):
+        # Ordinary 6 once refused at exactly five seconds, before any case ran, because a
+        # cold runner right after the build could not start Ruby in time. The bound is a
+        # parser-availability allowance, not a test deadline.
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'workflow.yml'
+            path.write_text('jobs: {}')
+            real = subprocess.run
+            with mock.patch.object(RESULTS.subprocess, 'run', wraps=real) as run:
+                self.assertEqual({'jobs': {}}, RESULTS.yaml_document(path))
+            self.assertEqual(30, run.call_args.kwargs['timeout'])
+            for failure in (subprocess.TimeoutExpired('ruby', 30), FileNotFoundError('ruby')):
+                with self.subTest(failure=type(failure).__name__), \
+                        mock.patch.object(RESULTS.subprocess, 'run', side_effect=failure):
+                    self.refuses('workflow_parser_unavailable', RESULTS.yaml_document, path)
+            # A reader that fails (non-zero exit) is a refusal of the document, never "unavailable".
+            failed = subprocess.CompletedProcess(['ruby'], 1, stdout=b'', stderr=b'')
+            with mock.patch.object(RESULTS.subprocess, 'run', return_value=failed):
+                self.refuses('workflow_yaml_refused', RESULTS.yaml_document, path)
+
     def test_topology_rejects_wrong_counts_authority_gates_permissions_and_canonical_collisions(self):
         mutations = [
             ('workflow_matrix_invalid', lambda jobs: jobs['backend-architecture']['strategy']['matrix']['index'].pop()),
@@ -636,9 +666,9 @@ class AggregateControls(unittest.TestCase):
         jobs = self.documents['.github/workflows/ci.yml']['jobs']
         for job_id in RESULTS.JOB_IDS.values():
             expected = {'backend-base': 20, 'backend-native': 20,
-                        'backend-architecture': 25, 'backend-integration-tests': 30}[job_id]
+                        'backend-architecture': 45, 'backend-integration-tests': 45}[job_id]
             self.assertEqual(expected, jobs[job_id]['timeout-minutes'])
-            for minutes in (19, 20, 24, 25, 26, 29, 30, 31):
+            for minutes in (19, 20, 24, 25, 26, 29, 30, 31, 44, 46):
                 if minutes == expected:
                     continue
                 with self.subTest(job=job_id, minutes=minutes):
@@ -695,8 +725,7 @@ class AggregateControls(unittest.TestCase):
             owner = 'native' if mode == 'native-shard' else mode
             with self.subTest(owner=owner), mock.patch.object(RESULTS.OWNER, 'job_seconds',
                     wraps=RESULTS.OWNER.job_seconds) as policy:
-                self.assertEqual((1800 if owner.startswith('ordinary-') else
-                               1500 if owner.startswith('architecture-') else 1200),
+                self.assertEqual((2700 if owner.startswith(('ordinary-', 'architecture-')) else 1200),
                                  RESULTS.producer_seconds(owner, self.plan))
                 policy.assert_called_once_with(mode, job, self.plan['counts'])
         for owner in ('native-shard', 'ordinary', 'ordinary-00', 'ordinary--1',
@@ -713,9 +742,8 @@ class AggregateControls(unittest.TestCase):
         for scope in ('backend', 'integration'):
             clean = self.jobs(scope)
             for index, job in enumerate(clean):
-                ceiling = (1800 if job['name'].startswith('backend ordinary-') else
-                           1500 if job['name'].startswith('backend architecture-') else 1200)
-                for seconds in (1200, 1201, 1499, 1500, 1501, 1799, 1800, 1801):
+                ceiling = (2700 if job['name'].startswith(('backend ordinary-', 'backend architecture-')) else 1200)
+                for seconds in (1200, 1201, 1499, 1500, 1501, 1799, 1800, 1801, 2699, 2700, 2701):
                     with self.subTest(scope=scope, owner=job['name'], seconds=seconds):
                         rows = copy.deepcopy(clean)
                         start = datetime.datetime.fromisoformat(rows[index]['started_at'].removesuffix('Z'))
@@ -729,7 +757,7 @@ class AggregateControls(unittest.TestCase):
     def test_seconds_observations_require_an_explicit_finite_owner_ceiling(self):
         with self.assertRaises(TypeError):
             RESULTS.finite_seconds(1)
-        for ceiling in (1200, 1500, 1800):
+        for ceiling in (1200, 2700):
             for value in (0, 0.5, 1200, ceiling):
                 self.assertTrue(RESULTS.finite_seconds(value, ceiling))
             for value in (ceiling + 0.001, -1, True, False, float('nan'), float('inf'),
@@ -737,9 +765,9 @@ class AggregateControls(unittest.TestCase):
                 with self.subTest(ceiling=ceiling, value=value):
                     self.assertFalse(RESULTS.finite_seconds(value, ceiling))
         self.assertFalse(RESULTS.finite_seconds(1250, 1200))
-        self.assertTrue(RESULTS.finite_seconds(1250, 1500))
-        self.assertFalse(RESULTS.finite_seconds(1550, 1500))
-        self.assertTrue(RESULTS.finite_seconds(1550, 1800))
+        self.assertTrue(RESULTS.finite_seconds(1250, 2700))
+        self.assertFalse(RESULTS.finite_seconds(2750, 2700))
+        self.assertTrue(RESULTS.finite_seconds(1801, 2700))
 
     def test_producer_refusal_retains_only_closed_owner_and_state_diagnostics(self):
         context = self.context()
@@ -960,10 +988,9 @@ class AggregateControls(unittest.TestCase):
                 owners = ('base', 'architecture-0') if scope == 'backend' else ('base', 'native', 'ordinary-0')
                 for owner in owners:
                     path = paths[owner]; clean = RESULTS.read_json(path / 'result.json')
-                    ceiling = (1800 if owner.startswith('ordinary-') else
-                               1500 if owner.startswith('architecture-') else 1200)
+                    ceiling = (2700 if owner.startswith(('ordinary-', 'architecture-')) else 1200)
                     for key in keys:
-                        for value in (1200, 1250, 1499, 1500, 1501, 1550, 1799, 1800, 1801, -1, True, False,
+                        for value in (1200, 1250, 1499, 1500, 1501, 1550, 1799, 1800, 1801, 2699, 2700, 2701, -1, True, False,
                                       float('nan'), float('inf'), -float('inf')):
                             with self.subTest(scope=scope, owner=owner, key=key, value=value):
                                 result = {**clean, **dict.fromkeys(keys, 0), key: value}
@@ -1030,14 +1057,13 @@ class AggregateControls(unittest.TestCase):
                 owners = ('base', 'architecture-0') if scope == 'backend' else ('base', 'native', 'ordinary-0')
                 for owner in owners:
                     path = paths[owner]; clean = RESULTS.read_json(path / 'measurements.json')
-                    ceiling = (1800 if owner.startswith('ordinary-') else
-                               1500 if owner.startswith('architecture-') else 1200)
+                    ceiling = (2700 if owner.startswith(('ordinary-', 'architecture-')) else 1200)
                     for key in (*phase_keys, 'firstResultSeconds', 'testProcessSeconds'):
                         values = (ceiling + 0.001, -1, True, False, float('nan'), float('inf'), -float('inf'))
                         if ceiling == 1200:
                             values += (1250,)
-                        elif ceiling == 1500:
-                            values += (1550,)
+                        elif ceiling == 2700:
+                            values += (2750,)
                         for value in values:
                             with self.subTest(scope=scope, owner=owner, key=key, value=value):
                                 measured = copy.deepcopy(clean)

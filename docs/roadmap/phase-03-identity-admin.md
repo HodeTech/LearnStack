@@ -1,31 +1,38 @@
 # Phase 03: Identity Domain, Authorization, and Admin Foundation
 
-> **Status (2026-11-04).** P03-0, P03-1 and P03-2 are complete.
-> P03-1 ([PR #38](https://github.com/HodeTech/LearnStack/pull/38)) and
-> P03-2 ([PR #39](https://github.com/HodeTech/LearnStack/pull/39)) are merged.
-> P03-3 implementation and both independent review rounds are complete for
-> Steps 1–9 and Step 10's source corrections. Accepted ADR-0078–0092 govern the
-> native entry, administration, seed, framework ownership and CI changes; the
-> decision register below links their decisions and proof obligations.
-> ADR-0091's native inventory and [ADR-0092](../decisions/0092-sdk-completion-and-frontend-job-windows.md)
-> SDK settings are implemented. The [VM compatibility handoff](phase-03-delivery-log.md#p03-3-hosted-vm-compatibility-validation-and-corrective-ci-handoff-2026-11-04)
-> records the narrow standard-host signature correction, passing 23/41/106
-> offline controls and two fresh reviews.
-> [PR #40](https://github.com/HodeTech/LearnStack/pull/40) owns parallel product
-> review and current complete same-source hosted A/B/archive qualification.
-> Its proof record distinguishes local, hosted and manual evidence.
-> Failed/cancelled runs receive no qualification credit.
+> **Status (2026-11-06).** P03-0 through P03-3 implementation delivery is complete.
+> P03-1 ([PR #38](https://github.com/HodeTech/LearnStack/pull/38)),
+> P03-2 ([PR #39](https://github.com/HodeTech/LearnStack/pull/39)) and
+> P03-3 ([PR #40](https://github.com/HodeTech/LearnStack/pull/40)) are merged.
+> The [P03-3 closeout](phase-03-delivery-log.md#p03-3-merge-and-delivery-closeout-2026-11-04) records delivered operations, source-bound CI evidence
+> and the remaining proof boundaries under Accepted ADR-0078–0092.
+> Final-head B/original-archive verification remains an open P03-3 evidence
+> follow-up to reconcile before P03-11 phase exit; delivery closure does not
+> establish that proof.
 > [Manual keyboard/focus/reflow/contrast/VoiceOver evidence](phase-03-delivery-log.md#p03-3-maintainer-approved-manual-deferral-and-step-10-continuation-2026-10-30)
-> remains maintainer-deferred and unexecuted for PR review.
-> Phase 03 remains the critical path; later packets have not started.
+> remains maintainer-deferred and unexecuted.
+> P03-4/G8 is Accepted under [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md),
+> after maintainer selection of automatic email and verified review corrections.
+> Its [seven-step package](phase-03-delivery-log.md#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04)
+> has Steps 1–5 implemented and reviewed. Step 6 and both review rounds are closed
+> ([closeout](phase-03-delivery-log.md#p03-4-step-6-implementation-review-closeout-and-step-7-continuation-2026-11-05));
+> [Manual accessibility checks](phase-03-delivery-log.md#p03-4-maintainer-manual-accessibility-acceptance-2026-11-05) are completed and accepted by the maintainer.
+> Step 7 implementation and both final review rounds are closed
+> ([PR readiness](phase-03-delivery-log.md#p03-4-step-7-final-reviews-and-pr-readiness-2026-11-05)).
+> P03-4's [second correction reviews](phase-03-delivery-log.md#p03-4-step-7-second-correction-review-closeout-2026-11-05) are closed, including the verified diagnostic fix.
+> The [hosted browser-start and cleanup-masking correction](phase-03-delivery-log.md#p03-4-step-7-hosted-browser-start-and-cleanup-masking-correction-2026-11-06) and the [45-minute window and parser-timeout correction](phase-03-delivery-log.md#p03-4-step-7-forty-five-minute-execution-windows-and-parser-timeout-2026-11-06) ([ADR-0094](../decisions/0094-forty-five-minute-backend-execution-windows.md)) are implemented with passing offline controls, and the [review corrections](phase-03-delivery-log.md#p03-4-step-7-review-corrections-2026-11-06) close the verified findings; independent reviews, maintainer decisions and final-source proof remain open.
+> Complete same-source hosted A/B and original-archive qualification remain mandatory
+> before delivery/merge; actual source-bound results accompany the PR and its
+> [workflow evidence](https://github.com/HodeTech/LearnStack/actions/workflows/ci.yml?query=branch%3Adevelopment).
+> P03-5 through P03-11 implementation has not started. Phase 03 remains in progress.
 >
 > | Packet | Title | State |
 > |---|---|---|
 > | P03-0 | Entry preparation | Complete — [reconciliation](phase-03-delivery-log.md#entry-preparation-2026-10-25) |
 > | P03-1 | Identity authority and membership foundation | Complete and merged — [closeout](phase-03-delivery-log.md#p03-1-merge-and-closeout-2026-10-27) |
 > | P03-2 | Live membership and authorization | Complete and merged — [closeout](phase-03-delivery-log.md#p03-2-merge-and-closeout-2026-10-28) |
-> | P03-3 | Protected Studio and membership administration | Implemented, in [PR #40](https://github.com/HodeTech/LearnStack/pull/40) review; current qualification tracked there |
-> | P03-4 | Invitations and bounded delivery | Not started |
+> | P03-3 | Protected Studio and membership administration | Complete and merged — [closeout](phase-03-delivery-log.md#p03-3-merge-and-delivery-closeout-2026-11-04); evidence follow-ups remain open |
+> | P03-4 | Invitations and bounded delivery | In progress — manual checks accepted; final-source A/B/archive qualification remains open |
 > | P03-5 | Custom fields and privacy classification | Not started |
 > | P03-6 | Provider event ingress and audit mirror | Not started |
 > | P03-7 | Back-channel session revocation | Not started |
@@ -131,14 +138,14 @@ named part, and the register links each explicit acceptance and vehicle.
 
 | Gate | Question | Existing boundary / required answer | First consumer | Vehicle | Status |
 |---|---|---|---|---|---|
-| G1 | Who establishes issuer + opaque `sub` → stable `UserId` and proves actor association before an accepted login? | Preserve seeded/provider IDs, reject substitution/email merging, name trusted pre-membership admission, first User-writer audit attribution, concurrency and cross-system reconciliation; self-registration alone grants no membership/session; new-user HTTP activation also requires provider registration and durable creation budgets | P03-1 storage/seed; P03-3 activation | Identity authority ADR; bounded ADR-0064/0070 disclosures if affected; Identity spec | Accepted foundation and P03-3 activation contract — [ADR-0078/0079 package](phase-03-delivery-log.md#p03-3-maintainer-corrections-joint-acceptance-and-step-1-2026-10-28); P03-3 runtime qualification tracked in [PR #40](https://github.com/HodeTech/LearnStack/pull/40) |
+| G1 | Who establishes issuer + opaque `sub` → stable `UserId` and proves actor association before an accepted login? | Preserve seeded/provider IDs, reject substitution/email merging, name trusted pre-membership admission, first User-writer audit attribution, concurrency and cross-system reconciliation; self-registration alone grants no membership/session; new-user HTTP activation also requires provider registration and durable creation budgets | P03-1 storage/seed; P03-3 activation | Identity authority ADR; bounded ADR-0064/0070 disclosures if affected; Identity spec | Accepted foundation and P03-3 activation contract — [ADR-0078/0079 package](phase-03-delivery-log.md#p03-3-maintainer-corrections-joint-acceptance-and-step-1-2026-10-28); P03-3 delivery is merged, with evidence and follow-ups in the [closeout](phase-03-delivery-log.md#p03-3-merge-and-delivery-closeout-2026-11-04) |
 | G2 | How do membership and permission readers reach data before resolved tenant SQL exists, and how does authorized `app.scope` reach EF/RLS? | Exact principal, grants, candidate-scope owner and transaction/setter handoff; live authorization of rows 6/9; qualified rows 7/10/14 and distinct successful claim-only header-mismatch evidence outside host-tenant budgets | P03-1 contract; P03-2 execution | ADR-0036/0040 authority; Security/Database standards and closed-set tests | Accepted — 2026-10-27, [ADR-0076/0077 and package](phase-03-delivery-log.md#p03-2-joint-acceptance-and-step-1-2026-10-27); execution implemented and qualified in the [Step 6 closeout](phase-03-delivery-log.md#p03-2-step-6-qualification-and-review-handoff-2026-10-28) |
-| G3 | What are membership/profile/role-binding boundaries, nullable natural keys, lifecycle and global-user projections? | Decide active uniqueness, tenant/org grant composition, profile granularity, archive/reinvite and last-admin/org invariants, same-module composite FKs and Tenancy lifecycle contracts; no cross-module Organization FK/join | P03-1 | Identity module spec; ADR for aggregate/ownership changes; database class declaration | Accepted foundation and [ADR-0074 timing delta](../decisions/0074-membership-admission-under-ordered-locks.md); foundation and per-act lifecycle proofs implemented/reviewed in Step 4; P03-3 archive/default contract Accepted under ADR-0079 with P03-3 runtime qualification tracked in [PR #40](https://github.com/HodeTech/LearnStack/pull/40); global closure remains P03-10 |
-| G4 | How is application scope admitted per session, discovered and switched safely? | Current mappers use user-global attributes and ordinary BFF refresh preserves scope; decide storage implications first, then independent native scope, callbacks/hosts, no-membership entry and switch/logout/refresh races | P03-1 implications; P03-3 transition | Provider/session ADR and applicable ADR-0070 disclosure; auth architecture | Accepted storage boundary and P03-3 native transition contract — [ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md); P03-3 runtime qualification tracked in [PR #40](https://github.com/HodeTech/LearnStack/pull/40) |
-| G5 | What identifies a scoped permission, who may delegate it, and when do revocations take effect? | Reconcile disabled-default versus Tenant Admin seed expansion; decide registry shape, closed-role defaults, bootstrap/recovery, grant ceilings, last-admin concurrency, finite SystemActor permissions, anonymous Portal Public and API/UI freshness | P03-1 schema/bootstrap; P03-2 enforcement; P03-3 UI | ADR-0017/0064-derived permission contract; Standard 19 and module matrices | Accepted — 2026-10-27, [P03-2 enforcement contract](phase-03-delivery-log.md#p03-2-joint-acceptance-and-step-1-2026-10-27); enforcement implemented and qualified; P03-3 finite UI/delegation/adoption contract Accepted under ADR-0079; fixed-seed prerequisite source [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md) and separate origin-completion source [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md) Accepted 2026-10-29; their separate censuses remain required and runtime qualification is tracked in [PR #40](https://github.com/HodeTech/LearnStack/pull/40) |
-| G6 | Which protected endpoint/application policies and native web/SDK operations are admitted? | Decide denial precedence/resource lookup first; then exact routes/methods, Origin/CSRF, input/deadline/no-store bounds, ETag/conflict, actor/scope-bound idempotent replay and cache cleanup; no generic proxy or Server Action implied | P03-2 policy ordering; P03-3 transport | API/BFF contract; ADR-0064/0070/0071 disclosures if affected; Standards 04/07 | Accepted — 2026-10-27, [policy/directory slice](phase-03-delivery-log.md#p03-2-joint-acceptance-and-step-1-2026-10-27); policy/directory slice implemented and qualified; P03-3 native/mutation/UI transport contract Accepted under ADR-0078/0079; P03-3 runtime qualification tracked in [PR #40](https://github.com/HodeTech/LearnStack/pull/40) |
+| G3 | What are membership/profile/role-binding boundaries, nullable natural keys, lifecycle and global-user projections? | Decide active uniqueness, tenant/org grant composition, profile granularity, archive/reinvite and last-admin/org invariants, same-module composite FKs and Tenancy lifecycle contracts; no cross-module Organization FK/join | P03-1 | Identity module spec; ADR for aggregate/ownership changes; database class declaration | Accepted foundation and [ADR-0074 timing delta](../decisions/0074-membership-admission-under-ordered-locks.md); foundation and per-act lifecycle proofs implemented/reviewed in Step 4; P03-3 archive/default contract Accepted under ADR-0079; P03-3 delivery is merged, with evidence and follow-ups in the [closeout](phase-03-delivery-log.md#p03-3-merge-and-delivery-closeout-2026-11-04); global closure remains P03-10 |
+| G4 | How is application scope admitted per session, discovered and switched safely? | Current mappers use user-global attributes and ordinary BFF refresh preserves scope; decide storage implications first, then independent native scope, callbacks/hosts, no-membership entry and switch/logout/refresh races | P03-1 implications; P03-3 transition | Provider/session ADR and applicable ADR-0070 disclosure; auth architecture | Accepted storage boundary and P03-3 native transition contract — [ADR-0078](../decisions/0078-native-session-scope-and-self-entry.md); P03-3 delivery is merged, with evidence and follow-ups in the [closeout](phase-03-delivery-log.md#p03-3-merge-and-delivery-closeout-2026-11-04) |
+| G5 | What identifies a scoped permission, who may delegate it, and when do revocations take effect? | Reconcile disabled-default versus Tenant Admin seed expansion; decide registry shape, closed-role defaults, bootstrap/recovery, grant ceilings, last-admin concurrency, finite SystemActor permissions, anonymous Portal Public and API/UI freshness | P03-1 schema/bootstrap; P03-2 enforcement; P03-3 UI | ADR-0017/0064-derived permission contract; Standard 19 and module matrices | Accepted — 2026-10-27, [P03-2 enforcement contract](phase-03-delivery-log.md#p03-2-joint-acceptance-and-step-1-2026-10-27); enforcement implemented and qualified; P03-3 finite UI/delegation/adoption contract Accepted under ADR-0079; fixed-seed prerequisite source [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md) and separate origin-completion source [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md) Accepted 2026-10-29; their separate censuses remain required; the [P03-3 merge closeout](phase-03-delivery-log.md#p03-3-merge-and-delivery-closeout-2026-11-04) records delivery, evidence and open follow-ups |
+| G6 | Which protected endpoint/application policies and native web/SDK operations are admitted? | Decide denial precedence/resource lookup first; then exact routes/methods, Origin/CSRF, input/deadline/no-store bounds, ETag/conflict, actor/scope-bound idempotent replay and cache cleanup; no generic proxy or Server Action implied | P03-2 policy ordering; P03-3 transport | API/BFF contract; ADR-0064/0070/0071 disclosures if affected; Standards 04/07 | Accepted — 2026-10-27, [policy/directory slice](phase-03-delivery-log.md#p03-2-joint-acceptance-and-step-1-2026-10-27); policy/directory slice implemented and qualified; P03-3 native/mutation/UI transport contract Accepted under ADR-0078/0079; P03-3 delivery is merged, with evidence and follow-ups in the [closeout](phase-03-delivery-log.md#p03-3-merge-and-delivery-closeout-2026-11-04) |
 | G7 | Who audits HTTP/application/resource denials and supplies trusted actor/request context? | One evidence owner per refusal, MUST sensitive reads, membership/role/platform/operator/route provenance, trusted IP and bounded user-agent; preserve refusal on audit failure; no generic ADR-0065 budget | P03-2 | ADR-0033/0044; Audit spec, enrichment port and matrices | Accepted — 2026-10-27, [ADR-0077 / P03-2 evidence](phase-03-delivery-log.md#p03-2-joint-acceptance-and-step-1-2026-10-27); runtime implemented and qualified; privileged population remains G13 Open |
-| G8 | What makes invitation acceptance and delivery authoritative and recoverable? | Verified current provider email, hashed single-use token, GET inspection only, explicit mutating act, current delegation, accept/revoke/expiry/resend races, aggregate atomicity and bounded delivery independent of Phase 08a | P03-1 only if shared aggregate shape changes; P03-4 writer | Invitation contract; ADR-0042 successor if an exception changes; phase package and delivery handoff | Open |
+| G8 | What makes invitation acceptance and delivery authoritative and recoverable? | Verified current provider email, hashed single-use token, GET inspection only, explicit mutating act, current delegation, accept/revoke/expiry/resend races, aggregate atomicity and bounded delivery independent of Phase 08a | P03-1 only if shared aggregate shape changes; P03-4 writer | Invitation contract; ADR-0042 successor if an exception changes; phase package and delivery handoff | Accepted — 2026-11-04, [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md) and [automatic-email package](phase-03-delivery-log.md#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04); implementation/proof pending |
 | G9 | How do field definitions and values preserve schema/classification history? | Decide revision pins/active uniqueness, scalar-field compatibility with the existing admitted object profile, nested data, required/default/retire/reclassify/key-reuse behavior, consent and supported localized forms; no raw JSONB bypass | P03-5 before its schema | Customization/privacy contract; ADR-0043 disclosure or successor if needed; module specs | Open |
 | G10 | What authenticated durable provider ingress is selected, and how are global events attributed? | Name producer, acknowledgement, stable provider-event dedup, ordering, tenantless/multi-membership routing, privacy and retention; enqueue through outbox, never direct business publication; no invented tenant or privileged app consumer | P03-6, or an earlier mechanism needing ingress | Provider-event ADR; ADR-0046/0057 boundaries, exact grants and Audit subscription | Open |
 | G11 | Which back-channel token profile, route and session targets are supported? | Separate OIDC purpose validation, signature/issuer/audience/time/events/no-nonce, replay retention, provider/session indexing and reachability; preserve late-work/accounting fences and unrelated/new session owners | P03-7 | ADR-0070 bounded extension; native route/provider configuration package | Open |
@@ -604,27 +611,32 @@ The APISIX adapter's owning phase and
 
 ### Invitation Flow
 
-G8 closes before the Invitation schema or acceptance writer. G1 supplies the
+Accepted [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md)
+closes G8 before the Invitation schema or acceptance writer. G1 supplies the
 actor/bootstrap contract; a new invitee cannot already be assumed to hold the
 membership they are accepting.
 
 - An authorized admin offers email + role + organization within their current
   delegation ceiling. Bind a random single-use token to a stored one-way verifier;
   a prefilled email is not proof of the authenticated person's current verified
-  provider email. G8 decides exact matching and email-change behavior.
-- GET inspects an offer without accepting it. The admitted mutating act uses the
+  provider email. ADR-0093 owns exact matching and email-change behavior.
+- Browser GET renders clean invitation navigation/inspection UI without accepting
+  it. Secret-carrying API inspection/result reads use strict POST bodies and
+  explicit ReadOnly/Off classification; only the acceptance POST can grant.
+  The admitted mutating act uses the
   chosen authenticated continuation and CSRF/transaction binding. Keep tokens out
   of diagnostic payloads and arbitrary return URLs.
 - Define pending/accepted/revoked/expired/resend states, default 14-day expiry,
   existing-member behavior, current inviter grant/org lifecycle checks and
   accept/accept, accept/revoke and accept/expiry races.
 - Membership/grant creation and invitation consumption need one authoritative
-  outcome. G8 decides aggregate boundaries and atomicity/reconciliation under
+  outcome. ADR-0093 decides aggregate boundaries and atomicity/reconciliation under
   [ADR-0042](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md);
   the ambient transaction alone grants no new multi-root exception.
-- Deliver a usable bounded invitation handoff in this phase. G8 decides its
-  email/provider or explicit admin-handoff mechanism, delivery/retry/idempotency
-  and truthful queued/sent/failed/resend UX. Do not wait implicitly for Phase 08a,
+- Deliver automatic invitation email through the minimum SMTP/job/private-custody
+  slice selected by ADR-0093. Report queued/submission-accepted/failed/uncertain
+  state; explicit resend reissues the generation. Do not claim inbox delivery
+  or wait implicitly for Phase 08a,
   display a fake sent result or put raw email/token data in identifier-only events.
 
 An invitation grants authority in one tenant/org only. It does not let an admin

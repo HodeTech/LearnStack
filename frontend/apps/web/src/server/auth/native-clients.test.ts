@@ -476,6 +476,58 @@ const routes: readonly {
   { operation: { kind: 'listRoles' }, method: 'GET', path: '/identity/roles' },
   { operation: { kind: 'getRole', id }, method: 'GET', path: '/identity/roles/' + id },
   { operation: { kind: 'getPermissions' }, method: 'GET', path: '/identity/permissions' },
+  { operation: { kind: 'listInvitations' }, method: 'GET', path: '/identity/invitations' },
+  { operation: { kind: 'getInvitation', id }, method: 'GET', path: '/identity/invitations/' + id },
+  { operation: { kind: 'listInvitableRoles' }, method: 'GET', path: '/identity/invitable-roles' },
+  {
+    operation: { kind: 'getInvitationPolicy' },
+    method: 'GET',
+    path: '/tenancy/settings/invitation-policy',
+  },
+  {
+    operation: {
+      kind: 'createInvitation',
+      invitation: { email: 'person@example.test', roleId: id, roleVersion: write.version },
+      idempotencyKey: write.idempotencyKey,
+    },
+    method: 'POST',
+    path: '/identity/invitations',
+    body: { email: 'person@example.test', roleId: id, roleVersion: write.version },
+  },
+  {
+    operation: { kind: 'revokeInvitation', id, ...write },
+    method: 'POST',
+    path: '/identity/invitations/' + id + '/revocations',
+    body: {},
+  },
+  {
+    operation: { kind: 'reissueInvitation', id, ...write },
+    method: 'POST',
+    path: '/identity/invitations/' + id + '/reissues',
+    body: {},
+  },
+  {
+    operation: {
+      kind: 'setInvitationLifetime',
+      days: 14,
+      precondition: { kind: 'absent' },
+      idempotencyKey: write.idempotencyKey,
+    },
+    method: 'PUT',
+    path: '/tenancy/settings/invitation-policy',
+    body: { days: 14 },
+  },
+  {
+    operation: {
+      kind: 'setInvitationLifetime',
+      days: 30,
+      precondition: { kind: 'present', version: write.version },
+      idempotencyKey: write.idempotencyKey,
+    },
+    method: 'PUT',
+    path: '/tenancy/settings/invitation-policy',
+    body: { days: 30 },
+  },
   { operation: { kind: 'listOrganizations' }, method: 'GET', path: '/tenancy/organizations' },
   {
     operation: { kind: 'getOrganization', id },
@@ -576,7 +628,15 @@ describe('native closed administration dispatcher', () => {
       expect(headers.get('X-LearnStack-Native-Tenant-Id')).toBe(tenantId);
       expect(headers.has('X-LearnStack-Native-Organization-Id')).toBe(false);
       expect(headers.get('If-Match')).toBe(
-        'version' in operation ? '"' + write.version + '"' : null,
+        'version' in operation ||
+          (operation.kind === 'setInvitationLifetime' && operation.precondition.kind === 'present')
+          ? '"' + write.version + '"'
+          : null,
+      );
+      expect(headers.get('If-None-Match')).toBe(
+        operation.kind === 'setInvitationLifetime' && operation.precondition.kind === 'absent'
+          ? '*'
+          : null,
       );
       expect(headers.get('Idempotency-Key')).toBe(
         'idempotencyKey' in operation ? write.idempotencyKey : null,
@@ -613,7 +673,7 @@ describe('native closed administration dispatcher', () => {
       { kind: 'invalid-request' },
     );
     expect(transport).not.toHaveBeenCalled();
-    expect(new Set(routes.map((route) => route.operation.kind)).size).toBe(21);
+    expect(new Set(routes.map((route) => route.operation.kind)).size).toBe(29);
   });
   it('preserves decimal versions, Location and replay metadata for a deliberate exact retry', async () => {
     const transport = vi.fn<typeof fetch>(async () =>

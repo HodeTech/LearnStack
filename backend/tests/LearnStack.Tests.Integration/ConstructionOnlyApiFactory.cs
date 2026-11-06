@@ -1,6 +1,7 @@
 using LearnStack.Api.Messaging;
 using LearnStack.Api.Jobs;
 using LearnStack.Api.Authentication;
+using LearnStack.Tests.Fixtures;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -23,6 +24,7 @@ public class ConstructionOnlyApiFactory : WebApplicationFactory<Program>
     protected sealed override void ConfigureWebHost(IWebHostBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
+        InvitationEmailFixtureConfiguration.AddTo(builder);
         ConfigureTestHost(builder);
         builder.ConfigureTestServices(services =>
         {

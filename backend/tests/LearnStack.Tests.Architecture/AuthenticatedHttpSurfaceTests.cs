@@ -3,6 +3,7 @@ using LearnStack.Infrastructure.Audit;
 using LearnStack.Modules.Education.Application.Contracts.PublicReads;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Application.Contracts.Entry;
+using LearnStack.Modules.Identity.Application.Contracts.Invitations;
 using LearnStack.Modules.Identity.Domain;
 using LearnStack.Modules.Tenancy.Application.Contracts.Account;
 using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
@@ -132,6 +133,39 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         new("LearnStack.Api.Identity.NativeSessionAdmissionController", "Admit", "POST", "identity/session-scope/admissions", null,
             "AdmitNativeSessionScope", typeof(LearnStack.Modules.Identity.Application.Contracts.Entry.AdmitNativeSessionScopeCommand), "LearnStackOperation:identity.membership.admit_session_scope",
             typeof(LearnStack.Modules.Identity.Application.Contracts.Entry.NativeSessionScopeAdmission), 200, null, new(OperationClass.Must, OperationType.SecurityEvent, "identity.membership.admit_session_scope", typeof(LearnStack.Modules.Identity.Domain.Membership))),
+        new("LearnStack.Api.Identity.InvitationEntryController", "Inspect", "POST", "identity/invitation-entry", "inspections",
+            "InspectInvitation", typeof(InspectInvitationQuery), "LearnStackOperation:identity.invitation.inspect",
+            typeof(LearnStack.Api.Identity.InvitationInspectionResponse), 200, null, new()),
+        new("LearnStack.Api.Identity.InvitationEntryController", "Accept", "POST", "identity/invitation-entry", "acceptances",
+            "AcceptInvitation", typeof(AcceptInvitationCommand), "LearnStackOperation:identity.invitation.accept",
+            typeof(LearnStack.Api.Identity.InvitationAcceptanceResponse), 200, null, new(OperationClass.Must, OperationType.SecurityEvent, "identity.invitation.accept", typeof(Invitation))),
+        new("LearnStack.Api.Identity.InvitationEntryController", "Result", "POST", "identity/invitation-entry", "results",
+            "GetOwnInvitationResult", typeof(GetOwnInvitationResultQuery), "LearnStackOperation:identity.invitation.read_own_result",
+            typeof(LearnStack.Api.Identity.InvitationAcceptanceResponse), 200, null, new()),
+        new("LearnStack.Api.Identity.InvitationsController", "List", "GET", "identity/invitations", null,
+            "ListInvitations", typeof(LearnStack.Modules.Identity.Application.Contracts.Invitations.ListInvitationsQuery), "LearnStackOperation:identity.invitation.list",
+            typeof(LearnStack.Api.Identity.InvitationPage), 200, null, new(OperationClass.Must, OperationType.ReadSensitive, "identity.invitation.list", typeof(LearnStack.Modules.Identity.Domain.Invitation))),
+        new("LearnStack.Api.Identity.InvitationsController", "Get", "GET", "identity/invitations", "{id}",
+            "GetInvitation", typeof(LearnStack.Modules.Identity.Application.Contracts.Invitations.GetInvitationQuery), "LearnStackOperation:identity.invitation.read",
+            typeof(LearnStack.Api.Identity.InvitationResponse), 200, null, new(OperationClass.Must, OperationType.ReadSensitive, "identity.invitation.read", typeof(LearnStack.Modules.Identity.Domain.Invitation))),
+        new("LearnStack.Api.Identity.InvitationsController", "Create", "POST", "identity/invitations", null,
+            "CreateInvitation", typeof(LearnStack.Modules.Identity.Application.Contracts.Invitations.CreateInvitationCommand), "LearnStackOperation:identity.invitation.create",
+            typeof(LearnStack.Api.Identity.AdministrationVersionReceipt), 201, 11, new(OperationClass.Must, OperationType.SecurityEvent, "identity.invitation.create", typeof(LearnStack.Modules.Identity.Domain.Invitation))),
+        new("LearnStack.Api.Identity.InvitationsController", "Revoke", "POST", "identity/invitations", "{id}/revocations",
+            "RevokeInvitation", typeof(LearnStack.Modules.Identity.Application.Contracts.Invitations.RevokeInvitationCommand), "LearnStackOperation:identity.invitation.revoke",
+            typeof(LearnStack.Api.Identity.AdministrationVersionReceipt), 200, 12, new(OperationClass.Must, OperationType.SecurityEvent, "identity.invitation.revoke", typeof(LearnStack.Modules.Identity.Domain.Invitation))),
+        new("LearnStack.Api.Identity.InvitationsController", "Reissue", "POST", "identity/invitations", "{id}/reissues",
+            "ReissueInvitation", typeof(LearnStack.Modules.Identity.Application.Contracts.Invitations.ReissueInvitationCommand), "LearnStackOperation:identity.invitation.reissue",
+            typeof(LearnStack.Api.Identity.AdministrationVersionReceipt), 200, 13, new(OperationClass.Must, OperationType.SecurityEvent, "identity.invitation.reissue", typeof(LearnStack.Modules.Identity.Domain.Invitation))),
+        new("LearnStack.Api.Identity.InvitableRolesController", "List", "GET", "identity/invitable-roles", null,
+            "ListInvitableRoles", typeof(LearnStack.Modules.Identity.Application.Contracts.Invitations.ListInvitableRolesQuery), "LearnStackOperation:identity.invitation.list_invitable_roles",
+            typeof(LearnStack.Api.Identity.InvitableRoleDirectory), 200, null, new(OperationClass.Must, OperationType.ReadSensitive, "identity.invitation.list_invitable_roles", typeof(LearnStack.Modules.Identity.Domain.Invitation))),
+        new("LearnStack.Api.Tenancy.InvitationPolicyController", "Get", "GET", "tenancy/settings/invitation-policy", null,
+            "GetTenantInvitationPolicy", typeof(LearnStack.Modules.Tenancy.Application.Contracts.Settings.GetTenantInvitationPolicyQuery), "LearnStackOperation:tenancy.setting.read_invitation_policy",
+            typeof(LearnStack.Api.Identity.InvitationPolicyResponse), 200, null, new()),
+        new("LearnStack.Api.Tenancy.InvitationPolicyController", "Set", "PUT", "tenancy/settings/invitation-policy", null,
+            "SetTenantInvitationLifetime", typeof(LearnStack.Modules.Tenancy.Application.Contracts.Settings.SetTenantInvitationLifetimeCommand), "LearnStackOperation:tenancy.setting.write_invitation_lifetime",
+            typeof(LearnStack.Api.Identity.AdministrationVersionReceipt), 200, 14, new(OperationClass.Must, OperationType.Update, "tenancy.setting.write", typeof(LearnStack.Modules.Tenancy.Domain.TenantSetting))),
     ];
 
     // These are mapping call sites, not a path-wide exception. A second health
@@ -302,7 +336,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         var map = Types(modules).ToDictionary(Key, StringComparer.Ordinal);
         var account = map.Values.Single(type => type.FullName == Account);
         var handlers = HandlerRoots(map).ToArray();
-        handlers.Should().HaveCount(27, "all 27 distinct finite HTTP requests have real production handlers");
+        handlers.Should().HaveCount(32, "all finite HTTP requests have real production handlers; the seven invitation operations and three policy operations share two additional handler classes");
         Violations(modules, facts).Should().BeEmpty();
         AssertPolicyMetadataControls(modules, facts);
         AssertControllerMetadataControls(modules, facts);
@@ -357,14 +391,14 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         var send = body.Body.Instructions.Select(instruction => instruction.Operand).OfType<MethodReference>()
             .Single(target => target.DeclaringType.FullName == typeof(ISender).FullName && target.Name == "Send");
         foreach (var owner in handlers)
-        {
-            activeRoot = owner;
-            var method = owner.Methods.Single(candidate => candidate.Name == "Handle");
-            var planted = Instruction.Create(OpCodes.Callvirt, owner.Module.ImportReference(send));
-            method.Body.Instructions.Add(planted);
-            Dirty("Nested HTTP dispatch/helper handler:", "nested dispatch in the actual handler is outside the exact HTTP request set: " + owner.FullName);
-            method.Body.Instructions.Remove(planted);
-        }
+            foreach (var method in owner.Methods.Where(candidate => candidate.Name == "Handle" && candidate.HasBody))
+            {
+                activeRoot = owner;
+                var planted = Instruction.Create(OpCodes.Callvirt, owner.Module.ImportReference(send));
+                method.Body.Instructions.Add(planted);
+                Dirty("Nested HTTP dispatch/helper handler:", "nested dispatch in each actual request handler is outside the exact HTTP request set: " + method.FullName);
+                method.Body.Instructions.Remove(planted);
+            }
 
         // Each approved handler is a root, not a collaborator another root may
         // call directly. Exercise interface and concrete signatures, locals and
@@ -387,18 +421,21 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                 Dirty("Nested HTTP dispatch/helper handler:", "constructor-only handler injection remains a dispatch capability");
                 constructor.Parameters.Remove(parameter);
 
-                var method = owner.Methods.Single(candidate => candidate.Name == "Handle");
-                var local = new VariableDefinition(capability);
-                method.Body.Variables.Add(local);
-                Dirty("Nested HTTP dispatch/helper handler:", "a handler local must not evade the field/constructor census");
-                method.Body.Variables.Remove(local);
+                foreach (var method in owner.Methods.Where(candidate => candidate.Name == "Handle" && candidate.HasBody))
+                {
+                    var local = new VariableDefinition(capability);
+                    method.Body.Variables.Add(local);
+                    Dirty("Nested HTTP dispatch/helper handler:", "each request handler's local must not evade the field/constructor census: " + method.FullName);
+                    method.Body.Variables.Remove(local);
 
-                var handle = new MethodReference("Handle", target.Methods.Single(candidate => candidate.Name == "Handle").ReturnType, capability)
-                { HasThis = true };
-                var direct = Instruction.Create(OpCodes.Callvirt, handle);
-                method.Body.Instructions.Add(direct);
-                Dirty("Nested HTTP dispatch/helper handler:", "direct interface/concrete Handle calls must be rejected");
-                method.Body.Instructions.Remove(direct);
+                    var handle = new MethodReference("Handle", target.Methods.Single(candidate => candidate.Name == "Handle"
+                        && candidate.Parameters.Count == 2 && candidate.Parameters[0].ParameterType.FullName == typeof(GetAccountSiteQuery).FullName).ReturnType, capability)
+                    { HasThis = true };
+                    var direct = Instruction.Create(OpCodes.Callvirt, handle);
+                    method.Body.Instructions.Add(direct);
+                    Dirty("Nested HTTP dispatch/helper handler:", "direct interface/concrete Handle calls must be rejected in each request overload: " + method.FullName);
+                    method.Body.Instructions.Remove(direct);
+                }
             }
         }
 
@@ -414,6 +451,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         account.Fields.Remove(nestedEdge);
         map.Remove(Key(nested));
         account.NestedTypes.Remove(nested);
+        AssertNestedDispatchQueueControls();
         AssertRootDispatchControls(map);
         AssertGeneratedHandlerFieldControls(handlers, map);
         AssertInheritedHandlerControls(handlers, map);
@@ -421,7 +459,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         Violations(modules, facts).Should().BeEmpty("all planted production capabilities have been removed");
 
         // Each mutation targets this actual root; invoke the same production
-        // predicate without rescanning all 27 independent roots for every probe.
+        // predicate without rescanning all 32 independent handler classes for every probe.
         // Full union checks still bracket the complete mutation sequence.
         IEnumerable<string> CurrentRootOffenders() => activeRoot == account
             ? HttpBypasses(account, map) : NestedDispatchOffenders([activeRoot], map);
@@ -471,8 +509,9 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                     errors.Add("HTTP ceiling permits only the existing /api/v1 major: " + type.FullName);
                 foreach (var offender in AuthorizationOffenders(type, action, map, authorizationPredicate)) errors.Add(offender);
                 foreach (var offender in AttachedFilterOffenders(type, action, map)) errors.Add(offender);
-                if (!(entry.ProtectedOperation is null
-                    ? PublicSurfaceTests.Dispatches(type, action.Name, entry.Request.FullName)
+                if (!(type.FullName == "LearnStack.Api.Identity.InvitationEntryController"
+                    ? InvitationEntryHandoff(type, action, entry)
+                    : entry.ProtectedOperation is null ? PublicSurfaceTests.Dispatches(type, action.Name, entry.Request.FullName)
                     : ProtectedHandoff(type, action, entry)))
                     errors.Add("Construct exactly " + entry.Request.FullName + " at its single validated pipeline dispatch: " + type.FullName + "." + action.Name);
             }
@@ -486,14 +525,15 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         foreach (var request in requests)
         {
             var declaration = Endpoints.First(endpoint => endpoint.Request == request).Audit;
+            var declarations = request == typeof(AcceptInvitationCommand)
+                ? new[] { declaration, new AuditDeclaration(OperationClass.Must, OperationType.SecurityEvent, "identity.membership.admit_invitation", typeof(Membership)) }
+                : [declaration];
             if (!catalogue.TryGet(request, out var registration)
                 || (declaration.Class is null
                     ? !registration.WritesNoRow || registration.Entries.Count != 0
-                    : registration.WritesNoRow || registration.Entries.Count != 1
-                        || registration.Entries[0].OperationClass != declaration.Class
-                        || registration.Entries[0].OperationType != declaration.Type
-                        || registration.Entries[0].Operation != declaration.Operation
-                        || registration.Entries[0].EntityType != declaration.Entity))
+                    : registration.WritesNoRow || registration.Entries.Count != declarations.Length
+                        || declarations.Any(expected => registration.Entries.Count(actual => actual.OperationClass == expected.Class
+                            && actual.OperationType == expected.Type && actual.Operation == expected.Operation && actual.EntityType == expected.Entity) != 1)))
                 errors.Add("HTTP request must retain its exact audit declaration: " + request.FullName);
             if (request.IsDefined(typeof(PublicSurfaceAttribute), false)
                 != Endpoints.Any(endpoint => endpoint.Request == request && endpoint.Policy is null))
@@ -559,6 +599,9 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         var capabilities = new Dictionary<string, bool>(StringComparer.Ordinal);
         var acquisitions = new Dictionary<(string Owner, string Dependency), bool>();
         var expanded = new HashSet<(string Root, string Type)>();
+        // A metadata-only visit must not suppress later explicit acquisition of
+        // the same abstract collaborator. Keep both states, in first-seen order.
+        var scheduled = roots.Select(root => (Key(root), Key(root), true)).ToHashSet();
         var queue = new Queue<(TypeDefinition Root, TypeDefinition Type, bool ExpandImplementations, string Path)>(
             roots.Select(root => (root, root, true, root.FullName)));
         while (queue.TryDequeue(out var current))
@@ -575,7 +618,9 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                 if (!implementationsByType.TryGetValue(typeKey, out var implementations))
                     implementationsByType[typeKey] = implementations = map.Values.Where(candidate => !candidate.IsInterface
                         && PublicSurfaceTests.Implements(candidate, typeKey, map, [])).ToArray();
-                foreach (var implementation in implementations) queue.Enqueue((root, implementation, true, path + " -> " + implementation.FullName));
+                foreach (var implementation in implementations)
+                    if (scheduled.Add((Key(root), Key(implementation), true)))
+                        queue.Enqueue((root, implementation, true, path + " -> " + implementation.FullName));
             }
             if (!visited.Add((Key(root), typeKey))) continue;
             if (!referencesByType.TryGetValue(typeKey, out var references))
@@ -600,9 +645,89 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                     var expand = !ownOrInherited || !(helper.IsInterface || helper.IsAbstract);
                     if (!expand && !acquisitions.TryGetValue((typeKey, Key(reference)), out expand))
                         acquisitions[(typeKey, Key(reference))] = expand = AcquiresHandlerCollaborator(type, Key(reference));
-                    queue.Enqueue((root, helper, expand, path + " -> " + helper.FullName));
+                    if (scheduled.Add((Key(root), Key(helper), expand)))
+                        queue.Enqueue((root, helper, expand, path + " -> " + helper.FullName));
                 }
         }
+    }
+
+    private static void AssertNestedDispatchQueueControls()
+    {
+        using var module = ModuleDefinition.CreateModule("NestedDispatchControls", ModuleKind.Dll);
+        var map = new Dictionary<string, TypeDefinition>(StringComparer.Ordinal);
+        TypeDefinition Type(string name, bool abstractType = false)
+        {
+            var type = new TypeDefinition("SurfaceProbe", name,
+                TypeAttributes.Public | (abstractType ? TypeAttributes.Abstract : TypeAttributes.Sealed), module.TypeSystem.Object);
+            module.Types.Add(type);
+            map.Add(Key(type), type);
+            return type;
+        }
+        static FieldDefinition Edge(TypeDefinition owner, TypeDefinition target)
+        {
+            var field = new FieldDefinition("Dependency" + owner.Fields.Count, FieldAttributes.Private, target);
+            owner.Fields.Add(field);
+            return field;
+        }
+        static string Finding(params TypeDefinition[] path) =>
+            "Nested HTTP dispatch/helper handler: " + string.Join(" -> ", path.Select(type => type.FullName));
+
+        foreach (var acquiredFirst in new[] { false, true })
+        {
+            var root = Type("Root" + acquiredFirst);
+            var otherRoot = Type("OtherRoot" + acquiredFirst);
+            var parent = Type("Abstract" + acquiredFirst, abstractType: true);
+            var inherited = Type("Inherited" + acquiredFirst);
+            inherited.BaseType = parent;
+            var sibling = Type("Sibling" + acquiredFirst);
+            sibling.BaseType = parent;
+            sibling.Fields.Add(new FieldDefinition("Sender", FieldAttributes.Private, module.ImportReference(typeof(ISender))));
+            var bridge = Type("Bridge" + acquiredFirst);
+            var later = Type("Later" + acquiredFirst);
+            Edge(bridge, later);
+            Edge(later, bridge); // A shared cyclic dependency must terminate for each root.
+            foreach (var owner in new[] { root, otherRoot })
+            {
+                Edge(owner, acquiredFirst ? bridge : inherited);
+                Edge(owner, acquiredFirst ? inherited : bridge);
+                Edge(owner, bridge); // Repeated paths preserve their first witness.
+            }
+            NestedDispatchOffenders([root, otherRoot], map).Should().BeEmpty(
+                "inheritance alone does not acquire an abstract sibling's sender");
+            var collaborator = Edge(acquiredFirst ? bridge : later, parent);
+            try
+            {
+                var expected = new[] { root, otherRoot }.Select(owner => acquiredFirst
+                    ? Finding(owner, bridge, parent, sibling) : Finding(owner, bridge, later, parent, sibling));
+                NestedDispatchOffenders([root, otherRoot], map).Should().Equal(expected,
+                    "both expansion orders must retain each root's first sender witness, including acquisition after a metadata-only visit");
+            }
+            finally { collaborator.DeclaringType.Fields.Remove(collaborator); }
+            NestedDispatchOffenders([root, otherRoot], map).Should().BeEmpty(
+                "a fresh walk after restoration must not retain the acquired implementations");
+        }
+
+        var firstRoot = Type("FirstRoot");
+        var secondRoot = Type("SecondRoot");
+        var targetRoot = Type("TargetRoot");
+        var first = Type("FirstPath");
+        var second = Type("SecondPath");
+        foreach (var root in new[] { firstRoot, secondRoot })
+        {
+            Edge(root, first);
+            Edge(root, second);
+        }
+        Edge(first, second);
+        Edge(second, first);
+        var firstTarget = Edge(first, targetRoot);
+        var secondTarget = Edge(second, targetRoot);
+        NestedDispatchOffenders([firstRoot, secondRoot, targetRoot], map).Should().Equal(
+            [Finding(firstRoot, first, targetRoot), Finding(secondRoot, first, targetRoot)],
+            "repeated cross-root paths retain the first violation for each root even though the target is itself an initial root");
+        first.Fields.Remove(firstTarget);
+        second.Fields.Remove(secondTarget);
+        NestedDispatchOffenders([firstRoot, secondRoot, targetRoot], map).Should().BeEmpty(
+            "restoring both cross-root edges leaves the shared cycle clean in a fresh walk");
     }
 
     private static bool AcquiresHandlerCollaborator(TypeDefinition type, string dependency)

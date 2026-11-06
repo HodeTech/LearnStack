@@ -60,6 +60,247 @@ namespace LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("LearnStack.Modules.Identity.Domain.Invitation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Scoped membership offer, recipient, credential verifiers, inviter and immutable acceptance/delivery linkage.");
+
+                    b.Property<string>("AcceptanceDisposition")
+                        .HasColumnType("text")
+                        .HasColumnName("acceptance_disposition")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Scoped membership offer, recipient, credential verifiers, inviter and immutable acceptance/delivery linkage.");
+
+                    b.Property<DateTimeOffset?>("AcceptedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("accepted_at")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Scoped membership offer, recipient, credential verifiers, inviter and immutable acceptance/delivery linkage.");
+
+                    b.Property<Guid?>("AcceptedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("accepted_by")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Scoped membership offer, recipient, credential verifiers, inviter and immutable acceptance/delivery linkage.");
+
+                    b.Property<byte[]>("ConsumedVerifierDigest")
+                        .HasColumnType("bytea")
+                        .HasColumnName("consumed_verifier_digest")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Scoped membership offer, recipient, credential verifiers, inviter and immutable acceptance/delivery linkage.");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Audit)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Record when the aggregate was created.");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Attribute aggregate creation to its actor.");
+
+                    b.Property<Guid>("CurrentDeliveryJobId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("current_delivery_job_id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Scoped membership offer, recipient, credential verifiers, inviter and immutable acceptance/delivery linkage.");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Audit)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Record when the aggregate was soft-deleted.");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("deleted_by")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Attribute aggregate soft deletion to its actor.");
+
+                    b.Property<string>("EntryLocale")
+                        .IsRequired()
+                        .HasMaxLength(35)
+                        .HasColumnType("character varying(35)")
+                        .HasColumnName("entry_locale")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Scoped membership offer, recipient, credential verifiers, inviter and immutable acceptance/delivery linkage.");
+
+                    b.Property<string>("EntryOrigin")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("entry_origin")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Scoped membership offer, recipient, credential verifiers, inviter and immutable acceptance/delivery linkage.");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Scoped membership offer, recipient, credential verifiers, inviter and immutable acceptance/delivery linkage.");
+
+                    b.Property<long>("Generation")
+                        .HasColumnType("bigint")
+                        .HasColumnName("generation")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Scoped membership offer, recipient, credential verifiers, inviter and immutable acceptance/delivery linkage.");
+
+                    b.Property<DateTimeOffset>("GenerationCreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("generation_created_at")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Scoped membership offer, recipient, credential verifiers, inviter and immutable acceptance/delivery linkage.");
+
+                    b.Property<Guid>("GenerationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("generation_id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Scoped membership offer, recipient, credential verifiers, inviter and immutable acceptance/delivery linkage.");
+
+                    b.Property<Guid>("InviterUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("inviter_user_id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Scoped membership offer, recipient, credential verifiers, inviter and immutable acceptance/delivery linkage.");
+
+                    b.Property<Guid?>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Scoped membership offer, recipient, credential verifiers, inviter and immutable acceptance/delivery linkage.");
+
+                    b.Property<long>("PinnedRoleVersion")
+                        .HasColumnType("bigint")
+                        .HasColumnName("pinned_role_version")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Scoped membership offer, recipient, credential verifiers, inviter and immutable acceptance/delivery linkage.");
+
+                    b.Property<string>("RecipientEmail")
+                        .IsRequired()
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)")
+                        .HasColumnName("recipient_email")
+                        .UseCollation("C")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Scoped membership offer, recipient, credential verifiers, inviter and immutable acceptance/delivery linkage.");
+
+                    b.Property<Guid?>("ResultMembershipId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("result_membership_id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Scoped membership offer, recipient, credential verifiers, inviter and immutable acceptance/delivery linkage.");
+
+                    b.Property<Guid>("RoleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("role_id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Scoped membership offer, recipient, credential verifiers, inviter and immutable acceptance/delivery linkage.");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("status")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Scoped membership offer, recipient, credential verifiers, inviter and immutable acceptance/delivery linkage.");
+
+                    b.Property<Guid?>("SubmissionReceiptId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submission_receipt_id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Scoped membership offer, recipient, credential verifiers, inviter and immutable acceptance/delivery linkage.");
+
+                    b.Property<string>("SubmissionStatus")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("submission_status")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Scoped membership offer, recipient, credential verifiers, inviter and immutable acceptance/delivery linkage.");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Scoped membership offer, recipient, credential verifiers, inviter and immutable acceptance/delivery linkage.");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Audit)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Record when the aggregate was last updated.");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Attribute the latest aggregate update to its actor.");
+
+                    b.Property<byte[]>("VerifierDigest")
+                        .HasColumnType("bytea")
+                        .HasColumnName("verifier_digest")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.Identity)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Scoped membership offer, recipient, credential verifiers, inviter and immutable acceptance/delivery linkage.");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L)
+                        .HasColumnName("row_version")
+                        .HasAnnotation("LearnStack:PersonalData:Category", PersonalDataCategory.None)
+                        .HasAnnotation("LearnStack:PersonalData:Purpose", "Detect concurrent writes to this aggregate revision.");
+
+                    b.HasKey("Id")
+                        .HasName("pk_invitations");
+
+                    b.HasAlternateKey("TenantId", "Id")
+                        .HasName("ux_invitations_tenant_id_id");
+
+                    b.HasIndex("AcceptedBy")
+                        .HasDatabaseName("ix_invitations_accepted_by");
+
+                    b.HasIndex("InviterUserId")
+                        .HasDatabaseName("ix_invitations_inviter_user_id");
+
+                    b.HasIndex("TenantId", "OrganizationId")
+                        .HasDatabaseName("ix_invitations_tenant_id_organization_id");
+
+                    b.HasIndex("TenantId", "ResultMembershipId")
+                        .HasDatabaseName("ix_invitations_tenant_id_result_membership_id");
+
+                    b.HasIndex("TenantId", "RoleId")
+                        .HasDatabaseName("ix_invitations_tenant_id_role_id");
+
+                    b.HasIndex("TenantId", "OrganizationId", "RecipientEmail")
+                        .IsUnique()
+                        .HasDatabaseName("ux_invitations_pending_recipient")
+                        .HasFilter("status = 'Pending' AND deleted_at IS NULL");
+
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("TenantId", "OrganizationId", "RecipientEmail"), false);
+
+                    b.ToTable("invitations", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_invitations_generation", "generation > 0 AND pinned_role_version >= 0");
+
+                            t.HasCheckConstraint("ck_invitations_identifiers", "(uuid_extract_version(id)=7 AND uuid_extract_version(generation_id)=7 AND uuid_extract_version(current_delivery_job_id)=7) IS TRUE");
+
+                            t.HasCheckConstraint("ck_invitations_lifecycle", "((status='Pending' AND octet_length(verifier_digest)=32 AND consumed_verifier_digest IS NULL\n    AND accepted_by IS NULL AND result_membership_id IS NULL AND acceptance_disposition IS NULL AND accepted_at IS NULL)\nOR (status='Accepted' AND verifier_digest IS NULL AND octet_length(consumed_verifier_digest)=32\n    AND accepted_by IS NOT NULL AND result_membership_id IS NOT NULL\n    AND acceptance_disposition IN ('Created','AlreadyMember') AND accepted_at IS NOT NULL\n    AND isfinite(accepted_at) AND accepted_at >= generation_created_at AND accepted_at < expires_at)\nOR (status='Revoked' AND verifier_digest IS NULL AND consumed_verifier_digest IS NULL\n    AND accepted_by IS NULL AND result_membership_id IS NULL AND acceptance_disposition IS NULL AND accepted_at IS NULL)) IS TRUE");
+
+                            t.HasCheckConstraint("ck_invitations_mailbox", "octet_length(recipient_email) BETWEEN 3 AND 254 AND recipient_email=lower(recipient_email COLLATE \"C\") AND recipient_email ~ '^[!-~]+@[!-~]+$'");
+
+                            t.HasCheckConstraint("ck_invitations_no_delete", "deleted_at IS NULL AND deleted_by IS NULL");
+
+                            t.HasCheckConstraint("ck_invitations_submission", "((submission_status IN ('Queued','Failed') AND submission_receipt_id IS NULL) OR (submission_status IN ('SubmissionAccepted','Failed') AND submission_receipt_id IS NOT NULL AND submission_receipt_id <> '00000000-0000-0000-0000-000000000000'::uuid)) IS TRUE");
+
+                            t.HasCheckConstraint("ck_invitations_tenant", "tenant_id NOT IN ('00000000-0000-0000-0000-000000000000'::uuid,'00000000-0000-7000-8000-000000000002'::uuid)");
+
+                            t.HasCheckConstraint("ck_invitations_times", "isfinite(created_at) AND isfinite(generation_created_at) AND isfinite(expires_at) AND generation_created_at >= created_at AND expires_at >= generation_created_at + interval '1 day' AND expires_at <= generation_created_at + interval '30 days'");
+                        });
+                });
+
             modelBuilder.Entity("LearnStack.Modules.Identity.Domain.Membership", b =>
                 {
                     b.Property<Guid>("Id")
@@ -498,6 +739,37 @@ namespace LearnStack.Modules.Identity.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("ck_users_subject_lifecycle", "(status = 'Active' AND provider_subject IS NOT NULL AND length(provider_subject) BETWEEN 1 AND 255) OR (status = 'Closing' AND (provider_subject IS NULL OR length(provider_subject) BETWEEN 1 AND 255)) OR (status = 'Closed' AND provider_subject IS NULL)");
                         });
+                });
+
+            modelBuilder.Entity("LearnStack.Modules.Identity.Domain.Invitation", b =>
+                {
+                    b.HasOne("LearnStack.Modules.Identity.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("AcceptedBy")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_invitations_acceptor");
+
+                    b.HasOne("LearnStack.Modules.Identity.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("InviterUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_invitations_inviter");
+
+                    b.HasOne("LearnStack.Modules.Identity.Domain.Membership", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ResultMembershipId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_invitations_result_membership");
+
+                    b.HasOne("LearnStack.Modules.Identity.Domain.Role", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "RoleId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_invitations_role");
                 });
 
             modelBuilder.Entity("LearnStack.Modules.Identity.Domain.Membership", b =>

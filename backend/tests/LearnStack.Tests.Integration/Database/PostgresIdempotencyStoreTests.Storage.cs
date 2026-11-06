@@ -93,7 +93,7 @@ public sealed partial class PostgresIdempotencyStoreTests
         command.Parameters.AddWithValue("status", NpgsqlDbType.Integer, defect == "in-flight" ? DBNull.Value : defect == "non-success" ? 403 : 200);
         command.Parameters.AddWithValue("body", NpgsqlDbType.Bytea, defect == "in-flight" ? DBNull.Value : new byte[defect == "too-large" ? 1025 : 1]);
         command.Parameters.AddWithValue("kind", NpgsqlDbType.Text,
-            defect == "id-only" ? DBNull.Value : defect == "unknown-kind" ? "TenantSetting" : "Organization");
+            defect == "id-only" ? DBNull.Value : defect == "unknown-kind" ? "UnregisteredTarget" : "Organization");
         command.Parameters.AddWithValue("target", NpgsqlDbType.Uuid,
             defect == "kind-only" ? DBNull.Value : defect == "empty-target" ? Guid.Empty : Guid.CreateVersion7());
         var failure = await Assert.ThrowsAsync<PostgresException>(() => command.ExecuteNonQueryAsync());

@@ -1,10 +1,13 @@
-import type { ApiResult } from './api-result';
-import type { AUTHENTICATED_GET_CONTRACTS, GetContractOwnership } from './authenticated-contract';
-import type { operations, paths } from './generated/schema';
-import { appError, isSuccess, parseProblem } from './response-policy';
-import type { PublicGetOperation, PublicSuccess } from './response-policy';
+import type { ApiResult } from './api-result.js';
+import type {
+  AUTHENTICATED_GET_CONTRACTS,
+  GetContractOwnership,
+} from './authenticated-contract.js';
+import type { operations, paths } from './generated/schema.js';
+import { appError, isSuccess, parseProblem } from './response-policy.js';
+import type { PublicGetOperation, PublicSuccess } from './response-policy.js';
 
-export type { ApiProblem, AppError } from './response-policy';
+export type { ApiProblem, AppError } from './response-policy.js';
 
 /** The supplied Fetch-compatible transport resolves relative URLs. P02d-5 owns the trusted server hop. */
 export type PublicFetch = (url: string, init: RequestInit) => Promise<Response>;
@@ -18,7 +21,7 @@ export class PublicRequestRefusalError extends Error {
   }
 }
 
-export type { ApiResult } from './api-result';
+export type { ApiResult } from './api-result.js';
 
 type Query<T extends PublicGetOperation> = operations[T]['parameters']['query'];
 type Path<T extends PublicGetOperation> = operations[T]['parameters']['path'];

@@ -1,11 +1,16 @@
+using LearnStack.Api.Authentication;
+using LearnStack.Tests.Fixtures;
+using Microsoft.Extensions.Configuration;
 using LearnStack.Api.Common;
 using LearnStack.Api.Composition;
 using LearnStack.Api.Tenancy;
 using LearnStack.Api.Versioning;
 using LearnStack.Modules.Identity.Application.Contracts.Authorization;
+using LearnStack.Modules.Identity.Application.Contracts.Invitations;
 using LearnStack.Modules.Identity.Infrastructure.Authorization;
 using LearnStack.SharedKernel.Hosting;
 using LearnStack.SharedKernel.Permissions;
+using LearnStack.SharedKernel.Results;
 using LearnStack.SharedKernel.Tenancy;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -77,6 +82,8 @@ public class ComponentApiFactory : IDisposable, IAsyncDisposable
                 ContentRootPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../src/LearnStack.Api")),
             });
             builder.WebHost.UseTestServer();
+            InvitationEmailFixtureConfiguration.AddTo(builder.WebHost);
+            builder.Services.AddSingleton(provider => new NativeEntryOriginOptions(provider.GetRequiredService<IConfiguration>()));
             // These offline component proofs own no network telemetry collector.
             builder.Configuration["Telemetry:OtlpEndpoint"] = null;
             ConfigureComponentSettings(builder);
@@ -93,6 +100,7 @@ public class ComponentApiFactory : IDisposable, IAsyncDisposable
                 options.Conventions.Insert(0, new ComponentControllerFilter()));
             builder.Services.AddSingleton<IProtectedOperationAuthorizer, NoHumanAuthorization>();
             builder.Services.AddSingleton<IIdentityAuthorizationReader, NoHumanIdentityReader>();
+            builder.Services.AddSingleton<ICurrentInvitationRecipientReader, NoInvitationRecipientReader>();
             builder.Services.AddIdentityOperationPolicies();
             builder.Services.AddSingleton<IClaimContextAssertionRecorder, NoClaimAssertionRecorder>();
             ConfigureTestHost(builder.WebHost);
@@ -184,5 +192,12 @@ public class ComponentApiFactory : IDisposable, IAsyncDisposable
     {
         public Task RecordAsync(ITenantContext context, TenantAssertionDimension dimension) =>
             throw new InvalidOperationException("The component host cannot attest a confirmed human claim assertion.");
+    }
+
+    private sealed class NoInvitationRecipientReader : ICurrentInvitationRecipientReader
+    {
+        public Task<Result<CurrentInvitationRecipientEvidence>> ReadAsync(OperationInvocation invocation,
+            CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("The component host has no invitation recipient source.");
     }
 }

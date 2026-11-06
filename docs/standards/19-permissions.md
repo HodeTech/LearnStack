@@ -500,9 +500,41 @@ No Organization Tenancy pair, custom Role or generic settings power is selected.
 Tenant `tenancy.organization.admin` covers Organization create/rename/archive and
 the Tenant-root default-reference sub-operation; target guards still prove the
 selected Organization belongs to that Tenant and is Active/nondeleted. Locale
-writing concerns contained Tenant locales; setting writing concerns only whole
-tenant-wide `branding.theme`. Their full editors and any separately selected
+writing concerns contained Tenant locales; setting writing covers whole
+tenant-wide `branding.theme` and the exact invitation policy extension below.
+Their full editors and any separately selected
 Organization-capability variants belong to Phase 06.
+
+### Invitation capability extension
+
+**Derives from:** [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md).
+This Accepted contract adds no assignable pair, grant release, template or
+automatic grant. P03-4 runtime qualification remains in the phase Status block.
+Existing holders of Tenant `tenancy.setting.write` gain the additional exact
+orgless operation on `identity.invitation.ttl_days`, 1–30 days. A v1 tenant
+without that pair uses the 14-day default but cannot edit it. The explicit v2
+adoption below remains the only exceptional new-key grant path; registration,
+warm seed and invitation creation cannot grant or restore the pair. An additional
+invitation-policy permission is not selected. No generic setting writer follows.
+
+Invitation administration uses applicable Tenant or exact-current-Organization
+`identity.membership.admin`, exact current target/write scope and fresh complete
+delegation; another branch contributes nothing. One pinned compatible Role is
+Tenant-scoped iff the offer organization is NULL, Organization-scoped iff it is
+non-NULL; the delegation bridge permits no cross-scope Role assignment. The Role's
+whole current grants must fit the inviter's current ceiling, including the
+existing same-key Tenant-to-Organization rule. A separate invitable-Role summary
+does not require or confer `identity.role.admin` or general registry access.
+Acceptance reads the stored inviter's current authority from the exact locked
+offer; it does not mint an HTTP candidate for that other actor. The current
+verified recipient, offer/host witness and exact invocation supply only the
+finite inspection/acceptance/own-result admission, never membership-admin or
+ordinary directory authority. Membership creation alone publishes no session.
+The [Identity matrix](../modules/identity/permissions.md#verified-invitation-contract)
+owns the finite operation bindings; [Security](11-security.md#verified-invitation-admission)
+owns source, witness and owner limits.
+
+### Explicit first v2 adoption
 
 First v2 adoption requires an Active NULL-org Membership whose User admits work,
 assigned the Tenant Admin template with both kernel pairs, current Tenant

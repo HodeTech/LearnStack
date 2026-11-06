@@ -9,13 +9,14 @@ public sealed partial class EducationStructureTests
     [Theory]
     [InlineData("membership_profiles")]
     [InlineData("membership_role_assignments")]
+    [InlineData("invitations")]
     public async Task The_Identity_Parent_Guard_Requires_Both_Model_And_Applied_Relations(string table)
     {
         await using var owner = await PostgresFixture.OpenAsync(_schema.Postgres.MigrationConnectionString);
         await using var transaction = await owner.BeginTransactionAsync();
         (await ParentGuardOffendersAsync(owner, transaction)).Should().BeEmpty();
 
-        var relation = IdentityParentRelations.Single(item => item.Child == table);
+        var relation = ParentRelations.Single(item => item.Child == table);
         var key = (await ReadForeignKeysAsync(owner, transaction))
             .Single(item => item.Child == table && item.Parent == relation.Parent);
         await SchemaQueries.ExecuteAsync(owner, transaction, $"ALTER TABLE {table} DROP CONSTRAINT {key.Name}");
@@ -27,7 +28,7 @@ public sealed partial class EducationStructureTests
 
         foreach (var definition in new[]
         {
-            "FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE RESTRICT",
+            $"FOREIGN KEY ({relation.ParentId}) REFERENCES memberships(id) ON DELETE RESTRICT",
             key.Definition.Replace("ON DELETE RESTRICT", "ON DELETE CASCADE", StringComparison.Ordinal),
             key.Definition + " DEFERRABLE INITIALLY IMMEDIATE",
             key.Definition + " NOT VALID",

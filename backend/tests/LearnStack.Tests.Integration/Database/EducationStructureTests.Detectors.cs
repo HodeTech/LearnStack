@@ -32,7 +32,13 @@ public sealed partial class EducationStructureTests
         new("membership_role_assignments", "memberships", "membership_id", "r"),
     ];
 
-    private static readonly ParentRelation[] ParentRelations = [.. EducationParentRelations, .. IdentityParentRelations];
+    private static readonly ParentRelation[] InvitationParentRelations =
+    [
+        new("invitations", "memberships", "result_membership_id", "r"),
+    ];
+
+    private static readonly ParentRelation[] ParentRelations =
+        [.. EducationParentRelations, .. IdentityParentRelations, .. InvitationParentRelations];
 
     private sealed record PatternRoot(Type Root, Type Satellite, string Table, string SatelliteTable, string ParentId, string[] Columns);
 
@@ -78,7 +84,8 @@ public sealed partial class EducationStructureTests
             }
             else if (!Columns(key.Properties).SequenceEqual(["tenant_id", declaration.ParentId])
                 || !Columns(key.PrincipalKey.Properties).SequenceEqual(["tenant_id", "id"])
-                || (IdentityParentRelations.Contains(declaration) && key.DeleteBehavior != DeleteBehavior.Restrict))
+                || ((IdentityParentRelations.Contains(declaration) || InvitationParentRelations.Contains(declaration))
+                    && key.DeleteBehavior != DeleteBehavior.Restrict))
             {
                 offenders.Add($"{child}: model tenant-composite FK");
             }
@@ -86,7 +93,7 @@ public sealed partial class EducationStructureTests
 
         var applied = await ReadForeignKeysAsync(connection, transaction);
         foreach (var key in applied.Where(key => !declarations.Any(item => item.Child == key.Child && item.Parent == key.Parent)
-            && !IsDeclaredJobRelation(key)))
+            && !IsDeclaredJobRelation(key) && !IsDeclaredInvitationProviderRelation(key)))
         {
             offenders.Add($"{key.Child}: undeclared applied relation");
         }
@@ -121,25 +128,33 @@ public sealed partial class EducationStructureTests
                 offenders.Add($"{relation.Child}: missing parent FK");
             }
             else if (!ValidForeignKey(keys[0], relation)
-                || (IdentityParentRelations.Contains(relation) && keys[0].DeleteAction != relation.DeleteAction))
+                || ((IdentityParentRelations.Contains(relation) || InvitationParentRelations.Contains(relation))
+                    && keys[0].DeleteAction != relation.DeleteAction))
             {
                 offenders.Add($"{relation.Child}: tenant-composite FK");
             }
 
             var identityRelation = IdentityParentRelations.Contains(relation);
+            var invitationRelation = InvitationParentRelations.Contains(relation);
             if (!triggers.Any(trigger => trigger[0] == relation.Child && trigger[1] == "public"
                 && trigger[3] == "true" && trigger[5] == (identityRelation ? "31" : "23")
                 && trigger[6] == "false" && trigger[7] == "false"
                 && (identityRelation
                     ? trigger[4] == "fn_identity_contextual_mutation_guard" && trigger[8] == "v"
                         && IsIdentityParentGuardBody(trigger[2])
-                    : IsParentGuardBody(trigger[2], relation))))
+                    : invitationRelation
+                        ? trigger[4] == "fn_identity_invitation_guard" && trigger[8] == "v"
+                            && InvitationSchemaGuardExpectations.Matches(trigger[2], InvitationSchemaGuardExpectations.Invitation)
+                        : IsParentGuardBody(trigger[2], relation)))
+                || (invitationRelation && !await InvitationSchemaGuardExpectations.IsExactAsync(
+                    connection, transaction, InvitationSchemaGuardExpectations.InvitationGuard)))
             {
                 offenders.Add($"{relation.Child}: parent guard");
             }
         }
 
         offenders.AddRange(await JobParentGuardOffendersAsync(applied, triggers));
+        offenders.AddRange(await InvitationProviderGuardOffendersAsync(connection, transaction, applied, triggers));
         return offenders.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();
     }
 

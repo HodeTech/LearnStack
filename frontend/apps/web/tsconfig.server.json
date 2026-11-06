@@ -20,7 +20,10 @@
     "src/server/auth/request-runtime.ts",
     "src/server/auth/http-protocol.ts",
     "src/server/auth/configuration.ts",
-    "src/server/auth/logout-response.ts"
+    "src/server/auth/logout-response.ts",
+    "src/server/auth/native-invitation-http.ts",
+    "src/server/auth/native-invitation-client.ts",
+    "src/server/auth/invitation-html.ts"
   ],
   "exclude": ["node_modules", ".next"]
 }

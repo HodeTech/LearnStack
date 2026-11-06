@@ -332,6 +332,602 @@
         "x-version-introduced": "v1"
       }
     },
+    "/api/v1/tenancy/settings/invitation-policy": {
+      "get": {
+        "tags": [
+          "InvitationPolicy"
+        ],
+        "description": "Own-current-tenant invitation lifetime policy in orgless scope. Off and physically ReadOnly. Absence returns default 14 days, present=false, version=null and no ETag. A stored setting returns present=true and its canonical version/ETag. canEdit is advisory; the setter independently enforces current Tenant tenancy.setting.write. No request body or query fields.",
+        "operationId": "GetTenantInvitationPolicy",
+        "responses": {
+          "200": {
+            "description": "Successful current projection or retained committed receipt.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "description": "Present exactly when the fixed policy setting exists; never emitted for the absent/default policy.",
+                "schema": {
+                  "maxLength": 21,
+                  "minLength": 3,
+                  "pattern": "^\u0022(0|[1-9][0-9]{0,18})\u0022$",
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationPolicyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "validation_failed for malformed/noncanonical input, extra/repeated query, unexpected body or invalid key/precondition.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized for present invalid/expired or undecidable credentials; bare Bearer challenge.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "Bearer"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden for live coverage without current operation or target disclosure capability.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found for missing credentials, noncoverage or absent/foreign targets; tenant_mismatch for trusted scope/assertion disagreement.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "method_not_allowed after earlier host, credential and scope gates.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Allow": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "GET, PUT"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "payload_too_large; administration bodies are at most 16 KiB, including undeclared/chunked bodies.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited by the existing visitor/subject admission.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission.",
+                "required": true,
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error without provider, query, identity or submitted-value diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "dependency_unavailable or audit_unavailable; no successful payload is disclosed on unconfirmed storage, cleanup or MUST audit.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TenantBearer": []
+          }
+        ],
+        "x-version-introduced": "v1"
+      },
+      "put": {
+        "tags": [
+          "InvitationPolicy"
+        ],
+        "description": "Exact protected mutation. Strict UTF-8 application/json object, at most 16 KiB; unknown, duplicate and missing properties refuse. Current authority, exact target scope and business predicates are checked independently. A completed exact-key replay performs a fresh MUST original-target disclosure read before returning the retained receipt; it never reruns the mutation. Unknown outcomes do not prove rollback and are never automatically retried. Exactly one presence precondition is required: If-None-Match: * for an absent setting, or canonical If-Match for an existing setting. Supplying both or neither is 400. Absence differs from stored version zero; a stale presence assertion is 409. Both branches return 200.",
+        "operationId": "SetTenantInvitationLifetime",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Exactly one printable ASCII nonce, scoped to actor, tenant/organization, operation, method/path/query/body and canonical precondition. No automatic mutation retry.",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 8,
+              "pattern": "^[!-~]{8,128}$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "One canonical strong quoted decimal aggregate version in [0, Int64.MaxValue]. Missing, weak, wildcard, list, repeated and noncanonical values are 400; valid stale versions are 409. Default selection uses the Tenant version.",
+            "schema": {
+              "maxLength": 21,
+              "minLength": 3,
+              "pattern": "^\u0022(0|[1-9][0-9]{0,18})\u0022$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-None-Match",
+            "in": "header",
+            "description": "Exactly one literal wildcard for conditional creation of the absent fixed policy. Mutually exclusive with If-Match; an existing version-zero setting is not absent.",
+            "schema": {
+              "enum": [
+                "*"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationLifetimeInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful current projection or retained committed receipt.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "required": true,
+                "schema": {
+                  "maxLength": 21,
+                  "minLength": 3,
+                  "pattern": "^\u0022(0|[1-9][0-9]{0,18})\u0022$",
+                  "type": "string"
+                }
+              },
+              "Idempotency-Replayed": {
+                "description": "Present only after fresh original-target disclosure audit on a replay.",
+                "schema": {
+                  "enum": [
+                    "true"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdministrationVersionReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "validation_failed for malformed/noncanonical input, extra/repeated query, unexpected body or invalid key/precondition.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "concurrency_conflict for a valid stale version; business_rule_violation for refused lifecycle/last-admin/last-organization rules; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized for present invalid/expired or undecidable credentials; bare Bearer challenge.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "Bearer"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden for live coverage without current operation or target disclosure capability.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found for missing credentials, noncoverage or absent/foreign targets; tenant_mismatch for trusted scope/assertion disagreement.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "method_not_allowed after earlier host, credential and scope gates.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Allow": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "GET, PUT"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "payload_too_large; administration bodies are at most 16 KiB, including undeclared/chunked bodies.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited by the existing visitor/subject admission.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission.",
+                "required": true,
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error without provider, query, identity or submitted-value diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "dependency_unavailable or audit_unavailable; no successful payload is disclosed on unconfirmed storage, cleanup or MUST audit.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TenantBearer": []
+          }
+        ],
+        "x-version-introduced": "v1"
+      }
+    },
     "/api/v1/tenancy/organizations": {
       "get": {
         "tags": [
@@ -669,7 +1265,7 @@
                 }
               },
               "Location": {
-                "description": "Exact same-API relative location of the newly created original Organization.",
+                "description": "Exact same-API relative location of the newly created original resource.",
                 "required": true,
                 "schema": {
                   "pattern": "^/api/v1/tenancy/organizations/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
@@ -3716,6 +4312,2700 @@
             }
           }
         },
+        "x-version-introduced": "v1"
+      }
+    },
+    "/api/v1/identity/invitation-entry/inspections": {
+      "post": {
+        "tags": [
+          "InvitationEntry"
+        ],
+        "description": "Exact native recipient entry. Strict UTF-8 application/json object, at most 8 KiB, with invitationId and code only. Unknown, repeated and missing fields, query, generic Idempotency-Key and irrelevant conditional headers refuse. Current stock-validated token, installed binding, trusted native source and real host are independently required; no caller scope selectors. No-store and no session/grant publication. Pending inspection and first acceptance each observe current verified provider email. Accepted acceptance preflight selects the Off original-result read before Pending-only If-Match, provider I/O or mutation intents. Unknown commit outcomes require explicit original-result reconciliation; never automatically retry.",
+        "operationId": "InspectInvitation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationEntryInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful current projection or retained committed receipt.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "required": true,
+                "schema": {
+                  "maxLength": 21,
+                  "minLength": 3,
+                  "pattern": "^\u0022(0|[1-9][0-9]{0,18})\u0022$",
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationInspectionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "validation_failed for malformed/noncanonical input, extra/repeated query, unexpected body or invalid key/precondition.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized for present invalid/expired or undecidable credentials; bare Bearer challenge.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "Bearer"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden for live coverage without current operation or target disclosure capability.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found for missing credentials, noncoverage or absent/foreign targets; tenant_mismatch for trusted scope/assertion disagreement.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "method_not_allowed after earlier host, credential and scope gates.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Allow": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "POST"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "payload_too_large; entry body maximum is 8 KiB.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited by the existing visitor/subject admission.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission.",
+                "required": true,
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error without provider, query, identity or submitted-value diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "dependency_unavailable or audit_unavailable; no successful payload is disclosed on unconfirmed storage, cleanup or MUST audit.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "concurrency_conflict for changed Pending generation/version/effect classification, a Suspended exact membership, or a lost acceptance race. Explicit original-result recovery is separate.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TenantBearer": [],
+            "NativeSessionSource": []
+          }
+        ],
+        "x-version-introduced": "v1"
+      }
+    },
+    "/api/v1/identity/invitation-entry/acceptances": {
+      "post": {
+        "tags": [
+          "InvitationEntry"
+        ],
+        "description": "Exact native recipient entry. Strict UTF-8 application/json object, at most 8 KiB, with invitationId and code only. Unknown, repeated and missing fields, query, generic Idempotency-Key and irrelevant conditional headers refuse. Current stock-validated token, installed binding, trusted native source and real host are independently required; no caller scope selectors. No-store and no session/grant publication. Pending inspection and first acceptance each observe current verified provider email. Accepted acceptance preflight selects the Off original-result read before Pending-only If-Match, provider I/O or mutation intents. Unknown commit outcomes require explicit original-result reconciliation; never automatically retry.",
+        "operationId": "AcceptInvitation",
+        "parameters": [
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Required for Pending acceptance only: one canonical strong quoted decimal observed version. Accepted preflight ignores this Pending precondition and selects original-result recovery. Inspection/result reject If-Match. No body version.",
+            "schema": {
+              "maxLength": 21,
+              "minLength": 3,
+              "pattern": "^\u0022(0|[1-9][0-9]{0,18})\u0022$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationEntryInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful current projection or retained committed receipt.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "required": true,
+                "schema": {
+                  "maxLength": 21,
+                  "minLength": 3,
+                  "pattern": "^\u0022(0|[1-9][0-9]{0,18})\u0022$",
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationAcceptanceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "validation_failed for malformed/noncanonical input, extra/repeated query, unexpected body or invalid key/precondition.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized for present invalid/expired or undecidable credentials; bare Bearer challenge.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "Bearer"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden for live coverage without current operation or target disclosure capability.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found for missing credentials, noncoverage or absent/foreign targets; tenant_mismatch for trusted scope/assertion disagreement.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "method_not_allowed after earlier host, credential and scope gates.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Allow": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "POST"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "payload_too_large; entry body maximum is 8 KiB.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited by the existing visitor/subject admission.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission.",
+                "required": true,
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error without provider, query, identity or submitted-value diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "dependency_unavailable or audit_unavailable; no successful payload is disclosed on unconfirmed storage, cleanup or MUST audit.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "concurrency_conflict for changed Pending generation/version/effect classification, a Suspended exact membership, or a lost acceptance race. Explicit original-result recovery is separate.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TenantBearer": [],
+            "NativeSessionSource": []
+          }
+        ],
+        "x-version-introduced": "v1"
+      }
+    },
+    "/api/v1/identity/invitation-entry/results": {
+      "post": {
+        "tags": [
+          "InvitationEntry"
+        ],
+        "description": "Exact native recipient entry. Strict UTF-8 application/json object, at most 8 KiB, with invitationId and code only. Unknown, repeated and missing fields, query, generic Idempotency-Key and irrelevant conditional headers refuse. Current stock-validated token, installed binding, trusted native source and real host are independently required; no caller scope selectors. No-store and no session/grant publication. Pending inspection and first acceptance each observe current verified provider email. Accepted acceptance preflight selects the Off original-result read before Pending-only If-Match, provider I/O or mutation intents. Unknown commit outcomes require explicit original-result reconciliation; never automatically retry.",
+        "operationId": "GetOwnInvitationResult",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationEntryInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful current projection or retained committed receipt.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "required": true,
+                "schema": {
+                  "maxLength": 21,
+                  "minLength": 3,
+                  "pattern": "^\u0022(0|[1-9][0-9]{0,18})\u0022$",
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationAcceptanceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "validation_failed for malformed/noncanonical input, extra/repeated query, unexpected body or invalid key/precondition.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized for present invalid/expired or undecidable credentials; bare Bearer challenge.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "Bearer"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden for live coverage without current operation or target disclosure capability.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found for missing credentials, noncoverage or absent/foreign targets; tenant_mismatch for trusted scope/assertion disagreement.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "method_not_allowed after earlier host, credential and scope gates.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Allow": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "POST"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "payload_too_large; entry body maximum is 8 KiB.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited by the existing visitor/subject admission.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission.",
+                "required": true,
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error without provider, query, identity or submitted-value diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "dependency_unavailable or audit_unavailable; no successful payload is disclosed on unconfirmed storage, cleanup or MUST audit.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "concurrency_conflict for changed Pending generation/version/effect classification, a Suspended exact membership, or a lost acceptance race. Explicit original-result recovery is separate.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TenantBearer": [],
+            "NativeSessionSource": []
+          }
+        ],
+        "x-version-introduced": "v1"
+      }
+    },
+    "/api/v1/identity/invitations": {
+      "get": {
+        "tags": [
+          "Invitations"
+        ],
+        "description": "Current live scoped read. No request body; only the declared query fields are accepted. Protected configuration and other-person reads commit their MUST read audit before disclosure. Own context/capability/profile navigation is Off. No-store; capability flags are advisory and never authorization.",
+        "operationId": "ListInvitations",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Opaque canonical current-actor/scope/operation-bound cursor. Unknown, repeated, blank and oversized values refuse.",
+            "schema": {
+              "maxLength": 1024,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Canonical positive ASCII decimal Int32, default 20, accepted values above 100 clamp to 100. Signs, leading zeros and repeats refuse.",
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful current projection or retained committed receipt.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "validation_failed for malformed/noncanonical input, extra/repeated query, unexpected body or invalid key/precondition.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized for present invalid/expired or undecidable credentials; bare Bearer challenge.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "Bearer"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden for live coverage without current operation or target disclosure capability.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found for missing credentials, noncoverage or absent/foreign targets; tenant_mismatch for trusted scope/assertion disagreement.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "method_not_allowed after earlier host, credential and scope gates.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Allow": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "GET, POST"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "payload_too_large; administration bodies are at most 16 KiB, including undeclared/chunked bodies.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited by the existing visitor/subject admission.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission.",
+                "required": true,
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error without provider, query, identity or submitted-value diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "dependency_unavailable or audit_unavailable; no successful payload is disclosed on unconfirmed storage, cleanup or MUST audit.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TenantBearer": []
+          }
+        ],
+        "x-version-introduced": "v1"
+      },
+      "post": {
+        "tags": [
+          "Invitations"
+        ],
+        "description": "Exact protected mutation. Strict UTF-8 application/json object, at most 16 KiB; unknown, duplicate and missing properties refuse. Current authority, exact target scope and business predicates are checked independently. A completed exact-key replay performs a fresh MUST original-target disclosure read before returning the retained receipt; it never reruns the mutation. Unknown outcomes do not prove rollback and are never automatically retried.",
+        "operationId": "CreateInvitation",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Exactly one printable ASCII nonce, scoped to actor, tenant/organization, operation, method/path/query/body and canonical precondition. No automatic mutation retry.",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 8,
+              "pattern": "^[!-~]{8,128}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationCreateInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Committed creation receipt.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "required": true,
+                "schema": {
+                  "maxLength": 21,
+                  "minLength": 3,
+                  "pattern": "^\u0022(0|[1-9][0-9]{0,18})\u0022$",
+                  "type": "string"
+                }
+              },
+              "Idempotency-Replayed": {
+                "description": "Present only after fresh original-target disclosure audit on a replay.",
+                "schema": {
+                  "enum": [
+                    "true"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Location": {
+                "description": "Exact same-API relative location of the newly created original resource.",
+                "required": true,
+                "schema": {
+                  "pattern": "^/api/v1/identity/invitations/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdministrationVersionReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "validation_failed for malformed/noncanonical input, extra/repeated query, unexpected body or invalid key/precondition.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "concurrency_conflict for a valid stale version; business_rule_violation for refused lifecycle/last-admin/last-organization rules; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized for present invalid/expired or undecidable credentials; bare Bearer challenge.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "Bearer"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden for live coverage without current operation or target disclosure capability.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found for missing credentials, noncoverage or absent/foreign targets; tenant_mismatch for trusted scope/assertion disagreement.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "method_not_allowed after earlier host, credential and scope gates.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Allow": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "GET, POST"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "payload_too_large; administration bodies are at most 16 KiB, including undeclared/chunked bodies.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited by the existing visitor/subject admission.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission.",
+                "required": true,
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error without provider, query, identity or submitted-value diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "dependency_unavailable or audit_unavailable; no successful payload is disclosed on unconfirmed storage, cleanup or MUST audit.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TenantBearer": []
+          }
+        ],
+        "x-version-introduced": "v1"
+      }
+    },
+    "/api/v1/identity/invitations/{id}": {
+      "get": {
+        "tags": [
+          "Invitations"
+        ],
+        "description": "Current live scoped read. No request body; only the declared query fields are accepted. Protected configuration and other-person reads commit their MUST read audit before disclosure. Own context/capability/profile navigation is Off. No-store; capability flags are advisory and never authorization.",
+        "operationId": "GetInvitation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Canonical lowercase nonreserved RFC UUIDv7. Another scope never supplies target authority.",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful current projection or retained committed receipt.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "required": true,
+                "schema": {
+                  "maxLength": 21,
+                  "minLength": 3,
+                  "pattern": "^\u0022(0|[1-9][0-9]{0,18})\u0022$",
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "validation_failed for malformed/noncanonical input, extra/repeated query, unexpected body or invalid key/precondition.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized for present invalid/expired or undecidable credentials; bare Bearer challenge.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "Bearer"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden for live coverage without current operation or target disclosure capability.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found for missing credentials, noncoverage or absent/foreign targets; tenant_mismatch for trusted scope/assertion disagreement.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "method_not_allowed after earlier host, credential and scope gates.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Allow": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "GET"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "payload_too_large; administration bodies are at most 16 KiB, including undeclared/chunked bodies.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited by the existing visitor/subject admission.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission.",
+                "required": true,
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error without provider, query, identity or submitted-value diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "dependency_unavailable or audit_unavailable; no successful payload is disclosed on unconfirmed storage, cleanup or MUST audit.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TenantBearer": []
+          }
+        ],
+        "x-version-introduced": "v1"
+      }
+    },
+    "/api/v1/identity/invitations/{id}/revocations": {
+      "post": {
+        "tags": [
+          "Invitations"
+        ],
+        "description": "Exact protected mutation. Strict UTF-8 application/json object, at most 16 KiB; unknown, duplicate and missing properties refuse. Current authority, exact target scope and business predicates are checked independently. A completed exact-key replay performs a fresh MUST original-target disclosure read before returning the retained receipt; it never reruns the mutation. Unknown outcomes do not prove rollback and are never automatically retried.",
+        "operationId": "RevokeInvitation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Canonical lowercase nonreserved RFC UUIDv7. Another scope never supplies target authority.",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Exactly one printable ASCII nonce, scoped to actor, tenant/organization, operation, method/path/query/body and canonical precondition. No automatic mutation retry.",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 8,
+              "pattern": "^[!-~]{8,128}$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "One canonical strong quoted decimal aggregate version in [0, Int64.MaxValue]. Missing, weak, wildcard, list, repeated and noncanonical values are 400; valid stale versions are 409. Default selection uses the Tenant version.",
+            "required": true,
+            "schema": {
+              "maxLength": 21,
+              "minLength": 3,
+              "pattern": "^\u0022(0|[1-9][0-9]{0,18})\u0022$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmptyAdministrationInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful current projection or retained committed receipt.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "required": true,
+                "schema": {
+                  "maxLength": 21,
+                  "minLength": 3,
+                  "pattern": "^\u0022(0|[1-9][0-9]{0,18})\u0022$",
+                  "type": "string"
+                }
+              },
+              "Idempotency-Replayed": {
+                "description": "Present only after fresh original-target disclosure audit on a replay.",
+                "schema": {
+                  "enum": [
+                    "true"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdministrationVersionReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "validation_failed for malformed/noncanonical input, extra/repeated query, unexpected body or invalid key/precondition.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "concurrency_conflict for a valid stale version; business_rule_violation for refused lifecycle/last-admin/last-organization rules; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized for present invalid/expired or undecidable credentials; bare Bearer challenge.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "Bearer"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden for live coverage without current operation or target disclosure capability.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found for missing credentials, noncoverage or absent/foreign targets; tenant_mismatch for trusted scope/assertion disagreement.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "method_not_allowed after earlier host, credential and scope gates.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Allow": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "POST"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "payload_too_large; administration bodies are at most 16 KiB, including undeclared/chunked bodies.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited by the existing visitor/subject admission.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission.",
+                "required": true,
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error without provider, query, identity or submitted-value diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "dependency_unavailable or audit_unavailable; no successful payload is disclosed on unconfirmed storage, cleanup or MUST audit.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TenantBearer": []
+          }
+        ],
+        "x-version-introduced": "v1"
+      }
+    },
+    "/api/v1/identity/invitations/{id}/reissues": {
+      "post": {
+        "tags": [
+          "Invitations"
+        ],
+        "description": "Exact protected mutation. Strict UTF-8 application/json object, at most 16 KiB; unknown, duplicate and missing properties refuse. Current authority, exact target scope and business predicates are checked independently. A completed exact-key replay performs a fresh MUST original-target disclosure read before returning the retained receipt; it never reruns the mutation. Unknown outcomes do not prove rollback and are never automatically retried.",
+        "operationId": "ReissueInvitation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Canonical lowercase nonreserved RFC UUIDv7. Another scope never supplies target authority.",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Exactly one printable ASCII nonce, scoped to actor, tenant/organization, operation, method/path/query/body and canonical precondition. No automatic mutation retry.",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 8,
+              "pattern": "^[!-~]{8,128}$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "One canonical strong quoted decimal aggregate version in [0, Int64.MaxValue]. Missing, weak, wildcard, list, repeated and noncanonical values are 400; valid stale versions are 409. Default selection uses the Tenant version.",
+            "required": true,
+            "schema": {
+              "maxLength": 21,
+              "minLength": 3,
+              "pattern": "^\u0022(0|[1-9][0-9]{0,18})\u0022$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmptyAdministrationInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful current projection or retained committed receipt.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "required": true,
+                "schema": {
+                  "maxLength": 21,
+                  "minLength": 3,
+                  "pattern": "^\u0022(0|[1-9][0-9]{0,18})\u0022$",
+                  "type": "string"
+                }
+              },
+              "Idempotency-Replayed": {
+                "description": "Present only after fresh original-target disclosure audit on a replay.",
+                "schema": {
+                  "enum": [
+                    "true"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdministrationVersionReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "validation_failed for malformed/noncanonical input, extra/repeated query, unexpected body or invalid key/precondition.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "concurrency_conflict for a valid stale version; business_rule_violation for refused lifecycle/last-admin/last-organization rules; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized for present invalid/expired or undecidable credentials; bare Bearer challenge.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "Bearer"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden for live coverage without current operation or target disclosure capability.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found for missing credentials, noncoverage or absent/foreign targets; tenant_mismatch for trusted scope/assertion disagreement.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "method_not_allowed after earlier host, credential and scope gates.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Allow": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "POST"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "payload_too_large; administration bodies are at most 16 KiB, including undeclared/chunked bodies.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited by the existing visitor/subject admission.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission.",
+                "required": true,
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error without provider, query, identity or submitted-value diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "dependency_unavailable or audit_unavailable; no successful payload is disclosed on unconfirmed storage, cleanup or MUST audit.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TenantBearer": []
+          }
+        ],
+        "x-version-introduced": "v1"
+      }
+    },
+    "/api/v1/identity/invitable-roles": {
+      "get": {
+        "tags": [
+          "InvitableRoles"
+        ],
+        "description": "Current live scoped read. No request body; only the declared query fields are accepted. Protected configuration and other-person reads commit their MUST read audit before disclosure. Own context/capability/profile navigation is Off. No-store; capability flags are advisory and never authorization.",
+        "operationId": "ListInvitableRoles",
+        "responses": {
+          "200": {
+            "description": "Successful current projection or retained committed receipt.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitableRoleDirectory"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "validation_failed for malformed/noncanonical input, extra/repeated query, unexpected body or invalid key/precondition.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized for present invalid/expired or undecidable credentials; bare Bearer challenge.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "Bearer"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden for live coverage without current operation or target disclosure capability.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found for missing credentials, noncoverage or absent/foreign targets; tenant_mismatch for trusted scope/assertion disagreement.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "method_not_allowed after earlier host, credential and scope gates.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Allow": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "GET"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "payload_too_large; administration bodies are at most 16 KiB, including undeclared/chunked bodies.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited by the existing visitor/subject admission.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Suggested retry delay in seconds for the first refusing admission boundary. A capacity hint does not promise an available registry slot; quota hints do not guarantee admission.",
+                "required": true,
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error without provider, query, identity or submitted-value diagnostics.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "dependency_unavailable or audit_unavailable; no successful payload is disclosed on unconfirmed storage, cleanup or MUST audit.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TenantBearer": []
+          }
+        ],
         "x-version-introduced": "v1"
       }
     },
@@ -9733,6 +13023,351 @@
           }
         ]
       },
+      "InvitableRoleDirectory": {
+        "required": [
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "maxItems": 8,
+            "uniqueItems": false,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoleSummaryResponse"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "InvitationAcceptanceResponse": {
+        "required": [
+          "invitationId",
+          "version",
+          "membershipId",
+          "disposition",
+          "tenantId",
+          "organizationId"
+        ],
+        "type": "object",
+        "properties": {
+          "invitationId": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "maxLength": 19,
+            "minLength": 1,
+            "pattern": "^(0|[1-9][0-9]{0,18})$",
+            "type": "string",
+            "description": "Canonical decimal aggregate version from 0 through 9223372036854775807. Never a JSON number."
+          },
+          "membershipId": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string",
+            "format": "uuid"
+          },
+          "disposition": {
+            "enum": [
+              "created",
+              "already_member"
+            ],
+            "type": "string"
+          },
+          "tenantId": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string",
+            "format": "uuid"
+          },
+          "organizationId": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false
+      },
+      "InvitationCreateInput": {
+        "required": [
+          "email",
+          "roleId",
+          "roleVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "maxLength": 254,
+            "type": "string"
+          },
+          "roleId": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string",
+            "format": "uuid"
+          },
+          "roleVersion": {
+            "maxLength": 19,
+            "minLength": 1,
+            "pattern": "^(0|[1-9][0-9]{0,18})$",
+            "type": "string",
+            "description": "Canonical decimal aggregate version from 0 through 9223372036854775807. Never a JSON number."
+          }
+        },
+        "additionalProperties": false
+      },
+      "InvitationEntryInput": {
+        "required": [
+          "invitationId",
+          "code"
+        ],
+        "type": "object",
+        "properties": {
+          "invitationId": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "maxLength": 80,
+            "minLength": 80,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\.[A-Za-z0-9_-]{43}$",
+            "type": "string",
+            "description": "Sensitive canonical invitation UUIDv7 plus canonical base64url 32-byte verifier; ID must match invitationId. Body only; never route/query/log."
+          }
+        },
+        "additionalProperties": false
+      },
+      "InvitationInspectionResponse": {
+        "required": [
+          "invitationId",
+          "version",
+          "expiresAt",
+          "tenantLabel",
+          "organizationLabel",
+          "roleId",
+          "roleKey",
+          "roleScope",
+          "verifiedEmail"
+        ],
+        "type": "object",
+        "properties": {
+          "invitationId": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "maxLength": 19,
+            "minLength": 1,
+            "pattern": "^(0|[1-9][0-9]{0,18})$",
+            "type": "string",
+            "description": "Canonical decimal aggregate version from 0 through 9223372036854775807. Never a JSON number."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "tenantLabel": {
+            "type": "string"
+          },
+          "organizationLabel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "roleId": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string",
+            "format": "uuid"
+          },
+          "roleKey": {
+            "enum": [
+              "TenantAdmin",
+              "OrgAdmin",
+              "Instructor",
+              "OrgInstructor",
+              "Learner",
+              "Guardian",
+              "Editor"
+            ],
+            "type": "string"
+          },
+          "roleScope": {
+            "enum": [
+              "Tenant",
+              "Organization"
+            ],
+            "type": "string"
+          },
+          "verifiedEmail": {
+            "maxLength": 254,
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "InvitationLifetimeInput": {
+        "required": [
+          "days"
+        ],
+        "type": "object",
+        "properties": {
+          "days": {
+            "maximum": 30,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "InvitationPage": {
+        "required": [
+          "items",
+          "pageInfo"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "maxItems": 100,
+            "uniqueItems": false,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvitationResponse"
+            }
+          },
+          "pageInfo": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "additionalProperties": false
+      },
+      "InvitationPolicyResponse": {
+        "required": [
+          "days",
+          "present",
+          "version",
+          "canEdit"
+        ],
+        "type": "object",
+        "properties": {
+          "days": {
+            "maximum": 30,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32"
+          },
+          "present": {
+            "type": "boolean"
+          },
+          "version": {
+            "maxLength": 19,
+            "minLength": 1,
+            "pattern": "^(0|[1-9][0-9]{0,18})$",
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Canonical decimal aggregate version from 0 through 9223372036854775807. Never a JSON number."
+          },
+          "canEdit": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "InvitationResponse": {
+        "required": [
+          "invitationId",
+          "email",
+          "organizationId",
+          "roleId",
+          "roleVersion",
+          "status",
+          "expiresAt",
+          "version",
+          "deliveryStatus",
+          "acceptanceDisposition"
+        ],
+        "type": "object",
+        "properties": {
+          "invitationId": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "maxLength": 254,
+            "type": "string"
+          },
+          "organizationId": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "roleId": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string",
+            "format": "uuid"
+          },
+          "roleVersion": {
+            "maxLength": 19,
+            "minLength": 1,
+            "pattern": "^(0|[1-9][0-9]{0,18})$",
+            "type": "string",
+            "description": "Canonical decimal aggregate version from 0 through 9223372036854775807. Never a JSON number."
+          },
+          "status": {
+            "enum": [
+              "Pending",
+              "Accepted",
+              "Revoked",
+              "Expired"
+            ],
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "maxLength": 19,
+            "minLength": 1,
+            "pattern": "^(0|[1-9][0-9]{0,18})$",
+            "type": "string",
+            "description": "Canonical decimal aggregate version from 0 through 9223372036854775807. Never a JSON number."
+          },
+          "deliveryStatus": {
+            "enum": [
+              "Queued",
+              "SubmissionAccepted",
+              "Failed",
+              "Unresolved",
+              "Unavailable"
+            ],
+            "type": "string"
+          },
+          "acceptanceDisposition": {
+            "enum": [
+              "created",
+              "already_member",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
       "MembershipDetailResponse": {
         "required": [
           "membershipId",
@@ -11055,6 +14690,9 @@
       "name": "DefaultOrganization"
     },
     {
+      "name": "InvitationPolicy"
+    },
+    {
       "name": "Organizations"
     },
     {
@@ -11062,6 +14700,15 @@
     },
     {
       "name": "PublicSite"
+    },
+    {
+      "name": "InvitationEntry"
+    },
+    {
+      "name": "Invitations"
+    },
+    {
+      "name": "InvitableRoles"
     },
     {
       "name": "Memberships"

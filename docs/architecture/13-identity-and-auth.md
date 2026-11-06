@@ -343,48 +343,80 @@ business database. Application grants remain independent of realm grants.
 
 ## Invitations
 
-Invitations are owned by LearnStack. The target flow below needs
-[Phase 03 G1/G8](../roadmap/phase-03-identity-admin.md#the-decision-register)
-before its writers: actor bootstrap, verified current email, aggregate boundaries,
-single-use acceptance, grant freshness and bounded delivery are not yet delivered.
+[ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md)
+defines P03-4's verified acceptance and automatic invitation email contract.
+The [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns implementation
+and qualification. Keycloak owns registration and verification email; LearnStack
+owns the offer, its SMTP submission and the Membership outcome. Full notification
+orchestration remains [Phase 08a](../roadmap/phase-08a-assessment-notifications.md#notifications).
 
 ```mermaid
 sequenceDiagram
     participant Admin
     participant Web as Native BFF
     participant API
-    participant Delivery as Bounded invitation delivery
+    participant Job as Typed external job
+    participant SMTP as IEmailProvider / SMTP
     participant Invitee
     participant KC as Keycloak
 
     Admin->>Web: Submit authorized invitation
-    Web->>API: Admitted invitation command
-    API->>API: Persist offer and durable delivery intent
-    API-->>Delivery: Execute the G8 delivery contract
-    Delivery-->>Invitee: Offer and permitted continuation
-    Invitee->>Web: GET inspects offer; no grant
-    Web->>KC: Approved sign-in/signup continuation
-    KC-->>Web: Bound callback under G1 bootstrap
-    Invitee->>Web: Confirm acceptance through admitted mutating act
-    Web->>API: Verify subject/email, offer and current delegation
-    API->>API: Reconcile membership grant and offer consumption under G8
+    Web->>API: Admitted create command
+    API->>API: Commit offer + verifier + encrypted envelope + job + MUST audit
+    API-->>Admin: Queued; bounded version receipt
+    Job->>Job: Claim encrypted envelope and fence attempt as Sending
+    Job->>SMTP: Automatically submit invitation email
+    SMTP-->>Job: Accepted submission / definite no effect / unknown
+    Job->>Job: Persist provider evidence and truthful delivery state
+    SMTP-->>Invitee: Invitation email may arrive
+    Invitee->>Web: Clean GET landing; capture fragment through CSRF POST
+    Web->>KC: Bound sign-in/signup and fixed VERIFY_EMAIL continuation
+    KC-->>Web: Same-subject callback under state/nonce/PKCE
+    Invitee->>Web: Explicit acceptance confirmation
+    Web->>API: Fresh UserInfo and exact stored-offer entry
+    API->>API: Recheck delegation; commit offer + Membership + plural MUST audit
+    API-->>Web: Original Membership outcome; separate session admission remains
 ```
 
-Text fallback: an authorized admin creates a durable offer and delivery intent;
-the invitee inspects it without a write, completes the approved identity flow and
-confirms acceptance. The API verifies current identity/delegation and produces
-the single authoritative grant/offer outcome. Exact routes and atomicity belong
-to G8; this diagram admits no direct token callback to the API or multi-root write.
+Text fallback: creation atomically queues an encrypted automatic SMTP submission.
+The worker records provider evidence; accepted SMTP submission does not prove
+inbox delivery. The invitee opens the message, completes the bound provider flow
+and explicitly accepts. One database transaction consumes the offer with its
+Membership result and required audit; native session admission is a separate act.
 
-Edge cases:
-
-- **Invitee uses a different email at Keycloak signup.** The invitation token is bound to the email; mismatched signup is rejected.
-- **Invitation expires.** Default TTL 14 days, configurable per tenant.
-- **Invitation revoked.** Tenant admin can revoke; accepting a revoked invitation is rejected.
-- **Races and delivery failure.** G8 specifies accept/revoke/expiry/resend and
-  existing-member outcomes, one-way token storage, provider idempotency/
-  reconciliation and truthful delivery state. Full notification orchestration
-  remains Phase 08a; the usable Phase 03 handoff cannot depend on it silently.
+- The offer fixes recipient email, stored inviter, organization, one Role and its
+  version. Email matches the fresh provider observation; it never merges Users.
+- Creation stages generation 1. Reissue invalidates the old code and stages a new
+  generation/job with the current tenant TTL: default 14 days, bounded 1–30 days.
+  Revoke, reissue and acceptance invalidate old codes. Prepare refuses obsolete
+  work before its plan commits; already-prepared mail may still arrive. Provider
+  recovery can fence an unclaimed external attempt; business withdrawal itself
+  adds no provider-table cancellation writer.
+- `IEmailProvider` uses the bounded MailKit/MimeKit adapter. Private encrypted
+  delivery custody is not a notification-module root. The
+  [provider standard](../standards/20-infrastructure-stack.md) owns its boundary;
+  the [database standard](../standards/05-database.md) owns exact function/grant,
+  attempt and reservation contracts. No link-read or manual-handoff API is added.
+- Pending inspection and acceptance each fetch fresh, bounded UserInfo for the
+  exact verified subject. New users use Keycloak registration and its fixed
+  `kc_action=VERIFY_EMAIL` continuation. Existing Mailpit qualifies development
+  verification; production uses configured provider SMTP. Actual nonseed
+  verification is required; a fixture-set verified flag is insufficient.
+- Exact offer-derived entry admits a first Membership without a general tenant
+  selector, directory, User reader or public write. The
+  [security standard](../standards/11-security.md) owns the native continuation,
+  clean fragment landing, CSRF, verified subject and confined scope contract.
+- Acceptance creates a Membership when absent or after Revoked history. An
+  existing Active Membership consumes the offer as `already_member` without
+  changing Roles/profile. Suspended conflicts. Fresh User-before-Tenant fences,
+  current inviter delegation and Role version checks prevent stale grants.
+- Accepted-result recovery verifies the same Active actor, consumed verifier and
+  original Active Membership before Pending-only checks. It needs no current
+  email or inviter authority and grants nothing. A Pending command that loses
+  the acceptance race returns conflict, followed by this separate Off result read.
+- UI distinguishes queued, submission accepted, failed, uncertain, expired and
+  revoked. SMTP final `250` means accepted submission. An ambiguous send remains
+  uncertain and retains its reservation; it is not blindly retried.
 
 ## SSO and Federation
 

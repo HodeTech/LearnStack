@@ -22,6 +22,7 @@ export function assertNoRetainedFrameworkOwners(root: string): void;
 export function createFixtureOwner(options?: { exit?: (code: number) => void }): {
   ownRoot(path: string): string;
   ownChild<T extends ChildProcess>(child: T): T;
+  retireChild(child: ChildProcess): Promise<void>;
   ownServer<T extends Server>(server: T): T;
   assertActive(): void;
   dispose(): Promise<void>;

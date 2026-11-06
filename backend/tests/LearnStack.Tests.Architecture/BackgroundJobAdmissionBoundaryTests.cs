@@ -143,10 +143,16 @@ public sealed partial class OutboxDispatchConventionTests
         Capability(DeliveryApplication, JobAdmission, "PermitsUnresolvedRead", [(DeliveryApplication, JobTenantBehavior, "Handle")]);
         Capability(DeliveryApplication, JobOrigin, ".ctor", [(DeliveryApplication, DeliveryProducer, "CaptureJobOrigin")]);
         Capability(DeliveryApplication, DeliveryProducer, "CaptureJobOrigin", [(InfrastructureAssembly, JobScheduler, "SubmitAsync"),
-            (InfrastructureAssembly, JobScheduler, "SubmitRecipientAsync")]);
+            (InfrastructureAssembly, JobScheduler, "SubmitRecipientAsync"),
+            ("LearnStack.Modules.Identity.Infrastructure", "LearnStack.Modules.Identity.Infrastructure.Invitations.InvitationEmailStager", "StageAsync"),
+            ("LearnStack.Modules.Identity.Infrastructure", "LearnStack.Modules.Identity.Infrastructure.Invitations.InvitationEmailJobStore", "RequireCurrentJob"),
+            (InfrastructureAssembly, "LearnStack.Infrastructure.Email.InvitationEmailEnvelopeWriter", "StageAsync")]);
         Capability(DeliveryApplication, DeliveryProducer, "RequireJobOrigin", [(InfrastructureAssembly, JobScheduler, "SubmitAsync"),
             (InfrastructureAssembly, JobScheduler, "SubmitAsync"), (InfrastructureAssembly, JobScheduler, "SubmitAsync"),
-            (InfrastructureAssembly, JobScheduler, "SubmitRecipientAsync"), (InfrastructureAssembly, JobScheduler, "InsertAsync")]);
+            (InfrastructureAssembly, JobScheduler, "SubmitRecipientAsync"), (InfrastructureAssembly, JobScheduler, "InsertAsync"),
+            ("LearnStack.Modules.Identity.Infrastructure", "LearnStack.Modules.Identity.Infrastructure.Invitations.InvitationEmailStager", "StageAsync"),
+            ("LearnStack.Modules.Identity.Infrastructure", "LearnStack.Modules.Identity.Infrastructure.Invitations.InvitationEmailJobStore", "RequireCurrentJob"),
+            (InfrastructureAssembly, "LearnStack.Infrastructure.Email.InvitationEmailEnvelopeWriter", "StageAsync")]);
         Capability(DeliveryApplication, DeliveryCoordinator, "ExecuteRequestAsync", [(DeliveryApplication, JobTransactionBehavior, "Handle")]);
 
         var coordinator = types[(DeliveryApplication, DeliveryCoordinator)];

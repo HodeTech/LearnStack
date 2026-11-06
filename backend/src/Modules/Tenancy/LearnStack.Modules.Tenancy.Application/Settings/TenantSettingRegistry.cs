@@ -35,6 +35,8 @@ public sealed class TenantSettingRegistry
     [
         new TenantSettingRegistration<BrandingTheme>(TenantSettingKeys.BrandingTheme, false,
             BrandingThemeRegistry.Read),
+        new TenantSettingRegistration<InvitationLifetimePolicy>(TenantSettingKeys.InvitationLifetime, false,
+            InvitationLifetimePolicyRegistry.Read),
     ]);
 
     public TenantSettingRegistration<T>? Find<T>(TenantSettingKey<T> key) where T : class

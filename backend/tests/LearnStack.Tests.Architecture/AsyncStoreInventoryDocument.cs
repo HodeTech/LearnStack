@@ -10,6 +10,7 @@ internal static class AsyncStoreInventoryDocument
     [
         "Existing `audit_log`", "Development Keycloak user events, `EVENT_ENTITY`",
         "External diagnostics and local error files", "Database, WAL and backups", "Native BFF session custody",
+        "SMTP server, recipient mailbox and provider backups",
     ];
     private static readonly Regex TableIdentifier = new(@"^`[a-z_][a-z_0-9]*`$", RegexOptions.CultureInvariant);
     private static readonly Regex Separator = new(@"^:?-{3,}:?$", RegexOptions.CultureInvariant);
@@ -29,7 +30,7 @@ internal static class AsyncStoreInventoryDocument
             var firstNames = Names(firstParty);
             var vendorNames = Names(vendor);
             var excludedNames = Names(exclusions);
-            Count(firstParty, 10, "first-party");
+            Count(firstParty, 12, "first-party");
             Count(vendor, 12, "vendor");
             Compare(excludedNames, ["idempotency_keys"], "explicit scope exclusion");
             Compare(custody.Select(row => row[0]), CustodyNames, "audit/provider/external/volatile custody");

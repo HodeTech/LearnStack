@@ -140,6 +140,11 @@ public sealed class SchemaFixture : IAsyncLifetime
 
     static SchemaFixture()
     {
+        foreach (var table in SchemaTableClasses.InvitationProvider)
+        {
+            RowsVisibleToTenantA[table] = SchemaTableClasses.SelectDenied;
+            RowsVisibleToTenantB[table] = SchemaTableClasses.SelectDenied;
+        }
         RowsVisibleToTenantA["users"] = 0;
         RowsVisibleToTenantB["users"] = 0;
         // Contextual subjects need an admitted immutable global authority; this

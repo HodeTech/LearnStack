@@ -21,6 +21,10 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         new(8, "RenameOrganization", 2, "Organization", "ExpectedVersion"),
         new(9, "ArchiveOrganization", 2, "Organization", "ExpectedVersion"),
         new(10, "SelectDefaultOrganization", 3, "Tenant", "ExpectedVersion"),
+        new(11, "CreateInvitation", 4, "Invitation", null),
+        new(12, "RevokeInvitation", 4, "Invitation", "ExpectedVersion"),
+        new(13, "ReissueInvitation", 4, "Invitation", "ExpectedVersion"),
+        new(14, "SetTenantInvitationLifetime", 5, "TenantSetting", "ExpectedVersion"),
     ];
 
     private static readonly Lazy<string[]> ProtectedSourceBaseline = new(() => ProtectedSourceOffenders(
@@ -37,7 +41,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         if (factory is not { HasBody: true }) { yield return "Unexpected protected descriptor: missing factory"; yield break; }
         var creations = factory.Body.Instructions.Where(instruction => instruction.Operand is MethodReference target
             && target.DeclaringType.FullName == ProtectedDescriptor && target.Name == ".ctor").ToArray();
-        if (creations.Length != 10) yield return "Unexpected protected descriptor: require ten exact factories";
+        if (creations.Length != ProtectedShapes.Length) yield return "Unexpected protected descriptor: require fourteen exact factories";
         var requests = new List<string>();
         foreach (var creation in creations)
         {
@@ -50,7 +54,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
             var endpoint = Endpoints.SingleOrDefault(entry => entry.Request.FullName == request.FullName && entry.ProtectedOperation is not null);
             var shape = ProtectedShapes.SingleOrDefault(item => item.Operation == endpoint?.ProtectedOperation);
             if (shape is null || Integer(Argument(factory, creation, 2)) != shape.Kind
-                || Integer(Argument(factory, creation, 3)) != (shape.Operation == 7 ? 1 : 0))
+                || Integer(Argument(factory, creation, 3)) != (shape.Operation is 7 or 11 ? 1 : 0))
                 yield return "Unexpected protected descriptor: target kind/creation mismatch for " + request.FullName;
         }
         var expected = Endpoints.Where(entry => entry.ProtectedOperation is not null)
@@ -95,11 +99,13 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                 var request = Endpoints.Single(entry => entry.ProtectedOperation == shape.Operation).Request.Name;
                 return name switch
                 {
-                    "For" => "ProtectedAdministrationOperation." + shape.Name + "=>new(operation,typeof(" + request + "),IdempotencyReplayTargetKind." + shape.Target + (shape.Operation == 7 ? ",true" : "") + ")",
+                    "For" => "ProtectedAdministrationOperation." + shape.Name + "=>new(operation,typeof(" + request + "),IdempotencyReplayTargetKind." + shape.Target + (shape.Operation is 7 or 11 ? ",true" : "") + ")",
                     "OperationFor" => request + "=>ProtectedAdministrationOperation." + shape.Name,
                     _ => request + (shape.Version is null ? "=>null" : "command=>command." + shape.Version)
                 };
             }).ToArray();
+            if (name == "ExpectedVersion") expected = expected.Where(arm => arm is not ("CreateManagedOrganizationCommand=>null" or "CreateInvitationCommand=>null"))
+                .Append("CreateManagedOrganizationCommandorCreateInvitationCommand=>null").ToArray();
             var fallback = name switch
             {
                 "For" => "_=>thrownewArgumentOutOfRangeException(nameof(operation))",
@@ -122,7 +128,11 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                 5 or 6 => "Versioned(awaitsender.Send(command,cancellationToken),command.RoleId)",
                 7 => "Organization(awaitsender.Send(command,cancellationToken),null)",
                 8 or 9 => "Organization(awaitsender.Send(command,cancellationToken),command.OrganizationId)",
-                _ => "Versioned(awaitsender.Send(command,cancellationToken),context.TenantId.Value)"
+                10 => "Versioned(awaitsender.Send(command,cancellationToken),context.TenantId.Value)",
+                11 => "Invitation(awaitsender.Send(command,cancellationToken),null)",
+                12 or 13 => "Invitation(awaitsender.Send(command,cancellationToken),command.InvitationId)",
+                14 => "Policy(awaitsender.Send(command,cancellationToken))",
+                _ => throw new InvalidOperationException("Unknown expected protected operation")
             };
             return request + "command=>" + result;
         }).Append("_=>thrownewInvalidOperationException(\"The protected operation is not registered.\")");

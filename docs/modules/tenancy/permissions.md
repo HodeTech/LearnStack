@@ -104,7 +104,7 @@ authority. Their named Phase 02c/P03-9 surfaces retain separate admission decisi
 |----------|:----:|:-----:|:------:|:-----:|---------------------|
 | `Organization` (`organization`) | – | – | – | Tenant | Exact v2 Tenant Admin delta; only admitted Organization/default operations |
 | `TenantLocale` (`locale`) | – | Tenant | – | – | Same delta; only admitted locale operations through Tenant root |
-| `TenantSetting` (`setting`) | – | Tenant | – | – | Same delta; only whole tenant-wide `branding.theme` |
+| `TenantSetting` (`setting`) | – | Tenant | – | – | Same delta; whole tenant-wide `branding.theme` plus ADR-0093's exact invitation policy |
 
 `Tenant` has no `delete`: deprovisioning has no owning phase, and
 [Database Standards § GRANT matrix](../../standards/05-database.md) records that
@@ -136,6 +136,7 @@ Organization editor capabilities require a separate Phase 06 decision/consumer.
 | `RemoveTenantLocaleCommand` | Same | Tenant |
 | `SetManagedTenantBrandingCommand` | `tenancy.setting.write` | TenantSetting |
 
+
 These requests share module business logic with the existing Seed acts without
 dispatching them or obtaining Seed provenance. `TenancyOperationPolicySource`
 classifies each human request separately; [audit](audit.md#bounded-administration-bindings)
@@ -152,3 +153,30 @@ unit of work and two MUST intents. No general host-mapping route or permission
 is introduced. The [module contract](README.md#warm-seed-and-administration-origins)
 and [Standard 05](../../standards/05-database.md#p03-3-storage-and-replay-contract)
 own exact witness/adoption/fence rules and write-free repeats.
+
+## Invitation lifetime policy
+
+**Derives from:** [ADR-0093](../../decisions/0093-verified-invitation-acceptance-and-handoff.md).
+This Accepted extension adds the exact tenant-wide `identity.invitation.ttl_days`
+setting operation to existing Tenant `tenancy.setting.write`; runtime/proof
+remain P03-4 in the phase Status block. Existing holders gain this bounded
+operation. No new pair, release, automatic grant or generic settings power is
+introduced. A v1 tenant without the pair uses the 14-day default but cannot
+edit; the explicit v2 adoption remains the only exceptional new-key grant path.
+
+| Application consumer | Exact authority | Root / audit |
+|---|---|---|
+| `GetTenantInvitationPolicyQuery` | Own-current-tenant Membership coverage, orgless context | Only default/current bounded lifetime and absent/default or root version precondition; Off and physical ReadOnly |
+| `SetTenantInvitationLifetimeCommand` | Tenant `tenancy.setting.write`, orgless context, fresh target/version checks | One TenantSetting root, fixed key, integer 1–30 days; MUST update and protected keyed receipt |
+| `ReadInvitationPolicyReceiptQuery` | Current own-Membership coverage in the same orgless tenant | Exact original retained TenantSetting ID/key; MUST read, no old write-permission requirement or other-setting disclosure |
+
+First creation requires the explicit absent/default precondition and natural-key
+uniqueness; a race refuses, never becomes an unconditional upsert. Later writes
+require canonical strong If-Match. Policy changes do not extend prepared links;
+each initial send or explicit reissue freezes its current policy expiry. Read
+contracts supply no arbitrary setting directory or Organization setting variant.
+Identity consumes the bounded policy through Tenancy's application contract,
+never direct Tenancy SQL. [Standard 19](../../standards/19-permissions.md#invitation-capability-extension)
+owns grant adoption semantics and the
+[API standard](../../standards/04-api-design.md#verified-invitation-transport)
+owns exact transport/replay consumers.

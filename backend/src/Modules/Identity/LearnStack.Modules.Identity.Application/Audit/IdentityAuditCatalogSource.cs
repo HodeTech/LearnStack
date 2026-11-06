@@ -1,4 +1,6 @@
 using LearnStack.Modules.Identity.Domain;
+using LearnStack.Modules.Identity.Application.Contracts.Invitations;
+using LearnStack.Modules.Identity.Application.Invitations;
 using LearnStack.Modules.Identity.Application.Contracts.Seeding;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Application.Contracts.Roles;
@@ -14,6 +16,22 @@ public sealed class IdentityAuditCatalogSource : IAuditCatalogSource
     public void Describe(IAuditCatalogBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
+        builder.Off<InspectInvitationQuery>();
+        builder.Off<GetOwnInvitationResultQuery>();
+        builder.MustAudit<AcceptInvitationCommand>("identity.invitation.accept", OperationType.SecurityEvent, typeof(Invitation));
+        builder.MustAudit<AcceptInvitationCommand>("identity.membership.admit_invitation", OperationType.SecurityEvent, typeof(Membership));
+        builder.MustAudit<ListInvitationsQuery>("identity.invitation.list", OperationType.ReadSensitive, typeof(Invitation));
+        builder.MustAudit<GetInvitationQuery>("identity.invitation.read", OperationType.ReadSensitive, typeof(Invitation));
+        builder.MustAudit<ListInvitableRolesQuery>("identity.invitation.list_invitable_roles", OperationType.ReadSensitive, typeof(Invitation));
+        builder.MustAudit<CreateInvitationCommand>("identity.invitation.create", OperationType.SecurityEvent, typeof(Invitation));
+        builder.MustAudit<RevokeInvitationCommand>("identity.invitation.revoke", OperationType.SecurityEvent, typeof(Invitation));
+        builder.MustAudit<ReissueInvitationCommand>("identity.invitation.reissue", OperationType.SecurityEvent, typeof(Invitation));
+        builder.MustAudit<ReadInvitationReceiptQuery>("identity.invitation.read_receipt", OperationType.ReadSensitive, typeof(Invitation));
+
+        builder.MustAudit<PrepareTenantInvitationEmailCommand>("identity.invitation.prepare_email", OperationType.SecurityEvent, typeof(Invitation));
+        builder.MustAudit<PrepareOrganizationInvitationEmailCommand>("identity.invitation.prepare_email", OperationType.SecurityEvent, typeof(Invitation));
+        builder.MustAudit<FinalizeTenantInvitationEmailCommand>("identity.invitation.email_submission", OperationType.SecurityEvent, typeof(Invitation));
+        builder.MustAudit<FinalizeOrganizationInvitationEmailCommand>("identity.invitation.email_submission", OperationType.SecurityEvent, typeof(Invitation));
         builder.MustAudit<AdmitNativeSessionScopeCommand>(IdentityOperationPolicySource.NativeSessionAdmissionOperation,
             OperationType.SecurityEvent, typeof(Membership));
         builder.MustAudit<InitializeSeedRoleCommand>("identity.role.initialize", OperationType.SecurityEvent, typeof(Role));

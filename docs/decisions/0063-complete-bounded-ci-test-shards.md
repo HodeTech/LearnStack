@@ -491,6 +491,18 @@ remain unchanged. Its prohibition on unapproved increases gains only this named
 exception. The Decision and metadata remain historical. The [Phase 03 acceptance record](../roadmap/phase-03-delivery-log.md#adr-0082-maintainer-corrections-acceptance-and-step-1-2026-11-01)
 owns dependent implementation/reviews and fresh source-bound qualification.
 
+### Amendment 3 — Forty-five-minute Architecture and ordinary windows (2026-11-06)
+
+Accepted [ADR-0094](0094-forty-five-minute-backend-execution-windows.md) supersedes
+Amendment 2's twenty-five and thirty minute ceilings with forty-five minutes
+for both verified Architecture and ordinary producers. Base/native twenty,
+aggregates/meta five, the 203-second reserve, test-operation limits, count
+ranges/cap, assignment, weights and exact natural-complete A/B evidence remain
+unchanged. Its prohibition on unapproved increases gains only this named
+exception. The Decision and metadata remain historical. The
+[Phase 03 record](../roadmap/phase-03-delivery-log.md#p03-4-step-7-forty-five-minute-execution-windows-and-parser-timeout-2026-11-06)
+owns the dependent implementation and fresh source-bound qualification.
+
 ## References
 
 - [ADR-0062](0062-native-crash-proof-ci-provisioning.md).

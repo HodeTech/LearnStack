@@ -20,6 +20,74 @@ export function bffDevToolsFailureStage(error) {
   );
 }
 
+const stalledDevToolsStages = new Set([
+  'browser-devtools-missing',
+  'browser-devtools-empty',
+  'browser-devtools-malformed',
+]);
+
+/**
+ * A browser that stayed live through the whole readiness window without ever
+ * publishing a usable port file never became controllable. Browser death, owner
+ * closure and unreadable state are different facts and are never "stalls".
+ */
+export function bffDevToolsStalled(error) {
+  return stalledDevToolsStages.has(bffDevToolsFailureStage(error));
+}
+
+/**
+ * Start an owned browser and wait for its DevTools port, replacing a stalled
+ * browser at most twice.
+ *
+ * Hosted runners occasionally leave a live stock Chromium without a port file for
+ * the whole window, and the stalled process has not yet answered SIGTERM when the
+ * fixture stops it. The cause is not established. Hosted evidence only says that
+ * the stalls are not tied to one fact: of three identified ones, two ran in the
+ * shard whose first `google-chrome --version` was the slowest of twelve (9 and 4
+ * seconds against 0-3), and one did not (1 second). Browser launch is test
+ * tooling, not the behaviour under proof, so a fresh process with a fresh profile
+ * is a legitimate infrastructure retry; if the first start was merely cold, the
+ * next one finds a warm page cache.
+ *
+ * Only the proven stall signature qualifies and nothing after the DevTools port is
+ * ever retried. A stalled browser still inside its start-up does not run the loop
+ * that handles SIGTERM, so retiring it may need the group's SIGKILL; that is
+ * accepted because `retire` resolves only once the whole group is confirmed
+ * absent. If a stalled group cannot be confirmed absent, its own closed failure
+ * stands and no replacement starts; if the last replacement also stalls, that last
+ * closed failure is the one reported.
+ *
+ * `launch(attempt)` must spawn through the fixture owner and return `{ child }`.
+ * `wait(launched)` resolves with the port or rejects with the branded readiness
+ * failure. `retire(child)` resolves when the child's group is confirmed absent;
+ * fixtures pass `owner.retireChild` so the final cleanup does not count the
+ * retired browser again.
+ */
+export async function startBffBrowser({
+  launch,
+  wait,
+  attempts = 3,
+  stalled = bffDevToolsStalled,
+  retire = async (child) => {
+    await stopTestChild(child);
+  },
+}) {
+  assert.ok(Number.isInteger(attempts) && attempts >= 1 && attempts <= 3, 'closed launch bound');
+  for (let attempt = 1; ; attempt++) {
+    const launched = launch(attempt);
+    try {
+      return { ...launched, port: await wait(launched) };
+    } catch (error) {
+      if (attempt >= attempts || !stalled(error)) throw error;
+      try {
+        await retire(launched.child);
+      } catch {
+        throw error;
+      }
+    }
+  }
+}
+
 const catalogues = {
   en: JSON.parse(
     readFileSync(new URL('../src/i18n/messages/en/auth.json', import.meta.url), 'utf8'),
@@ -242,9 +310,13 @@ export function rememberBffCookies(headers, canaries) {
     const transaction = /^(?:__Host-ls-login-|__Host-ls-logout-)([A-Za-z0-9_-]{43})$/.exec(name);
     assert.ok(
       transaction ||
-        ['__Host-ls-session', '__Host-ls-browser', '__Host-ls-csrf', '__Host-ls-entry'].includes(
-          name,
-        ),
+        [
+          '__Host-ls-session',
+          '__Host-ls-browser',
+          '__Host-ls-csrf',
+          '__Host-ls-entry',
+          '__Host-ls-invitation',
+        ].includes(name),
     );
     for (const secret of transaction ? [transaction[1], value] : [value]) {
       if (canaries.includes(secret)) continue;

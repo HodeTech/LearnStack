@@ -231,6 +231,8 @@ public sealed class IdentityAuthorizationConventionTests
             "LearnStack.Modules.Identity.Application.Authorization.RoleGrantAuthorization.RecheckAsync",
             "LearnStack.Modules.Identity.Application.Authorization.MembershipAdministrationAuthorization.RecheckAsync",
             "LearnStack.Modules.Identity.Application.Authorization.IdentityAdministrationReadAuthorization.ReadFactsAsync",
+            "LearnStack.Modules.Identity.Application.Invitations.InvitationAdministrationAuthorization.CanDelegateAsync",
+            "LearnStack.Modules.Tenancy.Application.Settings.InvitationPolicyHandlers.Handle",
             "LearnStack.Api.Authentication.LiveTenantMembershipReader.CoversAsync"]);
         Callers(census, errors, LifecyclePort, "ReadAuthorizationAsync", [Orchestrator + ".ReadAsync"]);
         Callers(census, errors, SessionFactoryPort, "OpenAsync", [Orchestrator + ".ReadAsync"]);
@@ -640,7 +642,8 @@ public sealed class IdentityAuthorizationConventionTests
         var errors = new List<string>();
         Callers(census, errors, RoleGuard, "RefuseBypassRoleAsync", [Owner + ".OpenAsync",
             "LearnStack.Infrastructure.Persistence.DatabaseQualificationProof.OpenAsync",
-            "LearnStack.Infrastructure.Persistence.AuthorizationEvidenceSession.OpenAsync"]);
+            "LearnStack.Infrastructure.Persistence.AuthorizationEvidenceSession.OpenAsync",
+            "LearnStack.Infrastructure.Email.InvitationSmtpProviderDataSource/Owner.OpenPhysicalAsync"]);
         var body = census.Body(Owner, "OpenAsync");
         var guards = Calls(body, RoleGuard, "RefuseBypassRoleAsync").ToArray();
         var begins = Calls(body, "Npgsql.NpgsqlConnection", "BeginTransactionAsync").ToArray();

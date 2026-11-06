@@ -226,6 +226,7 @@ public sealed partial class PersistenceConventionTests
             // ADR-0076's private lane awaits the shared role guard with its total deadline before BEGIN.
             // IdentityAuthorizationConventionTests checks the actual compiled guard/order and forbids raw aliases.
             "Persistence/IdentityAuthorizationReadSource.cs",
+            "Email/InvitationSmtpProviderDataSource.cs",
             // ADR-0077's two evidence owners have their own guarded pool and retain actual cleanup.
             // IdentityAuditConventionTests checks the compiled source/session/store ownership boundary.
             "Persistence/AuthorizationEvidenceSource.cs",

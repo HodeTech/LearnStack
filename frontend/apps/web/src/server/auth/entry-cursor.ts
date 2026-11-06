@@ -7,7 +7,7 @@ type EntryCursorBinding = Readonly<{
   id: string;
   host: string;
   epoch: string;
-  purpose?: 'members' | 'scopes';
+  purpose?: 'members' | 'scopes' | 'invitations';
 }>;
 const VERSION = 1;
 const MAX_PLAINTEXT_BYTES = 739;

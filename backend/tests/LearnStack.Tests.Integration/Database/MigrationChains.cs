@@ -44,7 +44,17 @@ internal static class MigrationChains
         return ApplyAsync(migrationConnectionString, platformTargetMigration);
     }
 
-    private static async Task ApplyAsync(string migrationConnectionString, string? platformTargetMigration)
+    /// <summary>Retains the central chain order while proving an upgrade from the two invitation predecessors.</summary>
+    public static Task ApplyThroughInvitationPredecessorsAsync(string migrationConnectionString,
+        string platformTargetMigration, string identityTargetMigration)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(platformTargetMigration);
+        ArgumentException.ThrowIfNullOrWhiteSpace(identityTargetMigration);
+        return ApplyAsync(migrationConnectionString, platformTargetMigration, identityTargetMigration);
+    }
+
+    private static async Task ApplyAsync(string migrationConnectionString, string? platformTargetMigration,
+        string? identityTargetMigration = null)
     {
         await ApplyTenancyAsync(migrationConnectionString);
 
@@ -71,7 +81,8 @@ internal static class MigrationChains
         await using var identity = new IdentityDbContext(
             Options<IdentityDbContext>(migrationConnectionString, IdentityDbContextFactory.HistoryTable),
             StaticTenantContextAccessor.Unresolved, EmptyIdentityScope.Instance);
-        await identity.Database.MigrateAsync();
+        if (identityTargetMigration is null) await identity.Database.MigrateAsync();
+        else await identity.GetService<IMigrator>().MigrateAsync(identityTargetMigration);
 
         await using (var customization = new CustomizationDbContext(
             Options<CustomizationDbContext>(

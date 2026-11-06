@@ -5,11 +5,13 @@ using LearnStack.Modules.Customization.Application.Authorization;
 using LearnStack.Modules.Education.Application.Authorization;
 using LearnStack.Modules.Identity.Application;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
+using LearnStack.Modules.Identity.Application.Contracts.Invitations;
 using LearnStack.Modules.Identity.Application.Contracts.Roles;
 using LearnStack.Modules.Identity.Domain;
 using LearnStack.Modules.Tenancy.Application.Authorization;
 using LearnStack.Modules.Tenancy.Application.Contracts.Branding;
 using LearnStack.Modules.Tenancy.Application.Contracts.Locales;
+using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
 using LearnStack.SharedKernel.Permissions;
 using Mono.Cecil;
@@ -83,6 +85,14 @@ public sealed partial class OperationPermissionConventionTests
         var roleAdmin = new PermissionDefinition(PermissionScope.Tenant, IdentityFoundationManifest.RoleAdmin);
         (Type Request, bool Orgless, OperationPolicyClause[] Clauses)[] expected =
         [
+            (typeof(ListInvitationsQuery), false, [new([membershipAdmin]), new([organizationAdmin])]),
+            (typeof(GetInvitationQuery), false, [new([membershipAdmin]), new([organizationAdmin])]),
+            (typeof(ListInvitableRolesQuery), false, [new([membershipAdmin]), new([organizationAdmin])]),
+            (typeof(CreateInvitationCommand), false, [new([membershipAdmin]), new([organizationAdmin])]),
+            (typeof(RevokeInvitationCommand), false, [new([membershipAdmin]), new([organizationAdmin])]),
+            (typeof(ReissueInvitationCommand), false, [new([membershipAdmin]), new([organizationAdmin])]),
+            (typeof(ReadInvitationReceiptQuery), false, [new([membershipAdmin]), new([organizationAdmin])]),
+            (typeof(SetTenantInvitationLifetimeCommand), true, [new([BoundedTenancyAdministrationPermissions.SettingWrite])]),
             (typeof(ListMembershipsQuery), false, [new([membershipAdmin], OperationReadScope.Tenant)]),
             (typeof(ListOrganizationMembershipsQuery), false, [new([membershipAdmin]), new([organizationAdmin])]),
             (typeof(ListRolesQuery), false, [new([roleAdmin])]),
@@ -119,7 +129,8 @@ public sealed partial class OperationPermissionConventionTests
             .Should().BeEquivalentTo(expected.Select(item => item.Request));
         catalog.All.Where(policy => policy.Kind == OperationPolicyKind.OwnMembershipRead).Select(policy => policy.RequestType)
             .Should().BeEquivalentTo([typeof(GetOwnMembershipProfileQuery), typeof(ReadOwnMembershipProfileReceiptQuery),
-                typeof(GetOwnMembershipContextsQuery), typeof(GetOwnCapabilitiesQuery)],
+                typeof(GetOwnMembershipContextsQuery), typeof(GetOwnCapabilitiesQuery),
+                typeof(GetTenantInvitationPolicyQuery), typeof(ReadInvitationPolicyReceiptQuery)],
                 "exact own reads share coverage-only admission without sharing target lookup or audit mode");
         foreach (var policy in catalog.All)
         {
@@ -160,6 +171,8 @@ public sealed partial class OperationPermissionConventionTests
                         (typeof(ReadOwnMembershipProfileReceiptQuery), "identity.membership_profile.read_own_receipt"),
                         (typeof(GetOwnMembershipContextsQuery), "identity.membership.list_own_contexts"),
                         (typeof(GetOwnCapabilitiesQuery), "identity.membership.read_own_capabilities"),
+                        (typeof(GetTenantInvitationPolicyQuery), "tenancy.setting.read_invitation_policy"),
+                        (typeof(ReadInvitationPolicyReceiptQuery), "tenancy.setting.read_invitation_receipt"),
                     ];
                     policy.Id.Should().Be(ownReads.Single(read => read.Request == policy.RequestType).Id);
                     policy.Alternatives.Should().BeEmpty();
@@ -178,18 +191,22 @@ public sealed partial class OperationPermissionConventionTests
     private static void AssertOwnMembershipReadFactory(ModuleDefinition[] modules)
     {
         OwnMembershipReadFactoryOffenders(modules).Should().BeEmpty();
-        var owner = modules.SelectMany(module => module.Types.SelectMany(Flatten))
-            .Single(type => type.FullName == typeof(IdentityOperationPolicySource).FullName)
-            .Methods.Single(method => method.Name == "get_Policies");
-        var factories = owner.Body.Instructions.Where(instruction => instruction.Operand is MethodReference target
-            && target.DeclaringType.FullName == typeof(OperationPolicy).FullName && target.Name == "ForOwnMembershipRead").ToArray();
-        factories.Should().HaveCount(4);
-        foreach (var factory in factories)
+        var owners = modules.SelectMany(module => module.Types.SelectMany(Flatten))
+            .Where(type => type.FullName == typeof(IdentityOperationPolicySource).FullName
+                || type.FullName == typeof(TenancyOperationPolicySource).FullName)
+            .Select(type => type.Methods.Single(method => method.Name == "get_Policies")).ToArray();
+        owners.Should().HaveCount(2);
+        var sites = owners.SelectMany(owner => owner.Body.Instructions.Where(instruction => instruction.Operand is MethodReference target
+            && target.DeclaringType.FullName == typeof(OperationPolicy).FullName && target.Name == "ForOwnMembershipRead")
+            .Select(factory => (Owner: owner, Factory: factory))).ToArray();
+        sites.Should().HaveCount(6);
+        foreach (var (owner, factory) in sites)
         {
             var factoryTarget = (GenericInstanceMethod)factory.Operand;
             var original = factoryTarget.GenericArguments[0];
             foreach (var replacement in new[] { typeof(ListMembershipsQuery), typeof(GetOwnMembershipProfileQuery), typeof(ReadOwnMembershipProfileReceiptQuery),
-                         typeof(GetOwnMembershipContextsQuery), typeof(GetOwnCapabilitiesQuery) }
+                         typeof(GetOwnMembershipContextsQuery), typeof(GetOwnCapabilitiesQuery),
+                         typeof(GetTenantInvitationPolicyQuery), typeof(ReadInvitationPolicyReceiptQuery) }
                          .Where(type => type.FullName != original.FullName))
             {
                 factoryTarget.GenericArguments[0] = owner.Module.ImportReference(replacement);
@@ -228,18 +245,28 @@ public sealed partial class OperationPermissionConventionTests
             .Where(site => site.Instruction.Operand is MethodReference target
                 && target.DeclaringType.FullName == typeof(OperationPolicy).FullName && target.Name == "ForOwnMembershipRead").ToArray();
         var offenders = new SortedSet<string>(StringComparer.Ordinal);
-        var expected = new[] { typeof(GetOwnMembershipProfileQuery).FullName!, typeof(ReadOwnMembershipProfileReceiptQuery).FullName!,
-            typeof(GetOwnMembershipContextsQuery).FullName!, typeof(GetOwnCapabilitiesQuery).FullName! };
+        var producers = new[]
+        {
+            (Request: typeof(GetOwnMembershipProfileQuery), Owner: typeof(IdentityOperationPolicySource)),
+            (Request: typeof(ReadOwnMembershipProfileReceiptQuery), Owner: typeof(IdentityOperationPolicySource)),
+            (Request: typeof(GetOwnMembershipContextsQuery), Owner: typeof(IdentityOperationPolicySource)),
+            (Request: typeof(GetOwnCapabilitiesQuery), Owner: typeof(IdentityOperationPolicySource)),
+            (Request: typeof(GetTenantInvitationPolicyQuery), Owner: typeof(TenancyOperationPolicySource)),
+            (Request: typeof(ReadInvitationPolicyReceiptQuery), Owner: typeof(TenancyOperationPolicySource)),
+        };
+        var expected = producers.Select(producer => producer.Request.FullName!).ToArray();
         var actual = sites.Select(site => site.Instruction.Operand is GenericInstanceMethod factory && factory.GenericArguments.Count == 1
             ? factory.GenericArguments[0].FullName : string.Empty).Order(StringComparer.Ordinal);
         if (!actual.SequenceEqual(expected.Order(StringComparer.Ordinal), StringComparer.Ordinal))
-            offenders.Add("Exactly the four distinct own Membership read factory calls are admitted");
+            offenders.Add("Exactly the six distinct own Membership read factory calls are admitted");
         foreach (var site in sites)
-            if (site.Method.DeclaringType.FullName != typeof(IdentityOperationPolicySource).FullName || site.Method.Name != "get_Policies"
+            if (site.Method.Name != "get_Policies"
                 || site.Instruction.OpCode != OpCodes.Call || site.Instruction.Operand is not GenericInstanceMethod factory
                 || factory.DeclaringType.Scope.Name != "LearnStack.SharedKernel" || factory.GenericArguments.Count != 1
-                || !expected.Contains(factory.GenericArguments[0].FullName, StringComparer.Ordinal)
-                || factory.GenericArguments[0].Scope.Name != "LearnStack.Modules.Identity.Application.Contracts")
+                || !producers.Any(producer => producer.Request.FullName == factory.GenericArguments[0].FullName
+                    && producer.Owner.FullName == site.Method.DeclaringType.FullName
+                    && producer.Owner.Assembly.GetName().Name == site.Method.Module.Assembly.Name.Name
+                    && producer.Request.Assembly.GetName().Name == factory.GenericArguments[0].Scope.Name))
                 offenders.Add("Unexpected own Membership read factory: " + site.Method.FullName);
         return offenders;
     }

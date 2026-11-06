@@ -27,6 +27,7 @@ internal sealed class TenantAuthenticationIssuer : IAsyncDisposable
     private int _metadataRequests;
     private int _jwksRequests;
     private int _canaryRequests;
+    private int _userInfoRequests;
 
     private TenantAuthenticationIssuer(WebApplication app)
     {
@@ -42,6 +43,11 @@ internal sealed class TenantAuthenticationIssuer : IAsyncDisposable
     internal int MetadataRequests => Volatile.Read(ref _metadataRequests);
     internal int JwksRequests => Volatile.Read(ref _jwksRequests);
     internal int CanaryRequests => Volatile.Read(ref _canaryRequests);
+    internal int UserInfoRequests => Volatile.Read(ref _userInfoRequests);
+    internal string UserInfoResponse { get; set; } = "{}";
+    internal int UserInfoStatusCode { get; set; } = StatusCodes.Status200OK;
+    internal Task? UserInfoRelease { get; set; }
+    internal Func<Task>? OnUserInfo { get; set; }
     internal string? DiscoveryResponse { get; set; }
     internal string? JwksResponse { get; set; }
     internal string? DiscoveryRedirect { get; set; }
@@ -73,6 +79,7 @@ internal sealed class TenantAuthenticationIssuer : IAsyncDisposable
         app.MapGet("/realms/learnstack/keys", issuer.Jwks);
         app.MapGet("/realms/learnstack-hub/keys", issuer.Jwks);
         app.MapGet("/realms/learnstack/canary", issuer.Canary);
+        app.MapGet("/realms/learnstack/protocol/openid-connect/userinfo", issuer.UserInfo);
         await app.StartAsync();
         var addresses = app.Services.GetRequiredService<IServer>()
             .Features.Get<IServerAddressesFeature>()!.Addresses;
@@ -166,6 +173,16 @@ internal sealed class TenantAuthenticationIssuer : IAsyncDisposable
         {
             keys = Volatile.Read(ref _publishedKeys).Select(key => key.PublicJwk),
         }), context.RequestAborted);
+    }
+
+    private async Task UserInfo(HttpContext context)
+    {
+        Interlocked.Increment(ref _userInfoRequests);
+        if (OnUserInfo is { } observe) await observe();
+        if (UserInfoRelease is { } release) await release.WaitAsync(context.RequestAborted);
+        context.Response.StatusCode = UserInfoStatusCode;
+        context.Response.ContentType = "application/json";
+        await context.Response.WriteAsync(UserInfoResponse, context.RequestAborted);
     }
 
     private Task Canary(HttpContext context)

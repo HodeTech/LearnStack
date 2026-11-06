@@ -33,6 +33,7 @@ public sealed class FixedSeedPrerequisiteConventionTests
     private const string Enrollment = "LearnStack.SharedKernel.Persistence.IUnitOfWorkContextEnrollment";
     private const string WriteGuard = "LearnStack.SharedKernel.Persistence.IUnitOfWorkWriteGuard";
     private const string SaveGuard = "LearnStack.Infrastructure.Persistence.UnitOfWorkWriteBarrierInterceptor";
+    private const string IdentityStorage = "LearnStack.Modules.Identity.Infrastructure.Persistence.ContextualIdentityStorageControl";
     private const string Factory = "LearnStack.Infrastructure.Persistence.ModuleDbContextRegistration";
     private const string CommandGuard = "LearnStack.Infrastructure.Persistence.TenantContextGuardInterceptor";
     private const string SourcePath = "LearnStack.Tools.Seeder/FixedSeedPrerequisiteSource.cs";
@@ -126,6 +127,8 @@ public sealed class FixedSeedPrerequisiteConventionTests
         });
         Dirty(census, sources, () => AddMethod(census, OpCodes.Ldstr, EnableSql));
         Dirty(census, sources, () => RemoveCall(census.Body(SaveGuard, "SavingChanges"), WriteGuard, "RequireWriteAllowed"));
+        Dirty(census, sources, () => RemoveCall(census.Body(IdentityStorage, "SaveAsync"), IdentityStorage, "RequireMutableGraph"));
+        Dirty(census, sources, () => RemoveCall(census.Body(IdentityStorage, "RequireMutableGraph"), WriteGuard, "RequireWriteAllowed"));
         Dirty(census, sources, () => RemoveCall(census.Body(Unit, "BeginTransactionCoreAsync"), Unit, "RequireWriteAllowed"));
         Dirty(census, sources, () =>
         {
@@ -322,15 +325,16 @@ public sealed class FixedSeedPrerequisiteConventionTests
             Require(Unit, method, Unit, "RequireWriteAllowed", 1);
         Require(Unit, "CommitFrameAsync", Unit, "PoisonFixedSeedRead", 1);
         Require(Unit, "ValidateOperationReadScope", Unit, "ValidateFixedSeedRead", 1);
+        Require(IdentityStorage, "SaveAsync", IdentityStorage, "RequireMutableGraph", 1);
         foreach (var (type, method, count) in new[]
         {
             ("LearnStack.Infrastructure.Audit.PostgresAuditStore", "WritePendingAsync", 2),
             ("LearnStack.Infrastructure.Audit.PostgresAuditStore", "WriteAuthorizationPendingAsync", 2),
             ("LearnStack.Infrastructure.Audit.PostgresAuditStore", "WriteGlobalIdentityPendingAsync", 1),
             ("LearnStack.Infrastructure.Messaging.PostgresOutbox", "EnqueueAsync", 2),
-            ("LearnStack.Modules.Identity.Infrastructure.Persistence.ContextualIdentityStorageControl", "LockRootAsync", 1),
-            ("LearnStack.Modules.Identity.Infrastructure.Persistence.ContextualIdentityStorageControl", "SaveAsync", 1),
-            ("LearnStack.Modules.Identity.Infrastructure.Persistence.ContextualIdentityStorageControl", "ValidateGraphAsync", 1),
+            (IdentityStorage, "LockRootAsync", 1),
+            (IdentityStorage, "RequireMutableGraph", 1),
+            (IdentityStorage, "ValidateGraphAsync", 1),
         }) Require(type, method, WriteGuard, "RequireWriteAllowed", count);
 
         var bind = census.Body(Witness, "TryBindTo");

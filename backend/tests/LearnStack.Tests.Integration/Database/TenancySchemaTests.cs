@@ -41,7 +41,7 @@ namespace LearnStack.Tests.Integration.Database;
 /// </remarks>
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
 [Collection(SharedSchema.Name)]
-public sealed class TenancySchemaTests
+public sealed partial class TenancySchemaTests
 {
     private readonly SchemaFixture _schema;
 
@@ -737,10 +737,18 @@ public sealed class TenancySchemaTests
             method!.GetCustomAttributes(typeof(FactAttribute), inherit: true).Should().NotBeEmpty(
                 "contextual policies have class-specific clean/dirty controls independent of the lock guards");
         }
+        foreach (var proof in InvitationProviderWithCheckProofs.Values)
+        {
+            var method = typeof(TenancySchemaTests).GetMethod(proof);
+            method.Should().NotBeNull();
+            method!.GetCustomAttributes(typeof(FactAttribute), inherit: true).Should().NotBeEmpty(
+                "provider metadata policies have executable role-specific clean/dirty application controls");
+        }
         guarded.Should().BeEquivalentTo(
             ForeignTenantWrites.Keys.Concat(OwnerForeignTenantWrites.Keys)
                 .Concat(GlobalIdentitySchemaTests.WithCheckProofs.Keys)
-                .Concat(IdentityMembershipTests.WithCheckProofs.Keys),
+                .Concat(IdentityMembershipTests.WithCheckProofs.Keys)
+                .Concat(InvitationProviderWithCheckProofs.Keys),
             "every table whose policy constrains a write has a write that proves it, "
             + "and every case here names a table that still has one");
     }
@@ -1300,6 +1308,7 @@ public sealed class TenancySchemaTests
         ExistingTableGrants.Concat(BackgroundJobGrantExpectations.TableGrants)
             .Concat(["learnstack_app identity_authority SELECT", "learnstack_app users SELECT",
                 "learnstack_app memberships INSERT,SELECT,UPDATE",
+                "learnstack_app invitations INSERT,SELECT,UPDATE",
                 "learnstack_app membership_profiles INSERT,SELECT,UPDATE",
                 "learnstack_app roles INSERT,SELECT,UPDATE",
                 "learnstack_app membership_role_assignments DELETE,INSERT,SELECT",

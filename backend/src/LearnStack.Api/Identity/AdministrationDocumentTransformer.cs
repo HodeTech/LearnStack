@@ -17,7 +17,8 @@ internal sealed class AdministrationDocumentTransformer : IOpenApiDocumentTransf
         "canReadRoles", "canChangeRoleGrants", "canAdoptRoleRelease", "canWriteOwnProfile", "canManageOrganizations"];
 
     private sealed record Contract(string Path, HttpMethod Method, string Operation, string? Response,
-        string? Body = null, bool Versioned = false, bool Paged = false, bool Creates = false);
+        string? Body = null, bool Versioned = false, bool Paged = false, bool Creates = false,
+        bool PolicyPrecondition = false, bool OptionalVersion = false, bool InvitationEntry = false);
 
     private static readonly Contract[] Contracts =
     [
@@ -41,6 +42,17 @@ internal sealed class AdministrationDocumentTransformer : IOpenApiDocumentTransf
         new("tenancy/organizations/{id}", HttpMethod.Put, "RenameOrganization", "AdministrationVersionReceipt", "OrganizationRenameInput", true),
         new("tenancy/organizations/{id}/archive", HttpMethod.Post, "ArchiveOrganization", "AdministrationVersionReceipt", "EmptyAdministrationInput", true),
         new("tenancy/default-organization", HttpMethod.Put, "SelectDefaultOrganization", "AdministrationVersionReceipt", "DefaultOrganizationInput", true),
+        new("identity/invitation-entry/inspections", HttpMethod.Post, "InspectInvitation", "InvitationInspectionResponse", "InvitationEntryInput", true, InvitationEntry: true),
+        new("identity/invitation-entry/acceptances", HttpMethod.Post, "AcceptInvitation", "InvitationAcceptanceResponse", "InvitationEntryInput", true, InvitationEntry: true),
+        new("identity/invitation-entry/results", HttpMethod.Post, "GetOwnInvitationResult", "InvitationAcceptanceResponse", "InvitationEntryInput", true, InvitationEntry: true),
+        new("identity/invitations", HttpMethod.Get, "ListInvitations", "InvitationPage", Paged: true),
+        new("identity/invitations/{id}", HttpMethod.Get, "GetInvitation", "InvitationResponse", Versioned: true),
+        new("identity/invitable-roles", HttpMethod.Get, "ListInvitableRoles", "InvitableRoleDirectory"),
+        new("identity/invitations", HttpMethod.Post, "CreateInvitation", "AdministrationVersionReceipt", "InvitationCreateInput", true, Creates: true),
+        new("identity/invitations/{id}/revocations", HttpMethod.Post, "RevokeInvitation", "AdministrationVersionReceipt", "EmptyAdministrationInput", true),
+        new("identity/invitations/{id}/reissues", HttpMethod.Post, "ReissueInvitation", "AdministrationVersionReceipt", "EmptyAdministrationInput", true),
+        new("tenancy/settings/invitation-policy", HttpMethod.Get, "GetTenantInvitationPolicy", "InvitationPolicyResponse", OptionalVersion: true),
+        new("tenancy/settings/invitation-policy", HttpMethod.Put, "SetTenantInvitationLifetime", "AdministrationVersionReceipt", "InvitationLifetimeInput", true, PolicyPrecondition: true),
     ];
 
     public Task TransformAsync(OpenApiDocument document, OpenApiDocumentTransformerContext context, CancellationToken cancellationToken)
@@ -63,13 +75,24 @@ internal sealed class AdministrationDocumentTransformer : IOpenApiDocumentTransf
     private static void Describe(OpenApiDocument document, IOpenApiPathItem path, OpenApiOperation operation, Contract contract)
     {
         operation.OperationId = contract.Operation;
-        operation.Security = [new OpenApiSecurityRequirement
+        var requirement = new OpenApiSecurityRequirement
         {
             [new OpenApiSecuritySchemeReference(TenantAuthenticationRegistration.Scheme, document)] = [],
-        }];
+        };
+        // Recipient entry runs behind the native source: InvitationEntrySource refuses a request without it,
+        // so a client generated from this document must send both credentials on every call.
+        if (contract.InvitationEntry)
+            requirement[new OpenApiSecuritySchemeReference(NativeEntryDocumentTransformer.SourceScheme, document)] = [];
+        operation.Security = [requirement];
         operation.Description = contract.Body is null
             ? "Current live scoped read. No request body; only the declared query fields are accepted. Protected configuration and other-person reads commit their MUST read audit before disclosure. Own context/capability/profile navigation is Off. No-store; capability flags are advisory and never authorization."
             : "Exact protected mutation. Strict UTF-8 application/json object, at most 16 KiB; unknown, duplicate and missing properties refuse. Current authority, exact target scope and business predicates are checked independently. A completed exact-key replay performs a fresh MUST original-target disclosure read before returning the retained receipt; it never reruns the mutation. Unknown outcomes do not prove rollback and are never automatically retried.";
+        if (contract.PolicyPrecondition) operation.Description +=
+            " Exactly one presence precondition is required: If-None-Match: * for an absent setting, or canonical If-Match for an existing setting. Supplying both or neither is 400. Absence differs from stored version zero; a stale presence assertion is 409. Both branches return 200.";
+        if (contract.OptionalVersion) operation.Description =
+            "Own-current-tenant invitation lifetime policy in orgless scope. Off and physically ReadOnly. Absence returns default 14 days, present=false, version=null and no ETag. A stored setting returns present=true and its canonical version/ETag. canEdit is advisory; the setter independently enforces current Tenant tenancy.setting.write. No request body or query fields.";
+        if (contract.InvitationEntry) operation.Description =
+            "Exact native recipient entry. Strict UTF-8 application/json object, at most 8 KiB, with invitationId and code only. Unknown, repeated and missing fields, query, generic Idempotency-Key and irrelevant conditional headers refuse. Current stock-validated token, installed binding, trusted native source and real host are independently required; no caller scope selectors. No-store and no session/grant publication. Pending inspection and first acceptance each observe current verified provider email. Accepted acceptance preflight selects the Off original-result read before Pending-only If-Match, provider I/O or mutation intents. Unknown commit outcomes require explicit original-result reconciliation; never automatically retry.";
         operation.Parameters = [];
         if (contract.Path.Contains("{id}", StringComparison.Ordinal)) operation.Parameters.Add(new OpenApiParameter
         {
@@ -88,7 +111,7 @@ internal sealed class AdministrationDocumentTransformer : IOpenApiDocumentTransf
                 Content = new Dictionary<string, OpenApiMediaType>
                 { ["application/json"] = new() { Schema = new OpenApiSchemaReference(contract.Body, document) } },
             };
-            operation.Parameters.Add(new OpenApiParameter
+            if (!contract.InvitationEntry) operation.Parameters.Add(new OpenApiParameter
             {
                 Name = IdempotentAttribute.HeaderName,
                 In = ParameterLocation.Header,
@@ -96,13 +119,21 @@ internal sealed class AdministrationDocumentTransformer : IOpenApiDocumentTransf
                 Schema = new OpenApiSchema { Type = JsonSchemaType.String, MinLength = 8, MaxLength = 128, Pattern = "^[!-~]{8,128}$" },
                 Description = "Exactly one printable ASCII nonce, scoped to actor, tenant/organization, operation, method/path/query/body and canonical precondition. No automatic mutation retry.",
             });
-            if (!contract.Creates) operation.Parameters.Add(new OpenApiParameter
+            if (!contract.Creates && (!contract.InvitationEntry || contract.Operation == "AcceptInvitation")) operation.Parameters.Add(new OpenApiParameter
             {
                 Name = "If-Match",
                 In = ParameterLocation.Header,
-                Required = true,
+                Required = !contract.PolicyPrecondition && !contract.InvitationEntry,
                 Schema = EntityTag(),
-                Description = "One canonical strong quoted decimal aggregate version in [0, Int64.MaxValue]. Missing, weak, wildcard, list, repeated and noncanonical values are 400; valid stale versions are 409. Default selection uses the Tenant version.",
+                Description = contract.InvitationEntry ? "Required for Pending acceptance only: one canonical strong quoted decimal observed version. Accepted preflight ignores this Pending precondition and selects original-result recovery. Inspection/result reject If-Match. No body version." : "One canonical strong quoted decimal aggregate version in [0, Int64.MaxValue]. Missing, weak, wildcard, list, repeated and noncanonical values are 400; valid stale versions are 409. Default selection uses the Tenant version.",
+            });
+            if (contract.PolicyPrecondition) operation.Parameters.Add(new OpenApiParameter
+            {
+                Name = "If-None-Match",
+                In = ParameterLocation.Header,
+                Required = false,
+                Schema = Enum("*"),
+                Description = "Exactly one literal wildcard for conditional creation of the absent fixed policy. Mutually exclusive with If-Match; an existing version-zero setting is not absent.",
             });
         }
         else operation.RequestBody = null;
@@ -134,12 +165,23 @@ internal sealed class AdministrationDocumentTransformer : IOpenApiDocumentTransf
         ], methods);
         if (contract.Body is not null) operation.Responses["409"] = Problem(document,
             "concurrency_conflict for a valid stale version; business_rule_violation for refused lifecycle/last-admin/last-organization rules; request_in_progress, idempotency_key_reuse or idempotency_outcome_unavailable for retained-key state.");
+        if (contract.InvitationEntry)
+        {
+            operation.Responses["409"] = Problem(document, "concurrency_conflict for changed Pending generation/version/effect classification, a Suspended exact membership, or a lost acceptance race. Explicit original-result recovery is separate.");
+            operation.Responses["413"] = Problem(document, "payload_too_large; entry body maximum is 8 KiB.");
+        }
         if (operation.Responses["503"] is OpenApiResponse unavailable) unavailable.Headers!.Remove("Retry-After");
         if (operation.Responses.TryGetValue(status, out var success) && success is OpenApiResponse response)
         {
             response.Headers ??= new Dictionary<string, IOpenApiHeader>();
             if (contract.Versioned) response.Headers["ETag"] = new OpenApiHeader { Required = true, Schema = EntityTag() };
-            if (contract.Body is not null) response.Headers[IdempotentAttribute.ReplayedHeaderName] = new OpenApiHeader
+            if (contract.OptionalVersion) response.Headers["ETag"] = new OpenApiHeader
+            {
+                Required = false,
+                Schema = EntityTag(),
+                Description = "Present exactly when the fixed policy setting exists; never emitted for the absent/default policy.",
+            };
+            if (contract.Body is not null && !contract.InvitationEntry) response.Headers[IdempotentAttribute.ReplayedHeaderName] = new OpenApiHeader
             {
                 Required = false,
                 Schema = Enum("true"),
@@ -151,9 +193,10 @@ internal sealed class AdministrationDocumentTransformer : IOpenApiDocumentTransf
                 Schema = new OpenApiSchema
                 {
                     Type = JsonSchemaType.String,
-                    Pattern = "^/api/v1/tenancy/organizations/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                    Pattern = "^/api/v1/" + (contract.Operation == "CreateInvitation" ? "identity/invitations" : "tenancy/organizations")
+                        + "/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
                 },
-                Description = "Exact same-API relative location of the newly created original Organization.",
+                Description = "Exact same-API relative location of the newly created original resource.",
             };
         }
     }
@@ -201,6 +244,38 @@ internal sealed class AdministrationDocumentTransformer : IOpenApiDocumentTransf
         schemas["OrganizationRenameInput"] = Object(("displayName", Text(false, 200)));
         schemas["EmptyAdministrationInput"] = Object();
         schemas["DefaultOrganizationInput"] = Object(("organizationId", Uuid()));
+        schemas["InvitationEntryInput"] = Object(("invitationId", Uuid()), ("code", new OpenApiSchema
+        {
+            Type = JsonSchemaType.String,
+            MinLength = 80,
+            MaxLength = 80,
+            Pattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\.[A-Za-z0-9_-]{43}$",
+            Description = "Sensitive canonical invitation UUIDv7 plus canonical base64url 32-byte verifier; ID must match invitationId. Body only; never route/query/log."
+        }));
+        schemas["InvitationInspectionResponse"] = Object(("invitationId", Uuid()), ("version", Version()),
+            ("expiresAt", new OpenApiSchema { Type = JsonSchemaType.String, Format = "date-time" }),
+            ("tenantLabel", Text()), ("organizationLabel", Text(true)), ("roleId", Uuid()), ("roleKey", BuiltInRole()),
+            ("roleScope", Scope()), ("verifiedEmail", Text(false, 254)));
+        schemas["InvitationAcceptanceResponse"] = Object(("invitationId", Uuid()), ("version", Version()),
+            ("membershipId", Uuid()), ("disposition", Enum("created", "already_member")),
+            ("tenantId", Uuid()), ("organizationId", Uuid(true)));
+        var acceptanceDisposition = Enum("created", "already_member");
+        acceptanceDisposition.Type = JsonSchemaType.String | JsonSchemaType.Null;
+        acceptanceDisposition.Enum!.Add(null!);
+        schemas["InvitationResponse"] = Object(("invitationId", Uuid()), ("email", Text(false, 254)),
+            ("organizationId", Uuid(true)), ("roleId", Uuid()), ("roleVersion", Version()),
+            ("status", Enum("Pending", "Accepted", "Revoked", "Expired")),
+            ("expiresAt", new OpenApiSchema { Type = JsonSchemaType.String, Format = "date-time" }),
+            ("version", Version()), ("deliveryStatus", Enum("Queued", "SubmissionAccepted", "Failed", "Unresolved", "Unavailable")),
+            ("acceptanceDisposition", acceptanceDisposition));
+        schemas["InvitationPage"] = Object(("items", Array(Ref("InvitationResponse"), 100)), ("pageInfo", Ref("PageInfo")));
+        schemas["InvitableRoleDirectory"] = Object(("items", Array(Ref("RoleSummaryResponse"), 8)));
+        var nullableVersion = Version();
+        nullableVersion.Type = JsonSchemaType.String | JsonSchemaType.Null;
+        schemas["InvitationPolicyResponse"] = Object(("days", LifetimeDays()), ("present", Boolean()),
+            ("version", nullableVersion), ("canEdit", Boolean()));
+        schemas["InvitationCreateInput"] = Object(("email", Text(false, 254)), ("roleId", Uuid()), ("roleVersion", Version()));
+        schemas["InvitationLifetimeInput"] = Object(("days", LifetimeDays()));
         return;
         OpenApiSchemaReference Ref(string name) => new(name, document);
     }
@@ -258,6 +333,7 @@ internal sealed class AdministrationDocumentTransformer : IOpenApiDocumentTransf
     { Type = JsonSchemaType.String, MinLength = 3, MaxLength = 21, Pattern = "^\"(0|[1-9][0-9]{0,18})\"$" };
     private static OpenApiSchema Boolean() => new() { Type = JsonSchemaType.Boolean };
     private static OpenApiSchema Integer() => new() { Type = JsonSchemaType.Integer, Format = "int32", Minimum = "1", Maximum = "2147483647" };
+    private static OpenApiSchema LifetimeDays() => new() { Type = JsonSchemaType.Integer, Format = "int32", Minimum = "1", Maximum = "30" };
     private static OpenApiSchema Digest() => new() { Type = JsonSchemaType.String, MinLength = 64, MaxLength = 64, Pattern = "^[0-9a-f]{64}$" };
     private static OpenApiSchema Scope() => Enum("Tenant", "Organization");
     private static OpenApiSchema BuiltInRole() => Enum("TenantAdmin", "OrgAdmin", "Instructor", "OrgInstructor", "Learner", "Guardian", "Editor");

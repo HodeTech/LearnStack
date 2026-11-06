@@ -74,7 +74,7 @@ public sealed partial class OutboxDispatchConventionTests
         throw new ArgumentOutOfRangeException(nameof(mutation));
     }
 
-    private static SortedSet<string> RecurrenceSdkOffenders(ProductionCensus census)
+    private static SortedSet<string> RecurrenceSdkOffenders(ProductionCensus census, DetectorInstructionIndex snapshot)
     {
         var offenders = new SortedSet<string>(StringComparer.Ordinal);
         var types = census.Types;
@@ -84,16 +84,13 @@ public sealed partial class OutboxDispatchConventionTests
         var register = client.Methods.Where(method => method.Name == "Register").ToArray();
         if (constructor.Length != 1 || register.Length != 1 || !constructor[0].HasBody || !register[0].HasBody)
         { offenders.Add("The recurrence SDK retains its one actual constructor and register body"); return offenders; }
-        var sites = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions
-            .Where(instruction => instruction.Operand is MethodReference)
-            .Select(instruction => (Owner: MethodId(item.Owner), Instruction: instruction,
-                Target: (MethodReference)instruction.Operand))).ToArray();
+        var sites = snapshot.OrderedMethods;
         var managerConstructor = "Hangfire.Core:System.Void Hangfire.RecurringJobManager::.ctor(Hangfire.JobStorage,Hangfire.Common.IJobFilterProvider)";
         var managerRegister = "Hangfire.Core:System.Void Hangfire.RecurringJobManager::AddOrUpdate(System.String,Hangfire.Common.Job,System.String,Hangfire.RecurringJobOptions)";
         var sdkSites = sites.Where(site => site.Target.DeclaringType.FullName.StartsWith("Hangfire.RecurringJob", StringComparison.Ordinal)
             || site.Target.DeclaringType.FullName.StartsWith("Hangfire.IRecurringJobManager", StringComparison.Ordinal)).ToArray();
         CheckSet(offenders, "sole native recurrence SDK entry sites", sdkSites.Select(site =>
-                site.Owner + " -> " + MethodId(site.Target) + ":" + site.Instruction.OpCode.Name),
+                site.OwnerId + " -> " + MethodId(site.Target) + ":" + site.Instruction.OpCode.Name),
             [MethodId(constructor[0]) + " -> " + managerConstructor + ":newobj",
              MethodId(register[0]) + " -> " + managerRegister + ":callvirt",
              MethodId(register[0]) + " -> Hangfire.Core:System.Void Hangfire.RecurringJobOptions::.ctor():newobj",

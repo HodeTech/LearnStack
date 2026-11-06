@@ -26,6 +26,10 @@ export function installBffSessionRuntime(
     throw new Error('BFF page owner unavailable');
   const owner = new InMemoryBffSessionStore(dependencies, preparation);
   const store: BffSessionStore = Object.freeze({
+    openInvitation: owner.openInvitation.bind(owner),
+    invitation: owner.invitation.bind(owner),
+    retainInvitation: owner.retainInvitation.bind(owner),
+    invitationEntry: owner.invitationEntry.bind(owner),
     start: owner.start.bind(owner),
     complete: owner.complete.bind(owner),
     entry: owner.entry.bind(owner),
@@ -52,5 +56,5 @@ export function installBffSessionRuntime(
     configurable: false,
     writable: false,
   });
-  return Object.freeze({ stop: store.stop, counts: owner.counts.bind(owner) });
+  return Object.freeze({ store, stop: store.stop, counts: owner.counts.bind(owner) });
 }

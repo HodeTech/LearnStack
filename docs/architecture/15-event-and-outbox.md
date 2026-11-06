@@ -900,3 +900,21 @@ liveness-only, with Phase 11 owning readiness exposure and dashboards.
 - Nexora reference: `Nexora/docs/decisions/0005-transactional-outbox.md`,
   `Nexora/docs/decisions/0011-outbox-service-atomicity.md`,
   `Nexora/docs/decisions/0010-notification-delivery-kafka.md`.
+
+
+## Invitation email first consumer
+
+**Derives from:** [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md).
+P03-4 owns the minimum automatic invitation SMTP slice. Identity stages its
+encrypted provider custody and identifier-only typed job on the same ordinary
+Invitation/audit transaction; no direct business PublishAsync or raw email/token
+event is introduced. The two exact external definitions reuse prepare/execute/
+finalize and known-outcome/quiescence ownership. A named private provider source
+is the only added external custody exception; ordinary UoW/tenant access remains
+denied. SMTP response loss remains Unknown with retained occupancy.
+
+[Database](../standards/05-database.md#invitation-smtp-provider-storage) owns exact
+storage/functions/source bounds; [Infrastructure](../standards/20-infrastructure-stack.md#bounded-invitation-smtp-consumer)
+owns runtime composition. Phase 08a later supplies full notification orchestration
+without a competing sender/retry contract. Acceptance supplies no delivered job
+or SMTP proof; the [Phase 03 Status](../roadmap/phase-03-identity-admin.md) owns it.

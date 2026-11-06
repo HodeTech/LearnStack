@@ -173,7 +173,7 @@ not implemented is the failure mode this column exists to prevent.
 
 ### Implemented today
 
-**331 test methods run in
+**341 test methods run in
 [`backend/tests/LearnStack.Tests.Architecture`](../../backend/tests/LearnStack.Tests.Architecture),**
 shipped by [Phase 01](../roadmap/phase-01-repository-tooling.md),
 [Phase 02a Packets 2–3](../roadmap/phase-02a-kernel-tenancy.md), Packet 4, Packet 6, Packet 7,
@@ -214,8 +214,8 @@ two fifths of its subject is the defect this section is about. It also refuses a
 test class that exists nowhere, because otherwise a renamed or deleted file drops its entries
 out of the subject instead of failing.
 
-**254 rules in this catalogue are Implemented, and 149 of them are in that assembly.**
-The other 105 are no less binding, and most could not live there. The table says where
+**257 rules in this catalogue are Implemented, and 150 of them are in that assembly.**
+The other 107 are no less binding, and most could not live there. The table says where
 and why, and deliberately carries no per-row count: those are the numbers nothing
 recomputes, and the first version of this table claimed "three rules" for a suite
 that holds ten.
@@ -1483,20 +1483,29 @@ otherwise).
   wrong module.
 - **Phase:** 02a (Packet 6).
 
-#### `Cross_Aggregate_Writes_Are_Confined_To_Tenant_Provisioning`
+<a id="cross_aggregate_writes_are_confined_to_tenant_provisioning"></a>
+
+#### `Cross_Aggregate_Writes_Are_Confined_To_Named_Exceptions`
 
 - **Asserts:** no type implementing `IRequestHandler<,>`, `IRequestHandler<>`,
   `INotificationHandler<>` or `IIntegrationEventHandler<>` can reach more than one
   **distinct aggregate root** through
   its constructor parameters' `IAggregateWriteStore<TRoot, TId>` derivations, except the
-  single exact assembly/type identity — Tenancy's `ProvisionTenantCommandHandler`,
-  which writes
-  `Tenant` and its default `Organization` in one transaction per ADR-0042.
+  two exact assembly/type identities: Tenancy's `ProvisionTenantCommandHandler`
+  writes Tenant/default Organization under ADR-0042; Identity's
+  `AcceptInvitationCommandHandler` writes Invitation/at-most-one Membership under
+  ADR-0093. Contained children do not create another root. No cross-module
+  write or third handler is admitted. The historical
+  `Cross_Aggregate_Writes_Are_Confined_To_Tenant_Provisioning` name resolves here;
+  it is not a second owner of this rule.
 - **Source:** [ADR-0042](../decisions/0042-tenant-provisioning-cross-aggregate-transaction.md);
   [Architecture Standards § Aggregate Ownership](01-architecture-standards.md).
 - **Type:** xUnit + reflection. **Kind:** structural.
-- **Status:** **Implemented** (`AggregateWriteTests`).
-- **Phase:** 02a (Packet 7).
+- **Status:** **Implemented** in `AggregateWriteTests`, including ADR-0093's
+  actual two-handler production census and hostile controls.
+  The [phase Status block](../roadmap/phase-03-identity-admin.md) owns that evidence.
+  The current implementation requires both exact handler identities.
+- **Phase:** 02a baseline; P03-4 extension.
 - **Note:** the rule counts **aggregate roots reached through ports**, not `DbSet`
   use, and the change is not cosmetic. ADR-0042 § Implementation Notes specified a
   source scan for `Add` / `Update` / `Remove` against more than one `DbSet`; under the
@@ -2195,11 +2204,15 @@ diagnostic above row security, not the boundary, as its own note says.
   value-to-NULL transitions. The canonical shape is the shared BEFORE UPDATE trigger;
   `audit_log`'s append-only guard is accepted only with independent proof that it
   refuses the same change. The shared function cannot assume a surrogate `id` exists.
+  ADR-0093's two exact SMTP control-metadata tables use their insert-only and
+  scope-frozen invoker guards, with exact body/trigger/ACL checks and independent
+  app-role mutation controls; no new table inherits this classification by name.
   Scope follows table class: `platform_host_to_tenant` is platform-scoped and
   `outbox_messages`' organization column is tenant-wide event metadata, so those two
   are not subjects. An exemption must not silently exclude a newly introduced
   org-scoped table.
 - **Source:** [ADR-0003 Amendment 6](../decisions/0003-tenant-isolation-defense-in-depth.md#amendment-6--insert-scope-and-parent-mirrors-2026-09-14);
+  [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md);
   [05-database.md § Tenant-Owned and Organization-Scoped Tables](05-database.md#tenant-owned-and-organization-scoped-tables).
 - **Type:** xUnit + applied PostgreSQL schema catalogue, with behavioral companion
   evidence for the append-only alternative. **Kind:** structural.
@@ -2221,9 +2234,15 @@ diagnostic above row security, not the boundary, as its own note says.
   CourseTranslation → Course and LessonTranslation → Lesson. Identity adds
   MembershipProfile → Membership and MembershipRoleAssignment → Membership;
   its combined invoker trigger retains the same parent-scope contract.
+  Invitation's optional original-result Membership is checked at its only
+  admitting transition with the same parent lock. The exact provider-control
+  metadata relations retain their foreign keys and class-specific invoker/owner
+  custody checks under the
+  [SMTP storage contract](05-database.md#provider-records-and-ordinary-staging).
   Subject discovery and declaration coverage must make an omitted relation fail.
 - **Source:** [ADR-0003 Amendment 6](../decisions/0003-tenant-isolation-defense-in-depth.md#amendment-6--insert-scope-and-parent-mirrors-2026-09-14);
   [ADR-0073](../decisions/0073-scoped-membership-and-identity-data-foundation.md);
+  [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md);
   [05-database.md § Parent organization mirrors](05-database.md#parent-organization-mirrors);
   [Education data model](../modules/education/README.md#data-model-and-invariants).
 - **Type:** xUnit + EF model and applied PostgreSQL schema inspection. **Kind:** structural.
@@ -5540,7 +5559,8 @@ structural test proves — and what it does not.
   membership and permission authority.
 - **Source:** [ADR-0064](../decisions/0064-tenant-api-authentication-boundary.md)
   § Access-token profile and § Resolution and attribution; ADR-0004;
-  [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md).
+  [ADR-0072](../decisions/0072-application-owned-identity-bootstrap.md);
+  [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md).
 - **Type:** complete production source/IL call-site census with planted compiled
   violations and predicate-mutation controls. **Kind:** structural.
 - **Test owner:**
@@ -5567,6 +5587,13 @@ structural test proves — and what it does not.
   delegates to the separately enumerated protected-replay owner; both adapters
   still reject extra identity formatting. The policy/receipt censuses close the
   replay owner's actual candidate and three HTTP decision branches.
+  ADR-0093 adds exact invitation credential/source/recipient-reader sites and the
+  invitation-aware witness shape. Encoded-token reads retain their validated-token
+  source, pending-token digest comparison, request-local field and sole fixed
+  UserInfo Bearer sink. Request/evidence object forwarding and compiler exception
+  storage have finite provenance checks. Substituted token, sink, caller,
+  operation, observation and exception-storage mutations remain violations;
+  no whole-method or type-wide forwarding exemption is inferred.
 - **Status:** **Implemented** (`AuthenticationAuthorityTests`).
 - **Phase:** P02b-5 Step 1 profile constraints; Step 5 complete production census.
 
@@ -7031,8 +7058,10 @@ and fixture definitions make the implemented controls non-vacuous.
   Pending-only API acquisition validates each fresh complete snapshot under
   one finite deadline; it never combines responses or retries terminal,
   malformed, missing, duplicate or identity-invalid evidence.
-  The ADR-0082 extension binds Architecture 1,500-second and ordinary
+  The ADR-0082 extension bound Architecture 1,500-second and ordinary
   1,800-second whole-job/enclosing observation bounds to exact verified mode,
+  and [ADR-0094](../decisions/0094-forty-five-minute-backend-execution-windows.md)
+  moves both to 2,700 seconds under the same binding to exact verified mode,
   expected job and plan count. Base/native retain 1,200 seconds and the reserve
   stays 203. Operation caps remain except ADR-0091's native inventory allocations
   in [Testing 06](06-testing.md#complete-bounded-ci-assignments). Individual observations allow the
@@ -7062,7 +7091,7 @@ and fixture definitions make the implemented controls non-vacuous.
   owns implementation reviews and observed complete hosted A/B; local controls
   alone do not establish fit and later documentation identities remain distinct.
   **ADR-0082 extension implemented** by the same owners and complete offline
-  suites: exact mode/job/index selection of 1,200/1,500/1,800 seconds, inclusive
+  suites: exact mode/job/index selection of 1,200/2,700/2,700 seconds (ADR-0094; ADR-0082 used 1,200/1,500/1,800), inclusive
   expected-owner observations, strict interval sums, image caps and malformed/
   forged/nonfinite/boundary counterexamples. Both fresh review rounds close;
   the [implementation closeout](../roadmap/phase-03-delivery-log.md#adr-0082-step-2-reviews-and-implementation-closeout-2026-11-01)
@@ -7093,3 +7122,83 @@ and fixture definitions make the implemented controls non-vacuous.
 - [Phase 02a Roadmap § Architecture Tests](../roadmap/phase-02a-kernel-tenancy.md)
 - [Phase 02b Roadmap § Architecture Tests](../roadmap/phase-02b-events-auth.md)
 - [add-architecture-test skill](../../.claude/skills/add-architecture-test/SKILL.md)
+
+
+#### `Invitation_Entry_Is_Offer_And_Subject_Confined`
+
+- **Asserts:** only the exact native authenticated inspection/accept/result
+  consumers may use HostAndInvitationOffer and InvitationEntryScope. Eleven
+  logical setters/four physical context writers and eleven confined definers
+  remain exact; mode/host/subject/operation reuse, arbitrary scope selectors,
+  raw-code SQL parameters and generic external DB access refuse.
+- **Source:** [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md),
+  [Security](11-security.md#verified-invitation-admission),
+  [Database](05-database.md#invitation-entry-and-consumption).
+- **Type:** compiled/source/body/ACL/caller checks and real PostgreSQL/native
+  wrong-purpose, lifetime, isolation and cleanup controls. **Kind:** both.
+- **Status:** **Implemented** — `BoundedAdministrationHttpTests`,
+  `InvitationStorageTests` and `GlobalIdentitySchemaTests` enforce the actual
+  request, owner, applied function/ACL and isolation boundaries.
+- **Structural companions:** `InvitationEntryConventionTests`,
+  `AuthenticatedHttpSurfaceTests` and `PersistenceConventionTests` enforce the
+  nonempty production-source, dispatcher, scope-owner and hostile-call census.
+  The [Phase 03 Status block](../roadmap/phase-03-identity-admin.md) owns complete
+  packet qualification; implemented controls do not establish hosted or human proof.
+- **Phase:** 03 (P03-4).
+
+#### `Invitation_Consumption_And_Membership_Are_Atomic`
+
+- **Asserts:** one consumed generation and at most one new Membership share
+  strongest actual ordered fences and plural MUST durability. Fresh email,
+  stored-inviter delegation/global admission, compatible pinned Role, original
+  result identity and lifecycle predicates cannot be replaced by cached facts.
+  Already-member disposition lives on captured Invitation; its unchanged
+  Membership event has no fabricated snapshot or result metadata. Accepted
+  reconciliation precedes Pending-only checks and never dispatches mutation
+  intents for an already-observed result.
+- **Source:** [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md),
+  [Audit](18-audit-coverage.md), [Database](05-database.md#invitation-entry-and-consumption).
+- **Type:** architecture invocation/aggregate/audit controls and real app-role
+  competing transitions, audit/commit failure and lost-HTTP-response reconciliation,
+  with shared-owner indeterminate-COMMIT controls.
+  **Kind:** both.
+- **Status:** **Implemented** — `BoundedAdministrationHttpTests` and its
+  invitation companions enforce actual ordered admission, competing transitions,
+  plural MUST rollback, unchanged-member evidence and original-result identity.
+  `TransactionBehaviorTests`, `AuditLogBehaviorTests` and
+  `AuthorizationEvidenceBarrierTests` cover the shared owner's indeterminate
+  commit boundary. Invitation-specific response loss follows successful COMMIT;
+  it is not a claimed dropped driver acknowledgement.
+- **Structural companions:** `AggregateWriteTests`,
+  `IdentityFoundationConventionTests` and invitation audit/dispatch controls
+  enforce the production two-root/owner contract. Complete packet qualification
+  remains with the [Phase 03 Status block](../roadmap/phase-03-identity-admin.md).
+- **Phase:** 03 (P03-4).
+
+#### `Invitation_Email_Custody_Is_Closed_And_Owned`
+
+- **Asserts:** automatic invitation email uses exact typed identifier-only job
+  definitions, encrypted private provider storage and the attributed four-slot
+  connector. External providers retain ordinary DB/tenant denial. Only the two
+  fixed custody functions may expose encrypted material or immutable per-attempt
+  evidence; no recipient/code/body/ciphertext enters generic jobs or replay.
+  SMTP final 250 is submission acceptance; missing reply is Unknown, not retry or
+  reservation release. Positive pre-send fencing and known completed receipts
+  alone permit their exact runtime transitions; reissue invalidates old grant
+  authority without releasing an old uncertain reservation.
+- **Source:** [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md),
+  [Database](05-database.md#invitation-smtp-provider-storage),
+  [Infrastructure](20-infrastructure-stack.md#bounded-invitation-smtp-consumer).
+- **Type:** registry/source/function/ACL/PII checks plus real PostgreSQL/SMTP
+  prepare/send/finalize, dropped-reply/restart/quiescence/key-loss and leakage
+  controls with positive twins. **Kind:** both.
+- **Status:** **Implemented** — `InvitationSmtpBoundaryTests`,
+  `InvitationSmtpStorageTests`, `InvitationSmtpTransportTests`,
+  `InvitationSmtpRuntimeTests`, `InvitationDatabasePrivacyTests` and
+  `InvitationEmailCipherTests` enforce actual custody, source, crypto and failure
+  boundaries, including process-owned restart and retained cleanup.
+  Production stager/status, credential/payload and applied schema companions
+  preserve the same closed authority. The
+  [Phase 03 Status block](../roadmap/phase-03-identity-admin.md) owns complete
+  packet qualification; SMTP submission acceptance is not inbox delivery.
+- **Phase:** 03 (P03-4).

@@ -487,3 +487,21 @@ ADR-0081 supplies the additional authority; this amendment discloses it without
 independently replacing this decision. Historical Accepted bytes, status, date,
 Deciders and prior amendments remain unchanged. Acceptance alone qualifies no
 new source or runtime control.
+
+
+### Amendment 4 — Exact invitation recipient and stored-inviter consumers (2026-11-04)
+
+Accepted [ADR-0093](0093-verified-invitation-acceptance-and-handoff.md) records the new
+bounded invitation decision selected by the maintainer. ADR-0093 adds only the closed
+InspectInvitationQuery, AcceptInvitationCommand and GetOwnInvitationResultQuery
+admission, with an invocation-bound offer source rather than a fabricated HTTP candidate
+for the stored inviter. Separate same-scope current inviter delegation and compatible
+whole-Role pin checks remain mandatory. Ordinary default-deny policies, committed
+per-act revocation and the existing global-self/native Membership paths remain.
+
+This dated Amendment links the successor; it does not rewrite this record's historical
+Decision, Status, Date, Deciders or earlier rationale. Canonical current
+source/operation/permission/audit/storage details live in Standards
+01/04/05/07/11/18/19/20/21 and the Identity/Tenancy specifications. The [Phase 03
+Status](../roadmap/phase-03-identity-admin.md) owns implementation and source-bound
+qualification; acceptance supplies no runtime proof.

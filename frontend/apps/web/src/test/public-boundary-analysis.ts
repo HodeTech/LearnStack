@@ -20,6 +20,8 @@ export type SourceGraph = {
 };
 
 export const ACCOUNT_ADAPTER = 'apps/web/src/server/auth/account-client.ts';
+export const NATIVE_INVITATION_HTTP = 'apps/web/src/server/auth/native-invitation-http.ts';
+export const SDK_INVITATION_ENTRY = 'packages/sdk/src/invitation-entry-server.ts';
 export const NATIVE_API_TRANSPORT = 'apps/web/src/server/auth/native-api-transport.ts';
 export const BFF_BROWSER_ADAPTER = 'apps/web/src/client/bff-session.ts';
 export const ADAPTER = 'apps/web/src/server/configured-public-client.ts';
@@ -138,6 +140,9 @@ function evaluateHttpSurface(
     'apps/web/src/app/(studio)/studio/members/[membershipId]/page.tsx',
     'apps/web/src/app/(studio)/studio/roles/page.tsx',
     'apps/web/src/app/(studio)/studio/roles/[roleId]/page.tsx',
+    'apps/web/src/app/(studio)/studio/invitations/page.tsx',
+    'apps/web/src/app/(studio)/studio/invitations/[invitationId]/page.tsx',
+    'apps/web/src/app/(studio)/studio/invitation-policy/page.tsx',
     'apps/web/src/app/(portal)/portal/page.tsx',
     'apps/web/src/app/(portal)/portal/profile/page.tsx',
     'apps/web/src/app/(public)/[locale]/courses/page.tsx',
@@ -673,7 +678,12 @@ export function resolutionCensusFindings(
             value !== `./src/${subpath}.tsx` &&
             !(
               directory === 'packages/sdk' &&
-              ['authenticated-server', 'administration-server'].includes(subpath) &&
+              [
+                'authenticated-server',
+                'administration-server',
+                'invitation-entry-server',
+                'public-server',
+              ].includes(subpath) &&
               value === `./dist/${subpath}.js`
             ))
         );
@@ -848,7 +858,7 @@ export function preparedPageRenderFindings(
   const shell = 'apps/web/src/components/auth/shell.tsx';
   const ingressImports: Readonly<Record<string, readonly string[]>> = {
     'node:crypto': ['createHmac', 'timingSafeEqual'],
-    'node:fs': ['readFileSync'],
+    'node:fs': ['closeSync', 'constants', 'fstatSync', 'openSync', 'readFileSync', 'readSync'],
     'node:net': ['isIP'],
     'node:path': ['resolve'],
     './auth/http-paths.js': ['AUTH_INPUT_LIMIT', 'BFF_POST_PATHS', 'bffPostTarget'],
@@ -1147,7 +1157,8 @@ export function transportFindings(graph: SourceGraph): Finding[] {
   const findings: Finding[] = [];
   for (const [name, file] of graph.files) {
     const allowedHeader = (header: string) =>
-      name === NATIVE_API_TRANSPORT || (name === ADAPTER && PUBLIC_HOP_HEADERS.has(header));
+      name === NATIVE_API_TRANSPORT ||
+      ([ADAPTER, NATIVE_INVITATION_HTTP].includes(name) && PUBLIC_HOP_HEADERS.has(header));
     walk(file, (node) => {
       if (
         name !== ADAPTER &&
@@ -1347,6 +1358,7 @@ export function privateServerFiles(graph: SourceGraph): string[] {
         name === SDK_SERVER ||
         name === SDK_AUTHENTICATED ||
         name === SDK_ADMINISTRATION ||
+        name === SDK_INVITATION_ENTRY ||
         hasServerOnlyMarker(file)
       )
         return true;

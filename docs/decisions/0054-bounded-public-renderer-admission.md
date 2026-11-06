@@ -432,3 +432,21 @@ Public GET/HEAD behavior, raw signed-target identity, anonymous accounting and
 visitor/peer numeric quotas remain unchanged. The original body/metadata and prior
 amendments are preserved. P03-3 must prove real native admission, no-script/history,
 Origin/CSRF, late-response and actual-cleanup behavior before delivery.
+
+
+### Amendment 12 — Bounded invitation native routes and continuation (2026-11-04)
+
+Accepted [ADR-0093](0093-verified-invitation-acceptance-and-handoff.md) records the new
+bounded invitation decision selected by the maintainer. ADR-0093 adds only the finite
+invitation document/POST set in Standard 07, plus a host/browser-bound preauthentication
+continuation within the existing total/pending/source/five-minute caps and eight
+verified-subject owner ceiling. Exact Origin/CSRF, immutable response/publication and
+actual cleanup retain their contracts. It neither gives public reads credentials nor
+changes existing deadlines or owner capacities.
+
+This dated Amendment links the successor; it does not rewrite this record's historical
+Decision, Status, Date, Deciders or earlier rationale. Canonical current
+source/operation/permission/audit/storage details live in Standards
+01/04/05/07/11/18/19/20/21 and the Identity/Tenancy specifications. The [Phase 03
+Status](../roadmap/phase-03-identity-admin.md) owns implementation and source-bound
+qualification; acceptance supplies no runtime proof.

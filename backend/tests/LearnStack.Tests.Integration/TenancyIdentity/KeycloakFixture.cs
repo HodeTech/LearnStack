@@ -67,6 +67,7 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
             diagnostics.Mark(stage);
             _network = new NetworkBuilder().WithLogger(NullLogger.Instance).Build();
             await _network.CreateAsync(startup.Token);
+            await StartInvitationMailAsync(startup.Token);
             stage = "database";
             diagnostics.Mark(stage);
             _database = new PostgreSqlBuilder("postgres:18.4-alpine")
@@ -91,6 +92,7 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
             stage = "import_input";
             diagnostics.Mark(stage);
             var tenantImport = _tenantRealmJson ?? await File.ReadAllTextAsync(RealmPath("learnstack"), startup.Token);
+            tenantImport = ConfigureInvitationMailRealm(tenantImport);
             var hubImport = await File.ReadAllBytesAsync(RealmPath("learnstack-hub"), startup.Token);
             _keycloak = new ContainerBuilder(Image)
                 .WithLogger(NullLogger.Instance)
@@ -131,6 +133,7 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
             stage = "loopback_bindings";
             diagnostics.Mark(stage);
             await AssertLoopbackBindingsAsync(startup.Token);
+            await AssertInvitationMailBindingsAsync(startup.Token);
             stage = "discovery";
             diagnostics.Mark(stage);
             using var client = KeycloakHttp.Create(BaseAddress, RootCertificate);
@@ -264,6 +267,7 @@ public sealed partial class KeycloakFixture : IAsyncLifetime, IAsyncDisposable
             try { await _keycloak.DisposeAsync(); } catch (Exception) { failed = true; }
         if (_database is not null)
             try { await _database.DisposeAsync(); } catch (Exception) { failed = true; }
+        try { await DisposeInvitationMailAsync(); } catch (Exception) { failed = true; }
         if (_network is not null)
             try { await _network.DisposeAsync(); } catch (Exception) { failed = true; }
         try { _readinessHandler?.Dispose(); } catch (Exception) { failed = true; }

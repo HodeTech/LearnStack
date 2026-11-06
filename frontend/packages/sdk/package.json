@@ -8,7 +8,9 @@
     ".": "./src/index.ts",
     "./server": "./src/server.ts",
     "./authenticated-server": "./dist/authenticated-server.js",
-    "./administration-server": "./dist/administration-server.js"
+    "./administration-server": "./dist/administration-server.js",
+    "./invitation-entry-server": "./dist/invitation-entry-server.js",
+    "./public-server": "./dist/public-server.js"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

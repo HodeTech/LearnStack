@@ -7,6 +7,7 @@ using LearnStack.Infrastructure.Jobs;
 using LearnStack.Infrastructure.Messaging;
 using LearnStack.Infrastructure.Persistence;
 using LearnStack.SharedKernel.Hosting;
+using LearnStack.Tests.Fixtures;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -105,6 +106,7 @@ public sealed class BackgroundJobRuntimeProductionCompositionTests
     {
         var builder = WebApplication.CreateBuilder([]);
         builder.Configuration.Sources.Clear();
+        builder.Configuration.AddInMemoryCollection(InvitationEmailFixtureConfiguration.Values);
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["ConnectionStrings:OutboxDispatcher"] = Connection(maxPoolSize),

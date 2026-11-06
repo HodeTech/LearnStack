@@ -20,8 +20,17 @@ public sealed record TenantSettingRead<T>(T? Value) where T : class
 
 public sealed record BrandingTheme(string Primary, string Background, string Foreground, string Muted);
 
+public sealed record InvitationLifetimePolicy(int Days)
+{
+    public const int DefaultDays = 14;
+    public const int MinimumDays = 1;
+    public const int MaximumDays = 30;
+}
+
 public static class TenantSettingKeys
 {
     public const string BrandingThemeName = "branding.theme";
     public static TenantSettingKey<BrandingTheme> BrandingTheme { get; } = new(BrandingThemeName);
+    public const string InvitationLifetimeName = "identity.invitation.ttl_days";
+    public static TenantSettingKey<InvitationLifetimePolicy> InvitationLifetime { get; } = new(InvitationLifetimeName);
 }

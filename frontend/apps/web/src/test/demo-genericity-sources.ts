@@ -597,8 +597,11 @@ export function productionDemoSources(
       'src/server/auth/account-client.ts',
       'src/server/auth/configuration.ts',
       'src/server/auth/http-protocol.ts',
+      'src/server/auth/invitation-html.ts',
       'src/server/auth/logout-response.ts',
       'src/server/auth/native-administration-client.ts',
+      'src/server/auth/native-invitation-client.ts',
+      'src/server/auth/native-invitation-http.ts',
       'src/server/auth/native-session-client.ts',
       'src/server/auth/provider-core.ts',
       'src/server/auth/request-runtime.ts',
@@ -621,7 +624,12 @@ export function productionDemoSources(
   const sdkConfig = all.get('frontend/packages/sdk/tsconfig.native.json');
   if (sdkConfig) {
     const config = JSON.parse(sdkConfig);
-    const expected = ['src/authenticated-server.ts', 'src/administration-server.ts'];
+    const expected = [
+      'src/authenticated-server.ts',
+      'src/administration-server.ts',
+      'src/invitation-entry-server.ts',
+      'src/public-server.ts',
+    ];
     if (
       config.compilerOptions?.rootDir !== 'src' ||
       config.compilerOptions?.outDir !== 'dist' ||
@@ -812,7 +820,7 @@ export function productionDemoSources(
           [path, 'd217cc042e967a01a245ed4d1915a068baa697498d4e2cf397032b195ec432eb'],
           [
             'frontend/apps/web/scripts/bff-proof-host.mjs',
-            '1f08e9fb05eeaa5583ff0268facfa3615f9cbe229ef527408ae929a95d875316',
+            'ce4221ff5ec4ecb4086b772dc467795c9a5c79649d827daa1a6a656e385e819d',
           ],
         ] as const
       ).some(([target, expected]) => {
@@ -899,6 +907,43 @@ export function productionDemoSources(
           return;
         }
         if (!value || !ts.isStringLiteralLike(value)) return refused(path);
+        if (node.expression.kind === ts.SyntaxKind.ImportKeyword && node.arguments.length > 1) {
+          const options = node.arguments[1];
+          if (
+            path !== 'frontend/apps/web/scripts/public-server-runtime.mjs' ||
+            ![
+              '../src/i18n/messages/en/invitation.json',
+              '../src/i18n/messages/tr/invitation.json',
+            ].includes(value.text) ||
+            node.arguments.length !== 2 ||
+            !options ||
+            !ts.isObjectLiteralExpression(options) ||
+            options.properties.length !== 1
+          )
+            return refused(path);
+          const attributes = options.properties[0];
+          if (
+            !attributes ||
+            !ts.isPropertyAssignment(attributes) ||
+            attributes.name.getText(file) !== 'with' ||
+            !ts.isObjectLiteralExpression(attributes.initializer) ||
+            attributes.initializer.properties.length !== 1
+          )
+            return refused(path);
+          const type = attributes.initializer.properties[0];
+          if (
+            !type ||
+            !ts.isPropertyAssignment(type) ||
+            type.name.getText(file) !== 'type' ||
+            !ts.isStringLiteral(type.initializer) ||
+            type.initializer.text !== 'json' ||
+            !all.has(posix.normalize(posix.join(posix.dirname(path), value.text)))
+          )
+            return refused(path);
+          imports.push({ name: value.text });
+          ts.forEachChild(node, visit);
+          return;
+        }
         const anchors: string[] = [];
         if (node.arguments.length > 1) {
           const options = node.arguments[1];

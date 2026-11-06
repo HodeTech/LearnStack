@@ -264,6 +264,7 @@ public sealed partial class AuditConventionTests
         [.. SetBasedWriteApis
             .SelectMany(api => SourceScan.FilesContaining(root, api, except: null))
             .Distinct(StringComparer.Ordinal)
+            .Where(file => file != InvitationTransportSqlPath || !OnlyInvitationTransportSqlHelper(File.ReadAllText(Path.Combine(root, file))))
             .Order(StringComparer.Ordinal)];
 
     private static readonly string[] SetBasedWriteApis = ["ExecuteUpdate", "ExecuteDelete", "ExecuteSql"];

@@ -318,3 +318,22 @@ than write the two aggregates itself.
 - [Database Standards](../standards/05-database.md)
 - [Tenancy module spec](../modules/tenancy/README.md)
 - [Phase 02a: Platform Kernel, Multi-Tenancy, Organization, and Foundation Sockets](../roadmap/phase-02a-kernel-tenancy.md)
+
+
+### Amendment 2 — Enumerated invitation acceptance exception (2026-11-04)
+
+Accepted [ADR-0093](0093-verified-invitation-acceptance-and-handoff.md) records the new
+bounded invitation decision selected by the maintainer. ADR-0093 supersedes only this
+record's one-exception closure by adding exactly AcceptInvitationCommandHandler: one
+Identity Invitation and at most one Membership with contained children, consumed
+atomically with plural MUST audit. ProvisionTenantCommandHandler retains its
+Tenant/default Organization exception. The current canonical two-name rule is
+Cross_Aggregate_Writes_Are_Confined_To_Named_Exceptions. Cross-module writes and all
+other cross-root writes remain forbidden.
+
+This dated Amendment links the successor; it does not rewrite this record's historical
+Decision, Status, Date, Deciders or earlier rationale. Canonical current
+source/operation/permission/audit/storage details live in Standards
+01/04/05/07/11/18/19/20/21 and the Identity/Tenancy specifications. The [Phase 03
+Status](../roadmap/phase-03-identity-admin.md) owns implementation and source-bound
+qualification; acceptance supplies no runtime proof.

@@ -18,6 +18,16 @@ import {
 } from '../server/auth/http-input';
 
 const postPaths = [
+  '/api/auth/invitation/capture',
+  '/api/auth/invitation/inspect',
+  '/api/auth/invitation/verify',
+  '/api/auth/invitation/accept',
+  '/api/auth/invitation/result',
+  '/api/auth/invitation/cancel',
+  '/api/studio/invitation-create',
+  '/api/studio/invitation-revoke',
+  '/api/studio/invitation-reissue',
+  '/api/studio/invitation-policy',
   '/api/auth/signin/keycloak',
   '/api/auth/signout',
   '/api/auth/extend',
@@ -220,7 +230,7 @@ describe('Bff_Auth_Admission_And_Csrf_Are_Closed', () => {
     if (origin === null) request.headers.delete('origin');
     else request.headers.set('origin', origin);
     const response = await f.http.handle(request);
-    expect(response!.status).toBe(400);
+    expect(response!.status).toBe(path.startsWith('/api/auth/invitation/') ? 404 : 400);
     expect(response!.headers.getSetCookie()).toEqual([]);
     expect(f.store.counts()).toEqual(counts);
     if (current) expect(f.store.peek(current.binding)).toEqual(before);

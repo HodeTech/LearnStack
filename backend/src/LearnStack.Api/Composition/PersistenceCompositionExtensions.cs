@@ -176,6 +176,7 @@ public static class PersistenceCompositionExtensions
             PlatformAdminScope.PlatformDataSourceKey,
             (_, _) => new PrivilegedDataSource(() => BuildPlatformDataSource(platformConnectionString)));
         services.AddLearnStackBackgroundJobContracts();
+        services.AddInvitationEmailDelivery(configuration);
 
         // The gate first, so a reader sees that entry is refused before a connection is
         // opened rather than after. Both are stateless singletons.

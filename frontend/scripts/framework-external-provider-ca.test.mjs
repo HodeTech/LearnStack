@@ -255,3 +255,17 @@ catch { console.log('rejected'); }`;
     );
     for (const result of [correct, missing, incorrect]) assert.equal(result.stderr, '');
   }));
+
+test('random-listener external owner uses only the explicitly selected existing bff relay', () =>
+  withOwnedRoot('learnstack-provider-ca-listener-', async ({ root }) => {
+    const app = join(root, 'frontend/apps/web');
+    prepareFrameworkProof({ sourceApp, app, profile: 'bff' });
+    const good = cert(root, 'good');
+    const authority = readFileSync(good.pem, 'utf8');
+    const bound = installCopiedExternalProviderCa({ root, app, authority, randomListener: true });
+    const source = readFileSync(bound.ownerPath, 'utf8');
+    assert.equal(source.includes("copiedProof = createCopiedParentProof('bff');"), true);
+    assert.equal(source.includes('environment.NODE_EXTRA_CA_CERTS = caPath;'), true);
+    assert.equal(source.includes(`!== '${bound.sha256}'`), true);
+    execFileSync(process.execPath, ['--check', bound.ownerPath]);
+  }));

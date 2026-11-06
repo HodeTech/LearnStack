@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using FluentAssertions;
 using LearnStack.Api.Tenancy;
+using LearnStack.Tests.Fixtures;
 using LearnStack.Tools.Seeder;
 using Xunit;
 
@@ -75,6 +76,7 @@ public sealed class PublicLocalLaunchTests(PublicReadFixture parent)
                 "src/server/auth/page-snapshot-contract.ts", "src/server/auth/provider-core.ts",
                 "src/server/auth/provider-error.ts", "src/server/auth/provider-transport.ts",
                 "src/server/auth/provider.ts", "src/server/auth/session-contract.ts",
+                "src/server/auth/invitation-session.ts", "src/server/auth/native-invitation-contract.ts",
                 "src/server/auth/session-path.ts", "src/server/auth/session-projection.ts",
             })
                 File.Copy(Path.Combine(repository, "frontend/apps/web", file), Path.Combine(app, file));
@@ -124,6 +126,8 @@ public sealed class PublicLocalLaunchTests(PublicReadFixture parent)
             process.StartInfo.Environment["Authentication__Tenant__Issuer"] = fixture.Registration.Issuer;
             process.StartInfo.Environment["ConnectionStrings__Default"] = fixture.AppConnectionString;
             process.StartInfo.Environment["ConnectionStrings__OutboxDispatcher"] = fixture.OutboxConnectionString;
+            foreach (var (key, value) in InvitationEmailFixtureConfiguration.Values)
+                process.StartInfo.Environment[key.Replace(":", "__", StringComparison.Ordinal)] = value;
             process.StartInfo.Environment["LEARNSTACK_PUBLIC_API_ORIGIN"] = "http://127.0.0.1:0";
             process.StartInfo.Environment["LEARNSTACK_PUBLIC_HOP_SECRET"] = Secret;
             // API configuration validates paths but does not open renderer TLS files.

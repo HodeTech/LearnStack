@@ -1,9 +1,12 @@
 using LearnStack.Infrastructure.Persistence;
+using LearnStack.Modules.Identity.Infrastructure.Invitations;
 using LearnStack.Modules.Identity.Application.Abstractions;
 using LearnStack.Modules.Identity.Application.Audit;
 using LearnStack.Modules.Identity.Application.Bindings;
 using LearnStack.Modules.Identity.Application.Authorization;
 using LearnStack.Modules.Identity.Application.Contracts.Bindings;
+using LearnStack.Modules.Identity.Application.Contracts.Invitations;
+using LearnStack.Modules.Identity.Application.Invitations;
 using LearnStack.Modules.Identity.Application.Contracts.Entry;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Application.Contracts.Seeding;
@@ -22,6 +25,15 @@ public static class IdentityFoundationRegistration
     public static IServiceCollection AddIdentityContextualFoundation(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
+        services.AddInvitationEmailJobs();
+        services.TryAddScoped<IInvitationEntryLookup, InvitationEntryLookup>();
+        services.TryAddScoped<InvitationAcceptanceReadStore>();
+        services.TryAddScoped<IInvitationAcceptanceReadStore>(provider => provider.GetRequiredService<InvitationAcceptanceReadStore>());
+        services.TryAddScoped<IInvitationDelegationReader>(provider => provider.GetRequiredService<InvitationAcceptanceReadStore>());
+        services.TryAddScoped<IInvitationWriteStore, InvitationWriteStore>();
+        services.TryAddScoped<InvitationEntryAuthorization>();
+        services.AddSingleton(new ExplicitReadOnlyRequest(typeof(InspectInvitationQuery)));
+        services.AddSingleton(new ExplicitReadOnlyRequest(typeof(GetOwnInvitationResultQuery)));
         services.TryAddScoped<IIdentityMutationLocks, IdentityMutationLocks>();
         services.TryAddSingleton<IFixedSeedPrerequisiteVerifier, DenyAllFixedSeedPrerequisiteVerifier>();
         services.TryAddScoped<ContextualIdentityStorageControl>();

@@ -1,4 +1,4 @@
-import type { GrantInput } from '@learnstack/sdk/administration-server';
+import { isInvitationEmail, type GrantInput } from '@learnstack/sdk/administration-server';
 
 import { BffInputError } from './input-error.js';
 import type { NativeScope } from './native-contract.js';
@@ -121,6 +121,12 @@ export class BffProfileInputError extends BffInputError {
     super();
   }
 }
+/** User-editable invitation values are recoverable after proof/target grammar succeeds. */
+export class BffInvitationInputError extends BffInputError {
+  constructor(readonly invalidFields: readonly ('email' | 'offeredRole' | 'days')[]) {
+    super();
+  }
+}
 export const BFF_ADMIN_FORMS: Readonly<Record<string, readonly string[]>> = Object.freeze({
   '/api/studio/membership-profile': [...common, 'membershipId', 'displayName', 'preferredLocale'],
   '/api/studio/membership-roles': [...common, 'membershipId', 'roleIds'],
@@ -133,6 +139,10 @@ export const BFF_ADMIN_FORMS: Readonly<Record<string, readonly string[]>> = Obje
     'manifestFingerprint',
   ],
   '/api/account/profile': [...common, 'displayName', 'preferredLocale'],
+  '/api/studio/invitation-create': ['csrfToken', 'idempotencyKey', 'email', 'offeredRole'],
+  '/api/studio/invitation-revoke': [...common, 'invitationId'],
+  '/api/studio/invitation-reissue': [...common, 'invitationId'],
+  '/api/studio/invitation-policy': ['csrfToken', 'idempotencyKey', 'presence', 'version', 'days'],
 });
 function profile(fields: URLSearchParams) {
   const invalid: ProfileField[] = [];
@@ -159,15 +169,90 @@ export function bffAdministrationForm(
   path: string,
   fields: URLSearchParams,
 ): Readonly<{ operation: NativeOperation; destination: string }> {
-  const version = required(fields, 'version');
-  const idempotencyKey = required(fields, 'idempotencyKey');
-  if (
-    !/^(0|[1-9][0-9]{0,18})$/.test(version) ||
-    (version.length === 19 && version > '9223372036854775807') ||
-    !/^[\x21-\x7e]{8,128}$/.test(idempotencyKey)
-  )
+  const allowed = BFF_ADMIN_FORMS[path];
+  if (!allowed) throw new BffInputError();
+  const names = [...fields.keys()];
+  if (new Set(names).size !== names.length || names.some((name) => !allowed.includes(name)))
     throw new BffInputError();
-  const write = { version, idempotencyKey };
+  const idempotencyKey = required(fields, 'idempotencyKey');
+  if (!/^[\x21-\x7e]{8,128}$/.test(idempotencyKey)) throw new BffInputError();
+  const readVersion = (name = 'version') => {
+    const value = required(fields, name);
+    if (
+      !/^(0|[1-9][0-9]{0,18})$/.test(value) ||
+      (value.length === 19 && value > '9223372036854775807')
+    )
+      throw new BffInputError();
+    return value;
+  };
+  if (path === '/api/studio/invitation-create') {
+    const email = required(fields, 'email');
+    if (
+      [...email].some((character) => {
+        const point = character.codePointAt(0)!;
+        return point < 32 || (point >= 127 && point <= 159);
+      })
+    )
+      throw new BffInputError();
+    const offeredRole = required(fields, 'offeredRole');
+    const invalid: ('email' | 'offeredRole')[] = [];
+    // The same grammar the SDK and API enforce, so nothing the form accepts is refused after it.
+    if (!isInvitationEmail(email)) invalid.push('email');
+    if (!offeredRole) invalid.push('offeredRole');
+    if (invalid.length) throw new BffInvitationInputError(Object.freeze(invalid));
+    const choice = offeredRole.split('.');
+    if (choice.length !== 2) throw new BffInputError();
+    const roleId = id(choice[0]!);
+    const roleVersion = choice[1]!;
+    if (
+      !/^(0|[1-9][0-9]{0,18})$/.test(roleVersion) ||
+      (roleVersion.length === 19 && roleVersion > '9223372036854775807')
+    )
+      throw new BffInputError();
+    return {
+      operation: {
+        kind: 'createInvitation',
+        invitation: { email, roleId, roleVersion },
+        idempotencyKey,
+      },
+      destination: '/studio/invitations',
+    };
+  }
+  if (path === '/api/studio/invitation-policy') {
+    const presence = required(fields, 'presence');
+    const days = required(fields, 'days');
+    if (
+      (presence !== 'absent' && presence !== 'present') ||
+      (presence === 'absent' && fields.has('version'))
+    )
+      throw new BffInputError();
+    const precondition =
+      presence === 'absent'
+        ? ({ kind: 'absent' } as const)
+        : ({ kind: 'present', version: readVersion() } as const);
+    if (!/^(?:[1-9]|[12][0-9]|30)$/.test(days)) throw new BffInvitationInputError(['days']);
+    return {
+      operation: {
+        kind: 'setInvitationLifetime',
+        days: Number(days),
+        idempotencyKey,
+        precondition,
+      },
+      destination: '/studio/invitation-policy',
+    };
+  }
+  const write = { version: readVersion(), idempotencyKey };
+  if (path === '/api/studio/invitation-revoke' || path === '/api/studio/invitation-reissue') {
+    const invitationId = id(required(fields, 'invitationId'));
+    return {
+      operation: {
+        kind: path === '/api/studio/invitation-revoke' ? 'revokeInvitation' : 'reissueInvitation',
+        ...write,
+        id: invitationId,
+      },
+      destination: '/studio/invitations/' + invitationId,
+    };
+  }
   if (path === '/api/account/profile')
     return {
       operation: { kind: 'setOwnProfile', ...write, profile: profile(fields) },

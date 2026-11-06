@@ -7,11 +7,13 @@ namespace LearnStack.Tests.Integration.TenancyIdentity;
 internal sealed class BffNativeDriver : IAsyncDisposable
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+    private static readonly string[] InvitationBrowserWitnesses = ["script", "noScript", "exactOrigin", "networkPrivateFree", "browserPrivateFree", "historyPrivateFree"];
     private static readonly string[] ErrorStages = (new[] { "input", "input-issuer", "input-api", "input-secrets", "input-sites", "setup", "compile", "build", "start", "command", "request", "request-deadline", "request-connect", "request-tls", "request-socket", "response-json", "cleanup", "privacy", "native-stop",
                      "cleanup-cdp", "cleanup-disconnect", "cleanup-browser-wait", "cleanup-browser-stop", "cleanup-browser-forced", "cleanup-browser-exit", "cleanup-browser-signal", "cleanup-native-shutdown", "cleanup-native-wait", "cleanup-native-stop", "cleanup-native-forced", "cleanup-owner", "cleanup-native-exit", "cleanup-native-signal",
                      "browser-administration-pages", "browser-no-script",
                      "browser-no-script-hidden-render", "browser-no-script-missing-form", "browser-no-script-invisible-form", "browser-no-script-native-buttons", "browser-no-script-native-profile-form",
                      "browser-no-script-anonymous", "browser-no-script-signin", "browser-no-script-confirm", "browser-no-script-select", "browser-no-script-controls", "browser-no-script-submit", "browser-no-script-origin", "browser-no-script-result", "browser-no-script-cache", "browser-no-script-saved", "browser-no-script-privacy", "browser-no-script-signout", "browser-no-script-headers", "browser-launch", "browser-anonymous", "browser-signin-document", "browser-submit", "browser-entry-confirmation", "browser-origin-null", "browser-origin-absent", "browser-origin-other", "browser-storage", "browser-extension", "browser-logout-submit", "browser-logout-origin", "browser-logout-origin-null", "browser-logout-origin-other", "browser-logout-response", "browser-logout-location", "browser-logout-navigation", "browser-logout-cookie-header", "browser-logout-cookie", "browser-back-revalidation", "browser-history-setup", "browser-history-revalidation", "browser-headers",
+                     "browser-invitation-capture", "browser-invitation-noscript", "browser-invitation-origin", "browser-invitation-confirm", "browser-invitation-history", "browser-invitation-cancel",
                      "browser-executable", "browser-spawn", "browser-devtools", "browser-devtools-inactive",
                      "browser-devtools-unreadable", "browser-devtools-missing", "browser-devtools-empty", "browser-devtools-malformed",
                      "browser-not-live", "browser-connect", "browser-context" }
@@ -28,6 +30,7 @@ internal sealed class BffNativeDriver : IAsyncDisposable
     private int _expectedExit;
     private string? _shutdownDiagnostic;
     private string? _browserObservation;
+    private Exception? _failure;
     private readonly bool _browserCounter;
 
     private BffNativeDriver(string root, bool browser = false, bool counter = false, bool heldBuild = false,
@@ -80,7 +83,7 @@ internal sealed class BffNativeDriver : IAsyncDisposable
         }
         catch (Exception error) when (Catchable(error))
         {
-            try { await driver.DisposeAsync(); }
+            try { await driver.DisposeStrictAsync(); }
             catch (Exception cleanup) when (Catchable(cleanup))
             {
                 try { secondaryCleanupFailure?.Invoke(); }
@@ -104,7 +107,7 @@ internal sealed class BffNativeDriver : IAsyncDisposable
         {
             // Always attempt actual disposal. A second cleanup error must not
             // replace the first failure; cleanup-only failure still propagates.
-            try { await driver.DisposeAsync(); }
+            try { await driver.DisposeStrictAsync(); }
             catch (Exception error) when (bodyFailed && Catchable(error))
             {
                 try { secondaryCleanupFailure?.Invoke(); }
@@ -204,6 +207,21 @@ internal sealed class BffNativeDriver : IAsyncDisposable
         catch { throw new InvalidOperationException("BFF entry browser receipt has an invalid closed shape."); }
     }
 
+    internal async Task InvitationBrowserAsync(string host, string code)
+    {
+        await WriteAsync(new { protocol = 1, action = "invitation-browser", host, cookie = "", code });
+        var reply = await ReadAsync("invitation_browser");
+        try
+        {
+            if (string.Join(',', reply.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal))
+                != "browserPrivateFree,captures,exactOrigin,historyPrivateFree,networkPrivateFree,noScript,phase,protocol,script"
+                || reply.GetProperty("captures").GetInt32() != 2
+                || InvitationBrowserWitnesses.Any(key => !reply.GetProperty(key).GetBoolean()))
+                throw new InvalidOperationException();
+        }
+        catch { throw new InvalidOperationException("BFF invitation browser receipt lacks its closed positive witnesses."); }
+    }
+
     private async Task WriteAsync(object value)
     {
         try
@@ -218,7 +236,10 @@ internal sealed class BffNativeDriver : IAsyncDisposable
     {
         var lastStage = "input";
         using var responseBudget = CancellationTokenSource.CreateLinkedTokenSource(_deadline.Token);
-        responseBudget.CancelAfter(TimeSpan.FromSeconds(phase is "ready" or "held-build" or "entry_browser" ? 90 : phase == "browser_result" ? 150 : 40));
+        // A browser start may be replaced twice after a 20-second DevTools wait each; 150 seconds leave the
+        // observation itself room after the worst accepted start. The fixture's own 4-minute deadline still bounds it.
+        responseBudget.CancelAfter(TimeSpan.FromSeconds(phase is "ready" or "held-build" ? 90
+            : phase is "entry_browser" or "invitation_browser" or "browser_result" ? 150 : 40));
         try
         {
             for (var count = 0; count < 8; ++count)
@@ -265,6 +286,7 @@ internal sealed class BffNativeDriver : IAsyncDisposable
             if (_shutdownDiagnostic is not null) failure.Data["BffBrowserShutdown"] = _shutdownDiagnostic;
             if (_browserObservation is not null && CoherentBrowserObservation(_browserObservation, _shutdownDiagnostic, reason))
                 failure.Data["BffBrowserObservation"] = _browserObservation;
+            _failure ??= failure;
             throw failure;
         }
     }
@@ -380,7 +402,24 @@ internal sealed class BffNativeDriver : IAsyncDisposable
         return "unexpected_output";
     }
 
-    public ValueTask DisposeAsync() => new(_disposal ??= DisposeCoreAsync());
+    /// <summary>
+    /// <c>await using</c> replaces the exception already in flight with whatever disposal throws. Once this driver
+    /// has raised a failure, that failure stays authoritative and a cleanup error only marks it; a cleanup error
+    /// with no earlier failure still propagates. <see cref="StartAsync"/> and <see cref="BrowserAsync"/> use the strict
+    /// form because they route cleanup errors to their own observers.
+    /// </summary>
+    public ValueTask DisposeAsync() => new(DisposeKeepingFirstFailureAsync());
+
+    private async Task DisposeKeepingFirstFailureAsync()
+    {
+        try { await DisposeStrictAsync(); }
+        catch (Exception cleanup) when (_failure is not null && Catchable(cleanup))
+        {
+            _failure.Data["BffCleanupFailed"] = true;
+        }
+    }
+
+    private Task DisposeStrictAsync() => _disposal ??= DisposeCoreAsync();
 
     private async Task DisposeCoreAsync()
     {

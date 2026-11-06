@@ -7,6 +7,8 @@ public enum IdempotencyReplayTargetKind
     Role,
     Organization,
     Tenant,
+    Invitation,
+    TenantSetting,
 }
 
 /// <summary>Internal immutable result metadata; it grants no disclosure authority.</summary>

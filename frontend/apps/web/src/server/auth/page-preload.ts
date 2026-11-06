@@ -1,4 +1,8 @@
 import type {
+  Invitation,
+  InvitationPage,
+  InvitationPolicy,
+  InvitableRoles,
   MembershipDetail,
   MembershipPage,
   OwnCapabilities,
@@ -13,6 +17,7 @@ import type {
   NativePageSnapshot,
   PageCapabilities,
   PageFailure,
+  PageInvitation,
   PageMember,
   PageMemberDetail,
   PageProfile,
@@ -25,7 +30,17 @@ import type { NativeReturnPath } from './session-contract.js';
 
 export type NativeDocumentPlan = Readonly<{
   target: NativeReturnPath;
-  kind: 'studio' | 'portal' | 'members' | 'member' | 'roles' | 'role' | 'profile';
+  kind:
+    | 'studio'
+    | 'portal'
+    | 'members'
+    | 'member'
+    | 'roles'
+    | 'role'
+    | 'profile'
+    | 'invitations'
+    | 'invitation'
+    | 'invitation_policy';
   id?: string;
   cursor?: string;
   limit: number;
@@ -34,24 +49,41 @@ export type NativeDocumentPlan = Readonly<{
 export function nativeDocumentPlan(target: string, flight: boolean): NativeDocumentPlan {
   const parsed = bffDocumentQuery(target, flight);
   const path = parsed.target;
-  const kind =
-    path === '/studio'
-      ? 'studio'
-      : path === '/portal'
-        ? 'portal'
-        : path === '/portal/profile'
-          ? 'profile'
-          : path === '/studio/members'
-            ? 'members'
-            : path === '/studio/roles'
-              ? 'roles'
-              : path.startsWith('/studio/members/')
-                ? 'member'
-                : 'role';
+  let kind: NativeDocumentPlan['kind'];
+  switch (path) {
+    case '/studio':
+      kind = 'studio';
+      break;
+    case '/portal':
+      kind = 'portal';
+      break;
+    case '/portal/profile':
+      kind = 'profile';
+      break;
+    case '/studio/members':
+      kind = 'members';
+      break;
+    case '/studio/roles':
+      kind = 'roles';
+      break;
+    case '/studio/invitations':
+      kind = 'invitations';
+      break;
+    case '/studio/invitation-policy':
+      kind = 'invitation_policy';
+      break;
+    default:
+      if (path.startsWith('/studio/members/')) kind = 'member';
+      else if (path.startsWith('/studio/roles/')) kind = 'role';
+      else if (path.startsWith('/studio/invitations/')) kind = 'invitation';
+      else throw new BffSessionError('configuration');
+  }
   return Object.freeze({
     target: path,
     kind,
-    ...(kind === 'member' || kind === 'role' ? { id: path.split('/')[3]! } : {}),
+    ...(kind === 'member' || kind === 'role' || kind === 'invitation'
+      ? { id: path.split('/')[3]! }
+      : {}),
     ...(parsed.cursor ? { cursor: parsed.cursor } : {}),
     limit: parsed.limit ?? 20,
   });
@@ -122,6 +154,26 @@ export async function preloadPage(
     capabilityScope: role.capabilityScope,
     version: role.version,
   });
+  const invitation = (item: Invitation, roles: readonly PageRole[]): PageInvitation => {
+    const offeredRole = roles.find((role) => role.roleId === item.roleId) ?? null;
+    const inCurrentScope = item.organizationId === organizationId;
+    const pending = item.status === 'Pending' || item.status === 'Expired';
+    return {
+      invitationId: item.invitationId,
+      email: item.email,
+      organizationScoped: item.organizationId !== null,
+      inCurrentScope,
+      offeredRole,
+      roleVersion: item.roleVersion,
+      version: item.version,
+      status: item.status,
+      expiresAt: item.expiresAt,
+      deliveryStatus: item.deliveryStatus,
+      acceptanceDisposition: item.acceptanceDisposition,
+      canReissue: inCurrentScope && pending && offeredRole?.version === item.roleVersion,
+      canRevoke: inCurrentScope && pending,
+    };
+  };
   try {
     capabilities = await data<OwnCapabilities>({ kind: 'getOwnCapabilities' });
     const profile = await read({ kind: 'getOwnProfile' });
@@ -150,6 +202,50 @@ export async function preloadPage(
           canWrite: capabilities.canWriteOwnProfile && ownProfile !== null,
         };
         break;
+      case 'invitations': {
+        if (!capabilities.canManageMemberships) throw new PageReadFailure('denied', 403);
+        const page = await data<InvitationPage>({
+          kind: 'listInvitations',
+          ...(plan.cursor ? { cursor: plan.cursor } : {}),
+          limit: plan.limit,
+        });
+        const roles = (await data<InvitableRoles>({ kind: 'listInvitableRoles' })).items.map(
+          roleChoice,
+        );
+        view = {
+          kind: 'invitations',
+          items: page.items.map((item) => invitation(item, roles)),
+          roles,
+          endCursor:
+            page.pageInfo.nextCursor === null ? null : wrapCursor(page.pageInfo.nextCursor),
+          hasNextPage: page.pageInfo.hasNext,
+          limit: plan.limit,
+        };
+        break;
+      }
+      case 'invitation': {
+        if (!capabilities.canManageMemberships) throw new PageReadFailure('denied', 403);
+        const item = await data<Invitation>({ kind: 'getInvitation', id: plan.id! });
+        const roles = (await data<InvitableRoles>({ kind: 'listInvitableRoles' })).items.map(
+          roleChoice,
+        );
+        view = { kind: 'invitation', invitation: invitation(item, roles) };
+        break;
+      }
+      case 'invitation_policy': {
+        if (organizationId !== null) throw new PageReadFailure('denied', 403);
+        const policy = await data<InvitationPolicy>({ kind: 'getInvitationPolicy' });
+        view = {
+          kind: 'invitation_policy',
+          policy: {
+            days: policy.days,
+            present: policy.present,
+            version: policy.version,
+            canEdit: policy.canEdit,
+          },
+        };
+        break;
+      }
       case 'members': {
         if (!capabilities.canReadTenantMembers && !capabilities.canReadOrganizationMembers)
           throw new PageReadFailure('denied', 403);

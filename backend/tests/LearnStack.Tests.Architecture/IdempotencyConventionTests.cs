@@ -5,9 +5,11 @@ using LearnStack.Modules.Customization.Application.Authorization;
 using LearnStack.Modules.Education.Application.Authorization;
 using LearnStack.Modules.Identity.Application;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
+using LearnStack.Modules.Identity.Application.Contracts.Invitations;
 using LearnStack.Modules.Identity.Application.Contracts.Roles;
 using LearnStack.Modules.Tenancy.Application.Authorization;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
+using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
 using LearnStack.SharedKernel.Idempotency;
 using LearnStack.SharedKernel.Permissions;
 using Mono.Cecil;
@@ -31,6 +33,7 @@ public sealed partial class IdempotencyConventionTests
     [
         typeof(ReadMembershipReceiptQuery), typeof(ReadMemberProfileReceiptQuery), typeof(ReadOwnMembershipProfileReceiptQuery),
         typeof(ReadRoleReceiptQuery), typeof(ReadOrganizationReceiptQuery), typeof(ReadDefaultOrganizationReceiptQuery),
+        typeof(ReadInvitationReceiptQuery), typeof(ReadInvitationPolicyReceiptQuery),
     ];
 
     [Fact]
@@ -42,7 +45,7 @@ public sealed partial class IdempotencyConventionTests
         foreach (var receipt in Receipts)
         {
             catalog.TryGet(receipt, out var policy).Should().BeTrue("Fix: classify every receipt read explicitly");
-            policy.Kind.Should().Be(receipt == typeof(ReadOwnMembershipProfileReceiptQuery)
+            policy.Kind.Should().Be(receipt == typeof(ReadOwnMembershipProfileReceiptQuery) || receipt == typeof(ReadInvitationPolicyReceiptQuery)
                 ? OperationPolicyKind.OwnMembershipRead : OperationPolicyKind.Protected);
             policy.RequiresOrglessWrite.Should().BeFalse("disclosure is not the original mutation's eligibility");
             policy.RequiresOrganization.Should().BeFalse();
@@ -53,8 +56,8 @@ public sealed partial class IdempotencyConventionTests
         }
         WithProduction(modules =>
         {
-            MarkerOffenders(modules).Should().BeEmpty("Fix: keep the receipt marker on exactly the six sealed original-target reads");
-            DispatcherOffenders(modules).Should().BeEmpty("Fix: replay must construct the six fresh receipt queries, never the original mutation");
+            MarkerOffenders(modules).Should().BeEmpty("Fix: keep the receipt marker on exactly the eight sealed original-target reads");
+            DispatcherOffenders(modules).Should().BeEmpty("Fix: replay must construct the eight fresh receipt queries, never the original mutation");
             TransportOwnershipOffenders(modules).Should().BeEmpty("Fix: retain the exact framework factory, replay and cleanup callers");
             AdmissionOffenders(modules).Should().BeEmpty("Fix: only the bound HTTP admission may inspect completed outcomes or construct its private one-use binding");
         });
@@ -200,6 +203,10 @@ public sealed partial class IdempotencyConventionTests
         [ProtectedAdministrationOperation.RenameOrganization] = typeof(ReadOrganizationReceiptQuery),
         [ProtectedAdministrationOperation.ArchiveOrganization] = typeof(ReadOrganizationReceiptQuery),
         [ProtectedAdministrationOperation.SelectDefaultOrganization] = typeof(ReadDefaultOrganizationReceiptQuery),
+        [ProtectedAdministrationOperation.CreateInvitation] = typeof(ReadInvitationReceiptQuery),
+        [ProtectedAdministrationOperation.RevokeInvitation] = typeof(ReadInvitationReceiptQuery),
+        [ProtectedAdministrationOperation.ReissueInvitation] = typeof(ReadInvitationReceiptQuery),
+        [ProtectedAdministrationOperation.SetTenantInvitationLifetime] = typeof(ReadInvitationPolicyReceiptQuery),
     };
 
     private static string[] AdmissionOffenders(ModuleDefinition[] modules)
@@ -337,6 +344,8 @@ public sealed partial class IdempotencyConventionTests
 
     private static (string File, string Relation)[] AdmissionGuardRelations() =>
     [
+        (AdmissionFile, "if (!descriptor.TryReadPrecondition(http.Request, out var expected)) return Result<None>.Fail(ProtectedEntityTag.Invalid());"),
+        (FilterFile, "if (!_descriptor.TryReadPrecondition(context.HttpContext.Request, out var expected)) { context.Result = new ProblemDetailsActionResult(ProtectedEntityTag.Invalid()); return; }"),
         (AdmissionFile, "if (!AdministrationHttpInput.SupportsJsonMedia(http.Request)) return Failure(\"lockey_validation_failed\");"),
         (AdmissionFile, "&& AdministrationHttpInput.SupportsJsonMedia(current.Request)"),
         (FilterFile, "if (!AdministrationHttpInput.SupportsJsonMedia(context.HttpContext.Request)) { context.Result = AdministrationHttpInput.Invalid(); return; }"),

@@ -1,3 +1,8 @@
+using LearnStack.Tests.Fixtures;
+using LearnStack.Modules.Identity.Application.Contracts.Invitations;
+using LearnStack.SharedKernel.Permissions;
+using LearnStack.SharedKernel.Results;
+using LearnStack.Api.Authentication;
 using FluentAssertions;
 using LearnStack.Api.Composition;
 using LearnStack.Api.Jobs;
@@ -169,6 +174,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = Environments.Development });
         builder.WebHost.UseTestServer();
         builder.Configuration.Sources.Clear();
+        builder.Configuration.AddInMemoryCollection(InvitationEmailFixtureConfiguration.Values);
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["Deployment:Mode"] = "Development",
@@ -182,6 +188,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
             typeof(LearnStack.Modules.Customization.Application.AssemblyMarker).Assembly,
             typeof(LearnStack.Modules.Education.Application.AssemblyMarker).Assembly,
             typeof(LearnStack.Modules.Identity.Application.AssemblyMarker).Assembly);
+        builder.Services.AddSingleton(provider => new NativeEntryOriginOptions(provider.GetRequiredService<IConfiguration>()));
         builder.Services.AddLearnStackTenancyEdge(builder.Configuration);
         // These supported test bounds alter caller waiting/poll cadence only;
         // SqlTimeout and the actual guarded source's cancellation bounds remain.
@@ -204,6 +211,7 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         // or qualifying an unused read lane in this worker-lifetime component proof.
         builder.Services.AddSingleton(_ => new IdentityAuthorizationReadSource(database.AppConnectionString));
         builder.Services.AddIdentityAuthorizationReader();
+        builder.Services.AddSingleton<ICurrentInvitationRecipientReader, NoInvitationRecipientReader>();
         builder.Services.AddIdentityOperationPolicies();
         // Keep the genuine audit writer and all its production dependencies.
         // Only its real terminal scope gains a synthetic async cleanup hold.
@@ -285,6 +293,13 @@ public sealed partial class BackgroundJobRuntimeFacadeTests
         command.Parameters.AddWithValue("operation", delivery ? "platform.delivery.dead_letter" : "platform.outbox.dead_letter");
         (await command.ExecuteScalarAsync()).Should().Be(true,
             "the real terminal transition and exactly one MUST audit must be durable before scope cleanup joins");
+    }
+
+    private sealed class NoInvitationRecipientReader : ICurrentInvitationRecipientReader
+    {
+        public Task<Result<CurrentInvitationRecipientEvidence>> ReadAsync(OperationInvocation invocation,
+            CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("The worker lifetime host has no invitation recipient source.");
     }
 
     private sealed class MessagingHeldAuditScopeCleanup(FacadeCleanupSignals state) : IAsyncDisposable

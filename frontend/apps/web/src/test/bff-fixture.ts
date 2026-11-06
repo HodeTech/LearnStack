@@ -19,7 +19,13 @@ import { createPublicAdmissionRuntime } from '../server/public-admission-runtime
 export const bffHost = 'institution.example.test:3000';
 export const bffSource = '203.0.113.71';
 export const bffOpaque = () => randomBytes(32).toString('base64url');
-export function bffFixture(options: { account?: SessionDependencies['account'] } = {}) {
+export function bffFixture(
+  options: {
+    account?: SessionDependencies['account'];
+    invitations?: SessionDependencies['invitations'];
+    unscopedProvider?: boolean;
+  } = {},
+) {
   let now = 0;
   const identity: ProviderIdentity = {
     issuer: 'https://identity.example.test/realms/learnstack',
@@ -33,7 +39,9 @@ export function bffFixture(options: { account?: SessionDependencies['account'] }
     accessToken: 'private-access-canary',
     idToken: 'private-id-canary',
     refreshToken: 'private-refresh-canary',
-    identity,
+    identity: options.unscopedProvider
+      ? { ...identity, tenantId: null, organizationId: null }
+      : identity,
     accessExpiresAt: now + 900_000,
     refreshExpiresAt: now + 1800_000,
   });
@@ -46,12 +54,14 @@ export function bffFixture(options: { account?: SessionDependencies['account'] }
     refresh: vi.fn(async () => credentials()),
     logoutUrl: vi.fn(() => 'https://identity.example.test/logout'),
   };
-  const account = vi.fn(async () => ({
-    actorId: identity.actorId!,
-    tenantId: identity.tenantId!,
-    organizationId: null,
-    displayName: 'Institution',
-  }));
+  const account = vi.fn(
+    async (): ReturnType<SessionDependencies['account']> => ({
+      actorId: identity.actorId!,
+      tenantId: identity.tenantId!,
+      organizationId: null,
+      displayName: 'Institution',
+    }),
+  );
   const scope = { tenantId: identity.tenantId!, organizationId: null };
   const association = {
     authorityId: '10000000-0000-4000-8000-000000000099',
@@ -147,6 +157,7 @@ export function bffFixture(options: { account?: SessionDependencies['account'] }
       provider,
       native,
       administration,
+      invitations: options.invitations,
       account: options.account ?? account,
       clock: { monotonic: () => now, utc: () => 1_800_000_000_000 + now },
     },

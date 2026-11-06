@@ -246,7 +246,9 @@ survivable. The real cookie controls compare emitted headers, not browser defaul
   protected-document history veil require fresh network admission on return.
 - Retain 1,024 total owners, including unsettled work; 128 pending for five minutes,
   16 pending per verified visitor IP, eight verified entry/session/logout-return
-  owners per validated issuer/subject. Same-browser replacement settles old work first.
+  owners per validated issuer/subject, including ADR-0093 invitation owners once
+  verified. Preauthentication invitation owners share the pending/source limits.
+  Same-browser replacement settles old work first.
   No live other-device eviction or capacity bypass; source/subject refusal is
   429 and global capacity refusal is 503. Full expiry scans precede global refusal.
   AccountSite also remains subject to the API's shared peer/visitor limits under
@@ -512,7 +514,8 @@ Off and GET/HEAD only. Factory HostScope is an independent host ceiling intersec
 with normal reconciliation, query filters and RLS; it cannot widen through claims
 or the tenant-scope read hatch. Publication, access and lifecycle remain explicit
 application predicates. The four context writers remain unchanged; the current
-closed contract has ten logical Tenant setters below. Host resolution, flag-loader
+closed contract has eleven logical Tenant setters below under ADR-0093; its
+invitation contract is Accepted with runtime proof pending. Host resolution, flag-loader
 connections and rejected-assertion audit keep their separately sanctioned paths.
 
 READ ONLY protects the enlisted ambient transaction. Structural guards detect
@@ -577,7 +580,7 @@ context writer, factory privilege or tenant retargeting authority.
 ### The out-of-band setters
 
 `TransactionBehavior` delegates the general announcement path to
-`TransactionExecutionCoordinator`. The current ten logical setter paths are
+`TransactionExecutionCoordinator`. The current eleven logical setter paths are
 enumerated below. ADR-0076 adds the ninth candidate reader and ADR-0078 the tenth
 own-context discovery reader; their source bounds are in the
 [owner census](#owner-and-setter-census). ADR-0077's confined evidence methods and
@@ -586,7 +589,10 @@ is closed
 ([ADR-0040 § Who sets `app.tenant_id`, completely](../decisions/0040-ambient-unit-of-work.md),
 with its dated Amendments, is the authority; it is reproduced here because this
 section is the placement authority). Two set it on the **ambient** transaction;
-eight own a **short transaction of their own** under their exact source contract:
+eight own a **short transaction of their own** under their exact source contract;
+ADR-0093 adds one **operation-bound invitation witness** setter using the existing
+physical unit-of-work writer, ReadOnly for inspection/result and ordinary
+ReadWrite for acceptance:
 
 | Setter | Transaction | Why it is not `TransactionBehavior` |
 |---|---|---|
@@ -600,6 +606,7 @@ eight own a **short transaction of their own** under their exact source contract
 | The tenant-flag loader (`FeatureFlags`) | its own short read-only one | A cached projection of `tenant_feature_flags`, read on a cache miss wherever `IFeatureFlags` is asked — inside a request's transaction or outside any ([ADR-0045 § 2](../decisions/0045-entitlement-and-feature-flag-socket.md), [ADR-0040 Amendment 7](../decisions/0040-ambient-unit-of-work.md)) |
 | `PreContextIdentityAuthorizationReader` | its isolated physical READ ONLY child | Exact verified candidate coverage/grant and Tenancy lifecycle reads; never parent business state or ambient TenantContext |
 | `PreContextSelfDiscoveryScopeReader` | its own short physical READ ONLY one | Single-use captured own-Membership scope witness, followed only by bounded Tenancy label/destination reads |
+| `InvitationEntryScope` | operation-bound existing owner, physical ReadOnly for inspection/result or ordinary ReadWrite for acceptance | Single-use exact offer/host/verified-subject witness; no ordinary native context, directory or general-purpose scope |
 
 > **`IOrganizationScopeValidator` performs row-7 organization narrowing after
 > affirmative live Membership admission.** `TenantAssertionMiddleware` separately
@@ -624,7 +631,7 @@ variable is unset fails `WITH CHECK`
 ([ADR-0033 Amendment 2 § 5](../decisions/0033-audit-durability-model.md),
 [ADR-0044 § 9](../decisions/0044-audit-write-path.md)).
 
-Every one of the ten setters connects as `learnstack_app`. A setter that reached
+Every one of the eleven setters connects as `learnstack_app`. A setter that reached
 for `learnstack_platform` would be invisible to the isolation suite, which is the
 failure mode [ADR-0003](../decisions/0003-tenant-isolation-defense-in-depth.md)
 names by hand.
@@ -641,7 +648,7 @@ runs on it.
 unit's announcement seam. Matching `[TenantOwned]` table names would put a parser
 between every query and the database to decide something the transaction already
 answers.
-Of the ten logical paths, the MediatR transaction owner and P02b-3's integration
+Of the eleven logical paths, the MediatR transaction owner and P02b-3's integration
 transport mark the ambient transaction through sanctioned `IUnitOfWork`
 announcement methods. Durable acceptance and prepared subscriber execution both
 announce before their first app-role command; the production call-site census
@@ -652,7 +659,10 @@ idempotency activation/proof belongs to the
 the two standalone audit writers and the two cached-projection loaders, issue raw
 `NpgsqlCommand`s on connections of their own, which EF interception never sees.
 The ninth and tenth use their confined common-owner announcement seams and exact
-source/generation guards. `CachedHostToTenantResolver` is not in this set at all: it sets
+source/generation guards. The eleventh consumes its operation-bound invitation
+witness through the existing physical unit-of-work writer. The preliminary
+offer function owner closes before that consumer owner starts.
+`CachedHostToTenantResolver` is not in this set at all: it sets
 `app.resolving_host`, not `app.tenant_id`. That is also why the
 exemption list is empty, and why `PlatformAdminScope`, whose `BYPASSRLS` connection
 announces no tenant by design, is invisible to the guard by construction rather than by a
@@ -753,8 +763,9 @@ and redirect/query rules. These are the ongoing security obligations:
 P02d-5 delivers this boundary and ADR-0054's accounting, native admission and
 URL controls. The [remediation record](../roadmap/phase-02d-delivery-log.md#p02d-5-external-review-remediation-2026-10-09)
 owns execution, independent reviews and PR closeout evidence.
-Native paths, including matcher exemptions, admit GET/HEAD; ADR-0070 adds only
-the three exact proof-bearing POST actions named in Frontend Standards.
+Native paths, including matcher exemptions, admit GET/HEAD; ADR-0070's three
+proof-bearing POSTs, ADR-0078/0079's entry/administration forms and ADR-0093's
+invitation forms are the closed extensions named in Frontend Standards.
 Other methods remain masked. Production upgrades close and development retains
 only validated GET HMR. See
 [Frontend Standards § Native Admission and URL Identity](07-frontend-architecture.md#native-admission-and-url-identity)
@@ -807,7 +818,8 @@ for the native controls and their delivery/review boundary.
   before Next can clone a body; the form parser independently bounds actual bytes,
   UTF-8, declared scalar fields and duplicates.
 - Only the [exact native auth/administration POST set](07-frontend-architecture.md#native-entry-and-administration)
-  is open. SameSite and implicit framework checks
+  and [invitation POST set](07-frontend-architecture.md#verified-invitation-experience)
+  are open. SameSite and implicit framework checks
   authorize neither sibling origins nor Server Actions.
 - Webhook endpoints verify signatures, not CSRF tokens.
 
@@ -1255,14 +1267,15 @@ or new global User/profile/directory projection. It closes before ordinary
 business continuation, including when a nested/post-lock parent already exists.
 Tenancy's lifecycle reader uses this same physical child owner/generation.
 
-Ten is the existing Accepted logical setter set under ADR-0078. The
+Ten is the P03-3 logical setter baseline under ADR-0078; ADR-0093 adds the
+eleventh operation-bound invitation setter described below. The
 [phase Status block](../roadmap/phase-03-identity-admin.md) owns current
 implementation, activation and proof for those paths.
 The ninth's reader/owner has source, database and exact trusted-source controls.
 Global subject owners and the
 confined central denial-event methods add no tenant-context writer or logical
-setter. ADR-0080's fixed-seed scope-only sites preserve those ten setters and four
-context writers; Standard 05 owns their distinct source/caller census and
+setter. ADR-0080's fixed-seed scope-only sites preserve the P03-3 ten-setter
+baseline; ADR-0093 retains the same four physical context writers. Standard 05 owns their distinct source/caller census and
 temporary state/write barriers as well as the source/configuration/retained-cleanup ledger.
 
 <a id="proposed-bounded-contention-and-proof"></a>
@@ -1563,6 +1576,127 @@ Activation requires actual actorless/tenantless code+refresh, wrong association,
 terminal binding, held-work/switch/logout, source rotation, native HTTPS and
 same-label/different-subject browser controls. Gate acceptance and document lint
 establish none of those runtime outcomes.
+
+## Verified Invitation Admission
+
+**Derives from:** [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md).
+This is an Accepted contract with P03-4 implementation and qualification pending
+in the phase Status block. Ordinary native/global-self admission above remains;
+the three global-self descriptors do not gain a fourth generic consumer.
+
+### Exact offer authority
+
+The separate invitation branch follows captured visitor/body/host checks,
+stock credential validation, issuer/sub quota and independent native-purpose
+source validation. Only known Tenant/Organization hosts participate; Platform
+or unknown hosts refuse. Browser body/header tenant/org selectors cannot supply
+authority. Provider scope and legacy assertions, when present, must exactly
+agree with the final offered scope and never win a conflict.
+
+A short physically ReadOnly app-role owner invokes the exact migration-owned
+offer-entry function with Invitation ID, the application-derived 32-byte
+domain-separated SHA-256 digest, admitted host tenant, installed authority and
+verified subject key. Raw codes do not cross into SQL parameters. Standard 05
+owns its exact signature, static body, fixed search path, ACL, Invitation-only
+owner visibility and projection. It exposes only the exact offer tuple,
+actor/inviter admission facts and bounded terminal reconciliation facts, never
+email, provider subject, profile, Role graph or arbitrary User state. SQL digest
+equality is not claimed constant-time; actual fixed-length application secret
+comparisons use fixed-time equality. This is no general User reader.
+
+The preliminary owner closes before `InvitationEntryScope` consumes a
+single-use immutable witness on the subsequent operation owner. It binds actual
+request/invocation, credential, verified subject/actor, native source, admitted
+host and exact stored offer/version/generation/tenant/org tuple. TenantHost caps
+tenant; OrganizationHost requires the exact organization. Changed, missing,
+foreign-purpose or reused evidence refuses before announcement. The new
+`HostAndInvitationOffer` origin admits only inspection, acceptance and original
+own-result consumers. It grants no PublicSurface, AccountSite, directory,
+ordinary protected act, Platform capability or SQL hatch. The existing four
+physical context writers implement eleven logical tenant setters. Standard 05
+owns eleven confined definers: the prior eight, exact offer entry and the two
+SMTP source lease functions; accepting this census proves no runtime body/ACL.
+
+New actors use deliberate opt-in global-self bootstrap first, committing and
+disposing its owner before tenant work. Disabled bootstrap stays disabled.
+Matching email cannot merge identities; global User and tenant owners never
+join or retarget. Membership creation does not itself admit a native session.
+
+### Recipient, atomicity and fences
+
+`ICurrentInvitationRecipientReader` calls only the configured issuer's fixed
+UserInfo endpoint with the stock-validated access token. Bound one fresh
+no-cache observation to each Pending inspection/first acceptance, exact `sub`,
+token/request/invocation identity and original deadline. Require one well-typed
+email, Boolean verified=true and the ADR's normalized mailbox match. Duplicate,
+ill-typed, malformed or missing claims refuse; bound the response to 16 KiB and
+five seconds within the existing native deadline, with no retry extension and
+no business lock during I/O. No realm-admin credential, supplied URL, redirect
+or email mirror is admitted. A later provider edit may race database commit;
+fresh UserInfo is not an atomic provider/database snapshot.
+
+Acceptance takes sorted exclusive invitee/stored-inviter User keys before the
+complete strongest Tenant fence, then offered Role, Invitation and existing
+target Membership locks. Nonadministrator effects retain shared Tenant mode;
+actual eligible Tenant Admin effects require exclusive mode. Create/revoke/
+reissue take shared mode unless an actual protected Membership effect requires
+more. Fresh post-wait reads revalidate the complete mode/graph; changed mode
+returns 409 without fallback or upgrade. Role scope must match the offer exactly:
+Tenant Role for NULL organization, Organization Role for non-NULL organization.
+The same-key delegation bridge never licenses a cross-scope Role assignment.
+The stored inviter's current capability and whole pinned Role must remain within
+the current ceiling. Recheck invitee admission under the retained User fence,
+including `already_member`, where no INSERT trigger can supply that check.
+
+One existing ordinary ReadWrite owner atomically consumes Invitation and creates
+Membership when needed, with two central MUST resource intents. Active existing
+Membership consumes without elevation; Suspended refuses; Revoked history gets
+a fresh successor ID. The `created`/`already_member` disposition is tracked
+Invitation state and its central capture, never arbitrary audit metadata. An
+unchanged Membership is a designated subject-only security event with no fake
+creation diff. Rollback or failed MUST audit persists neither new grant nor
+consumption. Accepted preflight selects the exact Off result query before
+mutation intents; a Pending race loser records truthful failure and uses a fresh
+read. Original-result disclosure requires the same Active actor, consumed digest
+and original current Active Membership, without reimposing old email, inviter,
+Role pin, expiry or version. Unknown COMMIT never becomes asserted rollback.
+
+### Automatic email and private custody
+
+Offer creation and reissue atomically stage generation/expiry/verifier, private
+authenticated encrypted mail custody and an identifier-only typed job. No raw
+code/link enters API admin responses, replay receipts, job/event payloads,
+snapshots, diagnostics or audit. Credentials/verifiers stay outside DSAR
+artifacts; authorized recipient/relationship access remains P03-10's contract.
+The exact SMTP adapter, lease functions, private data source and four-slot
+source admission follow Standard 05. Only `JobExecutor` mints the source witness;
+external SMTP execution owns no application database unit of work. A timeout or
+crash with unknown effect retains the reservation until positive
+quiescence/reconciliation; no elapsed timer releases unsettled work. A positively
+observed final 250 survives a subsequent disconnect fault only after actual local
+socket/task cleanup and a durable exact provider receipt. Unconfirmed SMTP
+cleanup retains its concrete transport resources and admitted provider connector,
+marks that lane unhealthy and blocks its disposal; Unknown alone does not prove
+physical cleanup. Actual server DETAIL and sampling qualification follows the
+[database privacy controls](05-database.md#database-diagnostic-privacy-qualification).
+Explicit reissue can cause a late old invalid email but does not release its
+reservation or imply exactly-once external delivery. Report queued/submission
+accepted/failed/uncertain facts; never claim inbox delivery from SMTP acceptance.
+
+Raw codes are confined to encrypted private mail custody, email/SMTP delivery
+and bounded native volatile continuation. Fragment-only email links, native
+capture, the separate opaque `__Host-ls-invitation` cookie, owner/subject quotas,
+fixed verification action and cleanup follow the
+[frontend contract](07-frontend-architecture.md#verified-invitation-experience).
+The preauthentication invitation owner shares the 1,024 total/128 pending/16
+per-source/five-minute pending bounds and, after verification, eight owners per
+issuer/sub, including other entry/session/logout owners. A new invitation
+replaces only an earlier invitation continuation in that host/browser group.
+It cannot replace another subject's live session. Actual cleanup retains credit
+for unsettled work. GET renders navigation; secret inspection/result use POST
+bodies. Real app-role source/body/ACL, competing-commit, provider changed-email,
+SMTP fault/reconciliation, sink-canary and HTTPS/browser controls precede
+activation. Human accessibility evidence remains an independent obligation.
 
 ## Incident Response
 

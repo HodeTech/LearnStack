@@ -15,6 +15,7 @@ public sealed partial class PersistenceConventionTests
     private const string TenancyEnrollment = "LearnStack.Modules.Tenancy.Infrastructure.Persistence.TenancyAdministrationReader";
     private const string AdministrationReadEnrollment = "LearnStack.Modules.Identity.Infrastructure.Persistence.IdentityAdministrationReadStore";
     private const string NavigationEnrollment = "LearnStack.Modules.Tenancy.Infrastructure.Persistence.OwnTenantNavigationReader";
+    private const string InvitationPolicyEnrollment = "LearnStack.Modules.Tenancy.Infrastructure.Persistence.InvitationPolicyReader";
     private const string EfEnrollment = "Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions";
 
     private static void AssertExactEfEnrollment()
@@ -117,6 +118,17 @@ public sealed partial class PersistenceConventionTests
         }
         AdministrationReadEnrollmentIsGuarded(administration.Replace(
             "ContextualIdentityStorageControl.EnrollCurrentTenantOwner(db, unit);", "return;", StringComparison.Ordinal)).Should().BeFalse();
+        var invitations = File.ReadAllText(Path.Combine(SourceScan.SourceRoot,
+            "Modules/Identity/LearnStack.Modules.Identity.Infrastructure/Invitations/InvitationAdministrationStore.cs"));
+        InvitationAdministrationEnrollmentIsGuarded(invitations).Should().BeTrue();
+        foreach (var before in new[] { "ContextualIdentityStorageControl.EnrollCurrentTenantOwner(db, unit);",
+                     "unit.Mode != TransactionMode.ReadWrite", "unit is IOperationReadScopeView { IsTenantWideRead: true }" })
+        {
+            var dirty = invitations.Replace(before, before.EndsWith(';') ? "return;" : "false", StringComparison.Ordinal);
+            dirty.Should().NotBe(invitations);
+            InvitationAdministrationEnrollmentIsGuarded(dirty).Should().BeFalse("invitation administration retains the same ordinary writable owner");
+        }
+        AssertInvitationEntryEnrollment();
         var navigation = File.ReadAllText(Path.Combine(SourceScan.SourceRoot,
             "Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/Persistence/OwnTenantNavigationReader.cs"));
         NavigationEnrollmentIsGuarded(navigation).Should().BeTrue();
@@ -157,6 +169,28 @@ public sealed partial class PersistenceConventionTests
             dirty.Should().NotBe(navigation);
             NavigationEnrollmentIsGuarded(dirty).Should().BeFalse("the same source guard must reject weaker live evidence or missing reenrollment");
         }
+        var policy = File.ReadAllText(Path.Combine(SourceScan.SourceRoot,
+            "Modules/Tenancy/LearnStack.Modules.Tenancy.Infrastructure/Persistence/InvitationPolicyReader.cs"));
+        InvitationPolicyEnrollmentIsGuarded(policy).Should().BeTrue();
+        foreach (var before in new[]
+        {
+            "!context.IsResolved", "context.UserId is null", "context.UserId == UserId.SystemActor",
+            "orgless && context.OrganizationId is not null", "!unit.HasActiveTransaction", "unit.IsRollbackOnly",
+            "unit is IGlobalIdentityUnitOfWork { IsGlobalIdentityTransaction: true }",
+            "unit is IOperationReadScopeView { IsTenantWideRead: true }", "!unit.IsTenantContextIssuedOn(unit.Transaction)",
+            "scope.TenantId != context.TenantId", "scope.OrganizationId != context.OrganizationId",
+            "db.CurrentTenantId != context.TenantId", "db.CurrentOrganizationId != context.OrganizationId",
+            "!ReferenceEquals(db.Database.GetDbConnection(), unit.Connection)",
+            "!ReferenceEquals(current.GetDbTransaction(), unit.Transaction)",
+        })
+        {
+            var dirty = policy.Replace(before, "false", StringComparison.Ordinal);
+            dirty.Should().NotBe(policy);
+            InvitationPolicyEnrollmentIsGuarded(dirty).Should().BeFalse("the fixed policy/message reader retains exact announced scope, physical owner and conditional orgless boundary");
+        }
+        var absentGeneration = policy.Replace("Generation: > 0", "Generation: >= 0", StringComparison.Ordinal);
+        absentGeneration.Should().NotBe(policy);
+        InvitationPolicyEnrollmentIsGuarded(absentGeneration).Should().BeFalse();
         EfEnrollmentOffenders(census).Should().BeEmpty("all actual compiled enrollment subjects are restored");
     }
 
@@ -170,7 +204,7 @@ public sealed partial class PersistenceConventionTests
         var expected = new[] { "LearnStack.Infrastructure.Persistence.ModuleDbContextRegistration::AddModuleDbContext",
             "LearnStack.Modules.Identity.Infrastructure.Persistence.UserBindingStore::EnrollCurrentOwner",
             ContextualEnrollment + "::EnrollCurrentTenantOwner",
-            TenancyEnrollment + "::Admit", NavigationEnrollment + "::Matches" }.Order(StringComparer.Ordinal);
+            TenancyEnrollment + "::Admit", NavigationEnrollment + "::Matches", InvitationPolicyEnrollment + "::Admit" }.Order(StringComparer.Ordinal);
         var errors = new List<string>();
         if (!actual.SequenceEqual(expected, StringComparer.Ordinal) || sites.Any(site => site.Instruction.OpCode != OpCodes.Call
             || site.Instruction.Operand is not MethodReference target
@@ -185,6 +219,8 @@ public sealed partial class PersistenceConventionTests
                 "LearnStack.Modules.Identity.Infrastructure.Persistence.MembershipAdministrationReader::Admit",
                 ReceiptEnrollment + "::Admit",
                 AdministrationReadEnrollment + "::Admit",
+                "LearnStack.Modules.Identity.Infrastructure.Invitations.InvitationAdministrationStore::Admit",
+                "LearnStack.Modules.Identity.Infrastructure.Invitations.InvitationAcceptanceReadStore::Admit",
                 "LearnStack.Modules.Identity.Infrastructure.Persistence.RoleReadStore::ReadAsync",
                 "LearnStack.Modules.Identity.Infrastructure.Persistence.RoleReadStore::ReadManyAsync",
                 "LearnStack.Modules.Identity.Infrastructure.Persistence.MembershipAdmissionReader::ReadCurrentAsync",
@@ -196,6 +232,23 @@ public sealed partial class PersistenceConventionTests
             || reenrollments.Any(site => site.Instruction.OpCode != OpCodes.Call))
             errors.Add("Only the exact contextual graph, seed metadata/stage, member/Role and native admission readers may reenroll the same tenant owner");
         return errors;
+    }
+
+    private static bool InvitationAdministrationEnrollmentIsGuarded(string source)
+    {
+        var root = CSharpSyntaxTree.ParseText(source).GetRoot();
+        var methods = root.DescendantNodes().OfType<ClassDeclarationSyntax>().Where(type => type.Identifier.ValueText == "InvitationAdministrationStore")
+            .SelectMany(type => type.Members.OfType<MethodDeclarationSyntax>()).Where(method => method.Identifier.ValueText == "Admit").ToArray();
+        return !root.ContainsDiagnostics && methods.Length == 1 && methods[0].Modifiers.Count == 1
+            && methods[0].Modifiers.Any(SyntaxKind.PrivateKeyword) && methods[0].ReturnType.ToString() == "void"
+            && methods[0].ParameterList.Parameters.Count == 0 && methods[0].Body is { } body
+            && SyntaxFactory.AreEquivalent(body, SyntaxFactory.ParseStatement("""
+                {
+                    ContextualIdentityStorageControl.EnrollCurrentTenantOwner(db, unit);
+                    if (unit.Mode != TransactionMode.ReadWrite || unit is IOperationReadScopeView { IsTenantWideRead: true })
+                        throw new InfrastructureException("Invitation administration storage unavailable.");
+                }
+                """));
     }
 
     private static bool ReceiptEnrollmentIsGuarded(string source)
@@ -310,6 +363,31 @@ public sealed partial class PersistenceConventionTests
 
     private static bool IsEfEnrollment(Instruction instruction) => instruction.Operand is MethodReference target
         && target.DeclaringType.FullName == EfEnrollment && target.Name is "UseTransaction" or "UseTransactionAsync";
+
+    private static bool InvitationPolicyEnrollmentIsGuarded(string source)
+    {
+        var root = CSharpSyntaxTree.ParseText(source).GetRoot();
+        var methods = root.DescendantNodes().OfType<ClassDeclarationSyntax>().Where(type => type.Identifier.ValueText == "InvitationPolicyReader")
+            .SelectMany(type => type.Members.OfType<MethodDeclarationSyntax>()).Where(method => method.Identifier.ValueText == "Admit").ToArray();
+        if (root.ContainsDiagnostics || methods.Length != 1 || methods[0].Modifiers.Count != 1 || !methods[0].Modifiers.Any(SyntaxKind.PrivateKeyword)
+            || methods[0].ReturnType.ToString() != "void" || methods[0].ParameterList.Parameters is not [{ Type: { } parameterType, Identifier.ValueText: "orgless" }]
+            || parameterType.ToString() != "bool" || methods[0].Body is not { Statements.Count: 2 } body
+            || body.Statements[0] is not IfStatementSyntax guard || body.Statements[1] is not IfStatementSyntax current) return false;
+        return SyntaxFactory.AreEquivalent(guard.Condition, SyntaxFactory.ParseExpression("""
+            !context.IsResolved || context.UserId is null || context.UserId == UserId.SystemActor
+            || orgless && context.OrganizationId is not null || !unit.HasActiveTransaction || unit.IsRollbackOnly
+            || unit is IGlobalIdentityUnitOfWork { IsGlobalIdentityTransaction: true }
+            || unit is IOperationReadScopeView { IsTenantWideRead: true }
+            || !unit.IsTenantContextIssuedOn(unit.Transaction)
+            || unit.GetTenantContextAnnouncement(unit.Transaction) is not { Generation: > 0 } scope
+            || scope.TenantId != context.TenantId || scope.OrganizationId != context.OrganizationId
+            || db.CurrentTenantId != context.TenantId || db.CurrentOrganizationId != context.OrganizationId
+            || !ReferenceEquals(db.Database.GetDbConnection(), unit.Connection)
+            """)) && guard.Statement is ThrowStatementSyntax { Expression: ObjectCreationExpressionSyntax exception }
+            && exception.Type.ToString() == "InfrastructureException"
+            && SyntaxFactory.AreEquivalent(current.Condition, SyntaxFactory.ParseExpression("db.Database.CurrentTransaction is not { } current || !ReferenceEquals(current.GetDbTransaction(), unit.Transaction)"))
+            && SyntaxFactory.AreEquivalent(current.Statement, SyntaxFactory.ParseStatement("db.Database.UseTransaction(unit.Transaction);"));
+    }
 
     private static bool ContextualEnrollmentIsGuarded(string source)
     {

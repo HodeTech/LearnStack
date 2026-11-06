@@ -171,6 +171,11 @@
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.4" />
   </ItemGroup>
 
+  <ItemGroup Label="Phase 03 bounded invitation SMTP (ADR-0093)">
+    <PackageVersion Include="MailKit" Version="4.18.2" />
+    <PackageVersion Include="MimeKit" Version="4.18.2" />
+  </ItemGroup>
+
   <!--
     Roslyn host packages — the analyzers under backend/analyzers/ compile against them, and
     the unit and architecture suites run those analyzers over real source.

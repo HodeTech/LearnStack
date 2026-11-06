@@ -92,12 +92,14 @@ public sealed class MigrationRollbackTests : IClassFixture<MigrationRollbackFixt
         // Reinstall the complete current chains, including the retained-evidence
         // heads that intentionally refuse Down under ADR-0079/0081.
         await MigrationChains.ApplyAllAsync(_fixture.Postgres.MigrationConnectionString);
-        (await CountAsync(connection, TablesQuery)).Should().Be(56L);
+        (await CountAsync(connection, TablesQuery)).Should().Be(59L);
+        await SchemaTableClasses.AssertCompleteAsync(connection);
         (await CountAsync(connection, FunctionQuery)).Should().Be(1L);
         (await CountAsync(connection, AuditFunctionQuery)).Should().Be(2L);
         (await CountAsync(connection, EducationFunctionQuery)).Should().Be(3L);
         (await CountAsync(connection, InboxFunctionQuery)).Should().Be(1L);
-        (await CountAsync(connection, IdentityFunctionQuery)).Should().Be(16L);
+        (await CountAsync(connection, IdentityFunctionQuery)).Should().Be(18L,
+            "current Identity adds the invitation guard and entry functions to its earlier release guard");
         await _fixture.AssertCurrentHeadsRefuseReversalAsync();
         await EducationSchemaSeed.SeedAsync(_fixture.Postgres.AppConnectionString);
         await using var app = await PostgresFixture.OpenAsync(_fixture.Postgres.AppConnectionString);
@@ -190,8 +192,8 @@ public sealed class MigrationRollbackFixture : IAsyncLifetime
         foreach (var (context, previous, head, reason) in new (DbContext, string, string, string)[]
         {
             (tenancy, TenancyReversibleHead, "20261029112940_guard_retained_tenancy_defaults", "Retained default fencing requires a reviewed forward migration."),
-            (platform, PlatformReversibleHead, "20261029120715_add_protected_idempotency_targets", "Protected replay metadata requires a reviewed forward migration."),
-            (identity, IdentityReversibleHead, "20261028194039_add_role_release_v2", "Role release adoption requires a reviewed forward migration."),
+            (platform, PlatformReversibleHead, "20261105020229_lock_invitation_envelope_parent", "Parent scope locking requires a reviewed forward migration."),
+            (identity, IdentityReversibleHead, "20261105020120_lock_invitation_result_parent", "Parent scope locking requires a reviewed forward migration."),
         })
         {
             (await context.Database.GetAppliedMigrationsAsync()).Last().Should().Be(head);

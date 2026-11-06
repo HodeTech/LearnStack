@@ -1,4 +1,5 @@
 using LearnStack.Modules.Tenancy.Application.Contracts.Account;
+using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
 using LearnStack.Modules.Tenancy.Application.Contracts.Branding;
 using LearnStack.Modules.Tenancy.Application.Contracts.Locales;
 using LearnStack.Modules.Tenancy.Application.Contracts.PublicReads;
@@ -17,6 +18,9 @@ public sealed class TenancyOperationPolicySource : IOperationPolicySource
             .Append(new(PublicSite, Assignable: false));
     public IEnumerable<OperationPolicy> Policies =>
     [
+        OperationPolicy.ForOwnMembershipRead<GetTenantInvitationPolicyQuery>("tenancy.setting.read_invitation_policy"),
+        OperationPolicy.ForOwnMembershipRead<ReadInvitationPolicyReceiptQuery>("tenancy.setting.read_invitation_receipt"),
+        OperationPolicy.ForProtected<SetTenantInvitationLifetimeCommand>("tenancy.setting.write_invitation_lifetime", BoundedTenancyAdministrationPermissions.SettingWrite, requiresOrglessWrite: true),
         OperationPolicy.ForPublic<GetPublicSiteQuery>("tenancy.public_site.read", PublicSite),
         OperationPolicy.ForAccount<GetAccountSiteQuery>(AccountSiteOperation),
         OperationPolicy.ForProtected<ListOrganizationsQuery>("tenancy.organization.list", BoundedTenancyAdministrationPermissions.OrganizationAdministration),

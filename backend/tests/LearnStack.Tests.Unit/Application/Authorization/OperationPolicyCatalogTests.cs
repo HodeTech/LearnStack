@@ -1,8 +1,11 @@
+using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
+using LearnStack.Modules.Identity.Application.Contracts.Invitations;
 using LearnStack.Application.Authorization;
 using LearnStack.Application.Jobs;
 using LearnStack.Modules.Customization.Application.Authorization;
 using LearnStack.Modules.Education.Application.Authorization;
 using LearnStack.Modules.Identity.Application;
+using LearnStack.Modules.Identity.Application.Invitations;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Application.Contracts.Entry;
 using LearnStack.Modules.Tenancy.Application.Authorization;
@@ -25,18 +28,19 @@ public sealed class OperationPolicyCatalogTests
             typeof(LearnStack.Modules.Customization.Application.Contracts.Customization.InitializeTenantContentTypeDefaultCommand).Assembly,
             typeof(LearnStack.Modules.Education.Application.Contracts.PublicReads.GetPublicCoursesQuery).Assembly,
             typeof(ListMembershipsQuery).Assembly,
+            typeof(PrepareTenantInvitationEmailCommand).Assembly,
         };
         var actual = assemblies.SelectMany(assembly => assembly.GetTypes()).Where(type => !type.IsAbstract
             && type.GetInterfaces().Any(contract => contract.IsGenericType && contract.GetGenericTypeDefinition() == typeof(IRequest<>)))
             .OrderBy(type => type.FullName, StringComparer.Ordinal).ToArray();
         Assert.Equal(actual, catalog.All.Select(policy => policy.RequestType));
-        Assert.Equal(80, actual.Length);
+        Assert.Equal(97, actual.Length);
         Assert.Equal(4, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.PublicRead));
         Assert.Single(catalog.All, policy => policy.Kind == OperationPolicyKind.AccountRead);
-        Assert.Equal(28, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.Protected));
+        Assert.Equal(36, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.Protected));
         var ownReads = catalog.All.Where(policy => policy.Kind == OperationPolicyKind.OwnMembershipRead).ToArray();
         Assert.Equal(new[] { typeof(GetOwnMembershipProfileQuery), typeof(ReadOwnMembershipProfileReceiptQuery),
-            typeof(GetOwnMembershipContextsQuery), typeof(GetOwnCapabilitiesQuery) }
+            typeof(GetOwnMembershipContextsQuery), typeof(GetOwnCapabilitiesQuery), typeof(GetTenantInvitationPolicyQuery), typeof(ReadInvitationPolicyReceiptQuery) }
             .OrderBy(type => type.FullName, StringComparer.Ordinal), ownReads.Select(policy => policy.RequestType));
         Assert.All(ownReads, policy =>
         {
@@ -44,7 +48,16 @@ public sealed class OperationPolicyCatalogTests
             Assert.Empty(policy.Alternatives);
             Assert.Equal(OperationReadScope.Scoped, policy.ReadScope);
         });
-        Assert.Equal(42, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.FiniteTrusted));
+        var entry = catalog.All.Where(policy => policy.Kind == OperationPolicyKind.InvitationEntry).ToArray();
+        Assert.Equal(new[] { typeof(InspectInvitationQuery), typeof(AcceptInvitationCommand), typeof(GetOwnInvitationResultQuery) }
+            .OrderBy(type => type.FullName, StringComparer.Ordinal), entry.Select(policy => policy.RequestType));
+        Assert.All(entry, policy =>
+        {
+            Assert.Null(policy.RequiredPermission);
+            Assert.Empty(policy.Alternatives);
+            Assert.Equal(OperationReadScope.Scoped, policy.ReadScope);
+        });
+        Assert.Equal(46, catalog.All.Count(policy => policy.Kind == OperationPolicyKind.FiniteTrusted));
         var admission = Assert.Single(catalog.All, policy => policy.Kind == OperationPolicyKind.NativeSessionAdmission);
         Assert.Equal(typeof(AdmitNativeSessionScopeCommand), admission.RequestType);
         Assert.Null(admission.RequiredPermission);

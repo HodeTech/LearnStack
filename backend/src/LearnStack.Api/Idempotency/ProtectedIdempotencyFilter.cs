@@ -42,15 +42,11 @@ internal sealed partial class ProtectedIdempotencyFilter(IIdempotencyStore store
             context.Result = Problem("lockey_forbidden");
             return;
         }
-        long? expected = null;
-        long version = 0;
-        if (_descriptor.Creates ? context.HttpContext.Request.Headers.IfMatch.Count != 0
-            : !ProtectedEntityTag.TryRead(context.HttpContext.Request, out version))
+        if (!_descriptor.TryReadPrecondition(context.HttpContext.Request, out var expected))
         {
             context.Result = new ProblemDetailsActionResult(ProtectedEntityTag.Invalid());
             return;
         }
-        if (!_descriptor.Creates) expected = version;
         if (!AdministrationHttpInput.SupportsJsonMedia(context.HttpContext.Request))
         {
             context.Result = AdministrationHttpInput.Invalid();
@@ -264,7 +260,7 @@ internal sealed partial class ProtectedIdempotencyFilter(IIdempotencyStore store
             || !TryHeader(stored, "ETag", out var tag) || !ProtectedEntityTag.TryParse(tag, out var version)
             || !stored.Body.AsSpan().SequenceEqual(ProtectedAdministrationResult.BodyFor(version))) return false;
         if (descriptor.Creates ? !TryHeader(stored, "Location", out var location)
-                || location != ProtectedAdministrationResult.LocationFor(target.Id)
+                || location != descriptor.LocationFor(target.Id)
             : stored.Headers.Keys.Any(name => name.Equals("Location", StringComparison.OrdinalIgnoreCase))) return false;
         var response = new DefaultHttpContext().Response;
         long bytes = stored.Body.Length;

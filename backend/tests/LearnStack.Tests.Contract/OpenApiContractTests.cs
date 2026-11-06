@@ -181,8 +181,9 @@ public sealed partial class OpenApiContractTests(DevelopmentWebApplicationFactor
         var errors = new List<string>();
         var paths = document["paths"]!.AsObject();
         if (!paths.Select(path => path.Key).ToHashSet(StringComparer.Ordinal)
-            .SetEquals(Operations.Keys.Concat(NativeOperations.Keys).Concat(AdministrationOperations.Select(operation => operation.Path)))) errors.Add("operations");
+            .SetEquals(Operations.Keys.Concat(NativeOperations.Keys).Concat(InvitationEntryOperations.Keys).Concat(AdministrationOperations.Select(operation => operation.Path)))) errors.Add("operations");
         errors.AddRange(NativeContractErrors(document));
+        errors.AddRange(InvitationEntryContractErrors(document));
         errors.AddRange(AdministrationContractErrors(document));
         var count = 0;
         foreach (var (path, ids) in Operations)
@@ -365,7 +366,7 @@ public sealed partial class OpenApiContractTests(DevelopmentWebApplicationFactor
         if (!schemas.Select(schema => schema.Key).ToHashSet(StringComparer.Ordinal)
             .SetEquals(expectedNames.Concat(AccountSchemaNames).Concat(DirectorySchemaNames)
                 .Concat(["IdentitySelfActive", "IdentitySelfMissing", "IdentitySelfState", "NativeSessionScopeAdmission", "SelfContextItem", "SelfContextPage"])
-                .Concat(AdministrationSchemas.Keys).Append("AdministrationGrantResponse"))) errors.Add("schema-census");
+                .Concat(AdministrationSchemas.Keys).Concat(InvitationEntrySchemas.Keys).Append("AdministrationGrantResponse"))) errors.Add("schema-census");
         errors.AddRange(AdministrationSchemaErrors(document));
         foreach (var (name, descriptor) in Dtos)
         {

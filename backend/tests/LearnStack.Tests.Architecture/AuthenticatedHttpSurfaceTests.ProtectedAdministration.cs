@@ -83,7 +83,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
         var sends = methods.SelectMany(pair => pair.Definition.Body.Instructions
             .Where(instruction => instruction.Operand is MethodReference target && target.DeclaringType.FullName == Sender)
             .Select(instruction => (pair.Definition, pair.DeclaredAs, Instruction: instruction, Target: (MethodReference)instruction.Operand))).ToArray();
-        if (sends.Length != 10 || sends.Any(site => site.DeclaredAs != "ExecuteAsync" || site.Instruction.OpCode != OpCodes.Callvirt
+        if (sends.Length != ProtectedShapes.Length || sends.Any(site => site.DeclaredAs != "ExecuteAsync" || site.Instruction.OpCode != OpCodes.Callvirt
                 || site.Target is not GenericInstanceMethod { Name: "Send", GenericArguments.Count: 1, Parameters.Count: 2 }
                 || site.Target.Parameters[1].ParameterType.FullName != "System.Threading.CancellationToken"
                 || !InjectedArgument(site.Definition, Receiver(site.Definition, site.Instruction), Sender, type))) return false;
@@ -165,7 +165,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
     private static IEnumerable<string> ProtectedAdministrationOffenders(ModuleDefinition[] modules, Dictionary<string, TypeDefinition> map)
     {
         if (!map.TryGetValue("LearnStack.Api:" + ProtectedResult, out var carrier) || !ProtectedDispatcher(carrier, map))
-            yield return "Unexpected protected typed dispatcher: require exactly the ten bound typed sends";
+            yield return "Unexpected protected typed dispatcher: require exactly the fourteen bound typed sends";
         var expected = Endpoints.Where(entry => entry.ProtectedOperation is not null)
             .Select(entry => entry.Controller + "." + entry.Action).Order(StringComparer.Ordinal).ToArray();
         var callers = new List<string>();
@@ -183,7 +183,7 @@ public sealed partial class AuthenticatedHttpSurfaceTests
                             && pair.Definition.Name.Contains("<ExecuteAsync>g__Create", StringComparison.Ordinal) ? "Create" : type.FullName + "." + pair.DeclaredAs);
                 }
         if (!callers.Order(StringComparer.Ordinal).SequenceEqual(expected, StringComparer.Ordinal))
-            yield return "Unexpected protected handoff callers: only the ten enumerated actions may invoke the carrier";
+            yield return "Unexpected protected handoff callers: only the fourteen enumerated actions may invoke the carrier";
         if (carrier is null || carrier.Methods.Count(method => method.IsConstructor && !method.IsStatic) != 1
             || !carrier.Methods.Single(method => method.IsConstructor && !method.IsStatic).IsPrivate
             || !constructors.SequenceEqual(["Create"], StringComparer.Ordinal))

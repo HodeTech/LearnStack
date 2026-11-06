@@ -10,6 +10,10 @@ export type AdministrationShape =
   | 'capabilities'
   | 'organizations'
   | 'organization'
+  | 'invitations'
+  | 'invitation'
+  | 'invitableRoles'
+  | 'invitationPolicy'
   | 'version';
 
 export function object(value: unknown): value is Record<string, unknown> {
@@ -104,6 +108,84 @@ export function profileInput(value: unknown): boolean {
     fields(value, ['displayName', 'preferredLocale']) &&
     nullableText(value.displayName, 128) &&
     nullableText(value.preferredLocale, 35)
+  );
+}
+/** The same bounded ASCII mailbox grammar as the invitation API; no alias folding. */
+export function invitationEmail(value: unknown): value is string {
+  if (
+    typeof value !== 'string' ||
+    value.length === 0 ||
+    value.length > 254 ||
+    Array.from(value).some((character) => character.charCodeAt(0) > 127)
+  )
+    return false;
+  const parts = value.split('@');
+  if (parts.length !== 2) return false;
+  const [local, domain] = parts as [string, string];
+  return (
+    local.length > 0 &&
+    local.length <= 64 &&
+    !local.startsWith('.') &&
+    !local.endsWith('.') &&
+    !local.includes('..') &&
+    /^[a-zA-Z0-9.!#$%&'*+\-/=?^_`{|}~]+$/.test(local) &&
+    domain
+      .split('.')
+      .every(
+        (label) =>
+          label.length > 0 &&
+          label.length <= 63 &&
+          /^[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?$/.test(label),
+      )
+  );
+}
+export function lifetimeDays(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 30;
+}
+function utcInstant(value: unknown): boolean {
+  if (
+    typeof value !== 'string' ||
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,7})?(?:Z|\+00:00)$/.test(value)
+  )
+    return false;
+  const timestamp = Date.parse(value);
+  return (
+    Number.isFinite(timestamp) &&
+    new Date(timestamp).toISOString().slice(0, 19) === value.slice(0, 19)
+  );
+}
+function invitation(value: unknown): boolean {
+  return (
+    fields(value, [
+      'invitationId',
+      'email',
+      'organizationId',
+      'roleId',
+      'roleVersion',
+      'status',
+      'expiresAt',
+      'version',
+      'deliveryStatus',
+      'acceptanceDisposition',
+    ]) &&
+    identifier(value.invitationId) &&
+    invitationEmail(value.email) &&
+    value.email === value.email.toLowerCase() &&
+    nullableId(value.organizationId) &&
+    identifier(value.roleId) &&
+    version(value.roleVersion) &&
+    typeof value.status === 'string' &&
+    ['Pending', 'Accepted', 'Revoked', 'Expired'].includes(value.status) &&
+    utcInstant(value.expiresAt) &&
+    version(value.version) &&
+    typeof value.deliveryStatus === 'string' &&
+    ['Queued', 'SubmissionAccepted', 'Failed', 'Unresolved', 'Unavailable'].includes(
+      value.deliveryStatus,
+    ) &&
+    (value.status === 'Accepted'
+      ? value.acceptanceDisposition === 'created' ||
+        value.acceptanceDisposition === 'already_member'
+      : value.acceptanceDisposition === null)
   );
 }
 function pageInfo(value: unknown): boolean {
@@ -252,6 +334,29 @@ const flags = [
 
 export function isAdministrationSuccess(shape: AdministrationShape, value: unknown): boolean {
   switch (shape) {
+    case 'invitation':
+      return invitation(value);
+    case 'invitations':
+      return page(value, invitation);
+    case 'invitableRoles':
+      return (
+        fields(value, ['items']) &&
+        Array.isArray(value.items) &&
+        value.items.length <= 8 &&
+        value.items.every((item) => role(item, false)) &&
+        new Set(value.items.map((item) => item.roleId)).size === value.items.length &&
+        new Set(value.items.map((item) => item.builtInKey + ':' + item.capabilityScope)).size ===
+          value.items.length
+      );
+    case 'invitationPolicy':
+      return (
+        fields(value, ['days', 'present', 'version', 'canEdit']) &&
+        lifetimeDays(value.days) &&
+        typeof value.canEdit === 'boolean' &&
+        (value.present === true
+          ? version(value.version)
+          : value.present === false && value.version === null && value.days === 14)
+      );
     case 'version':
       return fields(value, ['version']) && version(value.version);
     case 'members':

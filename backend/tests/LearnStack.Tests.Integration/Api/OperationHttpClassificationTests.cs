@@ -1,3 +1,5 @@
+using LearnStack.Modules.Identity.Application.Contracts.Invitations;
+using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
 using LearnStack.Api.Account;
 using LearnStack.Api.Authentication;
 using LearnStack.Api.Identity;
@@ -72,6 +74,17 @@ public sealed class OperationHttpClassificationTests
         new(typeof(OrganizationsController), "Rename", "RenameOrganization", "PUT", "tenancy/organizations/{id}", typeof(RenameOrganizationCommand), "tenancy.organization.rename", Protected: ProtectedAdministrationOperation.RenameOrganization),
         new(typeof(OrganizationsController), "Archive", "ArchiveOrganization", "POST", "tenancy/organizations/{id}/archive", typeof(ArchiveOrganizationCommand), "tenancy.organization.archive", Protected: ProtectedAdministrationOperation.ArchiveOrganization),
         new(typeof(DefaultOrganizationController), "Select", "SelectDefaultOrganization", "PUT", "tenancy/default-organization", typeof(SelectDefaultOrganizationCommand), "tenancy.organization.select_default", Protected: ProtectedAdministrationOperation.SelectDefaultOrganization),
+        new(typeof(InvitationsController), "List", "ListInvitations", "GET", "identity/invitations", typeof(ListInvitationsQuery), "identity.invitation.list"),
+        new(typeof(InvitationsController), "Get", "GetInvitation", "GET", "identity/invitations/{id}", typeof(GetInvitationQuery), "identity.invitation.read"),
+        new(typeof(InvitationsController), "Create", "CreateInvitation", "POST", "identity/invitations", typeof(CreateInvitationCommand), "identity.invitation.create", Protected: ProtectedAdministrationOperation.CreateInvitation),
+        new(typeof(InvitationsController), "Revoke", "RevokeInvitation", "POST", "identity/invitations/{id}/revocations", typeof(RevokeInvitationCommand), "identity.invitation.revoke", Protected: ProtectedAdministrationOperation.RevokeInvitation),
+        new(typeof(InvitationsController), "Reissue", "ReissueInvitation", "POST", "identity/invitations/{id}/reissues", typeof(ReissueInvitationCommand), "identity.invitation.reissue", Protected: ProtectedAdministrationOperation.ReissueInvitation),
+        new(typeof(InvitableRolesController), "List", "ListInvitableRoles", "GET", "identity/invitable-roles", typeof(ListInvitableRolesQuery), "identity.invitation.list_invitable_roles"),
+        new(typeof(InvitationEntryController), "Inspect", "InspectInvitation", "POST", "identity/invitation-entry/inspections", typeof(InspectInvitationQuery), "identity.invitation.inspect"),
+        new(typeof(InvitationEntryController), "Accept", "AcceptInvitation", "POST", "identity/invitation-entry/acceptances", typeof(AcceptInvitationCommand), "identity.invitation.accept"),
+        new(typeof(InvitationEntryController), "Result", "GetOwnInvitationResult", "POST", "identity/invitation-entry/results", typeof(GetOwnInvitationResultQuery), "identity.invitation.read_own_result"),
+        new(typeof(InvitationPolicyController), "Get", "GetTenantInvitationPolicy", "GET", "tenancy/settings/invitation-policy", typeof(GetTenantInvitationPolicyQuery), "tenancy.setting.read_invitation_policy"),
+        new(typeof(InvitationPolicyController), "Set", "SetTenantInvitationLifetime", "PUT", "tenancy/settings/invitation-policy", typeof(SetTenantInvitationLifetimeCommand), "tenancy.setting.write_invitation_lifetime", Protected: ProtectedAdministrationOperation.SetTenantInvitationLifetime),
     ];
 
     [Fact]
@@ -113,10 +126,10 @@ public sealed class OperationHttpClassificationTests
         var endpoints = Endpoints(app);
         var catalog = Catalog();
         var classifier = new OperationHttpClassifier(catalog);
-        Assert.Equal(31, ExpectedActions.Length);
-        Assert.Equal(10, ExpectedActions.Count(expected => expected.Protected is not null));
+        Assert.Equal(42, ExpectedActions.Length);
+        Assert.Equal(14, ExpectedActions.Count(expected => expected.Protected is not null));
         var actualActions = endpoints.Where(endpoint => endpoint.Metadata.GetMetadata<ControllerActionDescriptor>() is not null).ToArray();
-        Assert.Equal(31, actualActions.Length);
+        Assert.Equal(42, actualActions.Length);
         Assert.Equal(ExpectedActions.Select(expected => expected.Name).Order(StringComparer.Ordinal), actualActions
             .Select(endpoint => endpoint.Metadata.GetRequiredMetadata<IEndpointNameMetadata>().EndpointName).Order(StringComparer.Ordinal));
         foreach (var endpoint in endpoints)
@@ -253,7 +266,7 @@ public sealed class OperationHttpClassificationTests
         var endpoints = Endpoints(app);
         var classifier = new OperationHttpClassifier(Catalog());
         var protectedActions = ExpectedActions.Where(expected => expected.Protected is not null).ToArray();
-        Assert.Equal(10, protectedActions.Length);
+        Assert.Equal(14, protectedActions.Length);
         foreach (var expected in protectedActions)
         {
             var original = Assert.Single(endpoints, endpoint => endpoint.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName == expected.Name);
@@ -282,7 +295,7 @@ public sealed class OperationHttpClassificationTests
             Assert.Equal(HttpOperationClassification.Application, classifier.Classify(original, out _));
         }
         var unkeyedActions = ExpectedActions.Where(expected => expected.Protected is null).ToArray();
-        Assert.Equal(21, unkeyedActions.Length);
+        Assert.Equal(28, unkeyedActions.Length);
         foreach (var expected in unkeyedActions)
         {
             var original = Assert.Single(endpoints, endpoint => endpoint.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName == expected.Name);

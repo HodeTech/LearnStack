@@ -48,12 +48,15 @@ public sealed partial class BackgroundJobStorageMigrationTests(SchemaFixture sch
             "20261017231821_index_background_job_control_quarantines");
         await using var context = Platform(database);
         context.Database.HasPendingModelChanges().Should().BeFalse();
+        var head = await BackgroundJobSchemaInventory.ReadAsync(schema.Postgres.MigrationConnectionString);
         var before = await BackgroundJobSchemaInventory.ReadAsync(database.MigrationConnectionString);
         before.Should().HaveCountGreaterThan(200,
             "the fingerprint covers actual columns, constraints, indexes, grants, policies, triggers and functions");
         await using (var owner = await PostgresFixture.OpenAsync(database.MigrationConnectionString))
         {
-            await SchemaTableClasses.AssertCompleteAsync(owner);
+            (await SchemaTableClasses.ReadAsync(owner)).Should().BeEquivalentTo(
+                SchemaTableClasses.Data.Except(SchemaTableClasses.InvitationProvider).Concat(MigrationChains.HistoryTables),
+                "this historical Platform boundary predates provider custody tables");
         }
 
         await context.GetService<IMigrator>().MigrateAsync(Predecessor);
@@ -68,7 +71,7 @@ public sealed partial class BackgroundJobStorageMigrationTests(SchemaFixture sch
         }
 
         await context.Database.MigrateAsync();
-        (await BackgroundJobSchemaInventory.ReadAsync(database.MigrationConnectionString)).Should().Equal(before);
+        (await BackgroundJobSchemaInventory.ReadAsync(database.MigrationConnectionString)).Should().Equal(head);
         await using var restored = await PostgresFixture.OpenAsync(database.MigrationConnectionString);
         await SchemaTableClasses.AssertCompleteAsync(restored);
     }
@@ -82,9 +85,12 @@ public sealed partial class BackgroundJobStorageMigrationTests(SchemaFixture sch
         {
             await SchemaQueries.ExecuteAsync(owner, null, await BackgroundJobSchemaInventory.CanonicalSqlAsync());
         }
-        (await BackgroundJobSchemaInventory.ReadAsync(database.MigrationConnectionString)).Should()
-            .Equal(await BackgroundJobSchemaInventory.ReadAsync(schema.Postgres.MigrationConnectionString),
-                "Standards 05 must produce the shipped DDL and exact grants without copied test SQL");
+        var documented = await BackgroundJobSchemaInventory.ReadAsync(database.MigrationConnectionString);
+        var migrated = await BackgroundJobSchemaInventory.ReadAsync(schema.Postgres.MigrationConnectionString);
+        documented.Except(migrated).Should().BeEmpty("canonical-only inventory must be visible");
+        migrated.Except(documented).Should().BeEmpty("migration-only inventory must be visible");
+        documented.Should().Equal(migrated,
+            "Standards 05 must produce the shipped DDL and exact grants without copied test SQL");
     }
 
     private static PlatformDbContext Platform(DisposableSchemaDatabase database) => new(

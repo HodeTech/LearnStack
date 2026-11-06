@@ -187,11 +187,9 @@ public sealed partial class OutboxDispatchConventionTests
                 offenders.Add("Recurrence capability owner must remain internal sealed: " + name);
         }
         if (offenders.Count != 0) return offenders;
-        var bodies = OwnedBodies(census).ToArray();
-        var sites = bodies.SelectMany(item => item.Body.Body.Instructions
-            .Where(instruction => instruction.Operand is MethodReference)
-            .Select(instruction => (Owner: MethodId(item.Owner), Instruction: instruction,
-                Target: (MethodReference)instruction.Operand))).ToArray();
+        // Capture once even for the unscoped clean Fact. The same ordered
+        // snapshot serves all exact caller checks and the nested SDK census.
+        var snapshot = census.InstructionSnapshot;
         RecordDetachedTargets(offenders, CallSites(census));
         if (offenders.Count != 0) return offenders;
 
@@ -260,7 +258,7 @@ public sealed partial class OutboxDispatchConventionTests
         RequireAwaits(RcNative, "ObserveAsync", [GenericAwaiter(BoundaryTask), configured,
             GenericAwaiter("System.Nullable`1<System.Boolean>"), configured]);
         RequireAwaits(RcControl, "ObserveCompletionAsync", [GenericAwaiter(BoundaryTask), configured, configured, configured]);
-        offenders.UnionWith(RecurrenceSdkOffenders(census));
+        offenders.UnionWith(RecurrenceSdkOffenders(census, snapshot));
         offenders.UnionWith(RecurrenceOwnershipOffenders(census));
         offenders.UnionWith(RecurrenceMemoryOffenders(census));
         offenders.UnionWith(RecurrencePublicationOffenders(census));
@@ -276,11 +274,11 @@ public sealed partial class OutboxDispatchConventionTests
                 || (methods[0].Attributes & MethodAttributes.MemberAccessMask) != visibility)
                 offenders.Add("Recurrence capability requires its exact signature and visibility: " + type + "." + name);
             CheckSet(offenders, "closed recurrence capability " + type + "." + name,
-                sites.Where(site => site.Target.DeclaringType.FullName == type && site.Target.Name == name)
-                    .Select(site => site.Owner + ":" + site.Instruction.OpCode.Name),
+                snapshot.Methods[name].Where(site => site.Target.DeclaringType.FullName == type && site.Target.Name == name)
+                    .Select(site => site.OwnerId + ":" + site.Instruction.OpCode.Name),
                 expected.Select(owner => JobOwner(offenders, types, InfrastructureAssembly, owner.Type, owner.Method)
                     + ":" + owner.Opcode));
-            if (methods.Length == 1 && sites.Any(site => site.Target.DeclaringType.FullName == type
+            if (methods.Length == 1 && snapshot.Methods[name].Any(site => site.Target.DeclaringType.FullName == type
                     && site.Target.Name == name && (!TargetsDeclaredType(site.Target, subject)
                         || MethodId(site.Target) != MethodId(methods[0]))))
                 offenders.Add("Recurrence capability targets its exact declared assembly and method: " + type + "." + name);
@@ -289,7 +287,7 @@ public sealed partial class OutboxDispatchConventionTests
             string result, string[] parameters)
         {
             var id = JobOwner(offenders, types, InfrastructureAssembly, owner, method);
-            var found = sites.Where(site => site.Owner == id && site.Target.DeclaringType.FullName == targetType
+            var found = snapshot.Methods[targetName].Where(site => site.OwnerId == id && site.Target.DeclaringType.FullName == targetType
                 && site.Target.Name == targetName).ToArray();
             if (found.Length != 1 || !TrustedBcl(found[0].Target, assembly) || found[0].Target.ReturnType.FullName != result
                 || !ParametersMatch(found[0].Target, parameters) || found[0].Target.HasGenericParameters
@@ -301,7 +299,7 @@ public sealed partial class OutboxDispatchConventionTests
         void RequireAwaits(string owner, string method, string[] awaiters)
         {
             var id = JobOwner(offenders, types, InfrastructureAssembly, owner, method);
-            var found = sites.Where(site => site.Owner == id && site.Target.Name == "GetResult").ToArray();
+            var found = snapshot.Methods["GetResult"].Where(site => site.OwnerId == id && site.Target.Name == "GetResult").ToArray();
             CheckSet(offenders, "actual recurrence awaited results " + owner + "." + method,
                 found.Select(site => MethodId(site.Target) + ":" + site.Instruction.OpCode.Name), awaiters.Select(awaiter =>
                     "System.Runtime:" + (awaiter == configured ? "System.Void" : "!0") + " " + awaiter + "::GetResult():call"));

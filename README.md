@@ -144,6 +144,14 @@ creation does not repair existing files. The
 [realm guide](infra/keycloak/README.md#secret-continuity-and-recovery) owns setup,
 refusal, safe secret recovery and qualification details.
 
+API startup also requires the fixed
+[invitation SMTP settings and encryption key ring](docs/modules/identity/providers.md#configuration-surface-and-source-bindings).
+Prepare these operator-owned values before starting the API or demo; an older
+private file is not silently supplied with a replacement encryption key.
+Keycloak's separate
+[account-verification sender](infra/keycloak/README.md#invitation-email-and-recipient-verification)
+must also work for the complete new-recipient journey.
+
 ### 3. Prepare local HTTPS and start the applications
 
 The demo prepares a missing private 32-byte hop secret in the ignored root `.env`.

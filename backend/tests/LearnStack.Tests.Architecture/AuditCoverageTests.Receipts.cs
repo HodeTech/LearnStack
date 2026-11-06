@@ -1,8 +1,10 @@
 using FluentAssertions;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
+using LearnStack.Modules.Identity.Application.Contracts.Invitations;
 using LearnStack.Modules.Identity.Application.Contracts.Roles;
 using LearnStack.Modules.Identity.Domain;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
+using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
 using LearnStack.SharedKernel.Audit;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -24,6 +26,8 @@ public sealed partial class AuditCoverageTests
             (typeof(ReadRoleReceiptQuery), "identity", "identity.role.read_receipt", typeof(Role)),
             (typeof(ReadOrganizationReceiptQuery), "tenancy", "tenancy.organization.read_receipt", typeof(LearnStack.Modules.Tenancy.Domain.Organization)),
             (typeof(ReadDefaultOrganizationReceiptQuery), "tenancy", "tenancy.organization.read_receipt", typeof(LearnStack.Modules.Tenancy.Domain.Tenant)),
+            (typeof(ReadInvitationReceiptQuery), "identity", "identity.invitation.read_receipt", typeof(Invitation)),
+            (typeof(ReadInvitationPolicyReceiptQuery), "tenancy", "tenancy.setting.read_receipt", typeof(LearnStack.Modules.Tenancy.Domain.TenantSetting)),
         ];
         var catalog = Catalogue();
         foreach (var declaration in expected)
@@ -44,23 +48,32 @@ public sealed partial class AuditCoverageTests
         catalog.TryGet(typeof(GetOwnMembershipProfileQuery), out var ordinaryOwn).Should().BeTrue();
         ordinaryOwn.WritesNoRow.Should().BeTrue("ordinary own-profile navigation remains distinct from the MUST receipt act");
         ordinaryOwn.Entries.Should().BeEmpty();
+        catalog.TryGet(typeof(GetTenantInvitationPolicyQuery), out var ownPolicy).Should().BeTrue();
+        ownPolicy.WritesNoRow.Should().BeTrue("the ordinary policy getter is Off; its original-target receipt is independently MUST");
+        ownPolicy.Entries.Should().BeEmpty();
         AssertReceiptTargetDesignation();
     }
 
-    private static readonly (string Path, string Type, string Method, string Read, string Id)[] ReceiptSubjects =
+    private static readonly (string Path, string Type, string Method, string Read, string Id, string? Request, string Variable)[] ReceiptSubjects =
     [
         ("Modules/Identity/LearnStack.Modules.Identity.Application/Memberships/MembershipReceiptQueryHandlers.cs",
             "LearnStack.Modules.Identity.Application.Memberships.MembershipReceiptQueryHandlerBase", "ExecuteAsync",
-            "reader.ReadMembershipAsync(MembershipId.From(id), cancellationToken)", "LearnStack.Modules.Identity.Domain.MembershipId"),
+            "reader.ReadMembershipAsync(MembershipId.From(id), cancellationToken)", "LearnStack.Modules.Identity.Domain.MembershipId", null, "target"),
         ("Modules/Identity/LearnStack.Modules.Identity.Application/Roles/ReadRoleReceiptQueryHandler.cs",
             "LearnStack.Modules.Identity.Application.Roles.ReadRoleReceiptQueryHandler", "Handle",
-            "reader.ReadRoleAsync(RoleId.From(request.RoleId), cancellationToken)", "LearnStack.Modules.Identity.Domain.RoleId"),
+            "reader.ReadRoleAsync(RoleId.From(request.RoleId), cancellationToken)", "LearnStack.Modules.Identity.Domain.RoleId", null, "target"),
         ("Modules/Tenancy/LearnStack.Modules.Tenancy.Application/Administration/OrganizationReceiptQueryHandlers.cs",
             "LearnStack.Modules.Tenancy.Application.Administration.ReadOrganizationReceiptQueryHandler", "Handle",
-            "reader.ReadOrganizationReceiptAsync(request.OrganizationId, cancellationToken)", "LearnStack.SharedKernel.Identifiers.OrganizationId"),
+            "reader.ReadOrganizationReceiptAsync(request.OrganizationId, cancellationToken)", "LearnStack.SharedKernel.Identifiers.OrganizationId", null, "target"),
         ("Modules/Tenancy/LearnStack.Modules.Tenancy.Application/Administration/OrganizationReceiptQueryHandlers.cs",
             "LearnStack.Modules.Tenancy.Application.Administration.ReadDefaultOrganizationReceiptQueryHandler", "Handle",
-            "reader.ReadDefaultOrganizationReceiptAsync(request.TenantId, cancellationToken)", "LearnStack.SharedKernel.Identifiers.TenantId"),
+            "reader.ReadDefaultOrganizationReceiptAsync(request.TenantId, cancellationToken)", "LearnStack.SharedKernel.Identifiers.TenantId", null, "target"),
+        ("Modules/Identity/LearnStack.Modules.Identity.Application/Invitations/InvitationAdministrationHandlers.cs",
+            "LearnStack.Modules.Identity.Application.Invitations.InvitationAdministrationHandlers", "Handle",
+            "store.ReadAsync(InvitationId.From(request.InvitationId), cancellationToken)", "LearnStack.Modules.Identity.Domain.InvitationId", "ReadInvitationReceiptQuery", "target"),
+        ("Modules/Tenancy/LearnStack.Modules.Tenancy.Application/Settings/InvitationPolicyHandlers.cs",
+            "LearnStack.Modules.Tenancy.Application.Settings.InvitationPolicyHandlers", "Handle",
+            "reader.ReadReceiptAsync(TenantSettingId.From(request.SettingId), cancellationToken)", "LearnStack.Modules.Tenancy.Domain.TenantSettingId", "ReadInvitationPolicyReceiptQuery", "row"),
     ];
 
     private static void AssertReceiptTargetDesignation()
@@ -70,20 +83,20 @@ public sealed partial class AuditCoverageTests
         foreach (var declaration in ReceiptSubjects)
         {
             var source = File.ReadAllText(Path.Combine(SourceScan.SourceRoot, declaration.Path));
-            ReceiptSubjectIsRetained(source, declaration.Type.Split('.').Last(), declaration.Method, declaration.Read).Should().BeTrue();
+            ReceiptSubjectIsRetained(source, declaration.Type.Split('.').Last(), declaration.Method, declaration.Read, declaration.Request, declaration.Variable).Should().BeTrue();
             foreach (var (before, after) in new[]
             {
-                (declaration.Read, declaration.Read.Replace("reader.", "substitute.", StringComparison.Ordinal)),
-                ("subject.Designate(target)", "subject.Designate(successor)"),
-                ("subject.Designate(target)", "subject.DesignateProjection(target)"),
+                (declaration.Read, declaration.Read.Replace("reader.", "substitute.", StringComparison.Ordinal).Replace("store.", "substitute.", StringComparison.Ordinal)),
+                ("subject.Designate(" + declaration.Variable + ")", "subject.Designate(successor)"),
+                ("subject.Designate(" + declaration.Variable + ")", "subject.DesignateProjection(" + declaration.Variable + ")"),
             })
             {
                 var dirty = source.Replace(before, after, StringComparison.Ordinal);
                 dirty.Should().NotBe(source);
-                ReceiptSubjectIsRetained(dirty, declaration.Type.Split('.').Last(), declaration.Method, declaration.Read).Should().BeFalse(
+                ReceiptSubjectIsRetained(dirty, declaration.Type.Split('.').Last(), declaration.Method, declaration.Read, declaration.Request, declaration.Variable).Should().BeFalse(
                     "the successful receipt designates the actual exact-ID lookup, never a current successor or a projection alias");
             }
-            var body = census.Body(declaration.Type, declaration.Method);
+            var body = ReceiptBody(census, declaration.Type, declaration.Method, declaration.Request);
             var site = body.Body.Instructions.Single(IsReceiptDesignation);
             var opcode = site.OpCode;
             var operand = site.Operand;
@@ -111,7 +124,7 @@ public sealed partial class AuditCoverageTests
         var errors = new List<string>();
         foreach (var declaration in ReceiptSubjects)
         {
-            var sites = census.Body(declaration.Type, declaration.Method).Body.Instructions.Where(IsReceiptDesignation).ToArray();
+            var sites = ReceiptBody(census, declaration.Type, declaration.Method, declaration.Request).Body.Instructions.Where(IsReceiptDesignation).ToArray();
             if (sites.Length != 1 || sites[0].OpCode != OpCodes.Callvirt || sites[0].Operand is not GenericInstanceMethod call
                 || call.Name != "Designate" || call.GenericArguments.Count != 1 || call.GenericArguments[0].FullName != declaration.Id)
                 errors.Add("Receipt root designation changed: " + declaration.Type);
@@ -123,17 +136,29 @@ public sealed partial class AuditCoverageTests
         && target.DeclaringType.FullName == typeof(IAuditSubject).FullName
         && target.Name is "Designate" or "DesignateProjection";
 
-    private static bool ReceiptSubjectIsRetained(string source, string handler, string method, string read)
+    private static MethodDefinition ReceiptBody(ReceiptCensus census, string type, string method, string? request)
+    {
+        if (request is null) return census.Body(type, method);
+        var owner = census.Type(type).Methods.Single(candidate => candidate.Name == method
+            && candidate.Parameters.Count > 0 && candidate.Parameters[0].ParameterType.Name == request);
+        var state = owner.CustomAttributes.SingleOrDefault(attribute =>
+            attribute.AttributeType.FullName == "System.Runtime.CompilerServices.AsyncStateMachineAttribute");
+        return state is null ? owner : census.Type(((TypeReference)state.ConstructorArguments[0].Value).GetElementType().FullName)
+            .Methods.Single(candidate => candidate.Name == "MoveNext");
+    }
+
+    private static bool ReceiptSubjectIsRetained(string source, string handler, string method, string read, string? request, string variable)
     {
         var root = CSharpSyntaxTree.ParseText(source).GetRoot();
         var body = root.DescendantNodes().OfType<ClassDeclarationSyntax>().SingleOrDefault(type => type.Identifier.ValueText == handler)?
-            .Members.OfType<MethodDeclarationSyntax>().SingleOrDefault(member => member.Identifier.ValueText == method);
+            .Members.OfType<MethodDeclarationSyntax>().SingleOrDefault(member => member.Identifier.ValueText == method
+                && (request is null || member.ParameterList.Parameters.FirstOrDefault()?.Type?.ToString() == request));
         if (root.ContainsDiagnostics || body is null) return false;
-        var declarations = body.DescendantNodes().OfType<VariableDeclaratorSyntax>().Where(variable => variable.Identifier.ValueText == "target").ToArray();
+        var declarations = body.DescendantNodes().OfType<VariableDeclaratorSyntax>().Where(declaration => declaration.Identifier.ValueText == variable).ToArray();
         var designations = body.DescendantNodes().OfType<InvocationExpressionSyntax>()
             .Where(call => call.Expression is MemberAccessExpressionSyntax access && access.Expression.ToString() == "subject").ToArray();
         return declarations.Length == 1 && declarations[0].Initializer?.Value is AwaitExpressionSyntax awaited
             && SyntaxFactory.AreEquivalent(awaited.Expression, SyntaxFactory.ParseExpression(read))
-            && designations.Length == 1 && SyntaxFactory.AreEquivalent(designations[0], SyntaxFactory.ParseExpression("subject.Designate(target)"));
+            && designations.Length == 1 && SyntaxFactory.AreEquivalent(designations[0], SyntaxFactory.ParseExpression("subject.Designate(" + variable + ")"));
     }
 }

@@ -100,6 +100,8 @@ public sealed partial class GlobalIdentitySchemaTests
         (await RetainedAllocationAsync(database.MigrationConnectionString)).Should().Be(2);
         await InsertPairAsync(database.AppConnectionString, NewSubject());
         (await RetainedAllocationAsync(database.MigrationConnectionString)).Should().Be(3);
+        // Complete the remaining chains before the current whole-schema function census.
+        await MigrationChains.ApplyAllAsync(database.MigrationConnectionString);
         await using var observer = (NpgsqlConnection)await PostgresFixture.OpenAsync(database.MigrationConnectionString);
         (await FunctionViolationsAsync(observer)).Should().BeEmpty();
     }

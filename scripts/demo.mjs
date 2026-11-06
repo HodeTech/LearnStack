@@ -316,6 +316,18 @@ export async function startDemo(mode) {
         );
       }
       values.POSTGRES_PASSWORD = randomBytes(24).toString('hex');
+      // Explicit disposable construction settings, never a local/default sender.
+      // The seeded public proof creates no invitation or SMTP connection.
+      values.InvitationEmail__KeyRing = JSON.stringify({
+        active: 'ci',
+        keys: { ci: randomBytes(32).toString('base64') },
+      });
+      values.InvitationEmail__Smtp__Host = 'smtp.example.invalid';
+      values.InvitationEmail__Smtp__Port = '465';
+      values.InvitationEmail__Smtp__Sender = 'fixture@example.invalid';
+      values.InvitationEmail__Smtp__Tls = 'ImplicitTls';
+      values.InvitationEmail__Smtp__Username = 'synthetic-ci';
+      values.InvitationEmail__Smtp__Password = randomBytes(24).toString('base64url');
       values.LEARNSTACK_PUBLIC_HOP_SECRET = randomBytes(32).toString('base64url');
       values.LEARNSTACK_PUBLIC_TLS_CERT = join(privateRoot, 'leaf.pem');
       values.LEARNSTACK_PUBLIC_TLS_KEY = join(privateRoot, 'leaf-key.pem');

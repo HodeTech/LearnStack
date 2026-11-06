@@ -330,6 +330,17 @@ and Vitest settings are not guaranteed return-time limits; canonical
 [Testing 06](../standards/06-testing.md#frontend-guarded-execution) records their
 semantics. This body remains historical; acceptance proves no hosted fit.
 
+### Amendment 4 — Forty-five-minute window successor (2026-11-06)
+
+Accepted [ADR-0094](0094-forty-five-minute-backend-execution-windows.md)
+supersedes Amendment 1's thirty-minute ordinary window and twenty-five-minute
+Architecture window with forty-five minutes for both. Base/native and all other
+clocks, reserves, operation bounds, counts, resource policy, expected-owner
+binding and complete two-layout proof remain unchanged. This record's body,
+date, acceptance and rationale remain historical; acceptance proves no hosted
+fit. The [Phase 03 record](../roadmap/phase-03-delivery-log.md#p03-4-step-7-forty-five-minute-execution-windows-and-parser-timeout-2026-11-06)
+owns implementation and fresh A/B evidence.
+
 ## References
 
 - [ADR-0063: Complete Bounded CI Test Shards](0063-complete-bounded-ci-test-shards.md).

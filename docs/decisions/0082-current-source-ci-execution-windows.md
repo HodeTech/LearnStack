@@ -254,6 +254,15 @@ and Vitest settings are not guaranteed return-time limits; canonical
 [Testing 06](../standards/06-testing.md#frontend-guarded-execution) records their
 semantics. This body remains historical; acceptance proves no hosted fit.
 
+### Amendment 5 — Forty-five-minute window successor (2026-11-06)
+
+Accepted [ADR-0094](0094-forty-five-minute-backend-execution-windows.md)
+supersedes only this record's Architecture 1,500-second and ordinary
+1,800-second whole-job ceilings and their dependent observation bounds with
+2,700 seconds for both. Base/native 1,200, the 203-second reserve, operation
+limits, counts, assignment and complete A/B qualification stay as decided here.
+This body remains historical; acceptance proves no hosted fit.
+
 ## References
 
 - [ADR-0062](0062-native-crash-proof-ci-provisioning.md).

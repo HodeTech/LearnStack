@@ -307,6 +307,24 @@ export function createFixtureOwner({ exit = (code) => process.exit(code) } = {})
     })();
     return cleanup;
   }
+  /**
+   * Release one owned child whose process group is confirmed absent, forced or not.
+   *
+   * `dispose` refuses a forced stop because a server that needed SIGKILL did not
+   * prove its own shutdown. A disposable tool process that never reached the
+   * behaviour under proof carries no such obligation: `stopTestChild` resolves only
+   * after the whole detached group answers ESRCH, so a SIGKILL after its grace
+   * still retires every member. A stop or output drain that cannot be confirmed
+   * leaves the child owned, so the final `dispose` still reports it.
+   */
+  async function retireChild(child) {
+    assertActive();
+    if (!children.has(child)) throw new Error('Fixture child is not owned');
+    await stopTestChild(child);
+    await drainOutput(child);
+    assertActive();
+    children.delete(child);
+  }
   function cancel() {
     closed = true;
     cancellation ??= dispose().then(
@@ -342,6 +360,7 @@ export function createFixtureOwner({ exit = (code) => process.exit(code) } = {})
     ownRoot: (path) => own(roots, path),
     ownChild: (child) => own(children, child),
     ownServer: (server) => own(servers, server),
+    retireChild,
     assertActive,
     dispose,
     cancel,

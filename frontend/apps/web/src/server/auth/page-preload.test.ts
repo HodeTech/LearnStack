@@ -1,5 +1,6 @@
 // @vitest-environment node
 import type {
+  Invitation,
   MembershipDetail,
   PermissionRegistry,
   RoleDetail,
@@ -44,6 +45,18 @@ const role: RoleDetail = {
   grants: [{ scope: 'Tenant', key: 'identity.membership.admin' }],
   adoptedReleaseVersion: 1,
   adoptedReleaseFingerprint: 'a'.repeat(64),
+};
+const invitation: Invitation = {
+  invitationId: memberId,
+  email: 'recipient@example.test',
+  organizationId: null,
+  roleId,
+  roleVersion: role.version,
+  status: 'Pending',
+  expiresAt: '2026-11-18T12:00:00Z',
+  version: '9007199254740999',
+  deliveryStatus: 'Queued',
+  acceptanceDisposition: null,
 };
 const common: Omit<NativePageSnapshot, 'capabilities' | 'ownProfile' | 'profileState' | 'outcome'> =
   {
@@ -99,6 +112,18 @@ function fixture(overrides: Partial<Record<NativeOperation['kind'], NativeOperat
     getOwnCapabilities: success(capabilities),
     getOwnProfile: success({ displayName: 'Current actor', preferredLocale: 'tr', version: '3' }),
     getMembership: success(member),
+    listInvitations: success({
+      items: [invitation],
+      pageInfo: {
+        nextCursor: 'private-invitation-cursor',
+        previousCursor: null,
+        hasNext: true,
+        hasPrevious: false,
+      },
+    }),
+    getInvitation: success(invitation),
+    listInvitableRoles: success({ items: [role] }),
+    getInvitationPolicy: success({ days: 14, present: false, version: null, canEdit: false }),
     listRoles: success({ items: [role] }),
     getRole: success(role),
     getPermissions: success<PermissionRegistry>({
@@ -161,6 +186,9 @@ describe('finite native page preparation reads and safe projections', () => {
     ['/studio/members', 'members', ['listMemberships']],
     ['/studio/members/' + memberId, 'member', ['getMembership', 'listRoles']],
     ['/studio/roles', 'roles', ['listRoles']],
+    ['/studio/invitations', 'invitations', ['listInvitations', 'listInvitableRoles']],
+    ['/studio/invitations/' + memberId, 'invitation', ['getInvitation', 'listInvitableRoles']],
+    ['/studio/invitation-policy', 'invitation_policy', ['getInvitationPolicy']],
     ['/studio/roles/' + roleId, 'role', ['getRole', 'getPermissions']],
   ] as const)('loads only the finite reads for %s', async (target, kind, calls) => {
     const test = fixture();
@@ -354,4 +382,97 @@ describe('finite native page preparation reads and safe projections', () => {
       });
     },
   );
+});
+
+describe('invitation page authority and exact lifetime choices', () => {
+  it('uses only invitable summaries when Role read is unavailable, retaining precise pinned versions', async () => {
+    const test = fixture({ getOwnCapabilities: success({ ...capabilities, canReadRoles: false }) });
+    const result = await test.load('/studio/invitations');
+    expect(test.calls()).toEqual([
+      'getOwnCapabilities',
+      'getOwnProfile',
+      'listInvitations',
+      'listInvitableRoles',
+    ]);
+    expect(test.wrap).toHaveBeenCalledWith('private-invitation-cursor');
+    expect(result.outcome).toMatchObject({
+      kind: 'ready',
+      view: {
+        kind: 'invitations',
+        endCursor: 'opaque-browser-cursor',
+        roles: [{ roleId, version: role.version }],
+        items: [{ version: invitation.version, roleVersion: role.version, canReissue: true }],
+      },
+    });
+    expect(JSON.stringify(result)).not.toContain('private-invitation-cursor');
+  });
+
+  it('does not synthesize a grantable Role or replacement pin for changed or missing choices', async () => {
+    for (const roles of [[], [{ ...role, version: '9' }]]) {
+      const test = fixture({ listInvitableRoles: success({ items: roles }) });
+      expect((await test.load('/studio/invitations/' + memberId)).outcome).toMatchObject({
+        kind: 'ready',
+        view: {
+          kind: 'invitation',
+          invitation: { canRevoke: true, canReissue: false, roleVersion: role.version },
+        },
+      });
+      expect(test.calls()).not.toContain('listRoles');
+    }
+  });
+
+  it('preserves both accepted dispositions without deriving membership permissions', async () => {
+    for (const acceptanceDisposition of ['created', 'already_member'] as const) {
+      const test = fixture({
+        getInvitation: success({ ...invitation, status: 'Accepted', acceptanceDisposition }),
+      });
+      const page = await test.load('/studio/invitations/' + memberId);
+      expect(page.outcome).toMatchObject({
+        kind: 'ready',
+        view: {
+          invitation: {
+            acceptanceDisposition,
+            canRevoke: false,
+            canReissue: false,
+          },
+        },
+      });
+      expect(test.calls()).not.toContain('getMembership');
+    }
+  });
+
+  it('uses policy canEdit rather than invitation-management flags and refuses branch scope before its getter', async () => {
+    const test = fixture({
+      getOwnCapabilities: success({ ...capabilities, canManageMemberships: false }),
+      getInvitationPolicy: success({ days: 14, present: true, version: '0', canEdit: true }),
+    });
+    expect((await test.load('/studio/invitation-policy')).outcome).toMatchObject({
+      kind: 'ready',
+      view: {
+        kind: 'invitation_policy',
+        policy: { present: true, version: '0', canEdit: true },
+      },
+    });
+    test.read.mockClear();
+    expect((await test.load('/studio/invitation-policy', organizationId)).outcome).toMatchObject({
+      kind: 'failure',
+      reason: 'denied',
+    });
+    expect(test.calls()).toEqual(['getOwnCapabilities', 'getOwnProfile']);
+  });
+
+  it('owns pagination only on the exact invitation list and refuses unknown detail routing', () => {
+    expect(nativeDocumentPlan('/studio/invitations?limit=25&cursor=YQ', false)).toMatchObject({
+      kind: 'invitations',
+      limit: 25,
+      cursor: 'YQ',
+    });
+    for (const target of [
+      '/studio/invitations/' + memberId + '?cursor=YQ',
+      '/studio/invitation-policy?limit=10',
+      '/studio/invitations/not-a-uuid',
+      '/studio/unknown/' + roleId,
+    ])
+      expect(() => nativeDocumentPlan(target, false)).toThrow();
+  });
 });

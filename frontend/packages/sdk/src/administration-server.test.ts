@@ -43,7 +43,37 @@ describe('closed administration server SDK', () => {
     ]);
     const sdk = createAdministrationServerSdk(transport);
     expect(Object.isFrozen(sdk)).toBe(true);
-    expect(Object.keys(sdk)).toHaveLength(21);
+    expect(Object.keys(sdk)).toEqual([
+      'listInvitations',
+      'getInvitation',
+      'listInvitableRoles',
+      'createInvitation',
+      'revokeInvitation',
+      'reissueInvitation',
+      'getInvitationPolicy',
+      'setInvitationLifetime',
+      'listMemberships',
+      'listOrganizationMemberships',
+      'getMembership',
+      'getOwnProfile',
+      'getOwnContexts',
+      'getOwnCapabilities',
+      'listRoles',
+      'getRole',
+      'getPermissions',
+      'listOrganizations',
+      'getOrganization',
+      'setMembershipProfile',
+      'setOwnProfile',
+      'replaceMembershipRoles',
+      'changeMembershipStatus',
+      'changeRoleGrants',
+      'adoptRoleManifest',
+      'createOrganization',
+      'renameOrganization',
+      'archiveOrganization',
+      'selectDefaultOrganization',
+    ]);
     expect(sdk).not.toHaveProperty('request');
     expectTypeOf<
       Extract<AdministrationResult<unknown, 201>, { kind: 'success' }>['status']

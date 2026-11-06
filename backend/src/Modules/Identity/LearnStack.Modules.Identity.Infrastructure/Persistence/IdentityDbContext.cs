@@ -21,6 +21,7 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
     public DbSet<MembershipRoleAssignment> MembershipRoleAssignments => Set<MembershipRoleAssignment>();
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<RolePermissionGrant> RolePermissionGrants => Set<RolePermissionGrant>();
+    public DbSet<Invitation> Invitations => Set<Invitation>();
 
     public IdentityAuthorityId CurrentIdentityAuthorityId => identityScope.Current is { } current
         && current.Generation > 0

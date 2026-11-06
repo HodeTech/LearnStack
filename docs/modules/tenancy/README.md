@@ -270,6 +270,37 @@ read/selection budget in P02d-3. The
 [accepted package](../../roadmap/phase-02d-delivery-log.md#p02d-3-decision-package-2026-10-02)
 records the tests and step plan.
 
+### Invitation lifetime policy
+
+[ADR-0093](../../decisions/0093-verified-invitation-acceptance-and-handoff.md)
+adds the exact typed tenant-wide setting `identity.invitation.ttl_days`, default
+14 days, integer range 1–30. The [phase Status](../../roadmap/phase-03-identity-admin.md) owns delivery.
+Tenancy owns the setting/typed accessor; Identity consumes it through the existing
+application-contract mechanism, not a table query or generic JSON export.
+
+- `SetTenantInvitationLifetimeCommand` writes one TenantSetting root in orgless context
+  under the existing Tenant `tenancy.setting.write` pair. The permission knowingly
+  gains this exact policy key beyond branding; no organization override, generic
+  setting editor or new permission grant is implied.
+- Existing v1 manifests without that pair cannot edit the policy. The 14-day
+  default still permits ordinary invitations; no automatic grant adoption is added.
+- The own-current-tenant orgless getter is Off and physically ReadOnly. It returns
+  `days`, `present`, nullable decimal-string `version` and advisory `canEdit`;
+  write capability is not required to read it. The setter still checks its own
+  current authority independently.
+- Reads return the explicit absent/default creation precondition or actual setting
+  version. Absence has no ETag and uses `If-None-Match: *`; a stored version-zero
+  setting has ETag `"0"` and requires `If-Match: "0"`. Both successful PUT branches
+  return 200 version receipts. The protected fingerprint distinguishes presence. Conditional create/replacement plus natural uniqueness refuses races;
+  no unconditional upsert or blind retry. Protected receipts bind the original
+  exact setting ID/key and require a fresh MUST sensitive read before disclosure.
+- The setter uses the canonical effect-derived Tenant fence and fresh lifecycle/
+  post-lock authority check. Its MUST `tenancy.setting.write` row shares the
+  business transaction and retains whole-value TenantSetting audit redaction.
+- Offer creation and explicit reissue freeze expiry from current policy. Policy
+  changes do not alter existing generations or require a Tenancy/Identity
+  multi-root write. Identity owns acceptance and all delivery state.
+
 ### Job lifecycle projection
 
 Tenancy declares the status meanings for ADR-0047's closed job lifecycle
@@ -310,6 +341,7 @@ translations. Missing/invalid configuration or default removal/disable refuses;
 select another enabled default first. `branding.theme` remains one complete
 TenantSetting root/version and its existing safe palette grammar. Organization
 settings/branding overrides and generic settings power remain outside this set.
+P03-4 adds only the exact tenant-wide invitation lifetime policy above.
 All human writes require orgless context and live post-lock authority/target
 checks. [Standard 05](../../standards/05-database.md#p03-3-storage-and-replay-contract)
 owns the strongest complete fences, fresh lifecycle reads and invoker guards.

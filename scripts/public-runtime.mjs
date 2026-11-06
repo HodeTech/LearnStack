@@ -32,6 +32,28 @@ export function publicApiEnvironment(values, configuration, base = process.env) 
       throw new Error('Invalid API native configuration');
     environment[key] = value;
   }
+  // Invitation custody and SMTP credentials belong only to the selected API.
+  // The API validates their schema and cross-setting requirements at startup.
+  for (const key of [
+    'InvitationEmail__KeyRing',
+    'InvitationEmail__Smtp__Host',
+    'InvitationEmail__Smtp__Port',
+    'InvitationEmail__Smtp__Sender',
+    'InvitationEmail__Smtp__Tls',
+    'InvitationEmail__Smtp__Username',
+    'InvitationEmail__Smtp__Password',
+  ]) {
+    const value = values[key];
+    if (value === undefined) continue;
+    if (
+      typeof value !== 'string' ||
+      /[\x00-\x1f\x7f]/.test(value) ||
+      Buffer.byteLength(value) > 8192 ||
+      (!key.endsWith('__Username') && !key.endsWith('__Password') && !value.trim())
+    )
+      throw new Error('Invalid API invitation email configuration');
+    environment[key] = value;
+  }
   // This launcher owns native HTTPS on 3000. The production API retains its
   // independent default of 443; no secret or bootstrap opt-in is synthesized.
   environment.Identity__NativeSession__HttpsPort ??= '3000';

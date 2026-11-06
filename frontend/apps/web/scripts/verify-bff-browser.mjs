@@ -19,6 +19,7 @@ import {
   createBffCookieScanner,
   createBffBrowserCleanup,
   rememberBffCookies,
+  startBffBrowser,
   withProofWaiters,
 } from './bff-proof-support.mjs';
 import {
@@ -190,67 +191,81 @@ try {
       }),
     )
     .digest('base64');
-  const profile = join(root, 'chromium-profile');
-  mkdirSync(profile, { mode: 0o700 });
   // Keep SDK artifacts inside the root whose actual cleanup the fixture verifies.
   const artifacts = join(root, 'playwright-artifacts');
   mkdirSync(artifacts, { mode: 0o700 });
-  owner.assertActive();
-  stage = 'browser-spawn';
-  browserProcess = owner.ownChild(
-    spawn(
-      executablePath,
-      [
-        '--headless=new',
-        '--remote-debugging-address=127.0.0.1',
-        '--remote-debugging-port=0',
-        '--user-data-dir=' + profile,
-        '--no-first-run',
-        '--no-default-browser-check',
-        '--disable-background-networking',
-        '--disable-component-update',
-        '--disable-sync',
-        '--disable-breakpad',
-        '--password-store=basic',
-        '--use-mock-keychain',
-        '--no-proxy-server',
-        '--host-resolver-rules=' +
-          input.sites.map((site) => 'MAP ' + site.host.split(':')[0] + ' 127.0.0.1').join(','),
-        '--ignore-certificate-errors-spki-list=' + fingerprint,
-        'about:blank',
-      ],
-      {
-        env: fixtureEnvironment({ root }),
-        detached: process.platform !== 'win32',
-        stdio: ['ignore', 'pipe', 'pipe'],
-      },
-    ),
-  );
-  const browserOutput = createPrivateScanner(privateValues);
-  const browserCookies = createBffCookieScanner(host.cookieCanaries);
-  scanners.push(browserOutput, browserCookies);
-  for (const stream of [browserProcess.stdout, browserProcess.stderr]) {
-    stream.on('data', (chunk) => {
-      browserOutput.push(chunk);
-      browserCookies.push(chunk);
+  // One launch, or at most one replacement of a browser that stalled before it
+  // published its DevTools port. Each attempt owns a fresh profile inside `root`.
+  const launchBrowser = (attempt) => {
+    const profile = join(root, attempt === 1 ? 'chromium-profile' : 'chromium-profile-' + attempt);
+    mkdirSync(profile, { mode: 0o700 });
+    owner.assertActive();
+    stage = 'browser-spawn';
+    const child = owner.ownChild(
+      spawn(
+        executablePath,
+        [
+          '--headless=new',
+          '--remote-debugging-address=127.0.0.1',
+          '--remote-debugging-port=0',
+          '--user-data-dir=' + profile,
+          '--no-first-run',
+          '--no-default-browser-check',
+          '--disable-background-networking',
+          '--disable-component-update',
+          '--disable-sync',
+          '--disable-breakpad',
+          '--password-store=basic',
+          '--use-mock-keychain',
+          '--no-proxy-server',
+          '--host-resolver-rules=' +
+            input.sites.map((site) => 'MAP ' + site.host.split(':')[0] + ' 127.0.0.1').join(','),
+          '--ignore-certificate-errors-spki-list=' + fingerprint,
+          'about:blank',
+        ],
+        {
+          env: fixtureEnvironment({ root }),
+          detached: process.platform !== 'win32',
+          stdio: ['ignore', 'pipe', 'pipe'],
+        },
+      ),
+    );
+    browserProcess = child;
+    const browserOutput = createPrivateScanner(privateValues);
+    const browserCookies = createBffCookieScanner(host.cookieCanaries);
+    scanners.push(browserOutput, browserCookies);
+    for (const stream of [child.stdout, child.stderr]) {
+      stream.on('data', (chunk) => {
+        browserOutput.push(chunk);
+        browserCookies.push(chunk);
+      });
+      stream.once('end', () => {
+        browserOutput.finish();
+        browserCookies.finish();
+      });
+    }
+    let browserFailed = false;
+    child.once('error', () => {
+      browserFailed = true;
     });
-    stream.once('end', () => {
-      browserOutput.finish();
-      browserCookies.finish();
-    });
-  }
-  let browserFailed = false;
-  browserProcess.once('error', () => {
-    browserFailed = true;
-  });
-  const portFile = join(profile, 'DevToolsActivePort');
-  stage = 'browser-devtools';
-  const port = await waitForBrowserDevTools({
-    assertActive: () => owner.assertActive(),
-    isLive: () =>
-      !browserFailed && browserProcess.exitCode === null && browserProcess.signalCode === null,
-    readPort: () => readBrowserDevToolsPort(portFile),
-    timeout: 10_000,
+    return {
+      child,
+      portFile: join(profile, 'DevToolsActivePort'),
+      isLive: () => !browserFailed && child.exitCode === null && child.signalCode === null,
+    };
+  };
+  const { port } = await startBffBrowser({
+    launch: launchBrowser,
+    wait: ({ portFile, isLive }) => {
+      stage = 'browser-devtools';
+      return waitForBrowserDevTools({
+        assertActive: () => owner.assertActive(),
+        isLive,
+        readPort: () => readBrowserDevToolsPort(portFile),
+        timeout: 20_000,
+      });
+    },
+    retire: (stalled) => owner.retireChild(stalled),
   });
   stage = 'browser-connect';
   browser = await chromium.connectOverCDP('http://127.0.0.1:' + port, {

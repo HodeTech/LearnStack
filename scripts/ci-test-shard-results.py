@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ADR-0063/0075/0082 attempt-specific API evidence, topology and result validation.
+"""ADR-0063/0075/0082/0094 attempt-specific API evidence, topology and result validation.
 
 Only the two aggregate jobs receive a read-only Actions token. ZIPs are fetched
 by API artifact ID, hash-checked before bounded extraction into separate private
@@ -51,6 +51,8 @@ _FIXTURE_IMAGE_COMPONENTS = (
     ('keycloak', 'quay.io/keycloak/keycloak:26.6.2'),
     ('postgres', 'postgres:18.4-alpine'),
     ('pgbouncer', 'edoburu/pgbouncer:v1.26.0-p0'),
+    # ADR-0093's nonseed verification fixture uses real SMTP before its journey.
+    ('mailpit', 'axllent/mailpit:v1.29.7'),
 )
 FIXTURE_IMAGES = tuple(image for _, image in _FIXTURE_IMAGE_COMPONENTS)
 
@@ -173,7 +175,7 @@ puts JSON.generate(YAML.safe_load(raw))
 def yaml_document(path):
     try:
         result = subprocess.run([RUBY, '-e', YAML_READER], input=OWNER.read_bytes(path, 1048576),
-            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False, timeout=5,
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False, timeout=30,
             env={'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8'})
     except (OSError, subprocess.TimeoutExpired):
         raise Refusal('workflow_parser_unavailable') from None

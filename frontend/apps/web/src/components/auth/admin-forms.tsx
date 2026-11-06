@@ -14,7 +14,7 @@ export function MutationFields({
   readonly snapshot: NativePageSnapshot;
   readonly index: number;
   readonly version: string;
-  readonly target?: readonly ['membershipId' | 'roleId', string];
+  readonly target?: readonly ['membershipId' | 'roleId' | 'invitationId', string];
 }) {
   const key = snapshot.formKeys[index];
   if (!key || !/^[A-Za-z0-9_-]{43}$/.test(key)) throw new Error('Prepared form unavailable');
@@ -24,6 +24,23 @@ export function MutationFields({
       <input type="hidden" name="version" value={version} />
       <input type="hidden" name="idempotencyKey" value={key} />
       {target && <input type="hidden" name={target[0]} value={target[1]} />}
+    </>
+  );
+}
+
+export function FormIdentityFields({
+  snapshot,
+  index,
+}: {
+  readonly snapshot: NativePageSnapshot;
+  readonly index: number;
+}) {
+  const key = snapshot.formKeys[index];
+  if (!key || !/^[A-Za-z0-9_-]{43}$/.test(key)) throw new Error('Prepared form unavailable');
+  return (
+    <>
+      <input type="hidden" name="csrfToken" value={snapshot.session.csrfToken} />
+      <input type="hidden" name="idempotencyKey" value={key} />
     </>
   );
 }

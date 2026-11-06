@@ -396,6 +396,50 @@ describe('fixture resource ownership', () => {
     rmSync(root, { recursive: true, force: true });
   });
 
+  it('retires a child whose group is confirmed absent even after SIGKILL and does not count it again', async () => {
+    const owner = createFixtureOwner();
+    const root = owner.ownRoot(mkdtempSync(join(tmpdir(), 'learnstack-owner-retire-')));
+    const retired = {} as ChildProcess;
+    const live = {} as ChildProcess;
+    owner.ownChild(retired);
+    owner.ownChild(live);
+    vi.mocked(stopTestChild).mockResolvedValue({ forced: true });
+    await owner.retireChild(retired);
+    expect(stopTestChild).toHaveBeenCalledExactlyOnceWith(retired);
+    vi.mocked(stopTestChild).mockResolvedValue({ forced: false });
+    await owner.dispose();
+    expect(stopTestChild).toHaveBeenCalledTimes(2);
+    expect(stopTestChild).toHaveBeenLastCalledWith(live);
+    expect(existsSync(root)).toBe(false);
+  });
+
+  it('keeps a child owned when its stop or output drain cannot be confirmed', async () => {
+    const owner = createFixtureOwner();
+    const root = owner.ownRoot(mkdtempSync(join(tmpdir(), 'learnstack-owner-retire-refused-')));
+    const child = {} as ChildProcess;
+    owner.ownChild(child);
+    vi.mocked(stopTestChild).mockRejectedValueOnce(
+      new Error('Owned fixture process group did not stop'),
+    );
+    await expect(owner.retireChild(child)).rejects.toThrow('did not stop');
+    vi.mocked(stopTestChild).mockResolvedValue({ forced: true });
+    await expect(owner.dispose()).rejects.toThrow('Fixture cleanup failed');
+    expect(stopTestChild).toHaveBeenCalledTimes(2);
+    expect(existsSync(root)).toBe(true);
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('refuses to retire a child it does not own or after it has closed', async () => {
+    const owner = createFixtureOwner();
+    const owned = {} as ChildProcess;
+    owner.ownChild(owned);
+    await expect(owner.retireChild({} as ChildProcess)).rejects.toThrow('not owned');
+    expect(stopTestChild).not.toHaveBeenCalled();
+    vi.mocked(stopTestChild).mockResolvedValue({ forced: false });
+    await owner.dispose();
+    await expect(owner.retireChild(owned)).rejects.toThrow('Fixture owner is closed');
+  });
+
   it('waits for final child output before removing files', async () => {
     const owner = createFixtureOwner();
     const root = owner.ownRoot(mkdtempSync(join(tmpdir(), 'learnstack-owner-drain-')));

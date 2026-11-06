@@ -49,7 +49,7 @@ public sealed partial class AuthenticatedHttpSurfaceRuntimeTests
         if (approved.Protected is { } operation) expected.Add(new EffectiveFilter("LearnStack.Api",
             "LearnStack.Api.Idempotency.IdempotentAttribute", 30, 0, 0, false, null, 0, null, null, operation));
         expected.Add(Framework(produces.FullName!, 30, 0, 0) with
-        { Status = approved.Protected == ProtectedAdministrationOperation.CreateOrganization ? 201 : 200, ResponseType = response });
+        { Status = approved.Protected is ProtectedAdministrationOperation.CreateOrganization or ProtectedAdministrationOperation.CreateInvitation ? 201 : 200, ResponseType = response });
         actual.Should().Equal(expected, "Fix: preserve the exact effective action filters, factories, ordering and declared response metadata");
 
         static EffectiveFilter Framework(string type, int scope, int order, int filterOrder, bool reusable = false) =>

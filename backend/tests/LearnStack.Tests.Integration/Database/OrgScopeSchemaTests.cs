@@ -11,7 +11,7 @@ namespace LearnStack.Tests.Integration.Database;
 /// </summary>
 [Trait(RequiresDocker.Key, RequiresDocker.Value)]
 [Collection(SharedSchema.Name)]
-public sealed class OrgScopeSchemaTests
+public sealed partial class OrgScopeSchemaTests
 {
     private readonly SchemaFixture _schema;
 
@@ -115,14 +115,15 @@ public sealed class OrgScopeSchemaTests
 
         scoped.Should().Contain(["tenant_settings", "audit_log",
             "courses", "lessons", "course_translations", "lesson_translations",
-            "background_jobs", "background_job_attempts", "background_job_recipients"],
+            "background_jobs", "background_job_attempts", "background_job_recipients",
+            "invitations", "invitation_email_envelopes", "invitation_email_attempt_receipts"],
             "a guard over no classified tables proves nothing");
         all.Except(scoped).Should().BeEquivalentTo(["platform_host_to_tenant", "outbox_messages"],
             "these are the two documented table-class exceptions, not an extensible exclusion list");
 
         (await OrganizationGuardOffendersAsync(owner)).Should().BeEmpty(
             "Fix: attach an enabled, unconditional BEFORE UPDATE row trigger calling "
-            + "fn_organization_id_immutable; audit_log retains its proven append-only guard");
+            + "fn_organization_id_immutable; audit_log and ADR-0093 provider metadata retain their independently proven immutable guards");
     }
 
     [Theory]
@@ -186,6 +187,9 @@ public sealed class OrgScopeSchemaTests
     [InlineData("background_jobs", "tg_background_jobs_organization_id_immutable")]
     [InlineData("background_job_attempts", "tg_background_job_attempts_organization_id_immutable")]
     [InlineData("background_job_recipients", "tg_background_job_recipients_organization_id_immutable")]
+    [InlineData("invitations", "tg_invitations_organization_id_immutable")]
+    [InlineData("invitation_email_envelopes", "tg_invitation_email_envelopes_guard")]
+    [InlineData("invitation_email_attempt_receipts", "tg_invitation_email_attempt_receipts_guard")]
     public async Task The_Organization_Guard_Rejects_A_Missing_Guard_On_Each_Existing_Table(
         string table, string trigger)
     {
@@ -445,9 +449,10 @@ public sealed class OrgScopeSchemaTests
          )
          """;
 
-    private static Task<List<string>> OrganizationGuardOffendersAsync(
-        DbConnection connection, DbTransaction? transaction = null) =>
-        SchemaQueries.ReadStringsAsync(connection, OrganizationTables +
+    private static async Task<List<string>> OrganizationGuardOffendersAsync(
+        DbConnection connection, DbTransaction? transaction = null)
+    {
+        var offenders = await SchemaQueries.ReadStringsAsync(connection, OrganizationTables +
             """
             SELECT scoped.relname FROM organization_scoped scoped
             WHERE NOT EXISTS (
@@ -463,9 +468,22 @@ public sealed class OrgScopeSchemaTests
                   AND cardinality(t.tgattr::smallint[]) = 0
                   AND n.nspname = 'public' AND f.pronargs = 0
                   AND (f.proname = 'fn_organization_id_immutable'
-                       OR (scoped.relname = 'audit_log' AND f.proname = 'fn_audit_log_append_only')))
+                       OR (scoped.relname = 'audit_log' AND f.proname = 'fn_audit_log_append_only')
+                       OR (scoped.relname = 'invitation_email_envelopes' AND t.tgtype = 31
+                           AND f.proname = 'fn_invitation_email_envelope_guard')
+                       OR (scoped.relname = 'invitation_email_attempt_receipts' AND t.tgtype = 27
+                           AND f.proname = 'fn_invitation_email_attempt_guard')))
             ORDER BY scoped.relname
             """, transaction);
+        foreach (var (table, function) in new[]
+        {
+            ("invitation_email_envelopes", InvitationSchemaGuardExpectations.EnvelopeGuard),
+            ("invitation_email_attempt_receipts", InvitationSchemaGuardExpectations.AttemptGuard),
+        })
+            if (!await InvitationSchemaGuardExpectations.IsExactAsync(connection, transaction, function))
+                offenders.Add(table);
+        return offenders.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();
+    }
 
     private static readonly string OrganizationTables =
         $"""

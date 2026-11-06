@@ -34,6 +34,8 @@ public sealed class PlatformAdminScopeConventionTests
     // preserves this global resolution fence while permitting its approved root.
     private const string OutboxCompositionFile =
         "LearnStack.Api/Composition/OutboxCompositionExtensions.cs";
+    private const string InvitationCompositionFile =
+        "LearnStack.Api/Composition/InvitationEmailComposition.cs";
     private const string OutboxWorkerFile = "LearnStack.Api/Messaging/OutboxProcessor.cs";
     private const string DeliveryWorkerFile = "LearnStack.Api/Messaging/DeliveryProcessor.cs";
     private const string JobRuntimeRegistrationFile =
@@ -85,7 +87,7 @@ public sealed class PlatformAdminScopeConventionTests
         File.ReadAllText(Path.Combine(SourceScan.SourceRoot, JobRuntimeRegistrationFile))
             .Should().NotContain("PlatformAdmin");
 
-        // Leg 2 — IConfiguration.GetConnectionString is confined to the two enumerated
+        // Leg 2 — IConfiguration.GetConnectionString is confined to the three enumerated
         // API composition files. Not "every credential is read here": the design-time
         // DbContext factories read ConnectionStrings__Migration straight from the
         // environment, deliberately, because dotnet ef builds no host. What this pins is
@@ -98,11 +100,13 @@ public sealed class PlatformAdminScopeConventionTests
         // is a rule matching its own vocabulary rather than a credential.
         SourceScan.FilesContaining(SourceScan.SourceRoot, "GetConnectionString", except: null)
             .Should().BeEquivalentTo(
-                [CompositionFile, OutboxCompositionFile],
+                [CompositionFile, OutboxCompositionFile, InvitationCompositionFile],
                 "each credential has an explicitly confined composition root");
 
         File.ReadAllText(Path.Combine(SourceScan.SourceRoot, OutboxCompositionFile))
             .Should().NotContain("PlatformAdmin", "outbox composition must never read the platform credential");
+        File.ReadAllText(Path.Combine(SourceScan.SourceRoot, InvitationCompositionFile))
+            .Should().NotContain("PlatformAdmin", "SMTP custody reuses only the application credential; the compiled census pins the exact read and private source factory");
 
         // Leg 2b — the OTHER way to read the same value. GetConnectionString(name) is
         // sugar for configuration[$"ConnectionStrings:{name}"], so the indexer form

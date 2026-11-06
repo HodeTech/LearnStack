@@ -1,6 +1,7 @@
 using LearnStack.Api.Messaging;
 using LearnStack.Api.Jobs;
 using LearnStack.Api.Authentication;
+using LearnStack.Tests.Fixtures;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -33,6 +34,7 @@ public sealed class DevelopmentWebApplicationFactory : WebApplicationFactory<Pro
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(Environments.Development);
+        InvitationEmailFixtureConfiguration.AddTo(builder);
         // This served-contract proof owns no database. Remove only the named
         // startup workers; production startup tests retain mandatory registration.
         builder.ConfigureTestServices(services =>

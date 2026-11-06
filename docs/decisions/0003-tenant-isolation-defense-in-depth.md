@@ -549,3 +549,22 @@ ADR-0078 and its canonical storage contract; it is not an ADR-0041 erratum or a
 historical-body rewrite. P03-3's actual app-role/applied-policy/function/privilege
 and foreign-subject dirty controls must qualify it before consumer activation.
 Acceptance and document checks are not isolation proof.
+
+
+## Amendment 11 — Invitation entry and private SMTP owner functions (2026-11-04)
+
+Accepted [ADR-0093](0093-verified-invitation-acceptance-and-handoff.md) records the new
+bounded invitation decision selected by the maintainer. ADR-0093 adds the exact
+offer-entry function and two invitation SMTP provider functions to the eight-function
+historical closure: eleven in the current canonical census. Named role-qualified
+FORCE-RLS owner visibility covers only their fixed offer/User or provider/job/attempt
+projections. Four login roles, NOBYPASSRLS, ordinary tenant/org RLS and the existing
+physical context writers remain. No general app directory, raw SMTP plaintext projection
+or owner credential enters runtime.
+
+This dated Amendment links the successor; it does not rewrite this record's historical
+Decision, Status, Date, Deciders or earlier rationale. Canonical current
+source/operation/permission/audit/storage details live in Standards
+01/04/05/07/11/18/19/20/21 and the Identity/Tenancy specifications. The [Phase 03
+Status](../roadmap/phase-03-identity-admin.md) owns implementation and source-bound
+qualification; acceptance supplies no runtime proof.

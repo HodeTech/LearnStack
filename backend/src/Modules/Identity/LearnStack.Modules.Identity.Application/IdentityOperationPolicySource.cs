@@ -1,8 +1,10 @@
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
+using LearnStack.Modules.Identity.Application.Contracts.Invitations;
 using LearnStack.Modules.Identity.Application.Contracts.Seeding;
 using LearnStack.Modules.Identity.Application.Contracts.Roles;
 using LearnStack.Modules.Identity.Application.Contracts.Entry;
 using LearnStack.Modules.Identity.Domain;
+using LearnStack.Modules.Identity.Application.Invitations;
 using LearnStack.SharedKernel.Permissions;
 
 namespace LearnStack.Modules.Identity.Application;
@@ -10,6 +12,7 @@ namespace LearnStack.Modules.Identity.Application;
 /// <summary>Finite Identity definitions and exact internal operations; registration grants no stored Role authority.</summary>
 public sealed class IdentityOperationPolicySource : IOperationPolicySource
 {
+    public const string InvitationListOperation = "identity.invitation.list";
     public const string MembershipDirectoryOperation = "identity.membership.list";
     public const string OrganizationMembershipDirectoryOperation = "identity.membership.list_organization";
     public const string RoleDirectoryOperation = "identity.role.list";
@@ -35,6 +38,20 @@ public sealed class IdentityOperationPolicySource : IOperationPolicySource
 
     public IEnumerable<OperationPolicy> Policies =>
     [
+        OperationPolicy.ForInvitationEntry<InspectInvitationQuery>("identity.invitation.inspect"),
+        OperationPolicy.ForInvitationEntry<AcceptInvitationCommand>("identity.invitation.accept"),
+        OperationPolicy.ForInvitationEntry<GetOwnInvitationResultQuery>("identity.invitation.read_own_result"),
+        OperationPolicy.ForTrusted<PrepareTenantInvitationEmailCommand>("identity.invitation.prepare_tenant_email", AuthorizationSourceKind.BackgroundJob),
+        OperationPolicy.ForTrusted<PrepareOrganizationInvitationEmailCommand>("identity.invitation.prepare_organization_email", AuthorizationSourceKind.BackgroundJob),
+        OperationPolicy.ForTrusted<FinalizeTenantInvitationEmailCommand>("identity.invitation.tenant_email_submission", AuthorizationSourceKind.BackgroundJob),
+        OperationPolicy.ForTrusted<FinalizeOrganizationInvitationEmailCommand>("identity.invitation.organization_email_submission", AuthorizationSourceKind.BackgroundJob),
+        OperationPolicy.ForProtected<ListInvitationsQuery>("identity.invitation.list", [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),
+        OperationPolicy.ForProtected<GetInvitationQuery>("identity.invitation.read", [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),
+        OperationPolicy.ForProtected<ListInvitableRolesQuery>("identity.invitation.list_invitable_roles", [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),
+        OperationPolicy.ForProtected<CreateInvitationCommand>("identity.invitation.create", [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),
+        OperationPolicy.ForProtected<RevokeInvitationCommand>("identity.invitation.revoke", [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),
+        OperationPolicy.ForProtected<ReissueInvitationCommand>("identity.invitation.reissue", [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),
+        OperationPolicy.ForProtected<ReadInvitationReceiptQuery>("identity.invitation.read_receipt", [new([MembershipAdministration]), new([OrganizationMembershipAdministration])]),
         OperationPolicy.ForNativeSessionAdmission<AdmitNativeSessionScopeCommand>(NativeSessionAdmissionOperation),
         OperationPolicy.ForProtected<ListMembershipsQuery>(MembershipDirectoryOperation, MembershipAdministration, OperationReadScope.Tenant),
         OperationPolicy.ForProtected<ListOrganizationMembershipsQuery>(OrganizationMembershipDirectoryOperation,

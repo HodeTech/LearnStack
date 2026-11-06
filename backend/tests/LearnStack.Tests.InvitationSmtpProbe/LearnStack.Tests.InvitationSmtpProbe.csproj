@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsTestProject>false</IsTestProject>
+    <IsPackable>false</IsPackable>
+    <UseAppHost>false</UseAppHost>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../../src/LearnStack.Api/LearnStack.Api.csproj" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../LearnStack.Tests.Integration/ConstructionOnlyApiFactory.cs" Link="ConstructionOnlyApiFactory.cs" />
+    <Compile Include="../Fixtures/InvitationEmailFixtureConfiguration.cs" Link="InvitationEmailFixtureConfiguration.cs" />
+  </ItemGroup>
+</Project>

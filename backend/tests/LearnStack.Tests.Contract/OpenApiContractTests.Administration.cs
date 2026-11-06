@@ -9,7 +9,8 @@ public sealed partial class OpenApiContractTests
     // These are independent wire expectations, never populated from the production classifier,
     // protected-operation descriptors, DTO reflection, or document transformer.
     private sealed record AdministrationContract(string Path, string Method, string Id, string Response,
-        string? Input = null, bool ETag = false, bool Paged = false, bool Creates = false);
+        string? Input = null, bool ETag = false, bool Paged = false, bool Creates = false,
+        bool PolicyPrecondition = false, bool OptionalETag = false);
 
     private static readonly AdministrationContract[] AdministrationOperations =
     [
@@ -33,6 +34,14 @@ public sealed partial class OpenApiContractTests
         new("/api/v1/tenancy/organizations/{id}", "put", "RenameOrganization", "AdministrationVersionReceipt", "OrganizationRenameInput", true),
         new("/api/v1/tenancy/organizations/{id}/archive", "post", "ArchiveOrganization", "AdministrationVersionReceipt", "EmptyAdministrationInput", true),
         new("/api/v1/tenancy/default-organization", "put", "SelectDefaultOrganization", "AdministrationVersionReceipt", "DefaultOrganizationInput", true),
+        new("/api/v1/identity/invitations", "get", "ListInvitations", "InvitationPage", Paged: true),
+        new("/api/v1/identity/invitations/{id}", "get", "GetInvitation", "InvitationResponse", ETag: true),
+        new("/api/v1/identity/invitable-roles", "get", "ListInvitableRoles", "InvitableRoleDirectory"),
+        new("/api/v1/identity/invitations", "post", "CreateInvitation", "AdministrationVersionReceipt", "InvitationCreateInput", true, Creates: true),
+        new("/api/v1/identity/invitations/{id}/revocations", "post", "RevokeInvitation", "AdministrationVersionReceipt", "EmptyAdministrationInput", true),
+        new("/api/v1/identity/invitations/{id}/reissues", "post", "ReissueInvitation", "AdministrationVersionReceipt", "EmptyAdministrationInput", true),
+        new("/api/v1/tenancy/settings/invitation-policy", "get", "GetTenantInvitationPolicy", "InvitationPolicyResponse", OptionalETag: true),
+        new("/api/v1/tenancy/settings/invitation-policy", "put", "SetTenantInvitationLifetime", "AdministrationVersionReceipt", "InvitationLifetimeInput", true, PolicyPrecondition: true),
     ];
     private static readonly string[] AdministrationErrors = ["400", "401", "403", "404", "405", "413", "429", "500", "503"];
     private static readonly string[] AdministrationConflicts = ["409"];
@@ -47,6 +56,7 @@ public sealed partial class OpenApiContractTests
         "canReadRoles", "canChangeRoleGrants", "canAdoptRoleRelease", "canWriteOwnProfile", "canManageOrganizations"];
     private const string AdministrationUuidPattern = "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$";
     private const string AdministrationLocationPattern = "^/api/v1/tenancy/organizations/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$";
+    private const string InvitationLocationPattern = "^/api/v1/identity/invitations/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$";
     private static readonly Dictionary<string, JsonNode> AdministrationSchemas = new(StringComparer.Ordinal)
     {
         ["AdministrationVersionReceipt"] = AdminObject(("version", AdminVersion())),
@@ -88,16 +98,32 @@ public sealed partial class OpenApiContractTests
         ["OrganizationRenameInput"] = AdminObject(("displayName", AdminText(false, 200))),
         ["EmptyAdministrationInput"] = AdminObject(),
         ["DefaultOrganizationInput"] = AdminObject(("organizationId", AdminUuid())),
+        ["InvitationResponse"] = AdminObject(("invitationId", AdminUuid()), ("email", AdminText(false, 254)),
+            ("organizationId", AdminUuid(true)), ("roleId", AdminUuid()), ("roleVersion", AdminVersion()),
+            ("status", AdminEnum("Pending", "Accepted", "Revoked", "Expired")),
+            ("expiresAt", new JsonObject { ["type"] = "string", ["format"] = "date-time" }), ("version", AdminVersion()),
+            ("deliveryStatus", AdminEnum("Queued", "SubmissionAccepted", "Failed", "Unresolved", "Unavailable")),
+            ("acceptanceDisposition", new JsonObject
+            {
+                ["type"] = new JsonArray("string", "null"),
+                ["enum"] = new JsonArray("created", "already_member", null)
+            })),
+        ["InvitationPage"] = AdminObject(("items", AdminArray(AdminRef("InvitationResponse"), 100)), ("pageInfo", AdminRef("PageInfo"))),
+        ["InvitableRoleDirectory"] = AdminObject(("items", AdminArray(AdminRef("RoleSummaryResponse"), 8))),
+        ["InvitationPolicyResponse"] = AdminObject(("days", AdminLifetimeDays()), ("present", AdminBoolean()),
+            ("version", AdminNullableVersion()), ("canEdit", AdminBoolean())),
+        ["InvitationCreateInput"] = AdminObject(("email", AdminText(false, 254)), ("roleId", AdminUuid()), ("roleVersion", AdminVersion())),
+        ["InvitationLifetimeInput"] = AdminObject(("days", AdminLifetimeDays())),
     };
 
     [Fact]
-    public async Task Administration_contract_pins_twenty_actions_seventeen_paths_and_exact_lossless_closed_shapes()
+    public async Task Administration_contract_pins_twenty_eight_actions_twenty_three_paths_and_exact_lossless_closed_shapes()
     {
         var served = await Served();
-        AdministrationOperations.Should().HaveCount(20);
-        AdministrationOperations.Select(operation => operation.Path).Distinct(StringComparer.Ordinal).Should().HaveCount(17);
-        AdministrationOperations.Count(operation => operation.Input is not null).Should().Be(10);
-        AdministrationSchemas.Should().HaveCount(23);
+        AdministrationOperations.Should().HaveCount(28);
+        AdministrationOperations.Select(operation => operation.Path).Distinct(StringComparer.Ordinal).Should().HaveCount(23);
+        AdministrationOperations.Count(operation => operation.Input is not null).Should().Be(14);
+        AdministrationSchemas.Should().HaveCount(29);
         ContractErrors(served).Should().BeEmpty();
         SchemaErrors(served).Should().BeEmpty();
     }
@@ -173,6 +199,12 @@ public sealed partial class OpenApiContractTests
         AssertAdminMutation(clean, "administration-headers", document =>
             document["paths"]!["/api/v1/identity/me/capabilities"]!["get"]!["responses"]!["200"]!["headers"]!["ETag"] =
                 new JsonObject { ["required"] = true, ["schema"] = AdminEntityTag() });
+        AssertAdminMutation(clean, "administration-headers", document =>
+            document["paths"]!["/api/v1/tenancy/settings/invitation-policy"]!["get"]!["responses"]!["200"]!["headers"]!["ETag"]!["required"] = true);
+        AssertAdminMutation(clean, "administration-headers", document =>
+            document["paths"]!["/api/v1/identity/invitations"]!["post"]!["responses"]!["201"]!["headers"]!["Location"]!["schema"]!["pattern"] = AdministrationLocationPattern);
+        AssertAdminMutation(clean, "administration-parameters", document =>
+            document["paths"]!["/api/v1/tenancy/settings/invitation-policy"]!["put"]!["description"] = "Both conditional headers may be supplied.");
         AssertAdminMutation(clean, "administration-responses", document =>
         {
             var responses = document["paths"]!["/api/v1/tenancy/organizations"]!["post"]!["responses"]!.AsObject();
@@ -201,6 +233,8 @@ public sealed partial class OpenApiContractTests
             ("AdministrationVersionReceipt", "version"), ("MembershipDetailResponse", "version"),
             ("OwnMembershipProfileResponse", "version"), ("RoleSummaryResponse", "version"), ("RoleDetailResponse", "version"),
             ("OrganizationResponse", "version"), ("OrganizationDirectoryResponse", "tenantVersion"),
+            ("InvitationResponse", "version"), ("InvitationResponse", "roleVersion"),
+            ("InvitationCreateInput", "roleVersion"), ("InvitationPolicyResponse", "version"),
         })
             AssertAdminMutation(clean, "administration-schema:" + name, document =>
                 document["components"]!["schemas"]![name]!["properties"]![field] = new JsonObject { ["type"] = "integer", ["format"] = "int64" }, schema: true);
@@ -223,6 +257,10 @@ public sealed partial class OpenApiContractTests
             document["components"]!["schemas"]!["MembershipStatusInput"]!["properties"]!["status"] = new JsonObject { ["type"] = "integer" }, schema: true);
         AssertAdminMutation(clean, "administration-schema:OwnCapabilitiesDto", document =>
             document["components"]!["schemas"]!["OwnCapabilitiesDto"]!["properties"]!["canManageRoles"] = AdminBoolean(), schema: true);
+        AssertAdminMutation(clean, "administration-schema:InvitationLifetimeInput", document =>
+            document["components"]!["schemas"]!["InvitationLifetimeInput"]!["properties"]!["days"]!["maximum"] = 31, schema: true);
+        AssertAdminMutation(clean, "administration-schema:InvitationPolicyResponse", document =>
+            document["components"]!["schemas"]!["InvitationPolicyResponse"]!["properties"]!["version"]!["type"] = "string", schema: true);
         AssertAdminMutation(clean, "administration-schema:OwnMembershipContextResponse", document =>
             document["components"]!["schemas"]!["OwnMembershipContextResponse"]!["properties"]!["description"] = AdminText(), schema: true);
         AssertAdminMutation(clean, "administration-schema:RoleManifestInput", document =>
@@ -276,7 +314,8 @@ public sealed partial class OpenApiContractTests
                 {
                     expectedParameters["Idempotency-Key"] = ("header", true, new JsonObject
                     { ["type"] = "string", ["minLength"] = 8, ["maxLength"] = 128, ["pattern"] = "^[!-~]{8,128}$" });
-                    if (!contract.Creates) expectedParameters["If-Match"] = ("header", true, AdminEntityTag());
+                    if (!contract.Creates) expectedParameters["If-Match"] = ("header", !contract.PolicyPrecondition, AdminEntityTag());
+                    if (contract.PolicyPrecondition) expectedParameters["If-None-Match"] = ("header", false, AdminEnum("*"));
                     if (operation["requestBody"]?["required"]?.GetValue<bool>() != true
                         || !AdminMediaMatches(operation["requestBody"]?["content"], "application/json", contract.Input)) errors.Add("administration-body");
                     var description = operation["description"]?.GetValue<string>() ?? string.Empty;
@@ -284,6 +323,9 @@ public sealed partial class OpenApiContractTests
                         || !description.Contains("16 KiB", StringComparison.Ordinal)
                         || !description.Contains("unknown, duplicate and missing properties refuse", StringComparison.Ordinal)
                         || !description.Contains("never automatically retried", StringComparison.Ordinal)) errors.Add("administration-body");
+                    if (contract.PolicyPrecondition && (!description.Contains("Exactly one presence precondition is required", StringComparison.Ordinal)
+                        || !description.Contains("Supplying both or neither is 400", StringComparison.Ordinal)
+                        || !description.Contains("Absence differs from stored version zero", StringComparison.Ordinal))) errors.Add("administration-parameters");
                 }
                 else if (operation.ContainsKey("requestBody")) errors.Add("administration-body");
                 var parameters = operation["parameters"] as JsonArray ?? [];
@@ -324,11 +366,11 @@ public sealed partial class OpenApiContractTests
                     if (status == success)
                     {
                         if (!AdminMediaMatches(response?["content"], "application/json", contract.Response)) errors.Add("administration-success");
-                        if (contract.ETag)
+                        if (contract.ETag || contract.OptionalETag)
                         {
                             expectedHeaders.Add("ETag");
-                            if (headers?["ETag"]?["required"]?.GetValue<bool>() != true
-                                || !AdminSchemaMatches(headers["ETag"]?["schema"], AdminEntityTag())) errors.Add("administration-headers");
+                            if ((headers?["ETag"]?["required"]?.GetValue<bool>() ?? false) != contract.ETag
+                                || !AdminSchemaMatches(headers?["ETag"]?["schema"], AdminEntityTag())) errors.Add("administration-headers");
                         }
                         if (contract.Input is not null)
                         {
@@ -339,7 +381,7 @@ public sealed partial class OpenApiContractTests
                         {
                             expectedHeaders.Add("Location");
                             if (headers?["Location"]?["required"]?.GetValue<bool>() != true || !AdminSchemaMatches(headers["Location"]?["schema"],
-                                new JsonObject { ["type"] = "string", ["pattern"] = AdministrationLocationPattern })) errors.Add("administration-headers");
+                                new JsonObject { ["type"] = "string", ["pattern"] = contract.Id == "CreateInvitation" ? InvitationLocationPattern : AdministrationLocationPattern })) errors.Add("administration-headers");
                         }
                     }
                     else if (!AdminMediaMatches(response?["content"], "application/problem+json", "ProblemDetails")) errors.Add("administration-problem");
@@ -419,8 +461,10 @@ public sealed partial class OpenApiContractTests
     private static JsonObject AdminRef(string name) => new() { ["$ref"] = "#/components/schemas/" + name };
     private static JsonObject AdminBoolean() => new() { ["type"] = "boolean" };
     private static JsonObject AdminInteger() => new() { ["type"] = "integer", ["format"] = "int32", ["minimum"] = 1, ["maximum"] = int.MaxValue };
+    private static JsonObject AdminLifetimeDays() => new() { ["type"] = "integer", ["format"] = "int32", ["minimum"] = 1, ["maximum"] = 30 };
     private static JsonObject AdminDigest() => new() { ["type"] = "string", ["minLength"] = 64, ["maxLength"] = 64, ["pattern"] = "^[0-9a-f]{64}$" };
     private static JsonObject AdminVersion() => new() { ["type"] = "string", ["minLength"] = 1, ["maxLength"] = 19, ["pattern"] = "^(0|[1-9][0-9]{0,18})$" };
+    private static JsonObject AdminNullableVersion() { var value = AdminVersion(); value["type"] = new JsonArray("string", "null"); return value; }
     private static JsonObject AdminEntityTag() => new() { ["type"] = "string", ["minLength"] = 3, ["maxLength"] = 21, ["pattern"] = "^\"(0|[1-9][0-9]{0,18})\"$" };
     private static JsonObject AdminEnum(params string[] values) => new() { ["type"] = "string", ["enum"] = new JsonArray(values.Select(value => (JsonNode?)JsonValue.Create(value)).ToArray()) };
     private static JsonObject AdminRole() => AdminEnum("TenantAdmin", "OrgAdmin", "Instructor", "OrgInstructor", "Learner", "Guardian", "Editor");

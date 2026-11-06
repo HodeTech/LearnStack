@@ -39,6 +39,7 @@ adoption supplies identity facts; it does not independently grant seed authority
 | `Membership` | – | – | – | Tenant + Organization | Exact Standard 19 v1 manifest; includes contained assignments |
 | `Role` | – | – | – | Tenant | Tenant Admin alone; authoring stays tenant-wide |
 | `MembershipProfile` | – | Tenant + Organization | – | – | Exact v1 manifest, bounded contextual fields |
+| `Invitation` | – | – | – | Existing Tenant + Organization membership-admin | ADR-0093's exact invitation operations; no new assignable key |
 
 Empty cells mean no foundation key exists. Bootstrap/seed verification reads
 do not invent directory/read keys; their exact owner/audit classification is
@@ -119,6 +120,56 @@ authorizes their mutation. Protected HTTP replay independently admits current
 original-target disclosure and never reuses the former mutation permission.
 The [Standard 05 read authority contract](../../standards/05-database.md#operation-bound-read-authority)
 owns immutable invocation/transaction scope and EF/RLS agreement.
+
+## Verified Invitation Contract
+
+**Accepted under [ADR-0093](../../decisions/0093-verified-invitation-acceptance-and-handoff.md);
+runtime delivery and proof remain P03-4.** The
+[API contract](../../standards/04-api-design.md#verified-invitation-transport)
+owns exact method/path/body/response shapes. These bindings extend the closed
+policy census; acceptance does not claim production subjects already exist.
+
+| Application consumer | Capability / exact authority | Audit and boundary |
+|---|---|---|
+| `ListInvitationsQuery`, `GetInvitationQuery` | Applicable membership-admin, exact current tenant/nullable organization | MUST sensitive read; no verifier or raw link; no tenant-wide read widening |
+| `ListInvitableRolesQuery` | Same current capability/scope and whole-Role ceiling | MUST sensitive read; delegable ID/key/scope/version summaries only, no role-admin or grant graph |
+| `CreateInvitationCommand` | Applicable membership-admin and fresh whole pinned-Role delegation | MUST create; offer, generation 1, encrypted mail custody and identifier-only typed job staged atomically |
+| `RevokeInvitationCommand` | Current exact-scope membership-admin withdrawal authority and exact Pending target/version; no offered-Role pin or grant-ceiling requirement | MUST update; Accepted/Revoked states remain terminal |
+| `ReissueInvitationCommand` | Same capability, exact target/version, current delegation and unchanged Role pin | MUST update; protected keyed new generation/expiry invalidates old verifier; no raw-code response |
+| `ReadInvitationReceiptQuery` | Fresh applicable membership-admin and original exact Invitation scope | MUST read; no mutation rerun, secret or successor substitution |
+| `InspectInvitationQuery` | Exact native source, host/offer witness, Active bound actor and fresh current verified recipient | Off, physical ReadOnly; only the own matching Pending offer |
+| `AcceptInvitationCommand` | Same exact entry, repeated fresh recipient evidence and current stored-inviter delegation | Two central MUST resource intents, Invitation plus designated Membership; one atomic ordinary ReadWrite owner |
+| `GetOwnInvitationResultQuery` | Consumed digest, same Active actor and original current Active Membership | Off, physical ReadOnly; no email/inviter/Role/expiry revalidation, new grant or replacement Membership |
+
+Applicable capability means eligible Tenant `identity.membership.admin` or the
+exact current Organization pair. Tenant authority does not widen the selected
+invitation write scope; orgless offers require explicit orgless context. One
+compatible Role is pinned by version: Tenant Role iff organization is NULL,
+Organization Role iff non-NULL. Its complete current grants must fit the current
+inviter's ceiling, including only the established same-key Tenant-to-Organization
+bridge. That bridge never permits a cross-scope Role assignment. Acceptance
+reads the stored inviter from the locked offer on the same owner; it cannot
+mint another actor's HTTP candidate or use a supplied arbitrary UserId.
+
+Acceptance retains sorted exclusive invitee/inviter User fences before the
+strongest actual Tenant mode, Role, Invitation and Membership locks. Shared
+Tenant mode remains for nonadministrator effects; actual eligible Tenant Admin
+effects require exclusive. Changed post-wait mode refuses 409 without upgrade.
+The fresh global invitee check also covers unchanged Active `already_member`.
+Suspended refuses without consumption; Revoked history receives a new successor.
+The disposition is captured Invitation state. The unchanged Membership's row is
+subject-only security evidence with no fabricated creation diff or new audit
+metadata channel. Failed MUST durability rolls both roots back. A preflight
+Accepted offer dispatches result read before mutation intents; a Pending race
+loser records truthful failure and reconciles through a fresh result read.
+
+Invitation entry is separate from the three global-self descriptors and ordinary
+native scope. It grants no directory, AccountSite, general protected read/write,
+Platform authority or session. Global bootstrap commits/disposes before tenant
+work and remains opt-in. Membership success still requires ordinary explicit
+session admission. Private SMTP source custody/job execution is finite trusted
+infrastructure admission, not a human permission or SystemActor bypass; Standard
+05 and the module specification own its exact source/lease consumers.
 
 ## Proof ownership
 

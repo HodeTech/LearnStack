@@ -24,6 +24,8 @@ public sealed partial class OutboxDispatchConventionTests
     private const string LifecycleAuthorizationView = LifecycleAuthorizationOwner + "/ConfinedUnit";
     private const string LifecycleEvidenceOwner = "LearnStack.Infrastructure.Persistence.AuthorizationEvidenceSession";
     private const string LifecycleEvidenceView = LifecycleEvidenceOwner + "/ConfinedUnit";
+    private const string LifecycleInvitationWitness = "LearnStack.SharedKernel.Identity.InvitationEntryScopeWitness";
+    private const string LifecycleInvitationLookup = "LearnStack.Modules.Identity.Infrastructure.Invitations.InvitationEntryLookup";
     private const string LifecycleReadWitness = "LearnStack.SharedKernel.Permissions.OperationReadWitness";
     private const string LifecycleGlobalPrepared = DeliveryCoordinator + "/PreparedGlobalIdentityOwner";
     private const string LifecycleIdentityAssembly = "LearnStack.Modules.Identity.Infrastructure";
@@ -31,6 +33,9 @@ public sealed partial class OutboxDispatchConventionTests
     private const string LifecycleAcceptance = "LearnStack.Infrastructure.Messaging.PostgresDeliveryAcceptance";
     private const string LifecyclePlatform = "LearnStack.Infrastructure.MultiTenancy.PlatformAdminScope";
     private const string LifecycleIdempotencyStore = "LearnStack.Infrastructure.Idempotency.PostgresIdempotencyStore";
+    private const string LifecycleInvitationSmtpOwner = "LearnStack.Infrastructure.Email.InvitationSmtpProviderDataSource/Owner";
+    private static readonly string[] LifecycleInvitationSmtpSqlParameters =
+        ["System.Guid", "System.Guid", "System.Guid", "System.String", "System.Boolean", BoundaryCancellation];
     private const string LifecycleTask = "System.Threading.Tasks.Task";
     private static readonly string[] LifecycleIdempotencyOwnerParameters =
     [
@@ -156,6 +161,8 @@ public sealed partial class OutboxDispatchConventionTests
                              Array.Empty<string>(), "database.CommitAsync"),
                          (InfrastructureAssembly, LifecycleEvidenceOwner, "CompleteAsync",
                              Array.Empty<string>(), "database.CommitAsync"),
+                         (InfrastructureAssembly, LifecycleInvitationSmtpOwner, "ExecuteSqlAsync",
+                             LifecycleInvitationSmtpSqlParameters, "database.CommitAsync"),
                          (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobControlStore", "CommitAsync",
                              new[] { "LearnStack.Infrastructure.Jobs.BackgroundJobControlResources", BoundaryCancellation }, "database.CommitAsync"),
                          (InfrastructureAssembly, "LearnStack.Infrastructure.Jobs.PostgresBackgroundJobTerminalStore", "CommitAsync",
@@ -234,7 +241,7 @@ public sealed partial class OutboxDispatchConventionTests
             var readAnnouncements = OwnedBodies(census).SelectMany(item => item.Body.Body.Instructions)
                 .Where(instruction => instruction.Operand is MethodReference target
                     && IntegrationLifecycleCapability(target, types) is "unit.announce-wide" or "owned-unit.announce").ToArray();
-            readAnnouncements.Should().HaveCount(3, "the common owner has one witness announcement and both fixed public overloads share one private core");
+            readAnnouncements.Should().HaveCount(4, "the common owner has one witness announcement and both fixed public overloads share one private core");
             foreach (var announcement in readAnnouncements)
             {
                 AssertMutation(census, "a missing actual operation read announcement path", () =>
@@ -333,7 +340,7 @@ public sealed partial class OutboxDispatchConventionTests
         var core = adapter.Methods.Where(method => method.Name == "SetTenantContextCoreAsync").ToArray();
         if (core.Length != 1 || !core[0].IsPrivate || core[0].IsStatic || core[0].HasGenericParameters
             || core[0].ReturnType.FullName != LifecycleTask || !ParametersMatch(core[0],
-                ["LearnStack.SharedKernel.Tenancy.ITenantContext", LifecycleReadWitness, "System.Boolean", BoundaryCancellation]))
+                ["LearnStack.SharedKernel.Tenancy.ITenantContext", LifecycleReadWitness, "System.Boolean", BoundaryCancellation, LifecycleInvitationWitness]))
             offenders.Add("The ordinary tenant setter retains one private witness-aware core");
         var defaultWide = unit.Methods.Where(method => method.Name == "SetTenantContextAsync"
             && ParametersMatch(method, ["LearnStack.SharedKernel.Tenancy.ITenantContext", LifecycleReadWitness, BoundaryCancellation])).ToArray();
@@ -430,7 +437,8 @@ public sealed partial class OutboxDispatchConventionTests
         {
             ["unit.begin"] = [Owner(InfrastructureAssembly, LifecycleAcceptance, "AcceptAsync")],
             ["unit.begin-mode"] = [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteCoreAsync"),
-                Owner(DeliveryApplication, DeliveryPrepared, "CreateAsync"), Owner(InfrastructureAssembly, LifecycleAdapter, "BeginTransactionAsync", [BoundaryCancellation])],
+                Owner(DeliveryApplication, DeliveryPrepared, "CreateAsync"), Owner(InfrastructureAssembly, LifecycleAdapter, "BeginTransactionAsync", [BoundaryCancellation]),
+                Owner(LifecycleIdentityAssembly, LifecycleInvitationLookup, "LookupAsync")],
             ["unit.commit"] = [Owner(InfrastructureAssembly, LifecycleFrame, "CompleteAsync")],
             ["unit.rollback"] = [],
             ["unit.announce"] = [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"),
@@ -439,12 +447,14 @@ public sealed partial class OutboxDispatchConventionTests
             ["owned-unit.announce"] = [Owner(InfrastructureAssembly, LifecycleAdapter, "SetTenantContextAsync",
                 ["LearnStack.SharedKernel.Tenancy.ITenantContext", BoundaryCancellation]),
                 Owner(InfrastructureAssembly, LifecycleAdapter, "SetTenantContextAsync",
-                ["LearnStack.SharedKernel.Tenancy.ITenantContext", LifecycleReadWitness, BoundaryCancellation])],
+                ["LearnStack.SharedKernel.Tenancy.ITenantContext", LifecycleReadWitness, BoundaryCancellation]),
+                Owner(InfrastructureAssembly, LifecycleAdapter, "BeginInvitationEntryTransactionAsync")],
             ["scope.complete"] = [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"), Owner(InfrastructureAssembly, LifecycleAcceptance, "AcceptAsync"),
                 Owner(DeliveryApplication, LifecycleGlobalPrepared, "CompleteExistingAsync"),
                 Owner(LifecycleIdentityAssembly, LifecycleIdentityBindings + "GlobalIdentityBindingService", "ResolveExistingAsync"),
                 Owner(LifecycleIdentityAssembly, LifecycleIdentityBindings + "GlobalIdentityBindingService", "DebitAttemptAsync"),
                 Owner(LifecycleIdentityAssembly, LifecycleIdentityBindings + "GlobalIdentityBindingService", "ReadScopesAsync"),
+                Owner(LifecycleIdentityAssembly, LifecycleInvitationLookup, "LookupAsync"),
                 Owner("LearnStack.Modules.Tenancy.Infrastructure", "LearnStack.Modules.Tenancy.Infrastructure.Persistence.PreContextSelfDiscoveryScopeReader", "ReadAsync")],
             ["scope.fail"] = [Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"), Owner(DeliveryApplication, DeliveryCoordinator, "ExecuteFrameAsync"),
                 Owner(DeliveryApplication, DeliveryPrepared, "CreateAsync"), Owner(InfrastructureAssembly, LifecycleAcceptance, "AcceptAsync"),
@@ -459,6 +469,9 @@ public sealed partial class OutboxDispatchConventionTests
                 Owner(InfrastructureAssembly, LifecycleIdempotencyStore, "OwnAsync", LifecycleIdempotencyOwnerParameters),
                 Owner(InfrastructureAssembly, LifecycleAuthorizationOwner, "CompleteAsync"),
                 Owner(InfrastructureAssembly, LifecycleEvidenceOwner, "CompleteAsync"),
+                // ADR-0093: the confined provider connector commits only its exact
+                // custody/evidence SQL operation, never business or job completion.
+                Owner(InfrastructureAssembly, LifecycleInvitationSmtpOwner, "ExecuteSqlAsync", LifecycleInvitationSmtpSqlParameters),
                 Owner(InfrastructureAssembly, Store, "AcquireAsync"), Owner(InfrastructureAssembly, Store, "TryTerminalizeAsync"),
                 Owner(InfrastructureAssembly, DeliveryStore, "AcquireAsync"), Owner(InfrastructureAssembly, DeliveryStore, "UpdateAsync"),
                 Owner(InfrastructureAssembly, DeliveryStore, "TryTerminalizeAsync"), Owner(InfrastructureAssembly, DeliveryStore, "ReplayAsync"),
@@ -530,7 +543,7 @@ public sealed partial class OutboxDispatchConventionTests
         var name = target.Name[(target.Name.LastIndexOf('.') + 1)..];
         var cancellation = ParametersMatch(target, [BoundaryCancellation]);
         if (target.DeclaringType.FullName == LifecycleAdapter && name == "SetTenantContextCoreAsync")
-            return ParametersMatch(target, ["LearnStack.SharedKernel.Tenancy.ITenantContext", LifecycleReadWitness, "System.Boolean", BoundaryCancellation])
+            return ParametersMatch(target, ["LearnStack.SharedKernel.Tenancy.ITenantContext", LifecycleReadWitness, "System.Boolean", BoundaryCancellation, LifecycleInvitationWitness])
                 && target.ReturnType.FullName == LifecycleTask ? "owned-unit.announce" : "invalid-owned-unit-announce";
         if (types.TryGetValue((InfrastructureAssembly, LifecycleFrame), out var frame)
             && SameType(target.DeclaringType, frame) && name == "FailOwnedAsync")

@@ -2,12 +2,15 @@
 import { spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import {
+  chmodSync,
   existsSync,
+  linkSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
   realpathSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -84,6 +87,20 @@ function nativeSettings() {
     Identity__NativeSession__PreviousRetiresAt: new Date(Date.now() + 300_000).toISOString(),
     Identity__NativeSession__HttpsPort: '4443',
     Identity__SelfBootstrap__Enabled: 'true',
+  };
+}
+function invitationSettings() {
+  return {
+    InvitationEmail__KeyRing: JSON.stringify({
+      active: 'owned',
+      keys: { owned: randomBytes(32).toString('base64') },
+    }),
+    InvitationEmail__Smtp__Host: 'smtp.example.invalid',
+    InvitationEmail__Smtp__Port: '465',
+    InvitationEmail__Smtp__Sender: 'fixture@example.invalid',
+    InvitationEmail__Smtp__Tls: 'ImplicitTls',
+    InvitationEmail__Smtp__Username: 'synthetic-fixture',
+    InvitationEmail__Smtp__Password: randomBytes(24).toString('base64url'),
   };
 }
 function writeEnvironment(root: string, relative: string, values: Record<string, string>) {
@@ -341,6 +358,7 @@ describe('selected API auxiliary source environment', () => {
       Object.entries(file)
         .map(([key, value]) => `${key}=${value}`)
         .join('\n'),
+      { mode: 0o600 },
     );
     const options = { apiAuthentication: true };
     expect(loadLocalEnvironment(root, {}, options)).toMatchObject(file);
@@ -504,4 +522,146 @@ describe('actual public-api child admission', () => {
       expect(result.stderr).toBe('Local public configuration or launch failed\n');
     },
   );
+});
+
+describe('selected invitation email API environment', () => {
+  it.each(['permissions', 'symlink', 'hardlink', 'oversize', 'utf8'] as const)(
+    'refuses an unsafe %s API source before selecting its secrets',
+    (kind) => {
+      const root = temporary();
+      const invitation = invitationSettings();
+      writeEnvironment(root, 'selected-private', { ...apiIdentity, ...invitation });
+      const path = join(root, '.env');
+      if (kind === 'symlink') symlinkSync('selected-private', path);
+      else if (kind === 'hardlink') linkSync(join(root, 'selected-private'), path);
+      else {
+        writeEnvironment(root, '.env', { ...apiIdentity, ...invitation });
+        if (kind === 'permissions') chmodSync(path, 0o644);
+        if (kind === 'oversize') writeFileSync(path, 'IGNORED=' + 'x'.repeat(256 * 1024));
+        if (kind === 'utf8')
+          writeFileSync(path, Buffer.concat([Buffer.from('IGNORED='), Buffer.from([0xc3, 0x28])]));
+      }
+      expect(() => loadLocalEnvironment(root, {}, { apiAuthentication: true })).toThrow(
+        /^Cannot read local environment$/,
+      );
+    },
+  );
+
+  it.each(['file', 'projection', 'process'] as const)(
+    'passes selected invitation settings from %s to the actual API child',
+    (source) => {
+      const fixture = launcher();
+      const invitation = invitationSettings();
+      const values = {
+        ...fixture.values,
+        ...apiIdentity,
+        ...(source === 'file' ? invitation : {}),
+      };
+      if (source === 'projection')
+        writeEnvironment(fixture.root, 'frontend/apps/web/.env.local', invitation);
+      const result = launch(fixture, values, source === 'process' ? invitation : {});
+      expect(result.error).toBeUndefined();
+      expect(result.status, result.stderr).toBe(0);
+      const child = JSON.parse(readFileSync(fixture.marker, 'utf8')) as {
+        env: Record<string, string>;
+      };
+      expect(child.env).toMatchObject(invitation);
+      expect(result.stdout).toBe('');
+      expect(result.stderr).toBe('');
+    },
+  );
+
+  it.each(['root', 'projection', 'process'] as const)(
+    'selects invitation settings from %s only for the API',
+    (source) => {
+      const root = temporary();
+      mkdirSync(join(root, 'frontend/apps/web'), { recursive: true });
+      const invitation = invitationSettings();
+      writeEnvironment(root, '.env', {
+        ...apiIdentity,
+        ...(source === 'root' ? invitation : {}),
+      });
+      if (source === 'projection')
+        writeEnvironment(root, 'frontend/apps/web/.env.local', invitation);
+      const processValues = source === 'process' ? invitation : {};
+      const values = loadLocalEnvironment(root, processValues, { apiAuthentication: true });
+      expect(values).toMatchObject(invitation);
+      for (const key of Object.keys(invitation))
+        expect(loadLocalEnvironment(root, processValues)).not.toHaveProperty(key);
+    },
+  );
+
+  it('forwards only the seven selected settings and never ambient or prefix lookalikes', () => {
+    const invitation = invitationSettings();
+    const ambient = invitationSettings();
+    const values = {
+      ...selected(),
+      ...invitation,
+      InvitationEmail__Smtp__ProtocolLogging: 'true',
+      InvitationEmail__OtherSecret: 'unselected',
+    };
+    for (const make of [
+      () => publicApiEnvironment(values, configuration, ambient),
+      () => publicDemoApiEnvironment(values, configuration, temporary(), ambient),
+    ]) {
+      const environment = make();
+      expect(environment).toMatchObject(invitation);
+      expect(environment).not.toHaveProperty('InvitationEmail__Smtp__ProtocolLogging');
+      expect(environment).not.toHaveProperty('InvitationEmail__OtherSecret');
+    }
+    for (const environment of [
+      publicApiEnvironment(selected(), configuration, ambient),
+      publicDemoApiEnvironment(selected(), configuration, temporary(), ambient),
+      publicWebEnvironment(values, temporary(), ambient),
+      publicSeederEnvironment(undefined, ambient),
+      developmentSeederRuntimeEnvironment({ ...values, ...apiIdentity }, ambient),
+    ])
+      for (const key of Object.keys(invitation)) expect(environment).not.toHaveProperty(key);
+  });
+
+  it('refuses conflicting selected secrets without choosing a source or printing values', () => {
+    const root = temporary();
+    const invitation = invitationSettings();
+    writeEnvironment(root, '.env', { ...apiIdentity, ...invitation });
+    expect(() =>
+      loadLocalEnvironment(
+        root,
+        { InvitationEmail__KeyRing: invitationSettings().InvitationEmail__KeyRing },
+        { apiAuthentication: true },
+      ),
+    ).toThrow(/^Conflicting API invitation email configuration$/);
+    expect(() =>
+      loadLocalEnvironment(root, { ...invitation }, { apiAuthentication: true }),
+    ).not.toThrow();
+  });
+
+  it('bounds selected UTF-8 configuration and preserves empty development credentials', () => {
+    const values = {
+      ...selected(),
+      ...invitationSettings(),
+      InvitationEmail__Smtp__Username: '',
+      InvitationEmail__Smtp__Password: '',
+    };
+    expect(publicApiEnvironment(values, configuration, {})).toMatchObject(values);
+    const maximum = { ...values, InvitationEmail__Smtp__Password: 'é'.repeat(4096) };
+    expect(publicApiEnvironment(maximum, configuration, {}).InvitationEmail__Smtp__Password).toBe(
+      maximum.InvitationEmail__Smtp__Password,
+    );
+    const root = temporary();
+    expect(loadLocalEnvironment(root, maximum, { apiAuthentication: true })).toMatchObject(maximum);
+    for (const invalid of [
+      { InvitationEmail__KeyRing: ' ' },
+      { InvitationEmail__Smtp__Host: 'smtp.example.invalid\nother' },
+      { InvitationEmail__Smtp__Password: 'é'.repeat(4097) },
+      { InvitationEmail__Smtp__Password: 'secret\0suffix' },
+    ]) {
+      const selectedValues = { ...values, ...invalid };
+      expect(() => publicApiEnvironment(selectedValues, configuration, {})).toThrow(
+        /^Invalid API invitation email configuration$/,
+      );
+      expect(() => loadLocalEnvironment(root, selectedValues, { apiAuthentication: true })).toThrow(
+        /^Invalid API invitation email configuration$/,
+      );
+    }
+  });
 });

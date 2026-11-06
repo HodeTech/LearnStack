@@ -87,7 +87,8 @@ export function bffPageQuery(fields: URLSearchParams) {
 export function bffDocumentQuery(target: string, nativeFlight = false) {
   const path = target.split('?', 1)[0]!;
   if (path === '/' || !isNativeReturnPath(path)) throw new BffInputError();
-  const allowed = path === '/studio/members' ? ['cursor', 'limit'] : [];
+  const allowed =
+    path === '/studio/members' || path === '/studio/invitations' ? ['cursor', 'limit'] : [];
   const fields = bffQuery(target, nativeFlight ? [...allowed, '_rsc'] : allowed);
   if (fields.has('_rsc')) {
     if (!/^[\x21-\x7e]{1,128}$/.test(fields.get('_rsc')!)) throw new BffInputError();

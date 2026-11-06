@@ -97,7 +97,11 @@ public sealed class PostgresFixture : IAsyncLifetime
         .WithDatabase(Database)
         // Qualification can hold the supported job application (128) and
         // privileged (158) source boundaries together, plus fixture observers.
-        .WithCommand("-c", "max_connections=300")
+        .WithCommand("-c", "max_connections=300", "-c", "log_error_verbosity=terse",
+            "-c", "log_min_error_statement=panic", "-c", "log_statement=none",
+            "-c", "log_min_duration_statement=-1", "-c", "log_min_duration_sample=-1",
+            "-c", "log_transaction_sample_rate=0", "-c", "log_parameter_max_length=0",
+            "-c", "log_parameter_max_length_on_error=0")
         .WithUsername("postgres")
         .WithPassword("postgres")
         .WithEnvironment("LEARNSTACK_MIGRATION_PW", MigrationPassword)
@@ -165,6 +169,14 @@ public sealed class PostgresFixture : IAsyncLifetime
     }
 
     public async Task DisposeAsync() => await _container.DisposeAsync();
+
+    internal async Task<bool> ServerLogContainsSyntheticCanaryAsync(string canary)
+    {
+        if (!canary.StartsWith("smtp-proof-", StringComparison.Ordinal)) throw new ArgumentException("Synthetic canary required.");
+        var output = await _container.GetLogsAsync();
+        return output.Stdout.Contains(canary, StringComparison.Ordinal) || output.Stderr.Contains(canary, StringComparison.Ordinal);
+    }
+
 
     // A positive LOCK acknowledgement, followed by caller-controlled release.
     // The superuser connection stays private and the task joins actual rollback/disposal.

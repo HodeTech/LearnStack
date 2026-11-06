@@ -6,8 +6,19 @@ import { canonicalAddress, normalizeHost } from '../ingress.js';
 import { openEntryCursor, sealEntryCursor } from './entry-cursor.js';
 import { bffActionDocumentTarget } from './http-paths.js';
 import { BffInputError } from './input-error.js';
+import type {
+  InvitationContinuation,
+  InvitationOpening,
+  InvitationResponseLease,
+  InvitationCommand,
+} from './invitation-session.js';
 import { NativeApiError } from './native-contract.js';
 import type { NativeScope, SelfContexts } from './native-contract.js';
+import type {
+  NativeInvitationInspection,
+  NativeInvitationResult,
+} from './native-invitation-contract.js';
+import { NativeInvitationError } from './native-invitation-contract.js';
 import type { NativeOperation, NativeOperationResult } from './native-operation-contract.js';
 import { nativeContextPage } from './native-session-client.js';
 import type { NativeEntrySnapshot, NativePageSnapshot, ScopeChoices } from './page-contract.js';
@@ -71,13 +82,25 @@ type Group = {
   members: Set<Owner>;
   current?: Owner;
   publishing?: Owner;
+  invitation?: Owner;
 };
 type Owner = {
   id: string;
+  invitation?: Owner;
+  custody?: {
+    revision: object;
+    code?: string;
+    credentialsOwner?: Owner;
+    inspection?: NativeInvitationInspection;
+    result?: NativeInvitationResult;
+    acceptanceUncertain?: boolean;
+    state: InvitationContinuation['state'];
+  };
   group: Group;
   epoch: string;
   source: string;
   phase:
+    | 'invitation'
     | 'starting'
     | 'pending'
     | 'exchange'
@@ -92,6 +115,7 @@ type Owner = {
   controller: AbortController;
   work: Set<Promise<unknown>>;
   transaction?: LoginTransaction;
+  verification?: true;
   proof?: string;
   returnPath: NativeReturnPath;
   contextHint?: string;
@@ -177,7 +201,10 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       phase === 'active'
         ? this.#effective(entry)
         : Math.min(entry.deadline, entry.credentials?.refreshExpiresAt ?? entry.deadline);
-    if (this.#now() >= deadline) throw new BffSessionError('expired');
+    if (this.#now() >= deadline) {
+      if (phase === 'invitation') this.#close(entry);
+      throw new BffSessionError('expired');
+    }
   }
   #find(binding: SessionBinding) {
     const entry = isBffOpaque(binding.handle) ? this.#owners.get(binding.handle) : undefined;
@@ -202,13 +229,17 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     entry.source = '';
     entry.subject = undefined;
     entry.transaction = undefined;
+    entry.verification = undefined;
     entry.logoutState = undefined;
     entry.logoutProof = undefined;
     entry.replacement = undefined;
+    entry.invitation = undefined;
+    entry.custody = undefined;
     entry.csrf = '';
     entry.group.members.delete(entry);
     if (entry.group.current === entry) entry.group.current = undefined;
     if (entry.group.publishing === entry) entry.group.publishing = undefined;
+    if (entry.group.invitation === entry) entry.group.invitation = undefined;
     if (!entry.group.members.size)
       this.#groups.delete(this.#groupKey(entry.group.host, entry.group.browser));
   }
@@ -217,6 +248,19 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     this.#clearCursorKey(entry);
     this.#clearPageCursorKey(entry);
     entry.phase = 'closing';
+    if (entry.custody) {
+      for (const linked of entry.group.members)
+        if (
+          linked.invitation === entry &&
+          ['starting', 'pending', 'exchange'].includes(linked.phase)
+        )
+          this.#close(linked);
+      entry.custody.code = undefined;
+      entry.custody.inspection = undefined;
+      entry.custody.result = undefined;
+      entry.custody.credentialsOwner = undefined;
+      entry.custody.revision = Object.freeze({});
+    }
     entry.credentials = undefined;
     entry.account = undefined;
     entry.identity = undefined;
@@ -246,14 +290,18 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       return false;
     }
   }
-  #pageCursorBinding(entry: Owner, purpose: 'members' | 'scopes') {
+  #pageCursorBinding(entry: Owner, purpose: 'members' | 'scopes' | 'invitations') {
     return { ...this.#cursorBinding(entry), purpose };
   }
-  #wrapPageCursor(entry: Owner, purpose: 'members' | 'scopes', cursor: string) {
+  #wrapPageCursor(entry: Owner, purpose: 'members' | 'scopes' | 'invitations', cursor: string) {
     entry.pageCursorKey ??= randomBytes(32);
     return sealEntryCursor(entry.pageCursorKey, this.#pageCursorBinding(entry, purpose), cursor);
   }
-  #openPageCursor(entry: Owner, purpose: 'members' | 'scopes', cursor: string | undefined) {
+  #openPageCursor(
+    entry: Owner,
+    purpose: 'members' | 'scopes' | 'invitations',
+    cursor: string | undefined,
+  ) {
     if (cursor === undefined) return undefined;
     if (!entry.pageCursorKey) throw new BffInputError();
     return openEntryCursor(entry.pageCursorKey, this.#pageCursorBinding(entry, purpose), cursor);
@@ -372,7 +420,11 @@ export class InMemoryBffSessionStore implements BffSessionStore {
         : input.kind === 'scopes'
           ? this.#openPageCursor(owner, 'scopes', input.cursor)
           : plan?.cursor
-            ? this.#openPageCursor(owner, 'members', plan.cursor)
+            ? this.#openPageCursor(
+                owner,
+                plan.kind === 'invitations' ? 'invitations' : 'members',
+                plan.cursor,
+              )
             : undefined;
     if (input.kind === 'create') this.#entryProof(owner, input.csrf);
     const lease = this.#retainPage(owner, ticket);
@@ -550,7 +602,12 @@ export class InMemoryBffSessionStore implements BffSessionStore {
           },
           owner.identity!.organizationId,
           read,
-          (cursor) => this.#wrapPageCursor(owner, 'members', cursor),
+          (cursor) =>
+            this.#wrapPageCursor(
+              owner,
+              plan!.kind === 'invitations' ? 'invitations' : 'members',
+              cursor,
+            ),
         );
       });
       lease.track(work);
@@ -684,6 +741,429 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     return bundle;
   }
 
+  #findInvitation(binding: SessionBinding): Owner {
+    const owner = isBffOpaque(binding.handle) ? this.#owners.get(binding.handle) : undefined;
+    if (
+      !owner ||
+      owner.group.host !== binding.host ||
+      !bffSecretEquals(owner.group.browser, binding.browser) ||
+      owner.group.invitation !== owner ||
+      !owner.custody
+    )
+      throw new BffSessionError('revoked');
+    this.#assert(owner, 'invitation');
+    return owner;
+  }
+  #pendingCapacity(source: string) {
+    this.sweep();
+    const pending = [...this.#owners.values()].filter((owner) => owner.pending);
+    const reason =
+      pending.filter((owner) => owner.source === source).length >= BFF_LIMITS.source
+        ? 'source_capacity'
+        : pending.length >= BFF_LIMITS.pending
+          ? 'pending_capacity'
+          : this.#owners.size >= BFF_LIMITS.owners
+            ? 'global_capacity'
+            : null;
+    if (reason) throw new BffSessionError(reason);
+  }
+  openInvitation(input: Parameters<BffSessionStore['openInvitation']>[0]): InvitationOpening {
+    this.#checkSource(input.host, input.source);
+    if (input.browser !== undefined && !isBffOpaque(input.browser))
+      throw new BffSessionError('configuration');
+    if (input.handle && input.browser) {
+      try {
+        const owner = this.#findInvitation({
+          host: input.host,
+          browser: input.browser,
+          handle: input.handle,
+        });
+        return Object.freeze({
+          handle: owner.id,
+          browser: owner.group.browser,
+          csrfToken: owner.csrf,
+        });
+      } catch (error) {
+        if (!(error instanceof BffSessionError)) throw error;
+      }
+    }
+    this.#pendingCapacity(input.source);
+    let browser = input.browser ?? opaque();
+    let group = this.#groups.get(this.#groupKey(input.host, browser));
+    let credentialsOwner = input.sessionHandle
+      ? this.#find({ host: input.host, browser, handle: input.sessionHandle })
+      : undefined;
+    if (group?.current && !credentialsOwner) {
+      browser = opaque();
+      group = undefined;
+    }
+    if (!group) {
+      group = { host: input.host, browser, epoch: opaque(), members: new Set() };
+      this.#groups.set(this.#groupKey(input.host, browser), group);
+    }
+    if (!credentialsOwner && input.entryHandle) {
+      try {
+        credentialsOwner = this.#findEntry({
+          host: input.host,
+          browser,
+          handle: input.entryHandle,
+        });
+      } catch {
+        /* no borrowed authority */
+      }
+    }
+    const now = this.#now();
+    const owner: Owner = {
+      id: opaque(),
+      group,
+      epoch: group.epoch,
+      source: input.source,
+      phase: 'invitation',
+      pending: true,
+      deadline: now + BFF_LIMITS.transactionMs,
+      controller: new AbortController(),
+      work: new Set(),
+      returnPath: '/',
+      absolute: now + BFF_LIMITS.transactionMs,
+      activity: now,
+      utcOffset: this.#utc() - now,
+      csrf: opaque(),
+      custody: {
+        revision: Object.freeze({}),
+        state: credentialsOwner ? 'inspect' : 'signin',
+        credentialsOwner,
+      },
+    };
+    if (credentialsOwner) this.#reserveSubject(owner, credentialsOwner.credentials!);
+    if (credentialsOwner?.phase === 'entry') credentialsOwner.invitation = owner;
+    const previous = group.invitation;
+    group.invitation = owner;
+    group.members.add(owner);
+    this.#owners.set(owner.id, owner);
+    if (previous) this.#close(previous);
+    return Object.freeze({ handle: owner.id, browser, csrfToken: owner.csrf });
+  }
+  retainInvitation(binding: SessionBinding, lease: InvitationResponseLease): void {
+    const owner = this.#findInvitation(binding);
+    const revision = owner.custody!.revision;
+    lease.pin(() => {
+      this.#assert(owner, 'invitation');
+      if (
+        owner.group.invitation !== owner ||
+        owner.custody?.revision !== revision ||
+        lease.signal.aborted
+      )
+        throw new BffSessionError('revoked');
+    });
+    void this.#tracked(owner, () => lease.cleaned);
+  }
+  invitationEntry(binding: SessionBinding, entry: SessionBinding): boolean {
+    try {
+      const invitation = this.#findInvitation(binding);
+      const credentialOwner = this.#findEntry(entry);
+      return (
+        credentialOwner.invitation === invitation &&
+        invitation.custody!.credentialsOwner === credentialOwner
+      );
+    } catch {
+      return false;
+    }
+  }
+  #invitationProjection(owner: Owner): InvitationContinuation {
+    this.#assert(owner, 'invitation');
+    const custody = owner.custody!;
+    const credentialOwner = custody.credentialsOwner;
+    const live = owner.group.current;
+    return Object.freeze({
+      csrfToken: owner.csrf,
+      state: custody.state,
+      ...(custody.state === 'ready' && custody.inspection
+        ? { inspection: custody.inspection }
+        : {}),
+      ...(custody.result
+        ? {
+            disposition: custody.result.disposition,
+            sessionAvailable:
+              !!live &&
+              this.#live(live) &&
+              live.identity?.tenantId === custody.result.tenantId &&
+              live.identity.organizationId === custody.result.organizationId,
+          }
+        : {}),
+      ...(credentialOwner?.phase === 'entry' ? { entryCsrfToken: credentialOwner.csrf } : {}),
+      ...(live && this.#live(live) ? { sessionCsrfToken: live.csrf } : {}),
+    });
+  }
+  async #invitationAdmission(
+    owner: Owner,
+    binding: SessionBinding,
+    source: string,
+    signal: AbortSignal,
+  ): Promise<SessionCompletion | undefined> {
+    const custody = owner.custody!;
+    const receipt = custody.result!;
+    const credentialOwner = custody.credentialsOwner!;
+    const current = owner.group.current;
+    const old = current && this.#live(current) ? current : undefined;
+    if (old && old.subject?.key !== owner.subject?.key) throw new BffSessionError('account_change');
+    if (owner.group.publishing) throw new BffSessionError('transaction');
+    if (
+      old &&
+      old.identity?.tenantId === receipt.tenantId &&
+      old.identity.organizationId === receipt.organizationId
+    ) {
+      // A fresh own-result/acceptance already confirmed this exact actor and active Membership.
+      // Reuse the established session without resetting its account, CSRF or lifetime.
+      custody.credentialsOwner = old;
+      custody.code = undefined;
+      if (credentialOwner !== old && credentialOwner.phase === 'entry')
+        this.#close(credentialOwner);
+      return undefined;
+    }
+    this.#pendingCapacity(source);
+    const now = this.#now();
+    const phase = old ? 'switching' : 'selecting';
+    const entry: Owner = {
+      id: opaque(),
+      group: owner.group,
+      epoch: owner.epoch,
+      source,
+      phase,
+      pending: true,
+      deadline: old ? Math.min(owner.deadline, this.#effective(old)) : owner.deadline,
+      controller: new AbortController(),
+      work: new Set(),
+      returnPath: '/',
+      invitation: owner,
+      replacement: old,
+      absolute: old?.absolute ?? now + BFF_LIMITS.absoluteMs,
+      activity: now,
+      utcOffset: owner.utcOffset,
+      csrf: opaque(),
+      credentials: credentialOwner.credentials,
+    };
+    this.#reserveSubject(entry, entry.credentials!);
+    entry.group.members.add(entry);
+    this.#owners.set(entry.id, entry);
+    entry.group.publishing = entry;
+    try {
+      return await this.#bounded(entry, signal, async (current) => {
+        await this.#admission(entry, binding, source, receipt, current, phase);
+        this.#assert(owner, 'invitation');
+        if (old) this.#assert(old, 'active');
+        const completion = await this.#publish(entry, old, phase, current);
+        custody.credentialsOwner = entry;
+        custody.code = undefined;
+        return completion;
+      });
+    } finally {
+      if (entry.phase !== 'active') this.#close(entry);
+      if (entry.group.publishing === entry) entry.group.publishing = undefined;
+    }
+  }
+  async invitation(
+    binding: SessionBinding,
+    source: string,
+    command?: InvitationCommand,
+    signal?: AbortSignal,
+  ): Promise<InvitationContinuation> {
+    this.#checkSource(binding.host, source);
+    const owner = this.#findInvitation(binding);
+    if (!command) return this.#invitationProjection(owner);
+    this.#entryProof(owner, command.csrf);
+    if (command.kind === 'cancel') {
+      this.#close(owner);
+      return Object.freeze({ csrfToken: '', state: 'expired' });
+    }
+    let custody = owner.custody!;
+    if (command.kind === 'capture') {
+      const match =
+        /^([0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.([A-Za-z0-9_-]{43})$/.exec(
+          command.code,
+        );
+      if (!match || Buffer.from(match[2]!, 'base64url').toString('base64url') !== match[2])
+        throw new BffInputError();
+      let capturedOwner = owner;
+      let opening: InvitationOpening | undefined;
+      if (custody.code || owner.busy) {
+        const credentialsOwner = custody.credentialsOwner;
+        const deadline = owner.deadline;
+        opening = this.openInvitation({
+          host: binding.host,
+          source,
+          browser: binding.browser,
+          sessionHandle: owner.group.current?.id,
+          entryHandle: credentialsOwner?.phase === 'entry' ? credentialsOwner.id : undefined,
+        });
+        capturedOwner = this.#findInvitation({ ...binding, handle: opening.handle });
+        capturedOwner.deadline = deadline;
+        custody = capturedOwner.custody!;
+      }
+      custody.code = command.code;
+      custody.inspection = undefined;
+      custody.result = undefined;
+      custody.acceptanceUncertain = false;
+      custody.state = custody.credentialsOwner ? 'inspect' : 'signin';
+      custody.revision = Object.freeze({});
+      return Object.freeze({
+        ...this.#invitationProjection(capturedOwner),
+        ...(opening ? { opening } : {}),
+      });
+    }
+    if (owner.busy) throw new BffSessionError('transaction');
+    if (!custody.code) {
+      if (custody.result) return this.#invitationProjection(owner);
+      throw new BffSessionError('expired');
+    }
+    if (command.kind === 'verify') {
+      if (custody.state !== 'forbidden') throw new BffSessionError('transaction');
+      const login = await this.start({
+        host: binding.host,
+        source,
+        browser: binding.browser,
+        handle: owner.group.current?.id,
+        returnPath: '/',
+        invitation: owner.id,
+        verification: true,
+        signal,
+      });
+      return Object.freeze({ ...this.#invitationProjection(owner), login });
+    }
+    const credentialOwner = custody.credentialsOwner;
+    if (!credentialOwner || !['entry', 'active'].includes(credentialOwner.phase)) {
+      custody.state = 'signin';
+      return this.#invitationProjection(owner);
+    }
+    const revision = custody.revision;
+    const work = this.#bounded(owner, signal, async (current) => {
+      try {
+        await this.#tracked(credentialOwner, async () => {
+          const credentialSignal = AbortSignal.any([current, credentialOwner.controller.signal]);
+          if (credentialOwner.phase === 'active')
+            await this.#ready(credentialOwner, binding, source, false, credentialSignal);
+          else this.#assert(credentialOwner, 'entry');
+          this.#assert(owner, 'invitation');
+          const credentials = credentialOwner.credentials!;
+          if (!credentials || credentials.accessExpiresAt <= this.#now())
+            throw new BffSessionError('reauthenticate');
+          if (
+            owner.group.current &&
+            this.#live(owner.group.current) &&
+            owner.group.current.subject?.key !== owner.subject?.key
+          )
+            throw new BffSessionError('account_change');
+          const nativeBinding = this.#binding(binding, source);
+          const self = await this.#dependencies.native.self(
+            credentials.accessToken,
+            nativeBinding,
+            credentialSignal,
+          );
+          this.#assertSignal(credentialSignal);
+          this.#assert(owner, 'invitation');
+          if (self.state === 'missing') {
+            custody.state = 'bootstrap';
+            return;
+          }
+          this.#dependencies.native.verifyAssociation(credentials.identity, self.association);
+          const api = this.#dependencies.invitations;
+          if (!api) throw new BffSessionError('configuration');
+          const code = custody.code!;
+          const input = { invitationId: code.slice(0, 36), code };
+          if (command.kind === 'inspect') {
+            const inspected = await api.inspect(
+              credentials.accessToken,
+              nativeBinding,
+              input,
+              credentialSignal,
+            );
+            this.#assertSignal(credentialSignal);
+            this.#assert(owner, 'invitation');
+            if (custody.revision !== revision) throw new BffSessionError('revoked');
+            custody.inspection = inspected;
+            custody.state = 'ready';
+          } else {
+            if (
+              command.kind === 'accept' &&
+              (custody.state !== 'ready' || custody.inspection?.version !== command.version)
+            )
+              throw new BffSessionError('transaction');
+            if (command.kind === 'accept') {
+              // Issuing the API write creates uncertainty even if this HTTP request is cancelled.
+              custody.acceptanceUncertain = true;
+              custody.inspection = undefined;
+              custody.state = 'unknown';
+            }
+            const receipt =
+              command.kind === 'accept'
+                ? await api.accept(
+                    credentials.accessToken,
+                    nativeBinding,
+                    { ...input, version: command.version },
+                    credentialSignal,
+                  )
+                : await api.result(credentials.accessToken, nativeBinding, input, credentialSignal);
+            this.#assertSignal(credentialSignal);
+            this.#assert(owner, 'invitation');
+            if (custody.revision !== revision) throw new BffSessionError('revoked');
+            custody.result = receipt;
+            custody.acceptanceUncertain = false;
+            custody.inspection = undefined;
+            custody.state = 'accepted';
+          }
+          this.#assertSignal(credentialSignal);
+          this.#assert(owner, 'invitation');
+          if (custody.revision !== revision || credentialOwner.credentials !== credentials)
+            throw new BffSessionError('revoked');
+        });
+        if (custody.result && custody.state === 'accepted') {
+          try {
+            const completion = await this.#invitationAdmission(owner, binding, source, current);
+            custody.revision = Object.freeze({});
+            return Object.freeze({ ...this.#invitationProjection(owner), completion });
+          } catch {
+            this.#assert(owner, 'invitation'); /* committed receipt stays truthful */
+          }
+        }
+      } catch (error) {
+        this.#assert(owner, 'invitation');
+        if (current.aborted) throw error;
+        custody.inspection = undefined;
+        // A missing own result is not evidence of expiry: an earlier accept may still commit.
+        if (
+          command.kind === 'result' &&
+          error instanceof NativeInvitationError &&
+          error.status === 404
+        )
+          custody.acceptanceUncertain = true;
+        custody.state =
+          error instanceof NativeInvitationError && error.status === 403
+            ? 'forbidden'
+            : error instanceof NativeInvitationError && error.status === 404
+              ? command.kind === 'result' ||
+                (command.kind === 'inspect' && custody.acceptanceUncertain)
+                ? 'unknown'
+                : 'expired'
+              : error instanceof BffSessionError && error.reason === 'account_change'
+                ? 'account_change'
+                : error instanceof BffSessionError && error.reason === 'reauthenticate'
+                  ? 'signin'
+                  : command.kind === 'accept' ||
+                      command.kind === 'result' ||
+                      custody.acceptanceUncertain
+                    ? 'unknown'
+                    : 'unavailable';
+      }
+      custody.revision = Object.freeze({});
+      return this.#invitationProjection(owner);
+    });
+    owner.busy = work;
+    try {
+      return await work;
+    } finally {
+      if (owner.busy === work) owner.busy = undefined;
+    }
+  }
+
   /** Finite full scan; unsettled expired owners continue consuming all their credits. */
   sweep() {
     const now = this.#now();
@@ -712,6 +1192,16 @@ export class InMemoryBffSessionStore implements BffSessionStore {
           input.contextHint === '00000000-0000-0000-0000-000000000000'))
     )
       throw new BffSessionError('configuration');
+    const invitation =
+      input.invitation === undefined
+        ? undefined
+        : this.#findInvitation({
+            host: input.host,
+            browser: input.browser ?? '',
+            handle: input.invitation,
+          });
+    if (input.verification && (!invitation?.subject || !invitation.custody?.credentialsOwner))
+      throw new BffSessionError('transaction');
     this.sweep();
     const pending = [...this.#owners.values()].filter((entry) => entry.pending);
     const refusal =
@@ -749,11 +1239,13 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       source: input.source,
       phase: 'starting',
       pending: true,
-      deadline: now + BFF_LIMITS.transactionMs,
+      deadline: Math.min(now + BFF_LIMITS.transactionMs, invitation?.deadline ?? Infinity),
       controller: new AbortController(),
       work: new Set(),
       returnPath: input.returnPath,
       contextHint: input.contextHint,
+      invitation,
+      verification: input.verification ? true : undefined,
       replacement,
       absolute: now + BFF_LIMITS.absoluteMs,
       activity: now,
@@ -765,10 +1257,10 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     return this.#exclusive(entry, input.signal, async () => {
       try {
         this.#assert(entry, 'starting');
-        const start = await this.#dependencies.provider.begin(
-          'https://' + input.host + '/api/auth/callback/keycloak',
-          entry.controller.signal,
-        );
+        const callbackUri = 'https://' + input.host + '/api/auth/callback/keycloak';
+        const start = await (input.verification
+          ? this.#dependencies.provider.begin(callbackUri, entry.controller.signal, 'verify_email')
+          : this.#dependencies.provider.begin(callbackUri, entry.controller.signal));
         this.#assert(entry, 'starting');
         if (!isBffOpaque(start.transaction.state) || this.#states.has(start.transaction.state))
           throw new BffSessionError('response');
@@ -806,6 +1298,20 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       !bffSecretEquals(input.proof, entry.proof)
     )
       throw new BffSessionError('transaction');
+    // Keycloak's finite action result belongs only to this owned VERIFY_EMAIL transaction.
+    // It is never evidence of verified email; the invitation still requires fresh inspection.
+    const callback = new URL(input.responseUrl).searchParams;
+    const actions = callback.getAll('kc_action');
+    const actionStatuses = callback.getAll('kc_action_status');
+    if (
+      (actions.length || actionStatuses.length) &&
+      (!entry.verification ||
+        actions.length !== 1 ||
+        actions[0] !== 'VERIFY_EMAIL' ||
+        actionStatuses.length !== 1 ||
+        !['success', 'cancelled', 'error'].includes(actionStatuses[0]!))
+    )
+      throw new BffSessionError('transaction');
     // Single-use before exchange; an unrelated/invalid proof never consumes it.
     entry.phase = 'exchange';
     this.#states.delete(input.state);
@@ -821,13 +1327,35 @@ export class InMemoryBffSessionStore implements BffSessionStore {
         );
         this.#assert(entry, 'exchange');
         this.#reserveSubject(entry, credentials);
+        if (entry.invitation) {
+          const offer = entry.invitation;
+          this.#assert(offer, 'invitation');
+          const key = entry.subject!.key;
+          const current = offer.group.current;
+          if (
+            (offer.subject && offer.subject.key !== key) ||
+            (current && this.#live(current) && current.subject?.key !== key)
+          ) {
+            offer.custody!.state = 'account_change';
+            throw new BffSessionError('account_change');
+          }
+          if (!offer.subject) this.#reserveSubject(offer, credentials);
+          const previousCredentials = offer.custody!.credentialsOwner;
+          offer.custody!.credentialsOwner = entry;
+          if (previousCredentials?.phase === 'entry') this.#close(previousCredentials);
+          offer.custody!.inspection = undefined;
+          offer.custody!.state = 'inspect';
+          offer.custody!.revision = Object.freeze({});
+        }
         entry.cursorKey = randomBytes(32);
         entry.credentials = credentials;
         entry.transaction = undefined;
+        entry.verification = undefined;
         entry.proof = undefined;
         entry.phase = 'entry';
         return Object.freeze({
           kind: 'entry',
+          ...(entry.invitation ? { invitation: entry.invitation.id } : {}),
           handle: entry.id,
           browser: entry.group.browser,
           entry: this.#entryProjection(entry),
@@ -1004,6 +1532,12 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       this.#assertSignal(current);
       this.#assert(owner, 'entry');
       this.#dependencies.native.verifyAssociation(credentials.identity, association);
+      // The existing global bootstrap finishes before the invitation's separate tenant operation.
+      if (owner.invitation) {
+        this.#assert(owner.invitation, 'invitation');
+        owner.invitation.custody!.state = 'inspect';
+        return this.#entryProjection(owner, 'active');
+      }
       // A deliberately repeated create first resolves an existing binding; never retry POST automatically.
       return this.#entryRead(owner, binding, source, undefined, current);
     });
@@ -1020,6 +1554,7 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     this.#entryProof(entry, csrf);
     const idToken = entry.credentials!.idToken;
     // This entry owns its provider logout; an unrelated live destination remains published.
+    if (entry.invitation) this.#close(entry.invitation);
     this.#abortPages(entry);
     this.#clearPageCursorKey(entry);
     entry.phase = 'logout';
@@ -1123,8 +1658,11 @@ export class InMemoryBffSessionStore implements BffSessionStore {
     const epoch = opaque();
     entry.group.epoch = epoch;
     entry.epoch = epoch;
-    for (const competing of entry.group.members)
-      if (competing !== entry && competing !== old && competing.pending) this.#close(competing);
+    for (const competing of entry.group.members) {
+      if (competing === entry.invitation) competing.epoch = epoch;
+      else if (competing !== entry && competing !== old && competing.pending)
+        this.#close(competing);
+    }
     if (old) {
       this.#close(old);
       await Promise.allSettled([...old.work]);
@@ -1341,6 +1879,10 @@ export class InMemoryBffSessionStore implements BffSessionStore {
       'listRoles',
       'getRole',
       'getPermissions',
+      'listInvitations',
+      'getInvitation',
+      'listInvitableRoles',
+      'getInvitationPolicy',
       'listOrganizations',
       'getOrganization',
     ].includes(captured.kind);

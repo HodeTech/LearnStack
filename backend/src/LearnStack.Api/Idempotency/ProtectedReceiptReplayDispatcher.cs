@@ -1,3 +1,5 @@
+using LearnStack.Modules.Identity.Application.Contracts.Invitations;
+using LearnStack.Modules.Tenancy.Application.Contracts.Settings;
 using LearnStack.Modules.Identity.Application.Contracts.Memberships;
 using LearnStack.Modules.Identity.Application.Contracts.Roles;
 using LearnStack.Modules.Tenancy.Application.Contracts.Tenant;
@@ -30,6 +32,9 @@ internal sealed class ProtectedReceiptReplayDispatcher(ISender sender)
                 sender.Send(new ReadOrganizationReceiptQuery(OrganizationId.From(target.Id)), cancellationToken),
             ProtectedAdministrationOperation.SelectDefaultOrganization =>
                 sender.Send(new ReadDefaultOrganizationReceiptQuery(TenantId.From(target.Id)), cancellationToken),
+            ProtectedAdministrationOperation.CreateInvitation or ProtectedAdministrationOperation.RevokeInvitation or ProtectedAdministrationOperation.ReissueInvitation =>
+                sender.Send(new ReadInvitationReceiptQuery(target.Id), cancellationToken),
+            ProtectedAdministrationOperation.SetTenantInvitationLifetime => sender.Send(new ReadInvitationPolicyReceiptQuery(target.Id), cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(descriptor)),
         };
     }

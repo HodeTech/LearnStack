@@ -29,7 +29,10 @@ internal sealed class HttpAuthorizationTransportSource(IHttpContextAccessor acce
     }
 
     private static bool MatchesScope(HttpContext http, ValidatedTenantIdentity identity, OperationInvocation invocation) =>
-        http.Features.Get<NativeScopeEvidence>() is { } native
+        http.Features.Get<InvitationEntrySource>() is { } invitation
+            ? invitation.IsCurrent(http) && invitation.Offer!.Actor == invocation.Actor && invitation.Offer.TenantId == invocation.TenantId
+                && invitation.Offer.OrganizationId == invocation.OrganizationId
+            : http.Features.Get<NativeScopeEvidence>() is { } native
             ? native.IsCurrent(http) && native.Actor == invocation.Actor && native.Tenant == invocation.TenantId
                 && native.Organization == invocation.OrganizationId
             : identity.TenantId == invocation.TenantId;

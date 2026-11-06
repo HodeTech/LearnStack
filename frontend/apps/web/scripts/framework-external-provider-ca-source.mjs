@@ -92,7 +92,9 @@ function exactOwnedCa(path, expectedHash) {
   }
 }
 
-export function installCopiedExternalProviderCa({ root, app, authority }) {
+export function installCopiedExternalProviderCa({ root, app, authority, randomListener = false }) {
+  assert.equal(typeof randomListener, 'boolean');
+  const profile = randomListener ? 'bff' : 'none';
   const privateRoot = realpathSync(root);
   const appRoot = realpathSync(app);
   if (
@@ -118,7 +120,9 @@ export function installCopiedExternalProviderCa({ root, app, authority }) {
     'Only one copied proof profile call',
   );
   assert.equal(
-    owner.match(/^[ ]{2}copiedProof = createCopiedParentProof\('none'\);$/gm)?.length,
+    owner.match(
+      new RegExp("^[ ]{2}copiedProof = createCopiedParentProof\\('" + profile + "'\\);$", 'gm'),
+    )?.length,
     1,
     'Only external copied owner',
   );

@@ -24,7 +24,7 @@ internal sealed class OperationAuthorizationPolicyProvider(IOptions<Authorizatio
         return Task.FromResult(policy is
         {
             Kind: OperationPolicyKind.Protected or OperationPolicyKind.AccountRead
-            or OperationPolicyKind.NativeSessionAdmission or OperationPolicyKind.OwnMembershipRead
+            or OperationPolicyKind.NativeSessionAdmission or OperationPolicyKind.OwnMembershipRead or OperationPolicyKind.InvitationEntry
         }
             ? new AuthorizationPolicy([new OperationPolicyRequirement(policy)], [TenantAuthenticationRegistration.Scheme]) : null);
     }
@@ -60,8 +60,13 @@ internal sealed class OperationAuthorizationHandler(OperationHttpClassifier clas
                     context.Fail();
                     continue;
                 }
-                var response = await ProtectedReplayHttpAdmission.AuthorizeAsync(http, policy, classifier,
-                    tenantContext, store, candidates, operations);
+                var response = policy.Kind == OperationPolicyKind.InvitationEntry
+                    ? http.Features.Get<InvitationEntrySource>() is { } invitation && invitation.IsCurrent(http)
+                        && invitation.EffectiveRequestType is { } requestType
+                        ? await operations().CheckHttpAsync(requestType, http.GetEndpoint()!, http.RequestAborted)
+                        : LearnStack.SharedKernel.Results.Result.Fail<LearnStack.SharedKernel.Results.None>(TenantContextFactory.Refused)
+                    : await ProtectedReplayHttpAdmission.AuthorizeAsync(http, policy, classifier,
+                        tenantContext, store, candidates, operations);
                 if (response.IsSuccess) context.Succeed(requirement);
                 else
                 {

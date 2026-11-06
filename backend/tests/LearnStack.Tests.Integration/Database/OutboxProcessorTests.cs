@@ -11,6 +11,7 @@ using LearnStack.Modules.Tenancy.Application.Contracts.IntegrationEvents;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.SharedKernel.Messaging;
 using LearnStack.SharedKernel.Tenancy;
+using LearnStack.Tests.Fixtures;
 using MediatR;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -835,6 +836,7 @@ public sealed class OutboxProcessorTests(SchemaFixture schema, Xunit.Abstraction
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UseEnvironment(Environments.Development);
+            InvitationEmailFixtureConfiguration.AddTo(builder);
             // Outbox proofs own PostgreSQL and their captured logger, not a collector.
             builder.UseSetting("Telemetry:OtlpEndpoint", string.Empty);
             builder.UseSetting("ConnectionStrings:Default", database.AppConnectionString);

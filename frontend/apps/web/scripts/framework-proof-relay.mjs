@@ -47,6 +47,14 @@ export const NATIVE_OPERATION_KINDS = Object.freeze([
   'renameOrganization',
   'archiveOrganization',
   'selectDefaultOrganization',
+  'listInvitations',
+  'getInvitation',
+  'listInvitableRoles',
+  'getInvitationPolicy',
+  'createInvitation',
+  'revokeInvitation',
+  'reissueInvitation',
+  'setInvitationLifetime',
 ]);
 const OPERATION_SET = new Set(NATIVE_OPERATION_KINDS);
 

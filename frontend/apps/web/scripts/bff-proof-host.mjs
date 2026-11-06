@@ -156,6 +156,7 @@ export function instrumentCopiedBffRuntime(
     external,
     uiMode,
     isolatedProtocol,
+    randomListener,
     disabledOwnPreference,
     fakeIssuer,
     fakeLogout,
@@ -339,7 +340,7 @@ export function instrumentCopiedBffRuntime(
       "if (app) ownShutdown(() => observeShutdownJoin('next', app.close()));",
     );
   }
-  if (isolatedProtocol) {
+  if (isolatedProtocol || randomListener) {
     // Only the physical test listener changes. Logical Host/origin, ingress,
     // Next's configured port, TLS and all production admission remain intact.
     launcher = replace(
@@ -379,6 +380,7 @@ export async function prepareBffProof({
   clockBase = 1800000000000,
   external,
   isolatedProtocol = false,
+  randomListener = false,
   frameworkTemplate,
   fakeIssuer = 'https://identity.example.test/realms/learnstack',
   fakeLogout = fakeIssuer + '/protocol/openid-connect/logout',
@@ -389,6 +391,11 @@ export async function prepareBffProof({
   ],
 }) {
   assert.ok(!isolatedProtocol || !external, 'isolated protocol excludes external capabilities');
+  assert.equal(typeof randomListener, 'boolean');
+  assert.ok(
+    !randomListener || (external && uiMode),
+    'random external listener requires real provider UI fixture',
+  );
   assert.equal(typeof transportProof, 'boolean', 'closed transport fixture selection');
   assert.equal(typeof routerMatrix, 'boolean', 'closed router matrix fixture selection');
   assert.equal(typeof routerFaults, 'boolean', 'closed router fault fixture selection');
@@ -445,7 +452,7 @@ export async function prepareBffProof({
       privateValues,
       cookieCanaries,
       scanners,
-      profile: external ? 'none' : 'bff',
+      profile: external && !randomListener ? 'none' : 'bff',
     });
   }
   function get(path, cookie, extra = {}) {
@@ -558,6 +565,12 @@ export async function prepareBffProof({
     'native-operation-contract',
     'native-api-transport',
     'native-session-client',
+    'native-invitation-contract',
+    'native-invitation-client',
+    'native-invitation-http',
+    'invitation-session',
+    'invitation-copy',
+    'invitation-html',
     'entry-cursor',
     'native-administration-client',
     'http-forms',
@@ -572,6 +585,15 @@ export async function prepareBffProof({
       join(source, 'src/server/auth', name + '.ts'),
       join(app, 'src/server/auth', name + '.ts'),
     );
+  // The native launcher imports these exact authored assets before Next starts.
+  for (const locale of ['en', 'tr']) {
+    const directory = join(app, 'src/i18n/messages', locale);
+    mkdirSync(directory, { recursive: true });
+    cpSync(
+      join(source, 'src/i18n/messages', locale, 'invitation.json'),
+      join(directory, 'invitation.json'),
+    );
+  }
   if (mutation === 'activity') {
     const path = join(app, 'src/server/auth/request-runtime.ts');
     file(
@@ -584,7 +606,11 @@ export async function prepareBffProof({
   for (const name of ['tailwind.config.ts', 'postcss.config.cjs'])
     cpSync(join(source, name), join(app, name));
   cpSync(join(source, 'scripts/development-hmr.mjs'), join(app, 'scripts/development-hmr.mjs'));
-  prepareFrameworkProof({ sourceApp: source, app, profile: external ? 'none' : 'bff' });
+  prepareFrameworkProof({
+    sourceApp: source,
+    app,
+    profile: external && !randomListener ? 'none' : 'bff',
+  });
   file(
     join(app, 'package.json'),
     JSON.stringify({
@@ -730,6 +756,7 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
         external,
         uiMode,
         isolatedProtocol,
+        randomListener,
         disabledOwnPreference,
         fakeIssuer,
         fakeLogout,
@@ -918,7 +945,12 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
     },
   });
   if (external) {
-    const trust = installCopiedExternalProviderCa({ root, app, authority: external.authority });
+    const trust = installCopiedExternalProviderCa({
+      root,
+      app,
+      authority: external.authority,
+      randomListener,
+    });
     env.NODE_EXTRA_CA_CERTS = trust.caPath;
   }
   // Compile the copied current sources: never let stale workstation output
@@ -1019,7 +1051,7 @@ export const config = { runtime: 'nodejs', matcher: ['/((?!_next/|favicon\\.ico$
         listenerPort: () => listenerPort,
       };
       const ready = (async () => {
-        if (isolatedProtocol) {
+        if (isolatedProtocol || randomListener) {
           try {
             listenerPort = await waitForBffProofListener(server.proofChannel);
           } catch (error) {

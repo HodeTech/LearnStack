@@ -35,6 +35,9 @@ The internal fixed-seed prerequisite boundary additionally derives from
 [ADR-0080](../decisions/0080-fixed-seed-prerequisite-read-scope.md).
 The separate fixed-origin completion purpose derives from
 [ADR-0081](../decisions/0081-fixed-seed-completion-before-origin-adoption.md).
+Invitation grant, policy and automatic submission additions derive from
+[ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md);
+its new consumers remain planned until implemented.
 
 This standard defines **which operations must be audited**, **what an audit entry
 contains**, **how long entries are retained**, and how each module signs up for its
@@ -237,7 +240,7 @@ not prove implementation or production fit.
 
 | Domain | MUST-audit operation |
 |--------|----------------------|
-| Identity | Membership created / removed (per `(user_id, tenant_id, organization_id)`); role assigned / revoked; permission set changed; protected-act authorization denied under trusted resolved tenant (`identity.authorization.deny`, ADR-0077); invitation created / accepted / revoked; platform-admin tenant access; Hub operator access to a tenant resource. |
+| Identity | Membership created / removed (per `(user_id, tenant_id, organization_id)`); role assigned / revoked; permission set changed; protected-act authorization denied under trusted resolved tenant (`identity.authorization.deny`, ADR-0077); invitation created / reissued / accepted / revoked and its consequential email preparation/submission outcome (ADR-0093); platform-admin tenant access; Hub operator access to a tenant resource. |
 | Tenancy | Tenant created / suspended / deleted; organization created / archived; tenant setting changed; custom domain added / verified / removed; feature flag toggled; entitlement projection refresh (`tenancy.entitlement.refresh`); killswitch toggled (`tenancy.killswitch.toggle`). |
 | Customization | `TenantContentType` / `TenantPageBlock` / `TenantLessonItemType` / `TenantLevelTaxonomy` / `TenantScoringRule` / `TenantCompletionRule` / `TenantCustomFieldDef` / `TenantTemplateLibrary` created / updated / deleted (schema changes are MUST; both `before` and `after` snapshots required). |
 | Content / Pages | Page published / unpublished; content type schema changed; redirect created / changed. |
@@ -249,7 +252,7 @@ not prove implementation or production fit.
 | Recording | Recording started / stopped; recording downloaded; retention policy changed; legal hold applied / removed. |
 | Billing | Order paid / refunded; subscription created / cancelled; payment provider account changed. |
 | Hub contract | Inbound Hub command received (`tenancy.tenant.create_from_hub`, and the entitlement push, which is the Tenancy row's `tenancy.entitlement.refresh` — one operation, one slug); outbound usage report (`platform.usage.report`); license verification result. |
-| Notifications | Template changed; outbound delivery to a recipient (SHOULD for non-PII channels; MUST for password reset / invitation / billing). |
+| Notifications | Template changed; outbound delivery to a recipient (SHOULD for non-PII channels; MUST for password reset / invitation / billing). ADR-0093's bounded P03-4 invitation submission belongs to Identity before the Phase 08a notification engine; no new module or second audit owner is implied. |
 | Integrations | External provider credential created / rotated / revoked; webhook secret rotated. |
 | Security | Login failure burst beyond rate limit; MFA challenge failed; admin override of any guard; mTLS / signed-JWT / HMAC verification failure on `/api/internal/*`; admitted cross-tenant assertion mismatch carrying a validated principal (`tenancy.tenant_assertion.reject`, bounded admission under ADR-0065); anonymous assertion-mismatch burst beyond threshold (`tenancy.tenant_assertion.anonymous_burst`); a header conflicting with successfully confirmed ClaimAndMembership context (`tenancy.assertion.reject_claim_context`, ADR-0077; no host allowance). |
 
@@ -880,6 +883,68 @@ The seven-/two-year retention periods above remain **policy targets**, not an
 implemented automatic purge. Phase 11 owns enforcement and production volume
 qualification. New relationship/target/subject links remain personal data under
 the Data Protection inventory; ordinary redaction grants are not widened.
+
+## Verified invitation and submission evidence
+
+The P03-4 contract derives from
+[ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md).
+[Identity's matrix](../modules/identity/audit.md#invitation-bindings) and
+[Tenancy's policy binding](../modules/tenancy/audit.md#invitation-policy-binding)
+own exact operations/resources. Rows and new request bindings remain planned
+until their consumers and catalogue entries exist. A decision or diagram is not
+an implemented catalogue population.
+
+- Create, reissue, revoke and accept are MUST security events. Creation/reissue
+  enroll encrypted SMTP custody and the identifier-only job on the same ordinary
+  transaction as Invitation state and its required audit. No notification/private
+  audit table or SMTP call inside the business transaction is admitted.
+- Acceptance uses central plural MUST intents for the Invitation and actual
+  original Membership. New Membership/contained children receive real capture;
+  `already_member` keeps the Membership unchanged and produces a subject-only
+  security-event row. The Invitation's mapped `acceptanceDisposition`, actor and
+  original Membership record the result through central capture. Handlers cannot
+  fabricate a diff or supply a general arbitrary metadata payload.
+- The only added two-root handler is `AcceptInvitationCommandHandler`, alongside
+  provisioning's existing exception. User creation/disposal precedes this owner;
+  no global and tenant transaction joins or retargets the other. Both required
+  resource rows commit together or the grant/consumption is rolled back.
+- Already Accepted routes to the exact Off own-result query before mutation
+  intents. Same Active actor, consumed verifier and original Active Membership
+  prove that disclosure. Pending-only email/expiry/version/Role/inviter checks do
+  not invalidate a committed result. A dispatched Pending command losing the
+  race returns 409 with truthful failed-attempt evidence; it cannot emit another
+  successful acceptance or silently discard a declared intent.
+- Pending own inspection and accepted own-result navigation are explicitly Off.
+  Administrative list/detail, delegation-limited Role choices and protected
+  receipt disclosure are MUST sensitive reads, committed before bytes. The exact
+  orgless own-current-tenant `GetTenantInvitationPolicyQuery` is Off/ReadOnly. Status detail returns only normalized current-generation submission
+  evidence under current administration authority, without a delivery-body read.
+- The existing MUST `tenancy.setting.write` covers the exact tenant-wide TTL
+  setting. Its setter uses whole-value TenantSetting redaction;
+  no weaker class or generic settings grant follows from the extra key.
+- Ordinary module preparation/finalization is MUST and binds the exact
+  Invitation/generation. `identity.invitation.email_submission` applies validated
+  durable provider evidence through the common audit owner. The private immutable
+  provider receipt is operational evidence, not a substitute audit row or a new
+  direct INSERT seam. ExternalScope's ordinary database denial remains intact;
+  the dedicated two-function source cannot write module/User/audit tables.
+- Final SMTP `250` records accepted submission, never inbox delivery. Definite
+  temporary no-effect can consume the existing retry budget; ambiguous Sending/
+  Unknown retains occupancy without blind retry. Durable evidence reproduces the
+  same terminal result after restart. Revoke/reissue/accept invalidates codes;
+  Prepare refuses obsolete generations, but prepared email can still arrive.
+  Provider recovery fencing is separate from business withdrawal.
+
+No raw recipient email, link, code, verifier, ciphertext, SMTP response/exception
+text or provider body enters audit values, metadata or diagnostics. Keep sensitive
+properties with redaction markers and typed closed outcomes; references remain
+personal linkage under the canonical
+[Data Protection inventory](../architecture/23-data-protection.md#invitation-offer-and-automatic-email-custody).
+Authorized recipient-email DSAR disclosure remains possible under separate
+subject/purpose authority; credential and verifier disclosure does not. Existing
+SecurityEvent/ReadSensitive retention targets remain; P03-10 owns locators and
+closure integration, Phase 11 retained-copy/purge enforcement. No runtime or
+production qualification is claimed by these additions.
 
 ## Architecture and Integration Tests
 

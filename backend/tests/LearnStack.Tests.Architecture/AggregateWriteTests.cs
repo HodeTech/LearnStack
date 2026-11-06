@@ -6,13 +6,17 @@ using LearnStack.Modules.Tenancy.Application.Contracts.IntegrationEvents;
 using LearnStack.SharedKernel.Identifiers;
 using LearnStack.Modules.Education.Application.Abstractions;
 using LearnStack.Modules.Education.Domain;
+using LearnStack.Modules.Identity.Application.Invitations;
+using LearnStack.Modules.Identity.Domain;
+using LearnStack.Modules.Identity.Infrastructure.Invitations;
+using LearnStack.Modules.Tenancy.Application.Settings;
 using MediatR;
 using Xunit;
 
 namespace LearnStack.Tests.Architecture;
 
 /// <summary>
-/// The one sanctioned cross-aggregate write, and the count that keeps it at one.
+/// The two named cross-aggregate writers and their exact aggregate sets.
 /// </summary>
 /// <remarks>
 /// <see href="../../../docs/decisions/0042-tenant-provisioning-cross-aggregate-transaction.md">ADR-0042</see>
@@ -29,16 +33,17 @@ public sealed class AggregateWriteTests
 
     /// <summary>
     /// <see href="../../../docs/decisions/0042-tenant-provisioning-cross-aggregate-transaction.md">ADR-0042</see>
-    /// and <see href="../../../docs/decisions/0057-transactional-event-production-and-completion.md">ADR-0057</see>
-    /// permit only provisioning to hold constructor write ports for two roots.
+    /// and <see href="../../../docs/decisions/0093-verified-invitation-acceptance-and-handoff.md">ADR-0093</see>
+    /// enumerate provisioning and invitation acceptance as the two constructor-port exceptions.
     /// </summary>
     [Fact]
-    public void Cross_Aggregate_Writes_Are_Confined_To_Tenant_Provisioning()
+    public void Cross_Aggregate_Writes_Are_Confined_To_Named_Exceptions()
     {
-        // ADR-0042 sanctions ONE operation to write two aggregate roots in one
+        // ADR-0042 sanctions provisioning to write two aggregate roots in one
         // transaction, by enumeration rather than by principle — a tenant whose default
         // organization failed to commit is a tenant no request can serve, and a second
-        // transaction is a window in which exactly that state exists.
+        // transaction is a window in which exactly that state exists. ADR-0093
+        // adds only invitation acceptance; the compiled census requires both names.
         //
         // Counted by AGGREGATE TYPE, not by parameter and not by name. The catalogue
         // registered this as a scan for DbSet use in handlers, and under the shipped
@@ -47,7 +52,7 @@ public sealed class AggregateWriteTests
         // that cannot fire is worse than one at Registered, because the catalogue then
         // claims coverage it does not have.
         AssertTenancyAdministrationRoots();
-        AssertOnlyTenantProvisioningWritesAcrossAggregates(ProductionAssemblies()
+        AssertNamedCrossAggregateWriters(ProductionAssemblies()
             .Select(Assembly.Load)
             .SelectMany(assembly => assembly.GetTypes()));
     }
@@ -62,7 +67,7 @@ public sealed class AggregateWriteTests
         //
         // That exemption is fine; being SILENT about it is not. A second non-deriving port
         // would join the first with nothing to notice it, and the census that keeps
-        // ADR-0042's exception at one entry would stop describing the system. So the
+        // named cross-aggregate exceptions would stop describing the system. So the
         // non-deriving ports are enumerated, and adding one is a reviewed diff.
         //
         // Detected by shape, not by name: an interface whose method takes a type from a
@@ -136,6 +141,14 @@ public sealed class AggregateWriteTests
         ReadMethods.Remove(read).Should().BeTrue();
         try { TakesDomainObject(directory, identityDomains).Should().BeTrue("removing this exact read-method entry must expose its typed key"); }
         finally { ReadMethods.Add(read); }
+        TakesDomainObject(typeof(IInvitationAcceptanceReadStore), identityDomains).Should().BeFalse();
+        foreach (var name in new[] { "ReadOfferAsync", "ReadResultAsync", "LockInvitationAsync", "ReadFinalAsync" })
+        {
+            var method = typeof(IInvitationAcceptanceReadStore).GetMethod(name)!;
+            ReadMethods.Remove(method).Should().BeTrue();
+            try { TakesDomainObject(typeof(IInvitationAcceptanceReadStore), identityDomains).Should().BeTrue(); }
+            finally { ReadMethods.Add(method); }
+        }
         TakesDomainObject(typeof(IWrappedKeyReader), domains).Should().BeTrue("an unenumerated key-only port must not escape; Fix: enumerate genuine read methods explicitly");
         foreach (var writer in new[] { typeof(IDirectWriter), typeof(IBulkWriter), typeof(IArrayWriter), typeof(IByRefWriter), typeof(IMixedWriter), typeof(IInheritedWriter), typeof(IIdOnlyWriteProbe), typeof(IValueReturningKeyWriter) })
         {
@@ -144,6 +157,22 @@ public sealed class AggregateWriteTests
         }
         TakesDomainObject(typeof(ICourseWriteStore), domains).Should().BeTrue();
         WriteStoreConstructions(typeof(ICourseWriteStore)).Should().ContainSingle();
+        var tenancyDomains = new HashSet<Assembly> { typeof(LearnStack.Modules.Tenancy.Domain.TenantSetting).Assembly };
+        var policyRead = typeof(IInvitationPolicyReader).GetMethod(nameof(IInvitationPolicyReader.ReadReceiptAsync))!;
+        TakesDomainObject(typeof(IInvitationPolicyReader), tenancyDomains).Should().BeFalse("the exact fixed-policy typed receipt key is read-only metadata");
+        ReadMethods.Remove(policyRead).Should().BeTrue();
+        try { TakesDomainObject(typeof(IInvitationPolicyReader), tenancyDomains).Should().BeTrue("removing only this read entry exposes its module-local typed key"); }
+        finally { ReadMethods.Add(policyRead); }
+        TakesDomainObject(typeof(IExtraInvitationPolicyWrite), tenancyDomains).Should().BeTrue("an added key-only write is not covered by the original fixed read member");
+
+        InvitationCustodyShapeIsClosed(typeof(IInvitationEmailStager)).Should().BeTrue();
+        TakesDomainObject(typeof(IInvitationEmailStager), identityDomains).Should().BeFalse("ADR-0093 custody takes metadata IDs and returns a delivery value; it does not write a second business root");
+        typeof(InvitationEmailStager).GetConstructors().Should().ContainSingle();
+        AggregatesWrittenBy(typeof(InvitationEmailStager).GetConstructors().Single()).Should().BeEmpty("the actual stager owns encrypted provider custody and scheduler production, not an aggregate write port");
+        foreach (var extra in new[] { typeof(IExtraInvitationCustodyWrite), typeof(IExtraInvitationCustodyKeyWrite), typeof(IUnapprovedInvitationMetadataPort) })
+            TakesDomainObject(extra, identityDomains).Should().BeTrue("an inherited extra root/key write or same-shaped unrelated port cannot borrow the exact metadata exception");
+        WriteStoreConstructions(typeof(IInvitationEmailJobStore)).Should().ContainSingle()
+            .Which.GetGenericArguments()[0].Should().Be<Invitation>();
     }
 
     /// <summary>Exercise the same handler predicate and constructor scan as production.</summary>
@@ -170,11 +199,11 @@ public sealed class AggregateWriteTests
                 "integration handlers count distinct roots through every constructor port; "
                 + "Fix: retain fused, separate and inherited contracts in the production census");
 
-        Action sameNameOffender = () => AssertOnlyTenantProvisioningWritesAcrossAggregates(
-            [TenantProvisioningHandler, typeof(ProvisionTenantCommandHandler)]);
+        Action sameNameOffender = () => AssertNamedCrossAggregateWriters(
+            [TenantProvisioningHandler, typeof(AcceptInvitationCommandHandler), typeof(ProvisionTenantCommandHandler)]);
         sameNameOffender.Should().Throw<Xunit.Sdk.XunitException>(
             "the provisioning exception belongs to one exact type, not every handler with its name; Fix: compare Type identities before applying the exception");
-        AssertOnlyTenantProvisioningWritesAcrossAggregates([TenantProvisioningHandler]);
+        AssertNamedCrossAggregateWriters([TenantProvisioningHandler, typeof(AcceptInvitationCommandHandler)]);
     }
 
     private static void AssertTenancyAdministrationRoots()
@@ -206,13 +235,15 @@ public sealed class AggregateWriteTests
         }
     }
 
-    private static void AssertOnlyTenantProvisioningWritesAcrossAggregates(IEnumerable<Type> types) =>
-        CrossAggregateWriters(types).Should().Equal(
-            [TenantProvisioningHandler],
-            "a handler that can write two aggregate roots writes across an aggregate "
-            + "boundary in one transaction, which ADR-0042 sanctions for exactly one "
-            + "operation. Fix: split integration effects into one-root subscriptions; "
-            + "any new cross-aggregate exception needs its own decision record");
+    private static void AssertNamedCrossAggregateWriters(IEnumerable<Type> types)
+    {
+        CrossAggregateWriters(types).Should().BeEquivalentTo(
+            [TenantProvisioningHandler, typeof(AcceptInvitationCommandHandler)],
+            "ADR-0042 and ADR-0093 enumerate exactly these two actual handlers; extra names cannot borrow either exception");
+        AggregatesWrittenBy(typeof(AcceptInvitationCommandHandler).GetConstructors().Single())
+            .Should().BeEquivalentTo([typeof(Invitation), typeof(Membership)],
+                "acceptance must expose both actual write roots through countable constructor ports");
+    }
 
     private static IEnumerable<Type> CrossAggregateWriters(IEnumerable<Type> types) => types
         .Where(type => type is { IsAbstract: false, IsInterface: false })
@@ -222,9 +253,33 @@ public sealed class AggregateWriteTests
 
     private static bool TakesDomainObject(Type type, HashSet<Assembly> domains) =>
         type.GetInterfaces().Append(type).SelectMany(contract => contract.GetMethods())
+            .Where(method => !IsInvitationCustodyMethod(method))
             .Any(method => method.GetParameters().Any(parameter =>
                 Unwrap(parameter.ParameterType).Any(inner => !inner.HasElementType && domains.Contains(inner.Assembly)
                     && (!IsTypedId(inner) || !ReadMethods.Contains(method)))));
+
+    private static bool IsInvitationCustodyMethod(MethodInfo method) => method.DeclaringType == typeof(IInvitationEmailStager)
+        && InvitationCustodyShapeIsClosed(method.DeclaringType) && method.Name == nameof(IInvitationEmailStager.StageAsync);
+
+    private static bool InvitationCustodyShapeIsClosed(Type port)
+    {
+        if (port != typeof(IInvitationEmailStager) || !port.IsInterface || port.GetInterfaces().Length != 0) return false;
+        var methods = port.GetMethods();
+        if (methods.Length != 1 || methods[0].Name != nameof(IInvitationEmailStager.StageAsync)
+            || methods[0].ReturnType != typeof(Task<InvitationDelivery>)
+            || !methods[0].GetParameters().Select(parameter => parameter.ParameterType).SequenceEqual(new[]
+            {
+                typeof(InvitationId), typeof(InvitationGenerationId), typeof(string), typeof(string), typeof(string),
+                typeof(string), typeof(int), typeof(CancellationToken),
+            })) return false;
+        (string Name, Type Type)[] values =
+        [
+            ("GenerationId", typeof(InvitationGenerationId)), ("JobId", typeof(LearnStack.SharedKernel.Jobs.BackgroundJobId)),
+            ("VerifierDigest", typeof(string)), ("EntryOrigin", typeof(string)), ("EntryLocale", typeof(string)), ("LifetimeDays", typeof(int)),
+        ];
+        var properties = typeof(InvitationDelivery).GetProperties(BindingFlags.Public | BindingFlags.Instance);
+        return properties.Length == values.Length && values.All(value => properties.Count(property => property.Name == value.Name && property.PropertyType == value.Type) == 1);
+    }
 
     private static bool IsTypedId(Type type) => type.GetInterfaces().Any(contract =>
         contract.IsGenericType && contract.GetGenericTypeDefinition() == typeof(IStronglyTypedId<>));
@@ -253,10 +308,19 @@ public sealed class AggregateWriteTests
         typeof(LearnStack.Modules.Identity.Application.Abstractions.IMembershipDirectoryReader).GetMethod("ReadAsync")!,
         typeof(LearnStack.Modules.Identity.Application.Abstractions.ISeedStateReader).GetMethod("ReadRoleAsync")!,
         typeof(LearnStack.Modules.Identity.Application.Abstractions.ISeedStateReader).GetMethod("ReadMembershipAsync")!,
+        typeof(IInvitationPolicyReader).GetMethod(nameof(IInvitationPolicyReader.ReadReceiptAsync))!,
+        typeof(IInvitationAcceptanceReadStore).GetMethod(nameof(IInvitationAcceptanceReadStore.ReadOfferAsync))!,
+        typeof(IInvitationAcceptanceReadStore).GetMethod(nameof(IInvitationAcceptanceReadStore.ReadResultAsync))!,
+        typeof(IInvitationAcceptanceReadStore).GetMethod(nameof(IInvitationAcceptanceReadStore.LockInvitationAsync))!,
+        typeof(IInvitationAcceptanceReadStore).GetMethod(nameof(IInvitationAcceptanceReadStore.ReadFinalAsync))!,
     ];
 
     private interface IIdOnlyWriteProbe { Task DeleteAsync(CourseId id); }
     private interface IValueReturningKeyWriter { Task<bool> DeleteAsync(CourseId id); }
+    private interface IExtraInvitationCustodyWrite : IInvitationEmailStager { void Apply(Invitation root); }
+    private interface IExtraInvitationCustodyKeyWrite : IInvitationEmailStager { void DeleteAsync(InvitationId id); }
+    private interface IUnapprovedInvitationMetadataPort { Task<InvitationDelivery> StageAsync(InvitationId id, InvitationGenerationId generation, string recipient); }
+    private interface IExtraInvitationPolicyWrite : IInvitationPolicyReader { Task DeleteAsync(LearnStack.Modules.Tenancy.Domain.TenantSettingId id); }
     private interface IFusedWritePort : IAggregateWriteStore<Course, CourseId>, IAggregateWriteStore<Lesson, LessonId>;
     private sealed record CommandProbe : IRequest;
     private sealed record ValueProbe : IRequest<bool>;

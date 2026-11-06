@@ -145,7 +145,7 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-2 PR 39 cancellation control review round 1 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-1-2026-10-28) — 18 lines
   - [P03-2 PR 39 cancellation control review round 2 (2026-10-28)](#p03-2-pr-39-cancellation-control-review-round-2-2026-10-28) — 17 lines
   - [P03-2 merge and closeout (2026-10-28)](#p03-2-merge-and-closeout-2026-10-28) — 62 lines
-- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,799 lines
+- [P03-3 — Protected Studio and membership administration](#p03-3--protected-studio-and-membership-administration) — 9,852 lines
   - [P03-3 entry review and provider feasibility (2026-10-28)](#p03-3-entry-review-and-provider-feasibility-2026-10-28) — 91 lines
   - [P03-3 proposed decision package (2026-10-28)](#p03-3-proposed-decision-package-2026-10-28) — 254 lines
   - [P03-3 first proposal review and revised contract (2026-10-28)](#p03-3-first-proposal-review-and-revised-contract-2026-10-28) — 197 lines
@@ -342,7 +342,52 @@ not acceptance of implementation choices. Navigate by the generated index below.
   - [P03-3 hosted VM compatibility validation and corrective CI handoff (2026-11-04)](#p03-3-hosted-vm-compatibility-validation-and-corrective-ci-handoff-2026-11-04) — 39 lines
   - [P03-3 PR 40 review reconciliation and recovery corrections (2026-11-04)](#p03-3-pr-40-review-reconciliation-and-recovery-corrections-2026-11-04) — 76 lines
   - [P03-3 warm-provider visitor-window pacing correction (2026-11-04)](#p03-3-warm-provider-visitor-window-pacing-correction-2026-11-04) — 41 lines
-  - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 30 lines
+  - [P03-3 pending seed safeguard and documentation cleanup (2026-11-04)](#p03-3-pending-seed-safeguard-and-documentation-cleanup-2026-11-04) — 31 lines
+  - [P03-3 merge and delivery closeout (2026-11-04)](#p03-3-merge-and-delivery-closeout-2026-11-04) — 52 lines
+- [P03-4 — Invitations and bounded delivery](#p03-4--invitations-and-bounded-delivery) — 2,021 lines
+  - [P03-4 document review and proposed decision package (2026-11-04)](#p03-4-document-review-and-proposed-decision-package-2026-11-04) — 148 lines
+  - [P03-4 proposal review corrections and approval readiness (2026-11-04)](#p03-4-proposal-review-corrections-and-approval-readiness-2026-11-04) — 45 lines
+  - [P03-4 automatic-email review corrections and accepted plan (2026-11-04)](#p03-4-automatic-email-review-corrections-and-accepted-plan-2026-11-04) — 116 lines
+  - [P03-4 Step 1 first review corrections (2026-11-04)](#p03-4-step-1-first-review-corrections-2026-11-04) — 24 lines
+  - [P03-4 Step 1 second review and contract closeout (2026-11-04)](#p03-4-step-1-second-review-and-contract-closeout-2026-11-04) — 15 lines
+  - [P03-4 Step 2 foundation and entry activation boundary (2026-11-04)](#p03-4-step-2-foundation-and-entry-activation-boundary-2026-11-04) — 32 lines
+  - [P03-4 Step 2 storage validation and review handoff (2026-11-04)](#p03-4-step-2-storage-validation-and-review-handoff-2026-11-04) — 23 lines
+  - [P03-4 Step 2 second review UUID correction (2026-11-04)](#p03-4-step-2-second-review-uuid-correction-2026-11-04) — 18 lines
+  - [P03-4 Step 2 review closeout and SMTP continuation (2026-11-04)](#p03-4-step-2-review-closeout-and-smtp-continuation-2026-11-04) — 25 lines
+  - [P03-4 Step 3 SMTP foundation and review handoff (2026-11-04)](#p03-4-step-3-smtp-foundation-and-review-handoff-2026-11-04) — 49 lines
+  - [P03-4 Step 3 first review startup correction (2026-11-04)](#p03-4-step-3-first-review-startup-correction-2026-11-04) — 33 lines
+  - [P03-4 Step 3 second review privacy inventory correction (2026-11-04)](#p03-4-step-3-second-review-privacy-inventory-correction-2026-11-04) — 24 lines
+  - [P03-4 Step 3 review closeout and administrator continuation (2026-11-04)](#p03-4-step-3-review-closeout-and-administrator-continuation-2026-11-04) — 30 lines
+  - [P03-4 Step 4 administration and producer review handoff (2026-11-04)](#p03-4-step-4-administration-and-producer-review-handoff-2026-11-04) — 68 lines
+  - [P03-4 Step 4 first review correction (2026-11-04)](#p03-4-step-4-first-review-correction-2026-11-04) — 23 lines
+  - [P03-4 Step 4 second review closeout and Step 5 start (2026-11-04)](#p03-4-step-4-second-review-closeout-and-step-5-start-2026-11-04) — 28 lines
+  - [P03-4 Step 5 recipient admission and atomic acceptance review handoff (2026-11-05)](#p03-4-step-5-recipient-admission-and-atomic-acceptance-review-handoff-2026-11-05) — 70 lines
+  - [P03-4 Step 5 first review diagnostic correction (2026-11-05)](#p03-4-step-5-first-review-diagnostic-correction-2026-11-05) — 32 lines
+  - [P03-4 Step 5 second review delegation and transport corrections (2026-11-05)](#p03-4-step-5-second-review-delegation-and-transport-corrections-2026-11-05) — 40 lines
+  - [P03-4 Step 5 review closeout and Step 6 continuation (2026-11-05)](#p03-4-step-5-review-closeout-and-step-6-continuation-2026-11-05) — 28 lines
+  - [P03-4 Step 6 Studio and native invitation implementation (2026-11-05)](#p03-4-step-6-studio-and-native-invitation-implementation-2026-11-05) — 90 lines
+  - [P03-4 Step 6 first review recovery and quota corrections (2026-11-05)](#p03-4-step-6-first-review-recovery-and-quota-corrections-2026-11-05) — 48 lines
+  - [P03-4 Step 6 second review original-result and form corrections (2026-11-05)](#p03-4-step-6-second-review-original-result-and-form-corrections-2026-11-05) — 55 lines
+  - [P03-4 Step 6 implementation review closeout and Step 7 continuation (2026-11-05)](#p03-4-step-6-implementation-review-closeout-and-step-7-continuation-2026-11-05) — 37 lines
+  - [P03-4 Step 7 actual SMTP owner and recovery proof implementation (2026-11-05)](#p03-4-step-7-actual-smtp-owner-and-recovery-proof-implementation-2026-11-05) — 78 lines
+  - [P03-4 Step 7 final reviews and PR readiness (2026-11-05)](#p03-4-step-7-final-reviews-and-pr-readiness-2026-11-05) — 52 lines
+  - [P03-4 Step 7 first hosted corrections (2026-11-05)](#p03-4-step-7-first-hosted-corrections-2026-11-05) — 80 lines
+  - [P03-4 Step 7 correction review closeout and CI candidate (2026-11-05)](#p03-4-step-7-correction-review-closeout-and-ci-candidate-2026-11-05) — 44 lines
+  - [P03-4 Step 7 second hosted corrections (2026-11-05)](#p03-4-step-7-second-hosted-corrections-2026-11-05) — 54 lines
+  - [P03-4 Step 7 second correction review closeout (2026-11-05)](#p03-4-step-7-second-correction-review-closeout-2026-11-05) — 35 lines
+  - [P03-4 Step 7 third hosted A and census repair (2026-11-05)](#p03-4-step-7-third-hosted-a-and-census-repair-2026-11-05) — 65 lines
+  - [P03-4 Step 7 census repair review closeout (2026-11-05)](#p03-4-step-7-census-repair-review-closeout-2026-11-05) — 33 lines
+  - [P03-4 Step 7 fourth hosted A and detector-index repair (2026-11-05)](#p03-4-step-7-fourth-hosted-a-and-detector-index-repair-2026-11-05) — 72 lines
+  - [P03-4 Step 7 detector-index repair review closeout (2026-11-05)](#p03-4-step-7-detector-index-repair-review-closeout-2026-11-05) — 34 lines
+  - [P03-4 maintainer manual accessibility acceptance (2026-11-05)](#p03-4-maintainer-manual-accessibility-acceptance-2026-11-05) — 32 lines
+  - [P03-4 Step 7 entry-browser diagnostic repair (2026-11-06)](#p03-4-step-7-entry-browser-diagnostic-repair-2026-11-06) — 34 lines
+  - [P03-4 Step 7 entry-browser diagnostic first reviews (2026-11-06)](#p03-4-step-7-entry-browser-diagnostic-first-reviews-2026-11-06) — 15 lines
+  - [P03-4 Step 7 entry-browser diagnostic review closeout (2026-11-06)](#p03-4-step-7-entry-browser-diagnostic-review-closeout-2026-11-06) — 23 lines
+  - [P03-4 Step 7 hosted browser-start and cleanup-masking correction (2026-11-06)](#p03-4-step-7-hosted-browser-start-and-cleanup-masking-correction-2026-11-06) — 65 lines
+  - [P03-4 Step 7 forty-five-minute execution windows and parser timeout (2026-11-06)](#p03-4-step-7-forty-five-minute-execution-windows-and-parser-timeout-2026-11-06) — 53 lines
+  - [P03-4 Step 7 review corrections (2026-11-06)](#p03-4-step-7-review-corrections-2026-11-06) — 58 lines
+  - [P03-4 Step 7 analyzer-gate correction (2026-11-06)](#p03-4-step-7-analyzer-gate-correction-2026-11-06) — 21 lines
+  - [P03-4 Step 7 browser-start retirement correction (2026-11-06)](#p03-4-step-7-browser-start-retirement-correction-2026-11-06) — 70 lines
 
 <!-- END GENERATED INDEX -->
 
@@ -15685,3 +15730,2077 @@ Head `620fdaf3` has complete same-source A/B evidence in
 that head. Publishing this cleanup creates a new head whose CI/qualification is
 tracked separately in the existing unmerged PR #40. Manual keyboard, focus,
 reflow, contrast and VoiceOver remain maintainer-deferred and unexecuted.
+
+
+### P03-3 merge and delivery closeout (2026-11-04)
+
+The maintainer merges [PR #40](https://github.com/HodeTech/LearnStack/pull/40)
+at 15:42:15 Europe/Istanbul (12:42:15 UTC). Reviewed head is `b97214e7`;
+the squash merge is `ef344c0f`. Both have tree `f8e89aea`. GitHub PR/commit
+metadata independently confirms the merge and identical source tree.
+P03-3 implementation delivery, including D03–D05, is complete and merged.
+The phase Status block owns packet state; this record owns the closeout evidence.
+
+Delivered behavior:
+
+- Provider-authenticated native self-entry, opt-in own-account creation without
+  implicit membership, own context discovery and tenant/organization switching.
+- Protected Studio membership/profile/status/Role operations, explicit permission
+  release adoption, localized own-profile preferences and editable validation
+  recovery, including the no-JavaScript flow and dirty-edit extension consent.
+- Bounded Tenancy organization/default/locale/setting operations, live host,
+  Membership and lifecycle checks, durable MUST audit and authorized protected
+  receipt replay, without broad provider-administration authority.
+- Preservation of valid warm-seed edits, fenced continuation/completion checks,
+  management-origin adoption and owned native response/process cleanup.
+
+Evidence and its limits:
+
+- Final-head [PR run 41826206204](https://github.com/HodeTech/LearnStack/actions/runs/41826206204),
+  attempt 1/A, completes all 27 jobs successfully. The jobs API independently
+  matches all jobs to `b97214e7`, the run and attempt; none is pending or skipped.
+- Parent `620fdaf3` has complete same-source A/B in
+  [run 41809078251](https://github.com/HodeTech/LearnStack/actions/runs/41809078251),
+  27/27 jobs per attempt, 50 API/digest/CRC-verified original archives, the same
+  7,951 backend cases, 3,586 frontend cases per attempt and distinct 27-pair
+  public-demo invocations with confirmed actual cleanup. This is parent evidence.
+- The final seed/documentation follow-up also passes its CI=true Release build,
+  3,434 unit cases, 46 real PostgreSQL seed-continuation cases, the aggregate seed
+  architecture control and documentation guards before publication.
+- Final-head B and the final-head original-archive audit are not established by
+  the observed PR run. They remain open P03-3 proof follow-ups; the merge does
+  not substitute for the required qualification. P03-11 must reconcile them
+  before phase exit. No new CI run or qualification is asserted by this closeout.
+- Manual keyboard/focus/reflow/contrast/VoiceOver checks remain deferred and
+  unexecuted under the existing maintainer decision. Branch-administrator Role
+  choices and full organization/settings editors remain Phase 06 work under
+  the existing permission/disclosure ceiling.
+
+Next delivery is P03-4: a delegated administrator offers a bounded invitation,
+then a verified new/existing invitee joins the intended tenant/organization.
+G8 must close before Invitation storage or an acceptance writer: decide trusted
+email matching, one-way single-use token storage, lifecycle/expiry/resend,
+current delegation, atomic membership/consumption, bounded delivery/recovery and
+accept/revoke/expiry races. GET remains inspection-only. This closeout starts
+no invitation implementation and accepts no new decision.
+
+## P03-4 — Invitations and bounded delivery
+
+### P03-4 document review and proposed decision package (2026-11-04)
+
+**Proposed; approval pending.** The maintainer requests `/implement-task` on
+`development`, existing-document review before implementation, up-front decisions
+and a complete step plan. Every implementation step commits, receives two fresh
+independent review rounds, fixes confirmed findings in new commits and then
+continues automatically. New ADRs require explicit approval before their code.
+This package starts no runtime, migration, provider change or CI workload.
+
+Baseline is `e1339a39`, a clean `development` tree after the user-merged PR #40.
+Existing P03-3 final-head B/original-archive and deferred manual evidence remain
+as recorded in its merge closeout. They neither become completed nor authorize
+waiving P03-4's proof. Settings and existing stashes remain untouched.
+
+**Problem and phase fit.** P03-4/D06 completes the path from an administrator's
+scoped offer to a verified new/existing person's Membership in that exact
+institution/branch. It owns C08, its C01 invitation entry and C20 screen proof.
+Keycloak authenticates/verifies accounts; Identity owns the offer and grant;
+Tenancy owns lifecycle and the bounded lifetime setting; central Audit owns
+required evidence. There is no invitation implementation to extend by merely
+turning on a route.
+
+#### Existing-document and source review
+
+Read repository guidance and `implement-task`/its `start-task` dispatch, then the
+README, Platform Vision, MVP Scope, Roadmap, Principles and relevant glossary.
+Review the current phase/G8/criteria, completed 02a/02d/02b boundaries, Identity
+README/permission/audit matrices, Tenancy lifecycle/settings contracts,
+Architecture 13/23 and the Phase 08a notification handoff. Read relevant Accepted
+ADR-0003/0036/0040/0042/0064/0070/0072/0073/0074/0076/0077/0078/0079 decisions and
+amendments and governing Standards 01/04/05/07/08/11/13/16/18/19/21 sections.
+Delivery logs are navigated by index and specific entries, never read wholesale.
+
+Trace the actual native provider/entry/session owners, exact global-self branch,
+source/host/surface admission, operation policy/candidate minters, Membership
+write/delegation/lock adapters, protected idempotency and failure diagnostics.
+The committed realm pins Keycloak 26.6.2, email mappers and SMTP to existing
+Mailpit. Fresh upstream source review checks that version's UserInfo endpoint and
+property mapper; real changed-email/verification proof is still required.
+
+Two independent initial read-only audits cover security/atomicity/data owners
+and native experience/delivery/privacy. Their verified findings are decision
+inputs, not bugs attributed to completed P03-3:
+
+| Confirmed gap or promise | Proposed action / owning carrier |
+|---|---|
+| G8 is Open; ordinary native entry needs existing Membership and global-self has exactly three descriptors | Separate exact invitation admission, host/offer witness and finite consumers; ADR-0093, Standards 05/11, source/caller census |
+| Neither `VerifiedProviderSubject` nor User stores current verified email | New request-bound current UserInfo adapter, exact subject and verified mailbox checks; no mirror or provider admin credential |
+| ADR-0042 permits only Tenant provisioning to write two roots | Enumerated same-module Invitation/Membership acceptance exception; plural MUST evidence and atomic rollback; dated successor disclosure |
+| Inviter is another actor, not the current HTTP candidate | Offer-derived same-owner delegation read; no fabricated HTTP candidate or arbitrary User lookup |
+| Generic/protected replay can retain response bytes; version receipt has no raw-secret slot | One-response handoff outside replay storage; explicit version-checked replacement after lost response |
+| Suspended/Active current uniqueness and terminal Revoked predecessors already exist | No acceptance reactivation/elevation; Active `already_member`; Revoked creates one successor |
+| Token-bearing path/query/returnTo can reach logs/provider/other hosts | Fragment-only native landing, immediate scrub, bounded server custody and manual-code/no-JavaScript fallback |
+| Blanket `no-referrer` can break the existing exact-Origin no-JavaScript forms | Clean confirmation uses the established compatible policy; actual browser controls qualify containment |
+| New registration has email verification disabled; seeds alone are not proof | Bounded Keycloak verification-action continuation, existing SMTP/Mailpit and an actual verified nonseed journey |
+| Architecture 13 promises configurable default 14-day expiry and useful delivery | Typed Tenancy setting, frozen per-generation expiry and explicit administrator sharing; no fake sent state or notification-engine dependency |
+| Branch admin cannot read general Role configuration | Separate current-delegable Role summaries; no general registry/grant disclosure or Role-admin grant |
+
+**Decision vehicle:** [ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md)
+settles the coupled boundaries. Until acceptance it is a proposal, including its
+recommended administrator-handoff delivery choice. Automatic invitation email is
+an explicit alternative with additional provider/custody/job/reconciliation work;
+it must be selected before the corresponding implementation plan is finalized.
+
+#### Proposed finite operation surface
+
+These names describe implementation obligations, not existing endpoints. All API
+paths carry `/api/v1`. No arbitrary native proxy, browser bearer or Server Action
+is added. Input bodies are strict and at most 8 KiB; no unknown/duplicate fields
+or supplied actor/tenant/org authority is accepted. Lists use 20 default/100
+maximum, opaque actor/scope/operation-bound cursors and bounded no-store pages.
+The exact serialized DTO/OpenAPI and byte/deadline checks land with each writer.
+
+| API operation | Application consumer / capability and response |
+|---|---|
+| GET `/identity/invitations` and `/{id}` | `ListInvitationsQuery` / `GetInvitationQuery`; applicable membership-admin, exact current write scope, MUST read; email/Role/state/expiry/version, never verifier or raw link |
+| GET `/identity/invitable-roles` | `ListInvitableRolesQuery`; same capability/scope, current-delegable ID/key/scope/version only, MUST read; no grant graph |
+| POST `/identity/invitations` | `CreateInvitationCommand`; normalized email + one Role/version, exact current context, fresh delegation; protected keyed 201 version receipt/Location |
+| POST `/identity/invitations/{id}/revocations` | `RevokeInvitationCommand`; fresh target authority, canonical If-Match, protected keyed bounded receipt |
+| POST `/identity/invitations/{id}/handoffs` | `PrepareInvitationHandoffCommand`; current delegation, fixed Role pin, canonical If-Match; one secret response, rejects Idempotency-Key; explicit replacement renews generation/expiry |
+| GET `/tenancy/settings/invitation-policy` | Tenancy-owned bounded 14-day/default-or-configured policy read through its contract; own-current-tenant coverage, Off; no arbitrary setting value |
+| PUT `/tenancy/settings/invitation-policy` | `SetTenantInvitationLifetimeCommand`; Tenant setting-write and orgless, canonical If-Match/protected replay; one TenantSetting root, 1–30 days, MUST setting update |
+| POST `/identity/invitation-entry/inspections` | `InspectInvitationQuery`; strict body ID/code, exact native/host/subject/offer admission; current verified recipient, Off physically ReadOnly; bounded own offer/Role/scope labels/version |
+| POST `/identity/invitation-entry/acceptances` | `AcceptInvitationCommand`; strict ID/code/observed version, fresh provider proof and locked authority; natural offer/actor convergence, no generic Idempotency-Key; exact Membership/result/version receipt |
+| POST `/identity/invitation-entry/results` | `GetOwnInvitationResultQuery`; strict ID/code, exact same Active actor/original Active Membership and consumed verifier; Off physically ReadOnly. No current-email/inviter/Role/expiry requirement for an already committed result, no new mutation intent. The acceptance dispatcher may select this exact read before mutation dispatch when its preflight already observes Accepted. |
+| Internal original Invitation receipt read | `ReadInvitationReceiptQuery`; fresh exact admin target disclosure and MUST read; no token, mutation replay or successor substitution |
+| Internal original lifetime-policy receipt read | `ReadInvitationPolicyReceiptQuery`; exact original TenantSetting ID and fixed key, orgless own-Membership coverage, MUST read; no generic setting directory or old write-permission requirement |
+
+Native exact routes add localized `/studio/invitations`, invitation detail and
+lifetime controls, plus the fixed localized invitation landing and clean
+confirmation. Closed auth POSTs cover capture/inspect, verification, accept,
+create/revoke/handoff and lifetime changes. They retain exact Origin/CSRF,
+immutable response ownership and current session/scope. The new invitation
+continuation can coexist with a live session, but cannot replace another subject.
+Existing `canManageMemberships` applicability can expose the corresponding link;
+no advisory Boolean becomes a grant. Exact private route/operation census lands
+before activation; provider verification accepts only its fixed action/purpose,
+not arbitrary OIDC parameters or destinations.
+
+#### Six implementation steps after approval
+
+Every step includes relevant tests and docs in its implementation commit. Then
+run review round 1 with two independent fresh reviewers, fix verified findings
+and commit; run round 2 with two different fresh reviewers, fix/commit again.
+Reviewers read contracts and actual adjacent code, assess security, correctness,
+UX/accessibility, failure/concurrency, performance and maintainability, and state
+limits. Source/line/effect/reproduction distinguish confirmed findings from
+preferences. Choose model/effort for the surface; security/transaction/native
+entry reviews use high reasoning. Test workloads remain serialized. Do not add
+a generic orchestration/proof framework or manufacture findings to fill a round.
+
+| Step | Deliverable and main carriers | Required proof before moving on |
+|---|---|---|
+| 1 | Accept G8/ADR-0093; dated disclosures including ADR-0003's owner-execution/definer census, canonical contract/operation/ACL/owner/lock/replay details, module diagrams/matrices, classification inventory, glossary, Status/index/package. Docs only. | Maintainer acceptance; complete carrier reconciliation; fragment/roadmap/index/ADR guards; two independent review rounds. No runtime claim. |
+| 2 | Invitation ID/aggregate/state/policy port, EF mapping, forward migration, canonical RLS/FK/unique/transition/attribution guards, exact offer lookup and scope witness foundation. Identity Domain/Application.Contracts/Infrastructure; Tenancy bounded policy read contracts; SharedKernel context seam only as authorized. | Unit lifecycle/validation; real app-role PostgreSQL tenant/org isolation, uniqueness/expiry/terminal guards, exact applied schema/function/ACL and wrong-purpose controls; compile and architecture census. No exposed half-wired endpoint. |
+| 3 | Admin create/list/detail/invitable-Role/revoke/handoff; Tenancy lifetime writer; audit/policy/replay integration and OpenAPI/SDK operations. Identity/Tenancy Application/Infrastructure, API, generated SDK. | Real authorized/denied HTTP and direct application dispatch, current delegation/Role pin and lock waits, token-free admin/replay, link loss/replacement/unknown COMMIT, policy version conflicts and MUST rollback. |
+| 4 | Fresh recipient adapter, exact pre-Membership HTTP/application admission, invocation-bound scope owner, atomic accept/reconcile and central plural evidence. Infrastructure provider adapter, Identity acceptance application, API closed branch. | Real provider UserInfo/changed email/outage; same-subject binding, User-before-Tenant plan, Active/Suspended/Revoked outcomes, both competing-commit orders, closure fence, unknown COMMIT and failed-audit rollback; wrong-origin/host/purpose and cleanup controls. |
+| 5 | Full native continuation, provider verification action and signup/bootstrap reuse, administrator screens/link copy/policy form, invitee confirmation/recovery and post-acceptance session admission. Native auth/response owner, Studio, generated SDK callers, en/tr messages. | Actual HTTPS/browser and no-JavaScript flows, real nonseed verification via provider SMTP/Mailpit, new/existing/different-account cases, scope and form recovery, token leakage/BFCache/late responses/restart; typecheck/lint/full guarded frontend; actual human keyboard/reflow/contrast/VoiceOver checklist. |
+| 6 | Complete packet qualification, source-bound receipts, final review fixes and D06/C01/C08/C20 documentation closeout; prepare PR for the maintainer. Existing test owners/workflow, no timer-policy change. | Complete required same-source A/B and original-archive reconciliation, regenerated contract, relevant full backend/frontend/architecture/integration and provider/browser proof; two fresh final review rounds; truthful remaining external/manual evidence. No merge. |
+
+Workflow skills selected under `implement-task`: `write-adr`,
+`add-tenant-owned-entity`, `add-mediatr-handler`, `add-ef-migration`,
+`add-audit-coverage`, `add-provider-adapter`, `add-frontend-route`, `add-i18n-key`,
+`add-integration-test`, `run-tests-locally`, `standards-check`, `code-review`,
+`update-glossary` and `commit-and-pr`. Existing permissions are reused; no new
+assignable pair or automatic seed grant is planned. Load each specific workflow
+before its implementation rather than assuming its checklist is satisfied.
+
+#### Up-front maintainer decision and completion boundary
+
+The approval package covers administrator handoff versus automatic invitation
+email; the one-response secret/lost-link policy; case-insensitive bounded mailbox
+matching and current-provider-read boundary; 14-day default/1–30-day tenant policy;
+one pinned Role; Active no-elevation/Suspended refusal/Revoked successor behavior;
+new exact offer scope/definer and same-module two-root exception. No broader
+platform/provider administration, old manual deferral or production-readiness
+claim is implied. Production provider SMTP remains deployment configuration;
+the packet must prove and document its verification/recovery prerequisite.
+
+The user will review the final PR. Human accessibility checks for newly delivered
+screens need actual evidence; prior P03-3 deferral is not copied as a pass or an
+automatic waiver. If an external dependency genuinely prevents proof, report the
+exact dependency and keep that evidence open instead of marking it complete.
+Runtime work waits only for the requested new-ADR decision; independent document
+review/validation can continue. Once accepted, routine step choices and verified
+fixes proceed without repeated permission requests; a materially new authority or
+incompatible product decision returns to the maintainer before implementation.
+
+### P03-4 proposal review corrections and approval readiness (2026-11-04)
+
+**Proposed; no G8 acceptance or runtime implementation.** Two independent initial
+contract/source audits and two proposal review rounds are complete. Each proposal
+round uses two reviewers; round 2 uses different reviewers from round 1. All
+reviewers operate read-only apart from their private reports. This qualifies the
+decision text for the maintainer's decision, not any database/provider/browser
+implementation.
+
+Confirmed round-1 findings are corrected in the unaccepted draft:
+
+- Repeat the authenticated invitee's global admission check after the retained
+  User fence, including Active `already_member` consumption without a Membership
+  INSERT. The offer-derived function binds its actor to the verified subject;
+  trigger-only eligibility functions are not turned into arbitrary probes.
+- Separate Accepted result disclosure from Pending mutation conditions. The exact
+  Off `GetOwnInvitationResultQuery` is named in the finite route table and can be
+  selected before mutation-intent dispatch. It requires the same Active actor,
+  consumed verifier and original current Active Membership, without reapplying
+  old version/expiry/inviter/Role/email conditions. A Pending command losing a
+  race returns truthful conflict/failed-attempt evidence and uses a fresh result
+  read; it cannot invent a second successful consumption or suppress MUST intent.
+- Preserve authorized recipient-email/relationship access/export under P03-10;
+  distinguish that data from credentials/verifiers, which never enter DSAR
+  artifacts. Diagnostic/snapshot/event redaction remains mandatory.
+- Name exact Invitation and invitation-policy TenantSetting replay targets,
+  original-resource receipt reads, conditional first policy creation, fixed
+  verification-action purpose and deterministic verifier encoding. No raw link
+  enters durable receipt storage.
+
+Fresh round 2 confirms no Blocker or Major. Its one Minor carrier omission is
+fixed and rechecked: acceptance must append an ADR-0003 dated disclosure for the
+ninth definer/Invitation owner visibility, alongside the already listed scope,
+aggregate, provider/native/policy/replay carriers. ADR-0003's existing body and
+four-role/ordinary RLS boundary remain unchanged. Final independent security and
+experience verdicts have no open confirmed Blocker, Major or Minor.
+
+The complete approval surface is ADR-0093 and the preceding six-step package,
+including delivery choice, owner/authority costs, exact result/secret recovery,
+verification prerequisites and human proof obligations. Current standards and
+Accepted ADRs are not rewritten before approval. The optional delivery-preference
+question is not itself ADR acceptance; administrator handoff remains the proposed
+recommendation until the maintainer decides. No invitation source, schema,
+endpoint, provider configuration, test timer or CI run changes in this preparation.
+
+### P03-4 automatic-email review corrections and accepted plan (2026-11-04)
+
+**Accepted — @cemil.** The maintainer selects automatic invitation email in this
+packet and directs verified review corrections, ADR acceptance and implementation.
+This record replaces the earlier Proposed manual-sharing/six-step package. Its
+older text and review findings remain dated history, not the current delivery
+choice or runtime qualification. ADR-0093 is the accepted G8 contract; Step 1
+reconciles canonical carriers before the first schema/provider/runtime writer.
+
+#### Verified review actions
+
+- The actual audit composer has no general business-result metadata channel.
+  Persist created/already_member disposition and exact result MembershipId on the
+  tracked Invitation. Its central captured state records that outcome; unchanged
+  Membership gets a truthful designated subject-only event with NULL changes.
+  No generic metadata extension or fabricated Membership creation is introduced.
+- Explicitly expand only Tenant tenancy.setting.write from branding.theme to
+  identity.invitation.ttl_days. Existing holders gain this exact policy operation;
+  v1 without the pair uses 14 days but cannot edit it until explicit v2 adoption.
+  A new permission/release and automatic seed grant are not selected.
+- Keep ADR-0074's complete strongest actual plan: Shared for ordinary effects,
+  Exclusive only for actual protected Tenant Admin effects. Recheck after waiting;
+  a changed mode conflicts, never upgrades. The earlier unconditional Exclusive
+  proposal is discarded, not silently treated as the existing contract.
+- Separate clean browser GET from secret-body POST API inspection/result reads;
+  the former neither sends nor grants. Name exact origin/mode/CSRF/subject owners,
+  all four existing owner ceilings and the operation-bound eleventh setter.
+- Define verifier_digest as application-derived 32-byte digest, not raw secret;
+  SQL indexed equality is not called constant-time. Separate stored inviter
+  global admission from complete current delegation; retain exact Role scope/pin.
+- Preserve valid new/Active/Suspended/Revoked behavior, terminal-result precedence,
+  same actor/original Active Membership and explicit no-disclosure after its loss.
+  Pending expiry/lifecycle/Role/email checks cannot block a committed own-result
+  read or create a second grant.
+- Add automatic encrypted SMTP custody, typed prepare/execute/finalize jobs,
+  immutable per-attempt receipts, truthful queued/accepted/failed/uncertain state,
+  explicit reissue and actual restart/response-loss/cleanup proof. No raw message,
+  code, URL or ciphertext enters generic job/replay/event payloads.
+
+Some external claims do not describe actual defects: a dated Amendment may point
+to a new bounded successor decision without rewriting history; ADR-0041 does not
+require a false-at-entry erratum for a new capability. Correct historical numeric
+statements are not rewritten merely to restate today's census. ADR-0053/0054
+closed native callers/POSTs do need the added successor navigation. ADR-0033/0044
+composition/durability, ADR-0072 binding/budgets and ADR-0074 lock semantics remain;
+no new metadata or global bootstrap exception is smuggled into their names.
+The prior reviewers' no-open-findings result was bounded to the then-Proposed
+surface; these later verified findings and the new delivery selection supersede
+that approval surface. No runtime safety is inferred from either document review.
+
+#### Current contract and first-consumer ownership
+
+[ADR-0093](../decisions/0093-verified-invitation-acceptance-and-handoff.md) owns the
+decision. Current finite routes/DTO/preconditions are in
+[Standard 04](../standards/04-api-design.md#verified-invitation-transport), native
+paths/owner/copy are in [Standard 07](../standards/07-frontend-architecture.md#verified-invitation-experience),
+source/evidence in [Security](../standards/11-security.md#verified-invitation-admission),
+root/entry/provider storage in [Standard 05](../standards/05-database.md#invitation-entry-and-consumption),
+and SMTP runtime/source in the [provider contract](../standards/05-database.md#invitation-smtp-provider-storage)
+and [Infrastructure](../standards/20-infrastructure-stack.md#bounded-invitation-smtp-consumer).
+Module matrices own exact planned audit/policy consumers; their planned markers
+are removed only when actual consumers/catalogues land. Architecture controls
+are Registered, not falsely promoted by acceptance.
+
+The first production jobs are Identity's exact TenantWide and Organization email
+definitions. Ordinary staging submits the job first to obtain JobId, then encrypts
+scope/generation/job-bound message custody on the same existing transaction.
+The private provider connector consumes only a validated JobExecutor receipt and
+two fixed functions. It never restores external ordinary UoW/tenant access. Total
+confined definers are eleven; logical tenant setters eleven; physical context
+writers four. SMTP adds two private SQL-only tables and a separate four-slot
+source, not a fifth login role, arbitrary SQL callback or notification module.
+
+A final SMTP 250 proves submission acceptance only. Lost reply/crash before a
+durable receipt remains Unknown, with retained occupancy; reissue does not release
+that old work. The UI and runbook explain this unavoidable limit. Actual positive
+provider evidence, not an absent worker, permits the runtime's existing outcome
+transition. Production SMTP/TLS/keyring and Keycloak verification SMTP are distinct
+configuration prerequisites; local Mailpit is a real dev/test transport. Existing
+creation and five-minute continuation budgets are explicit accepted costs, not
+quietly increased in this packet.
+
+#### Seven-step implementation and review sequence
+
+Every step implements its own meaningful tests and related docs, then commits on
+`development`. Review round 1 uses two fresh independent reviewers; verify/fix
+findings and commit. Review round 2 uses two different fresh reviewers; verify/fix
+and commit before automatically moving on. Read surrounding contracts/source and
+use high reasoning for authority, concurrency, cryptography/provider and native
+ownership seams. A clean report is not a quota or proof that unexecuted tests ran.
+No broad generic runner/proof framework or unrelated refactor is part of P03-4.
+
+| Step | Deliverable | Verification before advancing |
+|---|---|---|
+| 1 | Accepted ADR-0093/G8, dated successor Amendments, canonical API/DB/native/security/audit/permission/provider contracts, module diagrams/inventory, catalogue/glossary/index and this replacement plan. Docs only. | Mechanical document/status/index checks; two fresh independent review rounds against actual seams. No runtime claim. |
+| 2 | Invitation domain/ID/EF schema, lifecycle/constraints/RLS, policy contract, exact preliminary lookup and operation-bound scope foundation. | Domain unit tests; actual app-role two-tenant/two-org isolation, shape/uniqueness/terminal/verifier/role-pin guards; applied function/body/ACL/caller and scope cleanup tests; architecture/build. No incomplete endpoint activation. |
+| 3 | Minimum automatic SMTP: encrypted provider store/migration, stager, attributed external receipt/four-slot connector, exact two functions, MailKit adapter, two typed jobs and bounded status projection. Consumer foundation remains closed to requests until the real administrator writer in Step 4. | Real SMTP/Mailpit positive/rejection/drop-final-reply, stage/audit/job atomicity, positive pre-send fencing, final250 receipt/restart, crash-before-receipt Unknown, immutable late/contradictory evidence, stale generation, retained slots, key rotation/loss/restore and DB/SMTP leakage. Existing external DB denial remains tested. |
+| 4 | Administrator create/list/detail/invitable-Role/revoke/reissue, Tenancy lifetime policy and exact protected replay/SDK contracts. | Independent HTTP/application permission denial, existing-holder/v1 policy cases, version/creation-presence conflicts, fresh scope/Role delegation and concurrency; atomic produced-work/audit rollback, no secret replay. Use the real Step 3 sender/job foundation; no later feature supplies a missing stager. |
+| 5 | Fresh recipient provider adapter, exact nonmember API/application admission and atomic consumption/result reconciliation. | Real current UserInfo/changed/unverified email, actual strongest lock modes, post-wait global eligibility/delegation, Active no-elevation audit, Suspended/Revoked, archived scope; both race orders, unknown COMMIT, original result IDs and plural MUST rollback. |
+| 6 | Full Studio invitation/lifetime UI; native email landing/capture/verification/signin/bootstrap/confirm/recovery and separate session admission; en/tr and no-JavaScript forms. | Actual new/existing/nonseed verified-provider HTTPS journeys, wrong live account and realm edit settings; expired/replaced/revoked codes, restart/cancel/429/503, history/BFCache/late responses/cleanup; full guarded frontend/typecheck/lint and actual human keyboard/reflow/contrast/VoiceOver evidence. |
+| 7 | Complete packet/source-bound proof, review closure and current documentation; prepare PR for the maintainer. | Relevant full backend/frontend/architecture/integration/provider/browser proof, complete required same-source A/B and original-archive reconciliation; two fresh final review rounds, no skipped/claimed manual evidence, no merge. |
+
+Source/workflow ownership remains `implement-task` with the relevant entity,
+handler, migration, background-job, provider-adapter, audit, frontend/i18n,
+integration-test, local-validation and commit/review workflows. Existing provider
+storage semantics, current contracts and known failure policies are reused only
+within their exact named boundaries. A materially incompatible new authority or
+product decision returns to the maintainer before code; ordinary decisions and
+verified fixes proceed under the current authorization without repeated asks.
+
+The maintainer will review the final PR. Earlier P03-3 B/archive and manual
+follow-ups retain their own identity and status; they are neither marked done nor
+silently waived by this acceptance. New human evidence is gathered honestly when
+the screens exist. If an external prerequisite genuinely prevents proof, record
+that precise dependency and continue independent work without inventing a pass.
+
+### P03-4 Step 1 first review corrections (2026-11-04)
+
+Step 1 contract commit `d2924665` receives two fresh independent reviews: one
+authority/audit/locking lens and one SMTP custody/job/privacy/experience lens.
+These are document/source feasibility reviews, not runtime qualification.
+
+Verified corrections:
+
+- Ordinary `GetTenantInvitationPolicyQuery` remains Off/physical ReadOnly; only
+  original policy receipt disclosure is MUST. Standard 18 is reconciled with the
+  API and Tenancy matrices. The canonical setter name is
+  `SetTenantInvitationLifetimeCommand` in both Tenancy carriers.
+- Architecture 13 and Data Protection 23 no longer promise business withdrawal
+  cancels provider work. Withdrawal invalidates codes; Prepare rejects obsolete
+  generations before its plan commits. Prepared email may still arrive. Recovery's
+  durable pre-send CAS is distinct; no ordinary provider cancellation writer exists.
+- Phase 08a points at ADR-0093's selected minimum SMTP slice and preserves the
+  full notification-engine ownership boundary.
+
+The existing runtime distinguishes original attempt identity from fresh recovery
+ownership; implementation must retain that distinction and actual connector/SMTP
+cleanup. No new runtime evidence or completed architecture-rule status follows.
+A second fresh independent review round follows the correction commit.
+
+### P03-4 Step 1 second review and contract closeout (2026-11-04)
+
+The correction commit `4d355fc9` and full Step 1 range receive a second round
+from two different fresh reviewers: authority/contracts and delivery/custody.
+Both approve with no open Blocker or Major. One verified Minor is corrected: the
+planned Tenancy receipt row is joined to its Markdown table without an intervening
+blank line. The stored inviter remains immutable; reissue never transfers it or
+guarantees future acceptance after authority changes.
+
+Document checks resolve 3,378 fragment links, validate roadmap structure and keep
+all three generated indexes current. Accepted historical bodies and shipped log
+records remain intact. No runtime code, provider/browser/database proof or manual
+accessibility is claimed. Step 1 is complete after this closeout commit; Step 2
+starts automatically on `development` under the accepted seven-step plan.
+
+### P03-4 Step 2 foundation and entry activation boundary (2026-11-04)
+
+Step 2 implements the Invitation aggregate/typed identifiers, ASCII mailbox
+parser, versioned delivery generations, finite acceptance/submission state, EF
+mapping and a forward Identity migration. The schema applies canonical tenant/
+organization isolation, same-module reference keys, pending-slot uniqueness,
+immutable pins and terminal facts, actual database expiry and ordered-fence
+backstops. The ninth confined definer is the bounded preliminary entry function;
+the two SMTP functions belong to Step 3. No public endpoint is activated.
+
+Tenancy adds the registered typed `identity.invitation.ttl_days` value and strict
+1–30-day parser behind its existing settings accessor. This adds no writer,
+permission grant, organization override or generic configuration response.
+
+**Sequence refinement within this packet:** the operation-bound witness, native
+origin and TransactionBehavior integration land in Step 5 with the three actual
+recipient request types and current-email/delegation enforcement. The earlier
+Step 2 scope-foundation wording does not authorize a dormant permissive policy,
+placeholder request handler or claim of a qualified setter before those consumers
+exist. Step 2 owns the complete storage/preliminary-function boundary; Step 5 owns
+its real request/caller/witness/mode/cleanup qualification. This changes sequence,
+not ADR-0093's authority contract, and defers nothing outside P03-4.
+
+Targeted controls first pass 45 unit, 13 actual app-role storage and 10 model/
+architecture cases. The full unit population then passes 3,480/3,480. The first
+wider database population identifies three test-inventory backfills, not a
+relaxed runtime rule: the exact grant matrix, an independent clean/dirty
+Invitation WITH CHECK control, and the enlarged FK-safe permanent-User TRUNCATE
+challenge. After those corrections the same database population passes
+186/186, with no skipped cases. Full architecture validation and the Step 2
+commit/review rounds remain in progress; no provider/browser/API proof follows.
+
+### P03-4 Step 2 storage validation and review handoff (2026-11-04)
+
+The full architecture attempt reports three verified failures and is cancelled
+after more than 27 minutes for corrective targeted validation. Its actual owned
+testhost retirement is observed. No full-suite success or complete-case credit
+is claimed. Corrections preserve the implemented aggregate-rule baseline while
+renaming its actual test to the canonical successor; the two-handler extension
+remains Registered until the acceptance handler exists. The pending unique index
+adds the canonical `deleted_at IS NULL` term, equivalent under the root's explicit
+no-delete CHECK; the current unreleased migration/designer/snapshot agree.
+
+The writable eligibility repeat of the exact entry function also requires the
+announced offer scope, real Tenant fence and both exclusive User fences. Its
+initial ReadOnly lookup remains separate. Real app-role controls cover missing
+fences and accepted same-actor reconciliation without exposing recipient data.
+
+Final affected validation before review: 48/48 architecture cases and 187/187
+database cases pass, zero skipped. The unchanged domain/application behavior
+also has the full 3,480/3,480 unit result above. Complete final-source architecture
+and required CI/A/B/archive qualification remain Step 7 obligations; the aborted
+full scan is not substituted for them. Formatting and document guards accompany
+the implementation commit. Two fresh independent review rounds follow.
+
+### P03-4 Step 2 second review UUID correction (2026-11-04)
+
+Implementation commit `000d3442` receives two fresh reviewers per round. Both
+first-round reviewers approve with no findings. In the second round, behavior
+approves; integrity verifies one Major: PostgreSQL `uuid_extract_version()` can
+return NULL for non-RFC UUIDs, and a CHECK accepts NULL unless its result is
+explicitly required to be true.
+
+The correction wraps the complete Invitation identifier conjunction in
+`(...) IS TRUE`. A new forward migration updates the constraint and EF snapshot;
+the committed initial migration is preserved. Three actual `learnstack_app`
+negative controls insert a nil offer ID, generation ID and delivery JobId in turn
+and require the named constraint's `23514`, while valid populated controls remain.
+The affected database population passes 190/190; the 48 affected architecture
+cases pass with zero skips. The original domain/application code keeps its full
+3,480-unit result. No aborted full architecture or future HTTP/SMTP evidence is
+claimed. Correction verification and Step 2 closeout follow this commit.
+
+### P03-4 Step 2 review closeout and SMTP continuation (2026-11-04)
+
+The integrity reviewer rechecks correction commit `1f7ec80c` and closes the sole
+second-round Major. Both rounds now have no open verified finding. Step 2's
+storage foundation is complete: domain/settings tests, real app-role storage/
+policy/FK/constraint controls, mapped snapshot and affected architecture checks
+are recorded above. Full packet proof remains Step 7; no public entry or sender
+is claimed by this closeout.
+
+Step 3 proceeds automatically. Its read-only preparation confirms two exact
+scope definitions require four distinct prepare/finalize request types in the
+existing Type-keyed registry. Use scope-specific roots and shared identifier-only
+parameters/plan/outcome/port; do not weaken that registry or add Domain references
+to Contracts. Known runtime-selected NoStart finalization may have no provider
+outcome: its truthful workflow-failure transition uses a new forward migration,
+never an invented provider ReceiptId or Unknown release.
+
+Before sender activation, qualify actual PostgreSQL logging, including failing-
+row DETAIL and independent statement-sampling paths, as well as application/
+trace/SMTP sinks. Do not modify the running user stack. The stager's actual
+create/reissue submission/audit atomicity and nonempty caller census join its
+real writers in Step 4; Step 3 qualifies the closed mechanism with owned fixtures
+and does not invent a test-only production admission exemption. This dependency
+clarification leaves all work inside P03-4.
+
+### P03-4 Step 3 SMTP foundation and review handoff (2026-11-04)
+
+Step 3 implements the accepted automatic-mail mechanism, with no invitation
+administrator or recipient endpoint activated. Two active external definitions
+bind four scope-specific prepare/finalize roots, the existing two external
+workers and the shared four-slot tenant capacity group. Parameters/plan contain
+only the three immutable GUIDs; outcome contains only the provider ReceiptId.
+
+Two SQL-only custody tables, two fixed definer functions and a private four-owner
+app-role source retain the original attempt/fence separately from fresh recovery
+ownership. Actual `JobExecutor` entry alone issues the nonserialized authority.
+Lost COMMIT permits one exact locked verification after actual prior cleanup,
+within the original five-second SQL budget. SMTP runs outside SQL transactions;
+late original completion can preserve evidence without checkpoint authority.
+
+AES-256-GCM custody uses the fixed startup key ring and immutable authenticated
+scope/generation/job bindings. One shared verifier codec matches the accepted
+byte encoding. MailKit transport has no send retry or protocol logger. Final
+250 plus actual cleanup and a durable receipt means submission accepted; missing
+final reply stays Unknown. Unconfirmed physical SMTP cleanup retains concrete
+transport resources, provider owner and connector, closes that lane and blocks
+shutdown instead of returning capacity. The actual database privacy canary
+demonstrates failing-row leakage under dirty settings and suppression under the
+qualified settings. Setup, rotation and restoration are documented in the
+[provider runbook](../modules/identity/providers.md#setup-key-rotation-and-restoration-runbook).
+
+The Invitation's separate receiptless workflow-failure transition accepts only
+the existing runtime-selected known NoStart finalization path. Terminal selected
+delivery status is immutable; stale-generation completion cannot overwrite the
+new generation. Both new forward migrations include generated target models;
+committed Step 2 migrations remain unchanged.
+
+Focused final checks pass with zero skips: 103 unit cases, 10 controlled real
+SMTP cases, 36 runtime/schema cases, 22 composition/database cases and architecture
+runs of 33 and six cases. These populations overlap and are not a unique summed
+count. Actual tenant and organization execution, ordinary external DB denial,
+exact-scope refusal, lost-COMMIT verification, fresh recovery and durable-result
+replay are exercised. Configuration is now mandatory at API startup; construction
+fixtures supply explicit synthetic settings without connecting to SMTP.
+
+This is an implementation handoff, not review or packet qualification. Two fresh
+independent review rounds follow. Step 4 supplies actual create/reissue callers
+and atomic root/job/envelope/MUST-audit proof. Step 7 still owes full final-source
+suites/native fixture compatibility, process-qualified provider saturation and
+failed-cleanup shutdown, native restart/late-original races and the Identity
+six-NoStart finalizer path, alongside hosted A/B and original-archive proof.
+No current user stack, production credentials/settings or inbox delivery is
+qualified. No existing P03-3 manual deferral is promoted to evidence.
+
+### P03-4 Step 3 first review startup correction (2026-11-04)
+
+Two fresh reviewers inspect implementation commit `583ecd20`. Custody/authority
+approves without findings. Consumer review verifies one Major: the new mandatory
+SMTP/key-ring startup validator exposes missing configuration in existing
+Contract, composition and real-worker fixtures. The served OpenAPI control
+independently fails 1/1 with the fixed custody-unavailable error. A full unit run
+also identifies two affected construction cases and the old request-catalogue
+population, which omits the four newly registered job roots.
+
+The correction supplies one linked test-only synthetic configuration to those
+fixtures. It neither removes the production validator nor replaces the actual
+provider with a success stub. Its invalid DNS destination is never contacted by
+construction. The catalogue discovers the real Identity Application request
+assembly and pins 84 requests/46 finite-trusted policies; protected permissions
+and all previous request subjects remain. The architecture catalogue counts 335
+compiled methods while its new custody rule remains Registered until complete
+in-packet proof; four foundation methods do not establish that whole obligation.
+
+After restoring the new transitive dependency across the complete solution, all
+3,537 unit cases, all nine Contract cases, 36 affected existing integration cases
+and nine corpus/provider architecture cases pass, with zero skips. The actual
+Outbox and Customization worker hosts are included. The earlier stale Contract
+assets run is not qualification. Verification of the review correction and a
+second fresh independent round follow.
+
+One nonblocking integration suggestion is retained inside Step 4: a status-query
+failure aborts its shared owner, so the real admin reader must define and prove
+storage-unavailable/rollback behavior before activation, instead of treating an
+aborted transaction as auditable successful disclosure. No public reader caller
+exists in this foundation. The explicit Step 7 process/full-source obligations
+recorded above remain open.
+
+### P03-4 Step 3 second review privacy inventory correction (2026-11-04)
+
+Two new reviewers inspect `42d585a9` independently. Failure/ownership review
+approves without findings. Integration review identifies one Major: the actual
+provider tables are documented only outside Architecture 23's marker-bound
+storage census. Running its existing controls confirms three failures out of 76,
+naming both provider tables and Step 2's Invitation root as unclassified actual
+migration storage. This is a current integration gap, not missing future native
+qualification.
+
+The correction adds both provider tables to the canonical twelve-store
+asynchronous inventory with their encrypted/linkable content and strict custody
+constraints. Invitation joins the explicit synchronous module exclusions without
+an erasure exemption. SMTP server/mailbox/provider-backup custody joins the
+existing external-copy inventory. The selected future-consumer description stays
+separate from actual storage and no longer claims an envelope expiry column.
+The complete migration comparison and every removed/duplicated-row dirty control
+remain strict; explicit expected population and its planted negative are updated.
+
+All 81 inventory/corpus cases now pass with zero skips. Prior full-unit/Contract/
+affected-integration results remain applicable because the correction changes
+classification/document guards only. The finding reviewer verifies the committed
+correction before Step 3 closes and Step 4 activates its actual writers.
+
+### P03-4 Step 3 review closeout and administrator continuation (2026-11-04)
+
+The first-round consumer reviewer verifies `42d585a9` and closes its startup
+fixture Major. The second-round integration reviewer verifies `b3448ab8`,
+independently reads the 81/81 zero-skip receipt and closes its inventory Major.
+Both other reviewers approve without findings. All four reports now approve;
+no verified Blocker, Major or Minor remains open in this foundation step.
+
+Step 3 is complete as the automatic-email foundation. Its controlled SMTP,
+actual app-role storage/runtime and full unit/Contract evidence remain bounded by
+the recorded proof scope. The custody rule stays Registered overall; complete
+process/native, final-source suites and hosted A/B/archive obligations remain
+inside Step 7. No production inbox, operator configuration or manual browser/
+accessibility check is claimed.
+
+Step 4 proceeds automatically: actual create/list/detail/compatible-Role/revoke/
+reissue operations, the fixed invitation-lifetime policy, original-target
+protected receipts, strict HTTP/OpenAPI/SDK contracts and real producer atomicity.
+The policy distinguishes absent creation from an existing version-zero row.
+Administrative targets enforce exact nullable-organization equality, including
+against tenant-wide rows visible to ordinary branch RLS. Raw links never enter
+administrative responses or stored replay bytes.
+
+Before activating the actual status consumer, SQL failure makes the whole read
+unavailable with rollback and the existing dependency-unavailable response;
+private query timeout is distinguished from caller cancellation. A successful
+missing-job observation is separate finite data. Real reader/audit tests prove
+this behavior. Actual Create/Reissue invokes the confined stager, scheduler and
+MUST path on one ordinary owner; no test-only producer replaces that proof.
+
+### P03-4 Step 4 administration and producer review handoff (2026-11-04)
+
+Step 4 implements the eight administrative HTTP actions, scoped invitation
+directory/detail and compatible-Role summaries, fixed lifetime policy and strict
+SDK wrappers. Actual create/reissue invokes the confined stager, scheduler and
+encrypted custody on the same audited business owner. Database diagnostic
+qualification precedes the first recipient-bearing root INSERT. Frozen entry
+host/locale/label come from actual live Tenancy projections; the existing
+server-configured HTTPS-port policy formats the origin.
+
+Every target read, retained lock, page and original receipt enforces tenant plus
+exact nullable-organization equality. Current membership-admin is checked at
+HTTP and application boundaries. Create/reissue additionally require compatible
+live Role content, the immutable pin and whole-grant delegation. Withdrawal
+requires current scoped membership-admin, Pending target and strong root version,
+independently of changed/deleted offered Role content. This preserves the
+accepted revoke/new-offer recovery without granting assignment, reissue or
+repinning authority. Positive withdrawal and forbidden-scope/capability/stale-root
+controls exercise the distinction.
+
+Policy absence uses `If-None-Match: *`; an existing version-zero row uses
+`If-Match: "0"`. The fingerprints differ while prior protected-operation framing
+remains unchanged. Getter is own-only Off/physical ReadOnly; original policy
+receipt is own-only, original TenantSetting ID/key and MUST writable audit,
+without the former write grant. Four protected mutations add only Invitation
+and TenantSetting target kinds in a forward Platform migration with generated
+target metadata. The migration's UTC ID follows the committed SMTP migration.
+No raw code/link enters administrative responses or durable replay bytes.
+
+Actual SQL status failure/private timeout poisons the shared owner and returns
+whole-read 503; caller cancellation is distinct. A page shares one five-second
+status budget. Known missing-job data remains separate. Real denial and table-
+lock timeout controls expose no DTO or success audit.
+
+Broader controls also close earlier SMTP source-accounting gaps: its job store
+is an explicitly countable Invitation write port, rejects Add and saves only its
+exact tracked root without forcing Modified state. A real stale-generation
+finalizer preserves the replacement generation, job and root version. Staging
+is a narrowly counted metadata/custody seam with exact production callers.
+Credential, enrollment, audit, framework-list and hosted-source controls retain
+their exact subjects and independent dirty negatives. Pure Location construction
+belongs to descriptor metadata, without a metadata-to-dispatcher dependency.
+
+Validation records 3,548/3,548 full unit cases and all 73 selected integration
+subjects with green final/corrected receipts. The original selected receipt has
+72 passes and one test-only TTL sampling failure; that corrected subject passes
+separately. An additional tightened real Create/Reissue MUST-refusal control
+positively observes rollback/cleanup and expired in-flight claims with no typed
+target, unchanged root/job facts and no success audit. Abandon expires its row;
+state alone is not evidence of uncertainty or deletion.
+
+The original full architecture attempt is 570 passed/38 failed/zero skipped,
+608 cases in 26m15s. It is not a passing final full-source receipt. Its affected
+follow-up is 53 passed/16 failed; all remaining failures and new dirty controls
+then pass 18/18. All five corpus controls pass after reconciling the 337 compiled
+architecture methods; registered whole-packet obligations are not promoted by
+partial control delivery.
+The served API snapshot supplies SDK generation: Contract passes 9/9, guarded
+SDK passes 163/163 across ten discovered files, and SDK lint/typecheck pass.
+Release compilation, changed-file formatting, whitespace and document guards
+accompany the commit.
+
+Two fresh independent review rounds follow. Recipient entry/acceptance and
+Studio/native/Keycloak activation remain Steps 5–6. Complete final-source suites,
+native process/cleanup/race qualification, hosted A/B and original archives
+remain Step 7. No production inbox delivery or manual accessibility evidence is
+claimed by this administrative implementation handoff.
+
+### P03-4 Step 4 first review correction (2026-11-04)
+
+Two fresh independent reviews examine administration authority/atomicity and
+protected replay/HTTP/SDK. The replay review has no verified finding. The
+authority review finds one Major: unavailable committed delegation facts were
+collapsed into Boolean false, producing a permission refusal or a successful
+incomplete invitable-Role directory after a recovered final check.
+
+Delegation now preserves failure separately from actual nondelegability.
+Unavailable facts or lost invocation continuity return dependency-unavailable;
+create/reissue propagates that failure and the directory aborts its whole result.
+Actual insufficient grants still deny grant-bearing mutations and omit only
+nondelegable Roles. Cancellation remains cancellation; withdrawal is unchanged.
+
+Four real HTTP/pipeline regression subjects pass without skips. They inject the
+one-shot delegation failure after successful admission/rechecks, require 503 and
+no successful read audit or partial directory, verify unchanged target versions,
+and then observe a recovered complete directory. A genuine actor-grant removal
+independently proves mutation denial and selective Role omission remain intact.
+The original full-suite receipt limits in the handoff remain unchanged; this is
+focused correction evidence. The verified finding is checked for closure before
+two new independent second-round reviewers examine the complete Step 4 range.
+
+### P03-4 Step 4 second review closeout and Step 5 start (2026-11-04)
+
+The first-round delegation fix is committed as `80e94416`; its finding reviewer
+verifies closure. Two different fresh second-round reviewers then examine the
+complete Step 4 range, including authority/scope/locks/producer/audit and protected
+replay/policy/HTTP/SDK/control integration. Both approve with no verified remaining
+Blocker, Major or Minor. The four focused failure-classification regressions,
+formatter, whitespace and documentation checks pass. Two stale planned labels
+are removed for the actual TTL setter and already-mapped Invitation privacy row;
+recipient acceptance entries remain planned until Step 5 registers them.
+
+The review explicitly preserves the existing protected idempotency limit:
+positive connection/transaction cleanup does not prove business rollback.
+[ADR-0079](../decisions/0079-bounded-identity-administration.md#durable-idempotency-and-protected-replay)
+and [Standard 04](../standards/04-api-design.md#idempotency) retain non-2xx claim
+release and at-least-once work across business COMMIT and missing outcome
+recording. No stronger unknown-outcome retention or exactly-once policy is
+introduced. Known audit-INSERT-refusal rollback evidence is not generalized to
+that uncertain window; completed retained receipts never rerun their mutation.
+
+Steps 1–4 and their two review rounds are complete. Step 5 begins actual
+operation-bound nonmember admission, fresh provider recipient evidence, atomic
+Invitation/Membership acceptance and exact original-result reconciliation.
+Step 6 owns Studio/native/provider journeys; Step 7 owns complete final-source
+suites, native process/cleanup/race proof, hosted A/B and original archives.
+The earlier architecture receipt limits and unexecuted manual evidence remain
+explicit; review approval does not complete those later steps.
+
+### P03-4 Step 5 recipient admission and atomic acceptance review handoff (2026-11-05)
+
+Step 5 implements the three exact recipient requests, private stock-validated
+credential capture, fresh fixed-endpoint UserInfo and operation-bound nonmember
+scope. The preliminary app-role ReadOnly lookup fully closes before the scoped
+owner. Actual server privacy qualification precedes sensitive SQL binds. The
+single-use witness binds the current request/invocation, native proof, real host,
+actor, offer and physical owner/mode/generation. Eleven logical setters use the
+existing four physical context writers; no new migration, function or login role
+is added. General protected, public and account authority remains separate.
+
+Entry bodies contain ID/code only; Pending acceptance uses canonical strong
+If-Match. A dated ADR-0093 transport clarification preserves its historical body
+and metadata. Accepted preflight selects the exact Off original-result request
+before old/malformed/repeated preconditions, provider work or mutation intents.
+Normal lifecycle and frozen-origin availability still apply. Pending email,
+inviter, Role pin, expiry and version conditions do not block that own-result
+read, which never substitutes a successor Membership or publishes a session.
+
+Acceptance takes both sorted User fences before the strongest actual Tenant
+mode, then Role, Invitation and current Membership locks. Fresh post-wait global,
+delegation, lifecycle, pin, target and database-expiry checks precede the actual
+transition. One tracker reset preserves both roots for central plural MUST and
+one COMMIT. Active members retain their full graph; Suspended conflicts; Revoked
+history permits a fresh successor. A shared mutable-graph guard also closes the
+new write port after validation. Its real late-write probe preserves the original
+Queued/version-one outcome and two central audit rows.
+
+The controller consumes an immutable prepared request, without a reachable
+preliminary persistence graph. Infrastructure/OpenAPI paths resolve no invitation
+source eagerly. Exact central response-privacy classification covers the three
+entry paths. The served schema and strict SDK add no ordinary BFF operation.
+
+| Validation | Observed scope |
+|---|---|
+| Full Unit after graph-seal correction | 3,589 passed; zero failed/skipped |
+| Full Contract | 10 passed; actual served refresh and SDK generation also pass |
+| Full guarded SDK | 189 passed across 11 exact discovered files; zero failed/skipped/todo; typecheck, lint and native emit pass |
+| Actual recipient HTTP/PostgreSQL | All 39 exact subjects have passing latest outcomes: 38 in the final combined receipt and one corrected pooling fixture separately; no single all-green combined run is claimed |
+| Affected Architecture | All 119 exact subjects have passing latest outcomes: 117 plus two corrected methods; bounded subset, not full Architecture qualification |
+| Controlled UserInfo adapter | 41 passing subjects included in Unit; not real Keycloak verification qualification |
+
+C# formatting and verification pass. The measured compiled architecture count is
+340; whole-packet Registered obligations retain their status. The interrupted
+unfiltered architecture diagnostic and earlier failed/corrected receipts remain
+history, not passing full-source evidence. Corrections retain exact nonempty
+caller/owner sets and missing/alias/opcode negatives, without broad exemptions.
+
+HTTP proof includes nine wait races, actual expiry, both User fences and strongest
+mode/same-person cases, unchanged-member subject-only audit, both MUST failures,
+strict input/source/branch controls, privacy refusal before sensitive SQL,
+owner/witness/join/mode refusal and postrequest closure. Pool reuse explicitly
+enables the fixture's owned two-connector source, asserts equal physical backend
+PID, and checks clean GUCs/ReadOnly state through a fresh owner. The failed owner
+remains permanently poisoned; fresh-scope success alone is not pool-reuse proof.
+
+Global Closing cases use the existing isolated owner-only corruption fixture;
+they prove defensive rereads, not a P03-10 production closure writer. A deferred
+server COMMIT refusal proves atomic rollback. Separate successful COMMIT followed
+by synthetic HTTP observation loss proves explicit original-result convergence;
+it is not a driver COMMIT-ack fault claim. ADR-0079's protected-receipt outcome
+limits remain unchanged.
+
+The implementation now enters two fresh independent review rounds. Step 6 owns
+Studio/native/verification/browser/manual experience, including the minimal admin
+acceptance-disposition projection needed to explain already-member outcomes to
+both parties. Step 7 owns complete final-source suites, actual provider/native
+process proof, hosted A/B and original archives. No manual or production-provider
+qualification is inferred from these bounded receipts.
+
+### P03-4 Step 5 first review diagnostic correction (2026-11-05)
+
+Two fresh independent reviews cover authority/owner/atomicity and provider/
+HTTP/SDK/privacy. The transport review finds no verified defect. The authority
+review finds one Major: the new Invitation statement-save adapter omits the
+nonretrying Npgsql strategy's transient InvalidOperationException wrapper,
+although the existing Identity graph writer sanitizes that exact shape.
+
+A real API/PostgreSQL regression reproduces 500 before the correction. The
+bounded sibling pattern now marks the owner rollback-only and throws the fixed
+identity-storage exception without retaining the provider inner payload. It
+changes only statement-save translation; direct invariants and physical
+COMMIT/unknown-outcome behavior remain unchanged. No retry is introduced.
+
+Six focused tests pass with zero skips: the new invitation regression, four
+existing immediate/deferred transient/nontransient profile-failure controls and
+the actual post-validation graph-seal control. A stored-recipient canary trigger
+executes exactly once only after observing the new Active result Membership.
+The corrected response is 503, with no result DTO or success audit; authoritative
+reads show Pending/version zero, no acceptance result and no Membership in the
+target scope. Existing real diagnostic serializers/exporters exclude the canary
+from logs, local archive, Sentry, response and traces; positive controls remain.
+Formatting and verification pass.
+
+A provenance comment is also narrowed to actual private construction/live-source
+binding. It no longer claims an independent provider-evidence minter census that
+has not been implemented; no present alternative producer or bypass is found,
+and no generic proof framework is added. The compiled architecture count remains
+340. The finding reviewer checks closure, followed by two different fresh
+second-round reviewers of the complete Step 5 range. All broader qualification
+and Step 6 boundaries in the implementation handoff remain explicit.
+
+### P03-4 Step 5 second review delegation and transport corrections (2026-11-05)
+
+Two different fresh reviewers examine the complete Step 5 range, including the
+first-review correction. The authority review identifies a Blocker: separate
+READ COMMITTED Membership/assignment and Role/grant reads can combine facts that
+never formed one committed delegation ceiling. Removal-only organization Role
+unassignment does not take the inviter User fence; its Shared Tenant fence also
+permits an unrelated Role's ordinary grant restoration. Holding the offered Role
+does not exclude that interleaving.
+
+An actual app-role regression reproduces successful acceptance before the fix,
+despite the inviter lacking a coherent sufficient ceiling throughout the act.
+The concurrent assignment removal and grant restoration commit with normal
+guards, valid root versions, the actual editor and Shared Tenant fences; no
+User fence or disabled trigger supplies the counterexample. The stored inviter's
+complete delegation facts now use one explicitly single-query EF projection on
+the existing owner. Provenance, fact bounds, isolation level and lock plans stay
+unchanged, following ADR-0076's committed Identity statement contract.
+
+The transport review identifies a Minor mismatch: both declared and counted
+entry bodies above 8 KiB return 400 although the served contract specifies 413.
+Both overflow paths now use the existing bounded payload-too-large response;
+malformed in-limit input retains 400 and owned buffers are still cleared.
+
+Eight focused HTTP tests pass with zero skips. The raced acceptance now returns
+403, leaves the offer Pending and creates no Membership; a coherent delegation
+control still creates one. The test observes exactly one inviter query with
+joined grants. Declared-length and genuinely undeclared/chunked 8,193-byte bodies
+return no-store 413/payload_too_large before provider work, while both exact
+8,192-byte controls succeed. Existing malformed-input, new/unchanged-member,
+result recovery and post-wait delegation-refusal controls also pass.
+Five affected architecture controls pass with zero skips; six changed C# files
+pass formatting and format verification. The compiled architecture count remains
+340, without a catalogue status promotion.
+
+These are bounded correction receipts, not a new full-suite or packet
+qualification. Finding reviewers verify closure after the correction commit;
+Step 6 retains the full recipient/Studio experience and Step 7 the final-source
+qualification already recorded above. No additional authority or ADR is added.
+
+### P03-4 Step 5 review closeout and Step 6 continuation (2026-11-05)
+
+Step 5 closes after implementation `222d17eb`, first-review correction `84c10444`
+and second-review correction `53b59b06`. Four independent reviewers complete the
+two planned rounds. Both second-round finding owners inspect the committed
+corrections and direct red/green receipts, confirming closure with no verified
+residual. The authority correction preserves one committed delegation graph;
+the transport correction preserves the published 8 KiB/413 boundary. Document
+fragment, roadmap and generated-index controls pass. No review approval supplies
+unexecuted runtime or manual evidence.
+
+The earlier full Unit/Contract/SDK receipts, bounded HTTP/architecture outcomes
+and separate focused correction receipts keep their exact source and scope.
+Forty-four invitation-entry HTTP cases now exist; no single combined all-green
+44-case run is claimed here. The final-source full suites remain Step 7.
+
+Step 6 proceeds automatically under the Accepted seven-step plan: Studio
+invitation and lifetime forms; pre-Next landing and private native custody;
+signin, explicit bootstrap and fixed email verification; deliberate acceptance,
+original-result recovery and separate session admission; English/Turkish and
+no-JavaScript paths. The minimal administrator disposition projection exposes
+created versus already-member truthfully to both parties without adding a
+Membership identifier or directory authority. Actual nonseed provider journeys
+and human accessibility evidence retain their planned verification obligations.
+The human checklist remains unexecuted until a person records the checks on the
+working screens. No new decision or maintainer approval is pending.
+
+
+### P03-4 Step 6 Studio and native invitation implementation (2026-11-05)
+
+The Studio lists and explains invitations, shows their offered Role and UTC
+expiry, creates, revokes and explicitly reissues them, and edits the existing
+Tenant lifetime policy. Absent-default and stored-version-zero policy writes
+remain distinct. Forms preserve validation edits; unknown protected outcomes
+retain their original preconditions and idempotency material for recovery.
+Administrator and recipient surfaces distinguish created from already-member
+acceptance without exposing a Membership identifier to the administrator or
+silently changing an active member's Role.
+
+The fixed native `/invitations` landing and confirmation run before Next. The
+first nonce-bound script removes the fragment before UI or network work; the
+no-JavaScript alternative accepts a deliberately pasted code through an
+Origin/CSRF-protected POST. Six closed recipient POST operations use the existing
+native owner store, shared quotas, sweep and physical cleanup accounting. The
+private continuation has its own revision and original pending deadline. Raw
+codes do not enter URLs, provider state, return targets, generic drafts, RSC,
+logs or public response output. Cancel revokes server custody immediately;
+late cancellation or recovery replies do not delete a newer opaque invitation
+cookie. A clean landing replaces an obsolete handle.
+
+The fixed Keycloak verification purpose retains state, nonce, S256 and current
+subject binding. Only that owned transaction accepts the complete
+`kc_action=VERIFY_EMAIL` and known status tuple; incomplete, duplicate or wrong
+purpose values refuse without consuming it. Callback status is not verification
+proof. Fresh API inspection and explicit acceptance/result recovery precede
+separate normal session admission. Same-scope already-member admission preserves
+the live cookie, CSRF and lifetime; a different-scope admission inherits the
+existing session's absolute lifetime. Committed Membership truth survives a
+subsequent session-admission refusal. English and Turkish copy covers both
+parties, verification, recovery and no-JavaScript paths.
+
+The API launcher selects exactly the seven SMTP/key-ring settings from matching
+sources, never arbitrary ambient credentials. Its API-only private-file reader
+uses one no-follow handle, regular/single-link/current-owner/private permissions,
+bounded UTF-8 input and cleared buffers. Web and Seeder environments receive none
+of those settings. Public CI construction uses explicit disposable synthetic
+configuration; this is not SMTP delivery. Setup guides distinguish LearnStack
+invitation SMTP from Keycloak verification SMTP and explain the stock **Send
+email** action. The ordinary fixture pre-pull inventory now includes pinned
+Mailpit, with its existing total allowance unchanged. Four missing current
+shared-fixture classes join the exact sorted shard inventory; no partition count,
+resource policy, deadline or reserve changes.
+
+Create/reissue also preserves an enabled regional content tag such as `tr-TR`
+or `en-US`. Turkish mail copy follows primary `tr`; other tags use the existing
+English fallback independently of content membership, as ADR-0027 requires.
+Links use the fixed native path rather than a locale-prefixed content route.
+An actual red run exposed 404 for regional-only locales before the correction.
+Four actual app-role HTTP cases now pass after both create and reissue, asserting
+persisted tags, unchanged locale membership and decrypted staged subject/text/
+HTML. Staged-copy assertions do not themselves prove SMTP submission.
+
+Verification before the implementation commit:
+
+- The canonical guarded frontend runner passes 3,903 cases across both packages,
+  with zero skips/todo: web 3,712 across 119 files in 313 seconds; SDK 191 across
+  11 files in 94 seconds, within the unchanged 900/360-second allowances.
+  Whole-workspace typecheck and lint pass. The initial full run's eleven copied
+  fixture/census failures are retained and corrected without broader exemptions.
+- Thirteen focused owner/verification-tuple/lifetime cases pass. Six actual
+  native HTTP controls pass, including a red/green held cancellation reply that
+  previously erased a newer cookie. A held inspection reply did not reproduce
+  that erasure and is not presented as a second reproduced defect.
+- Three actual PublicLocalLaunch controls pass; 87 canonical offline CI controls
+  pass in 6.46 seconds, below the unchanged 27-second TERM allocation. The four
+  regional cases, two actual staging/idempotency/MUST-rollback regressions and
+  nine invitation architecture controls pass with zero skips. Release build and
+  scoped formatting pass with zero warnings/errors.
+- Two real nonseed journeys pass on the final backend source, with zero skips,
+  in 49.66 and 35.78 seconds under unchanged 180-second individual wrappers.
+  Fresh owned PostgreSQL, pinned Keycloak and Mailpit run actual invitation jobs,
+  stock registration/login, explicit global bootstrap, unverified refusal,
+  provider **Send email**, delivered verification links, fresh inspection,
+  acceptance and separate session admission. The existing-account path also
+  proves already-member behavior, unchanged live session and wrong-recipient
+  refusal without grant/disclosure. Actual realm/action settings are read back.
+  The new-account fixture additionally exercises stock Chromium fragment
+  removal/history/storage and no-JavaScript Origin/form capture. These are
+  automated provider/browser observations, not human accessibility evidence.
+
+The implementation enters two fresh independent two-reviewer rounds. The human
+keyboard, focus, reflow, contrast and VoiceOver checklist remains unexecuted
+until a person reports observations on the working screens. Step 7 still owns
+SMTP saturation/retained-cleanup/restart/late-receipt/native-finalizer proofs,
+complete final-source suites, hosted A/B and original-archive qualification.
+Neither these bounded receipts nor review approval completes those obligations.
+
+
+### P03-4 Step 6 first review recovery and quota corrections (2026-11-05)
+
+Two fresh independent reviewers inspect the complete Step 6 implementation at
+`3440b3bb`. They identify three Majors. The product review finds that own-result
+404 after an unconfirmed accept is treated as expiry, even while the offer can
+remain Pending. The owner review finds that delayed entry/session signout replies
+can still delete a newer invitation cookie, and that the native landing collapses
+bootstrap/source quota 429 into 503. The parent verifies all three against the
+actual callers before authorizing bounded corrections.
+
+Both generic signout paths now revoke their original server custody without
+sending an invitation-cookie deletion. Existing session, entry and logout-cookie
+behavior is unchanged. Real HTTP regressions hold the old generic redirect,
+create/capture a newer continuation, emit the old reply and verify the newer
+confirmation remains reachable while old custody is revoked.
+
+A private acceptance-uncertainty marker is set only after state/version validation,
+immediately before the actual accept call. It survives response cancellation and
+fresh Pending inspection; neither proves that prior provider/API work ended.
+Own-result 404 and a later inspection 404 retain uncertainty and expose deliberate
+inspection/result actions. A fresh successful inspection permits explicit user
+acceptance, without an automatic second accept. Only a confirmed original receipt
+or new capture clears the marker. One additional abort-after-start red control
+exposes the earlier placement after the cancellation guard; the corrected ordering
+passes that control, including later original-result convergence.
+
+The native landing preserves public bootstrap 404/429/503 and the existing local
+source/subject 429 versus pending/global 503 distinction. Bounded Retry-After and
+no-store behavior use the existing convention. Actual HTTP tests prove source
+saturation refuses before allocation and the distinct bootstrap responses.
+
+The meaningful red run reports 33 passes and twelve failures across 45 cases;
+these are three defects exercised by multiple controls, not twelve independent
+production findings. The final focused run passes 46 cases across three files,
+with zero skips or unhandled errors. The delayed-commit controls preserve
+uncertainty through result 404, successful Pending inspection, later inspection
+404 and dependency failure, then reconcile the original receipt. No deadline,
+quota, provider authority, general cookie framework or automatic retry is added.
+A further 551 existing authentication/session regressions pass with zero skips;
+workspace typecheck, lint and native emission pass. The earlier 3,903-case full
+frontend and two provider receipts remain explicitly pre-correction evidence.
+The full Release solution build, 3,589 Unit tests and ten Contract tests also pass
+with zero warnings/errors or skipped tests on the unchanged backend source.
+These receipts do not replace Step 7's complete final-source qualification or
+human accessibility observations. Finding-owner closure and two different fresh
+second-round reviewers follow the correction commit.
+
+
+### P03-4 Step 6 second review original-result and form corrections (2026-11-05)
+
+Two different fresh reviewers inspect the complete range through `fca08b60`.
+The protocol reviewer finds one Major: after accepted-response/custody loss,
+reopening the original email offers inspection, whose Accepted-offer 404 leads
+only to another restart. The existing own-result authority remains valid for the
+same actor and original Active Membership, but its action is unreachable.
+
+The native renderer now exposes a deliberate original-result check on fresh
+inspection, masked inspection refusal and account-verification recovery. Localized
+copy explains that possibility without inferring acceptance from 404. The existing
+result command and separate session admission are reused; no new acceptance is
+submitted automatically. Actual native HTTP/renderer/store controls use a controlled
+API to commit acceptance, fail the first admission, expire only native custody,
+recapture the original code, exercise inspection 404 and reconcile the original
+result before separate admission. They assert no second acceptance and preserve
+changed-current-email independence. A masked result-404 UI control keeps the
+original refusal private. These establish UI/protocol reachability; controlled
+replies do not independently prove backend wrong-actor or original-Membership
+authorization, whose real integration qualification remains separately required.
+
+The experience reviewer finds two Minors. The Role permission label still names
+appearance alone although the existing setting-write pair also grants invitation
+lifetime editing. Both catalogues now name those two exact powers. New required
+email, offered-Role, lifetime and manual-code controls gain localized visible
+required wording and explicit aria-required, retaining native validation and
+associated hints. Recovery evidence remains readonly or hidden according to its
+existing grammar; it is not mislabeled as editable required input. A parent
+self-check also labels the skip link with the selected UI language/direction,
+retaining the document's admitted content locale and its independent fallback.
+
+The focused red run reports eleven failures among 116 cases. The final focused
+run passes 118 cases across six files; another 39 existing recovery/catalogue
+regressions pass across two files, all with zero skips/todo. Workspace typecheck,
+lint and native emission pass. These bounded receipts preserve the earlier full
+guard/provider results as earlier-source evidence, rather than a fresh full pass.
+
+A parent full Architecture run also exposes a stale call census from the earlier
+Identity graph-write integration. SaveAsync calls RequireMutableGraph, which
+already invokes RequireWriteAllowed before mutation; the rule still expects a
+direct SaveAsync-to-guard call. The test now requires both exact existing edges,
+with hostile controls independently removing each. No production write barrier
+is changed or duplicate guard inserted to satisfy a test. The exact affected
+architecture test passes, with zero skips. The known-failed full run is
+interrupted for correction and remains incomplete, with no full-suite pass or
+complete population credit; Step 7 reruns the complete final-source suite.
+The architecture rule name/status and compiled method count are unchanged.
+
+Review closure requires both second-round finding owners to check the correction
+commit and bounded receipts. Human keyboard/focus/reflow/contrast/VoiceOver
+observations remain unexecuted. The Accepted package permits independent work
+while that external evidence is pending; Step 7's provider/process, full-suite,
+hosted A/B and original-archive obligations are not waived.
+
+
+### P03-4 Step 6 implementation review closeout and Step 7 continuation (2026-11-05)
+
+Step 6 implementation `3440b3bb`, first-review correction `fca08b60` and
+second-review correction `418c6293` complete the planned implementation review
+cycle. Four fresh independent reviewers cover the two rounds. All finding owners
+inspect their committed corrections and scoped red/green evidence, confirming
+closure without a verified residual. The parent also verifies the restored exact
+architecture-barrier census and selected-language skip-link correction.
+
+This closes implementation/review work, not the entire Step 6 human requirement.
+The maintainer has received the working-screen keyboard/focus/reflow/contrast/
+VoiceOver checklist; observations remain unexecuted and pending. Earlier full
+frontend/provider and later focused receipts retain their exact source/scope.
+The interrupted known-failed full Architecture run has no complete-run credit.
+No manual, production SMTP/TLS or whole-packet qualification is inferred.
+
+Independent Step 7 work proceeds automatically under the Accepted package's
+external-prerequisite clause. Its finite provider/runtime additions reuse the
+actual Identity executor, SMTP source and native scheduler: four physical provider
+owners and fifth refusal; actual SDK disposal failure with retained resources
+and blocked shutdown inside an owned, joined child process; real process loss
+after Sending/final250 before durable receipt and fresh Unknown recovery; both
+late-original-receipt/recovery orders; and six real NoStart admissions followed
+by the actual Identity native finalizer, including its MUST rollback control.
+A narrowly staged test executable follows the existing portable process-proof
+pattern; the Linux fatal/native collector fixture keeps its separate purpose.
+Fixture setup, controlled replies, fresh hosts and actual process loss must be
+reported distinctly. No new production authority, timer or general runner is
+selected by this continuation.
+
+After these additions, Step 7 requires complete final-source backend/frontend/
+architecture/integration/provider/browser checks, both fresh final review rounds,
+complete same-source hosted A/B and independent original-archive reconciliation.
+The final PR remains for maintainer review without merge. P03-3's separate
+B/archive/manual follow-ups are not silently completed by this packet.
+
+
+### P03-4 Step 7 actual SMTP owner and recovery proof implementation (2026-11-05)
+
+Eight added cases complete the five finite provider/runtime proof families on
+actual Identity definitions, executor, SMTP adapter/storage and native runtime.
+A narrow two-mode test executable follows the existing portable process-proof
+pattern, with an exact test-only constructor friend and staged build output.
+No product behavior, production function/permission/minter, migration, general
+runner, CI topology or existing test-window policy changes.
+
+- Four real SMTP submissions complete socket cleanup while four distinct provider
+  SQL owners/connectors retain their pending observations. An actually admitted
+  tenant-B fifth job avoids tenant-A reservation masking and refuses before claim
+  or SMTP. After release and join, owners retire and a subsequent submission works.
+  This proves four checked-out provider connectors, not four still-open SMTP sockets.
+- A real MailKit Dispose failure through Identity retains the connected client,
+  sent message, provider, source owner and connector. The unhealthy source refuses
+  an eligible separate-tenant job. Source disposal and actual API root-provider
+  async disposal remain pending. The test positively resolves the live root, then
+  observes the same resolver refuse with ObjectDisposedException after disposal
+  begins; a scheduled-task signal or elapsed wait is not an acknowledgement.
+  Irrecoverable tasks stay inside an owned child that is killed and joined;
+  actual peer closure and unchanged unresolved durable facts follow. The WAF
+  wrapper's own synchronous disposal is not claimed as this proof.
+- Tenant and organization cases kill the real child after SDK final250 and socket
+  cleanup but before durable provider completion. A fresh host/source/run cell
+  and stock native recovery wait for the original lease to elapse, without a
+  fixture expiry UPDATE. They preserve the Sending claim/attempt/operation,
+  quarantine Unknown, retain the reservation and perform no resend, finalizer,
+  invented receipt or NoStart.
+- Both late-original/recovery orders reproduce the same immutable receipt/evidence
+  and refuse contradiction. Recovery-first observes Unknown before its checkpoint;
+  explicit store-fixture eligibility permits a new acquisition after the late
+  receipt commits. This is neither a process restart nor privileged release from
+  an already recorded quarantine. Only the fresh real Outcome checkpoint releases
+  occupancy, followed by actual Identity finalization and its central MUST row.
+- Six real admissions prepare one Identity plan, record five actual setup NoStart
+  checkpoints/releases, then leave the sixth unarmed. Stock native recovery owns
+  its NoStart and receiptless Identity finalizer; no seventh normal attempt or
+  SMTP occurs. A real first MUST INSERT failure rolls back business/job/audit
+  observations, then fresh native finalization succeeds. Four exact fixture
+  observations use pg_current_xact_id for one top-level transaction; mutable tuple
+  xmin and EF child savepoints do not supply that witness. Setup is explicitly
+  not described as six native backoffs.
+
+Children clear inherited configuration, use owned 0700 profile/CWD and explicit
+content roots, emit only fixed markers, and join exit plus stdout/stderr before
+profile deletion. The existing peer keeps its 30-second default; only the new
+long-lived process proofs supply an explicit finite listener lifetime within
+existing wrappers. Runtime tests join the existing SharedSchema collection and
+use its fixture, serializing global Hangfire mutations without a second unused
+fixture/container. Each case still seeds its own disposable database. The CI
+class inventory and all resource/deadline policies stay unchanged.
+
+Verification and source boundaries:
+
+- Combined SMTP/runtime/storage/transport/database-privacy: 43 passed, zero skips,
+  about 84 seconds after the collection correction; all eight new cases included.
+  Unit cipher/key-ring/registry/configuration: 55 passed; affected SMTP/trait
+  architecture: six passed, with the two collection controls repeated afterward.
+- The final positive root-disposal-entry tightening changes only the probe body.
+  All three affected process cases pass again on that source, zero skips, about
+  45 seconds. Earlier combined43/Unit55/Architecture6 retain their earlier source
+  snapshots; this is not falsely presented as a single current full-suite run.
+- Root aggregate/seed architecture controls pass six cases. Their comments and
+  catalogue now describe the actual two-handler allowlist and delivered source
+  companions; no Registered extension is promoted by these bounded receipts.
+  Canonical offline CI controls pass 87 cases in 7.395 seconds under existing
+  allocations. Release builds and scoped formatting pass; the format tool's
+  generic workspace-load warning is retained separately from compiler results.
+
+Initial compile/fixture-output/WAF-wrapper and transaction-witness failures remain
+historical failed evidence. No product regression or pass is invented from them.
+The implementation enters two fresh final review rounds, then complete current
+source/backend/frontend/provider/browser/hosted A/B and original-archive review.
+Human observations remain separately pending; neither this proof nor process
+termination supplies a manual pass, production SMTP/TLS or inbox-delivery guarantee.
+
+
+### P03-4 Step 7 final reviews and PR readiness (2026-11-05)
+
+The Step 7 implementation is committed as `92499308`. Two fresh final reviewers
+cover lifecycle/contracts and whole-packet interactions; two different fresh
+second-round reviewers cover authority/runtime and experience/evidence. All four
+report no verified actionable finding within their stated review scopes. They
+trace actual production callers and independently check source/TRX provenance,
+retaining the distinction between earlier focused snapshots and the final three
+process-case receipt. No review approval replaces unexecuted qualification.
+
+The complete guarded frontend run on that candidate passes 3,932 reported cases
+in both discovered packages, with zero skips/todo: all 119 web files/3,741 cases
+in 304.99 seconds and all eleven SDK files/191 cases in 79.95 seconds. Full Release
+solution build passes with zero warnings/errors; all 3,589 Unit and ten Contract
+tests pass with zero skips. Whole-workspace typecheck and lint pass. The full
+Architecture/Docker/native/provider/public-demo populations still require the
+complete same-source hosted proof; earlier interrupted or partial runs supply
+no substitute.
+
+A bounded status reconciliation by both second-round reviewers confirms the
+three invitation catalogue assertions now have actual source and behavioural
+owners. Registered means no code exists, so keeping it solely for pending packet
+qualification misstates delivered enforcement. Entry and atomic consumption name
+their real integration owners, with structural companions separately listed;
+SMTP retains its exact named architecture owner and runtime/storage/crypto
+companions. The two-handler aggregate extension is also implemented enforcement.
+The catalogue publishes 257 Implemented rules, 150 in the architecture assembly
+and 107 elsewhere, with 340 compiled architecture test methods unchanged. All
+five corpus consistency/owner/count/no-skip controls pass after reconciliation.
+This status promotion establishes enforcement, not hosted, human or production
+SMTP qualification. Atomicity wording distinguishes lost HTTP observation after
+successful COMMIT from the shared owner's indeterminate-COMMIT controls; no
+invitation-specific dropped driver acknowledgement is invented.
+
+The implementation is ready for maintainer PR review. The final publication
+candidate includes these current records; actual PR head/base/merge-source,
+required full A followed by whole-run B, original ZIP API sizes/SHA-256/CRC,
+complete case unions and independent non-backend surface review bind qualification
+to that candidate. Original attempt logs are retained separately; their local
+hash is not mislabeled as a GitHub artifact digest. No passing union of failed,
+cancelled, partial or different-source attempts is admissible. No duplicate
+manual CI runs are needed while the automatic PR workflow runs, and no merge is
+authorized. The PR carries the actual source-bound result links and evidence.
+
+Human keyboard/focus/reflow/contrast/VoiceOver observations remain pending with
+the maintainer and unexecuted; the working checklist was requested explicitly.
+Implementation review readiness is not a human pass or full packet-delivery
+claim. The Accepted external-prerequisite clause permits independent CI/archive
+work meanwhile. Production SMTP/TLS and inbox delivery are not established by
+local synthetic SMTP. P03-3 evidence/manual follow-ups retain their own identity.
+
+
+### P03-4 Step 7 first hosted corrections (2026-11-05)
+
+PR #41 opens from `a55aa31e`, base `ef344c0f`, actual merge/workflow source
+`3d27263e`. Complete run `41948315873`, attempt 1, finishes with six successful
+and 21 failed jobs. Frontend, public-demo, native crash/cleanup, OpenAPI, secret
+scan and Architecture-2 pass. This is a failed A, not packet qualification.
+All 23 available original artifact ZIPs match their API byte counts/SHA-256 and
+pass CRC; the two failed aggregates produce no archive. The original attempt
+logs ZIP is retained separately with CRC and local SHA-256
+`279d3bdb96a62c21fb433409f04e1774c5e763a2d3465efbfc71ef8b1e95b88b`.
+That hash is not mislabeled as an artifact-API digest.
+
+The finite CI diagnostic vocabulary omitted six existing invitation browser
+stages. The exact existing control reproduces red; the correction adds only
+those literals, retaining unknown/private-input refusal and all timers. A
+component-host registration gap and old endpoint/job inventories reproduce
+locally. The fail-closed test recipient reader cannot mint evidence; exact
+42-action/four-keyed-addition and two scoped Identity definition inventories
+retain their existing dirty controls. All 211 tests in the 18 originally failing
+HTTP class groups pass, with zero skips, covering the 194 failed case identities.
+
+The compiled authority census now closes the exact invitation credential/source/
+recipient-reader consumers, witness/signatures, encoded-token field and fixed
+UserInfo sink. Object forwarding and compiler exception storage have finite
+provenance checks, not whole-type/method exemptions. Substituted token/sink/
+caller/request/evidence/storage mutations and the existing bypass controls pass;
+the complete affected class passes 30 tests. The job-definition/controller test
+passes with its embedded mutants. One additional Fact makes 341 compiled
+Architecture test methods; rule counts/status are unchanged.
+
+Three real PostgreSQL schema censuses reproduce red. The exact SQL-only provider
+metadata class stays in relation, trigger/body/ACL and isolation coverage;
+independent application-role WITH CHECK/immutable-scope clean/dirty controls
+exercise both provider tables. Invitation's nullable original-result relation
+retains its checked admitting transition. Two additive forward migrations add
+only missing parent `FOR KEY SHARE` locks, preserving latest prior bodies,
+function identities/grants and all historical DDL. An old-schema upgrade and
+real application-role BEFORE gates with unlocked twins prove the added locks
+before FK enforcement. Final scoped schema/adjacent storage verification passes
+246 tests; eight affected architecture/trait/chain controls pass, zero skips.
+Standards 05's three canonical job/attempt policy USING clauses now reproduce the
+Accepted SMTP owner-read arms; WITH CHECK/DELETE predicates remain unchanged.
+An independently applied canonical database exactly matches migrated inventory.
+
+Architecture-4 passes 76 of 77 selected cases before its deadline; the unfinished
+credential-census case has no duration or passing credit. A reviewed advisory
+plan revision increases 184 existing method weights only from complete all-Passed
+discovery-ID groups. Original TRXs bind five owners; the censored owner's original
+job-log records match its 76 artifact JSONL records row-for-row and stay inside
+its execution step. Their scope/source/run/artifact identities are recorded in
+the plan. No failed/incomplete group is inferred or known slow weight reduced.
+The original full manifest's A/B assignment diff moves 291/289 selectors and
+separates three concentrated heavy selectors. Counts, algorithms, salt, default,
+selectors, resources and all execution/cleanup clocks remain unchanged. These
+summed case measurements and balanced estimates establish no wall-fit guarantee.
+
+The remaining original database-failure methods pass 46 tests, zero skips:
+eight tenant HTTP, two composed-lifetime, 23 delivery, four job-migration, one
+rollback, one HTTP outbox and seven idempotency variants. Test-owned synthetic
+configuration and throwing recipient readers preserve production fail-closed
+startup. Historical rollback/reapply stays at its exact boundary; current-head
+checks retain the full 59-table/18-Identity-function inventory and explicit
+forward-only refusal. The invalid replay-target control now uses an actually
+unregistered kind, since TenantSetting is deliberately admitted by ADR-0093.
+
+Final local correction controls pass: 106 native-launcher offline controls and
+87 plan/result controls (6.085 seconds for the latter under its unchanged
+27-second TERM/three-second kill CI allocation), Release solution build with
+zero warnings/errors, and all five corpus/count/owner/no-skip controls. These
+scoped receipts do not replace complete new-source qualification. The correction
+commit enters two fresh independent review rounds; prior reviews and source-bound
+results keep their historical scopes.
+
+Fresh correction reviews, complete new-source A followed by whole-run B, original
+archive/log and independent surface reconciliation remain required. Prior-source
+or failed passing fragments cannot be combined into qualification. Human
+keyboard/focus/reflow/contrast/VoiceOver remains pending and unexecuted. No merge,
+production SMTP/TLS, inbox delivery or P03-3 follow-up closure is claimed.
+
+
+### P03-4 Step 7 correction review closeout and CI candidate (2026-11-05)
+
+Correction commit `501863f8` completes two fresh independent review rounds. The
+first covers authority/schema and contracts/CI; two different second-round
+reviewers cover authority/database and evidence/contracts. All approve within
+their scopes with no verified actionable finding. No source correction is
+required by either round.
+
+Independent source checks match all 38 committed file hashes. Both forward
+migration bodies retain their latest predecessor except for one parent
+`FOR KEY SHARE`, and their generated target models remain unchanged. The second
+round independently recomputes the 23 failed-A original ZIP API byte counts,
+SHA-256 and CRC, the original logs archive, all 184 complete-Passed-group weight
+increases and the original manifest's 291/289 A/B selector moves. It also
+reconstructs the producer-only failure ledger: 330 Failed cases in 17 of 20
+producers, one censored case, and the separate 27-job six-success/21-failure
+outcome. Meta's synthetic negative-fixture row is not a real producer failure.
+These observations preserve the failed attempt's status.
+
+The reviewers inspect the scoped TRXs and final source boundaries recorded in
+[the correction entry](#p03-4-step-7-first-hosted-corrections-2026-11-05); they run
+no tests or hosted qualification. Structural IL and schema checks remain finite
+controls, not general data-flow, external-delivery or complete concurrency proof.
+No timer, count, resource ceiling, general permission or provider authority is
+added by the correction or its advisory plan revision.
+
+The publication candidate adds only this closeout/current status reconciliation
+after the reviewed implementation. Its actual PR head/base/merge tree, plan and
+attempt identities accompany PR #41. A single push starts a fresh automatic A;
+all 27 jobs and complete populations must pass before a whole-run B on the same
+source. Retain original artifacts/logs before rerun, then independently reconcile
+both layouts, exact case unions and every backend/frontend/native/public-demo/
+OpenAPI/SARIF/log surface. No failed, partial or stale-source fragments combine
+into qualification. Actual final-source results belong with the PR; publication
+of this record neither reports a run that has not completed nor changes source
+again merely to narrate a green result.
+
+Human keyboard/focus/reflow/contrast/VoiceOver remains pending and unexecuted.
+The existing external-prerequisite clause permits independent CI/archive work;
+review closure is not a human pass or full packet-delivery claim. No merge,
+production SMTP/TLS, inbox delivery, driver COMMIT-ack fault or P03-3 follow-up
+closure is inferred.
+
+
+### P03-4 Step 7 second hosted corrections (2026-11-05)
+
+Complete automatic A `41957367950`, attempt 1, binds PR head `416951f1`,
+base `ef344c0f`, actual merge/workflow source `17a12276` and the unchanged
+candidate tree. It finishes 22 successful and five failed jobs. All six
+Architecture producers, base, native crash/cleanup, frontend, public-demo,
+meta, OpenAPI and secret scan pass. Four ordinary producers and their required
+integration aggregate fail. The producer ledger contains 8,276 Passed and
+11 Failed cases, with no censored cases. This remains a failed A.
+
+All 24 available original artifact ZIPs match their API byte counts/SHA-256 and
+pass CRC; the failed integration aggregate has no archive. The original attempt
+logs archive is retained separately with its local SHA-256 and CRC. These raw
+originals are retained before changing either CI-validator file. No successful
+fragments or previous-source results establish qualification.
+
+A fresh owned PostgreSQL run reproduces the exact function-census failure:
+`fn_invitation_email_envelope_guard:body`. The Platform expectation reads only
+its original custody migration, ignoring the additive parent-lock replacement;
+the applied production body is current. The test reader now folds compiled
+Platform Up SQL in ordinal migration order from the exact installation boundary.
+The existing strict declaration parser and exact body, signature, owner, ACL,
+execution-property and caller checks remain unchanged: 22 functions, 11 definers
+and 26 trigger callers. Three new regression cases independently inspect the
+latest compiled envelope body and reject committed superseded-body and
+literal-whitespace mutants against clean database twins. The full affected class
+and adjacent parent-lock/upgrade controls pass 77 tests, zero skipped. Production
+migrations and target models are unchanged.
+
+The separately failing seed-observation class passes its fresh current-source
+run, one test with zero skips; it calls the corrected shared inspector. The new
+nonseed invitation journey also passes its actual PostgreSQL/Keycloak/Mailpit/
+Next/browser recheck, one test with zero skips and successful fixture disposal.
+Neither local pass establishes a unique cause for its earlier hosted failure;
+the native journey's failure cause remains unknown. No driver or timer changes.
+
+The CI checkpoint now separately projects existing closed session-driver failures
+for exactly the two invitation facts in the integration assembly. Only finite
+phase/reason labels are published; the older browser-result decoder is unchanged.
+Unknown text, wrong cases/assemblies/phases, oversized messages and private
+canaries are refused or omitted. No email, verifier, URI, cookie, provider text
+or stack enters the projection. Source-census, phase-pairing, privacy and actual
+failure-checkpoint controls pass within 108 native-launcher controls, 87 shared
+shard controls and 41 result controls, zero skips. No execution, cleanup or
+resource allowance changes. The correction enters two fresh independent review
+rounds before a single push and fresh automatic A.
+
+Complete final-source A followed by whole-run B, original archive/log and
+independent surface reconciliation remain required. Human keyboard/focus/reflow/
+contrast/VoiceOver remains pending and unexecuted; the existing external-
+prerequisite clause permits independent CI/archive work. No merge, production
+SMTP/TLS, inbox-delivery or P03-3 follow-up closure is claimed.
+
+
+### P03-4 Step 7 second correction review closeout (2026-11-05)
+
+Correction `8ceb7b37` completes two fresh independent review rounds. Both
+first-round reviewers approve with no actionable finding. Two different
+second-round reviewers inspect the full correction; one identifies a minor
+unreachable fixed diagnostic. Session completion rejects a nonzero exit before
+setting its completed state, so the separate disposal-only exit label cannot
+describe either invitation fact. `6692876b` removes only that invitation mapping,
+adds both-fact rejection and completion-order controls, and preserves the older
+browser decoder. All 108 native offline controls pass again, zero skips. Both
+second-round reviewers inspect the exact follow-up and close it with no remaining
+finding.
+
+Independent source/hash and raw-TRX checks confirm the corrected Platform reader,
+unchanged strict inspector, 77 passing schema/adjacent cases, committed body
+mutants and exact reported red-to-green identity. The finite diagnostic/checkpoint
+and private-canary boundary remain intact. The reviewers run no tests; they
+reconcile retained scoped receipts and source rather than claiming new execution.
+No production, migration, driver, timer or resource policy changes.
+
+The next publication adds only this dated closeout and current Status after the
+reviewed source. A single push starts fresh automatic A on its actual PR merge
+source. Complete same-source A then whole-run B, all original artifacts/logs and
+independent backend/frontend/native/public/OpenAPI/SARIF reconciliation remain
+mandatory. The [second failed A](#p03-4-step-7-second-hosted-corrections-2026-11-05)
+retains its own source and outcome; its passing fragments supply no qualification.
+Actual final-source results accompany PR #41 without another source change just
+to narrate CI. No duplicate manual dispatch or merge is authorized.
+
+Human keyboard/focus/reflow/contrast/VoiceOver remains pending and unexecuted.
+The external-prerequisite clause permits independent CI/archive work; review
+closure is not full packet delivery, production SMTP/TLS, inbox-delivery or
+P03-3 follow-up closure.
+
+
+### P03-4 Step 7 third hosted A and census repair (2026-11-05)
+
+Complete automatic A `41963228768`, attempt 1, binds PR head `0e7cf754`,
+base `ef344c0f` and actual merge/workflow source `63958227`. It finishes
+23 successful and four failed jobs. Architecture partition 0 observes 59 of
+60 selected cases, all Passed, before its execution deadline; the authenticated
+HTTP census mutation case has no completed result. Ordinary partition 6 observes
+all 246 cases, with two Failed and 244 Passed. The required backend and
+integration aggregates also fail. All other producers, frontend, public-demo,
+meta, OpenAPI and secret scan pass. The producer ledger contains 8,287 Passed,
+two Failed and one censored case. This is a failed A, not qualification.
+
+All 23 available original artifact ZIPs match their API byte counts/SHA-256 and
+pass CRC before any source edits. Both failed aggregate archives are absent.
+The complete original attempt logs archive is retained separately with its local
+SHA-256 and CRC. Passing fragments and earlier-source results do not supply
+qualification credit.
+
+The exact provider self-service case passes a fresh owned real-provider recheck;
+all four retry-observation theory variants pass their fresh owned PostgreSQL
+recheck, including the failed ACK/capacity variant. Both processes exit after
+fixture disposal, with zero skips. The hosted provider diagnostic records only
+the last readiness outcome as TLS, not every attempt's outcome. Its fixture
+ordinal and cached SDK state do not establish a live provider or unique failure
+location. The cancellation-only retry diagnostic likewise does not locate its
+cause. Neither local recheck establishes or repairs the hosted cause; no
+production, provider, TLS, test-timer or resource policy changes follow from it.
+
+A source-restored diagnostic profile locates repeated graph work in the
+architecture census. Its clean production walk schedules 2,324,123 queue entries
+for 31,934 visited root/type pairs; nested-dispatch analysis consumes about 83%
+of that diagnostic walk. The original exact mutation case passes locally in
+246.187 seconds. A separate table-predicate caching experiment passes the same
+case in 250.748 seconds and demonstrates no gain. Diagnostic instrumentation is
+removed and its source restoration is verified; those runs are not hosted
+qualification or new shard weights.
+
+The repair preserves every full census, predicate, root, assembly/type identity
+and mutation/restoration control. Per-walk scheduling distinguishes the root,
+type and implementation-expansion flag: a later explicit abstract collaborator
+must still expand after an earlier inherited reference. Only redundant queue
+states and duplicate diagnostic paths are eliminated; no cross-walk cache or
+new execution allowance is introduced. The ineffective table-predicate cache
+is removed; its three useful token/literal/opcode mutation controls remain.
+
+A fresh canonical Release rebuild passes the exact previously censored mutation
+case in 133.911 seconds, with zero skips and unchanged source during execution.
+Its case identity matches the earlier local baseline and the missing hosted
+result. This single local comparison is about 46% faster than the 246.187-second
+baseline; it establishes no hosted fit guarantee. The exact case plus the
+remaining class/adjacent run pass 13 distinct cases: all four authenticated-HTTP
+and nine public-surface facts, with zero skips. Their canonical source hashes
+match. A temporary expansion-flag omission fails the new late-acquisition
+control; its diagnostic call-order change and key mutation are restored
+byte-for-byte before the fresh canonical adjacent rebuild. No diagnostic
+instrumentation enters the correction. Two fresh independent review rounds
+govern publication of this repair.
+
+Complete same-source hosted A followed by whole-run B, all original archives/logs
+and independent surface reconciliation remain mandatory. Human keyboard/focus/
+reflow/contrast/VoiceOver remains pending and unexecuted. The existing external-
+prerequisite clause permits independent CI/archive work; no merge, production
+SMTP/TLS, inbox delivery or P03-3 follow-up closure is claimed.
+
+
+### P03-4 Step 7 census repair review closeout (2026-11-05)
+
+Correction `63edd92c` completes two fresh independent review rounds. Both
+first-round reviewers and two different second-round reviewers approve the
+four-file correction with no verified actionable finding. No further source
+correction is required. Reviewers inspect the exact graph/projection changes,
+production mutation callers and the scoped raw receipts; they run no tests.
+
+Independent checks confirm the preserved per-root expansion/visited order,
+assembly-qualified identity, generated/inherited controls and first forbidden
+witnesses. The raw exact/adjacent TRXs contain 13 distinct Passed cases with
+zero skips, and all 153 recorded source paths match canonical committed bytes.
+The expansion-flag counterfactual loses the two late-acquisition witnesses and
+fails as intended; saved source, restoration and fresh adjacent-build chronology
+agree. Diagnostic instrumentation and the ineffective cache remain absent. The
+local timing improvement remains a single scoped comparison, not hosted fit.
+
+The next publication adds only this dated closeout and current Status after the
+reviewed code. A single push starts fresh automatic A on its actual PR merge
+source. All 27 jobs and complete populations must pass before whole-run B on
+the same source. Retain original artifacts/logs before rerun, then independently
+reconcile both layouts and every proof surface. The
+[third failed A](#p03-4-step-7-third-hosted-a-and-census-repair-2026-11-05)
+retains its source and outcome; no failed or prior-source fragments combine
+into qualification. Actual final-source results accompany PR #41 without a new
+source change merely to narrate CI. No duplicate manual dispatch or merge.
+
+Human keyboard/focus/reflow/contrast/VoiceOver remains pending and unexecuted.
+The existing external-prerequisite clause permits independent CI/archive work;
+review closure is not full packet delivery, production SMTP/TLS, inbox delivery
+or P03-3 follow-up closure.
+
+
+### P03-4 Step 7 fourth hosted A and detector-index repair (2026-11-05)
+
+Complete automatic A `41977090425`, attempt 1, binds head `05c5892f`,
+base `ef344c0f`, merge/workflow source `daba186f` and tree `ec349b50`.
+It finishes 23 successful and four failed jobs. The earlier authenticated-HTTP
+census partition and the earlier two failing integration cases pass. Frontend,
+public-demo, native crash/cleanup, base, meta, OpenAPI and secret scan pass.
+Architecture partition 5 and ordinary partition 2 fail, so both required
+aggregates also refuse. The exact producer ledger contains 8,280 Passed,
+one Failed and nine censored cases out of 8,290 selected. This remains a failed A.
+
+All 23 available original artifact ZIPs match their API byte counts/SHA-256 and
+pass CRC; both failed aggregate archives are absent. The original attempt logs
+archive is retained separately with its local SHA-256 and CRC. Retention completes
+before any tracked diagnostic or implementation edit. No successful fragment
+combines with an earlier source or another failed attempt into qualification.
+
+Architecture partition 5 observes 139 of 148 selected cases, all Passed, before
+its deadline. The nine censored cases belong to one 48-case recurrence theory,
+whose other 39 cases complete. Its shared method is not established as the sole
+cause of exhaustion, and the prefix supplies no duration for a complete group.
+The advisory summed-method estimate is not a wall-time bound. The completed
+credential, Hangfire and bridge mutation cases consume substantial observed time;
+no new timer, resource, theory split, selector or weight follows from censoring.
+
+The separate existing browser/session fact records a positive-journey Chromium
+DevTools readiness failure followed by a secondary browser-signal cleanup error.
+The operation probe has not run; this is not evidence of a logout/history
+assertion failure. One unchanged fresh owned recheck passes the complete fact in
+51.137 seconds, including its three two-host journeys, stock Chromium, explicit
+fake provider/API fixtures and normal joined cleanup. Its history counter uses
+the separately labelled persisted event and records zero natural restorations.
+The actual test and runner exit successfully with unchanged source. This local
+pass neither establishes the original startup cause nor qualifies hosted CI.
+
+A fresh canonical three-Fact baseline passes with zero skips. A temporary
+fixed-span profile then preserves those original invocations and separately runs
+one actual recurrence theory row with all clean/dirty/restored evaluations.
+Every span completes with exact accounting. In that scoped row, the main and
+SDK projections consume about 40% of detector time; repeated exact-guard scans
+consume about 42%. Each evaluation projects 150,187 operands twice. The unscoped
+clean recurrence Fact is explicitly distinct from the scoped theory evidence.
+All four instrumented source files restore byte-for-byte; diagnostic timings
+supply neither qualification nor new weights. A fresh canonical rebuild follows.
+
+The repair reuses the existing ordered typed instruction snapshot and exact
+method-name index. Each detector captures the snapshot once, including the
+unscoped caller and SDK handoff; complete identity/opcode/owner predicates,
+duplicate occurrences, original order and generated-owner attribution remain.
+Owner formatting occurs after selection. Every clean/dirty/restored evaluation
+keeps its own scope; no cross-mutation cache or broader capability/observation
+cache is introduced. Same-Fact index controls compare the original raw ordered
+method/field tuples, foreign/generic operands, fresh scopes and exception disposal.
+A fresh canonical exact-row baseline passes in 3.090 seconds; the final
+candidate passes the same row in 2.156 seconds. This is one local per-case
+comparison, about 30% lower. Other clean-Fact and build-inclusive wall timings
+move in both directions, so no whole-command or hosted-fit improvement is
+inferred. Final canonical runs pass 57 distinct cases with zero skips: three
+clean Facts, all 48 recurrence cases, the existing extended index Fact and five
+shared-caller Facts. The extra focused row is already in the 48-case set and is
+not counted twice. All 48 identities match the retained assignment, including
+the nine previously censored cases, and all 153 recorded source paths match
+across candidate runs and final source. No diagnostic code remains. Two fresh
+independent review rounds govern publication of this six-file correction.
+
+Complete same-source hosted A followed by whole-run B, original archives/logs
+and independent all-surface reconciliation remain mandatory. Human keyboard/
+focus/reflow/contrast/VoiceOver remains pending and unexecuted; the existing
+external-prerequisite clause permits independent CI/archive work. No merge,
+production SMTP/TLS, inbox delivery or P03-3 follow-up closure is claimed.
+
+
+### P03-4 Step 7 detector-index repair review closeout (2026-11-05)
+
+Correction `dfa0b972` completes two fresh independent review rounds. Both
+first-round reviewers and two different second-round reviewers approve the
+six-file correction with no verified actionable finding. No further source
+correction is required. The reviewers inspect exact predicates, typed ordering,
+identity/multiplicity, scoped/unscoped lifetime, SDK handoff and independent
+raw controls; they run no tests or builds.
+
+Independent raw-TRX/child-receipt reconciliation confirms 57 distinct Passed
+cases across 58 executions, zero skips, all 48 original recurrence identities
+including the nine censored cases, and 153 canonical source paths. Diagnostic
+accounting, byte-exact restoration and subsequent canonical builds agree.
+Reviewers retain the local timing limits and the unchanged browser recheck's
+unknown original startup cause; no natural BFCache, native or human proof is
+inferred from structural tests. No policy, timer, resource, weight, selector
+or test-population changes enter this correction.
+
+The next publication adds only this dated closeout and current Status after the
+reviewed source. A single push starts fresh automatic A on the actual PR merge
+source. All 27 jobs and complete populations must pass before whole-run B on
+the same source. Retain originals before rerun and independently reconcile all
+backend/frontend/native/public/OpenAPI/SARIF/log surfaces. The
+[fourth failed A](#p03-4-step-7-fourth-hosted-a-and-detector-index-repair-2026-11-05)
+retains its own source and outcome; no failed or prior-source fragments combine
+into qualification. Actual final-source results accompany PR #41 without a new
+source change merely to narrate CI. No duplicate manual dispatch or merge.
+
+Human keyboard/focus/reflow/contrast/VoiceOver remains pending and unexecuted.
+The existing external-prerequisite clause permits independent CI/archive work;
+review closure is not full packet delivery, production SMTP/TLS, inbox delivery
+or P03-3 follow-up closure.
+
+
+### P03-4 maintainer manual accessibility acceptance (2026-11-05)
+
+The maintainer reports completing every item in the supplied ten-group P03-4
+manual checklist and accepts all results. This closes P03-4's pending human
+accessibility check for the unchanged application source at development head
+`0fcc486ab7285f9d828e48b25511d81f860d3727`.
+
+The accepted scope covers English and Turkish invitation administration and
+recipient flows: keyboard navigation and visible focus; form labels, validation
+and error recovery; VoiceOver; new-recipient registration, email verification
+and explicit acceptance; wrong-account recovery; invitation renewal/revocation
+and status copy; existing-member and original-result recovery; 200%/400% zoom
+and 320 CSS px reflow; contrast; and no-JavaScript use. The maintainer reports
+no remaining issue in these checks.
+
+The prepared local environment uses the current development API/native web,
+trusted local HTTPS, the tenant Keycloak realm and Mailpit. New-account creation
+is explicitly enabled locally. Existing data, account credentials and secrets
+are retained; invitation SMTP/key-ring configuration and the required database
+privacy settings are prepared for this local check.
+
+Evidence is the maintainer's explicit completion and acceptance in the task
+conversation. The agent does not claim to have performed the human observations.
+Exact macOS/browser/VoiceOver versions, individual contrast measurements and
+recordings are not supplied; no such details are invented.
+
+This acceptance closes the P03-4 human check. Complete successful same-source
+hosted A/B and independent original-archive reconciliation remain open before
+packet delivery/merge. Production SMTP/TLS, inbox delivery, P03-3's separately
+scoped follow-ups and full phase-exit qualification retain their own boundaries.
+
+
+### P03-4 Step 7 entry-browser diagnostic repair (2026-11-06)
+
+[Hosted run 42057464800, attempt 3](https://github.com/HodeTech/LearnStack/actions/runs/42057464800/attempts/3)
+finishes with 25 successful jobs and two failures. Ordinary 7 records one actual
+entry-pagination failure; the integration aggregate refusal is secondary. All
+24 original artifact ZIPs and attempt logs are retained with API size, SHA-256
+and CRC verification before correction. The finite failure projection identifies
+`EntryBrowserAsync`'s response await and closed wrapper, but retains no reason.
+The complete unchanged fact passes one fresh owned local recheck; that is a
+non-reproduction, not a hosted qualification or a demonstrated cause fix.
+
+The correction retains only the exact entry-pagination fact and integration
+assembly's existing `entry_browser` phase and registered session-driver refusal
+reason. Unknown/private suffixes, other phases, cases and assemblies remain
+unadmitted. The existing failed-result checkpoint carries those finite details;
+raw messages, provider/browser output and private values remain excluded. Result,
+ownership, completion, selection, retries and test budgets are unchanged.
+Existing fallback dispatch and its registered Keycloak class set remain intact.
+
+Offline controls pass: native-owner controls 111 tests and aggregate controls
+41 tests. They cover source-bound positive reasons, exact caller/phase scope,
+private-canary and unknown-suffix rejection, failure-only checkpoint custody,
+raw-TRX sanitization and refusal to treat diagnostics as completion. The first
+control invocation exposes an incorrect new fallback expectation and a test-only
+working-directory mismatch; the assertion and invocation are corrected without
+widening production fallback. Original failed control receipts remain retained.
+No actual native CI runner, .NET/Next/browser build, maintainer runtime action or
+root frontend/SDK output mutation runs for this decoder correction.
+
+Two fresh independent review rounds follow before the final development push.
+Final-source same-source hosted A/B and original-archive qualification remain
+open before packet delivery/merge; manual accessibility acceptance remains valid.
+
+
+### P03-4 Step 7 entry-browser diagnostic first reviews (2026-11-06)
+
+Two fresh independent R1 reviewers approve correction `8e6e16a4` with no verified
+actionable finding. They inspect exact caller/phase confinement, the current
+driver's finite reasons, private-canary and unknown-suffix refusal, failure-only
+checkpoint custody, raw-TRX sanitization and unchanged result/ownership gates.
+The registered Keycloak fallback class set stays unchanged; the entry fact's
+unregistered startup messages remain unknown. No code correction follows R1.
+
+The existing 111 native-owner and 41 aggregate offline controls remain the source
+validation; reviews do not run .NET/Next/browser or interact with maintainer
+runtime/output. Two different fresh R2 reviewers follow. The original hosted
+cause remains unconfirmed and final-source A/B/archive qualification remains open.
+
+
+### P03-4 Step 7 entry-browser diagnostic review closeout (2026-11-06)
+
+Two different fresh independent R2 reviewers approve the correction and R1
+record with no verified actionable finding. Together the two R1 and two R2
+reviews verify exact Fact/assembly/phase scope, source-bound finite reasons,
+private-output exclusion, failed-only checkpoint custody and unchanged
+completion, ownership, result and Keycloak-class gates. No code change follows
+either round; the decoder and offline controls remain those of `8e6e16a4`.
+
+The 111 native-owner and 41 aggregate offline controls pass. Whole-tree fragment,
+ADR-0069 structure and generated-index guards pass after the final record; exact
+diff/source-hash, settings hash-only and unchanged-stash checks accompany the
+candidate. Scoped secret checks pass. The single development push starts normal
+PR CI; no new hosted result is claimed by this local correction/review closeout.
+
+The original entry-pagination failure remains retained and unattributed; its
+unchanged local pass is only a non-reproduction. This repairs future diagnostic
+custody, not a demonstrated original-cause defect. PR #41 remains ready for
+review at the maintainer's request; successful same-source hosted A/B and
+independent original-archive qualification remain open before delivery/merge.
+Manual accessibility acceptance remains valid; user runtime/output is untouched.
+
+
+### P03-4 Step 7 hosted browser-start and cleanup-masking correction (2026-11-06)
+
+[Hosted run 42123447985, attempt 1](https://github.com/HodeTech/LearnStack/actions/runs/42123447985)
+binds head `82573d60` and finishes with 24 successful jobs and three failures:
+ordinary 2, ordinary 3 and the integration aggregate they refuse. Every
+Architecture partition passes, so the census repairs hold. Ordinary 2 records
+the browser/session fact at `browser-devtools-missing`; ordinary 3 records the
+invitation-registration fact at `retained_tree`. No other case fails.
+
+Both facts, and the entry-pagination fact, are the cases that start stock
+Chromium, and they recur. Of the seven hosted runs on this PR whose retained
+results were inspected, four contain one: `browser-devtools-missing` in runs
+41977090425 and 42123447985 (it is also the 2026-10-26 record above),
+`retained_tree` in 41957367950 and 42123447985, and an entry-pagination failure
+with no retained reason in 42057464800 attempt 3. The public-admission browser
+fact does not fail in the retained results. Failing and passing observations
+occur on the same runner images and kernel, so neither correlates. Each fact was
+met with a diagnostic and a clean local recheck; none with a change to the
+failing path.
+
+The retained evidence shows what can be said. In ordinary 2 the browser fact
+runs alone from 22:55:12 to 22:55:48 and is the shard's first Chromium. Its
+cleanup ends with the process terminated by a signal and no forced stop, so the
+owned browser was live and responsive but published no port file in ten
+seconds: a stall, not a crash. A probe with the same flags publishes the port in
+about 0.4 seconds locally (Brave on macOS). Why it stalls on hosted runners is
+not established.
+
+`retained_tree` has a mechanism that is established. The invitation facts hold
+the driver in `await using`, and C# replaces the exception in flight with the
+one disposal throws. A control that fails after `ready` and leaves a private
+directory makes the previous driver throw exactly the hosted message in place of
+the fixture's own closed failure. The failure it hid in ordinary 3 cannot be
+recovered from the retained artifacts. The Chromium step is the one thing the
+registration fact has and the existing-identity fact (passing in all six
+observations) lacks, but that is a correlation, not a proof.
+
+The correction changes two things and no budget. `startBffBrowser` replaces a
+browser that stayed live through the readiness window without a usable port file
+(missing, empty or malformed) at most once: the stalled owned group is stopped
+without force, then a fresh process starts on a fresh profile. Browser death,
+owner closure, unreadable state and every failure after the DevTools port stay
+single-shot, and a stall that cannot be stopped cleanly keeps its original closed
+failure. The ten-second window, flags, sandbox, environment and cleanup limits
+are unchanged. This is the infrastructure-flake retry that
+[Testing Standards § Flaky Tests](../standards/06-testing.md#flaky-tests) allows
+only with a logged justification: launching the test tool is not the behaviour
+under proof, and the stall is independent of the product. Both native Chromium
+fixtures use it. Separately, driver disposal keeps the first failure it raised
+and only marks it when cleanup also fails; a cleanup-only failure still throws,
+and `StartAsync`/`BrowserAsync` keep their strict form for their own observers.
+
+Twelve new controls cover the stall predicate, the one-replacement bound, the
+refusals above and an actual owned process group. The full web suite passes 3,753
+cases; typecheck, lint and formatting pass. The disposal control passes and fails
+without the driver change. The real invitation-registration fact passes locally in
+36 seconds, and in 45 seconds when its first Chromium is forced to publish no port:
+the first browser is stopped unforced, a second starts and the private tree is
+removed. The browser/session fact itself was not run locally because port 3000
+is held by the maintainer's running dev server, which is untouched.
+
+The stall cause and hosted behaviour remain unproven. Same-source hosted A/B and
+independent original-archive qualification remain open before delivery/merge.
+
+
+### P03-4 Step 7 forty-five-minute execution windows and parser timeout (2026-11-06)
+
+[Hosted run 42204664337, attempt 1](https://github.com/HodeTech/LearnStack/actions/runs/42204664337)
+binds head `ae62cc10` and finishes with 24 successful jobs and three failures:
+ordinary 6, ordinary 8 and the integration aggregate they refuse. No case fails.
+The three cases that start stock Chromium all Pass (63.3, 75.8 and 110.8
+seconds); one pass neither shows whether the replacement ran nor establishes the
+stall cause.
+
+Ordinary 8 records 294 of its 295 selected cases Passed and `deadline_exhausted`;
+one case, `Anonymous_public_reads_and_masked_account_refusals_…`, has no result.
+Its job wall is 26.7 minutes, the enclosing cut-off of the 30-minute window.
+Ordinary 6 stops before any case: `workflow_parser_unavailable` at 5.09 seconds
+after its step starts, with no artifact to upload. The Ruby workflow reader in
+`scripts/ci-test-shard-results.py` carried a fixed five-second subprocess
+timeout, which a cold runner right after a three-minute build can exceed.
+
+The window failure is the recurring class. Four of the last five hosted runs
+lose one shard to its window with every executed case Passed: Architecture 0
+and 5, ordinary 4 and now ordinary 8. The longest passing jobs are 26.4 minutes
+(ordinary 3 in this run) and 21.1 (Architecture), against cut-offs of about 26.7
+and 21.7. Ordinary 8 takes 21.9 minutes in the previous run. The population grew
+from 6,437 (P03-1) to about 8,290 cases under unchanged owner counts and
+windows.
+
+A replay of the committed plan on this run's discovered population gives each
+ordinary owner an equal predicted 1,322 seconds, against measured case sums of
+707 to 1,296 seconds. The 95 selectors without a weight total 1,449 measured
+seconds, while the 60-second default assumes 5,700. Replaying layouts A and B
+with those selectors weighted at 1.25 times their measured maximum lowers the
+heaviest ordinary owner by about 4% and 8% and leaves Architecture unchanged.
+That does not justify a source-bound plan revision, and the default errs on the
+safe side; the plan, counts, salt and weights stay as committed.
+
+[ADR-0094](../decisions/0094-forty-five-minute-backend-execution-windows.md) is
+accepted at maintainer direction and gives verified Architecture and ordinary
+producers 2,700 seconds. The closed `job_seconds` policy, the two workflow
+`timeout-minutes` values and every offline pin move together; base/native,
+aggregates, meta, frontend, public-demo, the 203-second reserve and every
+operation limit are unchanged. Dated amendments land in ADR-0063 and ADR-0082,
+and Testing 06, Infrastructure 20 and the catalogue rule are reconciled. The
+Ruby reader timeout becomes 30 seconds; the refusal, its input bound and the
+safe-load checks are unchanged, so only a reader that does not finish in 30
+seconds still refuses.
+
+The native, shard-result and shard-plan offline suites pass (111, 41 and 87
+cases) after their pins move to 1,200/2,700/2,700 and the boundary values 2,699,
+2,700 and 2,701 are added. This record owns the evidence; no hosted result for
+the new source exists yet. No independent review round has examined this
+correction. Complete same-source hosted A/B and original-archive qualification
+remain open before delivery/merge.
+
+
+### P03-4 Step 7 review corrections (2026-11-06)
+
+Three reviews of PR #41 are read against HEAD, two at `602c57af` and one at `82573d60`.
+Every citation is re-opened; nothing is applied from memory of the review. One review
+compared against the wrong base (916 commits, 2,704 files against the PR's 414), so
+findings in files this PR does not change are not PR defects. `Membership.cs`,
+`Role.cs`, the idempotency store and filter and the public-lesson query handler are
+outside the PR diff and are not evaluated here.
+
+[Hosted run 42216265810](https://github.com/HodeTech/LearnStack/actions/runs/42216265810)
+at `602c57af` passes all eighteen Architecture and ordinary producers: the 45-minute
+window removes the deadline class. Its two red jobs are corrected. The web
+workflow-ceiling control still expected 25 and 30 minutes for the two producers; the
+earlier full web run preceded that workflow change and was not repeated. One base case,
+`A_Rejection_Is_Counted_And_A_Served_Host_Is_Not`, listened to a process-wide counter by
+name, so any concurrent host refusal moves it; its listener is now bound to the fixture
+host's own meter scope, and a control that increments the same name from an unscoped
+meter fails without that scope.
+
+Confirmed and corrected. A stored tenant or branch name may hold control characters
+because Tenancy only requires non-blank text, yet the SDK refused such an inspection and
+the email stager threw, so every create or reissue for that tenant returned 500; both
+now show one clean escaped line. A refused invitation form showed read-only text and
+pointed at profile fields that were not on the page; it is now an editable form with the
+value kept, the field named, the error tied to it and the chosen role carried hidden,
+and the BFF uses the SDK's own mailbox grammar so `a..b@example.com` is refused before
+sending. The three recipient operations required the native source at runtime but not in
+the OpenAPI document; the contract now states both credentials and a control fails
+without the second. The invitation list read each row's delivery status with its own
+statement inside one five-second budget; it now reads the page in one statement, shares
+one classifier with the detail read, and a real-database test requires the listed and
+detailed status to agree. The landing form now has the same CSRF-proof guard as every
+other form, and its hidden error is described to assistive technology only once it is
+shown. `providers.md` now says the message body also prints the code, as ADR-0093
+intends. ADR-0094 named ADR-0062 and ADR-0075 as changed but they carried no dated
+amendment; both do now.
+
+One statement in the browser-start record above is wrong. It cites Testing Standards §
+Flaky Tests as allowing an infrastructure-flake retry with a logged justification. That
+section states no such rule; the nearby sentence belongs to the Phase 06 Playwright
+flows. The replacement of a stalled browser rests on that record's own reasons, not on a
+standard, and stays a maintainer-visible exception.
+
+Not accepted. The SMTP options record already overrides `ToString`. The entry lookup
+already rethrows caller cancellation, and every caller of the privacy check re-raises
+it. The issuer must end with `/realms/learnstack`, so the UserInfo URL cannot gain a
+double slash. The code line in the message is intended by ADR-0093.
+
+Open for the maintainer, unchanged: the reach of `tenancy.setting.write` to built-in
+roles, a send budget for create and reissue, the Keycloak `verifyEmail` and
+changed-email proof, SQL-level reach of the admission token and the SMTP claim function
+with its ADR text, envelope retention, the process-wide fence after a failed SMTP
+cleanup and its readiness signal, authentication failures classified as permanent,
+`executing` shown as unresolved, the independent-review rule for CI-gate changes, status
+records in module documents that the base already carries, the mutation-proven test
+gaps, the stale candidate in the PR description and the PR's size against the bot limit.
+
+
+### P03-4 Step 7 analyzer-gate correction (2026-11-06)
+
+[Hosted run 42235995092](https://github.com/HodeTech/LearnStack/actions/runs/42235995092)
+at `8276408f` fails twenty-two jobs at "Build Release with warnings as errors"; meta,
+OpenAPI diff and secret scan pass. The cause is three analyzer violations in the new
+page-wide status read: `CA1305` and `CA1863` on `string.Format` for the SQL scope, and
+`CA1068` for a `CancellationToken` that was not the last parameter. Nothing else is
+implicated; the other red jobs follow from the missing build output.
+
+The repository treats warnings as errors only when `CI` is `true`, so the local Release
+builds reported them as warnings, and the filter used on their output kept only the
+error count. The review-corrections record above states the page read as verified; its
+tests passed, but the CI build gate was not run. The scope predicate is now one
+compile-time constant appended to each statement, the token is the last parameter, and
+the whole solution builds with `CI=true` and `--no-incremental` with no warning.
+
+The architecture guard, the classification controls and both real-database native
+invitation flows, which now check the listed status against the detail, pass again on
+the corrected source. Complete same-source hosted A/B and original-archive qualification
+remain open.
+
+### P03-4 Step 7 browser-start retirement correction (2026-11-06)
+
+[Hosted run 42238072858, attempt 1](https://github.com/HodeTech/LearnStack/actions/runs/42238072858)
+binds head `93fd1f59` and finishes with 23 successful jobs, one failed ordinary
+partition, one cancelled Architecture partition and the two aggregates that refuse
+them. The analyzer correction holds: every shard builds, and meta, OpenAPI diff,
+secret scan, frontend and public demo pass. One case fails in the whole run and no
+shard reaches its test window. Two unrelated things are red.
+
+Ordinary 0 fails the invitation-registration case with the closed reason
+`browser-devtools_cleanup_failed` at `bff_native_driver` lines 213 and 287: the
+fixture reports stage `browser-devtools` and then a failed session cleanup. This is
+the Chromium start stall again, and the previous correction never took effect.
+`stopTestChild` sends SIGTERM to the owned group and SIGKILL when the group is still
+present after two seconds, and reports that stop as forced. The correction required an
+unforced stop before replacing a stalled browser, so a stalled browser that did not
+answer SIGTERM got no replacement, and the final disposal counted the same cached
+forced stop as failed cleanup. Its unit control for the refusal encoded the same
+assumption. With real owned processes, the previous code reproduces exactly that pair
+for a start-up that ignores SIGTERM, and the corrected code starts the replacement and
+disposes cleanly.
+
+The stall cause is still not established. In the failing shard even
+`google-chrome --version` took nine seconds where the other eleven shards took zero to
+six. Of the three stalls that can be identified (the two earlier browser/session
+records and this one), two ran in the shard with the slowest of those twelve
+measurements and one, at one second, did not. A cold start may explain some stalls but
+not all, so the correction does not rest on it.
+
+The correction widens the retry and keeps the proof. `retireChild` on the fixture owner
+releases one child once its whole group is confirmed absent, forced or not; `dispose`
+is unchanged and still keeps the tree after a forced stop of any other child.
+`startBffBrowser` retires a stalled browser through it and allows up to two
+replacements, three launches in all, instead of one. Each DevTools wait is 20 seconds
+instead of ten: the helper's maximum, and the window the public-admission fact already
+uses without a stall in any inspected run. Nothing after the DevTools port is retried,
+and a stalled group that cannot be confirmed absent keeps its closed failure. The
+native driver's response budget for the entry and invitation browser phases is 150
+seconds instead of 90, as it already was for the browser/session result; the
+fixtures' 180- and 240-second deadlines and the driver's four-minute deadline are
+unchanged. The passing browser/session fact takes 90.8 seconds on hosted, so the worst
+accepted start (two full waits with their retirements, then a slow third start) ends
+near 155 seconds. This is the infrastructure-flake retry that
+[Testing Standards § Flaky Tests](../standards/06-testing.md#flaky-tests) allows with a
+logged justification, on the same grounds as before: launching the test tool is not the
+behaviour under proof. It supersedes the "without force", "at most once" and
+"ten-second" statements of the
+[previous record](#p03-4-step-7-hosted-browser-start-and-cleanup-masking-correction-2026-11-06),
+which stays as what was believed then.
+
+New controls cover a real owner retiring a start-up that ignores SIGTERM and then
+disposing cleanly, the same owner still failing disposal for an unretired child that
+needed SIGKILL, the three-launch bound and its closure, refusal when retirement cannot
+be confirmed, and the owner's refusal of unowned children and of a closed owner. The
+real invitation-registration fact passes locally in 45 seconds, and in 66 seconds when
+its first browser is replaced by a start-up that ignores SIGTERM (the stand-in ran
+twice, so the replacement ran). The browser/session fact was not run locally because
+port 3000 is held by the maintainer's dev server.
+
+Architecture 5 passes its cases and ends its execution step at 15:09:33. Its evidence
+upload then starts and never ends: the step's own one-minute timeout does not fire,
+GitHub cuts the job at the 45-minute ceiling and no log exists for any step. In the
+four most recent runs every other upload step takes at most two seconds, and no
+repository code runs in that step. This is recorded as a hosted-runner loss, not
+repaired. The shard's evidence is missing, so the aggregates refuse and the run
+cannot count toward qualification.
+
+The stall cause and hosted behaviour of this retry remain unproven. Complete same-source
+hosted A/B and original-archive qualification remain open.

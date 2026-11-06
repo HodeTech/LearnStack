@@ -13,6 +13,8 @@ import {
   ADAPTER,
   ACCOUNT_ADAPTER,
   NATIVE_API_TRANSPORT,
+  NATIVE_INVITATION_HTTP,
+  SDK_INVITATION_ENTRY,
   BFF_BROWSER_ADAPTER,
   SDK_AUTHENTICATED,
   SDK_ADMINISTRATION,
@@ -480,6 +482,9 @@ describe('ADR-0053 production public boundaries', () => {
         'apps/web/src/app/(studio)/studio/members/[membershipId]/page.tsx',
         'apps/web/src/app/(studio)/studio/roles/page.tsx',
         'apps/web/src/app/(studio)/studio/roles/[roleId]/page.tsx',
+        'apps/web/src/app/(studio)/studio/invitations/page.tsx',
+        'apps/web/src/app/(studio)/studio/invitations/[invitationId]/page.tsx',
+        'apps/web/src/app/(studio)/studio/invitation-policy/page.tsx',
         'apps/web/src/app/(portal)/layout.tsx',
         'apps/web/src/app/(portal)/portal/page.tsx',
         'apps/web/src/app/(portal)/portal/profile/page.tsx',
@@ -537,7 +542,12 @@ describe('ADR-0053 production public boundaries', () => {
           directory +
             '/' +
             (directory === 'packages/sdk' &&
-            ['./authenticated-server', './administration-server'].includes(key)
+            [
+              './authenticated-server',
+              './administration-server',
+              './invitation-entry-server',
+              './public-server',
+            ].includes(key)
               ? 'src/' + key.slice(2) + '.ts'
               : value.slice(2)),
         );
@@ -641,6 +651,36 @@ describe('ADR-0053 production public boundaries', () => {
       transportFindings(buildSourceGraph(renamed)).filter((item) => item.file === probe),
     ).toHaveLength(4);
   });
+  it('confines the native invitation host bootstrap and keeps recipient calls out of client bundles', () => {
+    expect(sources[NATIVE_INVITATION_HTTP]).toContain("'/api/v1/public/site'");
+    const moved = Object.fromEntries(
+      Object.entries(sources).map(([name, source]) => [
+        name === NATIVE_INVITATION_HTTP ? probe : name,
+        source,
+      ]),
+    );
+    expect(
+      transportFindings(buildSourceGraph(moved)).filter(
+        (item) => item.file === probe && item.reason.includes('API-hop headers'),
+      ),
+    ).toHaveLength(3);
+    expect(
+      transportFindings(
+        graphWith(
+          NATIVE_INVITATION_HTTP,
+          sources[NATIVE_INVITATION_HTTP]! + '\nfetch("https://unowned.invalid");',
+        ),
+      ).some(
+        (item) => item.file === NATIVE_INVITATION_HTTP && item.reason.includes('global fetch'),
+      ),
+    ).toBe(true);
+    expect(privateServerFiles(production)).toContain(SDK_INVITATION_ENTRY);
+    const leaked = graphWith(
+      probe,
+      '\'use client\'; import { createInvitationEntryServerSdk } from "@learnstack/sdk/invitation-entry-server"; export const unsafe = createInvitationEntryServerSdk;',
+    );
+    expect(clientBoundaryFindings(leaked).some((item) => item.file === probe)).toBe(true);
+  });
   it('confines authenticated hop setters without granting global fetch or a client SDK escape', () => {
     const renamed = Object.fromEntries(
       Object.entries(sources).map(([name, source]) => [
@@ -701,6 +741,10 @@ describe('ADR-0053 production public boundaries', () => {
       'native-api-transport',
       'native-session-client',
       'native-administration-client',
+      'native-invitation-client',
+      'native-invitation-http',
+      'invitation-html',
+      'invitation-copy',
       'native-contract',
       'configuration',
       'session-runtime',

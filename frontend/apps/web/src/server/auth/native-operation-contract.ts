@@ -1,6 +1,8 @@
 import type {
   AdministrationServerSdk,
   GrantInput,
+  InvitationInput,
+  InvitationPolicyPrecondition,
   MembershipState,
   ProfileInput,
 } from '@learnstack/sdk/administration-server';
@@ -16,11 +18,31 @@ export type NativeOperation =
         | 'listMemberships'
         | 'listOrganizationMemberships'
         | 'getOwnContexts'
-        | 'listOrganizations';
+        | 'listOrganizations'
+        | 'listInvitations';
     }> &
       Page)
-  | Readonly<{ kind: 'getMembership' | 'getRole' | 'getOrganization'; id: string }>
-  | Readonly<{ kind: 'getOwnProfile' | 'getOwnCapabilities' | 'listRoles' | 'getPermissions' }>
+  | Readonly<{
+      kind: 'getMembership' | 'getRole' | 'getOrganization' | 'getInvitation';
+      id: string;
+    }>
+  | Readonly<{
+      kind:
+        | 'getOwnProfile'
+        | 'getOwnCapabilities'
+        | 'listRoles'
+        | 'getPermissions'
+        | 'listInvitableRoles'
+        | 'getInvitationPolicy';
+    }>
+  | Readonly<{ kind: 'createInvitation'; invitation: InvitationInput; idempotencyKey: string }>
+  | (Readonly<{ kind: 'revokeInvitation' | 'reissueInvitation'; id: string }> & Write)
+  | Readonly<{
+      kind: 'setInvitationLifetime';
+      days: number;
+      precondition: InvitationPolicyPrecondition;
+      idempotencyKey: string;
+    }>
   | (Readonly<{ kind: 'setMembershipProfile'; id: string; profile: ProfileInput }> & Write)
   | (Readonly<{ kind: 'setOwnProfile'; profile: ProfileInput }> & Write)
   | (Readonly<{ kind: 'replaceMembershipRoles'; id: string; roleIds: readonly string[] }> & Write)

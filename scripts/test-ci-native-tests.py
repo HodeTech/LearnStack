@@ -332,13 +332,12 @@ class OwnerControls(unittest.TestCase):
     def test_job_window_is_closed_to_exact_plan_bounded_mode_and_expected_job(self):
         counts = self.owner.shard_owner().load_plan()['counts']
         self.assertEqual(1200, self.owner.JOB_SECONDS)
-        self.assertEqual(1500, self.owner.ARCHITECTURE_JOB_SECONDS)
-        self.assertEqual(1800, self.owner.ORDINARY_JOB_SECONDS)
+        self.assertEqual(2700, self.owner.ARCHITECTURE_JOB_SECONDS)
+        self.assertEqual(2700, self.owner.ORDINARY_JOB_SECONDS)
         self.assertEqual(203, self.owner.RESERVE_SECONDS)
         for mode, job in tuple(self.owner.SHARD_JOBS.items()):
             with self.subTest(mode=mode):
-                expected = (1800 if mode.startswith('ordinary-') else
-                            1500 if mode.startswith('architecture-') else 1200)
+                expected = (2700 if mode.startswith(('ordinary-', 'architecture-')) else 1200)
                 self.assertEqual(expected, self.owner.job_seconds(mode, job, counts))
                 for forged_job in set(self.owner.SHARD_JOBS.values()) - {job}:
                     self.refuses('job_identity_mismatch', self.owner.job_seconds, mode, forged_job, counts)
@@ -373,15 +372,14 @@ class OwnerControls(unittest.TestCase):
             with self.subTest(mode=mode), mock.patch.dict(os.environ, {**env, 'GITHUB_JOB': job}, clear=True), \
                     mock.patch.object(self.owner.time, 'time', return_value=1700), \
                     mock.patch.object(self.owner.time, 'monotonic', return_value=500):
-                ceiling = (1800 if mode.startswith('ordinary-') else
-                           1500 if mode.startswith('architecture-') else 1200)
+                ceiling = (2700 if mode.startswith(('ordinary-', 'architecture-')) else 1200)
                 self.assertEqual((500 + ceiling - 700 - self.owner.RESERVE_SECONDS,
                                   500 + ceiling - 700 - self.owner.UPLOAD_SECONDS - self.owner.MARGIN_SECONDS),
                                  self.owner.deadlines(mode))
-        for mode, job, ceiling in (('ordinary-0', 'backend-integration-tests', 1800),
+        for mode, job, ceiling in (('ordinary-0', 'backend-integration-tests', 2700),
                                    ('native-shard', 'backend-native', 1200),
                                    ('base', 'backend-base', 1200),
-                                   ('architecture-0', 'backend-architecture', 1500)):
+                                   ('architecture-0', 'backend-architecture', 2700)):
             for elapsed in (-1, ceiling):
                 with self.subTest(mode=mode, elapsed=elapsed), \
                         mock.patch.dict(os.environ, {**env, 'GITHUB_JOB': job}, clear=True), \
@@ -392,11 +390,11 @@ class OwnerControls(unittest.TestCase):
         with mock.patch.dict(os.environ, {**env, 'GITHUB_JOB': 'backend-integration-tests'}, clear=True), \
                 mock.patch.object(self.owner.time, 'time', return_value=2250), \
                 mock.patch.object(self.owner.time, 'monotonic', return_value=500):
-            self.assertEqual(847, self.owner.deadlines('ordinary-0')[0])
+            self.assertEqual(1747, self.owner.deadlines('ordinary-0')[0])
         with mock.patch.dict(os.environ, {**env, 'GITHUB_JOB': 'backend-architecture'}, clear=True), \
                 mock.patch.object(self.owner.time, 'time', return_value=2250), \
                 mock.patch.object(self.owner.time, 'monotonic', return_value=500):
-            self.assertEqual(547, self.owner.deadlines('architecture-0')[0])
+            self.assertEqual(1747, self.owner.deadlines('architecture-0')[0])
 
     def test_composed_native_prevalidation_rejects_actual_unknown_collector_before_privilege(self):
         spec = importlib.util.spec_from_file_location(
@@ -1485,6 +1483,184 @@ except launcher.Refusal as failure:
                               {'ErrorMessage': 'Framework ownership fixture retained its private tree.'}))
             self.assertIsNone(self.owner.closed_failure_details({**case, 'name': name + '_other'},
                               {'ErrorMessage': 'Framework ownership fixture retained its private tree.'}))
+
+    def test_bff_invitation_details_are_exact_case_phase_and_source_bound(self):
+        driver = (ROOT / 'backend/tests/LearnStack.Tests.Integration/TenancyIdentity/BffNativeDriver.cs').read_text()
+        journey = (ROOT / 'backend/tests/LearnStack.Tests.Integration/TenancyIdentity/TenantBffSessionTests.Invitations.cs').read_text()
+        session = (ROOT / 'frontend/apps/web/scripts/verify-bff-session.mjs').read_text()
+        self.assertEqual(2, len(self.owner.BFF_INVITATION_FAILURE_CASES))
+        for name in self.owner.BFF_INVITATION_FAILURE_CASES:
+            self.assertIn(name.rsplit('.', 1)[1] + '()', journey)
+        for literal in self.owner.BFF_INVITATION_FIXED_FAILURES:
+            self.assertIn('"' + literal + '"', driver)
+        self.assertIn('"' + self.owner.BFF_INVITATION_WITNESS_FAILURE + '"', driver)
+        complete = driver.split('internal async Task CompleteAsync()', 1)[1].split('internal async Task<BffEntryBrowserReceipt>', 1)[0]
+        self.assertLess(complete.index('_child.ExitCode != 0'), complete.index('_complete = true'))
+        self.assertIn('throw new InvalidOperationException("BFF native fixture failed after owned cleanup.")', complete)
+        self.assertNotIn('BFF native fixture completed without a successful exit.', self.owner.BFF_INVITATION_FIXED_FAILURES)
+        self.assertIn('driver.ReadAsync(heldBuild ? "held-build" : "ready")', driver)
+        for phase in ('response', 'complete', 'invitation_browser'):
+            self.assertIn('ReadAsync("' + phase + '")', driver)
+        self.assertIn("phase: 'invitation_browser'", session)
+        self.assertIn("phase: 'complete'", session)
+        self.assertIn('if (registration) await native.InvitationBrowserAsync(', journey)
+        self.assertIn('"BFF native fixture did not reach the closed " + phase + "/" + reason + " phase."', driver)
+        self.assertIn('"deadline_" + lastStage', driver)
+        self.assertIn('foreach (var stage in ErrorStages)', driver)
+        self.assertIn('stage + "_unexpected_output"', driver)
+        self.assertIn('stage + "_cleanup_failed"', driver)
+
+        parse = self.owner.closed_failure_details
+        for name in self.owner.BFF_INVITATION_FAILURE_CASES:
+            case = self.case(1, name)
+            phases = ('ready', 'response', 'complete') + (('invitation_browser',)
+                if name == self.owner.BFF_INVITATION_REGISTRATION_CASE else ())
+            for phase in phases:
+                reasons = self.owner.BFF_INVITATION_REASONS | {'deadline_input'}
+                if phase == 'ready': reasons |= {'deadline_compile', 'deadline_build', 'deadline_start'}
+                for reason in reasons:
+                    message = f'BFF native fixture did not reach the closed {phase}/{reason} phase.'
+                    expected = {'stage': 'bff_invitation', 'phase': phase, 'reason': reason}
+                    for prefix in ('', 'System.InvalidOperationException : '):
+                        self.assertEqual(expected, parse(case, {'ErrorMessage': prefix + message,
+                            'Messages': ['PRIVATE-CANARY'], 'ErrorStackTrace': 'PRIVATE-CANARY'}))
+            for message, reason in self.owner.BFF_INVITATION_FIXED_FAILURES.items():
+                self.assertEqual({'stage': 'bff_invitation', 'reason': reason}, parse(case, {'ErrorMessage': message}))
+            for bad in (None, 3, 'PRIVATE-CANARY', 'x' * 65537,
+                        'System.InvalidOperationException : System.InvalidOperationException : ' + self.owner.BFF_INVITATION_WITNESS_FAILURE,
+                        'BFF native fixture did not reach the closed ready/deadline_compile phase. PRIVATE-CANARY',
+                        'BFF native fixture did not reach the closed response/deadline_build phase.',
+                        'BFF native fixture did not reach the closed browser_result/deadline_input phase.',
+                        'BFF native fixture did not reach the closed ready/PRIVATE-CANARY phase.',
+                        'BFF native fixture did not reach the closed ready/browser-spawn_cleanup_cleanup-owner phase.',
+                        'BFF native fixture completed without a successful exit.',
+                        'BFF native fixture private input failed.\n'):
+                self.assertIsNone(parse(case, {'ErrorMessage': bad}))
+            self.assertIsNone(parse({**case, 'name': name + '_other'}, {'ErrorMessage': 'BFF native fixture private input failed.'}))
+            self.assertIsNone(parse({**case, 'assembly': 'other'}, {'ErrorMessage': 'BFF native fixture private input failed.'}))
+        registration = self.case(1, self.owner.BFF_INVITATION_REGISTRATION_CASE)
+        existing = self.case(2, self.owner.BFF_INVITATION_EXISTING_CASE)
+        self.assertEqual({'stage': 'bff_invitation', 'reason': 'invitation_witness'},
+                         parse(registration, {'ErrorMessage': self.owner.BFF_INVITATION_WITNESS_FAILURE}))
+        self.assertIsNone(parse(existing, {'ErrorMessage': self.owner.BFF_INVITATION_WITNESS_FAILURE}))
+        self.assertIsNone(parse(existing, {'ErrorMessage':
+            'BFF native fixture did not reach the closed invitation_browser/deadline_input phase.'}))
+
+    def test_bff_invitation_checkpoint_exports_only_the_finite_projection(self):
+        case = self.case(1, self.owner.BFF_INVITATION_REGISTRATION_CASE)
+        stream, console, checkpoints = io.StringIO(), io.StringIO(), []
+        progress = self.progress(self.root / 'invitation.diag', 'LearnStack.Tests.Integration', [case], stream)
+        progress.checkpoint_failure = lambda locations: checkpoints.append(json.loads(json.dumps(locations)))
+        item = self.execution_result(case, outcome=2)
+        item['ErrorMessage'] = 'BFF native fixture did not reach the closed invitation_browser/deadline_input phase.'
+        item['ErrorStackTrace'] = '/private/PRIVATE-CANARY/BffNativeDriver.cs:line 284'
+        item['Messages'] = [{'Category': 'StdOutMsgs', 'Text': 'PRIVATE-CANARY email code URI'}]
+        with contextlib.redirect_stdout(console):
+            progress.results({'NewTestResults': [item]})
+        expected = {'stage': 'bff_invitation', 'phase': 'invitation_browser', 'reason': 'deadline_input'}
+        self.assertEqual(expected, progress.failure_locations[0]['details'])
+        self.assertEqual(progress.failure_locations, checkpoints[0])
+        self.assertFalse(progress.completed)
+        for rendered in (json.dumps(checkpoints), stream.getvalue(), console.getvalue()):
+            for private in ('PRIVATE-CANARY', '/private/', 'email code URI'):
+                self.assertNotIn(private, rendered)
+
+    def test_bff_entry_details_are_exact_case_phase_and_source_bound(self):
+        driver = (ROOT / 'backend/tests/LearnStack.Tests.Integration/TenancyIdentity/BffNativeDriver.cs').read_text()
+        journey = (ROOT / 'backend/tests/LearnStack.Tests.Integration/TenancyIdentity/TenantBffSessionTests.Native.cs').read_text()
+        session = (ROOT / 'frontend/apps/web/scripts/verify-bff-session.mjs').read_text()
+        self.assertIn(self.owner.BFF_ENTRY_FAILURE_CASE.rsplit('.', 1)[1] + '()', journey)
+        self.assertIn('await native.EntryBrowserAsync(', journey)
+        self.assertIn('await ReadAsync("entry_browser")', driver)
+        self.assertIn("phase: 'entry_browser'", session)
+        reader = driver.split('internal static async Task<string?> ReadErrorsAsync(', 1)[1].split(
+            'public ValueTask DisposeAsync()', 1)[0]
+        self.assertIn('stage + "_unexpected_output"', reader)
+        self.assertIn('stage + "_cleanup_failed"', reader)
+        self.assertIn('var lastStage = "input";', driver)
+        self.assertIn('phase is "ready" or "held-build" && actual == "progress"', driver)
+        node_reasons = set(re.findall(r'\("[^"]+", "(node_[a-z_]+)"\)', reader))
+        self.assertEqual({'node_module_missing', 'node_syntax', 'node_abort', 'node_permission'}, node_reasons)
+        reasons = self.owner.BFF_BROWSER_FAILURE_STAGES | {
+            stage + suffix for stage in self.owner.BFF_BROWSER_FAILURE_STAGES
+            for suffix in ('_unexpected_output', '_cleanup_failed')
+        } | node_reasons | {'response', 'exit', 'output', 'unexpected_output'}
+        self.assertEqual(reasons, self.owner.BFF_INVITATION_REASONS)
+        case = self.case(1, self.owner.BFF_ENTRY_FAILURE_CASE)
+        for reason in reasons | {'deadline_input'}:
+            message = f'BFF native fixture did not reach the closed entry_browser/{reason} phase.'
+            for prefix in ('', 'System.InvalidOperationException : '):
+                self.assertEqual({'stage': 'bff_entry', 'phase': 'entry_browser', 'reason': reason},
+                    self.owner.closed_failure_details(case, {'ErrorMessage': prefix + message,
+                        'Messages': ['PRIVATE-CANARY'], 'ErrorStackTrace': 'PRIVATE-CANARY'}))
+
+    def test_bff_entry_details_refuse_other_cases_phases_and_private_or_unknown_suffixes(self):
+        case = self.case(1, self.owner.BFF_ENTRY_FAILURE_CASE)
+        parse = self.owner.closed_failure_details
+        message = 'BFF native fixture did not reach the closed entry_browser/browser-devtools phase.'
+        for changed in ({**case, 'assembly': 'other'}, {**case, 'name': case['name'] + '_other'},
+                        self.case(2, self.owner.BFF_INVITATION_REGISTRATION_CASE), self.case(3)):
+            self.assertIsNone(parse(changed, {'ErrorMessage': message}))
+        for bad in (None, 3, 'PRIVATE-CANARY', 'x' * 65537, message + '\n', message + ' PRIVATE-CANARY',
+                    message.replace('browser-devtools', 'browser-devtools_PRIVATE-CANARY'),
+                    message.replace('browser-devtools', 'browser-spawn_cleanup_cleanup-owner'),
+                    message.replace('browser-devtools', 'deadline_compile'),
+                    message.replace('browser-devtools', 'deadline_build'),
+                    message.replace('browser-devtools', 'deadline_start'),
+                    'System.InvalidOperationException : System.InvalidOperationException : ' + message,
+                    'BFF entry browser receipt has an invalid closed shape.'):
+            self.assertIsNone(parse(case, {'ErrorMessage': bad}))
+        for phase in ('ready', 'response', 'complete', 'invitation_browser', 'browser_result'):
+            self.assertIsNone(parse(case, {'ErrorMessage': message.replace('entry_browser', phase)}))
+        startup = ('Keycloak fixture startup failed at provider_start/unsupported_operation; '
+                   'owned cleanup completed.')
+        self.assertIsNone(parse(case, {'ErrorMessage': startup}))
+        self.assertEqual({'stage': 'provider_start', 'reason': 'unsupported_operation', 'cleanup': 'completed'},
+                         parse(self.case(2, 'LearnStack.Tests.Integration.TenancyIdentity.'
+                             'TenantRealmIssuanceTests.Proof'), {'ErrorMessage': startup}))
+
+    def test_bff_entry_checkpoint_is_finite_failed_only_and_not_completion_authority(self):
+        case = self.case(1, self.owner.BFF_ENTRY_FAILURE_CASE)
+        message = 'System.InvalidOperationException : BFF native fixture did not reach the closed entry_browser/browser-devtools phase.'
+        expected = {'stage': 'bff_entry', 'phase': 'entry_browser', 'reason': 'browser-devtools'}
+        for outcome in (1, 2):
+            stream, console, checkpoints = io.StringIO(), io.StringIO(), []
+            progress = self.progress(self.root / ('entry-' + str(outcome) + '.diag'),
+                                     'LearnStack.Tests.Integration', [case], stream)
+            measurement = self.root / ('entry-' + str(outcome) + '.json')
+            def checkpoint(locations):
+                self.owner.write_json(measurement, {'projects': [{'failureLocations': locations}]})
+                checkpoints.append(json.loads(measurement.read_text()))
+            progress.checkpoint_failure = checkpoint
+            item = self.execution_result(case, outcome)
+            item['ErrorMessage'] = message
+            item['ErrorStackTrace'] = '/private/PRIVATE-CANARY/BffNativeDriver.cs:line 191'
+            item['Messages'] = [{'Category': 'StdOutMsgs',
+                                 'Text': 'PRIVATE-CANARY provider cookie subject https://private.invalid'}]
+            with contextlib.redirect_stdout(console):
+                progress.results({'NewTestResults': [item]})
+            self.assertEqual(bool(checkpoints), outcome == 2)
+            self.assertEqual(bool(progress.failure_locations), outcome == 2)
+            if outcome == 2:
+                self.assertEqual(expected, checkpoints[0]['projects'][0]['failureLocations'][0]['details'])
+                self.assertEqual([{'source': 'bff_native_driver', 'line': 191}],
+                                 progress.failure_locations[0]['locations'])
+            self.assertFalse(progress.completed, 'Diagnostic checkpoints never complete execution')
+            self.refuses('execution_incomplete', progress.poll, final=True)
+            for rendered in (json.dumps(checkpoints), stream.getvalue(), console.getvalue()):
+                for private in ('PRIVATE-CANARY', '/private/', 'https://private.invalid',
+                                'provider cookie subject', 'BFF native fixture'):
+                    self.assertNotIn(private, rendered)
+        output = self.root / 'entry-output'
+        path = self.trx(output / 'results', [case], outcome='Failed', raw_canary=True)
+        tree = ET.parse(path)
+        raw_output = tree.find('t:Results/t:UnitTestResult/t:Output', self.owner.NS)
+        tag = lambda name: '{' + self.owner.NS['t'] + '}' + name
+        ET.SubElement(ET.SubElement(raw_output, tag('ErrorInfo')), tag('Message')).text = message
+        tree.write(path, encoding='utf-8')
+        self.assertEqual('Failed', self.owner.trx_cases(path, sanitize=True)[0]['outcome'])
+        self.assertEqual([], ET.parse(path).findall('.//t:Output', self.owner.NS))
+        self.refuses('results_incomplete', self.owner.validate_results, output, [case])
 
     def test_bff_browser_details_preserve_only_existing_closed_reasons_and_journey(self):
         case = {**self.case(1), 'name': self.owner.BFF_BROWSER_FAILURE_CASE}
@@ -3435,7 +3611,7 @@ except launcher.Refusal as failure:
         ordinary = source.split('  backend-integration-tests:\n', 1)[1].split('\n  # ───', 1)[0]
         native = source.split('  backend-native:\n', 1)[1].split('\n  # ───', 1)[0]
         aggregate = source.split('  backend-integration:\n', 1)[1].split('\n  # ───', 1)[0]
-        for mode, block, minutes in (('ordinary-${{ matrix.index }}', ordinary, 30), ('native-shard', native, 20)):
+        for mode, block, minutes in (('ordinary-${{ matrix.index }}', ordinary, 45), ('native-shard', native, 20)):
             self.assertIn('timeout-minutes: ' + str(minutes), block)
             self.assertLess(block.index('LEARNSTACK_CI_STARTED_AT='), block.index('uses: actions/checkout@'))
             self.assertIn('python3 scripts/ci-native-tests.py ' + mode, block)
